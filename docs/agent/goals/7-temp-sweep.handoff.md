@@ -34,4 +34,5 @@ liveness, never age, and every ambiguity resolves toward *skip*.
   first creates it, the other reuses it; its per-platform edges are a standing decision in the goal
   prose.
 - When this goal's last check goes green the driver takes goal 8 — `Core\Program::id()`,
-  `docs/agent/goals/8-program-id.md`. The chain runs to goal 15; M4B is its last four entries.
+  `docs/agent/goals/8-program-id.md`. The chain runs to goal 17; M4B is entries 12–15, and 16–17 are the
+  request-body and test-request pair the user added after it was written.

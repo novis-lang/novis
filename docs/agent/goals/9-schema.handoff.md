@@ -43,4 +43,4 @@ including the steps `apply` refuses.
 - Stage 6 crosses into `nvs-stdlib` and `nvs-cli` for the first time; stage 7 goes back to
   `crates/nvs-stdlib/src/queue.rs` alone.
 - When this goal's last check goes green the driver takes goal 10 — ADR 0136's typed `callable`. The
-  chain runs to goal 15; M4B is its last four entries.
+  chain runs to goal 17; M4B is entries 12–15, and 16–17 are the request-body and test-request pair.

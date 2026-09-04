@@ -1,0 +1,255 @@
+# Goal 16 -- a body is read once, and JSON is one of the ways to read it. The acceptance test, as data.
+#
+# `16-request-json.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. The exception goal 6's file records
+# still holds and is narrower here than it was there: a `want` naming a fact no `nvs run` leg can produce
+# is a mis-filed check -- but stage 2 is what makes an inbound request one of the facts a leg CAN produce,
+# so after it lands that excuse stops applying to this goal's own fixtures.
+
+files = [
+  "examples/json-body.nvs",
+]
+
+[context]
+
+modules = [
+  # The four body readers, `claim_body`/`claim_form`, and where the two new rows go.
+  "crates/nvs-stdlib/src/request.rs",
+  # `crate::json::read` and the `{maxDepth?}` bag both members reuse; no second JSON reader.
+  "crates/nvs-stdlib/src/json.rs",
+  # `Inbound` -- the claim, `hold_form`/`hold_parts`, and the three calls that build one.
+  "crates/nvs-runtime/src/ctx.rs",
+  # The `.nvst` format's own home: the section table in the module doc, and the parse.
+  "crates/nvs-test/src/lib.rs",
+  "crates/nvs-test/src/case.rs",
+  # Where `nvs run` builds its `Ctx` -- the seam `--request` sets an inbound on.
+  "crates/nvs-cli/src/main.rs",
+  # The worked example of building an `Inbound` from a real request.
+  "crates/nvs-cli/src/serve.rs",
+  # The registry cards, and the gates that read them.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+rules = ["0105", "0097", "0079", "0095", "0024", "0063", "0117", "0012", "0004", "0051"]
+
+# Sections, not whole ADRs: 0105 § 2 is the buffering `files` does, 0079 §§ 18 and 23 are the two
+# sentences this goal amends, 0097 § 8 is the body-and-streaming-reader section the new rule replaces.
+adrs = ["0105 §2", "0097 §8", "0079 §18", "0079 §23"]
+
+shapes = [
+  "A `Core` member — the five edits",
+  "A `.nvst` test case",
+  "An ADR",
+  "A commit message",
+  "A diagnostic",
+]
+
+playbook = [
+  'Writing a test case > a .nvst case can write',
+  'Writing a test case > a new core member owes three conformance cases, not one, and the',
+  'Writing a test case > registering a core member',
+  'Writing a test case > the coverage gate matches',
+  'Writing a test case > a -p nvs-stdlib test can hand a core member a real',
+  'Writing a test case > a --run--',
+  'Writing Novis itself > core is',
+  'Writing Novis itself > a new core member owes',
+  'Running things > nvshelper! takes',
+  'Running things > value::asstrbytes and',
+  'Tooling > a core class',
+  'Tooling > a docs/reference/core/<class>.md',
+  "Tooling > nvs-stdlib's gates",
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goal 4's Redis tier, goal 5's drivers and goal 6's session store, all of which need
+# containers. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- the catch-up: the cases written against the rule stage 3 replaces. A "0" stage runs before
+# the native leg, so an unfinished catch-up is what the ledger names. Goal prose stage 0.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "0 catch-up"
+name = "conformance (the refusals that survive the new rule)"
+args = ["test", "tests/conformance/"]
+cases = [
+  # Still true, and true for a different reason than exclusivity: ADR 0012 § 7's "no request arrived".
+  "tests/conformance/core/a-request-refuses-every-read-when-no-request-arrived.nvst",
+  # Re-pointed at ADR 0139: `post` reads a body another buffering reader already held.
+  "tests/conformance/core/a-request-post-reads-a-body-another-reader-held.nvst",
+  "tests/conformance/core/a-request-post-refuses-before-it-reads-the-name-it-was-given.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a `.nvst` case can answer a request. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the sections"
+name = "nvs-test (the five request sections)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "a_get_section_becomes_the_requests_query_string",
+  "a_post_section_becomes_a_urlencoded_body",
+  "a_post_raw_section_is_the_body_verbatim",
+  "a_headers_section_pushes_one_line_per_field",
+  "a_cookie_section_becomes_one_cookie_header",
+  # Two spellings of one body, refused rather than merged.
+  "a_post_and_a_post_raw_section_together_are_a_parse_error",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the sections"
+name = "nvs-cli (`nvs run --request` builds the inbound)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_request_file_becomes_the_inbound_the_program_answers",
+  "a_run_without_a_request_file_answers_no_request",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the sections"
+name = "conformance (a case that answers a request)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-reads-the-body-a-post-raw-section-sent.nvst",
+  "tests/conformance/core/a-request-reads-a-field-a-post-section-sent.nvst",
+  "tests/conformance/core/a-request-reads-a-header-and-a-cookie-a-section-sent.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the rule: buffering readers share, streaming readers consume. ADR 0139. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the rule"
+name = "nvs-stdlib (ADR 0139 -- who may read a body)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_buffering_reader_may_follow_another_buffering_reader",
+  "a_streaming_reader_refuses_every_later_reader",
+  "body_answers_the_same_octets_on_every_call",
+  # The exception that stops being one: `files` buffers what `post` then reads.
+  "post_reads_the_fields_a_files_walk_buffered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the rule"
+name = "conformance (the rule, in language)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
+  "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the members: json() and jsonAs<T>(). Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "nvs-stdlib (Core\\Request::json and jsonAs)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "json_decodes_the_body_and_the_second_call_answers_the_held_value",
+  "json_as_hydrates_a_declared_type_and_never_shares_an_object",
+  "an_absent_or_empty_body_is_a_parse_error_for_json",
+  "json_ignores_the_content_type_the_peer_declared",
+  "json_and_json_as_share_one_reading_of_one_body",
+]
+
+# The three gates that hold the spec, the registry and the case tree together. Named rather than left to
+# `cargo test`: a suite is green when the member was never added to the spec bullet it is read from.
+[[check]]
+kind = "cargo-named"
+stage = "4 the members"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the members"
+name = "conformance (three cases each, and the taint refusal)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-reads-its-body-as-json.nvst",
+  "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst",
+  "tests/conformance/core/a-malformed-json-body-is-a-parse-error.nvst",
+  "tests/conformance/core/a-request-hydrates-its-body-into-a-declared-type.nvst",
+  "tests/conformance/core/a-json-body-missing-a-declared-field-is-refused.nvst",
+  "tests/conformance/core/a-json-body-past-max-depth-is-refused.nvst",
+  # ADR 0024: the body is tainted, so a `T` whose text fields are unqualified is a compile error.
+  "tests/conformance/reject/a-json-body-hydrated-into-an-unqualified-type-is-refused.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the proofs: the runnable fixture. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "5 the proofs"
+file = "examples/json-body.nvs"
+# This leg runs under `nvs run --request`, which stage 2 builds -- so unlike goal 6's `upload.nvs` and
+# `session.nvs`, a body's own facts ARE assertable here.
+want = [
+  "method is Post",
+  "name is ada",
+  "the second read answers the same document",
+  "a malformed body is a ParseError",
+  "an empty body is a ParseError",
+  "the declared content type is not consulted",
+]
+
+# Two new members and a new hand-written page for `Core\Request`, so the one-file reference moves. It is
+# generated from `nvs meta --json` and never edited, which is what makes a stale card fail here.
+[[check]]
+kind = "command"
+stage = "5 the proofs"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]

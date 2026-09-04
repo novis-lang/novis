@@ -21,7 +21,18 @@ own tree half already done**.
 [13 surface](13-surface.md), [14 lsp-server](14-lsp-server.md) and [15 editor](15-editor.md). Goal 13 is
 not editor work: it is ADR 0098's pipeline operator and ADR 0124's PHP 8.6 refusals, the two M1 items
 scheduled after M4 and never taken, and it sits before the grammar because a grammar written against a
-surface about to change is written twice. Goal 15 is the last entry on the chain.
+surface about to change is written twice.
+
+**Then two entries the user added after the chain was written**, both about the same thing from two sides:
+what a program may read off a request, and what a test may say to build one.
+[16 request-json](16-request-json.md) replaces spec § 15's three-way body exclusivity with ADR 0139's
+*buffering readers share, streaming readers consume*, adds `Core\Request::json()`/`jsonAs<T>()`, and gives
+`.nvst` the `.phpt` request sections — without which no request-facing member can be proven by a case at
+all. [17 test-request](17-test-request.md) freezes `Core\Test::request`'s shape (ADR 0079 § 18 has an
+example and no signature), builds it as one shared `InboundSpec`, and lands the peer fields that
+`Core\Request::clientIp`/`scheme`/`host` have been waiting on. They are last rather than beside goal 6
+because they were decided after it, and goal 16's stage 0 is what pays off the fixtures goal 6 wrote
+against the rule it replaces. Goal 17 is the last entry on the chain.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -55,6 +66,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [13 surface](13-surface.md) | M1 items 5-6, ADR 0098 + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
 | [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + ADR 0101 | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
+| [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
+| [17 test-request](17-test-request.md) | M8, ADR 0079 § 18 | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 
 ## The chain contract
 

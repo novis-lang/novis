@@ -40,5 +40,7 @@ its lint config and npm scripts), plus the four `.gitignore` lines.
   *unrunnable* — no display, no cached VS Code build — says so here and does not spend the session on it.
 - **Off path:** `nvs fmt`, rename, extract, workspace symbol search, inlay hints, signature help,
   `documentHighlight`, the Test Explorer, PhpStorm, and publishing to the Marketplace.
-- **When this goal's last check goes green the chain is finished**, and with it M4B. What remains of the
-  milestone table is M9 onward; nothing is staged behind this entry.
+- **When this goal's last check goes green M4B is finished**, and the driver takes goal 16 — the body
+  rule and `Core\Request::json()`/`jsonAs<T>()` — then goal 17, `Core\Test::request`'s shape, which ends
+  the chain. Both were added after this file was written and neither touches this tree. What remains of
+  the milestone table after them is M9 onward.

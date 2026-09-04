@@ -172,3 +172,28 @@ toml = "docs/agent/goals/15-editor.toml"
 handoff = "docs/agent/goals/15-editor.handoff.md"
 milestone = "M4B"
 preflight = "docker"
+
+# ADR 0139's body rule and the two JSON body readers, plus the `.nvst` request sections that make any of
+# it provable in language. It is here rather than beside goal 6 because it was decided after that goal was
+# written, and the rule it replaces is one goal 6 landed: a fixture written against the old wording in the
+# meantime is a fixture rewritten twice, which is what its stage 0 pays off. Docker preflight because its
+# floor is goal 15's.
+[[goal]]
+name = "16 request-json"
+md = "docs/agent/goals/16-request-json.md"
+toml = "docs/agent/goals/16-request-json.toml"
+handoff = "docs/agent/goals/16-request-json.handoff.md"
+milestone = "M7"
+preflight = "docker"
+
+# `Core\Test::request`'s shape, frozen, and the peer fields that fall out of its options bag -- which are
+# what `Core\Request::clientIp`/`scheme`/`host` have been waiting on. After goal 16 because it re-points
+# that goal's `.nvst` sections at one shared builder, so the sections have to exist first. The dispatch
+# half of ADR 0079 § 18 stays M8's. This is the last entry on the chain.
+[[goal]]
+name = "17 test-request"
+md = "docs/agent/goals/17-test-request.md"
+toml = "docs/agent/goals/17-test-request.toml"
+handoff = "docs/agent/goals/17-test-request.handoff.md"
+milestone = "M8"
+preflight = "docker"

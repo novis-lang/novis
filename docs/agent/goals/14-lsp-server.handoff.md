@@ -39,4 +39,6 @@ and the driver has no other way to see an answer that nothing prints.
 - **Off path:** anything under `editors/`, the TextMate grammars, `nvs fmt`, rename, extract, workspace
   symbol search, inlay hints, signature help, `documentHighlight`. The first three of those look adjacent
   to this goal and are not — ADR 0108 owns them at M10.
-- When this goal's last check goes green the chain advances to goal 15 — `editors/vscode`, the last entry.
+- When this goal's last check goes green the chain advances to goal 15 — `editors/vscode`, the last of
+  M4B's four. Two entries follow it: goal 16 (the body rule and the JSON readers) and goal 17
+  (`Core\Test::request`'s shape), added after this file was written.

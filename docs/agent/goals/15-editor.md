@@ -5,7 +5,8 @@ Build the extension: TypeScript, outside the Cargo workspace, exactly where
 [docs/plan/m4b.md](../../plan/m4b.md) is the scope; ADR 0099 §§ 4 and 6 are the colour lists and the frozen
 contribution roster, and **neither is a starting point to improve on during the run**.
 
-This is the last entry on the chain and the only one whose source is not Rust. Two things follow from that
+This is M4B's last entry and the only one on the chain whose source is not Rust — goals 16 and 17 follow
+it, and neither touches this tree. Two things follow from that
 and every session should hold them. **The extension holds no language logic** — enforced by a
 dependency-allowlist test rather than by review, because "we'll keep it thin" is not a check. And
 **Novis ships no colours**: every scope name comes from the standard TextMate vocabulary and every token

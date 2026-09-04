@@ -29,4 +29,4 @@ the id cannot be a compile-time-folded constant.
   shares no files with stage 2 except the ctx seam — a session that lands stage 2 with headroom starts
   the ADR amendment, which is prose and cheap.
 - When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`. The chain runs to
-  goal 15; M4B is its last four entries.
+  goal 17; M4B is entries 12–15, and 16–17 are the request-body and test-request pair.

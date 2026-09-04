@@ -1,0 +1,205 @@
+# Goal 17 -- the request a test builds, and the peer facts it carries. The acceptance test, as data.
+#
+# `17-test-request.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# This is the chain's last entry. When its list goes green there is no goal 18 to switch to, and the
+# driver stops with the chain exhausted rather than with a failure.
+
+files = [
+  "examples/request-fields.nvs",
+]
+
+[context]
+
+modules = [
+  # `Inbound` and the new `InboundSpec` beside it -- the one home for a request as data.
+  "crates/nvs-runtime/src/ctx.rs",
+  # The three members off the known-gap list, and where their rows go.
+  "crates/nvs-stdlib/src/request.rs",
+  # ADR 0097 § 6's walk: it already answers the client address and the effective scheme.
+  "crates/nvs-server/src/forwarded.rs",
+  # Where a served request becomes an `Inbound`.
+  "crates/nvs-server/src/serve.rs",
+  # The dev server's build of one, and `nvs run --request`'s.
+  "crates/nvs-cli/src/serve.rs",
+  "crates/nvs-cli/src/main.rs",
+  # Goal 16's sections, re-pointed at the builder.
+  "crates/nvs-test/src/case.rs",
+  # The registry cards for the three members.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+rules = ["0079", "0097", "0077", "0024", "0095", "0063", "0117", "0012", "0004"]
+
+# 0079 § 18 is the section this goal amends; 0097 § 6 is the walk it finally carries; 0079 § 10 is the
+# double, which is what a test uses INSTEAD of this for a service and is worth knowing is not this.
+adrs = ["0079 §18", "0097 §6", "0079 §10"]
+
+shapes = [
+  "A `Core` member — the five edits",
+  "A `.nvst` test case",
+  "An ADR",
+  "A commit message",
+]
+
+playbook = [
+  'Writing a test case > a .nvst case can write',
+  'Writing a test case > a new core member owes three conformance cases, not one, and the',
+  'Writing a test case > registering a core member',
+  'Writing a test case > the coverage gate matches',
+  'Writing a test case > a -p nvs-stdlib test can hand a core member a real',
+  'Writing Novis itself > core is',
+  'Writing Novis itself > a new core member owes',
+  'Running things > nvshelper! takes',
+  'Running things > value::asstrbytes and',
+  'Tooling > a core class',
+  'Tooling > a docs/reference/core/<class>.md',
+  "Tooling > nvs-stdlib's gates",
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: one builder, one home. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the builder"
+name = "nvs-runtime (InboundSpec -- a request as data)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_spec_becomes_an_inbound_with_every_field_it_named",
+  "a_form_field_encodes_urlencoded_and_sets_its_content_type",
+  "a_json_field_encodes_the_value_and_sets_its_content_type",
+  "a_files_field_builds_a_multipart_body_with_a_boundary",
+  "a_cookies_field_becomes_one_cookie_header",
+  # ADR 0095: four spellings of one field, and two of them is a refusal naming both.
+  "two_body_spellings_in_one_spec_are_refused",
+]
+
+# One home, proved rather than asserted: goal 16's sections build a spec now, not an `Inbound`.
+[[check]]
+kind = "cargo-named"
+stage = "2 the builder"
+name = "nvs-test (the sections go through the builder)"
+args = ["test", "-p", "nvs-test"]
+tests = [
+  "the_request_sections_build_an_inbound_spec",
+  "a_post_and_a_post_raw_section_together_are_a_parse_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the peer facts, and the three members waiting on them. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the peer facts"
+name = "nvs-stdlib (clientIp, scheme and host)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "client_ip_answers_the_peer_the_carrier_holds",
+  "scheme_answers_what_the_carrier_was_told_the_request_arrived_over",
+  "host_answers_the_authority_the_request_named",
+  "all_three_peer_members_are_tainted",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the peer facts"
+name = "nvs-server (ADR 0097 § 6's walk reaches the carrier)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_forwarded_walks_answer_is_set_on_the_inbound",
+  "an_untrusted_peers_forwarded_header_does_not_reach_the_carrier",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the peer facts"
+name = "conformance (three cases each, over a built request)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-answers-the-client-address-its-carrier-holds.nvst",
+  "tests/conformance/core/a-request-answers-the-scheme-it-was-decided-to-have.nvst",
+  "tests/conformance/core/a-request-answers-the-host-it-named.nvst",
+  "tests/conformance/core/a-forwarded-header-from-an-untrusted-peer-is-not-believed.nvst",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 the peer facts"
+file = "examples/request-fields.nvs"
+# Run under `nvs run --request` (goal 16 stage 2), so every field of the bag is exercised end to end --
+# including the three facts no `nvs run` leg could assert before this goal.
+want = [
+  "method is Post",
+  "path is /users/1",
+  "query id is 7",
+  "header accept is application/json",
+  "cookie session is opaque",
+  "field name is ada",
+  "client ip is 203.0.113.7",
+  "scheme is https",
+  "host is example.test",
+]
+
+[[check]]
+kind = "command"
+stage = "3 the peer facts"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the signature, frozen. Goal prose stage 4.
+#
+# The § 13 roster is prose and nothing gates it -- `spec_registry_coverage.rs:583` excludes that section
+# on purpose and this goal does not change that. What IS checkable is that the three members it registers
+# are read by the gates that DO run, which is the check below.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the signature"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
