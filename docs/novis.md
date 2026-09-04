@@ -114,6 +114,8 @@ Conventions the whole file uses:
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Request`](#core-core-request) |  |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) |  |
+| [`Core\Request\Files`](#core-core-request-files) |  |
+| [`Core\Request\Part`](#core-core-request-part) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -15759,7 +15761,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
+Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files
 
 | Member | Signature |
 |---|---|
@@ -15772,6 +15774,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
 | [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
+| [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15902,6 +15905,19 @@ The request body as a walk over its chunks — the streaming way of reading one,
 
 **Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `files` — the three are exclusive on one request, and naming this walk is the reading.
 
+<a id="core-core-request-files"></a>
+#### `Core\Request::files`
+
+```nvs skip
+Core\Request::files(): Core\Request\Files
+```
+
+The uploaded files this request carries, as a walk over its parts — the one way to receive one, replacing `$_FILES` and `move_uploaded_file` with a stream that never lands in a temporary directory.
+
+**Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>` a `foreach` walks once, yielding each file part as it comes off the wire. Ordinary form fields are not parts of this walk: they are buffered as the walk passes them and read back through `post`. Empty where the request declared no `multipart/form-data` body, which is what a request carrying no upload is.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — the three are exclusive on one request, and naming this walk is the reading.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one — no `boundary`, two of them, or one outside RFC 2046's grammar — or what arrived is not the body it declared. An ambiguous body is refused rather than guessed at.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
 
@@ -15909,6 +15925,58 @@ Keywords:
 
 | Member | Signature |
 |---|---|
+
+<a id="core-core-request-files"></a>
+### `Core\Request\Files`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
+
+<a id="core-core-request-part"></a>
+### `Core\Request\Part`
+
+Keywords: name, filename, contentType
+
+| Member | Signature |
+|---|---|
+| [`Core\Request\Part->name`](#core-core-request-part-name) | `name(): tainted string` |
+| [`Core\Request\Part->filename`](#core-core-request-part-filename) | `filename(): tainted string` |
+| [`Core\Request\Part->contentType`](#core-core-request-part-contenttype) | `contentType(): tainted string` |
+
+<a id="core-core-request-part-name"></a>
+#### `Core\Request\Part->name`
+
+```nvs skip
+$part->name(): tainted string
+```
+
+The form field this file arrived under — the `name` attribute of the `<input>`, as the peer sent it back.
+
+**Returns** `tainted string` — The field name, `tainted` because the peer chose it: a client is free to send a name the form never declared, so it is untrusted input like every other byte of the part.
+
+<a id="core-core-request-part-filename"></a>
+#### `Core\Request\Part->filename`
+
+```nvs skip
+$part->filename(): tainted string
+```
+
+The file name the client claimed — a claim about a file on someone else's machine, and never a path on this one.
+
+**Returns** `tainted string` — The claimed name, `tainted`. It reaches no path sink without `Core\IO::within` laundering it, which is what keeps a peer from choosing where its own upload lands.
+
+<a id="core-core-request-part-contenttype"></a>
+#### `Core\Request\Part->contentType`
+
+```nvs skip
+$part->contentType(): tainted string
+```
+
+The media type this part declared, which is what the client said the bytes are and not what they turn out to be.
+
+**Returns** `tainted string` — The declared type, `tainted`, or `text/plain` where the part declared none — RFC 7578 § 4.4's default. A program that needs to know what the bytes *are* reads the bytes.
 
 <a id="core-core-response"></a>
 ### `Core\Response`
@@ -20423,6 +20491,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
 | `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
 | `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction ([ADR 0105](adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
+| `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file ([ADR 0105](adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) § 4) |
 | `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
 | `set_include_path` | dropped | same, and it is process-global besides |
 | `stream_resolve_include_path` | dropped | same. Resolving a path the program does name is `Core\IO::canonicalize`, and proving it is inside a base is `Core\IO::within` |
