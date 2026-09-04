@@ -795,7 +795,7 @@ mod tests {
     fn a_child_writes_the_request_s_statics_and_its_siblings_see_it() {
         let mut sched = Scheduler::new();
         let mut parent = ctx();
-        parent.install_statics(&[None]);
+        parent.install_statics(Rc::from(vec![None]));
         let total = Rc::new(std::cell::Cell::new(0_i64));
         let seen = Rc::clone(&total);
 

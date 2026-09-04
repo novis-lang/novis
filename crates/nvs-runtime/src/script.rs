@@ -33,6 +33,53 @@
 //! seam fixes is only the shape both ends agree on, and the argument's
 //! ownership, which [`Program`]'s own doc states in full.
 //!
+//! # Why ADR 0006's *other* entry form never reaches this seam
+//!
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* gives
+//! `spawn script` two operands: a path, and a `Class::method(...)` reference.
+//! Only the first one is a question for a resolver, and the difference is not a
+//! convenience — it is the whole of what a resolver is for. A path is a name
+//! nothing in this process has compiled yet, so answering it means the front
+//! end, `nvs-ir`, `nvs-codegen` and a unit cache. **A method is code the
+//! parent's own unit already contains**: `nvs-types` resolved it at compile
+//! time, and `nvs-codegen` emitted it under the label `"{class}::{method}"`,
+//! reachable through the class descriptor's method table by
+//! [`crate::call_static`]. There is nothing left to compile, so there is
+//! nothing to ask.
+//!
+//! That leaves one real question — *which* unit — and the answer is that the
+//! child never has to name one. Two things reach it from the parent's context
+//! and they are the two halves of "an isolate shares nothing but compiled
+//! code":
+//!
+//! - **The class table**, which [`Ctx::isolate`] already clones as the
+//!   [`crate::ErrorClass`] handle. That is what makes `call_static` find both
+//!   the class and the method's address on the child's own context.
+//! - **The unit's static-property recipes**, which [`Ctx::install_statics`]
+//!   keeps when it arms a context, so a child can be armed against the same
+//!   slot numbering with no `Unit` in hand. [`Ctx::method_isolate`] is that one
+//!   call, and its doc owns why the slots are re-materialized rather than
+//!   aliased.
+//!
+//! So a `Resolver` keyed by path stays keyed by path, and gains no notion of a
+//! *running* unit — which it could not hold anyway, being per program where a
+//! unit is per spawn. The alternative considered was widening this trait with a
+//! second operation answering "the unit this thread is running"; it was refused
+//! because it makes every implementor answer for a fact it does not have, and
+//! because the fact already travels on the context that is going to run the
+//! code.
+//!
+//! **The capability question is asked, and it is asked unscoped.**
+//! [`resolve`] below is ADR 0118 § 2's door for a path, and `script.spawn`'s
+//! grant names filesystem roots ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+//! § *Executing code is its own capability*). A method has no path to
+//! canonicalise and prefix-check, but the grant still decides whether this
+//! program spawns isolates at all, so the method form asks `Cap::ScriptSpawn`
+//! with `Scope::Unscoped`: `script.spawn = false` refuses both forms, and a
+//! list of roots grants the method form the way it grants any unscoped ask. No
+//! new code becomes executable either way — the class is in the unit already
+//! running.
+//!
 //! # What it spends
 //!
 //! One machine word pair per thread — a null-checked wide pointer in a

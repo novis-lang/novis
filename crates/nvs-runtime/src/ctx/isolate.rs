@@ -5,13 +5,15 @@
 //! per declared default when the request is armed and [`Ctx`]'s `Drop` releases
 //! them, so nothing outlives the request that wrote it.
 //!
-//! The three constructors are here because they are the same question asked of
+//! The four constructors are here because they are the same question asked of
 //! a *tree* of contexts.
 //! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a tree one
-//! ceiling to divide, so [`Ctx::child`], [`Ctx::isolate`] and
-//! [`Ctx::handler_isolate`] each decide what the new context shares with its
-//! root and what it starts fresh — and the statics are the largest thing it
-//! does *not* share.
+//! ceiling to divide, so [`Ctx::child`], [`Ctx::isolate`],
+//! [`Ctx::method_isolate`] and [`Ctx::handler_isolate`] each decide what the
+//! new context shares with its root and what it starts fresh — and the statics
+//! are the largest thing it does *not* share. They are also the one thing the
+//! fourth has to arm for itself, ADR 0006's method entry being the only child
+//! that runs its parent's unit.
 
 use super::*;
 
@@ -32,7 +34,16 @@ impl Ctx {
     /// reason a static's initializer is restricted to one. A `None` entry is a
     /// static ADR 0022 § 2 required no default of (a nullable or `lateinit`
     /// one) and starts the request at `null`.
-    pub fn install_statics(&mut self, defaults: &[Option<FieldDefault>]) {
+    ///
+    /// **The list is shared, not borrowed, and that is the whole of how a
+    /// method entry works.** Arming a context and being able to arm a *child*
+    /// of it for the same unit are one operation rather than two things to keep
+    /// in step: [`Self::method_isolate`] re-materializes these same recipes for
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// `Class::method` isolate, whose code is the parent's unit's and so has no
+    /// path a resolver could compile. Cost is one `Rc` bump per arming, against
+    /// a list `nvs_codegen::Unit` already owns.
+    pub fn install_statics(&mut self, defaults: std::rc::Rc<[Option<FieldDefault>]>) {
         self.release_statics();
         let mut store: Box<[Value]> = defaults
             .iter()
@@ -47,6 +58,7 @@ impl Ctx {
         // moving a `Box` moves the three words, never the heap buffer.
         self.statics = store.as_mut_ptr();
         self.statics_store = store;
+        self.unit_statics = Some(defaults);
     }
 
     /// How many static-property slots this request holds — the length
@@ -160,6 +172,8 @@ impl Ctx {
     /// it with that unit's own defaults through
     /// [`install_statics`](Ctx::install_statics) — which is
     /// `nvs_codegen::Unit::install_in`'s job, exactly as it is for a request.
+    /// A child whose entry is a *method* has no second unit and therefore no
+    /// second `install_in`, so it is built by [`Self::method_isolate`] instead.
     ///
     /// What crosses is what ADR 0006's table calls request-wide and immutable:
     /// the debug flags, the origin, the runtime error class table (compiled
@@ -216,6 +230,37 @@ impl Ctx {
         // `Core\Task` child's returning is not the end of anything a response
         // could be. `Self::new` above already gave this context its queue and
         // `nvs_host::isolate`'s completion path is what drains it.
+        isolate
+    }
+
+    /// [`Self::isolate`] for [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// **method entry** — a child running a `static` method of the unit *this*
+    /// context is already running, rather than another file.
+    ///
+    /// The one difference from the sibling above is that this constructor arms
+    /// the child's statics itself, and it can only do that here: slot numbering
+    /// is the *parent's* unit's, so the child unit's own `install_in` — which is
+    /// what arms a path entry, from inside the resolver's program — has nothing
+    /// to run and no unit to run it from. Everything else about the child is
+    /// unchanged, including that the store is **fresh**: ADR 0006 keeps class
+    /// statics unshared whichever form the entry took, and re-materializing the
+    /// recipes rather than aliasing the parent's slots is that rule.
+    ///
+    /// A context that was never armed through [`Self::install_statics`] has no
+    /// recipes to hand over and yields a child with an empty store, which is
+    /// [`Self::isolate`] exactly. That is the honest answer rather than a
+    /// failure: a unit declaring no static property arms an empty list, and the
+    /// two are indistinguishable to the compiled code either would run.
+    ///
+    /// **What it spends:** [`Self::isolate`]'s, plus one materialized slot per
+    /// static property the parent's unit declares — the same store a path entry
+    /// pays for its own unit, and released with the child.
+    #[must_use]
+    pub fn method_isolate(&self, output: OutputSink) -> Self {
+        let mut isolate = self.isolate(output);
+        if let Some(defaults) = self.unit_statics.clone() {
+            isolate.install_statics(defaults);
+        }
         isolate
     }
 
@@ -398,21 +443,147 @@ mod tests {
     fn installing_statics_materializes_one_slot_per_declared_default() {
         let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
         assert_eq!(ctx.statics_len(), 0);
-        ctx.install_statics(&[
+        ctx.install_statics(std::rc::Rc::from(vec![
             Some(FieldDefault::Int(3)),
             Some(FieldDefault::Str("hi".to_owned())),
             None,
-        ]);
+        ]));
         assert_eq!(ctx.statics_len(), 3);
         // Re-arming is what a second request on a reused context does: the
         // previous slots are released, never leaked, and the initializers run
         // again rather than the writes of the request before carrying over.
-        ctx.install_statics(&[
+        ctx.install_statics(std::rc::Rc::from(vec![
             Some(FieldDefault::Int(3)),
             Some(FieldDefault::Str("hi".to_owned())),
             None,
-        ]);
+        ]));
         assert_eq!(ctx.statics_len(), 3);
+    }
+
+    /// ADR 0006's method entry: the child runs the *parent's* unit, so the
+    /// recipes the parent was armed with are what arm it — fresh slots at the
+    /// parent's own numbering, and no resolver in the path.
+    #[test]
+    fn a_method_isolate_arms_its_own_slots_from_the_parents_unit() {
+        let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
+        parent.install_statics(std::rc::Rc::from(vec![
+            Some(FieldDefault::Int(3)),
+            Some(FieldDefault::Str("hi".to_owned())),
+        ]));
+
+        let child = parent.method_isolate(OutputSink::Buffer(Vec::new()));
+        assert_eq!(
+            child.statics_len(),
+            2,
+            "the parent's unit declares two, and the child runs that unit"
+        );
+        assert_ne!(
+            child.statics_base(),
+            parent.statics_base(),
+            "fresh, not aliased: ADR 0006 keeps class statics unshared"
+        );
+        // A plain isolate is the other file's, and stays empty until that
+        // file's own unit arms it.
+        let other = parent.isolate(OutputSink::Buffer(Vec::new()));
+        assert_eq!(other.statics_len(), 0);
+
+        // A grandchild works for the same reason the child does: arming a
+        // context is what hands it the recipes, so the chain does not run out.
+        let grandchild = child.method_isolate(OutputSink::Buffer(Vec::new()));
+        assert_eq!(grandchild.statics_len(), 2);
+
+        // And a context nobody armed hands over nothing rather than failing —
+        // indistinguishable from a unit that declares no static property.
+        let bare = Ctx::new(OutputSink::Buffer(Vec::new()));
+        assert_eq!(bare.method_isolate(OutputSink::Sink).statics_len(), 0);
+    }
+
+    /// A stand-in for the compiled `static` method an ADR 0006 method entry
+    /// names: it answers with how many static slots the context it was called
+    /// on holds, which is the one thing such a child has to have been given
+    /// before its first statement runs.
+    ///
+    /// The exit sweep is the callee's ([`crate::dispatch`]): slot 0 is the
+    /// called class and the row declares no parameter, so releasing that one is
+    /// the whole of it.
+    #[expect(
+        unsafe_code,
+        reason = "a compiled callee's signature is `NvsFn`, which is a raw \
+                  pointer contract with no safe spelling -- this is the same \
+                  hand-written stand-in `nvs_stdlib::command`'s dispatch tests \
+                  use, and `call_at` guarantees both pointers for the length of \
+                  the call"
+    )]
+    unsafe extern "C" fn monthly(ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        // SAFETY: `call_at` hands a callee its caller's context and a slot
+        // buffer holding the receiver, both live for this call and neither
+        // aliased while it runs.
+        unsafe {
+            let slots = (*ctx).statics_len();
+            (*args).release();
+            *out = Value::int(i64::try_from(slots).unwrap_or(-1));
+        }
+        crate::OK
+    }
+
+    /// The item this constructor exists for: a child whose entry is
+    /// `Reports::monthly(...)` reaches the class that method is declared in
+    /// with no resolver in the path, because the *class table* crossed with the
+    /// context and the *statics* were armed from the parent's own recipes.
+    /// `crate::script`'s module doc is the home of why those two are the whole
+    /// handle.
+    #[test]
+    fn a_method_isolate_reaches_the_class_its_entry_is_declared_in() {
+        let mut classes = crate::ClassTable::new();
+        let id = classes.define("Reports", &[] as &[&str], &[]);
+        classes.set_methods(
+            id,
+            vec![crate::MethodRow {
+                name: "monthly".to_owned(),
+                code: (monthly as crate::NvsFn) as *const u8,
+                arity: 0,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+
+        let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
+        parent.set_runtime_error_class(crate::ErrorClass::new(std::rc::Rc::new(classes), id));
+        parent.install_statics(std::rc::Rc::from(vec![Some(FieldDefault::Int(3)), None]));
+
+        let mut child = parent.method_isolate(OutputSink::Buffer(Vec::new()));
+        let answer = crate::call_static(&mut child, "Reports::monthly", &[])
+            .expect("the stand-in does not throw")
+            .expect("the parent's class table crossed, so the label resolves");
+        assert_eq!(
+            answer.as_int(),
+            Some(2),
+            "the method ran on a context armed with the parent unit's two slots"
+        );
+
+        // The contrast is the point: a *path* entry's isolate carries the same
+        // class table — it is a clone of the parent's until its own unit's
+        // `install_in` replaces it — and deliberately no statics, because the
+        // slot numbering it will run under is the other unit's.
+        let mut other = parent.isolate(OutputSink::Buffer(Vec::new()));
+        let answer = crate::call_static(&mut other, "Reports::monthly", &[])
+            .expect("the stand-in does not throw")
+            .expect("the label resolves there too");
+        assert_eq!(
+            answer.as_int(),
+            Some(0),
+            "nothing armed it, and nothing may"
+        );
+
+        // A label naming a class this unit does not declare is `None` rather
+        // than a throw, which is what lets a spawn report ADR 0006's failure as
+        // a value.
+        assert!(
+            crate::call_static(&mut child, "Ledger::monthly", &[])
+                .expect("no throw")
+                .is_none()
+        );
     }
 
     /// ADR 0006's "one ceiling to divide": the flag is the tree's own word, so

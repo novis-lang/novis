@@ -291,7 +291,12 @@ pub struct Unit {
     /// This unit's static-property initializers, in the slot order the
     /// compiled code baked in — `nvs_ir::ir::Program::statics`' own order.
     /// Handed to a context by [`Unit::install_in`].
-    statics: Vec<Option<nvs_runtime::FieldDefault>>,
+    ///
+    /// Shared rather than owned outright for the reason `classes` is: a context
+    /// armed from this list keeps it, so an ADR 0006 method-entry isolate of
+    /// that context can arm itself against the same slot numbering with no unit
+    /// in hand (`nvs_runtime::Ctx::method_isolate`).
+    statics: std::rc::Rc<[Option<nvs_runtime::FieldDefault>]>,
 }
 
 impl std::fmt::Debug for Unit {
@@ -428,12 +433,17 @@ impl Unit {
     ///    process's (`nvs_runtime::ctx`'s own docs), so arming it is part of
     ///    arming the context. Compiled code indexes that vector by a slot
     ///    number this unit fixed at compile time, which is why the unit hands
-    ///    it over rather than an embedder building one.
+    ///    it over rather than an embedder building one. The list is **shared**
+    ///    with the context, not copied into it, so a context can afterwards arm
+    ///    a child against this unit's numbering with no `Unit` in hand — which
+    ///    is what an ADR 0006 method entry is
+    ///    (`nvs_runtime::Ctx::method_isolate`, and `nvs_runtime::script`'s
+    ///    module doc for why that needs no resolver).
     pub fn install_in(&self, ctx: &mut nvs_runtime::Ctx) {
         if let Some(class) = self.runtime_error_class() {
             ctx.set_runtime_error_class(class);
         }
-        ctx.install_statics(&self.statics);
+        ctx.install_statics(std::rc::Rc::clone(&self.statics));
     }
 }
 
@@ -1167,7 +1177,7 @@ impl Jit {
             _module: self.module,
             classes: std::rc::Rc::new(self.classes.table),
             entries,
-            statics: self.static_defaults,
+            statics: self.static_defaults.into(),
         })
     }
 

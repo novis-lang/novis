@@ -913,6 +913,19 @@ pub struct Ctx {
     /// has no `push`. [`Ctx::install_statics`] is the one place the two are
     /// written, so they cannot disagree.
     statics_store: Box<[Value]>,
+    /// The **recipes** the slots above were materialized from — the compiled
+    /// unit whose code this context is running, as the one thing a child of it
+    /// needs that its own class table does not already carry.
+    ///
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s method entry
+    /// is what reads it: a `Class::method` isolate runs code out of the
+    /// *parent's* unit, so it has to arm a fresh store against that unit's slot
+    /// numbering and there is no path for a resolver to compile. Shared rather
+    /// than copied — one `Rc` bump per isolate, against a list whose length is
+    /// the unit's static-property count — and `None` for a context nobody armed
+    /// through [`Ctx::install_statics`], which is every hand-built fixture.
+    /// `crate::script`'s module doc owns why this is the whole handle.
+    unit_statics: Option<std::rc::Rc<[Option<FieldDefault>]>>,
     /// The value that crossed into this isolate, owned — see
     /// [`Ctx::set_isolate_argument`].
     ///

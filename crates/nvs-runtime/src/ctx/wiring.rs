@@ -142,6 +142,7 @@ impl Ctx {
             fault: None,
             helper_calls: 0,
             statics_store: Vec::new().into_boxed_slice(),
+            unit_statics: None,
             isolate_argument: Value::null(),
             assertions: Vec::new(),
             started_scripts: Vec::new(),
