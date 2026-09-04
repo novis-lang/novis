@@ -2,55 +2,50 @@
 
 ## State
 
-**Goal 6, M7. ADR 0074 § 2's closed default is in the tree, both halves.**
-`nvs_server::cors::Cors` is the policy (`crates/nvs-server/src/cors.rs`), resolved from
-`[http.cors]` at boot beside `Secure` and carried on `Serving` as its fourth field. Closed —
-`origins = []`, which is what a tree writing no `[http.cors]` resolves to — means two observable
-things and they are kept two different ways. **No CORS header is emitted at all**, kept by there
-being nothing in this crate that writes one: a policy able to emit `Access-Control-Allow-Origin`
-before it has a list to match against is the failure § 2 exists to prevent, so the emitting half is
-written when there is something to match and not one release earlier. **A preflight is answered
-`403`**, and that is a decision: `Cors::preflight` reads an `OPTIONS` carrying
-`Access-Control-Request-Method`, and the refusal is taken in `serve_connection` under ADR 0097 § 5's
-valve and *above* the handler, so a preflight nobody configured selects no mount, allocates no
-isolate and runs no Novis code. `403` and not `405` — the verb is implemented, the origin is not
-allowed. That module's doc owns the whole argument and its § *What is not here yet* names the open
-half.
+**Goal 6, M7. ADR 0074 § 2's closed default is in the tree, and stage 4's two owed check names are
+now pinned.** `nvs_server::cors::Cors` is the policy, resolved from `[http.cors]` at boot beside
+`Secure` and carried on `Serving`; closed means no CORS header is emitted at all and a preflight is
+answered `403` above the handler. That module's doc owns the whole argument and its § *What is not
+here yet* (`crates/nvs-server/src/cors.rs:26`) names the open half.
 
-**The driver's failed acceptance check is closed**: `cors_is_closed_with_nothing_configured` exists
-and passes, over a socket, asserting the absent `access-control-` prefix on a `200` a peer sent an
-`Origin` on. Two stage-4 check names are still unwritten and are the group below; neither is in
-`nvs-server`.
+**Both check names the driver was still failing on are green.**
+`every_http_response_directive_is_runtime_class` is in `crates/nvs-config/tests/directives.rs`: it
+reads each `[http.*]` response block's key set back out of the refusal `deny_unknown_fields` writes
+for a key it does not know, so the assertion covers every key `nvs_config::tree` accepts rather than
+the ones somebody listed — the helper's own doc comment owns that. The cookie one is a unit test in
+`crates/nvs-stdlib/src/response.rs`, comparing the whole `Set-Cookie` line a bare `addCookie` writes
+on a context with no configuration attached.
+
+Nothing is blocked. The only half of ADR 0074 still unwritten is § 2's matching side, below.
 
 ## Next group
 
-**The two names stage 4's checks still owe.** They share no file — each is a single case over
-surface that already exists, in a different crate — so take them in either order and take both.
+**ADR 0074 § 2's open half — an origin that *is* named.** All three slices are the same two files:
+`crates/nvs-server/src/cors.rs` (the type, its unit tests) and `crates/nvs-server/src/serve.rs` (the
+one place a request is asked). `nvs_config::http` already refuses `["*"]` with `credentials = true`
+at boot, so that pair is never this crate's question.
 
-- [ ] **`every_http_response_directive_is_runtime_class`** (ADR 0074 § 5, ADR 0005). The registry is
-      `DIRECTIVES` and the `[http]` row is `crates/nvs-config/src/directive.rs:114`, one `Runtime`
-      row covering the whole block; `Class` and `Apply` are at
-      `crates/nvs-config/src/directive.rs:28`. The case is one assertion over every `http.*` key a
-      *response* reads — the blocks are `crates/nvs-config/src/tree.rs:408` (`[http.cors]`) and
-      `crates/nvs-config/src/tree.rs:429` (`[http.cookies]`), plus `[http.headers]` above them —
-      asserting the class each resolves to rather than listing the keys, so a key added to a block
-      without a row fails here.
-- [ ] **`a_cookie_is_secure_httponly_samesite_lax_by_default`** (ADR 0074 § 3). The member is
-      `crates/nvs-stdlib/src/response.rs:314` and its reference card already spells the answer —
-      `crates/nvs-stdlib/src/response.rs:529` says `SameSite=Lax; Path=/`. The assertion is over the
-      `Set-Cookie` an `addCookie` with no options bag writes, with nothing under `[http.cookies]`.
-- [ ] **§ 2's open half** (ADR 0074 § 2), once the two above are green. An `Origin` matched against a
-      named list, `Access-Control-Allow-Origin` and `Vary: Origin` on the answer, and a preflight
-      answered with the methods, headers, `expose` set and `max_age` § 2 configures.
-      `crates/nvs-server/src/cors.rs:64` is the type to grow and
-      `crates/nvs-server/src/serve.rs:613` is the one place a request is asked about.
-      `nvs_config::http` already refuses `["*"]` with `credentials = true` at boot, so that pair is
-      not this slice's.
+- [ ] **A named origin is matched, and the answer says so** (ADR 0074 § 2). `Cors` grows the
+      origin list it already resolves from `[http.cors]` into a match, and a request carrying an
+      allowed `Origin` gets `Access-Control-Allow-Origin` plus `Vary: Origin` — the `Vary` on every
+      answer the policy *could* have varied, including the refused one, since a cache keyed without
+      it serves one origin's answer to another. `crates/nvs-server/src/cors.rs:51` is the type,
+      `crates/nvs-server/src/cors.rs:71` resolves it, and `crates/nvs-server/src/serve.rs:613` is
+      where the answer is reached.
+- [ ] **A preflight is answered with what § 2 configures** (ADR 0074 § 2). `preflight` at
+      `crates/nvs-server/src/cors.rs:89` answers `Some(StatusCode)` today; it grows into the
+      response itself — `Access-Control-Allow-Methods`, `-Headers` and `-Max-Age` from the block —
+      keeping the `403` for an origin the list does not name and the refusal's position above the
+      handler at `crates/nvs-server/src/serve.rs:613`.
+- [ ] **`expose` and `credentials` reach a simple response** (ADR 0074 § 2).
+      `Access-Control-Expose-Headers` from the block's `expose`, and
+      `Access-Control-Allow-Credentials` when it is set — which is also where the `*` echo rule
+      lands, `crates/nvs-server/src/cors.rs:51` carrying it. Then delete § *What is not here yet* at
+      `crates/nvs-server/src/cors.rs:26`.
 
 ## Backlog
 
-- A response-side seam for the open half's headers: nothing calls `Cors` after the handler yet.
-- `[http.headers]` values the wire cannot carry are dropped rather than refused at boot — a
-  diagnostic naming the line is `nvs-config`'s (`crates/nvs-server/src/secure.rs` module doc).
-- ADR 0074 § 5's outbound bounds have no `Core\Http` yet — `docs/plan/m7.md`.
-- Raw/unparsed body access for an arbitrary content-type, ADR 0024 *Revisiting* and `docs/plan/m7.md`.
+- ADR 0074 § 4's cookie prefixes on the *read* side are `Core\Request`'s, not written yet.
+- `[http.headers]`'s three free-text values are refused at boot (`E0625`); no case pins the
+  `nvs-server` fallback beside it — `crates/nvs-config/src/http.rs`'s module doc names both.
+- Stage 10's corpus is open; `python tools/gaps.py` ranks what is thinnest.
