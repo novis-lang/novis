@@ -863,6 +863,39 @@ fn a_malformed_cron_refuses_the_boot() {
     );
 }
 
+/// § 6: the zone is pinned because implementations differ about DST and the difference is a
+/// production incident, so a `timezone` no IANA database knows refuses the boot rather than falling
+/// back to UTC and running the job at the wrong hour — which nothing observes, since a schedule
+/// fails silently. Asserted on both sides and with the absent key beside them: a check that only
+/// refused the unknown name would pass just as well if `timezone` were never read at all.
+#[test]
+fn an_unknown_timezone_refuses_the_boot() {
+    let fs = scheduling(&entry("scope = \"host\"\ntimezone = \"Mars/Olympus\"\n"));
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+    assert!(
+        diagnostic.message.contains("nightly") && diagnostic.message.contains("Mars/Olympus"),
+        "the refusal names the entry and the zone it cannot find: {}",
+        diagnostic.message,
+    );
+
+    let fs = scheduling(&entry("scope = \"host\"\ntimezone = \"Europe/Vienna\"\n"));
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
+        1,
+        "a zone the database carries is armed",
+    );
+
+    let fs = scheduling(&entry("scope = \"host\"\n"));
+    assert_eq!(
+        tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
+        1,
+        "and an entry that names no zone is UTC, which needs no database at all",
+    );
+}
+
 /// § 1: a scheduled script is checked against the same `[capabilities] script.spawn` roots a `spawn
 /// script` target is, at boot rather than at the first fire. The `..` row is the one that matters:
 /// the comparison is canonicalize-then-prefix, so a path that *spells* itself inside a root and

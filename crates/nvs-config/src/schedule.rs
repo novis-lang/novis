@@ -20,8 +20,17 @@
 //! holds the roots as the operator spelled them and the snapshot that would canonicalize them does
 //! not exist yet.
 //!
+//! **The next fire is this module's question too, and that is why [`Cron`] is `pub`.** § 2 has the
+//! expression read at boot with the offending line named, so the parse is already here; a scheduler
+//! that read the same string a second time would be a second dialect, and the two disagreeing
+//! produces exactly the failure this module exists to prevent — an entry that booted and fires at
+//! the wrong minute, which nothing observes. So the one parse answers [`Cron::next_after`] as well,
+//! and § 6's two DST rules are decided in the single place a civil minute becomes an instant.
+//!
 //! Cost: one clone of `[capabilities]` and one canonicalization per path-scoped grant at boot and at
-//! reload, plus one `realpath` per entry with a `script`. Nothing here runs on a request path.
+//! reload, plus one `realpath` and one IANA zone lookup per entry. A next-fire computation walks
+//! fields rather than minutes — at most a month, a day, an hour and a minute of stepping per
+//! answer — and the scheduler asks for one per fire. Nothing here runs on a request path.
 //!
 //! [ADR 0073]: ../../../docs/adr/0073-scheduled-work-is-config.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
@@ -29,14 +38,34 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use jiff::civil::{Date, DateTime};
+use jiff::tz::{AmbiguousOffset, TimeZone};
+use jiff::{Span, Zoned};
 use nvs_diagnostics::{Diagnostic, code};
 
 use crate::capability::{Cap, Scope};
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, Schedule};
 
-/// The five named shorthands § 2 accepts beside the five-field form, and no others.
-const SHORTHANDS: [&str; 5] = ["@hourly", "@daily", "@weekly", "@monthly", "@yearly"];
+/// The five named shorthands § 2 accepts beside the five-field form, and the expression each one is
+/// short for.
+///
+/// Expanding rather than special-casing is what keeps the dialect one reader wide: `@daily` and
+/// `0 0 * * *` are the same schedule, and nothing downstream of this table can tell them apart.
+const SHORTHANDS: [(&str, &str); 5] = [
+    ("@hourly", "0 * * * *"),
+    ("@daily", "0 0 * * *"),
+    ("@weekly", "0 0 * * 0"),
+    ("@monthly", "0 0 1 * *"),
+    ("@yearly", "0 0 1 1 *"),
+];
+
+/// How far ahead [`Cron::next_after`] will look before answering [`None`].
+///
+/// Nine years rather than one: `0 0 29 2 *` is a schedule, and the longest gap between two 29
+/// Februaries is the eight years a century that is not a leap year opens — 2096 to 2104. A search
+/// that gave up sooner would report "never fires" about an entry that fires.
+const HORIZON_YEARS: i16 = 9;
 
 /// The five fields, in order: what each is called, and the closed range it accepts.
 ///
@@ -61,9 +90,9 @@ const DAYS: [&str; 7] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 /// # Errors
 ///
 /// One [`Diagnostic`], `E0611`, for the first entry that cannot answer: no `name` or a duplicate
-/// one, no `cron` or one outside § 2's dialect, no `script` or one outside the `script.spawn` roots,
-/// no `scope` or one that is neither `fleet` nor `host`, or a `fleet` entry with no shared store to
-/// hold § 3's lease.
+/// one, no `cron` or one outside § 2's dialect, a `timezone` no IANA database knows, no `script` or
+/// one outside the `script.spawn` roots, no `scope` or one that is neither `fleet` nor `host`, or a
+/// `fleet` entry with no shared store to hold § 3's lease.
 pub fn validate(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
@@ -96,7 +125,7 @@ pub fn validate(
         }
 
         let cron = required(entry, index, "cron", entry.cron.as_deref(), origins)?;
-        if let Some(fault) = cron_fault(cron) {
+        if let Err(fault) = Cron::parse(cron) {
             return Err(refusal(
                 index,
                 entry,
@@ -107,6 +136,20 @@ pub fn validate(
                 "write the five fields, or one of the five shorthands",
                 origins,
                 "cron",
+            ));
+        }
+
+        if let Err(unknown) = zone_of(entry.timezone.as_deref()) {
+            return Err(refusal(
+                index,
+                entry,
+                format!("`timezone = \"{unknown}\"` is not a zone this build knows"),
+                "§ 6 pins the zone because implementations differ about DST and the difference is a \
+                 production incident; the name is the operator's only way to say which rules apply, \
+                 and a name the IANA database does not carry has no fires to compute at all",
+                "name an IANA zone, as `Europe/Vienna`, or drop the key for the `UTC` default",
+                origins,
+                "timezone",
             ));
         }
 
@@ -244,79 +287,248 @@ fn label(index: usize, entry: &Schedule) -> String {
     }
 }
 
-/// Why `expression` is not a schedule, or [`None`] when it is one.
+/// § 2's dialect, read: which minutes, hours, days and months an entry names, as one bit per
+/// accepted value.
 ///
-/// A *validator*, not a parser: it answers whether the scheduler will be able to read the
-/// expression, and the firing times are the scheduler's own question. Splitting them keeps the
-/// boot refusal in the crate that owns the configuration.
-fn cron_fault(expression: &str) -> Option<String> {
-    let expression = expression.trim();
-    if expression.starts_with('@') {
-        return if SHORTHANDS.contains(&expression.to_ascii_lowercase().as_str()) {
-            None
-        } else {
-            Some(format!(
-                "`{expression}` is not one of {}",
-                SHORTHANDS.join(", ")
-            ))
-        };
-    }
-    let fields: Vec<&str> = expression.split_whitespace().collect();
-    if fields.len() != 5 {
-        return Some(format!(
-            "it has {} field(s), and the dialect is exactly five",
-            fields.len()
-        ));
-    }
-    for (text, (name, low, high)) in fields.iter().zip(FIELDS) {
-        if let Some(fault) = field_fault(text, name, low, high) {
-            return Some(fault);
-        }
-    }
-    None
+/// **The boot refusal and the scheduler are the same read**, which is the module doc's own reason
+/// for this type being `pub`: [`validate`] refuses whatever [`Cron::parse`] cannot answer, and
+/// [`Cron::next_after`] answers it for the entries that survived. A `Cron` in hand is therefore an
+/// expression a boot already accepted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Cron {
+    /// One bit per accepted value, `0` at the least significant end. Five fields, `FIELDS` order.
+    accepted: [u64; 5],
+    /// Whether `day-of-month` and `day-of-week` each narrow the day, in that order — POSIX's own
+    /// star rule, and the reason the two are read together in [`Cron::day_accepts`].
+    narrows: [bool; 2],
 }
 
-/// One field: a comma-separated list of terms, each optionally stepped.
-fn field_fault(text: &str, name: &str, low: u32, high: u32) -> Option<String> {
+impl Cron {
+    /// § 2's dialect, parsed — or why `expression` is not a schedule.
+    ///
+    /// # Errors
+    ///
+    /// The fault, as the clause [`validate`]'s refusal reads into `is not a schedule: {fault}`: a
+    /// field count that is not five, a shorthand outside the five, a term the field's range does not
+    /// hold, or a step that is not a count or does not apply to a range.
+    pub fn parse(expression: &str) -> Result<Self, String> {
+        let expression = expression.trim();
+        let expanded = if expression.starts_with('@') {
+            let named = expression.to_ascii_lowercase();
+            *SHORTHANDS
+                .iter()
+                .find_map(|(name, expansion)| (*name == named).then_some(expansion))
+                .ok_or_else(|| {
+                    format!(
+                        "`{expression}` is not one of {}",
+                        SHORTHANDS.map(|(name, _)| name).join(", ")
+                    )
+                })?
+        } else {
+            expression
+        };
+
+        let fields: Vec<&str> = expanded.split_whitespace().collect();
+        if fields.len() != 5 {
+            return Err(format!(
+                "it has {} field(s), and the dialect is exactly five",
+                fields.len()
+            ));
+        }
+        let mut accepted = [0_u64; 5];
+        for (slot, (text, (name, low, high))) in fields.iter().zip(FIELDS).enumerate() {
+            accepted[slot] = field_bits(text, name, low, high)?;
+        }
+        // Vixie's rule, and POSIX's: a field that opens with `*` does not narrow the day, so `*/2`
+        // counts as a star here exactly as a bare `*` does.
+        Ok(Self {
+            accepted,
+            narrows: [!fields[2].starts_with('*'), !fields[4].starts_with('*')],
+        })
+    }
+
+    /// The first instant strictly after `after` that this expression names, in `after`'s own zone.
+    ///
+    /// [`None`] when nothing inside [`HORIZON_YEARS`] matches — `30 2 30 2 *`, and the end of the
+    /// representable range. **A missed fire is never caught up** (§ 6), so the scheduler asks this
+    /// from the clock rather than from the last fire, and an interval that passed while the host was
+    /// down is skipped rather than replayed.
+    ///
+    /// § 6's two DST rules are here, in [`at`], because this is the one place a civil minute becomes
+    /// an instant: a minute in a spring-forward gap fires once, at the first instant after the gap;
+    /// one in a fall-back repeat fires once, on the first occurrence.
+    #[must_use]
+    pub fn next_after(&self, after: &Zoned) -> Option<Zoned> {
+        let zone = after.time_zone();
+        let from = after.datetime();
+        // The fire at `after` has happened, so the search opens at the next whole minute. Seconds
+        // are not part of the dialect (§ 2), which is what makes truncation the same as flooring.
+        let mut when = DateTime::new(
+            from.year(),
+            from.month(),
+            from.day(),
+            from.hour(),
+            from.minute(),
+            0,
+            0,
+        )
+        .ok()?
+        .checked_add(Span::new().minutes(1))
+        .ok()?;
+
+        // Field by field rather than minute by minute: a wrong month skips a month, not 44,640
+        // reads of the same bitset. `30 2 29 2 *` is the case that decides this.
+        let horizon = when.year().saturating_add(HORIZON_YEARS);
+        while when.year() <= horizon {
+            if !accepts(self.accepted[3], when.month()) {
+                when = midnight_of(
+                    when.date()
+                        .first_of_month()
+                        .checked_add(Span::new().months(1))
+                        .ok()?,
+                )?;
+                continue;
+            }
+            if !self.day_accepts(when.date()) {
+                when = midnight_of(when.date().tomorrow().ok()?)?;
+                continue;
+            }
+            if !accepts(self.accepted[1], when.hour()) {
+                when = DateTime::new(when.year(), when.month(), when.day(), when.hour(), 0, 0, 0)
+                    .ok()?
+                    .checked_add(Span::new().hours(1))
+                    .ok()?;
+                continue;
+            }
+            if accepts(self.accepted[0], when.minute()) {
+                let fire = at(when, zone)?;
+                // A fall-back repeat runs one civil minute twice. Asked from *inside* the second
+                // pass, § 6's first-occurrence rule would answer an instant already behind the
+                // clock — the fire that has just happened — so the search carries on instead.
+                if fire.timestamp() > after.timestamp() {
+                    return Some(fire);
+                }
+            }
+            when = when.checked_add(Span::new().minutes(1)).ok()?;
+        }
+        None
+    }
+
+    /// Whether a date is one this expression fires on, under POSIX's own two-field rule.
+    ///
+    /// **When `day-of-month` and `day-of-week` both narrow, a date matching *either* fires.** That
+    /// is what POSIX says and what every cron an operator has used does, and it is the one place in
+    /// the dialect where two fields are not an intersection: `0 0 1 * MON` is the first of the month
+    /// *and* every Monday. When only one narrows, the other is a star and the intersection is the
+    /// same answer.
+    fn day_accepts(&self, date: Date) -> bool {
+        let by_month_day = accepts(self.accepted[2], date.day());
+        let by_week_day = accepts(self.accepted[4], date.weekday().to_sunday_zero_offset());
+        if self.narrows[0] && self.narrows[1] {
+            by_month_day || by_week_day
+        } else {
+            by_month_day && by_week_day
+        }
+    }
+}
+
+/// § 6's zone: what `timezone` names, or `UTC` when the entry does not say.
+///
+/// There is no ambient timezone anywhere in Novis (ADR 0063 § 4), so an absent key is the documented
+/// default rather than the host's setting, and an empty one has said nothing — the same reading
+/// [`required`] gives every other key.
+///
+/// # Errors
+///
+/// The name as written, when the IANA database this build carries does not know it.
+pub fn zone_of(timezone: Option<&str>) -> Result<TimeZone, String> {
+    let named = match timezone {
+        Some(text) if !text.trim().is_empty() => text.trim(),
+        _ => return Ok(TimeZone::UTC),
+    };
+    TimeZone::get(named).map_err(|_| named.to_string())
+}
+
+/// § 6's two DST rules, in the one place a civil minute becomes an instant.
+fn at(when: DateTime, zone: &TimeZone) -> Option<Zoned> {
+    let ambiguous = zone.to_ambiguous_zoned(when);
+    match ambiguous.offset() {
+        AmbiguousOffset::Unambiguous { .. } => ambiguous.unambiguous().ok(),
+        // A fall-back repeat: the first occurrence, so "runs once a day" stays true.
+        AmbiguousOffset::Fold { .. } => ambiguous.earlier().ok(),
+        // A spring-forward gap: the minute does not exist, and the fire is the first instant that
+        // does — the transition itself. Reading the missing minute with the offset that *follows*
+        // the transition lands before it, so the next transition after that is the one wanted.
+        AmbiguousOffset::Gap { after, .. } => {
+            let inside = after.to_timestamp(when).ok()?;
+            let transition = zone.following(inside).next()?;
+            Some(transition.timestamp().to_zoned(zone.clone()))
+        }
+    }
+}
+
+/// Whether a field's bitset holds `value`. Every value in the dialect is under 64, which is what
+/// makes one `u64` per field the whole representation.
+fn accepts(bits: u64, value: i8) -> bool {
+    u32::try_from(value).is_ok_and(|value| value < 64 && bits & (1 << value) != 0)
+}
+
+/// The first minute of `date`.
+fn midnight_of(date: Date) -> Option<DateTime> {
+    DateTime::new(date.year(), date.month(), date.day(), 0, 0, 0, 0).ok()
+}
+
+/// One field: a comma-separated list of terms, each optionally stepped, as the values it accepts —
+/// or why it is not a field.
+fn field_bits(text: &str, name: &str, low: u32, high: u32) -> Result<u64, String> {
+    let mut bits = 0;
     for term in text.split(',') {
-        let (range, step) = match term.split_once('/') {
+        let (range, written) = match term.split_once('/') {
             Some((range, step)) => (range, Some(step)),
             None => (term, None),
         };
-        if let Some(step) = step {
-            match step.parse::<u32>() {
+        let mut step = 1;
+        if let Some(written) = written {
+            match written.parse::<u32>() {
                 Ok(0) | Err(_) => {
-                    return Some(format!(
-                        "the {name} field steps by `{step}`, which is not a count"
+                    return Err(format!(
+                        "the {name} field steps by `{written}`, which is not a count"
                     ));
                 }
-                Ok(_) if range == "*" || range.contains('-') => {}
+                Ok(parsed) if range == "*" || range.contains('-') => step = parsed,
                 // `5/15` is Quartz's "every 15 from 5"; § 2 takes the range it is short for.
                 Ok(_) => {
-                    return Some(format!(
+                    return Err(format!(
                         "the {name} field steps a single value (`{term}`); a step applies to `*` \
-                         or to a range, as `*/{step}`"
+                         or to a range, as `*/{written}`"
                     ));
                 }
             }
         }
-        if range == "*" {
-            continue;
-        }
-        let (first, last) = match range.split_once('-') {
-            Some((first, last)) => (first, last),
-            None => (range, range),
+        let (first, last) = if range == "*" {
+            (low, high)
+        } else {
+            let (first, last) = match range.split_once('-') {
+                Some((first, last)) => (first, last),
+                None => (range, range),
+            };
+            let (Some(first), Some(last)) = (value_of(first, name), value_of(last, name)) else {
+                return Err(format!("the {name} field does not accept `{range}`"));
+            };
+            if first < low || last > high || first > last {
+                return Err(format!(
+                    "the {name} field accepts {low}-{high}, and `{range}` is outside it"
+                ));
+            }
+            (first, last)
         };
-        let (Some(first), Some(last)) = (value_of(first, name), value_of(last, name)) else {
-            return Some(format!("the {name} field does not accept `{range}`"));
-        };
-        if first < low || last > high || first > last {
-            return Some(format!(
-                "the {name} field accepts {low}-{high}, and `{range}` is outside it"
-            ));
+        let mut value = first;
+        while value <= last {
+            bits |= 1_u64 << value;
+            value += step;
         }
     }
-    None
+    Ok(bits)
 }
 
 /// One term as a number: POSIX's own three-letter names for `month` and `day-of-week`, and digits

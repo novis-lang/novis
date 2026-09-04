@@ -1933,6 +1933,7 @@ name = "nvs-config"
 version = "0.0.1"
 dependencies = [
  "blake3",
+ "jiff",
  "libc",
  "nvs-diagnostics",
  "nvs-render",
