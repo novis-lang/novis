@@ -82,7 +82,7 @@
 //!    naming one of the two reads as though the other were absent from the
 //!    declaration.
 
-use nvs_runtime::commands::{ArgConv, Command, CommandArg, CommandTable};
+use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
 use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -555,6 +555,29 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
                 ))
             }
         }
+        // § 6's other closed set, and the refusal is the same sentence with the
+        // enum's own name in it — the words are cases *of* something here, which
+        // is the one thing a union of literals has nothing to say. The value is
+        // the case's backing integer and there is no case object to build:
+        // `nvs_runtime::commands::ArgConv::Enum` is the home of both.
+        ArgConv::Enum { class, cases } => cases
+            .iter()
+            .find(|(case, _)| case == text)
+            .map(|(_, value)| match value {
+                CaseValue::Int(number) => Value::int(*number),
+                CaseValue::Uint(number) => Value::uint(*number),
+            })
+            .ok_or_else(|| {
+                format!(
+                    "`{}` is a `{class}` — one of {} — and `{text}` is none of them",
+                    arg.param,
+                    cases
+                        .iter()
+                        .map(|(case, _)| format!("`{case}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }),
         // Unreachable: the helper refuses a row carrying one before it reads a
         // word, so that the gap answers as a `LogicError` rather than as a
         // usage error about the argument that happened to arrive.

@@ -182,6 +182,41 @@ pub enum ArgConv {
     /// line supplies and a segment a route matches are admitted by one grammar,
     /// which is the arrangement `decimal` and `Core\Uuid` already have.
     OneOf(Vec<String>),
+    /// An enum: every case as the word a command line writes it with, the value
+    /// that word becomes, and the enum's own name beside them.
+    ///
+    /// **The word is the case name.** That is the decision
+    /// [`crate::routes::closed_set`] declined to take, and it stays declined
+    /// *there*: a route segment is written by a link and read by ADR 0102 § 5,
+    /// which is a different question with a different owner. Here ADR 0010 § 3's
+    /// backing value is the alternative and it loses on § 6's own argument — the
+    /// refusal below names every value that would have been accepted *because a
+    /// command line is a person typing*, and a list of integers is not that
+    /// sentence. A backing value is storage: it is chosen for a table or a wire
+    /// format, an author may renumber it without touching a name, and nobody
+    /// typing `--level 2` has anything to check it against.
+    ///
+    /// **The class is on the row and is not decoration.** § 6's usage line and
+    /// this conversion's refusal both say what the words are cases *of*, which
+    /// no set of bare words can answer — and it is the half [`Self::OneOf`]
+    /// deliberately has not got, because a union of literals is not named.
+    ///
+    /// **The value is the case's own backing integer, unwidened.** A case is
+    /// indistinguishable from that integer by the time it is a value
+    /// (`nvs_runtime::object::EnumCases`), so nothing is constructed and no
+    /// class descriptor is reached for at run time: the compiler resolved the
+    /// enum once, exactly as [`Self::OneOf`] resolved its union once, and the
+    /// answer crosses rather than a key to look it up with.
+    Enum {
+        /// The enum's declared name, written as § 6's usage line writes it.
+        class: String,
+        /// Every case: the word, and the value it becomes. **Ascending by
+        /// value**, because [`crate::enums::EnumInfo::cases`] is a map with no
+        /// declaration order to take — `crate::derive`'s own `enum_cases` sorts
+        /// the same roster the same way, and a set the compiler renders into a
+        /// message has to read the same on two builds.
+        cases: Vec<(String, crate::enums::EnumValue)>,
+    },
     /// A type § 6 admits whose conversion is not written yet —
     /// `nvs_runtime::commands`'s own gap 1, which is where it is refused.
     Unconverted,
@@ -214,7 +249,37 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         Ty::Union(_) => {
             crate::routes::closed_set(ty, env).map_or(ArgConv::Unconverted, ArgConv::OneOf)
         }
+        // The other closed set, and the one that function answers `None` for: an
+        // enum *names* its members, so the words come off the declaration rather
+        // than off the type. [`ArgConv::Enum`] owns both decisions that took —
+        // which word, and what it becomes.
+        Ty::Enum(name, _) => cases_of(name, env),
         _ => ArgConv::Unconverted,
+    }
+}
+
+/// `name`'s declared cases, as the row [`ArgConv::Enum`] carries them.
+///
+/// [`ArgConv::Unconverted`] for a name this program declares no enum for, which
+/// is a resolution failure already reported where the parameter was written —
+/// the same reading `crate::derive`'s `enum_cases` gives the same absence, and
+/// for the same reason: naming it twice charges one mistake twice.
+fn cases_of(name: &QName, env: &Env<'_>) -> ArgConv {
+    let Some(info) = env.enums.get(name) else {
+        return ArgConv::Unconverted;
+    };
+    let mut cases: Vec<(String, crate::enums::EnumValue)> = info
+        .cases
+        .iter()
+        .map(|(case, value)| (case.clone(), *value))
+        .collect();
+    cases.sort_unstable_by_key(|(_, value)| match value {
+        crate::enums::EnumValue::Int(number) => i128::from(*number),
+        crate::enums::EnumValue::Uint(number) => i128::from(*number),
+    });
+    ArgConv::Enum {
+        class: name.to_string(),
+        cases,
     }
 }
 

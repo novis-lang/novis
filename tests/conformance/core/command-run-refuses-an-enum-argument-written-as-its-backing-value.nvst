@@ -1,0 +1,33 @@
+--TEST--
+`Core\Command::run` refuses an enum argument written as ADR 0010 § 3's backing value, which is the other side of the case name being the spelling — ADR 0086 § 6
+--FILE--
+<?nvs
+// The bound asserted from the side that a conversion accepting *both* would
+// pass: `command-run-converts-an-enum-argument-by-its-case-name` shows the word
+// `Error` reaching the handler as 20, and a reading that also admitted the
+// digits would answer that case identically while quietly giving a command line
+// two spellings for one case. A backing value is storage — an author may
+// renumber it without touching a name — so it is not something a person types.
+//
+// `run` prints its usage page to standard error, which a case does not read, so
+// the refusal is asserted as § 6's usage status and by the handler never
+// running: a converted `10` would have printed a line before `run` returned.
+enum Level: uint {
+    Warn = 10,
+    Error = 20,
+}
+
+class Logs {
+    #[Core\Command(name: "emit", about: "Write one line at a level")]
+    public static function emit(Level $level): uint {
+        echo "level: ", $level as uint, "\n";
+        return 0;
+    }
+}
+
+echo "status: ", Core\Command::run(), "\n";
+--ARGS--
+emit
+10
+--EXPECT--
+status: 2

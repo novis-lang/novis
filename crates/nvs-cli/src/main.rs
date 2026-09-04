@@ -805,6 +805,39 @@ fn runtime_commands(
                             nvs_types::commands::ArgConv::OneOf(admitted) => {
                                 nvs_runtime::commands::ArgConv::OneOf(admitted.clone())
                             }
+                            // The cases cross for the set's own reason, one
+                            // arm up, and the class with them: the row is what
+                            // both the usage line and the refusal name the
+                            // enum from, and nothing downstream has a type
+                            // table to ask instead. The value narrows to ADR
+                            // 0010 § 2's two integer types here rather than
+                            // crossing widened — `nvs_runtime::commands::
+                            // CaseValue` owns why.
+                            nvs_types::commands::ArgConv::Enum { class, cases } => {
+                                nvs_runtime::commands::ArgConv::Enum {
+                                    class: class.clone(),
+                                    cases: cases
+                                        .iter()
+                                        .map(|(case, value)| {
+                                            (
+                                                case.clone(),
+                                                match value {
+                                                    nvs_types::enums::EnumValue::Int(number) => {
+                                                        nvs_runtime::commands::CaseValue::Int(
+                                                            *number,
+                                                        )
+                                                    }
+                                                    nvs_types::enums::EnumValue::Uint(number) => {
+                                                        nvs_runtime::commands::CaseValue::Uint(
+                                                            *number,
+                                                        )
+                                                    }
+                                                },
+                                            )
+                                        })
+                                        .collect(),
+                                }
+                            }
                             nvs_types::commands::ArgConv::Unconverted => {
                                 nvs_runtime::commands::ArgConv::Unconverted
                             }

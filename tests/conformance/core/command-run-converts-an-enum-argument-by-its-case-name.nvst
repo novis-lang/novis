@@ -1,0 +1,42 @@
+--TEST--
+`Core\Command::run` converts an enum argument by the case's own *name*, and the value it becomes is that case's backing integer — ADR 0086 § 6, ADR 0010 § 3
+--FILE--
+<?nvs
+// § 6's "a matched value's type comes from the parameter", for the last type
+// the argument matcher admitted and could not convert. Two decisions are
+// pinned here and `nvs_types::commands::ArgConv::Enum` is the home of both: a
+// command line writes the **case name**, because § 6's own refusal names every
+// value it would have accepted and a list of backing integers is not a
+// sentence a person can act on; and the value that word becomes is the case's
+// backing integer, because an enum case *is* that integer by the time it is a
+// value.
+//
+// The backing here is deliberately not the case's position: `Warn` is 10, so a
+// conversion that handed back an index rather than a value still prints
+// plausibly on a one-case enum and fails on this one. The sibling case
+// `command-run-refuses-an-enum-argument-written-as-its-backing-value` asserts
+// the other side of the same decision — the number `10` is not a spelling of
+// `Warn`.
+enum Level: uint {
+    Warn = 10,
+    Error = 20,
+}
+
+class Logs {
+    #[Core\Command(name: "emit", about: "Write one line at a level")]
+    public static function emit(Level $level): uint {
+        echo "level: ", $level as uint, "\n";
+        return 0;
+    }
+}
+
+// The status is taken first, because the handler writes while `run` is still
+// being evaluated.
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+--ARGS--
+emit
+Error
+--EXPECT--
+level: 20
+status: 0

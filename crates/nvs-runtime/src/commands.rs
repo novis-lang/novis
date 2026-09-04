@@ -38,26 +38,22 @@
 //!
 //! # Known gaps
 //!
-//! 1. **One of § 6's conversions is [`ArgConv::Unconverted`]: an enum.** It is
-//!    a type `nvs_types::commands::converts_from_string` admits and no matcher
-//!    turns text into yet, so a command declaring one compiles and refuses at
-//!    the moment it is *run* rather than at the moment it is written.
+//! 1. **One of § 6's conversions is [`ArgConv::Unconverted`]: a *subset* of an
+//!    enum's cases.** `Log\Level` converts ([`ArgConv::Enum`]); the
+//!    `Log\Level::Warn|Log\Level::Error` § 3 also admits does not, so a command
+//!    declaring one compiles and refuses at the moment it is *run* rather than
+//!    at the moment it is written.
 //!
-//!    Its sibling — a union of literal types — closed with
-//!    [`ArgConv::OneOf`], and what is left of the gap is the half that variant
-//!    deliberately does **not** answer. Both are a narrowing to a closed set
-//!    the compiler holds, and carrying the set was the whole of the union's
-//!    problem; an enum's is the other one. `nvs_types::routes::closed_set`
-//!    answers `None` for it because a case's *written spelling* is undecided —
-//!    the case name, or ADR 0010 § 3's backing value — and a set half of whose
-//!    members had no spelling would refuse command lines that are correct. The
-//!    value is the second half: a union of literal types binds the word it
-//!    matched, which is what its declared type is, where a parameter declared
-//!    at an enum wants the **case** and nothing here can build one — an enum
-//!    case is [`crate::object::EnumCases`] on the class's own descriptor, which
-//!    this row does not reach. Closing it therefore needs both a spelling
-//!    decided and a class named on the row, and neither is
-//!    [`ArgConv::OneOf`]'s to have decided.
+//!    What is left is narrow, and it is a *filter* rather than a decision. The
+//!    two questions that kept the whole enum out of reach are both answered on
+//!    [`ArgConv::Enum`] — the word is the case name, and the value is the
+//!    backing integer — so a subset is those same pairs with the members the
+//!    union did not name dropped. `nvs_types::routes::closed_set` still answers
+//!    `None` for one, which is that function's own decision to keep: it serves
+//!    ADR 0102 § 5's route captures as well, where the spelling is
+//!    `Core\Router::match`'s to decide and is out of this goal's scope. So
+//!    closing this means reading the union's members here, where § 6 owns the
+//!    spelling, rather than widening that function underneath a second caller.
 
 /// What an argument's text becomes before the handler is called.
 ///
@@ -102,8 +98,49 @@ pub enum ArgConv {
     /// the two tables rather than two answers that could come to disagree; ADR
     /// 0086 § 6 and ADR 0102 § 5 are the one home of the rule both read.
     OneOf(Vec<String>),
+    /// An enum: every case as the word a command line writes it with and the
+    /// value that word becomes, ascending by value, with the enum's own name
+    /// beside them.
+    ///
+    /// **The word is the case name and the value is the case's backing
+    /// integer**, both decided in `nvs_types::commands::ArgConv::Enum`, which is
+    /// the home of why. What this side is for is the consequence: a case is
+    /// indistinguishable from its integer by the time it is a
+    /// [`Value`](crate::Value) ([`crate::object::EnumCases`] says so), so the
+    /// conversion constructs nothing and reaches no class descriptor — the set
+    /// that crosses *is* the answer, exactly as [`Self::OneOf`]'s is.
+    ///
+    /// The class is the half [`Self::OneOf`] has not got, and both readers of
+    /// this row want it: ADR 0086 § 6's usage line and the refusal, each of
+    /// which says what the words are cases of.
+    Enum {
+        /// The enum's declared name.
+        class: String,
+        /// Every case: the word, and the value it becomes. Ascending by value —
+        /// the compiler sorted them, because the map it read has no declaration
+        /// order and a message has to read the same on two builds.
+        cases: Vec<(String, CaseValue)>,
+    },
     /// A type § 6 admits and [`crate::commands`]'s gap 1 does not convert yet.
     Unconverted,
+}
+
+/// One enum case's constant value, in [ADR 0010](../../../docs/adr/0010-enums.md)
+/// § 2's own two integer types.
+///
+/// `nvs_types::enums::EnumValue` as a running program holds it, and **not**
+/// widened to the `i128` [`crate::object::EnumCases`] holds. The two carry the
+/// same numbers for opposite reasons: that one answers a *membership test* over
+/// a roster, where one field for both backings is what makes a binary search
+/// one search; this one is handed straight to [`Value::int`](crate::Value::int)
+/// or [`Value::uint`](crate::Value::uint), so a widened number would have to be
+/// narrowed back at the one point where guessing wrong is unobservable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CaseValue {
+    /// A case of an `int`-backed enum.
+    Int(i64),
+    /// A case of a `uint`-backed enum.
+    Uint(u64),
 }
 
 /// One argument of a command, in the order it was declared.

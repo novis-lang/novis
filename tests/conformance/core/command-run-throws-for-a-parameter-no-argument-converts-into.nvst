@@ -2,14 +2,15 @@
 `Core\Command::run` throws for a `#[Command]` parameter no argument's text is converted into yet, rather than guessing — ADR 0086 § 6
 --FILE--
 <?nvs
-// § 6 admits an enum among the types an argument may be given at, and this
-// runtime does not convert one yet: `nvs_runtime::commands`'s gap 1 is an enum
-// and a union of literal types, both of which need the *closed set* the
-// compiler holds carried on the row beside the conversion. The two wrong
-// answers are a plausible first case and a usage error blaming the command
-// line, so it is neither: a `LogicError`, which is what a mistake in the
-// *program* is, since the table is fixed at compile time and no input can
-// change what this row declares.
+// § 6 admits a *subset* of an enum's cases among the types an argument may be
+// given at, and this runtime does not convert one yet: `nvs_runtime::commands`'s
+// gap 1 is that subset, and nothing else — the whole enum beside it converts by
+// its case name (`command-run-converts-an-enum-argument-by-its-case-name`), so
+// what is left is a filter over those same pairs rather than an open question.
+// The two wrong answers are a plausible first case and a usage error blaming
+// the command line, so it is neither: a `LogicError`, which is what a mistake
+// in the *program* is, since the table is fixed at compile time and no input
+// can change what this row declares.
 enum Level {
     Quiet,
     Loud,
@@ -17,7 +18,7 @@ enum Level {
 
 class Radio {
     #[Core\Command(name: "tune")]
-    public static function tune(Level $level): uint {
+    public static function tune(Level::Quiet|Level::Loud $level): uint {
         echo "tune ran\n";
         return 0;
     }
