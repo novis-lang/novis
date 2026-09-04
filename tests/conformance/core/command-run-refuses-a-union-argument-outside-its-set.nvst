@@ -1,0 +1,37 @@
+--TEST--
+`Core\Command::run` refuses a word its parameter's union does not declare, and says every word that would have been accepted — ADR 0086 § 6
+--FILE--
+<?nvs
+// The other side of `command-run-converts-a-union-of-literals-argument-by-its-word`,
+// and the half § 6 argues the conversion's *shape* from: a command line is a
+// person typing, so a refusal is worth raising only if it says what to type
+// instead. That is why `nvs_types::commands::ArgConv::OneOf` carries the words
+// themselves rather than the type they came from.
+//
+// Read off standard error, where a usage page goes, because § 6's status alone
+// would pass for a refusal that named nothing — and the refusal naming the set
+// is the whole decision. `%A` swallows the usage page under it: what this case
+// owns is the sentence, and the page's layout is `nvs_stdlib::command`'s.
+//
+// `exit` carries the status out, because a case that reads standard error must
+// end in failure — `crates/nvs-test`'s own rule, so that a case cannot pass by
+// printing the right thing on its way to an unexpected one.
+class Reports {
+    #[Core\Command(name: "report", about: "Write one report")]
+    public static function run("json"|"table" $format): uint {
+        echo "format: ", $format, "\n";
+        return 0;
+    }
+}
+
+uint $status = Core\Command::run();
+echo "status: ", $status, "\n";
+exit($status as int);
+--ARGS--
+report
+csv
+--EXPECT--
+status: 2
+--EXPECTF-ERROR--
+`format` is one of `json`, `table`, and `csv` is none of them
+%A
