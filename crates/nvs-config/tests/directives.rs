@@ -1,7 +1,9 @@
 //! The registry's two fields are two fields — ADR 0078 § 2 against ADR 0005 — plus the lookup rule
 //! the module doc states.
 
+use nvs_config::Config;
 use nvs_config::directive::{Apply, Class, DIRECTIVES, Directive, lookup};
+use nvs_diagnostics::SourceMap;
 
 /// The row governing `key`, or a failure naming the key, so a census assertion reads as the claim
 /// it is making rather than as an `unwrap` chain.
@@ -145,4 +147,66 @@ fn a_key_reports_the_block_it_is_written_in() {
     assert_eq!(governing("limits.hard.memory").block(), "limits");
     assert_eq!(governing("deferred.max_concurrent").block(), "deferred");
     assert_eq!(governing("server.listen").block(), "");
+}
+
+/// Every key the header `[block]` accepts, read back out of the refusal `deny_unknown_fields`
+/// writes for one it does not (ADR 0064 § 3). The list is `nvs_config::tree`'s own field set rather
+/// than a copy of it, which is the whole point of the case below: a key added to one of those
+/// blocks joins this list in the commit that adds it, with no edit here to remember.
+fn keys_in(block: &str) -> Vec<String> {
+    let text = format!("[{block}]\nnvs_no_such_key = true\n");
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+    let message = parsed
+        .err()
+        .unwrap_or_else(|| panic!("`[{block}]` accepted an unknown key"))
+        .message;
+    let listed = message
+        .split_once("expected one of ")
+        .unwrap_or_else(|| panic!("`[{block}]` refused without listing its keys: {message:?}"))
+        .1;
+    let keys: Vec<String> = listed
+        .split(", ")
+        .map(|name| name.trim_matches('`').to_string())
+        .collect();
+    assert!(
+        !keys.is_empty(),
+        "`[{block}]` reported no keys at all: {message:?}",
+    );
+    keys
+}
+
+/// ADR 0005 names a response header as its counter-example to `System`, and ADR 0074's policy
+/// blocks are what that names: a request may set any of them for itself, because it could already
+/// write the header directly. The registry states that as the one `http` row covering the whole
+/// block, so the claim holds only through the longest-prefix rule — a later, more specific row
+/// under `[http]` would take a key back out of `Runtime` without failing anything else here.
+///
+/// The keys come from `keys_in`, so this asserts the class **every** key of those blocks resolves
+/// to rather than the class of the ones somebody listed.
+#[test]
+fn every_http_response_directive_is_runtime_class() {
+    // ADR 0074 §§ 1-3, the three blocks a *response* reads. `[http.client]` (§ 5) is the outbound
+    // half and `[http.errors]` is ADR 0020 § 7's, so neither is this case's question.
+    for block in ["http.headers", "http.cors", "http.cookies"] {
+        for key in keys_in(block) {
+            let dotted = format!("{block}.{key}");
+            let row = governing(&dotted);
+            assert_eq!(
+                row.class,
+                Class::Runtime,
+                "`{dotted}` resolves through `{}` to {:?}, and ADR 0005 makes a response policy \
+                 directive `Runtime`: refusing it would refuse nothing, because the request can \
+                 write the header itself",
+                row.key,
+                row.class,
+            );
+            assert_eq!(
+                row.apply,
+                Apply::Reload,
+                "`{dotted}` is a value read out of the snapshot, so a new snapshot applies it \
+                 (ADR 0078 § 2)",
+            );
+        }
+    }
 }
