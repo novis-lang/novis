@@ -264,6 +264,28 @@ impl Resumed {
 /// only pointer to one that escapes is the opaque `*const ()` in [`Ctx`].
 type TaskYielder = Yielder<Resume, Suspended>;
 
+/// How large the closure a coroutine starts in may be, in bytes —
+/// `corosensei`'s number and not ours.
+///
+/// It copies that closure onto the new stack before the first resume, and its
+/// `allocate_obj_on_stack` refuses anything larger with a bare
+/// `type is too big to transfer` — a panic raised from whichever coroutine
+/// happens to run first, naming neither the closure nor the field that grew it.
+///
+/// **This is the reason a task's context crosses in a `Box`.**
+/// [`nvs_runtime::Ctx`] is most of a kilobyte by itself, because it is where
+/// every per-request fact accumulates and there is one per request rather than
+/// one per call; captured by value it left this budget with nothing in it, and
+/// the next field added anywhere in the workspace took the whole scheduler
+/// down. [`Scheduler::start`] boxes it for the crossing and moves it back onto
+/// the coroutine's own stack in its first statement, which costs one allocation
+/// and one move per **task** — not per helper call, and not on any path a
+/// request takes more than once. What it buys is that this budget is now spent
+/// by four pointers rather than by a context, so a new per-request field is a
+/// question about memory (priority 5) rather than about whether tasks start at
+/// all.
+const CORO_TRANSFER_LIMIT: usize = 1024;
+
 /// A task's identity within one scheduler, and the handle something wakes it
 /// by.
 ///
@@ -712,9 +734,18 @@ impl Scheduler {
         let mut ctx = ctx;
         let (base, ceiling) = crate::stack::bounds(&stack);
         ctx.arm_stack_limit(base, ceiling);
+        // Boxed for the crossing and unboxed the instant the coroutine starts,
+        // so what this closure *captures* is a pointer rather than a whole
+        // context: `CORO_TRANSFER_LIMIT` is why, and the assertion below is what
+        // says so when a future field pushes it back over.
+        let carried = Box::new(ctx);
         // The first resume's argument is ignored: a task that has not started
         // has an empty stack, so a cancelled one is torn down rather than told.
-        let coro = Coroutine::with_stack(stack, move |yielder: &TaskYielder, _first: Resume| {
+        let entry = move |yielder: &TaskYielder, _first: Resume| {
+            // Back onto this coroutine's own stack, where the context lives for
+            // the length of the task and where every helper reaches it by
+            // pointer; the box is freed here and is not a per-helper cost.
+            let mut ctx = *carried;
             // Taking a pointer to the yielder is safe; only turning it back
             // into a reference is not, and `suspend` below owns that `unsafe`.
             // It is erased to `*const ()` so that `nvs-runtime` — the crate
@@ -732,7 +763,14 @@ impl Scheduler {
             ctx.set_yielder(std::ptr::null());
             RUNNING.set(None);
             Finished { id, ctx, outcome }
-        });
+        };
+        assert!(
+            std::mem::size_of_val(&entry) <= CORO_TRANSFER_LIMIT,
+            "a task's entry closure is over `corosensei`'s transfer limit, so no task can \
+             start — put the new per-task state behind a pointer rather than raising the \
+             limit, which is not ours"
+        );
+        let coro = Coroutine::with_stack(stack, entry);
 
         self.ready.push_back(Task {
             id,
@@ -1283,6 +1321,35 @@ mod tests {
 
     fn ctx() -> Ctx {
         Ctx::new(OutputSink::Sink)
+    }
+
+    /// A task's entry closure stays far inside [`CORO_TRANSFER_LIMIT`], which
+    /// it does by carrying a pointer to the context rather than the context.
+    ///
+    /// The assertion in [`Scheduler::start`] is the one that fires on a real
+    /// breach; this is the *headroom*, and it is the number worth watching.
+    /// Spending it back down to nothing is how the limit came to be reached the
+    /// first time — a context captured by value left three bytes, and the next
+    /// field added anywhere in the workspace turned every coroutine in the
+    /// suite into `type is too big to transfer`.
+    #[test]
+    fn a_tasks_entry_closure_leaves_the_stack_switch_room_to_spare() {
+        let carried = Box::new(ctx());
+        let body: Box<dyn FnOnce(&mut Ctx)> = Box::new(|_| {});
+        let id = TaskId(1);
+        let root = TaskRoot::Request;
+        // The capture set `Scheduler::start`'s closure has, and nothing else:
+        // what is being pinned is that none of the four is a whole `Ctx`.
+        let entry = move |_yielder: &TaskYielder, _first: Resume| {
+            let _ = (*carried, body, id, root);
+        };
+        let size = std::mem::size_of_val(&entry);
+        assert!(
+            size <= CORO_TRANSFER_LIMIT / 8,
+            "a task's entry closure is {size} bytes against a limit of {CORO_TRANSFER_LIMIT} \
+             — near enough to it that the next per-task field is a breach rather than a \
+             cost. Put the state behind a pointer, as the context already is."
+        );
     }
 
     #[test]
