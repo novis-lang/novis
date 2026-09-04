@@ -162,9 +162,7 @@ Step 5 above, in detail:
   --show M8` prints a milestone, `--show M8:verify` its acceptance paragraph, `--amend M8 --from <file>`
   rewrites one, and `session.py --wrap` takes a `## milestone: M8` section for the same thing.
 - **The schedule is the chain, not the milestone table.**
-  [docs/agent/goals/chain.toml](docs/agent/goals/chain.toml) is the order the loop actually walks, one
-  entry per goal; a milestone is an **identity tag** one or more of those goals carry, and the plan's
-  `Carried by` cells are derived from that file by `python tools/plan.py --sync` and checked by
-  `--check`. So **say "goal 19", never "in M7"**: M7's work sits at goals 6, 16, 18 and 19, M8's at 4, 5
-  and 17, M1's remainder at 13, and five goals land in no milestone at all — a milestone number says
-  nothing about what comes next or what is finished. `python tools/brief.py` prints the live goal.
+  [chain.toml](docs/agent/goals/chain.toml) is the order the loop walks; a milestone is an **identity
+  tag** one or more goals carry, and the plan's `Carried by` cells are derived from it. So **say "goal
+  19", never "in M7"** — M7's work alone sits at goals 6, 16, 18 and 19, so a milestone number says
+  nothing about what is next or finished. `brief.py` prints the live goal; `plan.py --check` gates it.

@@ -375,7 +375,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) | A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does | Accepted |
 | [0136](0136-a-callable-carries-its-signature.md) | A `callable` carries its signature | Accepted |
 | [0137](0137-a-doc-comment-is-three-slashes-and-two-tags.md) | A doc comment is `///`, and its only tags are `@see` and `@example` | Accepted |
-| [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) | A connection future is driven by the coroutine that owns it, and a waker is one wake | Accepted |
+| [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) | a connection future is driven by the coroutine that owns it, and a waker is one wake | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
