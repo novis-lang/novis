@@ -2669,19 +2669,23 @@ class Chain:
         return goals
 
     def refresh(self):
-        """Re-read the file, so a goal that *appends* entries is walked in the same run.
+        """Re-read the file, so a chain edited under the run is walked as it now stands.
 
         `dossier.py --emit-goals --append-chain` is the reason this exists: a goal whose whole job
         is to write the next hundred cannot hand them to a driver that read the chain once at
         start-up, and stopping the run for a human to restart is the thing `--chain` exists to
-        avoid.
+        avoid. A hand-written entry *inserted* in front of a later one is the same need arriving
+        from the other side, and it is adopted for the same reason.
 
-        **Only growth is adopted.** `.loop/chain.json` is an index into this list and
-        `goal-switch.py` has already folded each walked entry's checks into the one after it, so a
-        chain whose existing entries moved is not something to follow -- the floor those switches
-        built no longer matches the file. That rewrite, and a file that stops parsing mid-run, both
-        leave the snapshot in place and the run continues on it: every entry it is walking is still
-        on disk, so there is nothing here worth ending three hundred sessions over.
+        **What is protected is the walked prefix, not the whole list.** `.loop/chain.json` is an
+        index into this list and `goal-switch.py` folds each walked entry's checks into the one
+        after it at switch time, so an entry at or before `self.index` that moved is not something
+        to follow -- the floor those switches built no longer matches the file. Nothing has been
+        folded into an entry the run has not reached, so those may be inserted, edited or appended
+        freely; the guard is the invariant and never more than it. That rewrite, and a file that
+        stops parsing mid-run, both leave the snapshot in place and the run continues on it: every
+        entry it is walking is still on disk, so there is nothing here worth ending three hundred
+        sessions over.
 
         Returns a one-line note for the console, or "" when nothing changed.
         """
@@ -2689,15 +2693,22 @@ class Chain:
             fresh = self._load()
         except ChainError as e:
             return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {e}"
-        old = [g["md"] for g in self.goals]
-        if [g["md"] for g in fresh[:len(old)]] != old:
-            return (f"chain: {rel_to_root(self.path)} was rewritten under the run rather than "
-                    f"appended to -- walking the {len(old)} entries this run started with")
-        if len(fresh) == len(old):
+        # `-1` is "nothing installed yet", which protects nothing: no switch has folded a floor
+        # into anything, so every entry is still free to move.
+        walked = max(self.index + 1, 0)
+        if [g["md"] for g in fresh[:walked]] != [g["md"] for g in self.goals[:walked]]:
+            return (f"chain: {rel_to_root(self.path)} was rewritten across the {walked} goal(s) "
+                    f"this run has already walked -- walking the {len(self.goals)} entries it "
+                    f"started with")
+        was, now = len(self.goals), len(fresh)
+        if [g["md"] for g in fresh] == [g["md"] for g in self.goals]:
             return ""
         self.goals = fresh
-        return (f"chain: {rel_to_root(self.path)} grew by {len(fresh) - len(old)} goal(s) to "
-                f"{len(fresh)} -- the run walks them without a restart")
+        if now != was:
+            return (f"chain: {rel_to_root(self.path)} is {now} goal(s) where it was {was} -- the "
+                    f"run walks it as it stands, without a restart")
+        return (f"chain: {rel_to_root(self.path)} changed ahead of the live goal -- the run walks "
+                f"it as it stands, without a restart")
 
     def _restore(self):
         """Where the chain stands, from `.loop/chain.json`, or -1 for "nothing installed yet".

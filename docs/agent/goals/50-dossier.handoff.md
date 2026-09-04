@@ -2,7 +2,7 @@
 
 ## State
 
-**Goal 20 — queue the dossier — has just started; nothing of it has landed yet.** Goal 19's whole list is
+**Goal 50 — queue the dossier — has just started; nothing of it has landed yet.** Goal 20's whole list is
 this goal's floor. There is no design to settle: ADR 0134 decided the four proofs (the goal prose links
 it; a handoff is copied to `docs/agent/` and its relative links would break),
 `tools/dossier.py` derives the roster from `nvs meta --json`, and
@@ -37,7 +37,8 @@ stage 2 with headroom left.
 
 - When this goal's checks go green the driver refreshes the chain and walks into goal 51 — the first
   emitted dossier goal — without a restart. `Chain.refresh()` in `tools/loop.py` is that half; if the
-  console does not print `chain: docs/agent/goals/chain.toml grew by N goal(s)` after `GOAL REACHED`,
+  console does not print `chain: docs/agent/goals/chain.toml is N goal(s) where it was M` after
+  `GOAL REACHED`,
   that is the thing to look at, not the emitter.
 - The proofs themselves start at goal 51 and belong to no session of this one. The one exception is
   stage 3: writing a single example and a single attack to feel the shape is a measurement, and it

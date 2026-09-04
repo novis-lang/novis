@@ -74,10 +74,13 @@ complete, which emits as 93 goals over 794 owed. That pass is why
 [optimization-prompt.md](../optimization-prompt.md) now carries menu item 8 — a defect in a generated
 goal is fixed in the emitter and re-emitted, never by hand — which is also what the *automatic* pass
 reaches for once the loop is walking goals a tool wrote. Everything from goal 51 on is therefore generated, and the run continues into it without a
-restart: `Chain.refresh()` re-reads this file when a goal goes green, adopting growth and refusing a
-rewrite, because `.loop/chain.json` is an index into the list and every switch has already folded one
-entry's checks into the next. Goal 20 is last for the reason a proof is written at all — it pins
-behaviour, and behaviour that is still moving is not worth pinning.
+restart: `Chain.refresh()` re-reads this file when a goal goes green, adopting anything past the goal the
+run is on and refusing a rewrite of one it has already walked — `.loop/chain.json` is an index into the
+list and every switch has folded one walked entry's checks into the next, which is what a rewrite behind
+the run would invalidate. Nothing has been folded into an entry the run has not reached, so a hand-written
+goal may be **inserted** in front of the dossier mid-run, not only appended after it. The dossier is last
+for the reason a proof is written at all — it pins behaviour, and behaviour that is still moving is not
+worth pinning.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it

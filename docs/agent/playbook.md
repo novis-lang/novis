@@ -40,6 +40,15 @@ is why" — is this file.
   one thing, and say in the handoff which `[context]` field in `loop-goal.toml` was missing its selector.
   A manifest that nobody corrects becomes a manifest every session works around, which costs more than the
   wide orientation it replaced.
+- **A goal's number is read from its `name`, and falls back to its *position* when the name does not
+  start with a bare number.** `plan.py`'s `GOAL_NUM_RE` is `^\s*(\d+)\b`, so `"19b unix-sockets"` does
+  not match — the `b` kills the word boundary — and the entry is numbered by where it sits instead.
+  Inserting a goal under a letter suffix to avoid renumbering the ones after it therefore does not avoid
+  anything: `plan.py --check` renumbers them in its output while every document still cites the old
+  number, which is the drift the suffix was meant to prevent. Insert with a real number and renumber, or
+  leave a gap ahead of time — the dossier sits at 50 with 21–49 free for exactly this, and
+  `dossier.py`'s emitter numbers what it appends from `max(number) + 1`, so a hand-written entry landing
+  in front of it never moves the generated ones.
 - **A whole ADR is about 7,000 tokens; one of its `###` sections is about 1,000.** `sed -n` between the
   heading and the next one, not `cat`. The same goes for a 1,100-line module: `grep -n` for the anchor
   first. This is the largest single line item in `loop-stats.py --attribute` every time it is measured.
