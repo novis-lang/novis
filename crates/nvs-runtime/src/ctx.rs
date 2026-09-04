@@ -4604,6 +4604,15 @@ impl Ctx {
     /// There is no member that clears one: a context answers one request for
     /// its whole life, and the isolate is what is discarded between two.
     pub fn set_inbound(&mut self, inbound: Inbound) {
+        // ADR 0076 § 2's trace is the door's decision and rides on the carrier
+        // ([`Inbound::set_trace_context`]), so this is where it becomes the
+        // context's — the one write [`Self::set_trace_context`] describes, made
+        // before the program runs and beside the rest of what a request arrives
+        // with. A carrier that carries none leaves the root [`Self::new`] drew
+        // standing, which is § 2's "an id exists for every request".
+        if let Some(trace) = inbound.trace_context() {
+            self.set_trace_context(trace);
+        }
         self.inbound = Some(Box::new(inbound));
     }
     /// The request this context is answering, or `None` where there is none.
@@ -4873,6 +4882,27 @@ pub struct Inbound {
     /// one — an `Arc` bump on the row and one `String` per capture.
     /// [`crate::routes`] accounts for the rest.
     route: Option<crate::routes::Match>,
+    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2's trace,
+    /// as the door read it off the arrived `traceparent` — the trace continued
+    /// when the header was one this understands, and the root it drew instead
+    /// when it was not.
+    ///
+    /// **It is on the carrier for [`Self::route`]'s reason**: which trace a
+    /// request belongs to is a fact about the request, decided once before any
+    /// application code and travelling from there. [`Ctx::trace_context`] is
+    /// where a program reads it and [`Ctx::set_inbound`] is the one place the
+    /// two meet.
+    ///
+    /// `None` is **not** "no trace". [`Ctx::new`] draws a root eagerly, so a
+    /// carrier with nothing here leaves that root standing — which is what a
+    /// program run off the command line and a test's own carrier both want, and
+    /// is why this is an `Option` rather than a [`crate::TraceContext`]. What
+    /// the absence records is that no door asked, never that the request has no
+    /// id: § 2 has one exist for every request whatever the sampling decision.
+    ///
+    /// **What it spends:** 26 bytes per request, held no longer than the
+    /// carrier.
+    trace: Option<crate::trace_context::TraceContext>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -4923,6 +4953,10 @@ impl Inbound {
             // Nothing has matched yet, which is what every carrier says until
             // the door that has a table says otherwise.
             route: None,
+            // No door has read a `traceparent` for this carrier, which leaves
+            // whatever root its context drew standing — the field's own doc
+            // owns why that is not "no trace".
+            trace: None,
         }
     }
     /// Records who the request came from, as ADR 0097 § 6's walk decided it.
@@ -5001,6 +5035,26 @@ impl Inbound {
     #[must_use]
     pub fn route(&self) -> Option<&crate::routes::Match> {
         self.route.as_ref()
+    }
+
+    /// Records ADR 0076 § 2's trace, as the door decided it from the arrived
+    /// `traceparent`.
+    ///
+    /// Called at most once, beside [`Self::set_peer`] and before the program
+    /// runs — `nvs_server::trace` is the one caller and the home of why the
+    /// header is read at the door rather than by whichever subsystem asks for
+    /// an id first. A second write mid-request would split one request across
+    /// two traces, which is the same rule [`Ctx::set_trace_context`] states of
+    /// this fact one layer up.
+    pub fn set_trace_context(&mut self, trace: crate::trace_context::TraceContext) {
+        self.trace = Some(trace);
+    }
+
+    /// The trace the door decided for this request, and `None` where no door
+    /// asked — the field's own doc owns why that is not "no trace".
+    #[must_use]
+    pub fn trace_context(&self) -> Option<crate::trace_context::TraceContext> {
+        self.trace
     }
     /// The verb, verbatim.
     #[must_use]

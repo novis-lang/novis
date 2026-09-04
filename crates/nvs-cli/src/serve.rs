@@ -393,6 +393,13 @@ pub(crate) fn run(
             // call — and `Core\Request::clientIp()` and `::scheme()` are what
             // read them back.
             inbound.set_peer(origin.client(), origin.scheme());
+            // ADR 0076 § 2's trace, off the header lines just pushed: continued
+            // where the peer sent a `traceparent` this understands, and a new
+            // root where it did not. `nvs_server::trace` owns why the door
+            // reads it and why a bad header is never a refusal; every request
+            // has an id either way, because `Ctx::new` drew one before this
+            // carrier existed.
+            nvs_server::trace::take(&mut inbound);
             // ADR 0102 § 7's mount, which is the other half of what step 2 did:
             // the prefix taken off the path above, and § 3's captures of the row
             // that took it. `nvs_server::mount::carry` owns why the door writes

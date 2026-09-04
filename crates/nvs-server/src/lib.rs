@@ -101,6 +101,7 @@ pub mod schedule;
 pub mod secure;
 pub mod serve;
 pub mod statics;
+pub mod trace;
 
 // The request a handler is handed, so that one can be *spelled* where it is
 // written. `hyper` is this crate's dependency and deliberately not its callers'
