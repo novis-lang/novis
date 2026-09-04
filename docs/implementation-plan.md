@@ -61,7 +61,7 @@
 > seven, `Core\Request` ten, an upload walks as parts; the door writes the carrier, a request is a
 > peer task, and pulls its body; every response carries ADR 0074 § 1's secure set; `E0801` refuses
 > `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance
-> 1485, differential 256, migration 100%; valgrind green.
+> 1488, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

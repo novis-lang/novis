@@ -2,73 +2,64 @@
 
 ## State
 
-**Goal 6, Stage 5: ADR 0105 §§ 1-2's parse has its caller, and `Core\Request::files()` walks
-it.** Two classes on `BODY_STREAM`'s shape — `Core\Request\Files`, a handle whose
-iterate/advance/current are its own (`crates/nvs-stdlib/src/request.rs:580`), and
-`Core\Request\Part` (`crates/nvs-stdlib/src/request.rs:642`), which answers `name()`,
-`filename()` and `contentType()` off four slots. `claim_body(ctx, "files")` is § 15's
-exclusivity, now asserted in both directions against all three readings.
+**Goal 6, Stage 5: ADR 0105 § 3's two consumers landed on `Core\Request\Part`.**
+`content(): Iterable<tainted bytes>` answers a third handle class —
+`Core\Request\PartContent` (`crates/nvs-stdlib/src/request.rs:654` is the row block), whose
+iterate/advance/current pull `crates/nvs-stdlib/src/multipart.rs`'s `next_chunk` — and
+`readAll({max?}): tainted bytes` is that same pull with a `Vec` and a bound around it,
+which is `body`'s relationship to `bodyStream` one level in.
 
-**Where the parse lives across calls, decided:** on `nvs_runtime::Inbound` as
-`Option<Box<dyn Any>>`, with `hold_parts` and a `parts_mut` that borrows the parse and the
-body *together* — the parse takes the body per call, so two accessors could not hand that
-out. Not `Ctx::hold_open_file`'s keyed table: that exists to hold many of something, and a
-request has one body. The field's own doc is the argument.
+**§ 3's identity is checked, in one place.** `part_parse`
+(`crates/nvs-stdlib/src/request.rs:1817`) compares the part's `PART_ORDINAL` stamp against
+`Multipart::opened()` and refuses a part the walk has moved past with a `LogicError`; both
+consumers and `content()`'s own `advance()` go through it. A stale part still reads back
+its own three declarations, which is why handing it the *current* part's bytes was the
+failure worth a check.
 
-**Three decisions recorded in ADR 0105's body and spec § 15, not overlaid:** a part's three
-declarations are **members, not properties** (a `Core` instance has no reachable property —
-see the playbook bullet); **all three are `tainted`**, `name` included, because a peer
-chooses the field name as freely as the filename; and `contentType()` answers RFC 7578
-§ 4.4's `text/plain` where the part declared none, rather than being nullable.
+**Two bounds, and which applies is what the call says** — a bare `readAll()` is held to
+`[limits] request_body`, a call naming `max` to that number, and a `max` over the request's
+`[limits] memory` is refused **at the call** rather than clamped. The member's own doc
+comment is the argument, against ADR 0106 § 13's opposite choice for a boot. `max: 0` is the
+absent option; `READ_ALL_OPTIONS` (`crates/nvs-stdlib/src/request.rs:773`) says why a
+sentinel is what lets the two bounds be told apart at all.
 
-**A request that is not `multipart/form-data` walks empty**; one that *says* it is and does
-not say how is refused (`ParseError`). `crate::multipart::is_multipart` is where the two
-split. A failure off the wire is an `IOError`, told apart from a parse refusal by
-`Multipart::failed_on_the_wire` rather than by reading the message.
+**A size is a `uint` of bytes, not `"200M"`.** ADR 0105 § 3 writes the prose spelling; the
+argument is a count, because a size in text is a second parser in front of a number. Pinned
+by `tests/conformance/core/a-file-parts-read-all-bound-is-a-count-of-bytes-in-a-closed-bag.nvst`.
 
-**`Core\IO::writeStream` already exists** (`crates/nvs-stdlib/src/io.rs:124`), so § 4 is
-landed and `saveTo` is a delegation rather than an implementation.
-
-**`examples/upload.nvs` — the failing acceptance check — stays failing**, and the third item
-below is still a question: the check wants `parts=2` / `field=title` from a *program* leg,
-and a program answering no request cannot call `files()` at all.
+**`examples/upload.nvs` — the failing acceptance check — stays failing**, unchanged by this
+session: the check wants `parts=2` / `field=title` out of a *program* leg, and a program
+answering no request cannot call `files()` at all. That is still the open question below.
 
 ## Next group
 
-**§ 3's three ways to consume a part, then the example.** One file set:
-`crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/multipart.rs`,
-`crates/nvs-stdlib/src/registry.rs`, `examples/upload.nvs`.
+**§ 4's delegation, then the example.** One file set: `crates/nvs-stdlib/src/request.rs`,
+`crates/nvs-stdlib/src/io.rs`, `examples/upload.nvs`, `docs/agent/loop-goal.toml`.
 
-- [ ] **`Part::content(): Iterable<bytes>` and `Part::readAll({max?})`** — ADR 0105 § 3. A third
-      handle class on the same shape, whose `advance()` is
-      `crates/nvs-stdlib/src/multipart.rs:296`'s `next_chunk` (delete its `#[allow(dead_code)]`
-      with the first call). Both are guarded by `crates/nvs-stdlib/src/request.rs:605`'s
-      `PART_ORDINAL` against `Multipart::opened()`
-      (`crates/nvs-stdlib/src/multipart.rs:209`) — § 3's "valid only while this part is the
-      iterator's current one", which nothing checks yet. `readAll`'s bare bound is
-      `crates/nvs-stdlib/src/request.rs:927`'s `REQUEST_BODY`, an explicit `max` is
-      `[limits] memory`. Rows and cards go beside
-      `crates/nvs-stdlib/src/request.rs:642`; the slot reader is
-      `crates/nvs-stdlib/src/request.rs:1577`.
-- [ ] **`Part::saveTo(string $path, {max?, overwrite?})`** — ADR 0105 § 4, a delegation to
-      `Core\IO::writeStream` (`crates/nvs-stdlib/src/io.rs:124`), which already removes a
-      partial file on a mid-stream failure. The row goes at
-      `crates/nvs-stdlib/src/request.rs:642`; the path is a sink, so the destination is the
-      application's own and a `tainted` filename never reaches it.
-- [ ] **`examples/upload.nvs` and the acceptance check** — `docs/agent/loop-goal.toml:3385`
-      wants `parts=2`, `field=title`, `file=report.pdf`, `saved 4096 bytes`, `no temp file`
-      from `examples/upload.nvs:1`, which runs as a CLI program. **Decide first whether a
-      program leg can receive a request at all**: `Core\Request::files()` throws in one, and
-      `examples/session.nvs` has the same problem with the same shape of `want`. If it cannot,
-      the check is the playbook's "names something that is not a test" trap and the fix is in
-      `docs/agent/goals/<goal>.toml` as well as the live copy.
+- [ ] **`Part::saveTo(string $path, {max?, overwrite?})`** — ADR 0105 § 4, a delegation
+      rather than an implementation: `Core\IO::writeStream` already writes an
+      `Iterable<bytes>` to a path under exactly that pair of options
+      (`crates/nvs-stdlib/src/io.rs:2724`, its bag at `crates/nvs-stdlib/src/io.rs:426`).
+      Row and card go beside `readAll`'s at `crates/nvs-stdlib/src/request.rs:654` and
+      `crates/nvs-stdlib/src/request.rs:773`; the pull and § 3's identity check are
+      `crates/nvs-stdlib/src/request.rs:1817`'s `part_parse`, already written for two
+      callers. The path is a `CoreTy::Text(Qual::Sink)` while `filename()` is `tainted`,
+      so a case pinning that `saveTo($part->filename())` refuses is § 2's whole point
+      asserted where it bites.
+- [ ] **`examples/upload.nvs` and the acceptance check** — `docs/agent/loop-goal.toml:3385`.
+      Settle first whether that stdout can come out of a program leg at all: every reader
+      behind `files()` refuses where there is no request, so the check may be naming
+      something no `.nvs` program can print — the playbook's "a `loop-goal.toml` check can
+      name something that is not a test at all" bullet is the same shape. If it is, fix the
+      check, and fix `docs/agent/goals/<goal>.toml` in the same commit or `goal-switch.py`
+      restores it.
 
 ## Backlog
-- `Core\Request::post()` reads `Multipart::fields()` (`crates/nvs-stdlib/src/multipart.rs:231`),
-  still `#[allow(dead_code)]` — ADR 0105 § 2, spec § 15.
-- `clientIp`/`scheme`/`host` wait on `[server] trusted_proxies` — `crates/nvs-stdlib/src/request.rs`'s
-  module doc.
-- `route`/`mount` wait on the match `nvs_server` makes once — ADR 0102.
-- ADR 0105 § 5's `upload_total` is enforced on the wire only — `crates/nvs-server/src/body.rs`.
-- M7's bounded-resident-memory case for a body far larger than any in-memory bound —
-  `docs/plan/m7.md`'s verify paragraph.
+
+- `Core\Request::post()` reads the fields the walk buffers — `crates/nvs-stdlib/src/multipart.rs`'s
+  `fields()` still carries a `dead_code` allow naming that member.
+- ADR 0105 § 5's `upload_total` is the door's, in `nvs_server::body`; `docs/plan/m7.md`'s *Verify*
+  wants the bounded-resident-memory assertion over a body far larger than any in-memory bound.
+- `clientIp`/`scheme`/`host`/`mount`/`route` are `crates/nvs-stdlib/src/request.rs`'s named gaps.
+- **A `[context]` gap:** ADR 0105 §§ 3-4 were not in the orientation pack and had to be sliced by
+  hand. Add `0105 §3` and `0105 §4` to `[context] adrs` in `docs/agent/loop-goal.toml`.

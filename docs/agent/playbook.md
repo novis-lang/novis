@@ -5164,6 +5164,13 @@ is why" — is this file.
   three-digit one takes four. `python tools/try.py <case>` prints the real thing; take the first two
   lines from its output verbatim rather than from a neighbouring case, since the neighbour's line
   number is what set its width.
+- **`Ctx::set_memory_limit` in a `-p nvs-stdlib` test bounds the *fixture* too, and the failure
+  blames the member.** A test pinning that `Core\Request\Part::readAll` refuses a `max` larger than
+  `[limits] memory` set the ceiling to 1,024 bytes — under what building the multipart parse itself
+  costs — so `files()` threw first and the assertion read as the walk being broken rather than as
+  the fixture being impossible. The ceiling is over everything the context allocates from
+  `Ctx::buffered()` onward, not over the one buffer under test. Keep the limit roomy in absolute
+  terms (1 MiB) and put the distance into the number the member is *asked* for (4 MiB).
 
 ## Splitting a file that got too big
 
