@@ -140,8 +140,11 @@ The one file set the next four items share: a directive's declaration, and how a
 Two acceptance checks name a tool flag that does not exist yet, and writing it is part of the item
 rather than a follow-up to it. Neither is a new tool:
 
-- **`python tools/bench.py --warm-start --max-ms 10`** — m6.md's *Verify* names "warm-cache CLI startup
-  under 10 ms" and nothing measures it. Item 14's own number, and it belongs beside the cache it measures.
+- **`python tools/bench.py --warm-start --max-work-ms 6`** — m6.md's *Verify* names "warm-cache CLI
+  startup under 10 ms" and nothing measures it. Item 14's own number, and it belongs beside the cache it
+  measures. The budget is on the total less `nvs --version`, because most of the total is the OS creating
+  a process rather than anything Novis does; `bench.py`'s `warm_start` owns that. The total is still
+  printed, and m6.md's figure stays the criterion the cache has to meet once it has a caller.
 - **`python tools/try.py --bundle <file> --expect <line>`** — item 20's "runs identically to `nvs run`",
   which is a comparison rather than an assertion about one output.
 
