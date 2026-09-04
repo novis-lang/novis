@@ -23,7 +23,7 @@ how often they change, and this tool is what keeps a caller from having to know 
     python tools/plan.py --show M8:lead             # only its opening paragraph
     python tools/plan.py --amend M8 --from F        # replace one milestone's body
     python tools/plan.py --check                    # sizes against the aim, index against disk (CI)
-    python tools/plan.py --sync                     # rewrite the index's title cells from the H1s
+    python tools/plan.py --sync                     # rewrite the derived cells from their sources
 
 `--set` and `--amend` take the replacement from a *file* rather than the command line, for the
 reason docs/agent/commands.md gives: a shell parses its argument before anything runs, and this
@@ -52,10 +52,13 @@ from, a milestone file no row names, a milestone with no `**Verify:**`. Those ar
 machine can be certain about, so `--check` exits 1 on any of them and CI's `docs` job runs it. The
 two kinds print in the same report and only one of them decides the exit status.
 
-`--sync` is the other half of that: the title cell is *derived* from the milestone file's own H1,
-so drift between them is fixed by regenerating rather than by hand-editing whichever copy the
-reader noticed first. The Order and Loop-days cells are the index's own data -- a schedule is a
-property of the plan, not of a milestone -- and `--sync` carries them through untouched.
+`--sync` is the other half of that: **two of the four cells are derived**, so drift is fixed by
+regenerating rather than by hand-editing whichever copy the reader noticed first. The title comes
+from the milestone file's own H1. The `Carried by` cell comes from `docs/agent/goals/chain.toml`,
+because **the chain is the schedule and a milestone is an identity tag one or more goals carry** --
+AGENTS.md's *The schedule is the chain* bullet is the one home of that rule. Loop-days is the index's own
+data and `--sync` carries it through untouched; so is the cell of a milestone no goal carries,
+which has nothing to derive it from and says `done`, `ongoing` or `backlog N` instead.
 """
 
 from __future__ import annotations
@@ -64,21 +67,25 @@ import argparse
 import re
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
 PLAN_DIR = ROOT / "docs" / "plan"
 DESIGN = PLAN_DIR / "design.md"
+CHAIN = ROOT / "docs" / "agent" / "goals" / "chain.toml"
+LIVE_GOAL = ROOT / "docs" / "agent" / "loop-goal.md"
 
 WIDTH = 100  # including the "> " prefix, matching what is already in the file
 FIELD_RE = re.compile(r"^> \*\*([^*:]+):\*\*\s*(.*)$")
 
-#: An index row: `| 1 | [M4S](plan/m4s.md) | The `Core` API contract … | ~1.5 |`
-#: The leading **order** cell is what says what comes next, and a milestone's number is its identity
-#: rather than its position (implementation-plan.md says so where the table is). It is optional here
-#: so a table written before that column, or a row that never gets one, still parses -- and it is
-#: matched rather than skipped so `--check` can report the schedule instead of only the roster.
+#: An index row: `| goal 1 | [M4S](plan/m4s.md) | The `Core` API contract … | ~1.5 |`
+#: The leading **carried by** cell names the chain goals that do this milestone's work, and a
+#: milestone's number is its identity rather than its position (implementation-plan.md says so
+#: where the table is). It is optional here so a table written before that column, or a row that
+#: never gets one, still parses -- and it is matched rather than skipped so `--check` can compare
+#: it against chain.toml instead of reporting only the roster.
 #: The last cell is the loop-day projection (docs/plan/velocity.md owns what it means) and is
 #: optional too. Both are matched separately rather than swept into the title, because `--check`
 #: compares the title against the milestone file's H1 character for character and would otherwise
@@ -93,7 +100,9 @@ ROW_RE = re.compile(
 #: *reported* rather than skipped. A row that silently fails to parse drops a milestone out of the
 #: roster with nothing to show for it -- `787dd992` was exactly that, an added Order column that made
 #: every row unparseable at once, and what found it was a human noticing the table had gone empty.
-TABLE_HEAD_RE = re.compile(r"^\|\s*Order\s*\|\s*Milestone\s*\|")
+#: `Order` is the pre-chain name of the first column and is still accepted, so a tree mid-rename
+#: parses rather than reporting sixteen unparsed rows at once.
+TABLE_HEAD_RE = re.compile(r"^\|\s*(?:Carried by|Order)\s*\|\s*Milestone\s*\|")
 TABLE_RULE_RE = re.compile(r"^\|[\s:|-]+\|$")
 
 #: A milestone file's H1: `# M4S — The `Core` API contract and its pure half (~5 weeks)`
@@ -186,7 +195,7 @@ def milestones(lines=None):
                 {
                     "id": m.group(2),
                     "title": m.group(4),
-                    "order": (m.group(1) or "").strip(),
+                    "carried": (m.group(1) or "").strip(),
                     "loop_days": (m.group(5) or "").strip(),
                     "path": ROOT / "docs" / m.group(3),
                     "rel": "docs/" + m.group(3),
@@ -194,6 +203,95 @@ def milestones(lines=None):
                 }
             )
     return found
+
+
+# ---------------------------------------------------------------------------- the chain
+
+#: What a chain entry writes for work that lands in no milestone at all -- goals 7-11 are five of
+#: them. A milestone is not invented to hold a goal; the goal says so and `--check` accepts it.
+POST_PARITY = "post-parity"
+
+#: `1 core-depth` -> 1. The number is what a person says out loud ("goal 19"), and it is read off
+#: the entry's own name rather than its position, so inserting a goal cannot silently renumber the
+#: cells of every milestone after it.
+GOAL_NUM_RE = re.compile(r"^\s*(\d+)\b")
+
+#: The cell of a milestone the chain does not carry: finished, running forever, or waiting with a
+#: place in the queue behind the chain. There is nothing to derive it from, so it is the index's
+#: own data -- and anything else in that cell is a `--check` finding rather than a fourth vocabulary.
+UNCHAINED_CELL_RE = re.compile(r"^(?:done\\?\*?|ongoing|backlog \d+)$")
+
+
+def chain_goals():
+    """Every entry of `docs/agent/goals/chain.toml`, in chain order.
+
+    `{pos, num, name, md, milestone}` each. The chain is the schedule -- the driver walks this
+    file, and the index's `Carried by` cells are derived from its `milestone` keys -- so a tree
+    with no chain is a tree where those cells are all there is, and this answers `[]` for it."""
+    if not CHAIN.exists():
+        return []
+    data = tomllib.loads(CHAIN.read_text(encoding="utf-8"))
+    out = []
+    for i, g in enumerate(data.get("goal", [])):
+        name = str(g.get("name", "")).strip()
+        num = GOAL_NUM_RE.match(name)
+        out.append(
+            {
+                "pos": i + 1,
+                "num": int(num.group(1)) if num else i + 1,
+                "name": name,
+                "md": str(g.get("md", "")).strip(),
+                "milestone": str(g.get("milestone", "")).strip(),
+            }
+        )
+    return out
+
+
+def carried_by(goals=None):
+    """milestone id -> the goal numbers that carry it, in chain order.
+
+    This is the join the whole arrangement rests on: M8 is at 4, 5 and 17, M7 at 6, 16, 18 and 19,
+    and no column of one number per milestone can say either."""
+    by = {}
+    for g in chain_goals() if goals is None else goals:
+        if g["milestone"] and g["milestone"] != POST_PARITY:
+            by.setdefault(g["milestone"], []).append(g["num"])
+    return by
+
+
+def schedule_cell(nums):
+    """`[13]` -> `goal 13`; `[4, 5, 17]` -> `goals 4, 5, 17`.
+
+    The index's cell character for character, so `--sync` writes it and `--check` compares
+    against it without either having to know how the other spells one."""
+    if not nums:
+        return ""
+    if len(nums) == 1:
+        return f"goal {nums[0]}"
+    return "goals " + ", ".join(str(n) for n in nums)
+
+
+def live_goal():
+    """The chain entry `docs/agent/loop-goal.md` is currently a copy of, or None.
+
+    Matched on the H1, which `goal-switch.py` copies verbatim: the live file carries no id to read
+    and the H1 is the one thing the copy and its source are guaranteed to share. `.loop/chain.json`
+    holds the same fact, but only on a machine that has actually run the loop."""
+    if not LIVE_GOAL.exists():
+        return None
+    head = LIVE_GOAL.read_text(encoding="utf-8").split("\n", 1)[0].strip()
+    if not head:
+        return None
+    for g in chain_goals():
+        if not g["md"]:
+            continue
+        src = ROOT / g["md"]
+        if src.exists() and src.read_text(encoding="utf-8").split("\n", 1)[0].strip() == head:
+            return g
+    return None
+
+
+# ----------------------------------------------------------------------- milestones, continued
 
 
 def unparsed_rows(lines=None):
@@ -242,6 +340,34 @@ def sync_titles(lines):
         start, end = row.span(4)
         out[m["line"] - 1] = raw[:start] + want.replace("|", r"\|") + raw[end:]
         changed.append((m["id"], m["rel"], m["title"], want))
+    return out, changed
+
+
+def sync_schedule(lines):
+    """The index's `Carried by` cells, rewritten from `chain.toml`.
+
+    Returns the new lines and one (id, was, now) per row that moved. Only a milestone the chain
+    actually names is touched -- one no goal carries has nothing to derive its cell from, and
+    guessing `backlog` for it would be this tool inventing a schedule rather than reading one."""
+    by = carried_by()
+    if not by:
+        return list(lines), []
+    out = list(lines)
+    changed = []
+    for m in milestones(lines):
+        nums = by.get(m["id"])
+        if not nums:
+            continue
+        want = schedule_cell(nums)
+        if m["carried"] == want:
+            continue
+        raw = out[m["line"] - 1]
+        row = ROW_RE.match(raw)
+        if not row or row.group(1) is None:
+            continue
+        start, end = row.span(1)
+        out[m["line"] - 1] = raw[:start] + want + raw[end:]
+        changed.append((m["id"], m["carried"], want))
     return out, changed
 
 
@@ -332,6 +458,19 @@ def report_index(fields, index, aim):
         print(f"  design {nbytes(DESIGN.read_text(encoding='utf-8')):>6} bytes   "
               f"{DESIGN.relative_to(ROOT).as_posix()}")
 
+    goals = chain_goals()
+    if goals:
+        live = live_goal()
+        print(f"\n{CHAIN.relative_to(ROOT).as_posix()}: {len(goals)} goals -- this is the "
+              "schedule, and the table's first column is derived from it")
+        if live:
+            print(f"  live: goal {live['num']} of {len(goals)}, {live['name']}"
+                  + (f", inside {live['milestone']}" if live["milestone"] else ""))
+        for m in index:
+            nums = carried_by(goals).get(m["id"])
+            if nums:
+                print(f"  {m['id']:<6} {schedule_cell(nums)}")
+
     print("\n--get <field> / --set <field> --from <file> for the status block;")
     print("--show M8 / --show M8:verify / --amend M8 --from <file> for a milestone;")
     print("--check prices the block and checks the index against what is on disk.")
@@ -392,6 +531,48 @@ def run_check(fields, index, aim):
             problems.append(f"{path.relative_to(ROOT).as_posix()}: on disk, but no index row "
                             "names it, so nothing links to it")
 
+    # The index against the chain. Two schedules that disagree is the failure this pair of checks
+    # exists to make impossible to keep: the chain is what the driver walks, the cells are what a
+    # reader reads, and they are the same fact written twice on purpose (once as data, once in a
+    # table) rather than two facts to reconcile by hand.
+    goals = chain_goals()
+    if goals:
+        ids = {m["id"] for m in index}
+        by = carried_by(goals)
+        for g in goals:
+            if not g["milestone"]:
+                problems.append(
+                    f"chain.toml: goal {g['num']} ({g['name']}) names no milestone -- give it one, "
+                    f'or `milestone = "{POST_PARITY}"` if it lands in none'
+                )
+            elif g["milestone"] != POST_PARITY and g["milestone"] not in ids:
+                problems.append(
+                    f"chain.toml: goal {g['num']} ({g['name']}) is tagged {g['milestone']}, which "
+                    "is not a row in the milestone table"
+                )
+        for m in index:
+            nums = by.get(m["id"])
+            if nums:
+                want = schedule_cell(nums)
+                if m["carried"] != want:
+                    problems.append(
+                        f"{m['id']}: the index row and chain.toml have drifted apart\n"
+                        f"      index: {m['carried'] or '(empty)'}\n      chain: {want}"
+                    )
+            elif not UNCHAINED_CELL_RE.match(m["carried"]):
+                problems.append(
+                    f"{m['id']}: no chain goal carries it, so its cell says where it stands on its "
+                    f"own -- `done`, `ongoing` or `backlog N`, not {m['carried'] or '(empty)'!r}"
+                )
+        pp = [str(g["num"]) for g in goals if g["milestone"] == POST_PARITY]
+        live = live_goal()
+        print(f"  chain: {len(goals)} goals, {len(by)} milestone(s) carried"
+              + (f", {len(pp)} in none (goals {', '.join(pp)})" if pp else "")
+              + (f"; live at goal {live['num']}" if live else "; nothing live"))
+    else:
+        print(f"  chain: no {CHAIN.relative_to(ROOT).as_posix()}, so the `Carried by` cells are "
+              "unchecked -- they are derived from it and nothing else states them")
+
     if problems:
         for p in problems:
             print(f"  !! {p}")
@@ -399,7 +580,7 @@ def run_check(fields, index, aim):
               "on. A drifted title is `python tools/plan.py --sync`; the rest are edits.")
         return 1
     print(f"  {len(index)} rows, {len(index)} files, titles matching, every one with a "
-          "`**Verify:**`")
+          "`**Verify:**`, every cell agreeing with the chain")
     return 0
 
 
@@ -502,14 +683,18 @@ def main():
             print("plan.py: refusing to write over a table this tool cannot read whole")
             return 1
         out, changed = sync_titles(lines)
-        if not changed:
-            print(f"plan.py: {len(index)} title cells, every one already matching its file's H1 "
-                  "-- nothing to write")
+        out, moved = sync_schedule(out)
+        if not changed and not moved:
+            print(f"plan.py: {len(index)} rows, every title already matching its file's H1 and "
+                  "every `Carried by` cell already matching chain.toml -- nothing to write")
             return 0
         PLAN.write_text("\n".join(out), encoding="utf-8", newline="")
         for mid, rel, was, now in changed:
             print(f"plan.py: {mid} title synced from {rel}\n      was: {was}\n      now: {now}")
-        print(f"plan.py: {len(changed)} row(s) rewritten in "
+        for mid, was, now in moved:
+            print(f"plan.py: {mid} carried-by synced from chain.toml\n"
+                  f"      was: {was or '(empty)'}\n      now: {now}")
+        print(f"plan.py: {len(changed) + len(moved)} cell(s) rewritten in "
               f"{PLAN.relative_to(ROOT).as_posix()}")
         return 0
 

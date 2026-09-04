@@ -234,7 +234,32 @@ def parse_milestones(_plan_text=None):
 
 
 def pick_current_next(status_text, milestones):
-    """`Current: **M3**` / `Next: **M4**` out of the Status field, with a loud fallback."""
+    """The milestone the live chain goal lands in, the one the next goal does, and that goal.
+
+    The chain is the schedule and a milestone is an identity tag one or more goals carry
+    (AGENTS.md's *The schedule is the chain* bullet), so **which milestone is current is only
+    the chain can answer**. It used to be answered by regexing `**Mn**` out of the Status prose,
+    which is how a milestone two thirds landed kept being projected into every session's pack as
+    the next thing to do -- M8 was `done` at goals 4 and 5 and still open at 17, and one bolded id
+    in a paragraph could not say that. That regex survives only as the fallback for a tree with no
+    chain on disk."""
+    goals = planmod.chain_goals()
+    live = planmod.live_goal() if goals else None
+    if live is not None:
+        ids = {m["id"] for m in milestones}
+        current = live["milestone"] if live["milestone"] in ids else None
+        following = None
+        for g in goals[live["pos"]:]:
+            if g["milestone"] in ids and g["milestone"] != current:
+                following = g["milestone"]
+                break
+        return current, following, live
+    if goals:
+        warn(
+            "no goal in docs/agent/goals/chain.toml matches the H1 of docs/agent/loop-goal.md, so "
+            "the schedule cannot say which milestone is current and the Status field is being "
+            "read instead. A live goal is a copy of its chain entry: the two H1s should be equal."
+        )
     cur = re.search(r"[Cc]urrent:\s*\*\*(M\d+[A-Z]?)\*\*", status_text or "")
     nxt = re.search(r"[Nn]ext:\s*\*\*(M\d+[A-Z]?)\*\*", status_text or "")
     if cur:
@@ -250,19 +275,19 @@ def pick_current_next(status_text, milestones):
                 "milestone is marked current and no lead is printed below. Spell it out: the "
                 "field is the one home for which milestone the work is inside."
             )
-            return None, None
+            return None, None, None
         current = mentioned[-1]
         warn(
             f'the Status field does not say `Current: **Mn**`; guessed {current} from the last '
             "milestone it names. Spell it out so this is not a guess."
         )
     if nxt:
-        return current, nxt.group(1)
+        return current, nxt.group(1), None
     ids = [m["id"] for m in milestones]
     if current in ids:
         i = ids.index(current)
-        return current, (ids[i + 1] if i + 1 < len(ids) else None)
-    return current, None
+        return current, (ids[i + 1] if i + 1 < len(ids) else None), None
+    return current, None, None
 
 
 def run_milestones(status_text, plan_text):
@@ -272,21 +297,33 @@ def run_milestones(status_text, plan_text):
         warn(f"found no `### Mn --` milestone headings in {rel(PLAN)}")
         return
 
-    current, nxt = pick_current_next(status_text, milestones)
+    current, nxt, live = pick_current_next(status_text, milestones)
     section(
         "MILESTONE MAP, AND THE LEAD OF THE CURRENT ONE",
         f"{rel(PLAN)} (the milestone table) -- one file each, under docs/plan/",
     )
-    emit("Every milestone, one line each, with the file that holds it. Only the current and next")
-    emit("milestones' opening paragraphs are printed; a milestone's full text is deliberately not")
-    emit("in this digest -- `python tools/plan.py --show M8` prints one, `--show M8:verify` its")
-    emit("acceptance paragraph alone.")
+    emit("Every milestone, one line each, with the file that holds it and the chain goals that")
+    emit("carry its work. The goal is the unit of schedule and the milestone the unit of identity:")
+    emit('say "goal 19", not "in M7". Only the current and next milestones\' opening paragraphs are')
+    emit("printed; a milestone's full text is deliberately not in this digest -- `python")
+    emit("tools/plan.py --show M8` prints one, `--show M8:verify` its acceptance paragraph alone.")
+    if live is not None:
+        total = len(planmod.chain_goals())
+        where = live["milestone"] or "no milestone"
+        emit()
+        emit(f"  LIVE: goal {live['num']} of {total} -- {live['name']}, inside {where}")
+        emit("        docs/agent/goals/chain.toml is the schedule: every earlier goal has passed,")
+        emit("        every later one is not started.")
     emit()
 
+    # The cell is markdown, so `done\*` carries M4's footnote marker escaped. Widened to whatever
+    # the longest one needs rather than a constant, because that is a list now and it grows.
+    cells = {m["id"]: m["entry"]["carried"].replace("\\*", "*") for m in milestones}
+    width = max((len(c) for c in cells.values()), default=0)
     for m in milestones:
         line = f"{m['id']:<4} {m['title']}"
         marker = "  <- current" if m["id"] == current else ("  <- next" if m["id"] == nxt else "")
-        emit(f"  {m['entry']['rel']:<20} {line}{marker}")
+        emit(f"  {m['entry']['rel']:<20} {cells[m['id']]:<{width}} {line}{marker}")
 
     by_id = {m["id"]: m for m in milestones}
 
