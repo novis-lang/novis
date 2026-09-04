@@ -1668,6 +1668,18 @@ impl Ctx {
         self.session.as_mut()
     }
 
+    /// Close the session this request had open, leaving it with none.
+    ///
+    /// ADR 0139 § 1's `destroy` is the only caller, and closing rather than
+    /// emptying is the honest answer: the record is gone from the store, so a
+    /// record left on the request would be a copy of something that no longer
+    /// exists — and § 4's write-back would put it straight back. What a member
+    /// sees afterwards is exactly what it sees before `start`, which is the
+    /// throw that names it.
+    pub fn close_session(&mut self) {
+        self.session = None;
+    }
+
     /// The process status `exit`/`exit(n)` named, `0` if none ran.
     ///
     /// Read once, at the request boundary, after a [`crate::EXITED`] status

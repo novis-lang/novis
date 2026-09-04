@@ -23,20 +23,14 @@
 # `Core\Cap` and `Core\Cli` are registered whole; `Core\Request` has the request
 # line (`method`, `path`, `query`), the fields that arrived with it, all three
 # readings of the body and ADR 0102 § 1's `route`, and owes the peer, and
-# `Core\Session` is owed whole: ADR 0139 decided its mechanics and
-# `nvs_stdlib::session` holds § 2's store, but none of § 1's seven members has a
-# registry row yet, `start` included.
+# `Core\Session` is whole: § 1's seven members all have registry rows. What is
+# left of ADR 0139 is § 4's write-back at the end of the request, which is a
+# server question rather than a member.
 §15 Request::clientIp
 §15 Request::host
 §15 Request::scheme
 §15 Response::html
 §15 Response::sendFile
-§15 Session::clear
-§15 Session::destroy
-§15 Session::get
-§15 Session::regenerate
-§15 Session::remove
-§15 Session::set
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
 # talk to: goal 5's. `inList` and `quoteIdentifier` need neither and have

@@ -179,6 +179,26 @@ impl Connection {
         }
     }
 
+    /// `DEL key` — the entry forgotten, whether or not it was ever there.
+    ///
+    /// The count the store answers with is discarded on purpose:
+    /// [ADR 0139](../../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// § 2's `destroy` is "forget the record under an id", and an id there was
+    /// no record under is already forgotten — the same answer `load` gives it.
+    /// Reading the count would be a second question about existence, which that
+    /// section refuses for the reason it refuses `validateId`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::set`]. Replayable for that command's reason: sending
+    /// `DEL` twice reaches the state sending it once reaches.
+    pub(crate) fn del(&mut self, key: &[u8]) -> Result<(), String> {
+        match self.command(&[b"DEL", key], Replay::Idempotent)? {
+            Reply::Number(_) => Ok(()),
+            other => Err(other.unexpected("DEL")),
+        }
+    }
+
     /// `GET key` — the entry's bytes, or `None` for one that is not there.
     ///
     /// # Errors
@@ -307,7 +327,7 @@ struct Failure {
     why: String,
 }
 
-/// The six reply shapes [`Connection`]'s three commands answer with.
+/// The six reply shapes [`Connection`]'s commands answer with.
 enum Reply {
     /// `+OK`, and nothing else this client asks for.
     Simple(String),

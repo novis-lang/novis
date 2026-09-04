@@ -2,14 +2,20 @@
 //! the identifier a store issues, the record it keeps under it, and the two directives that decide
 //! where that store is and how long a record survives.
 //!
-//! **What is on disk is § 2's store and § 1's `start`.** The four operations a backend answers are
-//! here — [`mint`], [`load`], [`save`] and the key they share — over the shared tier's wire, and
-//! [`nvs_core_session_start`] is the member that reaches them: it takes the identifier the client
-//! presented, loads the record the store issued it for, and issues a fresh one where there is
-//! none. § 1's other six operate on the record `start` left on the request
-//! ([`nvs_runtime::Session`]) and are the next slice; each of them throws until `start` has run,
-//! which is the whole benefit [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 4 was
-//! buying and is worth nothing if the first `get` can silently start one.
+//! **What is on disk is § 2's store and all seven of § 1's members.** The four operations a backend
+//! answers are here — [`mint`], [`load`], [`save`], [`destroy`] and the key they share — over the
+//! shared tier's wire, and [`nvs_core_session_start`] is the member that reaches them: it takes the
+//! identifier the client presented, loads the record the store issued it for, and issues a fresh
+//! one where there is none. The other six operate on the record `start` left on the request
+//! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
+//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 4 was buying, and worth nothing if
+//! the first `get` can silently start one.
+//!
+//! **What is left is § 4's write-back at the end of the request.** [`write_back`] marks the record
+//! changed on the request, and [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`]
+//! reach the store as they land because § 4 says those two are immediate — but the send a dirty
+//! record earns when the request *ends* is unwritten, so a `set` this build accepts is visible to
+//! the rest of this request and to nothing after it.
 //!
 //! **`db` is a store § 3 admits and this build cannot serve.** Every operation below is written
 //! against the shared tier's wire, so `start` under `backend = "db"` throws naming the half that
@@ -60,15 +66,24 @@
 //!
 //! One round trip to the configured store per request that starts a session, and a second only for
 //! a request that changed the record (§ 4). A request that presents no identifier spends a draw
-//! and one write. Memory is one decoded record per in-flight request that started one, released
+//! and one write. Memory is one encoded record per in-flight request that started one, released
 //! with the request heap — O(in-flight), never O(sessions served).
+//!
+//! **Every member that touches the record decodes it, and every member that changes it encodes it
+//! back** — O(record) per call, over the bytes [`nvs_runtime::Session`] already holds, with the
+//! decoded array living only for the length of the call. That is the accepted trade rather than an
+//! oversight: a session record is a handful of keys beside the network round trip `start` has
+//! already spent, and the alternative — holding the decoded array on the context — would put an
+//! object at teardown that an
+//! [ADR 0017](../../../../docs/adr/0017-hot-reload-without-restart.md) unit swap could strand,
+//! which is the whole reason that struct holds bytes.
 
 use std::time::Duration;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use nvs_config::session::Backend;
-use nvs_runtime::{Ctx, Fault, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::cache::redis::Connection;
@@ -81,24 +96,92 @@ pub(crate) const NAME: &str = r"Core\Session";
 /// § 1's roster, of which `start` is the member that talks to the store.
 ///
 /// One class and no instance side: a session is the request's, not an object a program holds, so
-/// there is nothing for a handle to be and nothing to hand back. § 1's other six are static for
-/// the same reason and land in the next slice.
+/// there is nothing for a handle to be and nothing to hand back. All seven are static for that
+/// reason, and this is § 1's list in its order.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "start",
-        names: &["presented"],
-        // `?tainted string` as this registry spells it: `Nullable` for the `?`, and
-        // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only, and
-        // a `Qual` is what says a `tainted` argument is admitted here (ADR 0088 § 2). It is
-        // admitted because § 2's strict-id rule makes the value a lookup key and never an
-        // instruction: what the store did not issue is absent, whatever it was.
-        params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
-        defaults: &[Const::Null],
-        return_ty: CoreTy::Void,
-        symbol: "nvs_core_session_start",
-        doc: Some(&START_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "start",
+            names: &["presented"],
+            // `?tainted string` as this registry spells it: `Nullable` for the `?`, and
+            // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only,
+            // and a `Qual` is what says a `tainted` argument is admitted here (ADR 0088 § 2). It
+            // is admitted because § 2's strict-id rule makes the value a lookup key and never an
+            // instruction: what the store did not issue is absent, whatever it was.
+            params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_start",
+            doc: Some(&START_DOC),
+        },
+        CoreMethod {
+            name: "get",
+            names: &["key"],
+            // `Qual::Neutral` on the key, which is `Core\Cache\Store::get`'s judgement over the
+            // same boundary: not a byte of it reaches the answer, and a record key derived from
+            // the request is data rather than an instruction (ADR 0088 § 2).
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // `mixed` rather than ADR 0063 R7's `?T`: what went in is any value the byte carrier
+            // admits, so there is no `T` to make nullable, and `mixed` already spells absent.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_session_get",
+            doc: Some(&GET_DOC),
+        },
+        CoreMethod {
+            name: "set",
+            names: &["key", "value"],
+            // The value is unclassified — `CoreTy::Mixed` — so a `tainted` one is refused, again
+            // as `Core\Cache\Store::put` refuses it and for that member's reason: a qualifier is a
+            // compile-time fact and the record is bytes, so `get` has nowhere to carry it back out
+            // and admitting one here would launder it.
+            params: &[CoreTy::Text(Qual::Neutral), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_set",
+            doc: Some(&SET_DOC),
+        },
+        CoreMethod {
+            name: "remove",
+            names: &["key"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_remove",
+            doc: Some(&REMOVE_DOC),
+        },
+        CoreMethod {
+            name: "clear",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_clear",
+            doc: Some(&CLEAR_DOC),
+        },
+        CoreMethod {
+            name: "regenerate",
+            names: &[],
+            // No argument, because PHP's `$delete_old_session` chose between a fixation window and
+            // a lost session and only one of those is correct — ADR 0139 § 1, and the migration
+            // guide's *Sessions, requests and headers* is where the pair is named.
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_regenerate",
+            doc: Some(&REGENERATE_DOC),
+        },
+        CoreMethod {
+            name: "destroy",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_session_destroy",
+            doc: Some(&DESTROY_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -132,6 +215,158 @@ const START_DOC: MethodDoc = MethodDoc {
             desc: "The configured store cannot be reached. It throws rather than answering as \
                    though the record were absent, since a store that is down must not read as a \
                    forged identifier — the two have opposite responses.",
+        },
+    ],
+};
+
+/// `Core\Session::get`'s reference card — ADR 0117.
+const GET_DOC: MethodDoc = MethodDoc {
+    short: "Reads one key of the record this request's session holds, answering `null` where the \
+            record does not hold it.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The key to read. One the record does not hold is `null` rather than a refusal, so a \
+               session that stored a `null` and one that stored nothing read alike.",
+        shape: &[],
+    }],
+    ret: "The value stored under `$key`, or `null`. Reading never marks the record changed, so a \
+          request that starts a session and only reads it makes no second round trip.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no record to read.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The stored record names a class this program cannot resolve — what a record \
+                   written by a unit that declared the class and read by one that does not looks \
+                   like.",
+        },
+    ],
+};
+
+/// `Core\Session::set`'s reference card — ADR 0117.
+const SET_DOC: MethodDoc = MethodDoc {
+    short: "Writes one key of the record this request's session holds, replacing whatever was \
+            under it.",
+    params: &[
+        ParamDoc {
+            name: "key",
+            desc: "The key to write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "What to store under it — any value the cross-boundary copy admits, which is the \
+                   same carrier a `Core\\Cache` entry crosses on. It is not `tainted`: a qualifier \
+                   is a compile-time fact and a record is bytes, so nothing could carry one back \
+                   out of `get()`.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. The record is marked changed, which is what earns it a write back to the store \
+          when the request ends.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no record to write.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$value` holds something the cross-boundary copy refuses — a closure, a \
+                   resource, or an object holding one.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "As `get()`, because writing one key reads the whole record first.",
+        },
+    ],
+};
+
+/// `Core\Session::remove`'s reference card — ADR 0117.
+const REMOVE_DOC: MethodDoc = MethodDoc {
+    short: "Takes one key out of the record this request's session holds.",
+    params: &[ParamDoc {
+        name: "key",
+        desc: "The key to take out. One the record does not hold is not a refusal, and does not \
+               mark the record changed either — there is nothing to write back.",
+        shape: &[],
+    }],
+    ret: "Nothing. Removing a key the record held marks it changed; removing one it did not hold \
+          leaves it exactly as it was.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no record to change.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "As `set()`: what is left of the record is encoded again, and the carrier \
+                   refuses the same graphs on the way out as on the way in.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "As `get()`, because removing one key reads the whole record first.",
+        },
+    ],
+};
+
+/// `Core\Session::clear`'s reference card — ADR 0117.
+const CLEAR_DOC: MethodDoc = MethodDoc {
+    short: "Empties the record this request's session holds, keeping the session and its \
+            identifier.",
+    params: &[],
+    ret: "Nothing. The session stays open under the same identifier, so what this clears is the \
+          record and not the client's claim to it — `destroy()` is the member that takes both.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "This request has not called `start()`, so there is no record to empty.",
+    }],
+};
+
+/// `Core\Session::regenerate`'s reference card — ADR 0117.
+const REGENERATE_DOC: MethodDoc = MethodDoc {
+    short: "Issues a new identifier, moves the record to it and forgets the old entry — what to \
+            call the moment a request changes who the session speaks for.",
+    params: &[],
+    ret: "Nothing. The response carries the new identifier in its session cookie, and the record \
+          survives the move unchanged. There is no argument for keeping the old entry: one of the \
+          two answers is a fixation window and the other is a lost session.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no session to move; the \
+                   shared store is unconfigured or refused by capability; or `[session] cookie` is \
+                   not a cookie name.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The configured store cannot be reached. Unlike `start()`, this is not \
+                   recoverable by issuing a fresh session: the old identifier is still live \
+                   wherever the store is, which is the whole thing this member was called to end.",
+        },
+    ],
+};
+
+/// `Core\Session::destroy`'s reference card — ADR 0117.
+const DESTROY_DOC: MethodDoc = MethodDoc {
+    short: "Forgets the record in the store and closes the session on this request, which is what \
+            signing out is.",
+    params: &[],
+    ret: "Nothing. Afterwards this request has no session at all, so every member of this class \
+          throws again until `start()` opens one — the same answer they give before the first \
+          `start()`, because it is the same state.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "This request has not called `start()`, so there is no session to forget; or \
+                   the shared store is unconfigured or refused by capability.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The configured store cannot be reached, so the record is still there. It \
+                   throws rather than closing the session quietly, because a program told the \
+                   sign-out succeeded would stop trying.",
         },
     ],
 };
@@ -250,6 +485,18 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// the two have opposite responses.
 pub(crate) fn load(open: &mut Connection, id: &str) -> Result<Option<Vec<u8>>, String> {
     open.get(&key_of(id))
+}
+
+/// § 2's `destroy` — the record under `id`, forgotten.
+///
+/// One key, as [`save`] writes one: a session is one entry, so there is nothing here that a store
+/// with no multi-key atomic step could not do.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<(), String> {
+    open.del(&key_of(id))
 }
 
 /// § 2's `save` — the record under `id`, replaced, with its expiry refreshed.
@@ -381,7 +628,7 @@ nvs_runtime::nvs_helper! {
                 // The empty record is zero bytes — `nvs_runtime::Session::record`'s own doc owns
                 // why — so issuing one builds no value and encodes nothing.
                 on_shared(NAME, "start", |open| save(open, &id, &[], lifetime))?;
-                issue_cookie(ctx, &id)?;
+                issue_cookie(ctx, "start", &id)?;
                 nvs_runtime::Session { id, record: Vec::new(), dirty: false }
             }
         };
@@ -398,12 +645,12 @@ nvs_runtime::nvs_helper! {
 /// operator's typo rather than anything a program did, and it is refused here because the value
 /// reaches a header line: a name carrying a `;` or a newline would end the line and begin one
 /// nobody wrote. The identifier needs no such check — it is 22 characters this core drew.
-fn issue_cookie(ctx: &mut Ctx, id: &str) -> Result<(), Fault> {
+fn issue_cookie(ctx: &mut Ctx, member: &str, id: &str) -> Result<(), Fault> {
     let name = cookie(ctx);
     if !crate::response::nameable(&name) {
         return Err(Fault::thrown(format!(
-            "{NAME}::start(): `[session] cookie = \"{name}\"` is not a cookie name — a name is a \
-             non-empty token, and this one reaches a `Set-Cookie` line"
+            "{NAME}::{member}(): `[session] cookie = \"{name}\"` is not a cookie name — a name is \
+             a non-empty token, and this one reaches a `Set-Cookie` line"
         )));
     }
 
@@ -427,11 +674,327 @@ fn issue_cookie(ctx: &mut Ctx, id: &str) -> Result<(), Fault> {
     Ok(())
 }
 
+/// The throw every member but `start` makes while this request has started no session.
+///
+/// **One spelling for all of them**, because ADR 0139 § 1's rule is one rule: a member called
+/// before `start` throws naming it, and a program that meets it from `get` should read the same
+/// sentence it would have read from `remove`.
+/// `tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst` asserts that
+/// agreement by counting the distinct answers rather than by reading any one of them.
+fn unstarted(member: &str) -> Fault {
+    Fault::thrown(format!(
+        "{NAME}::{member}(): this request has not started a session — call `{NAME}::start()` \
+         first, which is the line in the source that says this request uses sessions (ADR 0012 \
+         § 4)"
+    ))
+}
+
+/// The `$key` argument, as the checker has already guaranteed it.
+fn key_at<'a>(key: &'a Value, member: &str) -> Result<&'a str, Fault> {
+    // Unreachable from source: a `string` parameter, refused at the checker with `E0401` before
+    // any of this runs. The guard is what makes the answer below total.
+    key.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{NAME}::{member} expected a string key, got tag {}",
+            key.tag_byte()
+        ))
+    })
+}
+
+/// The record this request has open, decoded — or an empty array where it holds none.
+///
+/// Every member below reaches the record through this and none of them reads
+/// [`nvs_runtime::Session`]'s bytes directly, because the decode is where a record naming a class
+/// this unit cannot resolve is refused and a second reader would be a second place that could
+/// forget. An empty record is zero bytes rather than the encoding of an empty array — that
+/// struct's own doc owns why — so the empty case builds an array here and decodes nothing.
+///
+/// # Errors
+///
+/// [`unstarted`] while this request has started no session. A thrown `ParseError` for a record
+/// [`nvs_runtime::decode`] refuses, which is [`crate::cache`]'s `get` refusal over the same
+/// resolver — the program's own class table — and for the same reason.
+fn record(ctx: &Ctx, member: &str) -> Result<NvsArray, Fault> {
+    let Some(session) = ctx.session() else {
+        return Err(unstarted(member));
+    };
+    if session.record.is_empty() {
+        return Ok(NvsArray::new());
+    }
+
+    let resolve = |name: &str| ctx.class_desc(name);
+    let decoded = nvs_runtime::decode(&session.record, &resolve).map_err(|why| {
+        Fault::thrown_as(ThrownClass::Parse, format!("{NAME}::{member}(): {why}"))
+    })?;
+    match decoded.array_ptr() {
+        // The reference `decode` handed back becomes this handle's, and the handle releases it.
+        Some(array) =>
+        {
+            #[expect(
+                unsafe_code,
+                reason = "`decode` answers with one reference it no longer holds, \
+                          and this handle takes over exactly that reference"
+            )]
+            Ok(unsafe { NvsArray::from_raw(array) })
+        }
+        // Unreachable from source: nothing but `write_back` writes a session record, and it
+        // encodes an array. Released rather than leaked, because the answer is still a reference.
+        None => {
+            #[expect(
+                unsafe_code,
+                reason = "`decode` answers with one reference nothing else holds"
+            )]
+            unsafe {
+                decoded.release();
+            }
+            Err(Fault::fatal(format!(
+                "{NAME}::{member}(): the stored record is not an array"
+            )))
+        }
+    }
+}
+
+/// § 4's "mutate the copy in the request's own heap": `record` encoded back onto the request, and
+/// marked as owing the store a write.
+///
+/// **The record is written whole**, per § 4 — one session is one entry, so there is no key-wise
+/// update to send and no lock to hold while sending it. **Empty is zero bytes**, never the encoding
+/// of an empty array, which is the invariant [`nvs_runtime::Session`] states and `start` already
+/// relies on for a session it minted.
+///
+/// # Errors
+///
+/// A thrown `LogicError` for a record holding something the byte carrier refuses, which is
+/// [`crate::cache`]'s `put` refusal over the same walk: the two carriers refuse the same graphs
+/// because they share the walk that decides. [`unstarted`] cannot fire here — every caller reached
+/// [`record`] first — and is answered rather than asserted for that member's reason.
+fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fault> {
+    let payload = if record.is_empty() {
+        drop(record);
+        Vec::new()
+    } else {
+        nvs_runtime::encode(Value::array(record)).map_err(|why| {
+            Fault::thrown_as(ThrownClass::Logic, format!("{NAME}::{member}(): {why}"))
+        })?
+    };
+
+    let session = ctx.session_mut().ok_or_else(|| unstarted(member))?;
+    session.record = payload;
+    session.dirty = true;
+    Ok(Value::null())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::get(string $key): mixed` — ADR 0139 § 1's read of the record `start` loaded,
+    /// replacing `$_SESSION[$key]`.
+    ///
+    /// **A key the record does not hold is `null`**, exactly as `Core\Cache\Store::get` answers a
+    /// miss: `mixed` already spells absent, so there is no second member to ask whether a key is
+    /// there and no `?T` to make nullable. A session that stored a `null` and one that stored
+    /// nothing are the same record, which is PHP's answer as well.
+    ///
+    /// **This member does not mark the record changed**, which is § 4's "writing only when the
+    /// record changed" written as the thing it buys: a request that starts a session and only
+    /// reads it makes one round trip and not two.
+    ///
+    /// # Errors
+    ///
+    /// As [`record`]: [`unstarted`] before `start`, and a thrown `ParseError` for a record naming
+    /// a class this program cannot resolve.
+    fn nvs_core_session_get(ctx, args: [1]) {
+        let key = key_at(&args[0], "get")?;
+        let held = record(ctx, "get")?;
+        // `NvsArray::get` borrows rather than retains, and the handle releases the whole record
+        // when it is dropped below — so the answer needs a reference of its own first.
+        let answer = match held.get(key.as_bytes()) {
+            Some(found) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the record holds a live reference to this value until \
+                              the handle is dropped, which is after the retain"
+                )]
+                unsafe {
+                    found.retain();
+                }
+                found
+            }
+            None => Value::null(),
+        };
+        drop(held);
+        Ok(answer)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::set(string $key, mixed $value): void` — ADR 0139 §§ 1 and 4's write into the
+    /// request's own copy of the record, replacing `$_SESSION[$key] = …`.
+    ///
+    /// **Nothing reaches the store here.** § 4 loads the record once and writes it whole when the
+    /// request ends, so this member encodes the changed record onto the request and sets the flag
+    /// that write-back reads. Two requests writing one session concurrently is last-write-wins over
+    /// the whole record, which that section states rather than repairs.
+    ///
+    /// # Errors
+    ///
+    /// As [`record`] and [`write_back`]: [`unstarted`] before `start`, a thrown `ParseError` for a
+    /// record this unit cannot decode, and a thrown `LogicError` for a `$value` the cross-boundary
+    /// copy refuses.
+    fn nvs_core_session_set(ctx, args: [2]) {
+        let key = key_at(&args[0], "set")?;
+        let mut held = record(ctx, "set")?;
+        // The record takes over one reference and the argument slot keeps its own, which is the
+        // same split `Core\Cache\Store::put` makes before handing a value to the carrier.
+        #[expect(
+            unsafe_code,
+            reason = "the argument slot holds a live reference for the length of \
+                      the call, which is `Value::retain`'s whole obligation"
+        )]
+        unsafe {
+            args[1].retain();
+        }
+        held.set(NvsStr::new(key.as_bytes()), args[1]);
+        write_back(ctx, held, "set")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::remove(string $key): void` — ADR 0139 §§ 1 and 4, replacing `unset($_SESSION
+    /// [$key])`.
+    ///
+    /// **A key the record does not hold is not a refusal, and does not mark it changed either.**
+    /// Nothing was written, so there is nothing for § 4's write-back to send, and a `remove` that
+    /// dirtied the record regardless would put a request that changed nothing back on the write
+    /// path — which is the one thing "writing only when the record changed" is there to prevent.
+    ///
+    /// # Errors
+    ///
+    /// As [`nvs_core_session_set`].
+    fn nvs_core_session_remove(ctx, args: [1]) {
+        let key = key_at(&args[0], "remove")?;
+        let mut held = record(ctx, "remove")?;
+        if !held.has_key(key.as_bytes()) {
+            drop(held);
+            return Ok(Value::null());
+        }
+        held.unset(key.as_bytes());
+        write_back(ctx, held, "remove")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::clear(): void` — ADR 0139 §§ 1 and 4, replacing `$_SESSION = []`.
+    ///
+    /// **The session survives; only the record goes.** The identifier stays live in the store and
+    /// in the client's cookie, which is what separates this from `destroy()`: a program clearing a
+    /// basket is not signing anybody out, and one signing a user out must not leave the identifier
+    /// that request arrived with usable.
+    ///
+    /// **The one member that does not decode the record**, because it does not read it: a record
+    /// naming a class this unit can no longer resolve is still clearable, which is the answer a
+    /// program recovering from exactly that needs.
+    ///
+    /// # Errors
+    ///
+    /// [`unstarted`] before `start`, and nothing else — there is no encode to refuse.
+    fn nvs_core_session_clear(ctx, _args: [0]) {
+        let session = ctx.session_mut().ok_or_else(|| unstarted("clear"))?;
+        // An empty record cleared is not a change, so it does not earn the write § 4's flag is
+        // there to withhold — [`nvs_core_session_remove`] makes the same judgement for a key the
+        // record does not hold.
+        if session.record.is_empty() {
+            return Ok(Value::null());
+        }
+        session.record = Vec::new();
+        session.dirty = true;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::regenerate(): void` — ADR 0139 § 1's move to a new identifier, replacing
+    /// `session_regenerate_id`.
+    ///
+    /// **In § 1's order: issue, move the record, forget the old entry.** A failure between the
+    /// second step and the third leaves the record readable under two identifiers until
+    /// `[session] ttl` expires the old one; the same failure in the other order leaves it readable
+    /// under none, which is a signed-out user. The first is the recoverable one, so it is the one
+    /// this member risks.
+    ///
+    /// **Immediately rather than at the end of the request** — § 4 names this member and `destroy`
+    /// as the two exceptions to its own write-back, because both of them are about an identifier
+    /// rather than about a record, and an identifier that is only retired when the request ends is
+    /// live for the length of the response.
+    ///
+    /// # Errors
+    ///
+    /// [`unstarted`] before `start`; a thrown `RuntimeError` for a shared store that is
+    /// unconfigured or refused by capability, and for a `[session] cookie` that is not a cookie
+    /// name; a thrown `IOError` for a store that cannot be reached.
+    fn nvs_core_session_regenerate(ctx, _args: [0]) {
+        let Some(open) = ctx.session() else {
+            return Err(unstarted("regenerate"));
+        };
+        // Copied rather than taken, so a store that fails halfway leaves the request holding the
+        // session it already had. O(record), which this member spends once and no other does.
+        let (retired, record) = (open.id.clone(), open.record.clone());
+
+        let member = format!("{NAME}::regenerate()");
+        open_configured(ctx, &member, ", which is where this session's record already lives")?;
+        let fresh = mint(ctx);
+        let lifetime = ttl(ctx);
+        on_shared(NAME, "regenerate", |open| save(open, &fresh, &record, lifetime))?;
+        on_shared(NAME, "regenerate", |open| destroy(open, &retired))?;
+        issue_cookie(ctx, "regenerate", &fresh)?;
+
+        // Not dirty: the record was written whole a line ago, so § 4's write-back has nothing left
+        // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.
+        ctx.open_session(nvs_runtime::Session { id: fresh, record, dirty: false });
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::destroy(): void` — ADR 0139 §§ 1 and 4, replacing `session_destroy`.
+    ///
+    /// **The request is left with no session**, so every member of this class throws again
+    /// afterwards — the same answer as before the first `start()`, because it is the same state.
+    /// PHP leaves `$_SESSION` populated after `session_destroy()` and that is the divergence: a
+    /// record that outlives the entry it came from is a copy of something that no longer exists,
+    /// and § 4's write-back would put it straight back.
+    ///
+    /// **The store is told before the request forgets**, so a store that cannot be reached throws
+    /// with the session still open rather than reporting a sign-out that did not happen.
+    ///
+    /// # Errors
+    ///
+    /// As [`nvs_core_session_regenerate`], less the cookie: no `Set-Cookie` is written, because the
+    /// identifier the client holds now names nothing and a store that answers absent is already the
+    /// whole of § 2's strict-id rule.
+    fn nvs_core_session_destroy(ctx, _args: [0]) {
+        let Some(open) = ctx.session() else {
+            return Err(unstarted("destroy"));
+        };
+        let held = open.id.clone();
+
+        let member = format!("{NAME}::destroy()");
+        open_configured(ctx, &member, ", which is where this session's record lives")?;
+        on_shared(NAME, "destroy", |open| destroy(open, &held))?;
+        ctx.close_session();
+        Ok(Value::null())
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_session_start" => (nvs_core_session_start as *const ()).cast(),
+        "nvs_core_session_get" => (nvs_core_session_get as *const ()).cast(),
+        "nvs_core_session_set" => (nvs_core_session_set as *const ()).cast(),
+        "nvs_core_session_remove" => (nvs_core_session_remove as *const ()).cast(),
+        "nvs_core_session_clear" => (nvs_core_session_clear as *const ()).cast(),
+        "nvs_core_session_regenerate" => (nvs_core_session_regenerate as *const ()).cast(),
+        "nvs_core_session_destroy" => (nvs_core_session_destroy as *const ()).cast(),
         _ => return None,
     })
 }
@@ -446,9 +1009,12 @@ mod tests {
     use std::time::Duration;
 
     use nvs_config::session::{BACKENDS, Backend};
-    use nvs_runtime::Ctx;
+    use nvs_runtime::{Ctx, NvsStr, Value};
 
-    use super::{DEFAULT_TTL, PREFIX, backend, cookie, key_of, load, mint, save, ttl};
+    use super::{
+        DEFAULT_TTL, PREFIX, backend, cookie, destroy, key_of, load, mint, record, save, ttl,
+        write_back,
+    };
     use crate::cache::redis::Connection;
     use crate::cache::{store_get, store_put};
 
@@ -491,9 +1057,9 @@ mod tests {
     /// dropped — the second half of what makes this a two-core test rather than a wire test: both
     /// cores talk to *one* map, which is what a shared tier is.
     ///
-    /// `SET … EX` and `GET` only, because those are the two commands [`save`] and [`load`] send;
-    /// anything else is a panic rather than a silent `+OK`, so a third command added upstream
-    /// fails here instead of passing untested.
+    /// `SET … EX`, `GET` and `DEL` only, because those are the three commands [`save`], [`load`]
+    /// and [`destroy`] send; anything else is a panic rather than a silent `+OK`, so a fourth
+    /// command added upstream fails here instead of passing untested.
     fn serving(listener: TcpListener, held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>>) {
         while let Ok((stream, _)) = listener.accept() {
             let held = Arc::clone(&held);
@@ -521,6 +1087,10 @@ mod tests {
                             }
                             None => b"$-1\r\n".to_vec(),
                         },
+                        b"DEL" => {
+                            let gone = held.lock().expect("the store").remove(&parts[1]);
+                            format!(":{}\r\n", usize::from(gone.is_some())).into_bytes()
+                        }
                         other => panic!(
                             "the session store sends no {:?}",
                             String::from_utf8_lossy(other)
@@ -609,6 +1179,97 @@ mod tests {
             "while the local tier's copy of the same bytes never left the core that wrote it — \
              which is what ADR 0059 § 4 refuses a session for"
         );
+    }
+
+    /// §§ 1 and 4's read and write over one record: what `set` put there, `get` reads back, and
+    /// `remove` takes out again — with the record's own bytes asserted beside the answers.
+    ///
+    /// **Here rather than in a `.nvst` case**, because no conformance case can reach a session
+    /// store and none of this needs one: § 4 loads the record once and every change until the end
+    /// of the request happens in the request's own heap, so the members below never touch a socket.
+    /// The corpus asks the *language* rule instead — that a member called before `start` throws.
+    ///
+    /// **The bytes are asserted, not only the answers.** A member that kept a decoded array of its
+    /// own on the side would satisfy every assertion about what `get` said and leave
+    /// `nvs_runtime::Session::record` empty, so the write-back at the end of the request would send
+    /// nothing. And the empty record is asserted as *zero bytes* rather than as the encoding of an
+    /// empty array, which is the invariant `start` already relies on for a session it minted.
+    #[test]
+    fn the_record_carries_what_set_wrote_and_loses_what_remove_took() {
+        let mut ctx = Ctx::buffered();
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+        });
+
+        let empty = record(&ctx, "get").expect("a started session has a record to read");
+        assert!(
+            empty.is_empty(),
+            "a record of zero bytes decodes to no keys, rather than refusing as a payload that \
+             carries no marker"
+        );
+        drop(empty);
+
+        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
+        writing.set(NvsStr::new(b"cart"), Value::int(17));
+        write_back(&mut ctx, writing, "set").expect("the changed record encodes");
+
+        let after = ctx.session().expect("the session is still open");
+        assert!(
+            after.dirty,
+            "§ 4's write-back is what the flag earns, and a `set` that left it clear would be a \
+             change the store never hears about"
+        );
+        assert!(!after.record.is_empty());
+
+        let reading = record(&ctx, "get").expect("the record decodes again");
+        assert_eq!(
+            reading.get(b"cart").and_then(Value::as_int),
+            Some(17),
+            "what `set` wrote is what `get` reads, across the encode and the decode between them"
+        );
+        drop(reading);
+
+        let mut removing = record(&ctx, "remove").expect("the record decodes to be changed");
+        removing.unset(b"cart");
+        write_back(&mut ctx, removing, "remove").expect("what is left of the record encodes");
+
+        let emptied = ctx.session().expect("the session is still open");
+        assert!(
+            emptied.record.is_empty(),
+            "a record with no keys left is zero bytes again, not the encoding of an empty array — \
+             `nvs_runtime::Session::record`'s own doc owns why, and `start` relies on it"
+        );
+    }
+
+    /// § 2's fourth operation: after `destroy` the store answers absent, which is the same answer
+    /// it gives an identifier it never issued.
+    ///
+    /// That equality is the point rather than a coincidence — it is the whole of the strict-id
+    /// rule, and it is what makes a signed-out identifier worth nothing to whoever still holds it.
+    /// The second `destroy` is asserted too: `Core\Session::destroy` reaches this with whatever id
+    /// the request had, and an id with no record under it is already forgotten, so a store that
+    /// treated the repeat as a failure would turn a double sign-out into a thrown request.
+    #[test]
+    fn a_destroyed_record_is_gone_and_forgetting_it_twice_is_not_a_failure() {
+        let (listener, address) = listening();
+        let held: Arc<Mutex<HashMap<Vec<u8>, Vec<u8>>>> = Arc::new(Mutex::new(HashMap::new()));
+        thread::spawn(move || serving(listener, held));
+
+        let answered = thread::spawn(move || {
+            let mut open = Connection::new(address, Duration::from_secs(5));
+            save(&mut open, ID, RECORD, DEFAULT_TTL).expect("the record is written");
+            let before = load(&mut open, ID).expect("the store answers");
+            destroy(&mut open, ID).expect("the record is forgotten");
+            let after = load(&mut open, ID).expect("the store answers");
+            destroy(&mut open, ID).expect("an id with no record under it is already forgotten");
+            (before, after)
+        });
+        let (before, after) = answered.join().expect("the core");
+
+        assert_eq!(before, Some(RECORD.to_vec()));
+        assert_eq!(after, None);
     }
 
     /// The key is prefixed and carries the id, so one store holding a cache, a limiter and a
