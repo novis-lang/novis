@@ -1,14 +1,15 @@
 //! ADR 0006's two constructs — `spawn script … with(…)` and `await` — and what
 //! each is typed as.
 //!
-//! Both arms still *refuse*, because nothing below this crate compiles either
-//! yet: `crates/nvs-ir/src/lower/expr.rs`'s roster comment is the proof that no
-//! lowering arm exists, and `docs/plan/m5.md` is the schedule. The refusal is
-//! what keeps that roster true, so it stays until the lowering lands rather
-//! than until the types do — and the types are now both here: `spawn script`
-//! answers with the handle class and `await` answers with the shape below,
-//! which is what lets a program hear about the *rest* of a line it wrote
-//! rather than only about the construct itself.
+//! Both arms compile: `nvs_ir::lower`'s `lower_spawn_script` and `lower_await`
+//! are the two `CoreCall`s they become. What still refuses here is narrower and
+//! is named where it is reported — three of ADR 0006's five options
+//! (`E0777`), and the *second* of its two entry forms (`E0803`), which
+//! [`check_entry`] owns along with the rule that admits the first.
+//!
+//! `spawn script` answers with the handle class and `await` answers with the
+//! shape below, which is what lets a program hear about the *rest* of a line it
+//! wrote rather than only about the construct itself.
 //!
 //! That is also what makes `await`'s operand checkable, and it is checked:
 //! `await 5` is an ordinary `E_TYPE_MISMATCH` naming `Core\Script\Handle`,
@@ -89,26 +90,26 @@
 //!
 //! [`ExprInfo::ShapeProperty`]: crate::expr_table::ExprInfo::ShapeProperty
 
-use nvs_diagnostics::{Diagnostic, code};
+use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Expr, SpawnOption, SpawnOptionKey};
+use nvs_syntax::ast::{CallArgs, Expr, ExprKind, SpawnOption, SpawnOptionKey};
 use rustc_hash::FxHashSet;
 
 use crate::locals::LocalScope;
-use crate::ty::TypeId;
+use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env};
 
+use super::assign::{is_assignable, report_mismatch};
 use super::{check_expr, reject_secret_crossing};
 
 /// `spawn script <path> with(<options>)` — ADR 0006's isolate spawn.
 ///
-/// Its operands are still checked, because a typo in the path expression is
-/// worth reporting alongside, and then the construct itself is refused:
-/// refusing it where it is written is the only reading that cannot silently do
-/// nothing. The answer is [`script_handle`] regardless, for [`check_await`]'s
-/// reason — a refused construct with an honest type reports the mistakes on
-/// the *other* lines, and the one thing a program can write with a handle is
-/// the one thing that has a type to check it against.
+/// Two checks that do not know about each other: [`check_entry`] on the
+/// operand, and one pass over the options. The answer is [`script_handle`] on
+/// every path, including the ones that reported — a construct with an honest
+/// type reports the mistakes on the *other* lines too, and the one thing a
+/// program can write with a handle is the one thing that has a type to check
+/// it against.
 pub(crate) fn check_spawn_script(
     path: &Expr,
     options: &[SpawnOption],
@@ -117,8 +118,8 @@ pub(crate) fn check_spawn_script(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    check_entry(path, live, scope, ctx, env);
     let string = env.interner.string();
-    check_expr(path, Some(string), live, scope, ctx, env);
     for opt in options {
         let expected = match opt.key {
             // The value that crosses. No expected type, because ADR 0023 § 2's
@@ -166,6 +167,127 @@ pub(crate) fn check_spawn_script(
     script_handle(env)
 }
 
+/// ADR 0006 § *Decision*'s operand rule: the entry is a path **or** a static
+/// method, decided syntactically at the spawn site, and nothing else is one.
+///
+/// Syntactically is the load-bearing word, and it is why this is a match on the
+/// operand's shape before it is a question about its type. A
+/// `Class::method(...)` reference and a variable holding the callable that
+/// reference produces have the same type and are not the same operand: the
+/// first names a function the compiler can see, and the second names a value
+/// whose provenance — and therefore whether it captures — is not knowable here.
+/// A rule phrased over types could not tell them apart, and the qualifier that
+/// would let it is the one the ADR declines to add.
+///
+/// So there are three outcomes and each reports at most one diagnostic:
+///
+/// - **A path**, which is anything else, checked against `string` exactly as it
+///   was before the method form existed. The assignability question is asked
+///   here rather than by passing an expected type to [`check_expr`], because
+///   this position accepts two unrelated shapes and an expected type is a claim
+///   that it accepts one — a `callable` reaching a `string` parameter would
+///   otherwise be reported as an ordinary mismatch, which describes half the
+///   rule.
+/// - **An `fn` literal or a `callable` value**, refused under
+///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out the ADR
+///   names.
+/// - **A method reference**, which is the specified form and is refused for now
+///   under [`code::E_SPAWN_METHOD_ENTRY_UNSUPPORTED`] — `nvs-ir` has no
+///   lowering arm for it, and that code's own doc owns why an unlowered form is
+///   refused rather than accepted.
+fn check_entry(
+    path: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    // Checked first and on every path: a typo *inside* the operand is worth
+    // reporting whichever of the three it turns out to be, and with no expected
+    // type for the reason above.
+    let ty = check_expr(path, None, live, scope, ctx, env);
+
+    if is_method_reference(path) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_SPAWN_METHOD_ENTRY_UNSUPPORTED,
+                "`spawn script`'s static-method entry is not compiled yet",
+            )
+            .with_primary(path.span, "this entry form is checked and not yet lowered")
+            .with_help(
+                "ADR 0006 specifies both entry forms and this compiler runs the path form. \
+                 Write the entry as a `.nvs` file and read its argument map with \
+                 `Core\\Script::args()`",
+            ),
+        );
+        return;
+    }
+
+    // `Ty::CallableTo` and `Ty::CallableShapeTo` are a `Core` signature's
+    // spelling for "a callable answering this" (`crate::ty`), so they are the
+    // same operand as far as this rule is concerned — all three describe as
+    // `callable`, and none of them is a name the spawn site can see through.
+    if matches!(
+        env.interner.get(ty),
+        Ty::Callable | Ty::CallableTo(_) | Ty::CallableShapeTo(_)
+    ) {
+        env.diags.report(refuse_entry(path.span, path));
+        return;
+    }
+
+    let string = env.interner.string();
+    if !is_assignable(ty, string, env.interner, env.graph, env.signatures) {
+        report_mismatch(path.span, string, ty, env);
+    }
+}
+
+/// Whether the operand is `Class::method(...)` — the reference the ADR accepts,
+/// and not a call.
+///
+/// [`CallArgs::FirstClassCallable`] is the parser's mark for the literal `(...)`
+/// argument list, so this is the written shape and not a type test: a
+/// `Class::method()` with an empty argument list is an ordinary static call
+/// whose *result* is the operand, and it takes the path branch as any other
+/// expression does.
+fn is_method_reference(path: &Expr) -> bool {
+    matches!(
+        &path.kind,
+        ExprKind::StaticCall {
+            args: CallArgs::FirstClassCallable,
+            ..
+        }
+    )
+}
+
+/// The refusal for the two spellings ADR 0006 § *Decision* names as forbidden,
+/// which differ only in whether there is a mechanical way out.
+///
+/// An `fn` literal has one — name it — and the diagnostic says so, because the
+/// ADR's reason for refusing it is that `fn() => …` one keyword away in `spawn
+/// worker` *does* capture, and one spelling with two meanings is what the
+/// refusal exists to prevent. A variable has none to offer: what it holds is
+/// not visible here, so the help can only name the two forms that are.
+fn refuse_entry(span: Span, path: &Expr) -> Diagnostic {
+    let diag = Diagnostic::error(
+        code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD,
+        "a `spawn script` entry is a path or a static method",
+    );
+    if matches!(path.kind, ExprKind::Fn(_)) {
+        diag.with_primary(span, "this is an `fn` literal")
+            .with_help(
+                "give it a name: a `static` method, spawned as `Class::method(...)`. \
+                 An `fn` literal is refused because the same literal in `spawn worker` \
+                 captures its enclosing scope, and an isolate shares nothing but compiled code",
+            )
+    } else {
+        diag.with_primary(span, "this is a `callable`").with_help(
+            "write the entry at the spawn site — a path, or `Class::method(...)`. \
+                 Whether a `callable` in a variable captures is not knowable here, and an \
+                 isolate shares nothing but compiled code",
+        )
+    }
+}
+
 /// One option key as the program spells it.
 fn spelling(key: SpawnOptionKey) -> &'static str {
     match key {
@@ -177,8 +299,8 @@ fn spelling(key: SpawnOptionKey) -> &'static str {
     }
 }
 
-/// `await <operand>` — the prefix half of the same surface, refused for the
-/// same reason and in the same shape.
+/// `await <operand>` — the prefix half of the same surface, checked in the
+/// same shape.
 ///
 /// Its operand is checked first, and **against [`script_handle`]**: `await
 /// $handel` is an undefined variable whether or not the construct compiles,
@@ -187,10 +309,9 @@ fn spelling(key: SpawnOptionKey) -> &'static str {
 /// adds no rule of its own for it, because there is nothing about the mismatch
 /// that a declared parameter of the same type would not already say.
 ///
-/// The answer is [`script_result`] all the same, because the type is decided
-/// even though the lowering is not: a program that reads `$result->ok` hears
-/// about a `string` binding on the next line rather than only about `await`
-/// itself, and the refusal is what stops the compilation either way.
+/// The answer is [`script_result`] whether or not the operand checked out: a
+/// program that reads `$result->ok` hears about a `string` binding on the next
+/// line rather than only about `await` itself.
 pub(crate) fn check_await(
     operand: &Expr,
     live: &mut FxHashSet<String>,

@@ -2974,6 +2974,39 @@ pub mod code {
     /// leaves.
     pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801");
 
+    /// A `spawn script` operand that is neither of
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+    /// § *Decision*'s two entry forms — an `fn` literal, or a value whose type
+    /// is `callable`.
+    ///
+    /// One code for both because it is one rule: the entry is **decided
+    /// syntactically at the spawn site**, a path or a `Class::method(...)`
+    /// reference written there, and everything else is refused for the same
+    /// reason — whether a callable captures is not a question the spawn site
+    /// can answer, and an isolate that captured would share more than compiled
+    /// code. The two halves differ only in the `help:`, because an `fn` literal
+    /// has a mechanical way out (give it a name and a class) and a variable
+    /// does not.
+    ///
+    /// Deliberately not [`E_TYPE_MISMATCH`], which is what a `callable` against
+    /// a `string` parameter would read as: the operand position accepts two
+    /// unrelated shapes, so "expected `string`" describes half the rule and
+    /// sends the reader to fix the wrong half.
+    pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802");
+
+    /// `spawn script Class::method(...)` — ADR 0006 § *Decision*'s second entry
+    /// form, which this compiler checks and does not yet lower.
+    ///
+    /// [`E_SPAWN_OPTION_UNSUPPORTED`]'s reading, applied to the operand rather
+    /// than to an option: a form that is accepted and then does something else
+    /// is worse than one that is refused where it is written. Separate from
+    /// [`E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] because this operand is the one
+    /// the ADR specifies and the other two are the ones it forbids — a reader
+    /// who conflated them would go looking for a different spelling instead of
+    /// waiting for a release. It is removed when the lowering lands, exactly as
+    /// `E0703` was.
+    pub const E_SPAWN_METHOD_ENTRY_UNSUPPORTED: Code = Code::new("E0803");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

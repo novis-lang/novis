@@ -1,0 +1,6 @@
+<?nvs
+// ADR 0006 § *Decision*: a variable of type `callable` is refused as an isolate
+// entry, because whether *it* captures is not known statically and the rule is
+// not worth a qualifier on the type.
+callable $entry = fn() => 1;
+Core\Script\Handle $job = spawn script $entry;

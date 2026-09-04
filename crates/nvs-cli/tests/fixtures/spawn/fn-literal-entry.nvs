@@ -1,0 +1,5 @@
+<?nvs
+// ADR 0006 § *Decision*: an `fn` literal is refused as an isolate entry, with a
+// diagnostic naming the method form — the same literal one keyword away in
+// `spawn worker` captures, and an isolate shares nothing but compiled code.
+Core\Script\Handle $job = spawn script fn() => 1;
