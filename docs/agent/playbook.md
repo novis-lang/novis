@@ -5171,6 +5171,19 @@ is why" — is this file.
   the fixture being impossible. The ceiling is over everything the context allocates from
   `Ctx::buffered()` onward, not over the one buffer under test. Keep the limit roomy in absolute
   terms (1 MiB) and put the distance into the number the member is *asked* for (4 MiB).
+- **A `Core` class a `foreach` walks is not accepted where a `Core` row declares `Iterable<T>`, and
+  the case that assumed otherwise reads as a bug in the member.** `Core\Request\PartContent` — what
+  `$part->content()` answers — carries `iterate`/`advance`/`current`, so a `foreach` drives it and
+  `Core\IO::writeStream($path, $part->content())` looks like ADR 0105 § 4's own sentence ("an
+  `Core\Http` response body and an upload part all reach disk through this one implementation"). It
+  does not compile: the row's parameter is `CoreTy::Iterated(&CoreTy::Blob(…))` and the argument is
+  `CoreTy::Instance("Core\Request\PartContent")`, reported as ``expected
+  `array<bytes>|Iterable<bytes>|Iterator<bytes>`, found `Core\Request\PartContent` ``. Conforming to
+  a `foreach` and conforming to a declared `Iterable<T>` are two different questions, and only the
+  first one is answered today. The general habit that catches it in one call rather than one
+  session: **run a new case before writing its `--EXPECTF-ERROR--` block** —
+  `target/debug/nvs test tests/conformance/<dir>/<one>.nvst` prints the actual diagnostics beside
+  the expected ones, with the line and column already in the corpus's own `case.nvs` numbering.
 
 ## Splitting a file that got too big
 
