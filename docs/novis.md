@@ -114,6 +114,7 @@ Conventions the whole file uses:
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Request`](#core-core-request) |  |
+| [`Core\Request\Mount`](#core-core-request-mount) |  |
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) |  |
 | [`Core\Request\Files`](#core-core-request-files) |  |
 | [`Core\Request\Part`](#core-core-request-part) |  |
@@ -15866,7 +15867,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files, post, route
+Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files, post, route, mount
 
 | Member | Signature |
 |---|---|
@@ -15882,6 +15883,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 | [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
 | [`Core\Request::route`](#core-core-request-route) | `route(): ?Core\Router\Match` |
+| [`Core\Request::mount`](#core-core-request-mount) | `mount(): Core\Request\Mount` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -16054,6 +16056,51 @@ The route this request matched, which the server took once at the door before an
 **Returns** `?Core\Router\Match` — A `Core\Router\Match` answering the declared name and the path's captures, or `null` where nothing in the table claimed this method and path — which is a served request like any other, since matching dispatches nothing. A program declaring no `#[Route]` builds no table and reads `null` here for the same reason.
 
 **Throws** `LogicError` — This program is not answering a request, as a CLI program, a scheduled script, a job worker and a test are not — refused rather than answered `null`, because "no request arrived" and "nothing matched" are different facts.
+
+<a id="core-core-request-mount"></a>
+#### `Core\Request::mount`
+
+```nvs skip
+Core\Request::mount(): Core\Request\Mount
+```
+
+Which mount is serving this request: the prefix the server took off the path before `path()` answered it, and the glob captures of the mount row that took it — the pair a host-mounted deployment learns which tenant it is running for from.
+
+**Returns** `Core\Request\Mount` — A `Core\Request\Mount`, always — a request that reached this program reached it through some mount, and one that came in by a door with no prefix and no glob answers `""` and an empty array rather than `null`.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker and a test are not, and none of them was mounted anywhere.
+
+<a id="core-core-request-mount"></a>
+### `Core\Request\Mount`
+
+Keywords: prefix, captures
+
+| Member | Signature |
+|---|---|
+| [`Core\Request\Mount->prefix`](#core-core-request-mount-prefix) | `prefix(): string` |
+| [`Core\Request\Mount->captures`](#core-core-request-mount-captures) | `captures(): array<tainted string>` |
+
+<a id="core-core-request-mount-prefix"></a>
+#### `Core\Request\Mount->prefix`
+
+```nvs skip
+$mount->prefix(): string
+```
+
+What the server took off the front of the path before `Core\Request::path()` answered it — so a program mounted at `/acme` sees `/orders` and learns the `/acme` here.
+
+**Returns** `string` — The prefix, with its leading slash and no trailing one, or `""` where the request reached this program through a mount that strips nothing. Not `tainted`: every mount is a row of the table the boot expanded against the disk, so a prefix is the operator's text and not the peer's.
+
+<a id="core-core-request-mount-captures"></a>
+#### `Core\Request\Mount->captures`
+
+```nvs skip
+$mount->captures(): array<tainted string>
+```
+
+The glob captures of the mount serving this request, in order — `{1}` is `captures[0]` — which is how one compiled program running at many prefixes learns which tenant it is answering for.
+
+**Returns** `array<tainted string>` — The captures as `tainted string`s, and an empty array for a mount whose prefix holds no glob. They are marked because the peer chose which mount answers it, so one reaching a query or a path launders the way anything else off a request does.
 
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
