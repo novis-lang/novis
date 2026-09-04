@@ -7455,6 +7455,17 @@ sibling in the same namespace unqualified.
   in `nvs run`'s root task, not at the socket. When the two ends reach `nvs-stdlib` differently — the
   CLI names it, `nvs-host` may not — what the second one needs travels as a `fn` pointer on the state
   itself rather than as a trait method or a second thread-local.
+- **A stub whose *doc* states that some other file has no spelling for something goes stale in
+  silence, and the tell is an acceptance check that can never pass.**
+  `nvs_config::schedule::configures_a_shared_store` was `fn(_config) -> bool { false }` under a doc
+  reading "there is no spelling for one yet ... no block in `tree` holds it", so every
+  `scope = "fleet"` entry refused every boot — while `crates/nvs-config/src/tree.rs:853`'s
+  `CacheShared` had landed `[cache.shared] url`, which is the store `Core\Cache::shared()` itself
+  opens. Nothing failed: the stub's own test asserted the refusal, and the honest-for-now answer and
+  the wrong answer are the same `false`. The general shape is that a claim about *another* file's
+  absence has no compiler behind it, so when triaging a check that has never passed, re-ask the
+  absence the code asserts rather than reading its doc — one `grep -n` of the block name in
+  `tree.rs` settled this one, and it changed the triage's answer.
 
 ## Divergences and refusals already pinned
 
