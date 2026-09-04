@@ -58,10 +58,10 @@
 > route it; `nvs serve` boots the whole mount table on one core and § 4's static policy sends a
 > file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic against the
 > memory budget, `503` before an isolate exists; § 8's accept backs off, § 10's mount holds no
-> policy, § 5's drain answers the probe and `isDraining()`; `Core\Response` has `text`, `json`,
-> `bytes`, `setStatus`, `setHeader`, `redirect`, `addCookie`; every response carries ADR 0074 § 1's
-> secure set; `E0801` refuses `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings,
-> naming and flag. Conformance 1472, differential 256, migration 100%; valgrind green.
+> policy, § 5's drain answers the probe and `isDraining()`; `Core\Response` has its seven members
+> and `Core\Request` `method`, `path`, `query`; every response carries ADR 0074 § 1's secure set;
+> `E0801` refuses `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and
+> flag. Conformance 1475, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

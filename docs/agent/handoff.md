@@ -2,67 +2,74 @@
 
 ## State
 
-**Goal 6, Stage 4: spec § 15's four shaping members are complete.** `Core\Response` now has
-`setStatus`, `setHeader`, `redirect` and `addCookie` beside ADR 0088 § 4's `text`, `json` and
-`bytes`. `html` and `sendFile` remain this module's own known gaps, stated in its `//!`.
+**Goal 6, Stage 5: `Core\Request` exists and answers the request line.** `method`, `path` and
+`query` are registered, implemented and pinned by three `.nvst` cases each;
+`crates/nvs-stdlib/src/request.rs`'s `//!` owns the twelve members of spec § 15 still owed and
+what each waits on. `Core\Http\Method`'s parse lives there, which closes
+`crates/nvs-stdlib/src/router.rs`'s known gap 4 — `HEAD` answers `Get` per § 15, so `Head` is a
+case `method()` never returns and `isHead` is what will carry it.
 
-**`addCookie` appends where `setHeader` overrides**, and that split is the module doc's opening
-section now — `nvs_runtime::Ctx::declare_header` and `::append_header` own the rule, the class is
-where a program meets it. A name written twice is sent twice.
+**The inbound carrier is `nvs_runtime::Inbound`, behind a `Box` on the context.** It holds the
+verb verbatim, the mount-stripped path and the raw query string, and interprets none of the
+three: every roster and convention stays in `nvs-stdlib`. `Ctx::inbound()` answers `None` in any
+process serving no request, and every member turns that into ADR 0012 § 7's `LogicError` rather
+than an empty string. **Nothing writes one yet** — `nvs_server` is the first writer and that is
+the third slice below.
 
-**Where a cookie's defaults live: `nvs_config::http::Cookies`, not the member.** ADR 0074 § 3's
-four values are resolved in one place off the typed tree, so a bare `addCookie($name, $value)` is
-`Secure; HttpOnly; SameSite=Lax; Path=/` and a deployment changes that in one block. Every option
-in the row defaults to `Const::Null` — "the call site said nothing" — which is `Core\Queue::push`'s
-`maxAttempts` arrangement over `[queue]` and the only spelling that leaves the block anything to
-answer. `Core\Response\SameSite` is the ADR 0063 R11 enum; `nvs_config::http::SameSite` is its
-config twin, converted across rather than shared.
+**The `Box` is load-bearing, and the ceiling it dodges is the session's real find.**
+`corosensei` refuses an entry closure over 1024 bytes, and `nvs_host::scheduler::start`'s closure
+captured a whole `Ctx` — 984 bytes at the previous commit, leaving three. Adding *any* field
+broke every coroutine in the workspace with `type is too big to transfer`. The context now
+crosses boxed and lands back on the coroutine's own stack in the closure's first statement, at
+one allocation and one move per **task**; `CORO_TRANSFER_LIMIT`'s doc comment owns the reasoning
+and `start` asserts on it. The playbook bullet is the trap.
 
-**Two new boot refusals, both in `nvs_config::http::validate`.** `E0624` for a `same_site` that is
-none of the three spellings — which is what lets `Cookies::of` resolve with no fourth arm, so it
-never repairs one. `E0625` for an `[http.headers]` value a header line cannot carry: those three
-policies reach every response verbatim, and `nvs_server::secure` already drops an unspellable one
-in favour of the shipped default, which is right for a request in flight and is exactly why the
-boot must refuse it — otherwise the deployment's policy is silently not the one in force.
+**`Core\Uri::parseQuery`'s body is now `uri::parse_query`, a free function**, because spec § 9
+promises `Core\Request::query` answers the bracket convention *from the same code* rather than a
+second implementation of it. `query` parses per call, which `request.rs`'s `//!` states and
+prices; a memoized parse belongs on the carrier once it holds more than three strings.
 
-**The failing acceptance check is Stage 5's, and it is not a regression — this is now verified
-rather than assumed.** `examples/upload.nvs`'s own header says it pins "the half of it that already
-runs", and it does: `Core\IO` bounds and `Core\IO::within`. The check's wanted stdout
-(`parts=2 / field=title / …`) is drafted against `Core\Request::files()`, and **`Core\Request` does
-not exist in any form** — no `crates/nvs-stdlib/src/request.rs`, no row in
-`registry::CLASSES`. Twenty sessions; it needs the group below, not a fix.
-
-**`[context]` gaps.** `adrs` printed `0074 § 5` alone; this group needed **`§§ 1-3`** and read them
-by hand. `0095 § 3` was needed and not printed. `0105 §§ 1-4` is what the failing check needs and
-is still absent. `spec` has no selector, so § 15 costs a read a session. `modules` names no
-`nvs-diagnostics` pattern, which this group edited.
+**`[context]` gaps.** `adrs` printed 0074 § 5, 0088 § 3, 0097 §§ 2 and 4 and 0106 § 13; this
+slice needed **0012 §§ 2-3 and 7** (the whole of what `Core\Request` replaces and why an isolate
+throws) and read them by hand. `spec` still has no selector, so § 15 costs a read a session.
+`modules` names no `nvs-host` pattern, and this session had to edit `nvs-host/src/scheduler.rs`
+to land anything at all.
 
 ## Next group
 
-**`Core\Request`, from nothing — the class the standing acceptance failure is waiting on.** One
-file set: a new `crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-runtime/src/ctx.rs`. Model it on `crate::server::CLASS`, the other request-scoped class.
+**`Core\Request`'s inbound headers, and the server that writes them.** One file set:
+`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-stdlib/src/request.rs`,
+`crates/nvs-server/src/serve.rs`. Take them in this order — the carrier has to hold headers
+before a member can read one, and nothing can write a carrier until the last.
 
-- [ ] **The class exists and answers the request line** — `method`, `path`, `query`, spec § 15,
-      ADR 0012. `crates/nvs-stdlib/src/server.rs:35` is `CLASS`, the sibling shape to copy;
-      `crates/nvs-stdlib/src/registry.rs:1373` is where `crate::response::CLASS` is listed and
-      where the new row goes. Nothing crosses from the server yet — assert the members exist and
-      answer, as `server.rs`'s own cases do.
-- [ ] **`Core\Request::cookie(name)` reads byte for byte, and enforces the prefixes on read** —
-      ADR 0095 § 3. This is the exact other half of what landed this session: `__Host-` and
-      `__Secure-` are refused on write at
-      `crates/nvs-stdlib/src/response.rs:1138` (`nvs_core_response_add_cookie`), and a
-      non-conforming cookie carrying either prefix must be **not visible** here. The two halves
-      belong in one reading, so take this second.
-- [ ] **The inbound carrier on the context** — whatever `cookie`/`header` read from,
-      beside the outbound one at `crates/nvs-runtime/src/ctx.rs:4264` (`append_header`) and
-      `crates/nvs-runtime/src/ctx.rs:1573` (`config`). Decide and record whether this is a parsed
-      map or the raw lines; ADR 0095 § 3 wants one place that parses the header.
+- [ ] **`Inbound` carries the request's headers, and `Core\Request::header`/`::headers` read
+      them** — spec § 15, ADR 0074 § 1. `crates/nvs-runtime/src/ctx.rs:4361` is `Inbound` and
+      `crates/nvs-runtime/src/ctx.rs:4312` is `set_inbound`; `crates/nvs-stdlib/src/request.rs:96`
+      is `CLASS` and `crates/nvs-stdlib/src/request.rs:199` is the shared refusal every member
+      goes through. A repeated field name is one entry per value, not the last — `Ctx::headers`'
+      outbound half made that mistake's opposite decision for the same reason. Both answer
+      `tainted string`, which `path` already does and `query` deliberately cannot.
+- [ ] **`Core\Request::cookie(name)` reads byte for byte and enforces the prefixes on read** —
+      ADR 0095 § 3, spec § 15. `crates/nvs-stdlib/src/response.rs:979` is `HOST_PREFIX` and
+      `crates/nvs-stdlib/src/response.rs:1226` the write-side refusal to agree with; the read side
+      is the other half of that ADR — a `__Host-` cookie that arrived without conforming is not
+      one a browser would have stored, so it is not visible here. Parse the `Cookie` header off
+      the carrier; do not add a second field for cookies.
+- [ ] **The server writes the carrier, and an unrecognized verb is a `501` at the door** — ADR
+      0097 §§ 2 and 4. `crates/nvs-server/src/serve.rs:1076` is where a matched mount becomes an
+      `Isolate` and `crates/nvs-host/src/isolate.rs:128` is `Isolate::new`; the request line and
+      the headers are already in hand there, and the mount strip is `serve.rs`'s step 2. This is
+      what makes every `.nvst` case above a refusal rather than an answer, and closing it is what
+      lets the next session pin `method()` returning `Post`.
 
 ## Backlog
 
-- `Core\Response::html` and `sendFile` — the two body members still open, `crates/nvs-stdlib/src/response.rs`'s `//!`.
-- ADR 0105's `files()`/`saveTo`/`readAll` proper, once `Core\Request` exists — `docs/plan/m7.md`'s bounded-memory case is the load-bearing one.
-- `frame_ancestors` and `hsts` are `Setting`s and get no `E0625` scan — `crates/nvs-config/src/http.rs`.
-- `http.cookies.*` has no row in `nvs_config::directive`, so `Inbound::assign`'s two cookie arms are unreachable from `Core\Config::set` — `crates/nvs-config/src/directive.rs`.
-- ADR 0074 § 4 says every directive is `Runtime`; the cookie block is read per call, so a reload is picked up — untested.
+- `examples/upload.nvs`'s acceptance check still wants `Core\Request::files()` — ADR 0105, and
+  the largest single item left in § 15 (`docs/plan/m7.md`'s *Verify*).
+- `Core\Request::mount`/`::route` wait on the match `nvs_server` makes once — ADR 0102.
+- `Core\Request::clientIp`/`::scheme` need `[server] trusted_proxies` — ADR 0074 § 1.
+- `query`'s answer is `mixed`, so `tainted` does not survive it — `request.rs`'s `//!` owns the
+  reasoning; the same hole is `Core\Uri::parseQuery`'s.
+- `Core\Response::html`/`::sendFile` remain that module's own gaps — ADR 0088 § 4.
+- `docs/agent/loop-goal.toml` `[context]`: add `0012 §§ 2-3, 7`, an `nvs-host` module pattern
+  and a `spec` selector for § 15.

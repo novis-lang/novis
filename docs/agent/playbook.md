@@ -7056,6 +7056,31 @@ sibling in the same namespace unqualified.
   cycle rather than being caught while typing: `-p nvs-stdlib --lib` is where it surfaces, after
   fmt and after every conformance case has already passed. State the fact — "a `__Host-` prefix
   requires `Secure`" — and let the ADR number live in the `///` beside the card.
+- **A field added to `nvs_runtime::Ctx` can stop every coroutine in the workspace from
+  starting, and the panic names neither the field nor the crate.** `corosensei` copies a
+  coroutine's entry closure onto the new stack and refuses anything over **1024 bytes**
+  (`allocate_obj_on_stack`, a bare `assert!` reading `type is too big to transfer`).
+  `nvs_host::scheduler::start`'s closure captured the whole `Ctx` by value, so the budget was
+  spent to within *three bytes* by a struct that grows every time a per-request fact is added —
+  and the breach surfaced as two unrelated `-p nvs-stdlib` tests
+  (`process::tests::a_process_wait_…`, `http::transport::tests::a_socket_read_…`) panicking
+  inside a cargo registry path, which reads as a dependency problem. Two things now stop it
+  recurring: the context crosses in a `Box` and is moved back onto the coroutine's own stack in
+  the closure's first statement, and `start` carries an `assert!` on
+  `size_of_val(&entry) <= CORO_TRANSFER_LIMIT` that names the cause. `Finished` is *not* under
+  the limit — it is 1040 bytes and always was — so a guard written against it measures the
+  wrong thing; only the entry closure crosses that way.
+- **A `Core` member whose *return* type carries `tainted` fails a test in `nvs-types`, and the
+  message names neither the member nor the crate you edited.**
+  `nvs_types::core_lib`'s `a_verified_signature_does_not_launder_its_claims` holds a closed
+  roster of every registry row whose answer is qualified, precisely because such a promise is
+  invisible from every other row — so `CoreTy::TaintedStr`, `SecretTaintedStr` or an
+  `Array(&TaintedStr)` in a new row is a `-p nvs-types --lib` failure listing nine unrelated
+  members. Adding the row is the whole fix, but the doc comment above it is a sentence per
+  entry saying *why that member's answer came from outside the process*, and the assertion
+  message counts them out loud — so the edit is four places, not one. Same shape as the
+  `nvs_hir::errors::TREE` bullet under *Running things*: a roster held in a crate below the one
+  you are writing in.
 
 ## Divergences and refusals already pinned
 
