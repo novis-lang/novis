@@ -1502,9 +1502,18 @@ class Goal:
         # ledger names it while it is unfinished -- a Stage 3 fixture failing is
         # not the thing the loop should be told about first. See loop-goal.md.
         catch_up = [str(c.get("stage", "")).startswith("0") for c in cargo]
-        # A `--release` check is held back to the end of the sweep whatever stage it is labelled
-        # with -- the one place the stage order above is not the run order, and `check()` says why.
-        self.release_checks = [c for c in cargo if "--release" in c.get("args", [])]
+        # A check that BUILDS or MEASURES the release profile is held to the end of the sweep
+        # whatever stage it is labelled with -- the one place the stage order above is not the run
+        # order, and `check()` says why.
+        #
+        # Selected by what the check NEEDS rather than by `--release` in its argument list.
+        # `tools/bench.py` reads `target/release/nvs.exe` and takes no such flag, so the warm-start
+        # guard used to run in the middle of `cargo_checks` -- precisely where `check()` says a
+        # cost-class assertion must not run, because the machine is not idle there. It measured
+        # 8.3-9.1 ms across some forty sweeps and then 11.0 ms against a 10 ms budget once a second
+        # agent session shared the box, which is the guard reporting the machine and not the tree.
+        self.release_checks = [c for c in cargo
+                               if "--release" in c.get("args", []) or measures_release_cli(c)]
         held = {id(c) for c in self.release_checks}
         self.catch_up_checks = [c for c, first in zip(cargo, catch_up)
                                 if first and id(c) not in held]
@@ -1893,10 +1902,9 @@ class Goal:
             argv = [(leg.binary if a == "{nvs}" else a) for a in c["argv"]]
             # A check that measures the release CLI waits for the build of it that started at the
             # top of the sweep -- `release_cli` owns why that build is this driver's job at all.
+            # It cannot arrive here with the gate shut: `release_checks` holds every check that
+            # reads that binary, and that loop is the one place the gate skips one.
             if measures_release_cli(c):
-                if not self.release_gate:
-                    self.release_owed.append(c["name"])
-                    return ""
                 self.join_prebuild()
             r = self.timed(label, lambda: capture(argv[0], argv[1:],
                                                   cwd=ROOT / c.get("cwd", ".")))
