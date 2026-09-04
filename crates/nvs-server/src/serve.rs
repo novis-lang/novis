@@ -428,6 +428,13 @@ impl Peer {
 
     /// Takes the answer, once the request has ended.
     ///
+    /// **"Ended" is the request's own frame and not its whole tree.**
+    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 6's after-response work runs on that tree once the answer here has
+    /// been filed, and `nvs_host::isolate` cuts the tree loose from this
+    /// connection before it does — so a connection that closes the instant its
+    /// response is written cancels none of it.
+    ///
     /// `None` only for a `Peer` already collected, which the one caller cannot
     /// reach — worth an answer rather than a panic all the same, since what it
     /// would cost a future caller is one `500` instead of a connection.

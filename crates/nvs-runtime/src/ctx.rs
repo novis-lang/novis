@@ -649,6 +649,17 @@ pub struct Ctx {
     /// closure reference per registration — no allocation at all for a request
     /// that defers nothing.
     deferred: Option<Vec<crate::deferred::Deferred>>,
+    /// Whether this tree is one of the ones this core is counting against
+    /// § 7's `max_concurrent`.
+    ///
+    /// A flag rather than a reading of the queue above, because the two say
+    /// different things at the one moment that matters: the drain takes the
+    /// queue at its start and the slot is not given back until its end, so a
+    /// tree running its last registration has an empty queue and is still very
+    /// much being held. [`mod@crate::deferred`] owns what the count means.
+    ///
+    /// **What it spends:** one word per request.
+    holds_deferred_slot: bool,
     /// What is behind a pending `THROWN` or `FATAL` status — see [`Pending`]
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
@@ -1455,6 +1466,9 @@ impl Drop for Ctx {
                 work.closure.release();
             }
         }
+        // The other end of § 7's count, for a tree that ended without draining
+        // — and a no-op for one that drained, which gave its slot back there.
+        self.release_deferred_slot();
         // ADR 0067 § 13: a connection the request is still holding is released
         // to this core's pool under the lease it was filed with, rather than
         // closed here — `crate::pool` decides which of those two happens, and
@@ -1626,6 +1640,7 @@ impl Ctx {
             max_script_depth: Self::DEFAULT_MAX_SCRIPT_DEPTH,
             script_depth: 0,
             deferred: Some(Vec::new()),
+            holds_deferred_slot: false,
             pending: None,
             runtime_error_class: None,
             output,
@@ -2291,18 +2306,57 @@ impl Ctx {
     /// `deadline_nanos` is § 7's `deadline` already resolved — the option the
     /// call named, or [`Self::deferred_deadline`] — and `0` is no deadline.
     ///
-    /// **`false` is the one refusal**: the queue is already draining, and
-    /// deferred work may not defer more. The caller turns it into the
-    /// `RuntimeError` § 6's last bullet names and keeps the reference.
-    pub fn defer(&mut self, closure: Value, deadline_nanos: u64) -> bool {
-        let Some(queue) = self.deferred.as_mut() else {
-            return false;
-        };
-        queue.push(crate::deferred::Deferred {
-            closure,
-            deadline_nanos,
-        });
-        true
+    /// **Two refusals, and the caller keeps the reference on both.**
+    /// [`crate::deferred::DeferError::Sealed`] is § 6's last bullet — this
+    /// context is a child, and deferred work may not defer more.
+    /// [`crate::deferred::DeferError::AtCapacity`] is § 7's cap, asked here
+    /// because this is where a *tree* first becomes one of the ones a core is
+    /// holding open. Both become a `RuntimeError` at the call site, while there
+    /// is still a request to decide what to do about it.
+    ///
+    /// # Errors
+    ///
+    /// The two above, and nothing else: a registration that gets past them is
+    /// queued.
+    pub fn defer(
+        &mut self,
+        closure: Value,
+        deadline_nanos: u64,
+    ) -> Result<(), crate::deferred::DeferError> {
+        if self.deferred.is_none() {
+            return Err(crate::deferred::DeferError::Sealed);
+        }
+        // Only the first registration takes a slot: what the cap counts is
+        // trees, so a request that defers twenty closures is one tree held open
+        // exactly as a request that defers one is.
+        if !self.holds_deferred_slot {
+            let cap = self.deferred_max_concurrent();
+            if !crate::deferred::take_tree_slot(cap) {
+                return Err(crate::deferred::DeferError::AtCapacity { cap });
+            }
+            self.holds_deferred_slot = true;
+        }
+        self.deferred
+            .as_mut()
+            .expect("the queue was there a line ago")
+            .push(crate::deferred::Deferred {
+                closure,
+                deadline_nanos,
+            });
+        Ok(())
+    }
+
+    /// Gives back the slot this tree holds against § 7's cap, if it has one.
+    ///
+    /// Called at the end of the drain ([`crate::deferred::run_deferred`]) and
+    /// once more as the context goes down, for the tree that never drained at
+    /// all. Idempotent, because those two are not exclusive: a request that ran
+    /// its work still reaches its own teardown afterwards.
+    pub(crate) fn release_deferred_slot(&mut self) {
+        if self.holds_deferred_slot {
+            self.holds_deferred_slot = false;
+            crate::deferred::give_back_tree_slot();
+        }
     }
 
     /// Whether this request registered any after-response work.
@@ -2321,6 +2375,38 @@ impl Ctx {
     /// running them here.
     pub(crate) fn take_deferred(&mut self) -> Vec<crate::deferred::Deferred> {
         self.deferred.take().unwrap_or_default()
+    }
+
+    /// § 7's printed default for [`Self::deferred_max_concurrent`], for a tree
+    /// that writes no `[deferred] max_concurrent` of its own.
+    const DEFAULT_DEFERRED_MAX_CONCURRENT: u64 = 256;
+
+    /// `[deferred] max_concurrent` — how many request trees this core may hold
+    /// open for after-response work at once (§ 7).
+    ///
+    /// 256 where nothing is written, which is the number ADR 0072 § 7 prints
+    /// beside the directive. A written `0` is honoured rather than corrected:
+    /// it says this deployment does not want after-response work at all, and
+    /// the refusal a call then gets names the directive it would have to
+    /// change.
+    #[must_use]
+    pub fn deferred_max_concurrent(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("deferred.max_concurrent"))
+        else {
+            return Self::DEFAULT_DEFERRED_MAX_CONCURRENT;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "deferred.max_concurrent",
+            nvs_config::Unit::Count,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Count(count)) => count,
+            _ => Self::DEFAULT_DEFERRED_MAX_CONCURRENT,
+        }
     }
 
     /// `[deferred] deadline` in nanoseconds, or `0` when the tree names none —
@@ -3161,10 +3247,12 @@ impl Ctx {
         isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
-        // Sealed for [`Self::child`]'s reason and not for a reason of its own:
-        // nothing drains an isolate's queue, and ADR 0072 § 6's work is the
-        // request's. `crate::deferred`'s known gap is where an isolate gets one.
-        isolate.deferred = None;
+        // **Not** sealed, unlike [`Self::child`], and the difference is the one
+        // ADR 0072 § 6 draws: an isolate runs a whole program, so the frame
+        // that produced its answer returning is a trigger it has, where a
+        // `Core\Task` child's returning is not the end of anything a response
+        // could be. `Self::new` above already gave this context its queue and
+        // `nvs_host::isolate`'s completion path is what drains it.
         isolate
     }
 

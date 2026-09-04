@@ -493,8 +493,44 @@ fn start_as_task(
         // body is torn down half-way through by a forced unwind.
         let ended = ended;
         let answer = program(child, args);
-        *filed.borrow_mut() = Some(finish(child, answer, receiving.as_ref()));
+        let completion = finish(child, answer, receiving.as_ref());
+        // ADR 0072 § 6's condition, read off the answer this isolate just
+        // produced: a program that threw, exited or was torn down runs none of
+        // its after-response work, and `nvs_runtime::deferred`'s module doc
+        // owns why those registrations are released unrun instead.
+        let deferred = completion.ok && child.has_deferred();
+        *filed.borrow_mut() = Some(completion);
+        // The answer is filed and the guard publishes it, so from here whoever
+        // was waiting may take it and go. Everything below therefore runs on a
+        // tree its joiner has already let go of, which is what § 6 means by the
+        // connection ending while the request tree does not.
         drop(ended);
+        if deferred {
+            // Before a line of the work, and in this order for a reason a
+            // comment is the only place to keep: a task's death cancels what it
+            // left running (`crate::scheduler`), and the task that joined this
+            // one is a connection about to return. Nothing has yielded between
+            // the wake above and this call, so the connection cannot have
+            // reached its own end in between — this is the last moment the link
+            // can be cut, and the first at which cutting it costs nothing.
+            crate::scheduler::detach_current();
+            // Then the core, to whoever was waiting. § 6's work runs *after
+            // the response is written*, and on one core that is a scheduling
+            // fact rather than a turn of phrase: this task is runnable and the
+            // joiner has only just been woken, so a drain started here would
+            // put the whole of a request's after-response work in front of the
+            // bytes the client is still waiting for. One slice is enough — the
+            // joiner resumes inside the poll that was waiting for this answer,
+            // and what it does with it either finishes or parks on the socket.
+            let resumed = suspend_current(Waiting::Yielded);
+            if resumed.cancelled() {
+                // ADR 0072 § 5: no user code runs on the way out of a
+                // cancellation, and the registrations are released with the
+                // context a few lines from here.
+                return;
+            }
+            nvs_runtime::deferred::run_deferred(child);
+        }
     });
 
     let Some(id) = spawned else {
@@ -522,7 +558,16 @@ fn run_here(
     receiving: Option<ErrorClass>,
 ) -> Completion {
     let answer = program(&mut isolate_ctx, args);
-    finish(&mut isolate_ctx, answer, receiving.as_ref())
+    let completion = finish(&mut isolate_ctx, answer, receiving.as_ref());
+    // ADR 0072 § 6, on the host that has no response and no scheduler either:
+    // the isolate's own frame has returned and its answer is in hand, which is
+    // the same trigger the task above reads. There is nothing to detach from —
+    // this ran on the caller's own stack — and nothing waiting behind it, so
+    // the work simply runs before the answer is handed back.
+    if completion.ok && isolate_ctx.has_deferred() {
+        nvs_runtime::deferred::run_deferred(&mut isolate_ctx);
+    }
+    completion
     // `isolate_ctx` is dropped here: ADR 0116 § 2's wholesale release.
 }
 

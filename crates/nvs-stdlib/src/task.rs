@@ -590,9 +590,10 @@ nvs_runtime::nvs_helper! {
         unsafe {
             args[0].retain();
         }
-        if ctx.defer(args[0], deadline) {
-            return Ok(Value::null());
-        }
+        let refused = match ctx.defer(args[0], deadline) {
+            Ok(()) => return Ok(Value::null()),
+            Err(refused) => refused,
+        };
         #[expect(
             unsafe_code,
             reason = "a refused registration kept nothing, so the reference \
@@ -603,12 +604,24 @@ nvs_runtime::nvs_helper! {
         unsafe {
             args[0].release();
         }
-        Err(Fault::thrown(
-            "Core\\Task::afterResponse: only the request's own task may defer work, and this is a \
-             child task — a `Core\\Task` child, an isolate, or deferred work itself; hand it back \
-             to the request that started you"
-                .to_string(),
-        ))
+        Err(Fault::thrown(match refused {
+            // § 6's last bullet: retrying cannot help, so the message says what
+            // to do instead rather than what went wrong.
+            nvs_runtime::deferred::DeferError::Sealed => {
+                "Core\\Task::afterResponse: only the request's own task may defer work, and this \
+                 is a child task — a `Core\\Task` child, an isolate, or deferred work itself; \
+                 hand it back to the request that started you"
+                    .to_string()
+            }
+            // § 7: load rather than a mistake, so the message names the
+            // directive an operator would change and the two things the
+            // program can still do about it.
+            nvs_runtime::deferred::DeferError::AtCapacity { cap } => format!(
+                "Core\\Task::afterResponse: this core is already holding {cap} request trees for \
+                 after-response work, which is `[deferred] max_concurrent`; do the work inline, \
+                 respond without it, or ask the caller to retry"
+            ),
+        }))
     }
 }
 

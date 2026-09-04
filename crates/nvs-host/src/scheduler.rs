@@ -114,7 +114,12 @@
 //! it only loses the child's result. The one shape that outlives its spawning
 //! *call* is § 6's `afterResponse`, and it is not an exception — that closure is
 //! a child of the request tree rather than of the task that registered it, and
-//! Stage 4 is where the re-parenting is written.
+//! [`detach_current`] is what takes that tree out from under the connection
+//! before it runs. Cutting the link is the tree's **own** act, taken with its
+//! answer already filed and never by the parent: nothing here re-parents a task
+//! onto a stranger, so a detached tree still spends the budget it was born
+//! under, which is the objection [`Scheduler::orphan`] records against
+//! re-parenting downward.
 //!
 //! **A task wakes a peer through that same tree.** [`Wake`] is a permission to
 //! wake one task, taken while that task is running and fired from anywhere; the
@@ -416,6 +421,26 @@ impl TaskTree {
             parent.children.retain(|child| *child != id);
         }
         node.children
+    }
+
+    /// Cuts `id` loose from its parent, in both directions, answering whether
+    /// there was one to cut.
+    ///
+    /// The tree is the only thing [`Scheduler::orphan`] walks, so a task with
+    /// no parent is a task no ending parent takes with it. Everything beneath
+    /// it comes along — the children keep pointing at `id`, and `id` is now a
+    /// root — which is what makes this whole *tree* rather than one task.
+    fn detach(&mut self, id: TaskId) -> bool {
+        let Some(node) = self.nodes.get_mut(&id) else {
+            return false;
+        };
+        let Some(parent) = node.parent.take() else {
+            return false;
+        };
+        if let Some(parent) = self.nodes.get_mut(&parent) {
+            parent.children.retain(|child| *child != id);
+        }
+        true
     }
 }
 
@@ -1139,6 +1164,32 @@ where
 /// with no scheduler turning beneath it.
 pub fn cancel_task(id: TaskId) -> usize {
     current_tree().map_or(0, |tree| tree.borrow_mut().cancel(id))
+}
+
+/// Makes the running task a root, so that the task which spawned it no longer
+/// cancels it by ending — the module doc's *task tree* section owns why this is
+/// the one shape that gets to do it.
+///
+/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 6 is
+/// the whole caller list: a request tree that has filed its answer and still has
+/// after-response work to run has to outlive the connection that was waiting for
+/// that answer, and a connection ending is a task returning. It is called from
+/// **inside** the tree being detached and with its answer already published,
+/// which is what makes it safe to lose the link: there is nothing left for the
+/// parent to wait for, so ADR 0072 § 4's "control does not leave the call with
+/// work still running" has already been kept by the time this runs.
+///
+/// `false` when there is no task running here, when no scheduler is turning, and
+/// for a task that is already a root — three refusals a caller treats the same
+/// way, since each of them means the link this would have cut is not there.
+pub fn detach_current() -> bool {
+    let Some(id) = current_task() else {
+        return false;
+    };
+    let Some(tree) = current_tree() else {
+        return false;
+    };
+    tree.borrow_mut().detach(id)
 }
 
 /// Suspends the task `ctx` is running inside, reporting whether there was one.
