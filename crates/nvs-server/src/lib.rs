@@ -77,11 +77,13 @@
 pub mod admit;
 pub mod io;
 pub mod mount;
+pub mod secure;
 pub mod serve;
 pub mod statics;
 
 pub use admit::{Admission, Ceiling, InFlight};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
-pub use serve::{Answer, Draining, Reply, serve_connection, serve_on_this_core};
+pub use secure::{Scheme, Secure};
+pub use serve::{Answer, Draining, Reply, Serving, serve_connection, serve_on_this_core};
 pub use statics::{Source, Stat};

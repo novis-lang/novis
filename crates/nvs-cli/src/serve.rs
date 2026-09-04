@@ -71,7 +71,7 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
-use nvs_server::{Admission, Ceiling, OnDisk, Reply, Resolved, Table, What};
+use nvs_server::{Admission, Ceiling, OnDisk, Reply, Resolved, Secure, Serving, Table, What};
 
 use crate::script::Compiler;
 
@@ -133,7 +133,14 @@ pub(crate) fn run(
     if let Some(note) = ceiling.clamp_note() {
         eprintln!("note: {note}");
     }
-    let admission = Arc::new(Admission::new(&ceiling));
+    // ADR 0074 § 1's header set, resolved once beside the valve: with nothing
+    // written under `[http.headers]` it is the whole of what every response this
+    // server writes carries beside its body, and `nvs_server::secure` owns the
+    // three details § 1 calls decisions rather than transcription.
+    let serving = Serving::new(
+        Arc::new(Admission::new(&ceiling)),
+        Arc::new(Secure::of(snapshot.config.http.as_ref())),
+    );
     let addr = match address(&configured, listen, port) {
         Ok(addr) => addr,
         Err(refusal) => {
@@ -292,7 +299,7 @@ pub(crate) fn run(
                 &mut listener,
                 &handler,
                 waits,
-                &admission,
+                &serving,
                 &draining,
                 // The same place the boot's own notes go: this command is the
                 // logger the server crate deliberately is not.

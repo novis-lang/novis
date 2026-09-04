@@ -93,6 +93,7 @@ use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 use crate::ConnectionIo;
 use crate::admit::Admission;
 use crate::io::Phase;
+use crate::secure::{Scheme, Secure};
 
 /// A response body this server already holds in full, sent as one frame.
 ///
@@ -298,6 +299,32 @@ impl Draining {
     }
 }
 
+/// What every connection this server hands over is served under: ADR 0097 § 5's
+/// valve and [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+/// § 1's header set.
+///
+/// One argument rather than two because these are the *shared* half of a
+/// connection's context — an [`Arc`] each, boot-fixed, so every core answers
+/// under the one valve and the one policy. `waits` stays a value beside it for
+/// exactly that reason: it is [`Copy`], and § 5 makes it `Boot`-class so a
+/// connection carries its own copy rather than a handle somebody could move
+/// under it.
+#[derive(Clone, Debug)]
+pub struct Serving {
+    /// § 5's in-flight ceiling, asked before the handler is.
+    admission: Arc<Admission>,
+    /// ADR 0074 § 1's header set, filled into every response this loop writes.
+    secure: Arc<Secure>,
+}
+
+impl Serving {
+    /// The pair, as a boot resolves them.
+    #[must_use]
+    pub fn new(admission: Arc<Admission>, secure: Arc<Secure>) -> Self {
+        Self { admission, secure }
+    }
+}
+
 /// Drives one accepted connection to completion on the calling coroutine.
 ///
 /// The whole of ADR 0138 § 1: one future, on this task's own stack, polled by
@@ -334,10 +361,18 @@ impl Draining {
 /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 /// lazily yielded parts are the slice that reads one.
 ///
-/// **`admission` is § 5's valve, and it is asked before `handler` is.** A
+/// **`serving` carries § 5's valve, and it is asked before `handler` is.** A
 /// request over the ceiling is answered with [`crate::admit::over_capacity`] and
 /// nothing is started for it; [`crate::admit`]'s own docs own the order and why
 /// it is the whole of the guarantee.
+///
+/// **It carries ADR 0074 § 1's header set too, and this function is the one
+/// place that set is applied.** Every response that leaves here goes through
+/// [`Secure::fill`] — a program's, a mount table's `404`, a static file's and
+/// § 5's `503` alike — and it *fills* rather than overwrites, which is what
+/// leaves `Core\Response::setHeader` its override on one response.
+/// [`crate::secure`]'s own docs own that direction, and the effective scheme
+/// this passes.
 ///
 /// **`waits` is the clock, and it is a parameter and not a default.** ADR 0097
 /// § 5's four waits bound this connection from the moment it is accepted, and
@@ -359,7 +394,7 @@ pub fn serve_connection<H>(
     ctx: &mut Ctx,
     handler: &H,
     waits: Waits,
-    admission: &Admission,
+    serving: &Serving,
 ) -> hyper::Result<()>
 where
     H: Fn(Request<Incoming>) -> Reply,
@@ -369,6 +404,13 @@ where
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
     let phase = io.phase();
+    // ADR 0074 § 1's effective scheme, and it is `http` for every request this
+    // server sees: Novis terminates no TLS (ADR 0097 § 1), so the only thing
+    // that can assert `https` is a *trusted* proxy's `X-Forwarded-Proto` — ADR
+    // 0097 § 6's forwarded walk, which has not landed and which answers `http`
+    // anyway while `trusted_proxies` is empty. Named once, so that the slice
+    // landing that walk has one line to change rather than a search.
+    let scheme = Scheme::Http;
     let service = service_fn(|request: Request<Incoming>| {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
@@ -381,11 +423,13 @@ where
         // protect what it exists to protect. The guard lives to the end of this
         // closure, which is the whole of what "in flight" means here — the
         // answer exists by then.
-        let Some(_in_flight) = admission.admit() else {
+        let Some(_in_flight) = serving.admission.admit() else {
             phase.set(Phase::Write);
-            return std::future::ready(Ok::<_, Infallible>(crate::admit::over_capacity()));
+            let mut refused = crate::admit::over_capacity();
+            serving.secure.fill(refused.headers_mut(), scheme);
+            return std::future::ready(Ok::<_, Infallible>(refused));
         };
-        let answered = match handler(request) {
+        let mut answered = match handler(request) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
@@ -403,6 +447,10 @@ where
         // ADR 0106's ceiling and not a socket wait — and what remains on this
         // connection is a peer reading what it asked for.
         phase.set(Phase::Write);
+        // Last, and once for every path above: ADR 0074 § 1's set is what this
+        // response carries beside whatever wrote it, and filling leaves a name
+        // the answer already spelled for itself exactly as it is.
+        serving.secure.fill(answered.headers_mut(), scheme);
         std::future::ready(Ok::<_, Infallible>(answered))
     });
     let connection = http1::Builder::new().serve_connection(io, service);
@@ -539,6 +587,10 @@ fn failed() -> Response<Answer> {
 /// so a reload that moved them under a socket already accepted would be a
 /// promise two of the four could not keep.
 ///
+/// `serving` is handed to every connection by clone rather than by copy, which
+/// is what [`Serving`]'s own docs say it is for: one valve and one header set
+/// for the whole process, not one of each per core.
+///
 /// # Errors
 ///
 /// The listener's own, which ends the whole loop — a listening socket that
@@ -556,7 +608,7 @@ pub fn serve_on_this_core<H>(
     listener: &mut NvsListener,
     handler: &Rc<H>,
     waits: Waits,
-    admission: &Arc<Admission>,
+    serving: &Serving,
     draining: &Draining,
     mut report: impl FnMut(&str),
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
@@ -600,10 +652,11 @@ where
             }
         };
         let handler = Rc::clone(handler);
-        // An `Arc` and not an `Rc`: § 5's valve is counted process-wide, so the
-        // one it is cloned from is shared by every core rather than by every
+        // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and ADR 0074
+        // § 1's header set is one policy for the whole server, so what a
+        // connection clones is shared by every core rather than by every
         // connection on this one.
-        let admission = Arc::clone(admission);
+        let serving = serving.clone();
         // Counted in *here* rather than inside the body, so that a connection
         // handed over is already outstanding by the time the shutdown below can
         // look; `Served`'s `Drop` is what counts it back out, and it is a drop
@@ -631,7 +684,7 @@ where
                 ctx,
                 handler.as_ref(),
                 waits,
-                &admission,
+                &serving,
             ));
         });
         if spawned.is_none() {
@@ -977,15 +1030,18 @@ mod tests {
         })
     }
 
-    /// A valve every case but the last one is not about: § 5's own default
-    /// ceiling with no memory budget to divide it against, which is what an
-    /// unconfigured tree resolves to.
-    fn wide_open() -> Arc<Admission> {
-        Arc::new(Admission::new(&Ceiling::of(&Capacity {
-            configured: 10_000,
-            per_request: None,
-            budget: None,
-        })))
+    /// A valve every case but the last one is not about, beside ADR 0074 § 1's
+    /// shipped header set: § 5's own default ceiling with no memory budget to
+    /// divide it against, which is what an unconfigured tree resolves to.
+    fn wide_open() -> Serving {
+        Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::default()),
+        )
     }
 
     /// Reads until `needle` has arrived, so a test can stop in the middle of a
@@ -1050,6 +1106,70 @@ mod tests {
         assert!(
             answer.ends_with("hello /hello"),
             "the response did not carry the handler's body: {answer}"
+        );
+    }
+
+    /// ADR 0074 § 1 over the wire: a server nobody configured answers with the
+    /// secure set, on a response a program wrote and never asked for them.
+    ///
+    /// Deliberately one connection rather than one per [`Reply`] branch — the
+    /// set is filled at the single point every response leaves by, so a second
+    /// case over a `404` would assert the same line twice. What the set *is*,
+    /// and the override that leaves a program's own header alone, are
+    /// [`crate::secure`]'s cases; this one is that the wiring happened at all.
+    #[test]
+    fn a_response_carries_section_ones_shipped_headers() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /hello HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        let sent = answer.to_ascii_lowercase();
+        for line in [
+            "x-content-type-options: nosniff",
+            "content-security-policy: frame-ancestors 'none'",
+            "referrer-policy: strict-origin-when-cross-origin",
+        ] {
+            assert!(
+                sent.contains(line),
+                "§ 1's `{line}` was not on the response: {answer}"
+            );
+        }
+        assert!(
+            !sent.contains("strict-transport-security"),
+            "HSTS reached a plaintext connection, which § 1 sends it on nothing but an \
+             `https` effective scheme: {answer}"
         );
     }
 
@@ -1409,7 +1529,7 @@ mod tests {
         })));
         // The same count the loop is given, held here so the guard below can
         // outlive the handle the accept task takes.
-        let serving = Arc::clone(&admission);
+        let serving = Serving::new(Arc::clone(&admission), Arc::new(Secure::default()));
         // The one place this valve has, taken and held for the whole run: the
         // request below therefore arrives *at* the ceiling, which is the state
         // the assertions are about and not a race to reproduce.
