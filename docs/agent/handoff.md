@@ -2,55 +2,68 @@
 
 ## State
 
-**Goal 6, Stage 5: the body's supply path is live at the Rust seam.** `nvs_server::body`
-(`crates/nvs-server/src/body.rs`) splits an arrived body into two halves over one `Rc` cell with a
-wake pair: `Supply` keeps `hyper`'s `Incoming` on the connection and is pumped from inside the
-service future's poll, `Pull` is the `nvs_runtime::RequestBody` the isolate parks on. The door
-attaches the pull to `Inbound` and hands `Supply` back in `Reply::Run`'s second field, because an
-`Incoming` may only be polled with the connection's own context. Nothing is read before a program
-asks, and one chunk is in flight at a time — the module doc is the whole argument.
+**Goal 6, Stage 5: a Novis program can read a request body.** `Core\Request::body(): tainted string`
+pulls `nvs_runtime::RequestBody` to its end into one value — eight of spec § 15's fifteen members
+now, and the first that reads what arrived *after* the header block. The cap is
+`crates/nvs-stdlib/src/request.rs:790`'s `REQUEST_BODY` (ADR 0105 § 5's `[limits] request_body`
+default, 8M, as a constant until the row exists — `nvs_server::body::UPLOAD_TOTAL` is its twin) and
+it is checked **before** each chunk is copied, so the buffer never holds more than the bound; a
+`next_chunk` `Err` is an `IOError` rather than a short body. The helper's own doc comment is the
+whole argument, including why nothing is reserved from `Content-Length`.
 
-**Two lib tests pin it** (`crates/nvs-server/src/serve.rs:1381`): a body written in two halves 50 ms
-apart reaches the program whole, which can only happen across a park, and a bodiless request reaches
-it carrying none. `upload_total` is `nvs_server::body::UPLOAD_TOTAL` — ADR 0105 § 5's default as a
-constant until `[limits]` carries the row — refused before dispatch as `Reply::too_large()` where a
-`Content-Length` declares it, and at the pull where a chunked body crosses it.
+**The exclusivity spec § 15 states is recorded as a gap, not enforced.** `body`, `bodyStream` and
+`files` are exclusive on one request; only the first exists, so a second `body()` answers `""`.
+`crates/nvs-stdlib/src/request.rs:43`'s module-doc section owns why the record belongs on `Inbound`
+rather than on any member. `nvs_runtime::Inbound::body`'s doc cited an ADR 0105 § 8 that does not
+exist — that ADR ends at § 6 — and now cites spec § 15, which is the rule's real home.
 
-**No Novis program can read the body yet**, so `examples/upload.nvs` — the failing acceptance check —
-stays failing through the group below. A body a program never reads is never drained either, so that
-connection ends rather than keeping alive; `serve_connection`'s docs own why that is the fail-closed
-direction.
+**`conformance_coverage.rs`'s error-path gate has a third answer**, because this member's two throws
+are the first that a program reaches and no `.nvst` case can: the playbook bullet is the rule, and
+`OWED_A_CASE` is still empty.
 
-**`[context]` gaps:** `adrs` selects no § 3 of ADR 0105 (every item below needs it) and no § 1 of
-ADR 0138; spec § 15 has no `spec` selector, and it is `docs/spec/01-core-library.md:1053-1075`.
+**`examples/upload.nvs` — the failing acceptance check — stays failing** until `files()` lands; it
+wants parts, and nothing yields one yet.
+
+**`[context]` gaps:** `adrs` still selects no § 3 and no § 5 of ADR 0105, which every item in this
+group needs and which this session peeked by hand; spec § 15 has no `spec` selector and it is
+`docs/spec/01-core-library.md:1048-1070`.
 
 ## Next group
 
-**The three ways to read a body, in `Core\Request`.** One file set:
-`crates/nvs-stdlib/src/request.rs`, `crates/nvs-runtime/src/ctx.rs`, `tests/conformance/core/`.
+**The other two ways to read a body, and the record that keeps them apart.** One file set:
+`crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/io.rs`, `crates/nvs-runtime/src/ctx.rs`,
+`tests/conformance/core/`.
 
-- [ ] **`Core\Request::body()`** — ADR 0105 § 3's first way and spec § 15
-      (`docs/spec/01-core-library.md:1053`): pull to the end into one string, bounded by
-      `request_body` (8M) rather than `upload_total`, and throw where it is crossed. The five edits
-      are the row at `crates/nvs-stdlib/src/request.rs:218`, the card at
-      `crates/nvs-stdlib/src/request.rs:337`, the `address` arm at
-      `crates/nvs-stdlib/src/request.rs:358` and a helper beside
-      `crates/nvs-stdlib/src/request.rs:699`; the reader is `Ctx::body` at
-      `crates/nvs-runtime/src/ctx.rs:4498`, whose `&mut` borrow is § 8's exclusivity.
-- [ ] **`Core\Request::bodyStream(): Iterable<bytes>`** — the same pull as chunks rather than one
-      string, so nothing is bounded and nothing is resident past a chunk
-      (`docs/spec/01-core-library.md:1068`). It shares the row/card/address roster above at
-      `crates/nvs-stdlib/src/request.rs:218`, and the chunk contract it has to keep is
-      `crates/nvs-runtime/src/ctx.rs:4540`.
-- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105's lazily yielded parts
-      over the same pull, at `crates/nvs-stdlib/src/request.rs:218`, with the multipart boundary
-      found across chunks (`crates/nvs-runtime/src/ctx.rs:4571` is why it may not assume one arrives
-      whole). This is the acceptance check.
+- [ ] **`Core\Request::bodyStream(): Iterable<bytes>`** — ADR 0105 § 3's second way and spec § 15
+      (`docs/spec/01-core-library.md:1068`). The shape to copy whole is `Core\IO::lines`' named
+      `Iterable<string>` class at `crates/nvs-stdlib/src/io.rs:1626` with its `iterate()` symbol at
+      `crates/nvs-stdlib/src/io.rs:1618`; the registry's note on the two spellings is
+      `crates/nvs-stdlib/src/registry.rs:1238`. The five edits land beside `body`'s — row at
+      `crates/nvs-stdlib/src/request.rs:241`, card at `crates/nvs-stdlib/src/request.rs:380`,
+      `address` arm at `crates/nvs-stdlib/src/request.rs:417`, helper beside
+      `crates/nvs-stdlib/src/request.rs:820`. The pull is `Inbound::body` at
+      `crates/nvs-runtime/src/ctx.rs:4498` — **on `Inbound`, not `Ctx`** — and a chunk is borrowed
+      only until the next pull, so each yielded `bytes` copies. No `REQUEST_BODY` bound applies:
+      nothing accumulates.
+- [ ] **The body carries which member claimed it** — spec § 15's exclusivity, enforced. A field
+      beside the reader at `crates/nvs-runtime/src/ctx.rs:4486`, set by whichever of the three took
+      the borrow and read back as a `LogicError` naming both members; the gap it closes is written
+      out at `crates/nvs-stdlib/src/request.rs:43`, and `body`'s own refusal wording to reuse is
+      `crates/nvs-stdlib/src/request.rs:400`'s `inbound_of`.
+- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105 §§ 1-4's lazily yielded
+      parts, over the same `Iterable` shape the first item builds — the multipart split is new code
+      beside `crates/nvs-stdlib/src/request.rs:820`, reading the boundary out of `Content-Type` with
+      `crates/nvs-stdlib/src/request.rs:400`'s `inbound_of` and the pull at
+      `crates/nvs-runtime/src/ctx.rs:4498`. This is the item the driver's standing acceptance
+      failure is waiting on.
 
 ## Backlog
 
-- `[limits] request_body` / `upload_total` as real `nvs_config` rows, replacing
-  `crates/nvs-server/src/body.rs`'s constant — ADR 0105 § 5.
-- ADR 0097 § 6's forwarded-header walk; `crates/nvs-server/src/serve.rs`'s `scheme` is its one line.
-- ADR 0102's route table and `Core\Request::route()` — docs/plan/m7.md.
-- ADR 0083's WebSocket isolate over `tungstenite` — docs/plan/m7.md.
+- `[limits] request_body` and `upload_total` as real rows — ADR 0105 § 5; today both are constants
+  (`crates/nvs-stdlib/src/request.rs:790`, `crates/nvs-server/src/body.rs:65`).
+- A multipart body far larger than any in-memory bound, received at a bounded high-water mark —
+  `docs/plan/m7.md`'s load-bearing acceptance case, and it needs `files()` first.
+- Raw/unparsed body access for an arbitrary content-type — `docs/plan/m7.md`, narrowed to what
+  `body()` and `bodyStream()` do not answer.
+- `clientIp`/`scheme`/`host` on `[server] trusted_proxies` and the forwarded-header walk — ADR 0097.
+- `route`/`mount` on the match `nvs_server` makes once before the handler — ADR 0102.

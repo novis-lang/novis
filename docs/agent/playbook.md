@@ -1808,6 +1808,14 @@ is why" — is this file.
   `peek.py <adr>:"re:^### "` prints every heading in a few hundred bytes and settles the whole
   file's citations at once; do it before writing a doc comment that cites two or more sections of
   one ADR.
+- **An anchor window — `orient.py`'s inlined code, or a `peek.py` line range — carries no `impl`
+  header, so the receiver type in it is a guess.** The handoff named "the reader is `Ctx::body` at
+  `crates/nvs-runtime/src/ctx.rs:4498`" and the pack inlined that window; both `set_body` and `body`
+  read as `Ctx` methods, the helper was written against `ctx.body()`, and the tell was
+  `error[E0599]: no method named 'body' found for '&mut nvs_runtime::Ctx'` after a full rebuild —
+  they are `Inbound`'s, whose `impl` opens 58 lines above the window. `peek.py --locate` answers the
+  symbol, not its owner, so it does not close this either. One `grep -n '^impl ' <file>` filtered to
+  the lines around the anchor costs nothing and says which type you are actually adding a call to.
 
 ## Running things
 
@@ -5135,6 +5143,15 @@ is why" — is this file.
   `nvs_runtime::nvs_helper!`, whose `fn` is an `unsafe extern "C"` a unit test cannot call without
   a `Ctx`: `crates/nvs-stdlib/src/request.rs`'s `joined_field`, `grouped_fields` and `cookie_of`
   are the shape. Decide that before writing the body, not after the floor fails.
+- **A `Core` member whose error paths only a *served request* can reach fails
+  `conformance_coverage.rs`'s error-path gate, and until now neither of its two answers was true.**
+  A `.nvst` case is a program answering no request, so nothing behind `Inbound`'s body — the
+  `request_body` cap, a connection failing mid-stream — is reachable from either suite; declaring
+  such a site "unreachable from source" claims the checker refuses the call, which is false, and
+  `OWED_A_CASE` claims a case is owed that nobody can write. The gate now takes a third declaration,
+  `ASSERTED_OFF_THE_CORPUS` — the phrase "no case can reach this" within 8 lines above the site,
+  plus the `#[test]` that asserts it instead. Reach for it only when a case genuinely cannot exist;
+  the phrase is greppable precisely so a wrong use is findable.
 
 ## Splitting a file that got too big
 
