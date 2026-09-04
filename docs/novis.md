@@ -120,6 +120,7 @@ Conventions the whole file uses:
 | [`Core\Request\Part`](#core-core-request-part) |  |
 | [`Core\Request\PartContent`](#core-core-request-partcontent) |  |
 | [`Core\Response`](#core-core-response) |  |
+| [`Core\Session`](#core-core-session) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -16363,6 +16364,32 @@ Adds one `Set-Cookie` to this response, every option it leaves out taken from `[
 **Returns** `void` — Nothing. Each call adds a cookie — two calls write two `Set-Cookie` lines, and a name written twice is sent twice rather than collapsed.
 
 **Throws** `LogicError` — `$name` is not a cookie name, or does not conform to the `__Host-`/`__Secure-` prefix it carries; `$value`, `path` or `domain` holds a byte that would end the attribute and begin one the program never wrote; `sameSite` is `None` without `secure`; or `maxAge` is negative.
+
+<a id="core-core-session"></a>
+### `Core\Session`
+
+Keywords: start
+
+| Member | Signature |
+|---|---|
+| [`Core\Session::start`](#core-core-session-start) | `start(?string $presented = null): void` |
+
+<a id="core-core-session-start"></a>
+#### `Core\Session::start`
+
+```nvs skip
+Core\Session::start(?string $presented = null): void
+```
+
+Opens the session the store issued, taking the identifier from the session cookie unless one is given — and issuing a fresh one where the store has no record under it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$presented` | `?string` (default `null`) | The identifier to open, for a client that carries it somewhere other than the cookie. Omitted — the ordinary case — it is read from the `[session] cookie` field of the request. An identifier this store did not issue, one that has expired and one an attacker minted are the same answer: a fresh session, with a new identifier in the response's cookie. |
+
+**Returns** `void` — Nothing. Afterwards the other six members of this class operate on the record; before it, each of them throws.
+
+**Throws** `RuntimeError` — No `[session] backend` is configured, so there is no store a record could live in; the configured store is `db`, whose half of § 2 is not on disk; or `[cache.shared] url` is unset, unreachable by capability, or this request has already started a session.; `IOError` — The configured store cannot be reached. It throws rather than answering as though the record were absent, since a store that is down must not read as a forged identifier — the two have opposite responses.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
