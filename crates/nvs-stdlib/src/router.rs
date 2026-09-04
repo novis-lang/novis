@@ -325,7 +325,7 @@ pub(crate) const MATCH_NAME: &str = r"Core\Router\Match";
 const MATCH_ROUTE_NAME: usize = 0;
 const MATCH_PARAMS: usize = 1;
 
-/// ADR 0102 § 5's capture as a program reaches it, and the one place the three
+/// ADR 0102 § 5's capture as a program reaches it, and the one place the five
 /// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
 ///
 /// A union rather than a `string`, because § 1 says the server computes "typed
@@ -337,7 +337,20 @@ const MATCH_PARAMS: usize = 1;
 /// a program can cast the mark off. `int` and `uint` are both members and
 /// neither subsumes the other — `nvs_types`' assignment relation widens each
 /// only to `float` — so a `uint` capture past `i64::MAX` still has a type.
-const CAPTURE: &CoreTy = &CoreTy::Union(&[CoreTy::TaintedStr, CoreTy::Int, CoreTy::Uint]);
+///
+/// **Every conversion the matcher performs is a member here**, and a type § 5
+/// admits that it does not convert yet arrives on the text arm — which is what
+/// makes this union the readable statement of where
+/// [`nvs_runtime::routes::CaptureConv`] currently stands. A `decimal` and a
+/// `Core\Uuid` are the two that joined it once the parses reached the crate the
+/// walk is in; a `bool` and an `enum` have not.
+const CAPTURE: &CoreTy = &CoreTy::Union(&[
+    CoreTy::TaintedStr,
+    CoreTy::Int,
+    CoreTy::Uint,
+    CoreTy::Decimal,
+    CoreTy::Instance(crate::uuid::NAME),
+]);
 
 /// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 1's match, as the program answering the request reads it.
@@ -427,8 +440,9 @@ const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
             order.",
     params: &[],
     ret: "An array of the captures. A `{name}` declared `string` answers `tainted string` and is \
-          still percent-encoded; one declared `int` or `uint` answers the number the match \
-          already converted. A route with no captures answers an empty array.",
+          still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\\Uuid` answers the \
+          value the match already converted, and a segment that would not convert never matched \
+          the route at all. A route with no captures answers an empty array.",
     errors: &[],
 };
 
@@ -837,13 +851,19 @@ nvs_runtime::nvs_helper! {
 }
 
 /// One capture as [`CAPTURE`] spells it — the one place
-/// [`nvs_runtime::routes::Param`]'s four forms become Novis values.
+/// [`nvs_runtime::routes::Param`]'s five forms become Novis values.
+///
+/// The `Core\Uuid` arm allocates an instance, which is why it is this crate's:
+/// the octets crossed as bytes precisely so that the class stays where it is
+/// declared, and [`crate::uuid::of_octets`] is the seam ADR 0067 § 9's `UUID`
+/// column already arrives on.
 fn capture_value(capture: &nvs_runtime::routes::Param) -> Value {
     match capture {
         nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
         nvs_runtime::routes::Param::Int(number) => Value::int(*number),
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
+        nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
     }
 }
 
@@ -874,8 +894,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::params(): array<tainted string|int|uint>` — every
-    /// capture the path filled, keyed by the parameter it binds.
+    /// `Core\Router\Match::params(): array<tainted string|int|uint|decimal|Core\Uuid>`
+    /// — every capture the path filled, keyed by the parameter it binds.
     ///
     /// The array is built once by [`match_value`] and read back here, so the
     /// two members answer the same values rather than two walks of one row.
@@ -885,8 +905,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint)` —
-    /// [`nvs_core_router_match_params`] read at one key.
+    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid)`
+    /// — [`nvs_core_router_match_params`] read at one key.
     ///
     /// **`null` for a name the route does not declare**, rather than a throw,
     /// and that is [`MATCH_PARAM_DOC`]'s stated answer rather than

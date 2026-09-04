@@ -276,6 +276,7 @@ mod string;
 pub mod terminal;
 pub mod throwable;
 pub mod trace_context;
+pub mod uuid;
 mod value;
 
 /// The leak guard in [`object`] measures the allocator rather than trusting a

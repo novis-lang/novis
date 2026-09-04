@@ -13,7 +13,11 @@
 //! `parse` accepts RFC 9562 § 4's `8-4-4-4-12` hyphenated form in either case,
 //! and refuses the three shapes the `uuid` crate would otherwise also take: the
 //! unhyphenated 32 hex digits, `{…}` braces, and a `urn:uuid:` prefix. One
-//! length check does it, so nothing is re-implemented to be strict.
+//! length check does it, so nothing is re-implemented to be strict — and that
+//! check is [`nvs_runtime::uuid::read`], because ADR 0102 § 5's `Core\Uuid`
+//! route capture is accepted or refused one crate *below* this one, and a
+//! segment a route admits had better not be read by a second grammar. The rule
+//! and its reasons are still this module's; the sixteen bytes are down there.
 //!
 //! The reason is that each of those is a **second spelling of one value**, and
 //! a program that keys a cache, a rate limiter or an audit log on the text
@@ -283,15 +287,16 @@ pub(crate) fn of_text(text: &str) -> Option<Value> {
 
 /// The `Uuid` `text` spells, or `None` if it is not the canonical form.
 ///
-/// The length check is what narrows `uuid`'s four accepted spellings to the one
-/// this module reads — see the module docs. The unhyphenated form is 32
-/// characters, braced is 38 and a `urn:uuid:` is 45, so `36` admits none of
-/// them, and the crate's own reader still decides everything about the 36
-/// characters that remain.
+/// **The grammar itself is [`nvs_runtime::uuid::read`]**, one crate down, and
+/// this is that reading with the type put back on it. It lives there because
+/// ADR 0102 § 5 lets a route capture declare `Core\Uuid` and a capture is
+/// accepted or refused in `nvs_runtime::routes`, which cannot depend on this
+/// crate — so a segment a route admits and a string a program parses are one
+/// grammar with one home rather than two readers that agree today. Everything
+/// this module's docs say about *why* the reading is strict is still this
+/// module's; what moved is where the length check and the call sit.
 fn read(text: &str) -> Option<Uuid> {
-    (text.len() == uuid::fmt::Hyphenated::LENGTH)
-        .then(|| Uuid::try_parse(text).ok())
-        .flatten()
+    nvs_runtime::uuid::read(text).map(Uuid::from_bytes)
 }
 
 /// The `string` in argument slot 0, for the two members that read text.

@@ -1244,12 +1244,12 @@ mod tests {
                 (
                     r"Core\Router\Match",
                     "param",
-                    "uint|int|null|tainted string".to_owned(),
+                    "uint|int|null|decimal|tainted string|Core\\Uuid".to_owned(),
                 ),
                 (
                     r"Core\Router\Match",
                     "params",
-                    "array<uint|int|tainted string>".to_owned(),
+                    "array<uint|int|decimal|tainted string|Core\\Uuid>".to_owned(),
                 ),
             ]),
             "the roster of members whose *answer* is qualified `tainted` is closed at nineteen — \

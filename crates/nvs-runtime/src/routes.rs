@@ -54,20 +54,7 @@
 //!    right verb: the same answers, and a cost that grows with the table rather
 //!    than with the path. The shape a trie would replace is one function
 //!    ([`Routes::match_request`]) and the rank it already computes.
-//! 2. **A `Core\Uuid` capture is [`CaptureConv::Unconverted`]**, which matches
-//!    the segment and hands its text over, so a route declaring one matches a
-//!    segment its declared type would have refused. `decimal` closed with the
-//!    arm [`crate::commands`]' gap 1 is still waiting for, and the two are no
-//!    longer the same gap: a decimal's reader is [`crate::decimal`], in this
-//!    crate, where a `Core\Uuid`'s is `nvs_stdlib::uuid` — one crate *above*
-//!    this one, which cannot be depended on from here. So closing the second
-//!    half is a placement decision rather than an arm, and the two candidates
-//!    are moving the 16-byte parse down beside [`crate::decimal`] or teaching
-//!    the crossing to carry a conversion it cannot perform. Writing the
-//!    canonical `8-4-4-4-12` grammar a second time here is not one of them —
-//!    that is gap 4's failure mode, and the rule this module already keeps for
-//!    percent-decoding.
-//! 3. **The reader answers the name and the captures, and never the row.**
+//! 2. **The reader answers the name and the captures, and never the row.**
 //!    `Core\Request::route()` has landed and `nvs_stdlib::router`'s
 //!    `Core\Router\Match` is what it answers with, built out of [`Match`] where
 //!    the match crosses. What does not cross is the [`Route`] itself — its
@@ -76,7 +63,7 @@
 //!    dispatch ADR 0077 § 4 refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
-//! 4. **A capture's value is the segment as it arrived, still percent-encoded.**
+//! 3. **A capture's value is the segment as it arrived, still percent-encoded.**
 //!    Decoding is `nvs_stdlib::uri`'s, one crate above this one, and a second
 //!    decoder here would be the two-that-agree-today failure the tainted
 //!    laundering rules exist to prevent. A `uint` capture is unaffected — no
@@ -104,14 +91,24 @@ pub enum CaptureConv {
     /// `decimal` — ADR 0054 § 4's literal, whole, and no match where the
     /// segment is not one. The parse is [`crate::decimal::Decimal::parse`]
     /// itself rather than a grammar written here: a second decimal reader that
-    /// agreed today is gap 4's failure mode, one type along.
+    /// agreed today is gap 3's failure mode, one type along.
     Decimal,
+    /// `Core\Uuid` — RFC 9562 § 4's canonical form, and no match where the
+    /// segment is not one. The parse is [`crate::uuid::read`], which is where
+    /// that grammar lives *because* this arm has to reach it: the class is
+    /// `nvs_stdlib::uuid`'s, one crate above, and a capture is accepted or
+    /// refused here. That module's doc is the home of the placement.
+    Uuid,
     /// § 5's closed set: the segment text of each admitted value, in the order
     /// the union declares them. A segment outside the set is no match, which is
     /// what makes the narrowing a property of the *table* rather than a check
     /// the handler was trusted to write.
     OneOf(Vec<String>),
-    /// A type § 5 admits and this module's gap 2 does not convert yet.
+    /// A type § 5 admits and no arm above turns text into: a `bool`, and an
+    /// `enum` whose segment spelling is `Core\Router::match`'s to decide and is
+    /// out of this goal's scope. The segment matches and its text is handed
+    /// over — never silently `Text`, so what is missing stays an arm rather
+    /// than a behaviour somebody has to notice.
     Unconverted,
 }
 
@@ -142,6 +139,12 @@ pub enum Param {
     /// A `decimal` capture, converted — the value, not the text it arrived as,
     /// so `19.90` keeps the scale ADR 0054 § 4 says it renders with.
     Decimal(Decimal),
+    /// A `Core\Uuid` capture, converted: the sixteen octets, in the order the
+    /// canonical text writes them. The bytes rather than a type, because the
+    /// type is `nvs_stdlib::uuid`'s — this is the argument its `of_octets`
+    /// already takes, which is the same seam ADR 0067 § 9's `UUID` column
+    /// crosses on.
+    Uuid([u8; 16]),
 }
 
 /// § 2's three capture forms and the literal that is none of them, as the
@@ -346,6 +349,7 @@ impl Route {
             CaptureConv::Int => text.parse::<i64>().ok().map(Param::Int),
             CaptureConv::Uint => text.parse::<u64>().ok().map(Param::Uint),
             CaptureConv::Decimal => Decimal::parse(text).map(Param::Decimal),
+            CaptureConv::Uuid => crate::uuid::read(text).map(Param::Uuid),
             CaptureConv::OneOf(admitted) => admitted
                 .iter()
                 .any(|value| value == text)
@@ -790,6 +794,59 @@ mod tests {
             assert!(
                 matched(&format!("/orders/{segment}")).is_none(),
                 "`{segment}` is not a decimal literal and must not match"
+            );
+        }
+    }
+
+    /// § 5's narrowing for the type whose class this crate does *not* own: a
+    /// `Core\Uuid` capture converts to the sixteen octets, and a segment that is
+    /// not RFC 9562 § 4's canonical form is **no match** rather than text handed
+    /// to a handler that declared an identifier.
+    ///
+    /// Both sides named together, for the `decimal` case's reason. The refused
+    /// half is what the placement bought: until [`crate::uuid`] existed, every
+    /// one of these matched, because the parse was one crate above the walk.
+    #[test]
+    fn a_uuid_capture_converts_and_refuses_what_is_not_one() {
+        let routes = Routes::new(vec![super::Route::new(
+            "Get",
+            "/tenants/{tenant}",
+            None,
+            "App\\Tenants::show",
+            None,
+            vec![Capture {
+                name: "tenant".to_owned(),
+                conv: CaptureConv::Uuid,
+            }],
+        )]);
+        let matched = |path: &str| routes.match_request("GET", path);
+
+        // The octets, not the text: what crosses is what
+        // `nvs_stdlib::uuid::of_octets` takes, so the program is handed a value
+        // with a type rather than 36 characters it would read a second time.
+        assert_eq!(
+            matched("/tenants/0fb0bc5c-4e24-4e4e-8e1e-6a6b8a0e1b2c")
+                .expect("a match")
+                .param("tenant"),
+            Some(&Param::Uuid([
+                0x0f, 0xb0, 0xbc, 0x5c, 0x4e, 0x24, 0x4e, 0x4e, 0x8e, 0x1e, 0x6a, 0x6b, 0x8a, 0x0e,
+                0x1b, 0x2c
+            ]))
+        );
+
+        // Refused, and the row is the only one in the table, so a refusal is a
+        // miss. The middle two are the non-canonical spellings of a *valid*
+        // UUID: a route that accepted them would key on two strings that are one
+        // identity, which is the whole of why `Core\Uuid`'s reader is strict.
+        for segment in [
+            "not-a-uuid",
+            "0fb0bc5c4e244e4e8e1e6a6b8a0e1b2c",
+            "urn:uuid:0fb0bc5c-4e24-4e4e-8e1e-6a6b8a0e1b2c",
+            "",
+        ] {
+            assert!(
+                matched(&format!("/tenants/{segment}")).is_none(),
+                "`{segment}` is not a canonical UUID and must not match"
             );
         }
     }

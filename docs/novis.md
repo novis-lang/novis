@@ -13923,8 +13923,9 @@ that declares none; it is a plain `string`, because it is the unit's own literal
 every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
 one key — `null` for a name the route does not declare, including an optional `{name?}` the request
 left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,
-and the `int` or `uint` the match already converted where it declared one of those, so a handler
-never parses a segment the router has parsed already.
+and the `int`, `uint`, `decimal` or `Core\Uuid` the match already converted where it declared one of
+those, so a handler never parses a segment the router has parsed already — and a segment that would
+not convert did not match the route in the first place.
 
 Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a
 test — there is none, and the reader refuses rather than answering `null`, because "no request
@@ -13945,8 +13946,8 @@ no request here
 | Member | Signature |
 |---|---|
 | [`Core\Router\Match->name`](#core-core-router-match-name) | `name(): ?string` |
-| [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint>` |
-| [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint` |
+| [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint\|decimal\|Core\Uuid>` |
+| [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint\|decimal\|Core\Uuid` |
 
 <a id="core-core-router-match-name"></a>
 #### `Core\Router\Match->name`
@@ -13963,18 +13964,18 @@ The declared name of the route this request matched, as its `#[Route(name: …)]
 #### `Core\Router\Match->params`
 
 ```nvs skip
-$match->params(): array<tainted string|int|uint>
+$match->params(): array<tainted string|int|uint|decimal|Core\Uuid>
 ```
 
 Every capture the matched path filled, keyed by the parameter name it binds, in path order.
 
-**Returns** `array<tainted string|int|uint>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int` or `uint` answers the number the match already converted. A route with no captures answers an empty array.
+**Returns** `array<tainted string|int|uint|decimal|Core\Uuid>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int`, `uint`, `decimal` or `Core\Uuid` answers the value the match already converted, and a segment that would not convert never matched the route at all. A route with no captures answers an empty array.
 
 <a id="core-core-router-match-param"></a>
 #### `Core\Router\Match->param`
 
 ```nvs skip
-$match->param(string $name): ?tainted string|int|uint
+$match->param(string $name): ?tainted string|int|uint|decimal|Core\Uuid
 ```
 
 One capture by the parameter name it binds — `params()` read at one key, and the spelling a handler reaching for a single segment writes.
@@ -13983,7 +13984,7 @@ One capture by the parameter name it binds — `params()` read at one key, and t
 |---|---|---|
 | `$name` | `string` (neutral) | The capture's name as the route's path declared it, without the braces. |
 
-**Returns** `?tainted string|int|uint` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
+**Returns** `?tainted string|int|uint|decimal|Core\Uuid` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
 
 <a id="core-core-csv"></a>
 ### `Core\Csv`

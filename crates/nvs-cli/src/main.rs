@@ -819,8 +819,8 @@ fn runtime_commands(
 /// The one thing here that is a reading rather than a copy is the conversion:
 /// `nvs_types::routes::RouteParam` carries the declared type as
 /// `TypeInterner::describe` rendered it, and `nvs_runtime::routes::CaptureConv`
-/// is the closed set a matcher needs instead. Its own gap 2 owns what
-/// `Unconverted` costs.
+/// is the closed set a matcher needs instead. That enum's `Unconverted` doc
+/// owns what is left under it.
 pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::routes::Routes {
     nvs_runtime::routes::Routes::new(
         table
@@ -867,6 +867,10 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
         Some("int") => CaptureConv::Int,
         Some("uint") => CaptureConv::Uint,
         Some("decimal") => CaptureConv::Decimal,
+        // The one class § 5 admits, spelled as `describe` renders
+        // `nvs_stdlib::uuid::NAME` — matched as text like every arm above, and
+        // the same spelling `openapi`'s schema arm matches.
+        Some(r"Core\Uuid") => CaptureConv::Uuid,
         // A capture is always `tainted`, and both spellings render for one
         // declared `string` depending on where the qualifier was written.
         Some("string" | "tainted string") | None => CaptureConv::Text,
