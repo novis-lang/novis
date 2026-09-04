@@ -2258,10 +2258,11 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::{
-        REQUEST_BODY, cookie_of, grouped_fields, joined_field, method_ordinal,
-        nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
-        nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
-        nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
+        CoreTy, FILES_NAME, PART_NAME, REQUEST_BODY, cookie_of, grouped_fields, joined_field,
+        method_ordinal, nvs_core_request_body, nvs_core_request_body_stream,
+        nvs_core_request_body_stream_advance, nvs_core_request_body_stream_current,
+        nvs_core_request_body_stream_iterate, nvs_core_request_files,
+        nvs_core_request_files_advance, nvs_core_request_files_current,
         nvs_core_request_files_iterate, nvs_core_request_part_content,
         nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
         nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
@@ -3001,6 +3002,124 @@ mod tests {
                 .is_empty(),
             "a declared multipart body that never arrived is no parts, not a refusal"
         );
+    }
+
+    /// ADR 0105 § 1's two halves in one test, because they are one sentence: the
+    /// walk is **lazy**, and it is the **only** way an uploaded file reaches a
+    /// program.
+    ///
+    /// Laziness is asserted against a body whose second pull never lands. The
+    /// first file part's header arrived inside the first chunk, so the walk
+    /// yields it and its declarations read back — and the failure lands on the
+    /// `advance()` that needed the chunk after it. A walk that buffered the body
+    /// before answering could not have answered at all here, which is what makes
+    /// the *succeeding* half of this the interesting one:
+    /// `a_files_walk_that_fails_mid_body_throws_rather_than_ending` already owns
+    /// the throw.
+    ///
+    /// "The only way in" is asked of the registry rather than of a body, by
+    /// **counting** rather than by reading one row: exactly one member in the
+    /// whole `Core` surface answers the walk, and no member anywhere answers a
+    /// part — a part exists only as the walk's current one, which is what § 3's
+    /// ordinal check is written around. A second door added later fails this
+    /// without anyone having to remember the rule, which a test naming
+    /// `Core\Request::files` alone would not.
+    #[test]
+    fn files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload() {
+        /// The retain a virtual call's receiver owes — [`parts_of`]'s `lend`,
+        /// which this test needs one step at a time rather than as a loop.
+        fn lend(value: Value) {
+            #[expect(
+                unsafe_code,
+                reason = "each of the three names consumes a reference, so the \
+                          driver holds one of its own and retains per call"
+            )]
+            unsafe {
+                value.retain();
+            }
+        }
+        /// A reference a member transferred, given back.
+        fn spend(value: Value) {
+            #[expect(unsafe_code, reason = "the call transferred what it answered")]
+            unsafe {
+                value.release();
+            }
+        }
+
+        let mut arriving = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::failing_at(&UPLOAD[..1], 1)),
+        );
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("the failure is the wire's, and it has not happened yet");
+        lend(files);
+        let cursor = nvs_runtime::call(nvs_core_request_files_iterate, &mut arriving, &[files])
+            .expect("a walk is its own iterator, so naming it cannot fail");
+        lend(cursor);
+        let opened = nvs_runtime::call(nvs_core_request_files_advance, &mut arriving, &[cursor])
+            .expect("the first file part's header arrived inside the first chunk");
+        assert_eq!(
+            opened.as_bool(),
+            Some(true),
+            "a body holding a whole part header holds a part, however it ends later"
+        );
+        lend(cursor);
+        let part = nvs_runtime::call(nvs_core_request_files_current, &mut arriving, &[cursor])
+            .expect("a walk that opened a part is on one");
+        let claimed = nvs_runtime::call(nvs_core_request_part_filename, &mut arriving, &[part])
+            .expect("a part the walk yielded reads back its own declarations");
+        assert_eq!(
+            claimed
+                .as_text()
+                .expect("`filename` answers `string`")
+                .as_bytes(),
+            b"report.pdf",
+            "the part yielded before the rest of the body is the first one on the wire"
+        );
+        spend(claimed);
+        spend(part);
+        lend(cursor);
+        assert!(
+            nvs_runtime::call(nvs_core_request_files_advance, &mut arriving, &[cursor]).is_err(),
+            "the second part needed a chunk the connection never delivered"
+        );
+        spend(cursor);
+        spend(files);
+
+        let answering = |name: &'static str| {
+            crate::registry::CLASSES
+                .iter()
+                .flat_map(|class| {
+                    class
+                        .methods
+                        .iter()
+                        .chain(class.instance)
+                        .map(move |member| (class.name, member))
+                })
+                .filter(|(_, member)| answers(&member.return_ty, name))
+                .map(|(class, member)| format!("{class}::{}", member.name))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            answering(FILES_NAME),
+            vec![r"Core\Request::files".to_owned()],
+            "one door, and a second one is a second way to receive an upload"
+        );
+        assert!(
+            answering(PART_NAME).is_empty(),
+            "a part is reached by walking and by nothing that hands one out: {:?}",
+            answering(PART_NAME)
+        );
+    }
+
+    /// Whether `ty` is the instance type called `name`, through a `?` where the
+    /// member's answer is nullable.
+    fn answers(ty: &CoreTy, name: &str) -> bool {
+        match ty {
+            CoreTy::Instance(answered) => *answered == name,
+            CoreTy::Nullable(inner) => answers(inner, name),
+            _ => false,
+        }
     }
 
     /// A request that says it is multipart and then does not say how to read one
