@@ -29,11 +29,12 @@
 //! **HSTS is emitted on an `https` effective scheme and not otherwise**, which is [`Scheme`]:
 //! a parameter of [`Secure::fill`] rather than a fact read off the socket, because Novis never
 //! terminates TLS ([ADR 0097] § 1) and the only thing that can assert `https` is a *trusted*
-//! proxy's `X-Forwarded-Proto` (0097 § 6). That walk has not landed, and with `trusted_proxies`
-//! empty it would answer `http` anyway, so every request this server serves today is
-//! [`Scheme::Http`] and no HSTS is sent — which is § 1's own answer for an unconfigured tree
-//! and not a gap. The rule is implemented and asserted here; what § 6 adds later is the one
-//! call site that may pass [`Scheme::Https`].
+//! proxy's `X-Forwarded-Proto` (0097 § 6). That walk is [`crate::forwarded`] and
+//! [`crate::serve::serve_connection`] is the one call site that may pass [`Scheme::Https`] —
+//! it does so for a request whose peer is in `[server] trusted_proxies` and that said so.
+//! With that directive empty, which is its default, no forwarded header is read at all and
+//! every request this server serves is [`Scheme::Http`] with no HSTS sent — § 1's own answer
+//! for an unconfigured tree, and not a gap.
 //!
 //! **`hsts_subdomains` defaults to `false`**, so `includeSubDomains` is absent unless it is
 //! written. § 1's reason is that it is the HSTS setting that has taken deployments down, for a

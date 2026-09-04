@@ -19,10 +19,12 @@
 //! `route` are known gaps of this module rather than of § 15, and each waits on
 //! a different thing:
 //! `route`/`mount` on the match `nvs_server` makes once
-//! before the handler, and `clientIp`/`scheme`/`host` on
-//! `[server] trusted_proxies` and the forwarded-header walk. Those three read a
-//! field this module now holds and are still gaps for that reason: which peer is
-//! allowed to have asserted one is not this module's to decide.
+//! before the handler, and `clientIp`/`scheme`/`host` on a carrier. The walk
+//! those last two wait on has landed — `nvs_server::forwarded` is ADR 0097
+//! § 6's, and it answers both facts per request — but nothing carries its answer
+//! down here: [`nvs_runtime::Inbound`] holds a method, a path, a query, the
+//! header lines and the body, and no peer. Adding that field, and a handler
+//! signature that can be handed one, is what these three are now waiting on.
 //!
 //! # There is no request here, and that is a throw
 //!

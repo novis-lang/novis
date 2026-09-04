@@ -73,7 +73,7 @@ use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
     Admission, Arrived, Ceiling, Incoming, OnDisk, Reply, Request, Resolved, Secure, Serving,
-    Table, What,
+    Table, Trusted, What,
 };
 
 use crate::script::Compiler;
@@ -140,9 +140,27 @@ pub(crate) fn run(
     // written under `[http.headers]` it is the whole of what every response this
     // server writes carries beside its body, and `nvs_server::secure` owns the
     // three details § 1 calls decisions rather than transcription.
+    // ADR 0097 § 6: who may assert a client address or a scheme, resolved once
+    // here beside the two above. An entry that names no network is dropped and
+    // reported — `nvs_server::forwarded`'s module doc owns why dropping is the
+    // fail-safe direction, and this is the boot that has somewhere to say so.
+    let (trusted, unreadable) = Trusted::of(
+        snapshot
+            .config
+            .server
+            .as_ref()
+            .and_then(|server| server.trusted_proxies.as_deref())
+            .unwrap_or_default(),
+    );
+    for entry in unreadable {
+        eprintln!(
+            "note: [server] trusted_proxies entry {entry:?} names no address or network, and is ignored"
+        );
+    }
     let serving = Serving::new(
         Arc::new(Admission::new(&ceiling)),
         Arc::new(Secure::of(snapshot.config.http.as_ref())),
+        Arc::new(trusted),
     );
     let addr = match address(&configured, listen, port) {
         Ok(addr) => addr,

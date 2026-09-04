@@ -94,6 +94,7 @@ use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 use crate::ConnectionIo;
 use crate::admit::Admission;
 use crate::body::Supply;
+use crate::forwarded::{Arrival, Trusted};
 use crate::io::Phase;
 use crate::secure::{Scheme, Secure};
 
@@ -367,13 +368,21 @@ pub struct Serving {
     admission: Arc<Admission>,
     /// ADR 0074 § 1's header set, filled into every response this loop writes.
     secure: Arc<Secure>,
+    /// ADR 0097 § 6's `[server] trusted_proxies`, resolved: who may assert a
+    /// client address or a scheme. Empty is the default and means no forwarded
+    /// header is read at all — [`crate::forwarded`] owns that difference.
+    trusted: Arc<Trusted>,
 }
 
 impl Serving {
-    /// The pair, as a boot resolves them.
+    /// The three, as a boot resolves them.
     #[must_use]
-    pub fn new(admission: Arc<Admission>, secure: Arc<Secure>) -> Self {
-        Self { admission, secure }
+    pub fn new(admission: Arc<Admission>, secure: Arc<Secure>, trusted: Arc<Trusted>) -> Self {
+        Self {
+            admission,
+            secure,
+            trusted,
+        }
     }
 }
 
@@ -510,6 +519,7 @@ impl Drop for Peer {
 /// either**: ADR 0006's failure is a value, so it becomes a response instead.
 pub fn serve_connection<H>(
     stream: NvsTcp,
+    arrival: Arrival,
     ctx: &mut Ctx,
     handler: &H,
     waits: Waits,
@@ -529,18 +539,39 @@ where
     // moment anything on this side can reach it.
     let phase = io.phase();
     let phase = &phase;
-    // ADR 0074 § 1's effective scheme, and it is `http` for every request this
-    // server sees: Novis terminates no TLS (ADR 0097 § 1), so the only thing
-    // that can assert `https` is a *trusted* proxy's `X-Forwarded-Proto` — ADR
-    // 0097 § 6's forwarded walk, which has not landed and which answers `http`
-    // anyway while `trusted_proxies` is empty. Named once, so that the slice
-    // landing that walk has one line to change rather than a search.
-    let scheme = Scheme::Http;
     let service = service_fn(move |request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists.
         phase.set(Phase::Body);
+        // ADR 0097 § 6, and it is asked here rather than once per connection
+        // because what asserts it is a *header*: one connection carries many
+        // requests and a proxy writes the line on each. Before the valve below,
+        // for the reason the valve is before the handler — this reads borrowed
+        // header bytes and allocates nothing, and a `503` that dropped HSTS
+        // behind a TLS-terminating proxy would be answering with less policy
+        // than the request it refused was owed.
+        //
+        // ADR 0074 § 1's effective scheme is `https` here and nowhere else:
+        // Novis terminates no TLS (ADR 0097 § 1), so a trusted proxy's
+        // `X-Forwarded-Proto` is the only thing that can assert it.
+        let origin = match crate::forwarded::walk(arrival, &serving.trusted, request.headers()) {
+            Ok(origin) => origin,
+            // § 6's one refusal: the walk stopped on a token that was about to
+            // become the client address and is not one.
+            Err(crate::forwarded::Unusable) => {
+                phase.set(Phase::Write);
+                let mut refused = unusable_forward();
+                serving.secure.fill(refused.headers_mut(), Scheme::Http);
+                return Ok::<_, Infallible>(refused);
+            }
+        };
+        // `origin.client()` has no destination yet — `nvs_runtime::Inbound`
+        // carries no peer, so `Core\Request::clientIp()` is still that crate's
+        // gap — and `origin.ignored_forwarded()` is § 6's one `Warn`, which
+        // goes wherever this loop's other reports go once it has been given a
+        // log. Both are the same slice and neither changes what is served.
+        let scheme = origin.scheme();
         // ADR 0097 § 5, and this line is the *order* rather than the number:
         // the ceiling is asked before the handler is, so a refused request has
         // selected no mount, allocated no isolate, compiled nothing and run no
@@ -756,6 +787,20 @@ fn answer(mut done: Completion) -> Response<Answer> {
     response
 }
 
+/// `400`, carrying nothing — ADR 0097 § 6's one refusal, joining
+/// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// § 2's closed list.
+///
+/// No body for [`failed`]'s reason and one more of its own: the peer that would
+/// read it is a proxy, the operator who needs the detail is reading a log, and
+/// naming which hop of an `X-Forwarded-For` chain was unreadable would echo
+/// attacker-written text back over the wire.
+fn unusable_forward() -> Response<Answer> {
+    let mut response = Response::new(Answer::empty());
+    *response.status_mut() = StatusCode::BAD_REQUEST;
+    response
+}
+
 /// `500`, carrying nothing — `answer`'s docs own why the body is empty.
 fn failed() -> Response<Answer> {
     let mut response = Response::new(Answer::empty());
@@ -838,7 +883,7 @@ where
     let mut backoff = AcceptBackoff::default();
 
     loop {
-        let (stream, _peer) = match listener.accept() {
+        let (stream, peer) = match listener.accept() {
             Ok(accepted) => {
                 backoff.accepted();
                 accepted
@@ -862,6 +907,12 @@ where
                 continue;
             }
         };
+        // ADR 0097 § 6's peer, taken from the accept rather than asked of the
+        // socket afterwards: this is the one place where who connected is a
+        // fact the operating system has just stated, and a `peer_addr` later
+        // would be re-deriving it from a descriptor that may already have
+        // failed.
+        let arrival = Arrival::Tcp(peer.ip());
         let handler = Rc::clone(handler);
         // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and ADR 0074
         // § 1's header set is one policy for the whole server, so what a
@@ -892,6 +943,7 @@ where
             // loop a configuration.
             drop(serve_connection(
                 stream,
+                arrival,
                 ctx,
                 handler.as_ref(),
                 waits,
@@ -1549,6 +1601,9 @@ mod tests {
                 budget: None,
             }))),
             Arc::new(Secure::default()),
+            // ADR 0097 § 6's default: nothing written, so no forwarded header
+            // is read and every request's peer is its own client.
+            Arc::new(Trusted::none()),
         )
     }
 
@@ -2525,7 +2580,11 @@ mod tests {
         })));
         // The same count the loop is given, held here so the guard below can
         // outlive the handle the accept task takes.
-        let serving = Serving::new(Arc::clone(&admission), Arc::new(Secure::default()));
+        let serving = Serving::new(
+            Arc::clone(&admission),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+        );
         // The one place this valve has, taken and held for the whole run: the
         // request below therefore arrives *at* the ceiling, which is the state
         // the assertions are about and not a race to reproduce.

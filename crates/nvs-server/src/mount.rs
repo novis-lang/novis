@@ -203,8 +203,12 @@ impl Table {
     ///
     /// The host is the `Host` header's without its port, falling back to the
     /// request target's own authority for the absolute-form target h1 still
-    /// allows. § 6's forwarded header walk is a later slice and would only ever
-    /// *replace* this value: nothing downstream of here reads a header.
+    /// allows. § 6's forwarded walk ([`crate::forwarded`]) does not reach this
+    /// value and never will: that section reads **no** `X-Forwarded-Host` and
+    /// generates no absolute URL from `Host`, because deriving an origin from a
+    /// header is host-header injection and ADR 0077 § 4 already makes
+    /// `Core\Router::url` answer with a path. What a trusted proxy may assert
+    /// is the client address and the scheme, and neither is read here.
     #[must_use]
     pub fn select(&self, request: &Request<Incoming>, disk: &dyn Existing) -> Option<Resolved<'_>> {
         let host = request
