@@ -1610,7 +1610,7 @@ is why" — is this file.
   1). The first is a filing bug you fix in one edit; the second is an open item and staying open is
   correct. Read the *known gaps* of the crates named before assuming either.
 - `peek.py --locate` takes **symbols only**, and a file path in that list is read as one more symbol
-  to search the whole repository for. `--locate a b c crates/nvs-stdlib/src/db.rs` therefore walks
+  to search the whole repository for. `--locate a b c crates/nvs-stdlib/src/db/mod.rs` therefore walks
   every file in the tree looking for a symbol named after the path, which ran past a 120-second
   timeout in one measured call. The scoping flag is `--in <glob>`, as in
   `python tools/peek.py --locate postgres_of --in 'crates/nvs-stdlib/**/*.rs'`; a plain `grep -n` over
@@ -1669,7 +1669,7 @@ is why" — is this file.
   `grep -rn '<drafted name>' crates/` is the whole decision.
 - **The handoff's own next-group item can already be on disk, and the anchor it names is where you
   find that out.** Item 1 of a re-scoped group read "§ 8's `sql` is the fifth raw value and no throw
-  carries it" and pointed at `crates/nvs-stdlib/src/db.rs:3653`; the doc comment `orient.py` inlined
+  carries it" and pointed into what is now `crates/nvs-stdlib/src/db/bind.rs`; the doc comment `orient.py` inlined
   from that very anchor already explained *which* spelling of the text rides the throw, and the
   runtime slot, the compiler's copy, the `OWN_PROPERTIES` row and `statement_failure`'s write of it
   were two commits old — `fe39a987` and `b4e23338`. A stale item reads exactly like an open one,
@@ -4970,7 +4970,7 @@ is why" — is this file.
 - **A new `Fault::` site whose message opens with literal text owes a conformance case, and for a
   `Core\Db` member there is no case to write.** `every_error_path_is_asserted_or_declared_unreachable`
   reads the 165 sites whose message starts with enough literal text to grep a case for, and `OWED_A_CASE`
-  may only shrink — so a member that needs a live server cannot pay it. `db.rs` already had the answer and
+  may only shrink — so a member that needs a live server cannot pay it. `Core\Db` already had the answer and
   it is not an exemption: every runtime refusal there is `format!("{QUERY}: …")` off a `const` naming the
   member, so the message opens on a hole and falls outside the gate's stated limit. Write the `const`
   (`QUERY_AS` beside `QUERY`) before the message, not after the gate fails.
@@ -5118,7 +5118,7 @@ is why" — is this file.
   calls are the whole fix: spec § 10's four-slot `RuntimeError` as the root the handle names, and
   the subclass under it with enough fields to hold the slot — `nvs_runtime::KIND_SLOT` *is* the
   root's `SLOT_COUNT`, so `Core\Db\DbError` needs those four plus its own five, and a narrower
-  descriptor drops the value silently (`Thrown::new_as`). `crates/nvs-stdlib/src/db.rs`'s
+  descriptor drops the value silently (`Thrown::new_as`). `crates/nvs-stdlib/src/db/transaction.rs`'s
   `retries_recover_an_induced_deadlock` is the shape; the playbook's `Ctx::class_desc` bullet is the
   same seam reached for a different reason.
 - **A fake server that parses the client's own message can be flaky in a way that reads as a driver
@@ -5429,17 +5429,34 @@ is why" — is this file.
 - **Header prose splits with the code.** A module doc that grew a paragraph per ADR slice *is* the split
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
   charter — see AGENTS.md's length-target table for why the charter is the part that matters.
-- **Every `](../../../docs/…)` in the moved half needs one more `../`, and no gate says so.** These links
-  are relative to the *rustdoc page*, not to the source file — which is why `crates/nvs-stdlib/src/lib.rs`
-  writes three and `registry.rs`, in the same directory, writes four. A module that gains a directory
-  level gains a `../` with it, `mod.rs` keeps the depth the single file had, and `verify.py --doc` passes
-  either way: the broken-link lint reads intra-doc paths and never a relative URL. Splitting
-  `crates/nvs-db/src/tds.rs` moved 29 of them.
+- **Every `](../../../docs/…)` in the moved half needs one more `../`, `mod.rs` included, and no gate
+  says so.** These links are relative to the **source file** — what a git host renders them against —
+  so a file's prefix should have exactly as many `../` as its directory has segments. 990 of the tree's
+  1,528 match that; the rest are drift, and reading one of those is how the tds split concluded they
+  were relative to the rustdoc page and left `tds/mod.rs` a level short. `verify.py --doc` passes
+  either way, because the broken-link lint reads intra-doc paths and never a relative URL. Recompute
+  the prefix from the file's own depth rather than nudging what is there, which fixes the drifted ones
+  in the moved half for free: splitting `tds.rs` moved 29 and `db.rs` another 18.
 - **A private `const` that falls out of scope becomes a binding pattern, not an error.** `TY_XML` in a
   `match` arm is a *new variable* once the module that holds it is a sibling, so the arm matches
   everything after it. The 20 in that file happened to sit in multi-pattern arms, where `E0408` names
   each one — an arm of its own would have compiled and matched every column type. `pub(super)` on the
   consts before the first build is the cheap order; reading the first build's errors is the other one.
+- **A blanket `pub(super)` pass reaches top-level items and nothing else, and the compiler names the
+  rest in one build.** A struct's fields, an `impl` block's methods and an `unsafe fn` all sit outside
+  a `^(fn |struct |…)` regex, so the first build after a split is 66 `E0616`/`E0624` errors that are
+  one mechanical widening each — cheaper to read than to predict. The one that does *not* show up in a
+  build is a doc link: `[`hydrate`]` resolved while `hydrate` was private to the single file and stops
+  resolving when it moves to a sibling, and only `verify.py --doc` says so.
+- **Address a moved test by its *name*, never by its offset.** A test's item block starts at the doc
+  comment above it, so an offset table addressed at `#[test]` lines files the first documented case of
+  each group into the previous module — four of them, silently, in the tds split. A name table also
+  refuses to run at all when a case is added or renamed, which is the failure you want.
+- **A line-at-a-time brace counter drifts on a multi-line string literal.** `db.rs` holds one whose
+  body is `… [capabilities.net]\nconnect = [\"127.0.0.1\"]\n`, and its unmatched `[` left the scanner
+  at depth 1 for the rest of the file, so the last eight items looked like nothing at all. A splitter
+  needs a stateful scan over the whole file — string, raw string, char, block comment — not a regex
+  per line, and the reconstruction assertion is what turns that into a loud failure.
 
 ## Writing Novis itself
 
@@ -7097,7 +7114,7 @@ sibling in the same namespace unqualified.
   a non-finite `float` is `Infinity`/`NaN`, which `DOUBLE` reads as `0`. Every one of those is a
   quietly wrong row rather than an error, so nothing fails when the wrong encoder is used.
   `nvs_db::mysql::encode` (`crates/nvs-db/src/mysql.rs:1915`) is the other one. The same trap is in
-  `crates/nvs-stdlib/src/db.rs`'s `statement_of`, which hardcodes `nvs_db::Dialect::PostgreSql`
+  `crates/nvs-stdlib/src/db/bind.rs`'s `statement_of`, which hardcodes `nvs_db::Dialect::PostgreSql`
   where `nvs_db::Dialect::of(driver)` is the answer: a second driver's `query` is not one branch in
   the drain, it is the dialect and the encoder as well.
 
@@ -7156,8 +7173,9 @@ sibling in the same namespace unqualified.
   the arm in the same edit as the variant.
 - **Adding a driver to `Core\Db` is one match per *member*, not one match, and `open`'s is the arm
   that looks like all of it.** `nvs_db::Connection` is destructured at seven sites in
-  `crates/nvs-stdlib/src/db.rs` — `connect`'s arm, `open`'s arm, `warm_connection`'s reset,
-  `transacting`, `queried_rows`, `execute`'s write and `executeMany` — and six end in an
+  `crates/nvs-stdlib/src/db/` — `connect`'s and `open`'s arms (`open.rs`), `warm_connection`'s reset
+  (`pool.rs`), `transacting`, `queried_rows`, `execute`'s write and `executeMany` (`execute.rs`) — and
+  six end in an
   `other => driverless(...)`. An arm added to `open` alone hands a program a connection that then
   refuses every statement run on it, which is strictly worse than the honest refusal `open` gives
   today, and none of the six is a compile error because the fallthrough arm is a binding. Two of

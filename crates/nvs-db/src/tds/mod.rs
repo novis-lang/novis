@@ -2,7 +2,7 @@
 //! of every message, the split a message longer than the negotiated packet size
 //! takes on the way out, and the reassembly it takes on the way back.
 //!
-//! [ADR 0132 § 5](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! [ADR 0132 § 5](../../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! gives each driver its own state machine, its own error table and its own
 //! codec, and here the codec is *ours*: the borrowed half every other driver in
 //! this crate has does not exist for TDS. The only implementation in Rust is
@@ -86,7 +86,7 @@
 //! # The one gap, and it is a bind rather than a read
 //!
 //! **A `bytes` parameter is refused**, which is this driver's only departure
-//! from [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s table — the *read*
+//! from [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s table — the *read*
 //! side of that row is whole, since [`decode_column`] answers `varbinary`,
 //! `binary` and `image` as `bytes` like every other driver. Both halves of the
 //! refusal say so where they are, [`encode`] and [`text_param`], and
@@ -204,7 +204,7 @@ pub const DEFAULT_PORT: u16 = 1433;
 /// One `[db.<name>]` block, read as the facts a LOGIN7 message carries.
 ///
 /// [`crate::MySqlTarget`]'s and [`crate::PgTarget`]'s twin, and the twinning is
-/// the point: [ADR 0067 § 2](../../../docs/adr/0067-core-db.md) makes a block a
+/// the point: [ADR 0067 § 2](../../../../docs/adr/0067-core-db.md) makes a block a
 /// discriminated union on `driver`, so a server block holds the same fields
 /// whichever driver reads it and the refusals are one vocabulary —
 /// [`BlockError`], in [`mod@crate::conn`] for that reason.
@@ -246,7 +246,7 @@ pub struct TdsTarget<'a> {
     /// The zone a `datetime2` or `datetime` off this connection is read in, as
     /// a whole number of seconds east of UTC.
     ///
-    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s declared zone, read
+    /// [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s declared zone, read
     /// by the same `time_zone_for` the other drivers go through — **and this is
     /// the one driver that cannot send it**. SQL Server has no session time
     /// zone: `AT TIME ZONE` is an expression, and `SET` has no such setting, so
@@ -256,7 +256,7 @@ pub struct TdsTarget<'a> {
     /// and PostgreSQL fact, not a property of the field.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
-    /// server, [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s
+    /// server, [ADR 0067 § 1](../../../../docs/adr/0067-core-db.md)'s
     /// `statement_cache`, through the reader every other driver's block goes
     /// through.
     pub statement_cache: usize,
@@ -352,7 +352,7 @@ impl std::fmt::Debug for TdsTarget<'_> {
 }
 
 impl TdsConn {
-    /// [ADR 0067 § 3](../../../docs/adr/0067-core-db.md)'s handshake end to
+    /// [ADR 0067 § 3](../../../../docs/adr/0067-core-db.md)'s handshake end to
     /// end: a socket, PRELOGIN, the TLS session tunnelled inside it, LOGIN7 and
     /// the tokens that answer it.
     ///
@@ -411,7 +411,7 @@ impl TdsConn {
         })
     }
 
-    /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
+    /// [ADR 0067 § 13](../../../../docs/adr/0067-core-db.md)'s reset, before this
     /// connection may be handed to another request.
     ///
     /// Takes `self` by value for [`crate::MySqlConn::reset`]'s reason: a reset
@@ -440,7 +440,7 @@ impl TdsConn {
         Ok(self)
     }
 
-    /// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s round trips for one
+    /// [ADR 0067 § 1](../../../../docs/adr/0067-core-db.md)'s round trips for one
     /// statement — one either way on this protocol — and the columns its result
     /// set turned out to have.
     ///
@@ -468,7 +468,7 @@ impl TdsConn {
         start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
     }
 
-    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// [ADR 0067 § 4](../../../../docs/adr/0067-core-db.md)'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The two-line delegation [`TdsConn::query`] gives its reason for.
@@ -480,7 +480,7 @@ impl TdsConn {
         execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
     }
 
-    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN TRANSACTION`,
+    /// [ADR 0067 § 7](../../../../docs/adr/0067-core-db.md)'s `BEGIN TRANSACTION`,
     /// or the `SAVE TRANSACTION` a nested `transaction()` is.
     ///
     /// The driver half of § 7 and nothing more — the closure, the rollback-only
