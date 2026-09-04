@@ -192,6 +192,9 @@ spellings rejected, and the reasoning.
   ([0044](0044-core-process-argv-only-no-shell.md)).
 - **An outbound URL is a sink, and the connection is made to a pinned address**
   ([0058](0058-outbound-request-policy.md)).
+- **A store an operator configured is authorized by the configuring** — `cache.shared` names the store
+  and not a host, so that store may be a Unix socket; a socket path a *program* supplies is refused
+  ([0142](0142-a-configured-store-is-authorized-by-its-configuring.md)).
 - **Regex runs on a linear-time engine by default**, under a step budget that throws
   ([0056](0056-regex-engine-policy.md)).
 - **A fatal error never reaches an ordinary `catch`** — it escalates through a zero-retry, reserved-budget

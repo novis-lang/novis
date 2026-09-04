@@ -9,7 +9,7 @@
   and § 3's launderer roster gains `Core\Http::allowUrl`, which is the first launderer whose check is
   partly a *runtime* one. [0005](0005-config-changeability.md) — the `net.connect` grant gains an address
   policy, not just a host list.
-- **Amended by:** 0067, 0074
+- **Amended by:** 0067, 0074, 0142
 
 > **In short:** SSRF is structurally an injection — untrusted data reaching a sink — but unlike the others
 > it cannot be settled at compile time alone, because the dangerous part is what a hostname *resolves to*
@@ -76,10 +76,13 @@ supplies most real endpoint URLs.
 
 The one class of address it does **not** govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — a `[db.<name>]` block reached through `Core\Db::connect`
-([ADR 0067](0067-core-db.md) § 3). That address is not attacker-influenceable: it was written by the same
-authority that grants the capability. Applying the policy there would deny every ordinary deployment, since
-a database lives at `10/8`, a container network or `127.0.0.1`, which is precisely the denied set below.
-`Core\Db::open`'s target *is* program-supplied and stays governed in full.
+([ADR 0067](0067-core-db.md) § 3), and the `[cache.shared]` store reached through `Core\Cache::shared()`
+and `Core\RateLimit::consume` ([ADR 0142](0142-a-configured-store-is-authorized-by-its-configuring.md)
+§ 1). That address is not attacker-influenceable: it was written by the same authority that grants the
+capability. Applying the policy there would deny every ordinary deployment, since a database or a cache
+lives at `10/8`, a container network or `127.0.0.1`, which is precisely the denied set below.
+`Core\Db::open`'s target *is* program-supplied and stays governed in full, as does every socket path,
+which ADR 0142 § 2 refuses from a program for the same reason this table exists.
 
 Denied by default: loopback (`127.0.0.0/8`, `::1`), private (`10/8`, `172.16/12`, `192.168/16`,
 `fc00::/7`), **link-local (`169.254.0.0/16`, `fe80::/10`)**, unspecified (`0.0.0.0/8`), and IPv4-mapped

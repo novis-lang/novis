@@ -7,7 +7,7 @@
   Redis backend's own configuration, both of which M8 designs.
 - **Amends:** [0004](0004-memory-for-simplicity.md) — § 3 records a second, deliberate exception to
   "memory is attributable to a request": cache memory is charged to a **core**, with its own cap.
-- **Amended by:** 0075, 0083, 0084, 0112
+- **Amended by:** 0075, 0083, 0084, 0112, 0142
 
 > **In short:** APCu's cross-process shared segment is closed by [ADR 0052](0052-closed-doors.md) § 3, and
 > what replaces it is a **per-core in-process cache** — one copy per core, no coherence between them. That
@@ -47,7 +47,11 @@
   boolean grant is not one, and adding it would price the tier as an authority question that a
   deployment would then have to answer for every application that caches anything.
 - **`Core\Cache::shared()`** — a real store over the network (Redis by default), coherent across cores and
-  across machines, gated by `net.connect` under [ADR 0058](0058-outbound-request-policy.md)'s policy.
+  across machines, gated by `cache.shared`
+  ([ADR 0142](0142-a-configured-store-is-authorized-by-its-configuring.md) § 1): the endpoint is one an
+  operator wrote into root-owned configuration, so the grant names the store rather than a host and
+  [ADR 0058](0058-outbound-request-policy.md) § 3's address policy is not asked of it. That store may be a
+  Unix socket, which is the one transport with no address for a policy to read.
 
 The two are separate methods rather than one API with a flag, so the choice is made in the source and is
 visible in review. This is the same reasoning [ADR 0024](0024-taint-tracking-for-injection-sinks.md) § 3
