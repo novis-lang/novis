@@ -1,0 +1,52 @@
+--TEST--
+`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- ADR 0139 §§ 2, 3, ADR 0059 § 4
+--FILE--
+<?nvs
+// The tree below chooses a store — so the refusal of the neighbouring case, the
+// one that names `[session] backend`, cannot be what arrives here. What arrives
+// instead names `[cache.shared] url`, and that is the assertion: ADR 0139 § 3
+// says a deployment has *one* shared store, and a session store that named a
+// second address would be a second thing to configure for no coherence the
+// first does not already have. A member that had opened an address of its own
+// would have got past this line.
+uint $named = 0;
+string $said = "";
+try {
+    Core\Session::start();
+} catch (RuntimeError $nowhere) {
+    $said = $nowhere->message;
+    if (Core\Str::contains($said, "[cache.shared] url")) {
+        $named = $named + 1;
+    }
+}
+echo "the shared backend asks `[cache.shared]` for its store ", $named, " of 1\n";
+
+// And it got there without naming the block that *is* written, which is the
+// other half: a member that reported both would be reporting the first question
+// it asked rather than the one it failed.
+if (Core\Str::contains($said, "[session] backend")) {
+    echo "but it still complained about the block that is written\n";
+} else {
+    echo "and the block that is written is not what it complained about\n";
+}
+
+// The refusal is the store's absence and not the record's: ADR 0059 § 4 refuses
+// `Core\Session` the per-core tier, so there is no local store for this to have
+// quietly fallen back to, and a fallback is what a second call would reveal.
+uint $again = 0;
+try {
+    Core\Session::start();
+} catch (RuntimeError $still) {
+    $again = $again + 1;
+}
+echo "and it refuses every time, ", $again, " of 1\n";
+--FILE nvs.toml--
+# A store § 3 admits, chosen and then not addressed — which is a real
+# deployment's first five minutes, and the one shape that tells the two
+# refusals apart.
+[session]
+backend = "shared"
+--EXPECT--
+the shared backend asks `[cache.shared]` for its store 1 of 1
+and the block that is written is not what it complained about
+and it refuses every time, 1 of 1

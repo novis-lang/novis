@@ -1,0 +1,48 @@
+--TEST--
+`Core\Session::start`'s identifier is optional and is a string, so every call shape reaches the same store question -- ADR 0139 §§ 1, 2
+--FILE--
+<?nvs
+// § 1's signature is `start(?tainted string $presented = null)`, and the two
+// halves of that are separate claims. The parameter is real — a string call
+// site compiles — and the default is real — an omitting one compiles too. A row
+// that had declared no parameter would fail the second call below at compile
+// time, and one that had declared it required would fail the first, so a member
+// answering plausibly on one line still fails here.
+//
+// What each call *does* is out of reach without a store, so what is asserted is
+// that all three reach the same place: the configured-store question, which is
+// the first thing `start` asks whatever it was handed.
+array<string> $shapes = [
+    // The whole width of an identifier this store issues: 22 base64url
+    // characters, which is what `mint` renders 128 drawn bits to.
+    "PmA5tKz1QvR3sYbNqLwXe2",
+    // And one it plainly did not — absence and a forgery are the same answer
+    // under § 2, so neither can be told from the other by which error arrives.
+    "not-an-identifier",
+];
+uint $presented = 0;
+foreach ($shapes as string $shape) {
+    try {
+        Core\Session::start($shape);
+    } catch (RuntimeError $unconfigured) {
+        if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+            $presented = $presented + 1;
+        }
+    }
+}
+echo "a presented identifier reached the store question ", $presented, " of 2\n";
+
+// The omitted one, which is the ordinary case: the identifier is read from the
+// `[session] cookie` field of the request rather than written at the call site.
+uint $omitted = 0;
+try {
+    Core\Session::start();
+} catch (RuntimeError $unconfigured) {
+    if (Core\Str::contains($unconfigured->message, "[session] backend")) {
+        $omitted = $omitted + 1;
+    }
+}
+echo "an omitted identifier reached the same question ", $omitted, " of 1\n";
+--EXPECT--
+a presented identifier reached the store question 2 of 2
+an omitted identifier reached the same question 1 of 1

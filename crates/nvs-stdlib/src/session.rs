@@ -2,12 +2,20 @@
 //! the identifier a store issues, the record it keeps under it, and the two directives that decide
 //! where that store is and how long a record survives.
 //!
-//! **What is on disk is § 2's store, not § 1's class.** The four operations a backend answers are
+//! **What is on disk is § 2's store and § 1's `start`.** The four operations a backend answers are
 //! here — [`mint`], [`load`], [`save`] and the key they share — over the shared tier's wire, and
-//! `Core\Session`'s seven members are a later slice with no registry rows yet. The split is
-//! deliberate rather than incidental: the rule this milestone's acceptance check asserts is *where
-//! a record lives*, which is a property of the store, and a member surface built over an
-//! undecided store would have to be rewritten when it was decided.
+//! [`nvs_core_session_start`] is the member that reaches them: it takes the identifier the client
+//! presented, loads the record the store issued it for, and issues a fresh one where there is
+//! none. § 1's other six operate on the record `start` left on the request
+//! ([`nvs_runtime::Session`]) and are the next slice; each of them throws until `start` has run,
+//! which is the whole benefit [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 4 was
+//! buying and is worth nothing if the first `get` can silently start one.
+//!
+//! **`db` is a store § 3 admits and this build cannot serve.** Every operation below is written
+//! against the shared tier's wire, so `start` under `backend = "db"` throws naming the half that
+//! is unwritten. Deliberately at run time rather than at boot: the word names a store the ADR
+//! admits, and refusing it where it is written would be this build claiming the *decision* was
+//! wrong rather than that its second half has not landed.
 //!
 //! # Decision: the local tier is unreachable from here, structurally
 //!
@@ -35,28 +43,98 @@
 //! `#[Test(seed: …)]` fixes this sequence with the rest rather than leaving one member
 //! irreproducible.
 //!
+//! # Decision: an identifier this store cannot have issued is *absent*, and costs no round trip
+//!
+//! § 2 refuses a separate `validateId`, because a second question is a second thing that can
+//! disagree with the first. [`issuable`] is not that second question. It answers **absent** — the
+//! same answer [`load`] gives for an expired identifier and for one an attacker minted, and
+//! `start` responds to all three identically by issuing a fresh one. Having no third answer to
+//! give, it has nothing to disagree with.
+//!
+//! What it buys is that a presented identifier of a megabyte never becomes a key this core sends
+//! to the shared store, and it buys it *before* the round trip rather than after. [`mint`]'s
+//! output is 22 base64url characters, so anything else is a string this store has not issued, by
+//! construction rather than by lookup.
+//!
 //! # What this spends
 //!
 //! One round trip to the configured store per request that starts a session, and a second only for
-//! a request that changed the record (§ 4). Memory is one decoded record per in-flight request that
-//! started one, released with the request heap — O(in-flight), never O(sessions served).
-
-// Nothing outside this module's own tests calls any of it yet: ADR 0139 § 1's seven members are the
-// next slice of this feature, and until they land `dead_code` is naming a slice that has not
-// happened rather than an item nothing will use. `crates/nvs-cli/src/cache.rs` carries the same
-// escape for the same reason, and both go away when their call sites arrive.
-#![allow(dead_code)]
+//! a request that changed the record (§ 4). A request that presents no identifier spends a draw
+//! and one write. Memory is one decoded record per in-flight request that started one, released
+//! with the request heap — O(in-flight), never O(sessions served).
 
 use std::time::Duration;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use nvs_config::session::Backend;
-use nvs_runtime::{Ctx, Fault};
+use nvs_runtime::{Ctx, Fault, Value};
 use nvs_syntax::duration;
 
-use crate::cache::configured;
 use crate::cache::redis::Connection;
+use crate::cache::{configured, on_shared, open_configured};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+
+/// The class name, once, for the messages that all name it.
+pub(crate) const NAME: &str = r"Core\Session";
+
+/// § 1's roster, of which `start` is the member that talks to the store.
+///
+/// One class and no instance side: a session is the request's, not an object a program holds, so
+/// there is nothing for a handle to be and nothing to hand back. § 1's other six are static for
+/// the same reason and land in the next slice.
+pub(crate) const CLASS: CoreClass = CoreClass {
+    name: NAME,
+    methods: &[CoreMethod {
+        name: "start",
+        names: &["presented"],
+        // `?tainted string` as this registry spells it: `Nullable` for the `?`, and
+        // `Text(Qual::Neutral)` for the rest — `CoreTy::TaintedStr` is return position only, and
+        // a `Qual` is what says a `tainted` argument is admitted here (ADR 0088 § 2). It is
+        // admitted because § 2's strict-id rule makes the value a lookup key and never an
+        // instruction: what the store did not issue is absent, whatever it was.
+        params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
+        defaults: &[Const::Null],
+        return_ty: CoreTy::Void,
+        symbol: "nvs_core_session_start",
+        doc: Some(&START_DOC),
+    }],
+    instance: &[],
+    slots: &[],
+    constants: &[],
+};
+
+/// `Core\Session::start`'s reference card — ADR 0117.
+const START_DOC: MethodDoc = MethodDoc {
+    short: "Opens the session the store issued, taking the identifier from the session cookie \
+            unless one is given — and issuing a fresh one where the store has no record under it.",
+    params: &[ParamDoc {
+        name: "presented",
+        desc: "The identifier to open, for a client that carries it somewhere other than the \
+               cookie. Omitted — the ordinary case — it is read from the `[session] cookie` \
+               field of the request. An identifier this store did not issue, one that has \
+               expired and one an attacker minted are the same answer: a fresh session, with a \
+               new identifier in the response's cookie.",
+        shape: &[],
+    }],
+    ret: "Nothing. Afterwards the other six members of this class operate on the record; before \
+          it, each of them throws.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "No `[session] backend` is configured, so there is no store a record could \
+                   live in; the configured store is `db`, whose half of § 2 is not on disk; or \
+                   `[cache.shared] url` is unset, unreachable by capability, or this request has \
+                   already started a session.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The configured store cannot be reached. It throws rather than answering as \
+                   though the record were absent, since a store that is down must not read as a \
+                   forged identifier — the two have opposite responses.",
+        },
+    ],
+};
 
 /// What every session key starts with, so an operator sharing one store between a cache, a limiter
 /// and a session store can tell the three apart in it.
@@ -194,6 +272,168 @@ pub(crate) fn save(
 ) -> Result<(), String> {
     let seconds = ttl.as_secs().max(1);
     open.set_expiring(&key_of(id), record, seconds)
+}
+
+/// How long an identifier [`mint`] draws renders to, derived from the draw rather than written.
+///
+/// Base64 is four characters per three octets, unpadded — so widening [`ID_BYTES`] widens this,
+/// and [`issuable`] keeps agreeing with what this store issues instead of pinning yesterday's
+/// width.
+const ID_CHARS: usize = ID_BYTES.div_ceil(3) * 4 - (3 - ID_BYTES % 3) % 3;
+
+/// Whether `presented` is a string this store could have issued — the module doc's decision.
+///
+/// Not a second question about validity: an identifier that fails here is **absent**, exactly as
+/// one [`load`] finds no record for is, and `start` takes the same branch for both. What it saves
+/// is the round trip, and what it prevents is an arbitrary presented string becoming a key this
+/// core sends to a store it shares with a cache and a limiter.
+pub(crate) fn issuable(presented: &str) -> bool {
+    presented.len() == ID_CHARS
+        && presented
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Session::start(?tainted string $presented = null): void` — ADR 0139 § 1's member that
+    /// talks to the store, replacing `session_start`.
+    ///
+    /// **Absent is one answer with one response.** § 2 gives `load` three ways to answer absent —
+    /// an identifier the store never issued, one it issued and has since expired, and one an
+    /// attacker minted — and this member does not distinguish them: each discards the presented
+    /// identifier and issues a fresh one. There is no `validateId` for the two to disagree about,
+    /// and the pre-store shape check ([`issuable`]) is not one, for the reason the module doc
+    /// gives.
+    ///
+    /// **A store that cannot be reached throws.** [`on_shared`] classifies it as an `IOError`
+    /// rather than answering as though the record were absent, because absence means *issue a new
+    /// session* — so a store that is down would silently sign every user out and look like a
+    /// forged identifier while doing it.
+    ///
+    /// **The cookie is written only for an identifier this request issued.** A request that
+    /// presented one the store knew already has it, and a session cookie carries no `Max-Age` to
+    /// refresh — the record's lifetime is `[session] ttl`, on the store, which is the only side
+    /// that can expire it. Every other attribute is `[http.cookies]`'s, through the same
+    /// [`crate::response::Cookie`] `Core\Response::addCookie` renders, so the policy has one home
+    /// and the line has one spelling.
+    ///
+    /// # Errors
+    ///
+    /// As [`START_DOC`] lists them: a thrown `RuntimeError` for a second `start` on one request,
+    /// for a tree that configured no store, for the `db` store this build does not serve, and for
+    /// a shared store that is unconfigured or refused by capability; a thrown `IOError` for one
+    /// that cannot be reached.
+    fn nvs_core_session_start(ctx, args: [1]) {
+        if ctx.session().is_some() {
+            return Err(Fault::thrown(format!(
+                "{NAME}::start(): this request has already started a session — a second `start()` \
+                 would discard whatever the first one's record has collected since, so the member \
+                 that deliberately replaces a session is `regenerate()`"
+            )));
+        }
+
+        match backend(ctx, "start")? {
+            Backend::Shared => {}
+            Backend::Db => {
+                return Err(Fault::thrown(format!(
+                    "{NAME}::start(): `[session] backend = \"db\"` names a store ADR 0139 § 3 \
+                     admits and this build does not serve yet — write `backend = \"shared\"`, or \
+                     see `crates/nvs-stdlib/src/session.rs`'s module doc for which half is on disk"
+                )));
+            }
+        }
+
+        let member = format!("{NAME}::start()");
+        open_configured(
+            ctx,
+            &member,
+            ", which is where a record has to live for a request on another core to find it \
+             (ADR 0059 § 4)",
+        )?;
+
+        // A presented identifier this store cannot have issued is absent, and is absent here
+        // rather than one round trip later.
+        let named = cookie(ctx);
+        let presented = match args[0].as_text() {
+            Some(given) => Some(given.to_owned()),
+            // The ordinary case: the identifier rides in the `[session] cookie` field, read
+            // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
+            // one reading, so a `__Host-` name that arrived twice is invisible to both rather
+            // than to one of them.
+            None => ctx.inbound().and_then(|inbound| {
+                crate::request::cookie_of(inbound, named.as_bytes())
+                    .and_then(|value| std::str::from_utf8(value).ok())
+                    .map(str::to_owned)
+            }),
+        }
+        .filter(|id| issuable(id));
+        let opened = match presented {
+            Some(id) => on_shared(NAME, "start", |open| load(open, &id))?
+                .map(|record| nvs_runtime::Session { id, record, dirty: false }),
+            None => None,
+        };
+
+        let session = match opened {
+            Some(session) => session,
+            None => {
+                let id = mint(ctx);
+                let lifetime = ttl(ctx);
+                // The empty record is zero bytes — `nvs_runtime::Session::record`'s own doc owns
+                // why — so issuing one builds no value and encodes nothing.
+                on_shared(NAME, "start", |open| save(open, &id, &[], lifetime))?;
+                issue_cookie(ctx, &id)?;
+                nvs_runtime::Session { id, record: Vec::new(), dirty: false }
+            }
+        };
+        ctx.open_session(session);
+        Ok(Value::null())
+    }
+}
+
+/// The `Set-Cookie` line carrying `id`, under `[session] cookie` and `[http.cookies]`' policy.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a `[session] cookie` that is not a cookie name. That is an
+/// operator's typo rather than anything a program did, and it is refused here because the value
+/// reaches a header line: a name carrying a `;` or a newline would end the line and begin one
+/// nobody wrote. The identifier needs no such check — it is 22 characters this core drew.
+fn issue_cookie(ctx: &mut Ctx, id: &str) -> Result<(), Fault> {
+    let name = cookie(ctx);
+    if !crate::response::nameable(&name) {
+        return Err(Fault::thrown(format!(
+            "{NAME}::start(): `[session] cookie = \"{name}\"` is not a cookie name — a name is a \
+             non-empty token, and this one reaches a `Set-Cookie` line"
+        )));
+    }
+
+    let policy = crate::response::configured_cookies(ctx);
+    let same_site = policy.same_site;
+    let line = crate::response::Cookie {
+        name: &name,
+        value: id,
+        path: &policy.path,
+        // A session cookie: no `Domain`, which is the narrower of that attribute's two meanings,
+        // and no `Max-Age`, because the record's lifetime is `[session] ttl` on the store and a
+        // cookie that outlived it would present an identifier the store answers absent for.
+        domain: None,
+        max_age: None,
+        secure: policy.secure,
+        http_only: policy.http_only,
+        same_site,
+    }
+    .line();
+    ctx.append_header(crate::response::SET_COOKIE_HEADER, &line);
+    Ok(())
+}
+
+/// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
+/// domain. See [`crate::address`].
+pub(crate) fn address(symbol: &str) -> Option<*const u8> {
+    Some(match symbol {
+        "nvs_core_session_start" => (nvs_core_session_start as *const ()).cast(),
+        _ => return None,
+    })
 }
 
 #[cfg(test)]

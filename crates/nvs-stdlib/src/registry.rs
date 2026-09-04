@@ -1422,6 +1422,14 @@ pub const CLASSES: &[CoreClass] = &[
     // [`crate::response`]'s module doc owns what a written body is — the bytes
     // are `echo`'s output and the member adds the `Content-Type`.
     crate::response::CLASS,
+    // Spec § 15's third half of one request: what arrived, what goes back, and
+    // what is remembered between the two. ADR 0139 § 1's roster, of which
+    // `start` is the member that talks to the store — [`crate::session`]'s own
+    // module doc owns which of § 2's four operations are on disk, why the local
+    // tier is unreachable from there rather than merely unselected, and why a
+    // presented identifier this store cannot have issued is *absent* rather
+    // than a second question about validity.
+    crate::session::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
