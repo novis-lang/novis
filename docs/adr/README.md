@@ -53,6 +53,7 @@ so you never have to open this file to route a topic.
 | Setting up a new development machine, or moving development to one — what to install, why Windows needs WSL, why PHP 8.5 goes on both sides at the same version, what a `git clone` does not carry, how to prove the machine is right, how to pick up where the last machine stopped | [docs/setup.md](../setup.md) |
 | What a decision has already settled — one sentence per rule, with its ADR | [ground-rules.md](ground-rules.md), or `python tools/brief.py --where <keyword>` to route straight past it |
 | Where Novis deliberately behaves differently from PHP — every divergence, with the ADR that owns it; what `nvs convert` can never tier **E**; why the `.phpt` pass rate is structurally lower | [divergences.md](divergences.md) |
+| Writing a new ADR, amending an existing one, changing a status, or adding a `### N.` section — claiming the next free number, the filename, the back-link the amended ADR owes, the routing row, the ground-rules bullet, the index table | `python tools/adr.py --draft` then `--new FILE`; `--fold NNNN --into "…"`, `--set-status NNNN STATUS`, `--next-section NNNN` |
 | Auditing the ADR set itself — a broken cross-link, a `§ N` citation into a section that no longer exists, an `Amends:` with no matching `Amended by:`, an ADR missing from an index, changelog prose in a body, what one ADR cites and is cited by, which files carry the most untrimmed rationale | `python tools/adr.py`, `--graph NNNN`, `--stats`, `--orphans` |
 | Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
 | What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
@@ -211,7 +212,13 @@ so you never have to open this file to route a topic.
 | Connection pooling, a reused database connection, what a connection reset must remove, `cores × max` sizing | [0067](0067-core-db.md) § 13 |
 | What the language should *do* beyond the two spec files | unwritten. `docs/spec/` holds `00-overview.md` and `01-core-library.md` and nothing else — say so rather than inferring semantics. |
 
-**Adding a decision.** Touch exactly these, in order — nothing else should ever need its own copy:
+**Adding a decision.** `python tools/adr.py --draft > .agent-tmp/adr.md`, fill in the prose, then
+`python tools/adr.py --new .agent-tmp/adr.md`. That does steps 1, 2, 4, 5 and 7 below and half of 3 —
+the number, the filename, the date, the back-link into every ADR you amend, the routing row, the
+ground-rules bullet, the divergence row, the index table, and the audit — as one transaction that
+restores every byte if the tree gained a finding. **Step 3's body edit and step 6 are yours**, and the
+tool names the files that still owe them. The list is kept because it is what the tool is doing, and
+because a reader who wants to know why an ADR touches five files has one place to find out.
 
 1. Write the ADR file, following the shape every other one has: the metadata block, **In short**, then
    `## Context` / `## Decision` / `## Consequences` / `## Alternatives rejected` / `## Revisiting` /

@@ -282,10 +282,15 @@ the arithmetic and what a mismatch looks like.
 
 ## An ADR
 
-Next free number: `python tools/brief.py` prints it, and re-check it immediately before creating the file
-— another agent derives the same answer from the same directory. Newest worked example:
-[0104](../adr/0104-an-application-is-an-entry-file-path.md). **`python tools/adr.py` checks everything
-below**, so write it to the shape and let the tool say whether you did.
+**Do not assemble one by hand.** `python tools/adr.py --draft > .agent-tmp/adr.md` prints the skeleton
+below, and `python tools/adr.py --new .agent-tmp/adr.md` claims the next free number, derives the
+filename, dates it, folds the `Amended by:` back-link into every ADR you amend, adds the routing row and
+the ground-rules bullet, regenerates the index table and re-audits — restoring every byte if the tree
+gained a finding. Write the prose; the rest of README.md § *Adding a decision* is a form, and that is the
+call that fills it. Newest worked example: [0104](../adr/0104-an-application-is-an-entry-file-path.md).
+
+The shape below is what the draft carries and what `python tools/adr.py` checks, so you never write it
+from memory — but it is here because reading it is how you know what the fields are *for*.
 
 ```markdown
 # ADR NNNN — <the decision as a statement, not a topic>
@@ -328,9 +333,13 @@ below**, so write it to the shape and let the tool say whether you did.
 
 `## Revisiting` is optional and only for a decision with a real trigger to reconsider it. **Fold, never
 overlay:** amending an ADR means editing that ADR's body so it reads as currently true, plus a one-line
-cross-link — never a new paragraph elsewhere describing the change. Then add the row to
-[docs/adr/README.md](../adr/README.md)'s index table *and* its *Where to look* routing table, and a
-one-sentence bullet to [docs/adr/ground-rules.md](../adr/ground-rules.md).
+cross-link — never a new paragraph elsewhere describing the change. The cross-link's two halves and the
+three index rows are what `--new` writes for you; **the body edit is the half no tool can do**, and both
+`--new` and `--fold` end by naming the file that still owes it.
+
+For an ADR that already exists, `python tools/adr.py --fold 0110 --into "<a markdown link to 0033> § 4 —
+what changed there"` writes both halves of the amendment, `--set-status 0033 Superseded` moves the index cell
+with the status, and `--next-section 0007` says where a new `### N.` goes without renumbering one.
 
 ## A diagnostic
 
