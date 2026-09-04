@@ -1767,6 +1767,16 @@ is why" — is this file.
   when `brief.py`/`orient.py` reports every band FULL for your phase, read that README section rather
   than taking a neighbouring band's number: the decision exists, and one `grep -n E0500
   docs/adr/README.md` finds it.
+- **A program leg for a *later stage*'s fixture fails from the day the goal starts, and
+  `orient.py`'s banner asks you to close it first.** `examples/upload.nvs`'s frozen `want` is ADR
+  0105's whole surface — `Core\Request::files()`, a `Part`, `saveTo` — and `crates/nvs-stdlib` has
+  no `request.rs` at all, so no Stage 4 session can close it. It has been the reported failure for
+  sixteen consecutive sessions and it holds the run to 55 of the goal's ~137 checks, because the
+  driver stops at the first failure and a program leg runs ahead of every `stage` whose string does
+  not start with `0`. The tell is that the stdout it *got* is a deliberate placeholder rather than
+  an error: the fixture compiles and runs, it just answers the question the stage that wrote it
+  could answer. Check whether the surface the `want` names exists before reading "CLOSE THIS FIRST"
+  as this session's work.
 
 ## Running things
 
@@ -2428,6 +2438,12 @@ is why" — is this file.
   `stage` before believing it; and the fix is never to rewrite the fixture to print the frozen
   strings, because the file's header says the output is frozen and the *source* is not. The
   fixture goes green when the stage that owns it lands.
+- **`try.py` runs `target/debug/nvs.exe` and never builds it, so the first run of a case for a
+  member you have just added reports `E0405: \`Core\Response\` has no member named \`setHeader\``.**
+  The driver builds that binary at session start and nothing you do afterwards refreshes it — a
+  green `cargo test -p nvs-stdlib` does not, because a test binary is its own. So the failure reads
+  exactly like a registry row that never landed, three `E0405`s deep, and the fix is one `cargo
+  build` before `try.py` rather than anything in `registry.rs`.
 
 ## Writing a test case
 
