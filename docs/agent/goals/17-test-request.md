@@ -13,12 +13,12 @@ So this goal builds the request and freezes its shape. Everything a test may say
 spellings, and M8 is left with dispatch and nothing else to invent.
 
 Then the fact that falls out of it. The builder's bag carries `clientIp`, `scheme` and `host` — and those
-are exactly the three `Core\Request` members `crates/nvs-stdlib/src/request.rs:20` lists as known gaps
-"waiting on a carrier": `nvs_server::forwarded` is ADR 0097 § 6's walk and it already answers both facts
-per request, but `Inbound` holds a method, a path, a query, the header lines and a body, **and no peer**.
-Giving the carrier that field for the builder's sake is the same edit that lands the three members, and a
-test that can assert what a trusted-proxy header resolves to is the cheapest coverage that walk will ever
-get.
+are exactly the three `Core\Request` members `crates/nvs-stdlib/src/request.rs:20` lists as known gaps.
+**Two of them are no longer waiting on a carrier**: `nvs_server::forwarded` is ADR 0097 § 6's walk, it
+answers a client address and an effective scheme per request, and `Inbound::set_peer` now carries both
+down — so `clientIp` and `scheme` are each this goal's own five edits, and `host` is the one still owed a
+decision. A builder that can say what a trusted-proxy header resolves to is still the cheapest coverage
+that walk will ever get.
 
 Its floor is goal 16's whole list.
 

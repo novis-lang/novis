@@ -3285,16 +3285,20 @@ name = "nvs-stdlib (a request line reports what a route table can match)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = ["method_reports_get_for_a_head_request_and_is_head_carries_the_truth"]
 
-# ADR 0097 § 6's forwarded walk, which `crates/nvs-server/src/serve.rs:538` names as unlanded: the
-# effective scheme is `Scheme::Http` for every request until it lands, and `trusted_proxies` is what
-# decides whether a header may say otherwise. The walk is this crate's, so the claim about its outcome is
-# too -- an open item rather than a misfiling.
+# ADR 0097 § 6's forwarded walk: the effective scheme is `Scheme::Http` for every request until a
+# *trusted* proxy asserts otherwise, and `trusted_proxies` is what decides whether a header may say so at
+# all. Both names are this crate's -- the walk decides, and `serve_connection` hands its whole answer to
+# the handler that builds the carrier (`nvs_runtime::Inbound::set_peer`), which is what
+# `Core\Request::clientIp()` and `::scheme()` read back one crate up.
 [[check]]
 kind = "cargo-named"
 stage = "2 one request"
 name = "nvs-server (the peer, and who may speak for it)"
 args = ["test", "-p", "nvs-server"]
-tests = ["client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted"]
+tests = [
+  "client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted",
+  "the_walks_answer_reaches_the_program_on_the_carrier",
+]
 
 # The manifest policy that has held since M0 and must survive hyper's arrival. `hyper` is not `tokio`;
 # this is the check that keeps the distinction honest rather than assumed.
@@ -3352,11 +3356,24 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "4 response"
-name = "nvs-types (five members, and mixing is an error)"
+name = "nvs-types (mixing the two writers is an error)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  "each_body_member_sets_its_own_content_type",
   "mixing_echo_with_a_typed_body_member_is_a_compile_error",
+]
+
+# § 4's other half is a *runtime* fact -- the one word a body member puts on the response head -- and
+# `nvs_runtime::Ctx::declare_content_type` is where it lands. A `crates/nvs-types/tests/` case compiles
+# source and reads diagnostics back, so no test there can watch a media type be declared: this name could
+# never have run under `-p nvs-types` however § 4's table reads. Its home is the crate that owns the
+# members, `crates/nvs-stdlib/src/response.rs`.
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-stdlib (each body member's own content type)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "each_body_member_sets_its_own_content_type",
 ]
 
 [[check]]

@@ -1839,6 +1839,18 @@ is why" — is this file.
   that are *misfiled*; this is the other outcome, and it is worth knowing that the same one grep
   settles it either way. Its second use is the edit list: a rule stated as unlanded in four module
   docs is four edits, and the grep that found the gap is also the one that finds them.
+- **A `loop-goal.toml` check can name a crate that *depends* on the surface and still cannot host the
+  test, and `Cargo.toml` will not settle it — what settles it is what kind of test that crate's
+  `tests/` already hold.** ADR 0088 § 4's `each_body_member_sets_its_own_content_type` was filed under
+  `-p nvs-types` beside the `E0801` case it reads as a sibling of, and `crates/nvs-types/Cargo.toml`
+  *does* name `nvs-stdlib`, so the neighbouring bullet's one-call manifest check passes and says
+  nothing. It was still impossible: every case under `crates/nvs-types/tests/` compiles a source
+  string and reads `Diagnostics` back, and there is no `nvs-runtime` dependency to build a `Ctx`
+  with — a media type being *declared on a response* is a runtime fact no compile check can observe.
+  The tell is in the ADR row itself: half of § 4 is a refusal (a compiler question) and half is an
+  effect on the response head (the members' own crate), so one check naming both was always two.
+  `sed -n '1,20p'` of any existing test in the named directory answers this faster than the manifest
+  does.
 
 ## Running things
 
