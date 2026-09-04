@@ -18,6 +18,31 @@
 //! left untouched: nothing here calls the annotated method, and nothing here
 //! decides what a return value means.
 //!
+//! # What the answer is read for, and what is still missing
+//!
+//! Two of § 1's three rules read it here: [`csrf_required`] is ADR 0096 § 4's
+//! question and [`label`] is ADR 0076 § 1's `route` label. Neither matches
+//! anything — each is a field of the row the door already found — which is what
+//! § 1 buys and is why they live beside [`take`] rather than beside the
+//! subsystem each belongs to. § 8's access decision has no reader here on
+//! purpose: it is the *dispatcher's*, and this crate does not dispatch.
+//!
+//! **Known gap 1: the door answers whether a request is CSRF-checked and does
+//! not yet refuse one.** § 4's refusal needs the presented token *verified*,
+//! and verification is ADR 0060's constant-time comparison against a key bound
+//! to the session that issued the token — of which this crate has neither half
+//! in reach. `Core\Csrf::verify` is `nvs-stdlib`'s, a crate above this one and
+//! deliberately not a dependency of it, and no `[http]` directive names a key
+//! for the door to verify against. Closing it is therefore a configuration
+//! decision and a seam, not an omission here: what this module owns is which
+//! requests the check covers, and that is landed.
+//!
+//! **Known gap 2: nothing exports the label yet.** ADR 0076's exporter does not
+//! exist, so [`label`] has no caller in the tree; it is written here because
+//! the *value* is the part that rule interlocks with ADR 0077 over — a name out
+//! of the compile-time table and never the request's path — and because
+//! deriving it anywhere else would be the second match § 1 removes.
+//!
 //! # Where it sits among the door's other decisions
 //!
 //! Later than the rest of them, and necessarily. The peer walk
@@ -62,6 +87,47 @@ pub fn take(routes: &Routes, inbound: &mut Inbound) {
     if let Some(matched) = matched {
         inbound.set_route(matched);
     }
+}
+
+/// ADR 0096 § 4's question, asked of the match rather than of the table: is
+/// this request CSRF-checked?
+///
+/// `true` where the request matched a row an unsafe verb declared and whose
+/// `#[Access]` did not write § 1a's `csrf: false`. Both halves are read off
+/// [`nvs_runtime::routes::Match::route`] — the row [`take`] already found —
+/// which is exactly what ADR 0102 § 1 removes: a check that matched for itself
+/// would make two matches of one question, and § 4 was specified against the
+/// answer this one already has.
+///
+/// **A request that matched nothing is not covered**, and that is ADR 0077
+/// § 5's opt-in rule rather than a hole in the default: a program with no route
+/// table declares no handler for the door to protect, so refusing its every
+/// `POST` would refuse every request it serves.
+///
+/// The refusal itself is this module's known gap 1, above.
+#[must_use]
+pub fn csrf_required(inbound: &Inbound) -> bool {
+    inbound
+        .route()
+        .is_some_and(|matched| matched.route().csrf())
+}
+
+/// ADR 0076 § 1's `route` label for this request: the matched route's
+/// **declared name**.
+///
+/// The one label of that table which would otherwise be unbounded, which is why
+/// it is read off the match and computed nowhere else — its value comes from
+/// the compile-time table, a closed set, and never from the request's own path,
+/// whose cardinality the client chooses.
+///
+/// `None` in all three of the absences, which are one case: nothing matched, no
+/// table to match against, and a matched row that declared no `name`. A label
+/// is a name the table chose, so a row that chose none has no label — falling
+/// back to the path is the cardinality bomb the rule exists to prevent, and it
+/// is not offered as an option.
+#[must_use]
+pub fn label(inbound: &Inbound) -> Option<&str> {
+    inbound.route()?.name()
 }
 
 #[cfg(test)]
@@ -118,6 +184,91 @@ mod tests {
                 vec![("id".to_owned(), Param::Uint(42))]
             ))
         );
+    }
+
+    /// § 4's two answers over one verb, and the verb that was never covered:
+    /// an unsafe route that is checked, the same verb carrying § 1a's opt-out —
+    /// the webhook § 4 names as the legitimate case — and a safe one.
+    fn checked() -> Routes {
+        Routes::new(vec![
+            Route::new(
+                "Post",
+                "/orders",
+                Some("orders.create".to_owned()),
+                "App\\Orders::create",
+                Some("Core\\Audience::Public".to_owned()),
+                vec![],
+            ),
+            Route::new(
+                "Post",
+                "/hooks/stripe",
+                Some("hooks.stripe".to_owned()),
+                "App\\Hooks::stripe",
+                Some("Core\\Audience::Public".to_owned()),
+                vec![],
+            )
+            .without_csrf(),
+            Route::new(
+                "Get",
+                "/orders",
+                Some("orders.index".to_owned()),
+                "App\\Orders::index",
+                Some("Core\\Audience::Public".to_owned()),
+                vec![],
+            ),
+        ])
+    }
+
+    /// ADR 0096 § 4's CSRF check and ADR 0076 § 1's `route` label, which are two
+    /// of the three rules ADR 0102 § 1 was written for: each reads the match the
+    /// door already made rather than making a second one.
+    ///
+    /// **The table is dropped before either is asked**, which is the half a
+    /// shape-only assertion would miss — an answer that survives with nothing
+    /// left to match against cannot have been re-derived. Both of § 4's answers
+    /// are asserted over *one* verb, so a check that had read the request's
+    /// method and stopped there passes neither: the opt-out row and the checked
+    /// row are both `POST`.
+    #[test]
+    fn the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again() {
+        let routes = checked();
+        let matched = |verb: &str, path: &str| {
+            let mut inbound = Inbound::new(verb, path, "");
+            super::take(&routes, &mut inbound);
+            inbound
+        };
+        let checked_post = matched("POST", "/orders");
+        let exempt = matched("POST", "/hooks/stripe");
+        let safe = matched("GET", "/orders");
+        let unmatched = matched("POST", "/orders/9");
+        drop(routes);
+
+        assert!(super::csrf_required(&checked_post));
+        // § 1a's opt-out, on the same verb as the row above it.
+        assert!(!super::csrf_required(&exempt));
+        assert!(!super::csrf_required(&safe));
+        // ADR 0077 § 5: nothing matched declares no handler to protect.
+        assert!(!super::csrf_required(&unmatched));
+
+        assert_eq!(super::label(&checked_post), Some("orders.create"));
+        assert_eq!(super::label(&exempt), Some("hooks.stripe"));
+        assert_eq!(super::label(&safe), Some("orders.index"));
+        assert_eq!(super::label(&unmatched), None);
+    }
+
+    /// ADR 0076 § 1's label carries the route's **declared name** and never the
+    /// request's path, so a matched row that declared none has no label — the
+    /// case a fallback would silently turn into the cardinality bomb that rule
+    /// exists to prevent.
+    #[test]
+    fn a_matched_route_with_no_declared_name_has_no_label() {
+        let routes = table();
+        let mut inbound = Inbound::new("GET", "/users/new", "");
+        super::take(&routes, &mut inbound);
+        drop(routes);
+
+        assert!(inbound.route().is_some());
+        assert_eq!(super::label(&inbound), None);
     }
 
     /// § 1's `null`: nothing matched is a served request like any other, and

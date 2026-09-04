@@ -198,10 +198,22 @@ pub struct Route {
     name: Option<String>,
     handler: String,
     access: Option<String>,
+    csrf: bool,
     captures: Vec<Capture>,
     segments: Vec<Seg>,
     rank: Vec<u8>,
 }
+
+/// ADR 0096 § 4's four verbs — the ones a CSRF check covers — spelled as the
+/// `Core\Http\Method` cases a row's [`Route::verb`] is written in.
+///
+/// A second reading of that section's list; `nvs_types::routes::UNSAFE_VERBS`
+/// is the compiler's, for the diagnostic that refuses a pointless opt-out. The
+/// two crates do not meet — nothing below this one depends on the checker — and
+/// they are asking different questions of the same rule, whose one home is the
+/// ADR. What crosses between them is [`Route::csrf`]'s answer and not this
+/// list.
+const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 
 impl Route {
     /// The row a compiled `#[Route]` becomes, with its path read as § 2's
@@ -221,19 +233,52 @@ impl Route {
         access: Option<String>,
         captures: Vec<Capture>,
     ) -> Self {
+        let verb = verb.into();
         let path = path.into();
         let segments = segments_of(&path);
         let rank = segments.iter().map(Seg::rank).collect();
+        // ADR 0096 § 4's default, derived rather than passed: on for the four
+        // unsafe verbs and off for every other, so a table built by hand is
+        // fail-closed by construction. § 1a's opt-out is the rare half and is
+        // [`Self::without_csrf`].
+        let csrf = UNSAFE_VERBS.contains(&verb.as_str());
         Self {
-            verb: verb.into(),
+            verb,
             path,
             name,
             handler: handler.into(),
             access,
+            csrf,
             captures,
             segments,
             rank,
         }
+    }
+
+    /// The same row with ADR 0096 § 1a's opt-out recorded — the `csrf: false`
+    /// its `#[Access]` wrote — so a request that matches it is not checked.
+    ///
+    /// A builder rather than a seventh parameter to [`Self::new`], because the
+    /// answer it changes is one every other row takes from its verb: a
+    /// parameter would put the safe value in thirteen call sites that have
+    /// nothing to say about it, and would make forgetting it fail open.
+    #[must_use]
+    pub fn without_csrf(mut self) -> Self {
+        self.csrf = false;
+        self
+    }
+
+    /// ADR 0096 § 4's answer for this row: whether a request that matched it is
+    /// CSRF-checked.
+    ///
+    /// The verb's half and § 1a's opt-out already folded together, because a
+    /// reader of a match is asking one question and the two halves are decided
+    /// at two different times — the verb here at boot, the opt-out by the
+    /// compiler that wrote the row. `nvs_server::route::csrf_required` is the
+    /// door's reader and the only one today.
+    #[must_use]
+    pub fn csrf(&self) -> bool {
+        self.csrf
     }
 
     /// The `Core\Http\Method` case this route is declared under, by its own

@@ -363,6 +363,18 @@ pub struct Route {
     /// no sibling `#[Access]` (§ 1), no `allow`, or an `allow` naming nothing
     /// (§ 1a) — so every row of a program that compiles carries a decision.
     pub access: Option<String>,
+    /// ADR 0096 § 1a's `csrf`, as the declaration answered it: `false` only
+    /// where the sibling `#[Access]` wrote exactly that, and `true` everywhere
+    /// else including where it wrote nothing.
+    ///
+    /// The *author's* answer and not § 4's whole one: whether there is a check
+    /// here at all is a question about [`UNSAFE_VERBS`], which every reader of
+    /// a row can ask of [`Self::verb`] and which the runtime's own row derives
+    /// once at boot. Splitting it that way is what keeps the two independent —
+    /// [`check_csrf_opt_out`] refuses the field where there is nothing to opt
+    /// out of, so a `false` under four safe verbs belongs to a program that did
+    /// not compile and never reaches a table.
+    pub csrf: bool,
     /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 1's summary: the first sentence of the declaration's own doc comment,
     /// or `None` where the method carries none.
@@ -651,6 +663,30 @@ fn check_access_declared<'a>(
         ),
     );
     None
+}
+
+/// ADR 0096 § 1a's `csrf` for [`Route::csrf`]: `false` only where the sibling
+/// `#[Access]` wrote that value, and `true` for every other row.
+///
+/// The same field [`check_csrf_opt_out`] reads, asked for the other question,
+/// and deliberately a second walk rather than one answer threaded out of the
+/// first: that one *reports* and answers for no row, this one is total and
+/// reports nothing. A row whose opt-out was refused still carries `false`
+/// here, which costs nothing — its program does not compile, so no table is
+/// built from it.
+fn csrf_of(access: Option<&Attribute>, env: &mut Env<'_>) -> bool {
+    let Some(access) = access else {
+        return true;
+    };
+    let Some(field) = written(access, CSRF, env) else {
+        return true;
+    };
+    let value = field.value.clone();
+    let declared = env.interner.intern(crate::ty::Ty::Bool);
+    !matches!(
+        crate::defaults::literal_default(&value, declared, env),
+        Some(crate::defaults::ConstArg::Bool(false))
+    )
 }
 
 /// ADR 0096 § 4's opt-out, held to the thing it opts out of: `csrf: false`
@@ -1279,6 +1315,10 @@ fn collect_route(
     let mut params = check_captures(&captures, path_span, m, class, handler, env);
     params.extend(query_params(m, class, ctx, env));
     let name = folded_str(attr, NAME, env);
+    // Read before `access` is resolved to its name, because it is a field of
+    // the attribute and that binding is about to become the string the row
+    // carries instead.
+    let csrf = csrf_of(access, env);
     let access = access.and_then(|access| access_name(access, ctx, env));
     env.routes.rows.push(Route {
         verb,
@@ -1287,6 +1327,7 @@ fn collect_route(
         handler: handler.to_owned(),
         params,
         access,
+        csrf,
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.map(str::to_owned),
@@ -1735,7 +1776,7 @@ fn check_captures(
 ///   scope (`docs/agent/loop-goal.md` § *Standing decisions*). A set half of
 ///   whose members had no spelling would refuse links that are correct, which
 ///   is the one failure mode a compile-time refusal may not have.
-fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<String>> {
+pub(crate) fn closed_set(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<Vec<String>> {
     let one = |member: crate::ty::TypeId| match env.interner.get(member) {
         crate::ty::Ty::StringLiteral(text) => Some(text.clone()),
         crate::ty::Ty::IntLiteral(value) => Some(value.to_string()),
