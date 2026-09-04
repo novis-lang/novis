@@ -7956,3 +7956,13 @@ every session. Nothing below was reworded on the way.
   resolve"* and points at `Core\Reflect` (ADR 0011). A `.nvst` case that wants to show which class was
   selected calls an overridden member and reads the answer, which is what the three class-reference cases
   under `tests/conformance/class/` do.
+- **An interactive session beside the running loop cannot link `nvs-cli`, and the error names a file
+  rather than a cause.** `cargo build` stops at `error: failed to remove file
+  <repo>\target\debug\nvs.exe` / `Zugriff verweigert (os error 5)`: Windows will not replace a running
+  image, and the loop is running one — its `.nvst` trees execute `nvs.exe test tests/...` for minutes at
+  a stretch. `Get-CimInstance Win32_Process -Filter "Name='nvs.exe'"` shows the command line and settles
+  it in one call; the PIDs change between two calls, which is the tell that this is live work and not a
+  leaked process to kill. Retry rather than kill — a loop of `verify.py` retried on that one string,
+  sleeping 30s, cleared it. The same collision makes
+  `log::tests::the_engine_floor_rotates_and_rate_limits_itself` fail on a missing rotation while passing
+  when run alone: two `cargo test` runs share the rotation path.
