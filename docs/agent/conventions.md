@@ -306,42 +306,22 @@ HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a 
 
 ## An ADR
 
-**Do not assemble one by hand.** `python tools/adr.py --draft > .agent-tmp/adr.md` prints the skeleton
-below, and `python tools/adr.py --new .agent-tmp/adr.md` claims the next free number, derives the
+**Do not assemble one by hand.** `python tools/adr.py --draft > .agent-tmp/adr.md` prints the skeleton,
+and `python tools/adr.py --new .agent-tmp/adr.md` claims the next free number, derives the
 filename, dates it, folds the `Amended by:` back-link into every ADR you amend, adds the routing row and
 the ground-rules bullet, regenerates the index table and re-audits — restoring every byte if the tree
 gained a finding. Write the prose; the rest of README.md § *Adding a decision* is a form, and that is the
 call that fills it. Newest worked example: [0104](../adr/0104-an-application-is-an-entry-file-path.md).
 
-The shape below is what the draft carries and what `python tools/adr.py` checks, so you never write it
-from memory — but it is here because reading it is how you know what the fields are *for*.
-
-```markdown
-# ADR NNNN — <the decision as a statement, not a topic>
-
-- **Status:** Accepted
-- **Date:** YYYY-MM-DD
-- **Scope:** what this decides, then explicitly what it does *not* — with the file that owns each
-  excluded thing.
-- **Depends on:** (only if it does) the ADR without which this one has nothing to decide.
-- **Amends:** (only if it does) the ADR whose text this changes, and what changed there — one clause
-  per target. Adding this obliges the same number in that ADR's `Amended by:`, in the same commit.
-- **Amended by:** (maintained by whoever amends you) bare numbers, comma-separated, nothing else.
-- **Validated by:** (only if a test holds a claim this ADR makes) the test, by path.
-
-> **In short:** the whole decision, in one blockquote. A reader who needs only the rule stops here, so
-> this paragraph is the ADR's front page and is worth more care than any section below it.
-
-## Context
-## Decision
-## Consequences
-## Alternatives rejected
-## Verification
-```
+**The skeleton is not copied here.** Run `--draft` and read what it prints: the copy that used to sit
+here had drifted from the tool that generates and checks it, which is what a second home costs. Below
+is what a *finished* ADR carries — a different question, and the one that survives you.
 
 **Six rules the tool enforces, so none of them is a matter of care:**
 
-- **The field set is closed** — the seven above and nothing else. There is no `Relates to:`; the
+- **The field set is closed** — `Status:`, `Date:`, `Scope:`, `Depends on:`, `Amends:`, `Amended by:`,
+  `Validated by:`, and nothing else; `tools/adr.py:115` is that list. The draft offers you neither
+  `Date:` nor `Amended by:`, because both are the tool's to maintain. There is no `Relates to:`; the
   citation graph is derived, and `python tools/adr.py --graph NNNN` prints it.
 - **`Status:` is a bare value**, one of `Accepted`/`Proposed`/`Rejected`/`Superseded`/`Retired`. What
   has shipped of a decision belongs in its body or in the plan, never in the status field.

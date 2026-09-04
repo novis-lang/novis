@@ -25,8 +25,9 @@ the only one worth a turn. So write that, and let this do the rest:
     python tools/adr.py --new .agent-tmp/adr.md         claim a number and index it everywhere
     python tools/adr.py --new FILE --dry-run            say what it would touch, write nothing
 
-The draft *is* the ADR, in the shape conventions.md § *An ADR* already describes, with `NNNN` where
-the number goes -- there is no second format to learn. Four extra fields are consumed and never
+The draft *is* the ADR, with `NNNN` where the number goes -- there is no second format to learn, and
+conventions.md § *An ADR* deliberately keeps no copy of it: it holds the rules behind the fields, this
+holds the fields. Four extra fields are consumed and never
 written to the file: `Slug:` overrides the derived filename, and `Route:`, `Rule:` and
 `Divergence:` are the rows this adds to README.md's routing table, ground-rules.md and
 divergences.md. `NNNN` anywhere in the draft expands to the number it claims, which is what lets

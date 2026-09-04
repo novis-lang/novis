@@ -137,9 +137,10 @@ Read for these directly; there is no check for any of them.
 
 1. `python tools/adr.py` and `python tools/check-links.py` both clean. There is no build to break —
    this is a docs pass, and a broken or mis-cased cross-link is the only mechanical risk.
-2. If the pass changed the ADR set's *shape*, update this file and
-   [conventions.md](conventions.md) § *An ADR* in the same commit. A rule the tool enforces is
-   documented once, in the skeleton; a rule it cannot enforce is documented here.
+2. If the pass changed the ADR set's *shape*, update this file and `tools/adr.py`'s draft in the same
+   commit — the draft is the skeleton's only copy, and [conventions.md](conventions.md) § *An ADR*
+   points at it rather than restating it. A rule the tool enforces is documented once, in the
+   skeleton; a rule it cannot enforce is documented here.
 3. Commit with line counts before and after in the message.
 4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite [handoff.md](handoff.md) — unless
    a loop is mid-goal, in which case say so in chat and leave that file to the loop.
