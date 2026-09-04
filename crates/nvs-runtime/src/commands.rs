@@ -38,13 +38,16 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Four of § 6's conversions are [`ArgConv::Unconverted`].** `decimal`, an
-//!    enum, a union of literal types and `Core\Uuid` are types
+//! 1. **Two of § 6's conversions are [`ArgConv::Unconverted`].** An enum and a
+//!    union of literal types are types
 //!    `nvs_types::commands::converts_from_string` admits and no matcher turns
 //!    text into yet, so a command declaring one compiles and refuses at the
-//!    moment it is *run* rather than at the moment it is written. Each is a
-//!    conversion that already exists as a `Core` member; what is missing is the
-//!    matcher's arm, not the algorithm.
+//!    moment it is *run* rather than at the moment it is written. Both are a
+//!    narrowing to a **closed set the compiler holds and this row does not** —
+//!    the enum's cases, or the union's members — so closing them needs a field
+//!    on [`CommandArg`] to carry that set as well as the matcher's arm. That is
+//!    what made them the two left after `decimal` and `Core\Uuid`, whose
+//!    grammars needed nothing new to cross.
 
 /// What an argument's text becomes before the handler is called.
 ///
@@ -66,6 +69,15 @@ pub enum ArgConv {
     /// `uint` — as [`Self::Int`], and a usage error where the number is
     /// negative.
     Uint,
+    /// `decimal` — ADR 0054's exact number, and a usage error where the text is
+    /// not one. [`crate::decimal`]'s parse is the whole grammar, which is the
+    /// same one a route capture is narrowed by.
+    Decimal,
+    /// `Core\Uuid` — RFC 9562 § 4's canonical form, and a usage error for
+    /// anything else. [`crate::uuid`] is that parse's one home, so a word a
+    /// command line supplies and a segment a route matches are admitted by one
+    /// grammar rather than by two that agree today.
+    Uuid,
     /// A type § 6 admits and [`crate::commands`]'s gap 1 does not convert yet.
     Unconverted,
 }

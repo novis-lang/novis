@@ -167,6 +167,10 @@ pub enum ArgConv {
     Int,
     /// `uint`.
     Uint,
+    /// `decimal` — ADR 0054's exact number.
+    Decimal,
+    /// `Core\Uuid` — RFC 9562 § 4's canonical form, the one class § 6 admits.
+    Uuid,
     /// A type § 6 admits whose conversion is not written yet —
     /// `nvs_runtime::commands`'s own gap 1, which is where it is refused.
     Unconverted,
@@ -186,6 +190,11 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         Ty::Bool | Ty::True | Ty::False => ArgConv::Flag,
         Ty::Int | Ty::IntLiteral(_) => ArgConv::Int,
         Ty::Uint => ArgConv::Uint,
+        Ty::Decimal => ArgConv::Decimal,
+        // Matched nominally, against the same written name
+        // [`converts_from_string`] admits — two readings of one class, so they
+        // cannot come to disagree about which one § 6 means.
+        Ty::Class(name, _) if *name == QName::parse(r"Core\Uuid") => ArgConv::Uuid,
         _ => ArgConv::Unconverted,
     }
 }
@@ -572,11 +581,17 @@ fn check_options(
 /// for it — the form [`CommandArg::default`] carries, and the form
 /// `Core\Command::run`'s matcher converts through [`ArgConv`].
 ///
-/// `None` for a constant no command line could have spelled at all. That is
-/// every constant whose parameter's [`conversion_of`] is
-/// [`ArgConv::Unconverted`] anyway — a `float`, a `null`, and the shapes only
-/// [`crate::core_lib`] produces — so an argument this answers `None` for stays
-/// required, which is exactly what every argument was before a default crossed.
+/// `None` for a constant no command line could have spelled at all — a
+/// `float`, a `null`, and the shapes only [`crate::core_lib`] produces — so an
+/// argument this answers `None` for stays required, which is exactly what every
+/// argument was before a default crossed.
+///
+/// [`ArgConv::Decimal`] and [`ArgConv::Uuid`] convert a *written* argument and
+/// still have no constant to answer with here, which is [`crate::defaults`]'
+/// own known gap rather than this function's: `decimal $vat = 0.19` is refused
+/// as a non-literal default before it ever folds, and there is no `Core\Uuid`
+/// literal in any spelling. So an argument at either type stays required, and
+/// nothing here has to decide what a defaulted one would have meant.
 fn default_text(constant: &ConstArg) -> Option<String> {
     match constant {
         ConstArg::Bool(value) => Some(value.to_string()),

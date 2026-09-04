@@ -83,7 +83,7 @@
 //!    declaration.
 
 use nvs_runtime::commands::{ArgConv, Command, CommandArg, CommandTable};
-use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
@@ -522,6 +522,19 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
                 arg.param
             )
         }),
+        // Both of these read the runtime's own parse rather than a second one
+        // written here, which is what keeps a word a command line supplies and
+        // a segment a route matches on one grammar: `nvs_runtime::routes`'
+        // `convert` is these same two lines, one table along.
+        ArgConv::Decimal => Decimal::parse(text).map(Value::decimal).ok_or_else(|| {
+            format!(
+                "`{}` takes an exact decimal number, and `{text}` is not one",
+                arg.param
+            )
+        }),
+        ArgConv::Uuid => nvs_runtime::uuid::read(text)
+            .map(crate::uuid::of_octets)
+            .ok_or_else(|| format!("`{}` takes a UUID, and `{text}` is not one", arg.param)),
         // Unreachable: the helper refuses a row carrying one before it reads a
         // word, so that the gap answers as a `LogicError` rather than as a
         // usage error about the argument that happened to arrive.

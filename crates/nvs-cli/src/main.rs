@@ -793,6 +793,12 @@ fn runtime_commands(
                             nvs_types::commands::ArgConv::Uint => {
                                 nvs_runtime::commands::ArgConv::Uint
                             }
+                            nvs_types::commands::ArgConv::Decimal => {
+                                nvs_runtime::commands::ArgConv::Decimal
+                            }
+                            nvs_types::commands::ArgConv::Uuid => {
+                                nvs_runtime::commands::ArgConv::Uuid
+                            }
                             nvs_types::commands::ArgConv::Unconverted => {
                                 nvs_runtime::commands::ArgConv::Unconverted
                             }
