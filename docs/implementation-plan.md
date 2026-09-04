@@ -61,7 +61,7 @@
 > command argument, as does a union of literals and an enum by its case; § 7's mount answers a class
 > and `E0801` refuses `echo` beside one. **ADR 0139 opens the session**: `[session] backend` is
 > shared or db, `E0626` refuses local, and a record crosses cores. **Stage 10's corpus opened**: §§
-> 5-7's bindings, naming and flag. Conformance 1507, differential 256, migration 100%; valgrind
+> 5-7's bindings, naming and flag. Conformance 1509, differential 256, migration 100%; valgrind
 > green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

@@ -5342,6 +5342,21 @@ is why" — is this file.
   is what `nvs_runtime::commands`' gap 1 now holds. The neighbouring bullet is the other
   direction: that one is a green case pinning an absence its ADR forbids, this one is a green case
   pinning an absence you have just filled.
+- **A `.nvst` case that reads standard error must end in failure, and the runner blames the
+  program rather than the section.** `crates/nvs-test/src/run.rs:165` has one rule for the exit
+  status — a case carrying `--EXPECT-ERROR--` or `--EXPECTF-ERROR--` *must* exit non-zero, every
+  other case must exit zero — so a `#[Command]` case that echoes `Core\Command::run()`'s status and
+  returns normally reports `expected the run to fail, and it succeeded` beside a stderr diff that
+  matches perfectly. The fix is `exit($status as int);` as the case's last statement, not a change
+  to the expectation. And prefer `--EXPECTF-ERROR--` with a trailing `%A` over the literal section
+  when what the case owns is one sentence: pinning a whole usage page inside a case about argument
+  conversion makes every later layout change that page's owner's problem plus this file's.
+- **`python tools/try.py` runs a case's `--FILE--` and drops its `--ARGS--`.** A `#[Command]` case
+  therefore prints the usage page and exits 2 under `try.py` while passing under the real runner,
+  which reads as the case being wrong. `target/debug/nvs.exe test <case>.nvst` runs one case with
+  every section honoured, costs nothing once `verify.py` has built, and is the same binary the
+  driver's acceptance check uses — so it is the answer for any case with `--ARGS--`, `--ENV--`,
+  `--INI--` or `--RUN--`, which is most of the ones worth authoring by hand.
 
 ## Splitting a file that got too big
 
