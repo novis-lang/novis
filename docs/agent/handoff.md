@@ -2,57 +2,54 @@
 
 ## State
 
-**Goal 6, M7. ADR 0097 § 6's answer now reaches the program.** `nvs_runtime::Inbound` carries
-the client address and the effective scheme — `set_peer` beside the body, `client()` and
-`scheme()` to read them (`crates/nvs-runtime/src/ctx.rs:4586`) — and an `IpAddr` rather than
-the text of one, so a request nobody asks pays nothing. `serve_connection`'s handler bound is
-now `Fn(Request<Incoming>, Origin) -> Reply`, because the carrier is built in the door and the
-accept loop never holds one; `nvs-cli`'s handler sets both facts beside the header lines.
-`nvs_runtime::Scheme` is the one home of the two values and `nvs_server::secure` re-exports it.
+**Goal 6, M7. ADR 0088 § 3's first row is in the tree: an HTTP request attaches the HTML sink.**
+`nvs_runtime::OutputSink::Body` is that sink — the same buffer as `Buffer`, read back the same way,
+and the only variant `Ctx::carrier` answers `Core\Html\Markup` for
+(`crates/nvs-runtime/src/ctx.rs:4170`). It is selected in **one** place,
+`crates/nvs-host/src/isolate.rs:270`: an isolate handed a request takes it, and one spawned inside a
+request takes it too, because § 3's third row gives a child the *parent's* carrier. `Ctx::child`
+propagates it for the same reason — an ADR 0072 task is part of the request, not a context of its
+own. Everything else — a CLI program, a scheduled script, a job worker, a `#[Test]` method — keeps
+the terminal sink by never having attached anything, which is § 3's fail-closed direction as a fact
+about the sink rather than as a rule a call site states.
 
-**The driver's failed acceptance check is closed, and it was a filing bug of a new kind** — the
-playbook's new Tooling bullet owns it. ADR 0088 § 4's runtime half is pinned in
-`crates/nvs-stdlib/src/response.rs`'s new test module, and its check now runs under
-`-p nvs-stdlib`; `mixing_echo_with_a_typed_body_member_is_a_compile_error` stays where a
-compile check belongs.
+**The driver's failed acceptance check was a filing bug spanning four crates.** `nvs-server (the
+binding table and the defaults)` named seven tests and *none* of the seven existed; the name was a
+conjunction over ADR 0088 § 3's four-row table and ADR 0074 §§ 1-4, filed under the one crate that
+could host barely half of it. It is now five checks: the request row over a socket (`nvs-server`),
+the isolate row at the line that decides it (`nvs-host`), § 4's cookie where the member lives
+(`nvs-stdlib`), the directive class where the registry lives (`nvs-config`), and § 1's shipped set
+under the three names the tree already gave it. The scheduled-script row was **dropped with its
+reason in the toml**: ADR 0073's runner does not exist, and until it does that run *is* an isolate
+answering no request.
 
-`clientIp` and `scheme` now wait on nothing but their own five edits.
-`crates/nvs-stdlib/src/request.rs:20` says what the other three still wait on: `host` on a
-decision nobody has made (whether a forwarded host may be believed — § 6 answers an address and
-a scheme and deliberately not this), `mount`/`route` on the match.
+Three of the check's names are still genuinely open work, and they are the group below.
 
 ## Next group
 
-**The two members the carrier was blocking, then § 6's unreported `Warn`.** One file set:
-`crates/nvs-stdlib/src/request.rs` (rows, cards, bodies, the `address()` arm),
-`tests/conformance/core/`, and `crates/nvs-server/src/serve.rs`.
+**ADR 0074 §§ 2-4's defaults with nothing configured.** The first two share one file set:
+`crates/nvs-server/src/secure.rs`, `crates/nvs-server/src/serve.rs` and the `HttpCors` block
+`nvs_config::tree` already deserializes (`crates/nvs-config/src/tree.rs:408`).
 
-- [ ] **`Core\Request::clientIp(): tainted string` — the five edits** (spec § 15, ADR 0097 § 6,
-      ADR 0024). Row beside `method`'s at `crates/nvs-stdlib/src/request.rs:196`, card beside
-      `crates/nvs-stdlib/src/request.rs:310`, body beside `crates/nvs-stdlib/src/request.rs:1424`,
-      the `address()` arm at `crates/nvs-stdlib/src/request.rs:985`, three `.nvst` cases. It reads
-      `nvs_runtime::Inbound::client` (`crates/nvs-runtime/src/ctx.rs:4593`), and **`None` is a real
-      answer** — a Unix-domain peer that forwarded nothing — so what the member says for it is this
-      slice's call and belongs in the card's `ret`.
-- [ ] **`Core\Request::scheme(): string` — the same five**, reading
-      `nvs_runtime::Inbound::scheme` (`crates/nvs-runtime/src/ctx.rs:4598`) and answering `"http"`
-      or `"https"` off `nvs_runtime::Scheme` (`crates/nvs-runtime/src/ctx.rs:4369`). The qualifier
-      is the one decision here: the value is the *server's* answer about who was allowed to speak,
-      not the peer's word, which is the argument for `Qual::Neutral` — record it on the row rather
-      than in the handoff.
-- [ ] **§ 6's one `Warn` is computed and unreported.** `Origin::ignored_forwarded`
-      (`crates/nvs-server/src/forwarded.rs:267`) is read nowhere; the comment naming it as owed is
-      at `crates/nvs-server/src/serve.rs:577`, and what it needs is somewhere for this loop's
-      reports to go.
+- [ ] **CORS is closed with nothing configured** (ADR 0074 § 2). The header set is applied at
+      `crates/nvs-server/src/secure.rs:211` and `nothing_configured_is_section_ones_shipped_set`
+      (`crates/nvs-server/src/secure.rs:300`) is the shape to write beside. `origins = []` is the
+      shipped default (`crates/nvs-config/src/tree.rs:408`), so the assertion is that **no**
+      `Access-Control-Allow-Origin` reaches a response the peer sent an `Origin` on. The acceptance
+      name is `cors_is_closed_with_nothing_configured`.
+- [ ] **A preflight nobody configured is refused** (ADR 0074 § 2-3). Same two files; the `OPTIONS`
+      arrives before a mount is chosen, so it is answered at the door beside § 1's set rather than
+      by a program — `crates/nvs-server/src/serve.rs:729` is where a response is assembled.
+- [ ] **`every_http_response_directive_is_runtime_class`** (ADR 0074 § 5, ADR 0005). One case over
+      every `http.*` key a response reads, asserting the *class* rather than listing the keys —
+      `crates/nvs-config/src/directive.rs:1` is the registry that answers it. Different file set:
+      take it only if the two above left you well short of the ceiling.
 
 ## Backlog
 
-- ADR 0088 § 4's `html` and `sendFile` rows are unlanded — `crates/nvs-stdlib/src/response.rs`'s
-  module doc owns the gap, and the new test's sweep covers each as it joins.
-- `Core\Request::host()` waits on whether a forwarded host may be believed — nothing decides it
-  today (docs/adr/0097 § 6).
-- `mount`/`route` wait on the match `nvs_server` makes once (ADR 0102 § 1).
-- Raw/unparsed body access for an arbitrary content type — `docs/agent/loop-goal.md`'s standing
-  decisions, narrowed by `docs/plan/m7.md`.
-- **`orient.py` gap:** the pack printed ADR 0088 § 3 but not § 4, and § 4's five-member table is
-  what the driver's failed check was about — add `0088` § 4 to `[context] adrs`.
+- `Core\Request::clientIp()` and `scheme()` — the five edits each, `crates/nvs-stdlib/src/request.rs:196`.
+- ADR 0097 § 6's `Origin::ignored_forwarded` is computed and never reported as a `Warn`.
+- ADR 0074 § 4's cookie defaults — `crates/nvs-stdlib/src/response.rs:1292`, now its own check.
+- § 3's scheduled-script row, when ADR 0073's runner lands — `docs/agent/loop-goal.toml` says so.
+- `Core\Request::host()` waits on whether a forwarded host may be believed — nobody has decided.
+- Whether `Core\Out::capture` inside a request should hand back `Markup` — `nvs_stdlib::out`.

@@ -1851,6 +1851,14 @@ is why" — is this file.
   effect on the response head (the members' own crate), so one check naming both was always two.
   `sed -n '1,20p'` of any existing test in the named directory answers this faster than the manifest
   does.
+- **`peek.py --locate` and a `file:re:pattern` target do not mix, and the mismatch reports `NOT
+  FOUND` rather than an error.** In `--locate` mode every argument is read as a *symbol name*, so
+  `python tools/peek.py --locate carrier "crates/nvs-host/src/*.rs:re:OutputSink"` answered
+  `crates/nvs-host/src/*.rs:re:OutputSink: NOT FOUND` — which reads exactly like "that crate never
+  mentions `OutputSink`", and `isolate.rs` mentions it eight times including the two lines the whole
+  slice turned on. The tell is the target being echoed back verbatim with `NOT FOUND` after it,
+  where a real miss prints the file and the pattern separately. Keep `--locate` in a call of its
+  own; a call that wants bodies and anchors at once wants two calls or no `--locate` at all.
 
 ## Running things
 

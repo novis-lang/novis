@@ -3376,21 +3376,60 @@ tests = [
   "each_body_member_sets_its_own_content_type",
 ]
 
+# § 3's table is four rows and they are not one crate's. What *attaches* a sink is
+# `nvs_host::Isolate`: an isolate handed a request takes the first row, every other one keeps the
+# terminal sink -- so the isolate row is pinned where that `if` is, and the request row over a
+# socket, which is the only place a request exists. The scheduled-script row has no home yet: ADR
+# 0073's runner is not built, and until it is, a scheduled run *is* an isolate answering no request,
+# which the `nvs-host` name below already pins. Restore the name when the runner lands rather than
+# filing it against a crate that cannot start one.
 [[check]]
 kind = "cargo-named"
 stage = "4 response"
-name = "nvs-server (the binding table and the defaults)"
+name = "nvs-server (the sink a request attaches, and the defaults)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # § 3 -- attached by a request and by nothing else.
   "the_html_sink_is_attached_by_a_request_and_by_nothing_else",
-  "a_scheduled_scripts_echo_takes_the_terminal_sinks_neutralization",
-  "an_isolates_echo_takes_the_terminal_sinks_neutralization",
-  # ADR 0074 §§ 1-4 -- with NOTHING configured.
-  "secure_headers_apply_with_nothing_configured",
+  # ADR 0074 §§ 1-4 -- with NOTHING configured. The shipped set is pinned twice on purpose: once
+  # over the block that resolves it and once over the wire, which fail differently. The third name
+  # is "set_header still wins", under the spelling the tree gave it.
+  "nothing_configured_is_section_ones_shipped_set",
+  "a_response_carries_section_ones_shipped_headers",
+  "a_header_the_response_already_carries_is_left_alone",
   "cors_is_closed_with_nothing_configured",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-host (the sink every other context keeps)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "an_isolates_echo_takes_the_terminal_sinks_neutralization",
+]
+
+# ADR 0074 § 4's cookie is written by a `Core\Response` member, so its defaults are that member's
+# and not the door's -- nothing in `nvs-server` is ever asked what a cookie's flags are.
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-stdlib (a cookie's defaults)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
   "a_cookie_is_secure_httponly_samesite_lax_by_default",
-  "every_response_directive_is_runtime_and_set_header_still_wins",
+]
+
+# The other half of a name that was a conjunction: "every response directive is runtime" is a
+# question about the directive *registry* and `nvs-config` owns it -- one case over every `http.*`
+# key a response reads, asserting the class rather than listing the keys.
+[[check]]
+kind = "cargo-named"
+stage = "4 response"
+name = "nvs-config (every http response directive is runtime)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "every_http_response_directive_is_runtime_class",
 ]
 
 
