@@ -169,6 +169,26 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::request::FILES_CURRENT_SYMBOL),
         ],
     ),
+    // And the fourth: ADR 0105 § 3's walk over one part's bytes, which is the
+    // body walk above narrowed to a position in the body. `crate::request`'s
+    // `PART_CONTENT` docs are the argument.
+    (
+        crate::request::PART_CONTENT_NAME,
+        &[
+            (
+                sequence::ITERATE,
+                crate::request::PART_CONTENT_ITERATE_SYMBOL,
+            ),
+            (
+                sequence::ADVANCE,
+                crate::request::PART_CONTENT_ADVANCE_SYMBOL,
+            ),
+            (
+                sequence::CURRENT,
+                crate::request::PART_CONTENT_CURRENT_SYMBOL,
+            ),
+        ],
+    ),
     (
         crate::cursor::NAME,
         &[

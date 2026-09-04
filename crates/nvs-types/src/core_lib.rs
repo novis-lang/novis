@@ -1232,13 +1232,16 @@ mod tests {
                     "tainted string".to_owned(),
                 ),
                 (r"Core\Request\Part", "name", "tainted string".to_owned()),
+                (r"Core\Request\Part", "readAll", "tainted bytes".to_owned(),),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at sixteen — \
+            "the roster of members whose *answer* is qualified `tainted` is closed at seventeen — \
              a verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
              with, everything attached to its standard input, the five reads of the request \
-             being answered and the three declarations one of its uploaded parts made — and \
-             where the answer is a \
+             being answered, the three declarations one of its uploaded parts made and the \
+             bytes of that part held whole. `content()` is not one of them and is not a gap: \
+             its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
+             yields. Where the answer is a \
              collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"

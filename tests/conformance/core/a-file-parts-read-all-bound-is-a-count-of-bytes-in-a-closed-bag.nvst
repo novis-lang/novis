@@ -1,0 +1,29 @@
+--TEST--
+`Core\Request\Part::readAll`'s bound is one `uint` of bytes in a closed bag, so a size written as text is refused and so is an option the bag does not declare — while `content()` takes nothing at all — ADR 0105 § 3, ADR 0063 R2, spec § 15
+--FILE--
+<?nvs
+// The bag, asked at both of its edges. ADR 0105 § 3 writes the deliberate
+// large buffer as `max: "200M"` in prose; the argument is a count of bytes,
+// because a size in text would be a second parser in front of a number and
+// ADR 0095 refuses to guess what one means. `[limits] memory` is written that
+// way in `nvs.toml` and is the configuration's spelling, not the program's.
+//
+// Beside it the closed half: an option the bag does not declare is refused
+// rather than ignored, so a misspelt bound cannot silently leave the call at
+// its default -- which is exactly the failure that would let a program believe
+// it had raised a limit it had not.
+//
+// And `content()` is the member with no bound to state at all: it holds one
+// chunk whatever the upload is, so there is nothing for a caller to say.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    tainted bytes $sized = $part->readAll({max: "200M"});
+    tainted bytes $misspelt = $part->readAll({limit: 200});
+    $part->content(1024);
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `uint`, found `string`
+   --> case.nvs:16:49
+%A
+error: aborting due to 3 errors

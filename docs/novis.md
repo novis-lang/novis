@@ -116,6 +116,7 @@ Conventions the whole file uses:
 | [`Core\Request\BodyStream`](#core-core-request-bodystream) |  |
 | [`Core\Request\Files`](#core-core-request-files) |  |
 | [`Core\Request\Part`](#core-core-request-part) |  |
+| [`Core\Request\PartContent`](#core-core-request-partcontent) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -15937,13 +15938,15 @@ Keywords:
 <a id="core-core-request-part"></a>
 ### `Core\Request\Part`
 
-Keywords: name, filename, contentType
+Keywords: name, filename, contentType, content, readAll
 
 | Member | Signature |
 |---|---|
 | [`Core\Request\Part->name`](#core-core-request-part-name) | `name(): tainted string` |
 | [`Core\Request\Part->filename`](#core-core-request-part-filename) | `filename(): tainted string` |
 | [`Core\Request\Part->contentType`](#core-core-request-part-contenttype) | `contentType(): tainted string` |
+| [`Core\Request\Part->content`](#core-core-request-part-content) | `content(): Core\Request\PartContent` |
+| [`Core\Request\Part->readAll`](#core-core-request-part-readall) | `readAll({max?: uint}): tainted bytes` |
 
 <a id="core-core-request-part-name"></a>
 #### `Core\Request\Part->name`
@@ -15977,6 +15980,44 @@ $part->contentType(): tainted string
 The media type this part declared, which is what the client said the bytes are and not what they turn out to be.
 
 **Returns** `tainted string` — The declared type, `tainted`, or `text/plain` where the part declared none — RFC 7578 § 4.4's default. A program that needs to know what the bytes *are* reads the bytes.
+
+<a id="core-core-request-part-content"></a>
+#### `Core\Request\Part->content`
+
+```nvs skip
+$part->content(): Core\Request\PartContent
+```
+
+This part's bytes, a chunk at a time — the reading for an upload that must never be resident whole, and what `saveTo` and `readAll` are both written over.
+
+**Returns** `Core\Request\PartContent` — An `Iterable<tainted bytes>` over the part's chunks as they come off the wire, each one a value of its own. It walks empty for a part that carried no bytes, and it is valid only while this part is the one the `files()` walk is on.
+
+**Throws** `LogicError` — This program is not answering a request, or the walk has moved on to a later part and this one's bytes are gone.; `IOError` — The connection failed under the body, or the peer stopped short of the closing boundary.; `ParseError` — What arrived is not the multipart body the request declared.
+
+<a id="core-core-request-part-readall"></a>
+#### `Core\Request\Part->readAll`
+
+```nvs skip
+$part->readAll({max?: uint}): tainted bytes
+```
+
+This part's whole content, pulled to its end into one value — the reading for an upload small enough to hold, replacing `$_FILES` plus a `file_get_contents` of the temporary file PHP wrote.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{max: …}` | `uint` (default `0`) | How many bytes this call is willing to hold. Omitted, the bound is `[limits] request_body` (8M); named, it is this number, and a number larger than the request's own `[limits] memory` is refused rather than clamped. |
+
+**Returns** `tainted bytes` — Every byte of this part, in order, `tainted` and decoded by nothing. Empty for a part that carried none, which is a part the peer sent and not an absent one.
+
+**Throws** `LogicError` — This program is not answering a request, the walk has moved on to a later part, or `max` is larger than this request may hold at all.; `RuntimeError` — The part is larger than the bound in force. The bytes over it are never held: the refusal happens at the chunk that would cross it, and `content()` is the reading for a part that does not fit.; `IOError` — The connection failed under the body, or the peer stopped short of the closing boundary.; `ParseError` — What arrived is not the multipart body the request declared.
+
+<a id="core-core-request-partcontent"></a>
+### `Core\Request\PartContent`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-response"></a>
 ### `Core\Response`

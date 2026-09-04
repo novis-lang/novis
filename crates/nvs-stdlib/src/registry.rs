@@ -1402,6 +1402,11 @@ pub const CLASSES: &[CoreClass] = &[
     // docs own why the spec's two marks became three and why there is no
     // fourth reader.
     crate::request::PART,
+    // And what the part's own `content()` answers: ADR 0105 § 3's walk over one
+    // upload's bytes. The body walk above with an identity — `crate::request`'s
+    // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
+    // over a body does not.
+    crate::request::PART_CONTENT,
     // § 15's fourth request-facing class, and the first one that *writes*: ADR
     // 0088 § 4's five body members, of which `text` is registered. Beside
     // `Core\Server` because the two are the same request's two halves, and
@@ -2267,6 +2272,10 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
+    // ADR 0105 § 3's `content(): Iterable<bytes>`, whose element is the body
+    // walk's exactly: a chunk of an upload is a chunk of a request body with a
+    // delimiter search in front of it, and `tainted` for the same reason.
+    (crate::request::PART_CONTENT_NAME, &CoreTy::TaintedBytes),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -3986,6 +3995,7 @@ mod tests {
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,
+            crate::request::PART_CONTENT_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

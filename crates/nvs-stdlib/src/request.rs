@@ -165,9 +165,11 @@
 //! source of an injection: `Core\Request::header` and `::cookie`, which answer
 //! a `tainted string` directly, do carry it.
 
-use nvs_runtime::{Ctx, Fault, Inbound, NvsArray, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, Inbound, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
-use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+};
 
 /// `Core\Request`'s fully-qualified name, in one place so the registry row and
 /// every message quoting it cannot drift apart.
@@ -595,13 +597,7 @@ const PART_CONTENT_TYPE: usize = 2;
 /// Which part of the body this one is, counted from the start and including the
 /// form-field parts the walk consumed on the way — the identity ADR 0105 § 3's
 /// "valid only while this part is the iterator's current one" is checked
-/// against, once `content` and `readAll` land to check it.
-#[allow(
-    dead_code,
-    reason = "the slot is filled by `part_value` positionally and is read by ADR 0105 § 3's \
-              `content` and `readAll`, which are the next slice. Delete this attribute with \
-              their first read."
-)]
+/// against, by [`part_parse`] and on behalf of both members that read bytes.
 const PART_ORDINAL: usize = 3;
 
 /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
@@ -639,6 +635,22 @@ const PART_ORDINAL: usize = 3;
 /// is RFC 7578 § 4.4's stated default rather than a repair of a missing value.
 /// The alternative — a nullable reader — would put a `??` at every call site to
 /// re-supply the number the RFC already fixed.
+///
+/// # Two consumers beside the three declarations, and both are the same pull
+///
+/// § 3's `content()` and `readAll()`, which are the two ways to reach a part's
+/// *bytes*: the walk that holds one chunk at a time, and the buffer that holds
+/// the part. Both pull [`crate::multipart::Multipart::next_chunk`] and neither
+/// accumulates anything the other does not — `readAll` is that walk with a
+/// `Vec` and a bound around it, which is `body`'s relationship to `bodyStream`
+/// one level down.
+///
+/// **Both are valid only while this part is the walk's current one**, which is
+/// § 3's own words and [`PART_ORDINAL`]'s whole purpose. A program that keeps a
+/// part past the `advance()` that opened the next one is holding a name for
+/// bytes the parse has already drained, and handing it the *current* part's
+/// bytes would be the silent wrong answer — so it is refused, by
+/// [`part_parse`], which is the one place the stamp is compared.
 pub(crate) const PART: CoreClass = CoreClass {
     name: PART_NAME,
     methods: &[],
@@ -669,6 +681,24 @@ pub(crate) const PART: CoreClass = CoreClass {
             return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_request_part_content_type",
             doc: Some(&PART_CONTENT_TYPE_DOC),
+        },
+        CoreMethod {
+            name: "content",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(PART_CONTENT_NAME),
+            symbol: "nvs_core_request_part_content",
+            doc: Some(&CONTENT_DOC),
+        },
+        CoreMethod {
+            name: "readAll",
+            names: &[],
+            params: &[CoreTy::Options(READ_ALL_OPTIONS)],
+            defaults: &[],
+            return_ty: CoreTy::TaintedBytes,
+            symbol: "nvs_core_request_part_read_all",
+            doc: Some(&READ_ALL_DOC),
         },
     ],
     slots: &["name", "filename", "contentType", "ordinal"],
@@ -705,6 +735,126 @@ const PART_CONTENT_TYPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Request\Part::content`'s reference card — ADR 0117.
+const CONTENT_DOC: MethodDoc = MethodDoc {
+    short: "This part's bytes, a chunk at a time — the reading for an upload that must never be \
+            resident whole, and what `saveTo` and `readAll` are both written over.",
+    params: &[],
+    ret: "An `Iterable<tainted bytes>` over the part's chunks as they come off the wire, each one \
+          a value of its own. It walks empty for a part that carried no bytes, and it is valid \
+          only while this part is the one the `files()` walk is on.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or the walk has moved on to a later \
+                   part and this one's bytes are gone.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the \
+                   closing boundary.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "What arrived is not the multipart body the request declared.",
+        },
+    ],
+};
+
+/// `Core\Request\Part::readAll`'s options — ADR 0105 § 3's one bound.
+///
+/// **`max` is a count of bytes and `0` is the absent one.** A bound of zero
+/// accepts only an empty part, so no caller means it, and a sentinel is what
+/// lets the two bounds § 3 states be told apart at all: a call that says
+/// nothing is held to `[limits] request_body`, and a call that names a number
+/// is held to that number and checked against the request's own `[limits]
+/// memory` instead. Without the sentinel there is one bound and the 200M
+/// buffer § 3 makes expressible would have to be the default for everyone.
+const READ_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "max",
+    ty: CoreTy::Uint,
+    default: Const::Uint(0),
+}];
+
+/// `Core\Request\Part::readAll`'s reference card — ADR 0117.
+const READ_ALL_DOC: MethodDoc = MethodDoc {
+    short: "This part's whole content, pulled to its end into one value — the reading for an \
+            upload small enough to hold, replacing `$_FILES` plus a `file_get_contents` of the \
+            temporary file PHP wrote.",
+    params: &[ParamDoc {
+        name: "max",
+        desc: "How many bytes this call is willing to hold. Omitted, the bound is `[limits] \
+               request_body` (8M); named, it is this number, and a number larger than the \
+               request's own `[limits] memory` is refused rather than clamped.",
+        shape: &[],
+    }],
+    ret: "Every byte of this part, in order, `tainted` and decoded by nothing. Empty for a part \
+          that carried none, which is a part the peer sent and not an absent one.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, the walk has moved on to a later \
+                   part, or `max` is larger than this request may hold at all.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The part is larger than the bound in force. The bytes over it are never \
+                   held: the refusal happens at the chunk that would cross it, and `content()` \
+                   is the reading for a part that does not fit.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the \
+                   closing boundary.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "What arrived is not the multipart body the request declared.",
+        },
+    ],
+};
+
+/// `Core\Request\Part::content`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const PART_CONTENT_NAME: &str = r"Core\Request\PartContent";
+
+/// The symbol behind `Iterable<tainted bytes>::iterate()` on a part's content.
+pub(crate) const PART_CONTENT_ITERATE_SYMBOL: &str = "nvs_core_request_part_content_iterate";
+/// The symbol behind `Iterator<tainted bytes>::advance()`, which is where one
+/// run of the current part's bytes is pulled.
+pub(crate) const PART_CONTENT_ADVANCE_SYMBOL: &str = "nvs_core_request_part_content_advance";
+/// The symbol behind `Iterator<tainted bytes>::current()`.
+pub(crate) const PART_CONTENT_CURRENT_SYMBOL: &str = "nvs_core_request_part_content_current";
+
+/// [`PART_CONTENT`]'s slots: the chunk the last `advance()` pulled, and the
+/// [`PART_ORDINAL`] of the part this walk was named on.
+const PART_CONTENT_CHUNK: usize = 0;
+const PART_CONTENT_ORDINAL: usize = 1;
+
+/// The class [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// § 3's `content()` answers with — `Iterable<bytes>` over one part, given the
+/// name the registry needs to write it.
+///
+/// [`BODY_STREAM`]'s shape for the third time, and its docs are the argument:
+/// the next chunk does not exist when the walk is named, so `iterate()` answers
+/// the receiver and `advance()` pulls. What is new here is the **second slot**.
+/// A walk over a whole body needs no identity — there is one body and it is the
+/// request's — but a part is a *position* in one, and the parse moves whether or
+/// not this walk is the thing that moved it. So the ordinal the part was stamped
+/// with is copied in when the walk is named and compared on every pull, which is
+/// § 3's "valid only while this part is the iterator's current one" made
+/// checkable rather than documented.
+///
+/// **What it spends:** one chunk, resident, for as long as the loop body holds
+/// it — [`BODY_STREAM`]'s figure exactly, because it is the same pull with a
+/// multipart parse in front of it.
+pub(crate) const PART_CONTENT: CoreClass = CoreClass {
+    name: PART_CONTENT_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["chunk", "ordinal"],
+    constants: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -724,6 +874,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_part_content_type" => {
             (nvs_core_request_part_content_type as *const ()).cast()
         }
+        "nvs_core_request_part_content" => (nvs_core_request_part_content as *const ()).cast(),
+        "nvs_core_request_part_read_all" => (nvs_core_request_part_read_all as *const ()).cast(),
+        PART_CONTENT_ITERATE_SYMBOL => (nvs_core_request_part_content_iterate as *const ()).cast(),
+        PART_CONTENT_ADVANCE_SYMBOL => (nvs_core_request_part_content_advance as *const ()).cast(),
+        PART_CONTENT_CURRENT_SYMBOL => (nvs_core_request_part_content_current as *const ()).cast(),
         FILES_ITERATE_SYMBOL => (nvs_core_request_files_iterate as *const ()).cast(),
         FILES_ADVANCE_SYMBOL => (nvs_core_request_files_advance as *const ()).cast(),
         FILES_CURRENT_SYMBOL => (nvs_core_request_files_current as *const ()).cast(),
@@ -1617,6 +1772,342 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The [`PART_ORDINAL`] the part in `value` was stamped with.
+///
+/// # Errors
+///
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce.
+fn part_ordinal(value: Value, member: &'static str) -> Result<u64, Fault> {
+    let receiver = crate::instance::receiver(value, &PART, member)?;
+    // unreachable from source: the slot is filled by `part_value` with a
+    // `Value::uint` and by nothing else, and a `Core` instance has no reachable
+    // property for a program to write one through — `E0322` refuses the
+    // spelling. A tag here is this crate having laid the part out wrongly.
+    crate::instance::slot(receiver, PART_ORDINAL)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Request\\Part::{member} found no ordinal on the part it was called on"
+            ))
+        })
+}
+
+/// The parse of this request's body and the body it reads, borrowed together
+/// and **only** while the part stamped `ordinal` is the one the walk is on.
+///
+/// The one place ADR 0105 § 3's "valid only while this part is the iterator's
+/// current one" is compared, so `content()`, its `advance()` and `readAll()`
+/// cannot come to disagree about what a stale part is. `Multipart::opened`
+/// counts field parts as well, which is what makes it a position in the body
+/// rather than a position among the parts that were answered.
+///
+/// `Ok(None)` where the request holds no parse or no body: a part cannot exist
+/// without one, so this is not a state a program reaches — it is the same
+/// "nothing to read" [`files_step`] answers an empty walk with.
+///
+/// # Errors
+///
+/// `LogicError` where the context is answering no request — [`inbound_of`]'s
+/// refusal — and where the walk has moved past the part the caller holds.
+fn part_parse<'ctx>(
+    ctx: &'ctx mut Ctx,
+    ordinal: u64,
+    member: &'static str,
+) -> Result<
+    Option<(
+        &'ctx mut crate::multipart::Multipart,
+        &'ctx mut (dyn nvs_runtime::RequestBody + 'static),
+    )>,
+    Fault,
+> {
+    // No case can reach this: a `.nvst` program answers no request, so it can
+    // hold no part to read. Asserted by
+    // `a_parts_content_walks_the_bytes_of_the_part_the_walk_is_on`.
+    inbound_of(ctx, member)?;
+    let inbound = ctx
+        .inbound_mut()
+        .expect("the read above refuses a context that is answering no request");
+    let Some((parse, body)) = inbound.parts_mut() else {
+        return Ok(None);
+    };
+    let parse = parse
+        .downcast_mut::<crate::multipart::Multipart>()
+        .expect("`files()` is the only member that holds a parse, and it holds this one");
+    let opened =
+        u64::try_from(parse.opened()).expect("`MAX_PARTS` bounds a body at a thousand parts");
+    if opened != ordinal {
+        // No case can reach this either, and for the same reason. Asserted by
+        // `a_part_the_walk_has_moved_past_refuses_rather_than_reading_the_current_one`.
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Request\\Part::{member}(): this part is not the one the walk is on — the \
+                 walk has opened part {opened} since this one was part {ordinal}, and a part's \
+                 bytes are gone once it has. A part is read where it is yielded, or its bytes \
+                 are copied there into something the program keeps"
+            ),
+        ));
+    }
+    Ok(Some((parse, body)))
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::content(): Iterable<tainted bytes>` — ADR 0105
+    /// § 3's chunk-at-a-time reading of one upload.
+    ///
+    /// **It reads nothing**, exactly as `bodyStream` reads nothing: the pull is
+    /// `advance()`'s. What happens here is the stamp being copied into the walk
+    /// and checked once, so a program that named a walk over a part the parse
+    /// had already left learns it where it asked rather than at the first
+    /// chunk — [`nvs_core_request_body_stream`]'s reasoning about where a
+    /// refusal lands, over the one thing a body walk has no equivalent of.
+    fn nvs_core_request_part_content(ctx, args: [1]) {
+        let ordinal = part_ordinal(args[0], "content")?;
+        part_parse(ctx, ordinal, "content")?;
+        Ok(crate::instance::build(
+            &PART_CONTENT,
+            [Value::null(), Value::uint(ordinal)],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<tainted bytes>::iterate(): Iterator<tainted bytes>` — the walk
+    /// itself, because a part's next chunk does not exist when it is named.
+    fn nvs_core_request_part_content_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &PART_CONTENT, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::advance(): bool` — pulls the next run of this
+    /// part's bytes, answering `false` at its closing delimiter.
+    ///
+    /// The chunk is copied into the receiver's slot while it is still the
+    /// parse's borrowed span, for [`body_stream_step`]'s reason:
+    /// `Multipart::next_chunk` lends it only until the following pull.
+    fn nvs_core_request_part_content_advance(ctx, args: [1]) {
+        let stepped = part_content_step(ctx, args[0]);
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::current(): tainted bytes` — the chunk the last
+    /// `advance()` pulled.
+    fn nvs_core_request_part_content_current(_ctx, args: [1]) {
+        let read = part_content_chunk(args[0]);
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+/// [`PART_CONTENT_ADVANCE_SYMBOL`]'s body: one pull, stored in the receiver's
+/// slot, and whether there was anything to store.
+///
+/// The slot is cleared to `null` at the end of the part, on [`body_stream_step`]'s
+/// reasoning: the loop is over, so keeping the last chunk would hold a chunk's
+/// worth of a request's memory for as long as the program held the walk.
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals, `IOError` where the connection failed under
+/// the body, and `ParseError` where what arrived is not the multipart body the
+/// request declared — [`files_step`]'s split, read off the same flag for the
+/// same reason.
+fn part_content_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let receiver = crate::instance::receiver(value, &PART_CONTENT, member)?;
+    let ordinal = crate::instance::slot(receiver, PART_CONTENT_ORDINAL)
+        .as_uint()
+        .expect("`content()` builds this walk with the ordinal it read off the part");
+    let pulled = match part_parse(ctx, ordinal, "content")? {
+        None => None,
+        Some((parse, body)) => match parse.next_chunk(body) {
+            Ok(chunk) => chunk.map(NvsStr::new),
+            Err(why) => {
+                // No case can reach this: a `.nvst` program answers no request,
+                // so it holds no part for a connection to fail under. Asserted
+                // by `a_parts_content_that_fails_mid_part_throws_rather_than_ending`.
+                let (class, what) = if parse.failed_on_the_wire() {
+                    (ThrownClass::Io, "the body did not arrive whole")
+                } else {
+                    (
+                        ThrownClass::Parse,
+                        "this is not the multipart body the request declared",
+                    )
+                };
+                // No case can reach this, as above. Asserted by
+                // `a_parts_content_that_fails_mid_part_throws_rather_than_ending`.
+                return Err(Fault::thrown_as(
+                    class,
+                    format!("Core\\Request\\Part::content(): {what} — {why}"),
+                ));
+            }
+        },
+    };
+    let more = pulled.is_some();
+    let held = pulled.map_or_else(Value::null, Value::bytes);
+    crate::instance::set_slot(receiver, PART_CONTENT_CHUNK, held);
+    Ok(Value::bool(more))
+}
+
+/// [`PART_CONTENT_CURRENT_SYMBOL`]'s body: the slot [`part_content_step`] last
+/// wrote, retained, because the receiver keeps it until the next pull.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not a content walk — only a bug in
+/// this crate can produce one, the receiver having been checked at compile time.
+fn part_content_chunk(value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::CURRENT;
+    let receiver = crate::instance::receiver(value, &PART_CONTENT, member)?;
+    let held = crate::instance::slot(receiver, PART_CONTENT_CHUNK);
+    #[expect(
+        unsafe_code,
+        reason = "the slot keeps its reference until the next `advance`, so the \
+                  value handed back needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::readAll({max?}): tainted bytes` — ADR 0105 § 3's
+    /// buffered reading of one upload.
+    ///
+    /// **Two bounds, and which one applies is what the argument says**, which
+    /// is § 3's own split: a bare call is held to `[limits] request_body`,
+    /// because what arrives unasked is what that directive governs, and a call
+    /// naming a `max` is held to that number and checked against the request
+    /// tree's `[limits] memory` instead, because what an application chooses to
+    /// hold is what *that* one governs. The bare call is therefore safe by
+    /// construction while § 3's deliberate 200M buffer stays expressible, and
+    /// neither reading needs a directive of its own.
+    ///
+    /// **A `max` over the request's memory ceiling is refused, not clamped.** A
+    /// clamp would answer a program that asked for 200M with a refusal naming
+    /// 64M at some later chunk, which is the same failure one call further from
+    /// the mistake; ADR 0106 § 13 clamps because an operator's two directives
+    /// disagreeing must not stop a boot, and a program's own call has no such
+    /// claim on being started.
+    fn nvs_core_request_part_read_all(ctx, args: [2]) {
+        let ordinal = part_ordinal(args[0], "readAll")?;
+        // unreachable from source: `max` is `CoreTy::Uint` in
+        // `READ_ALL_OPTIONS`, so `E0401` refuses anything else at the call site
+        // and an absent option arrives as that row's own default. What is left
+        // is a lowering bug.
+        let asked = args[1].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Request\\Part::readAll expected {:?} for its max, got tag {}",
+                Tag::Uint,
+                args[1].tag_byte()
+            ))
+        })?;
+        let bound = read_all_bound(ctx, asked)?;
+        let whole = part_read_all(ctx, ordinal, bound)?;
+        Ok(Value::bytes(NvsStr::new(&whole)))
+    }
+}
+
+/// How many bytes `readAll` may hold for this call, and what to call the bound
+/// in a refusal — [`nvs_core_request_part_read_all`]'s doc is the decision.
+///
+/// # Errors
+///
+/// `LogicError` where an explicit `max` is larger than the whole of what this
+/// request may hold, which is a program asking for a buffer the tree it runs
+/// in has no room for.
+fn read_all_bound(ctx: &Ctx, asked: u64) -> Result<(usize, &'static str), Fault> {
+    if asked == 0 {
+        return Ok((REQUEST_BODY, "`[limits] request_body`"));
+    }
+    let memory = ctx.memory_limit();
+    let asked = usize::try_from(asked).unwrap_or(usize::MAX);
+    if memory > 0 && asked > memory {
+        // No case can reach this: a `.nvst` program answers no request, so it
+        // holds no part to read. Asserted by
+        // `a_read_all_max_over_the_requests_own_memory_is_refused_at_the_call`.
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Request\\Part::readAll(): a `max` of {asked} bytes is larger than \
+                 `[limits] memory` ({memory} bytes), which is the whole of what this request \
+                 may hold. That is refused here rather than clamped, because a bound the \
+                 request cannot honour is a decision to take at the call and not at the chunk \
+                 that would cross it"
+            ),
+        ));
+    }
+    Ok((asked, "the `max` this call asked for"))
+}
+
+/// [`nvs_core_request_part_read_all`]'s body: the part's bytes, pulled to its
+/// end under `bound`.
+///
+/// The bytes over the bound are never held — the refusal happens at the chunk
+/// that would cross it, exactly as [`nvs_core_request_body`]'s does, so a part
+/// far larger than the bound costs one chunk rather than the part.
+///
+/// # Errors
+///
+/// [`part_parse`]'s two refusals, `RuntimeError` past `bound`, and the `IOError`
+/// / `ParseError` split [`part_content_step`] makes off the same flag.
+fn part_read_all(
+    ctx: &mut Ctx,
+    ordinal: u64,
+    bound: (usize, &'static str),
+) -> Result<Vec<u8>, Fault> {
+    let (bound, named) = bound;
+    let mut whole: Vec<u8> = Vec::new();
+    let Some((parse, body)) = part_parse(ctx, ordinal, "readAll")? else {
+        return Ok(whole);
+    };
+    loop {
+        match parse.next_chunk(body) {
+            Ok(None) => return Ok(whole),
+            Ok(Some(chunk)) => {
+                if whole.len().saturating_add(chunk.len()) > bound {
+                    // No case can reach this: a `.nvst` program answers no
+                    // request, so it has no part to send over the bound.
+                    // Asserted by `a_parts_read_all_holds_its_bound_on_both_sides`,
+                    // on both sides of it.
+                    return Err(Fault::thrown(format!(
+                        "Core\\Request\\Part::readAll(): this part is larger than {named} \
+                         ({bound} bytes), so it is refused rather than held. A part bigger \
+                         than what this call may hold is one to walk with `content()` or to \
+                         write out with `saveTo()`, neither of which holds more than a chunk"
+                    )));
+                }
+                whole.extend_from_slice(chunk);
+            }
+            Err(why) => {
+                // No case can reach this either, and for `content()`'s reason.
+                // Asserted by `a_parts_read_all_that_fails_mid_part_throws_rather_than_ending`.
+                let (class, what) = if parse.failed_on_the_wire() {
+                    (ThrownClass::Io, "the body did not arrive whole")
+                } else {
+                    (
+                        ThrownClass::Parse,
+                        "this is not the multipart body the request declared",
+                    )
+                };
+                // No case can reach this, as above. Asserted by
+                // `a_parts_read_all_that_fails_mid_part_throws_rather_than_ending`.
+                return Err(Fault::thrown_as(
+                    class,
+                    format!("Core\\Request\\Part::readAll(): {what} — {why}"),
+                ));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1624,8 +2115,10 @@ mod tests {
         nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
-        nvs_core_request_files_iterate, nvs_core_request_part_content_type,
-        nvs_core_request_part_filename, nvs_core_request_part_name,
+        nvs_core_request_files_iterate, nvs_core_request_part_content,
+        nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
+        nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
+        nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -2417,5 +2910,305 @@ mod tests {
             parts_of(&mut cut_off, files).is_err(),
             "a connection that failed under an upload did not deliver the end of one"
         );
+    }
+
+    /// A multipart body whose one file part stops in the middle of its bytes:
+    /// the header block and the start of the content arrive, and the pull after
+    /// them is the connection dying.
+    const CUT_OFF: &[&[u8]] = &[
+        b"--X\r\nContent-Disposition: form-data; name=\"doc\"; filename=\"report.pdf\"\r\n\r\n\
+          the first half",
+    ];
+
+    /// The retain a virtual call's receiver owes — see [`crate::cursor`]. The
+    /// three names a `foreach` drives consume a reference each; a registered
+    /// `Core` member borrows its receiver and is called without this.
+    fn lend(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "each of the three names consumes a reference, so the driver \
+                      holds one of its own and retains per call"
+        )]
+        unsafe {
+            value.retain();
+        }
+    }
+
+    /// Drops a reference the driver owns.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the driver owns this reference and is done with it"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// Advances `files` once and answers the part it opened — the two names a
+    /// `foreach` drives per iteration, without the third that names the walk.
+    ///
+    /// The walk is its own iterator, so the value handed in is the cursor and
+    /// there is nothing to build beside it.
+    fn next_part(ctx: &mut Ctx, files: Value) -> Result<Value, i32> {
+        lend(files);
+        let more = nvs_runtime::call(nvs_core_request_files_advance, ctx, &[files])?;
+        assert_eq!(
+            more.as_bool(),
+            Some(true),
+            "the walk was asked for a part it does not have"
+        );
+        lend(files);
+        nvs_runtime::call(nvs_core_request_files_current, ctx, &[files])
+    }
+
+    /// Drives the three names a `foreach` over `$part->content()` drives,
+    /// answering one entry per chunk the part yielded.
+    ///
+    /// The `Err` is the throw a member raised, as [`walked`]'s is — either the
+    /// walk being named on a part the parse has left, or the body failing under
+    /// it.
+    fn content_of(ctx: &mut Ctx, part: Value) -> Result<Vec<Vec<u8>>, i32> {
+        let walk = nvs_runtime::call(nvs_core_request_part_content, ctx, &[part])?;
+        lend(walk);
+        let cursor = nvs_runtime::call(nvs_core_request_part_content_iterate, ctx, &[walk])
+            .expect("a content walk is its own iterator, so naming it cannot fail");
+        let mut seen = Vec::new();
+        let walked = loop {
+            lend(cursor);
+            match nvs_runtime::call(nvs_core_request_part_content_advance, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(more) if more.as_bool() != Some(true) => break Ok(()),
+                Ok(_) => {}
+            }
+            lend(cursor);
+            match nvs_runtime::call(nvs_core_request_part_content_current, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(chunk) => {
+                    seen.push(chunk.as_bytes().expect("a chunk is `bytes`").to_vec());
+                    dropped(chunk);
+                }
+            }
+        };
+        dropped(cursor);
+        dropped(walk);
+        walked.map(|()| seen)
+    }
+
+    /// `readAll` on `part`, at `max` bytes — `0` being the absent option, which
+    /// is [`READ_ALL_OPTIONS`]'s own default and the bare call.
+    fn read_all(ctx: &mut Ctx, part: Value, max: u64) -> Result<Vec<u8>, i32> {
+        let answer = nvs_runtime::call(
+            nvs_core_request_part_read_all,
+            ctx,
+            &[part, Value::uint(max)],
+        )?;
+        let bytes = answer
+            .as_bytes()
+            .expect("`readAll` answers `bytes`")
+            .to_vec();
+        dropped(answer);
+        Ok(bytes)
+    }
+
+    /// § 3's two consumers over the part the walk is on: the content walk
+    /// yields the part's bytes and nothing of the delimiter that ends them, the
+    /// walk carries on to the next part afterwards, and `readAll` answers the
+    /// same bytes in one value.
+    ///
+    /// The two parts are read the two different ways on purpose — what would
+    /// otherwise go unasserted is that a part *consumed* by one of them leaves
+    /// the parse where the outer walk can still find the next one, which is the
+    /// same seam § 1's drain sits on.
+    ///
+    /// The receivers are driven by hand rather than by a `.nvst` `foreach`,
+    /// because a case is a program with no request in front of it — the
+    /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    #[test]
+    fn a_parts_content_walks_the_bytes_of_the_part_the_walk_is_on() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+
+        let first = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let chunks =
+            content_of(&mut arriving, first).expect("a part that arrives whole walks whole");
+        assert_eq!(
+            chunks.concat(),
+            b"%PDF-1.4 and the rest of it".to_vec(),
+            "a content walk yields the part's own bytes, and the delimiter is not one of them"
+        );
+        dropped(first);
+
+        let second = next_part(&mut arriving, files)
+            .expect("a part read to its end leaves the walk where the next one starts");
+        assert_eq!(
+            read_all(&mut arriving, second, 0).expect("a part inside the bound is held whole"),
+            b"jotted down".to_vec(),
+            "`readAll` is the same pull with a buffer around it"
+        );
+        dropped(second);
+        dropped(files);
+    }
+
+    /// ADR 0105 § 3's "valid only while this part is the iterator's current
+    /// one", asked of both consumers: a part the walk has moved past refuses
+    /// rather than answering the current part's bytes.
+    ///
+    /// The silent wrong answer is the whole point of the check. Nothing about a
+    /// stale part *looks* stale — its three declarations still read back as
+    /// they did — so a program that kept one and read it a loop later would be
+    /// handed the next upload's bytes under the previous upload's filename.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it can
+    /// hold no part at all.
+    #[test]
+    fn a_part_the_walk_has_moved_past_refuses_rather_than_reading_the_current_one() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let stale = next_part(&mut arriving, files).expect("the body carries two file parts");
+        let current = next_part(&mut arriving, files).expect("and the walk reaches the second");
+
+        assert!(
+            content_of(&mut arriving, stale).is_err(),
+            "a part the parse has left has no bytes, and the current part's are not its own"
+        );
+        assert!(
+            read_all(&mut arriving, stale, 0).is_err(),
+            "both consumers ask the same question, so both refuse the same part"
+        );
+        assert_eq!(
+            read_all(&mut arriving, current, 0).expect("the part the walk is on is still readable"),
+            b"jotted down".to_vec(),
+            "the refusal is about which part it is, not about the walk having been used"
+        );
+
+        dropped(stale);
+        dropped(current);
+        dropped(files);
+    }
+
+    /// A part whose body stops mid-stream throws rather than ending, which is
+    /// `a_body_stream_that_fails_mid_walk_throws_rather_than_ending`'s property
+    /// one level in: `advance()` answering `false` means the *part* is over, so
+    /// reporting a dead connection that way would hand a program a truncated
+    /// upload it had no way to know was truncated.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it
+    /// holds no part for a connection to fail under.
+    #[test]
+    fn a_parts_content_that_fails_mid_part_throws_rather_than_ending() {
+        let mut cut_off = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::failing_at(CUT_OFF, 1)),
+        );
+        let files = nvs_runtime::call(nvs_core_request_files, &mut cut_off, &[])
+            .expect("the failure is the wire's, and it has not happened yet");
+        let part = next_part(&mut cut_off, files).expect("the part's header block did arrive");
+        assert!(
+            content_of(&mut cut_off, part).is_err(),
+            "a connection that failed under a part did not deliver the end of one"
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// `readAll`'s answer to the same failure, and it is the same answer: the
+    /// prefix that arrived is not the part, so it is a throw rather than a
+    /// shorter value — `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`
+    /// over one part instead of one body.
+    ///
+    /// No case can reach this, for the reason above.
+    #[test]
+    fn a_parts_read_all_that_fails_mid_part_throws_rather_than_ending() {
+        let mut cut_off = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::failing_at(CUT_OFF, 1)),
+        );
+        let files = nvs_runtime::call(nvs_core_request_files, &mut cut_off, &[])
+            .expect("the failure is the wire's, and it has not happened yet");
+        let part = next_part(&mut cut_off, files).expect("the part's header block did arrive");
+        assert!(
+            read_all(&mut cut_off, part, 0).is_err(),
+            "a part that stopped short is not a part that was smaller than it said"
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// ADR 0105 § 3's bound, named on both sides: a part of exactly `max` is
+    /// held, and the same part against one byte less is refused. A member that
+    /// stopped one byte early — or one late — prints plausibly against either
+    /// half on its own.
+    ///
+    /// The refusal happens at the chunk that would cross the bound, so the
+    /// second half of this also asserts that a part far over the bound costs a
+    /// chunk rather than a part; there is no larger fixture here because what
+    /// the size would demonstrate is the arithmetic these two calls already pin.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it has
+    /// no part to send over a bound.
+    #[test]
+    fn a_parts_read_all_holds_its_bound_on_both_sides() {
+        const CONTENT: &[u8] = b"%PDF-1.4 and the rest of it";
+
+        let mut at_the_bound =
+            uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut at_the_bound, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut at_the_bound, files).expect("the body carries two file parts");
+        let held = read_all(&mut at_the_bound, part, CONTENT.len() as u64)
+            .expect("a part of exactly the bound has not crossed it");
+        assert_eq!(
+            held,
+            CONTENT.to_vec(),
+            "the last part inside the bound is held whole"
+        );
+        dropped(part);
+        dropped(files);
+
+        let mut over_it = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut over_it, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut over_it, files).expect("the body carries two file parts");
+        assert!(
+            read_all(&mut over_it, part, CONTENT.len() as u64 - 1).is_err(),
+            "one byte past the bound in force is still past it"
+        );
+        dropped(part);
+        dropped(files);
+    }
+
+    /// § 3's second bound: a `max` larger than the whole of what this request
+    /// may hold is refused **at the call**, before a byte is pulled, and the
+    /// part is still readable under a bound the request can honour.
+    ///
+    /// The second half is what says the refusal is arithmetic rather than a
+    /// state change — a check that consumed the part on its way to refusing
+    /// would pass the first assertion and fail every program that caught the
+    /// throw and retried inside its means.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it
+    /// holds no part to read.
+    #[test]
+    fn a_read_all_max_over_the_requests_own_memory_is_refused_at_the_call() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        arriving.set_memory_limit(1 << 20);
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        let part = next_part(&mut arriving, files).expect("the body carries two file parts");
+
+        assert!(
+            read_all(&mut arriving, part, 4 << 20).is_err(),
+            "a buffer larger than `[limits] memory` is one this request cannot hold"
+        );
+        assert_eq!(
+            read_all(&mut arriving, part, 512).expect("a bound the request can honour is honoured"),
+            b"%PDF-1.4 and the rest of it".to_vec(),
+            "the refused call pulled nothing, so the part is where it was"
+        );
+        dropped(part);
+        dropped(files);
     }
 }

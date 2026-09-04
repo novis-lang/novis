@@ -1,0 +1,25 @@
+--TEST--
+A file part's two consumers are the two shapes and neither is the other: `content()` is a walk that no `array` binding accepts, and `readAll()` is one value that no `foreach` drives — ADR 0105 § 3, ADR 0053 § 3, spec § 15
+--FILE--
+<?nvs
+// The pair of edges that says § 3's split is real. `content()` answers a walk
+// whose next chunk does not exist yet -- there is no snapshot behind it, so
+// binding it as an `array<bytes>` would be asking for the whole upload under
+// the name of the member that exists precisely to avoid holding one.
+// `readAll()` is the other side: it answers the part, not a sequence of it, so
+// a `foreach` over it has nothing to drive.
+//
+// Both refusals are what makes the choice between the two members a decision a
+// program states rather than one it discovers at a memory limit.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    array<bytes> $chunks = $part->content();
+    foreach ($part->readAll() as tainted bytes $chunk) {
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `array<bytes>`, found `Core\Request\PartContent`
+   --> case.nvs:12:28
+%A
+error: aborting due to 2 errors

@@ -287,12 +287,6 @@ impl Multipart {
     /// # Errors
     ///
     /// As [`Self::next_part`].
-    #[allow(
-        dead_code,
-        reason = "§ 3's `Core\\Request\\Part::content` is the next slice and is this method's \
-                  only non-test caller; `next_part`'s drain reaches `chunk` directly. Delete \
-                  this attribute with that member's first call."
-    )]
     pub(crate) fn next_chunk(
         &mut self,
         body: &mut dyn RequestBody,
