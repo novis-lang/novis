@@ -233,6 +233,24 @@ const MESSAGE_WINDOW: usize = 700;
 const DECLARATION_WINDOW: usize = 8;
 const DECLARATION: &str = "unreachable from source";
 
+/// The second declaration, for a path that *is* reachable and that no case in
+/// either suite can reach: the phrase, plus the name of what asserts it instead.
+///
+/// [`DECLARATION`] says a source program cannot get here. This says one can,
+/// but not one either suite is able to run — a `.nvst` case is a program with
+/// no request in front of it, so every error path behind
+/// `nvs_runtime::Inbound`'s body is reachable from Novis and unreachable from
+/// the corpus. Collapsing the two would be a lie in whichever direction it was
+/// written: declaring such a site "unreachable from source" claims the checker
+/// refuses the call, and leaving it in [`OWED_A_CASE`] claims a case is owed
+/// that nobody can write.
+///
+/// The comment naming a `#[test]` is the content, and it is a judgement no
+/// machine makes: the phrase is what this gate reads, and the name after it is
+/// what a reader checks. A site that could have had a case and took this
+/// spelling instead is a bug in the comment, findable by grepping the phrase.
+const ASSERTED_OFF_THE_CORPUS: &str = "no case can reach this";
+
 /// Every `.rs` file under this crate's `src/`, as `(name, contents)`.
 fn stdlib_sources() -> Vec<(String, String)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -289,7 +307,8 @@ fn error_corpus() -> String {
 }
 
 /// One `Fault::` site: where it is, the run of its message before the first
-/// format hole, and whether a [`DECLARATION`] sits above it.
+/// format hole, and whether a [`DECLARATION`] or an
+/// [`ASSERTED_OFF_THE_CORPUS`] sits above it.
 struct Site {
     file: String,
     line: usize,
@@ -433,7 +452,10 @@ fn fault_sites() -> Vec<Site> {
                 .iter()
                 .rev()
                 .take_while(|above| !above.contains("Fault::"))
-                .any(|above| above.to_ascii_lowercase().contains(DECLARATION));
+                .any(|above| {
+                    let above = above.to_ascii_lowercase();
+                    above.contains(DECLARATION) || above.contains(ASSERTED_OFF_THE_CORPUS)
+                });
             out.push(Site {
                 file: file.clone(),
                 line,
@@ -455,13 +477,16 @@ fn fault_sites() -> Vec<Site> {
 /// the test rather than quietly extending a roster, and the two paragraphs
 /// after this one are the instructions for the session that meets one.
 ///
-/// **This list may only shrink**, and it shrinks two ways, because item 11
-/// has two answers and the site is what decides between them. A boundary a
+/// **This list may only shrink**, and it shrinks three ways, because item 11
+/// has three answers and the site is what decides between them. A boundary a
 /// program can reach loses its line here by gaining a case that catches the
 /// message and echoes it. An invariant no source program can reach — an
 /// argument type-guard behind a parameter the checker already types, most of
 /// these — loses its line by gaining a [`DECLARATION`] comment saying which
-/// diagnostic refuses the call first.
+/// diagnostic refuses the call first. A boundary a program can reach and a
+/// *case* cannot — everything behind a served request's body, since a `.nvst`
+/// case runs with no request in front of it — loses its line by gaining an
+/// [`ASSERTED_OFF_THE_CORPUS`] comment naming the `#[test]` that asserts it.
 ///
 /// The test below fails on a site that is *not* here and is neither asserted
 /// nor declared, and equally on a line here whose site has since become one or
@@ -475,7 +500,8 @@ fn fault_sites() -> Vec<Site> {
 const OWED_A_CASE: &[(&str, &str)] = &[];
 
 /// Stage 5's item 11: every error path a `Core` member can take is asserted by
-/// a case, or is declared at the site to be one no source program reaches.
+/// a case, or is declared at the site — as one no source program reaches, or as
+/// one no *case* can run.
 ///
 /// The two are not the same claim and only the site can tell them apart. A
 /// `Fault::thrown` is a boundary — a column of the wrong type, an origin that
@@ -488,9 +514,12 @@ const OWED_A_CASE: &[(&str, &str)] = &[];
 /// `debug_assert!` is, and neither is dead code: the guard is what makes the
 /// `unsafe` below it sound.
 ///
-/// What this forbids is the third state, which is where all of them start —
-/// a message nobody has judged, which reads exactly like a live path and
-/// exactly like an impossible one.
+/// [`ASSERTED_OFF_THE_CORPUS`] is the third, and its own doc says why it could
+/// not be folded into either.
+///
+/// What this forbids is the state where all of them start — a message nobody
+/// has judged, which reads exactly like a live path and exactly like an
+/// impossible one.
 ///
 /// **The limit, stated rather than implied:** of the crate's 269 `Fault::`
 /// sites this reads 165, the ones whose message begins with enough literal
@@ -549,11 +578,14 @@ fn every_error_path_is_asserted_or_declared_unreachable() {
         .collect::<Vec<_>>();
     assert!(
         missing.is_empty(),
-        "{} error path(s) are neither asserted by a case nor declared unreachable at the \
-         site. Write the case, or write a comment within the {DECLARATION_WINDOW} lines \
-         above the site containing \"{DECLARATION}\" and the diagnostic that refuses the \
-         call first — a declaration further up than that is one this gate cannot see. If \
-         this gate is being re-frozen, these are the lines:\n{}",
+        "{} error path(s) are neither asserted by a case nor declared at the site. Write \
+         the case, or write a comment within the {DECLARATION_WINDOW} lines above the \
+         site: \"{DECLARATION}\" plus the diagnostic that refuses the call first, or — \
+         where a program reaches the path and no case can, as nothing behind a served \
+         request's body can be reached by one — \"{ASSERTED_OFF_THE_CORPUS}\" plus the \
+         `#[test]` that asserts it instead. A declaration further up than that window is \
+         one this gate cannot see. If this gate is being re-frozen, these are the \
+         lines:\n{}",
         missing.len(),
         missing.join("\n")
     );

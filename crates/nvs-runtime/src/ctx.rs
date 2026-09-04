@@ -4491,10 +4491,12 @@ impl Inbound {
     /// **A borrow rather than a take, and a mutable one**, which is the whole
     /// difference between this and [`Self::headers`]: pulling a chunk advances
     /// the wire, so a reader that could be handed out twice would be two
-    /// programs consuming one stream. `&mut self` on the carrier is what makes
-    /// ADR 0105 § 8's exclusivity — `files()` and `body()` on one request are
-    /// refused — a rule about *which* member read it rather than a rule about
-    /// how many did.
+    /// programs consuming one stream. `&mut self` on the carrier is the half of
+    /// spec § 15's exclusivity — `body`, `bodyStream` and `files` are exclusive
+    /// on one request — that no member can talk its way around. The other half,
+    /// recording *which* of the three took the borrow so a second one is refused
+    /// rather than answered empty, is a gap `nvs_stdlib::request`'s module doc
+    /// owns and lands with the second of them.
     pub fn body(&mut self) -> Option<&mut (dyn RequestBody + 'static)> {
         self.body.as_deref_mut()
     }

@@ -1,0 +1,19 @@
+--TEST--
+`Core\Request::body` answers a `tainted string`, so a request's own bytes reach a grammar sink only through the launderer that names it — spec § 15, ADR 0024 §§ 1 and 3, ADR 0105 § 3
+--FILE--
+<?nvs
+// The qualifier is the third thing § 15's signature says, and the only one no
+// runtime assertion can show: a plain `string` is assignable into a `tainted`
+// target, so a case that only declared one would pass over a member that had
+// dropped the mark. What pins it is the refusal -- a body is the least trusted
+// thing a request carries, so ADR 0088 § 1's grammar sinks are shut to it.
+tainted string $raw = Core\Request::body();
+Core\Regex\Pattern $pattern = Core\Regex::compile($raw);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:51
+%A
+error: aborting due to 1 error

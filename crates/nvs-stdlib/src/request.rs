@@ -4,17 +4,19 @@
 //!
 //! # What is here, and what is not
 //!
-//! Seven of
+//! Eight of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
 //! fifteen members: `method`, `isHead`, `path` and `query` — the request *line*,
-//! and the one fact reporting a `HEAD` as a `Get` would otherwise lose — and
-//! `header`, `headers` and `cookie`, the fields that arrived with it. Those
-//! seven are what a request has before anything has been read off its **body**.
-//! `body`, `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount` and
+//! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
+//! `header`, `headers` and `cookie`, the fields that arrived with it, and
+//! `body`, the first member here that reads what arrived **after** all of those.
+//! `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
-//! a different thing: `files`/`body`/`bodyStream` on
-//! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
-//! streaming reader, `route`/`mount` on the match `nvs_server` makes once
+//! a different thing: `files`/`bodyStream` on
+//! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+//! § 3's other two ways of reading the same
+//! [`nvs_runtime::RequestBody`] `body` already pulls — as parts, and as chunks
+//! a program is handed one at a time — `route`/`mount` on the match `nvs_server` makes once
 //! before the handler, and `clientIp`/`scheme`/`host` on
 //! `[server] trusted_proxies` and the forwarded-header walk. Those three read a
 //! field this module now holds and are still gaps for that reason: which peer is
@@ -37,6 +39,18 @@
 //! state" exactly — the program asked a question its own situation has no
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
+//!
+//! # One member reads the body, and nothing yet says which
+//!
+//! Spec § 15 makes `body`, `bodyStream` and `files` exclusive on one request:
+//! whichever is called first has consumed the stream, so a later read of any of
+//! them is a program bug rather than a small answer. Only `body` exists today,
+//! and nothing enforces that yet — a second `body()` on one request answers the
+//! empty string, because the stream is at its end and that is what an exhausted
+//! one says. The enforcement belongs on the carrier and not here: it is a fact
+//! about the *request*, and [`nvs_runtime::Inbound::body`] hands out a `&mut` borrow
+//! with nowhere to record that a member already took one. It lands with
+//! `bodyStream`, which is the first member that could disagree with this one.
 //!
 //! # Where a verb becomes a case
 //!
@@ -223,6 +237,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_cookie",
             doc: Some(&COOKIE_DOC),
         },
+        CoreMethod {
+            name: "body",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_request_body",
+            doc: Some(&BODY_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -353,6 +376,33 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Request::body`'s reference card — ADR 0117.
+const BODY_DOC: MethodDoc = MethodDoc {
+    short: "The whole request body, pulled to its end into one string — the buffered way of \
+            reading one, replacing `file_get_contents('php://input')` and the \
+            `$HTTP_RAW_POST_DATA` it succeeded.",
+    params: &[],
+    ret: "Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the \
+          request carried no body, which is a different fact from a program that is answering no \
+          request at all — that one throws.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The body is larger than `[limits] request_body` (8M). The bytes over the bound \
+                   are never held: the refusal happens at the chunk that would cross it.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the length \
+                   it declared.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -364,6 +414,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
+        "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
         _ => return None,
     })
 }
@@ -728,11 +779,152 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// § 5's `[limits] request_body` default, as a constant until that row exists.
+///
+/// The twin of `nvs_server::body::UPLOAD_TOTAL` and deliberately the smaller of
+/// the two: this one bounds bytes *parsed into memory*, which are resident and
+/// are paid once per in-flight request, while that one bounds the total of a
+/// body streamed past memory entirely. § 5's table is the home of both numbers
+/// and of why one cap could not have governed both.
+const REQUEST_BODY: usize = 8 * 1024 * 1024;
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::body(): tainted string` — spec § 15's whole-body reader,
+    /// replacing `file_get_contents('php://input')`.
+    ///
+    /// ADR 0105 § 3's first of three ways to read a body, and the only one that
+    /// ends with all of it resident — which is why it is the one [`REQUEST_BODY`]
+    /// bounds. The pull is [`nvs_runtime::RequestBody::next_chunk`]'s, so it
+    /// parks this isolate rather than a thread, and chunk boundaries are the
+    /// wire's and mean nothing here: every chunk lands in the same buffer.
+    ///
+    /// **The bound is checked before the copy, not after.** A chunk that would
+    /// carry the total past [`REQUEST_BODY`] is refused while it is still the
+    /// supplier's own borrowed slice, so what this member holds never exceeds
+    /// the number it was given. A check made after appending would be a report
+    /// about memory already spent, which ADR 0105 § 5 argues is not a bound at
+    /// all.
+    ///
+    /// **Nothing is reserved from `Content-Length`.** The obvious shape reads
+    /// the declared length and allocates it up front, and it hands a peer a line
+    /// of its own: a request declaring 8M and sending one byte would cost the
+    /// whole cap, per in-flight request, for nothing. So the buffer grows by
+    /// doubling against bytes that actually arrived, and a lie costs what it
+    /// delivers.
+    ///
+    /// **What it spends:** the body's own bytes twice at the peak — the buffer
+    /// they arrive in, plus the [`NvsStr`] copied out of it — and nothing at all
+    /// once the call returns. Both are bounded by [`REQUEST_BODY`] and both are
+    /// O(in-flight).
+    fn nvs_core_request_body(ctx, _args: [0]) {
+        // Asked before the body is, so the module doc's two facts stay apart:
+        // "the request sent nothing" is the empty answer below, and "no request
+        // arrived" is this throw.
+        inbound_of(ctx, "body")?;
+        let inbound = ctx
+            .inbound_mut()
+            .expect("the read above refuses a context that is answering no request");
+        let mut whole: Vec<u8> = Vec::new();
+        if let Some(body) = inbound.body() {
+            loop {
+                match body.next_chunk() {
+                    Ok(None) => break,
+                    Ok(Some(chunk)) => {
+                        if whole.len().saturating_add(chunk.len()) > REQUEST_BODY {
+                            // No case can reach this: a `.nvst` program answers
+                            // no request, so it has no body to send over the
+                            // bound. Asserted by
+                            // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
+                            // below, on both sides of the bound.
+                            return Err(Fault::thrown(format!(
+                                "Core\\Request::body(): this request's body is larger than \
+                                 `[limits] request_body` ({REQUEST_BODY} bytes), so it is refused \
+                                 rather than held. That directive bounds what a body may cost in \
+                                 memory; a body bigger than it is one to stream rather than to \
+                                 read whole"
+                            )));
+                        }
+                        whole.extend_from_slice(chunk);
+                    }
+                    Err(why) => {
+                        // No case can reach this either, and for the same
+                        // reason: a connection has to exist before it can fail
+                        // under a body. Asserted by
+                        // `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`.
+                        return Err(Fault::thrown_as(
+                            ThrownClass::Io,
+                            format!(
+                                "Core\\Request::body(): the body did not arrive whole — {why}"
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(Value::str(NvsStr::new(&whole)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{cookie_of, grouped_fields, joined_field, method_ordinal};
+    use super::{
+        REQUEST_BODY, cookie_of, grouped_fields, joined_field, method_ordinal,
+        nvs_core_request_body,
+    };
     use crate::router::METHOD;
-    use nvs_runtime::Inbound;
+    use nvs_runtime::{Ctx, Inbound, RequestBody};
+
+    /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
+    /// or, where `fails_at` names a pull, fails at that one instead, which is
+    /// the connection dying under a body that had already started arriving.
+    struct Chunks {
+        chunks: Vec<Vec<u8>>,
+        at: usize,
+        fails_at: Option<usize>,
+    }
+
+    impl Chunks {
+        fn of(pieces: &[&[u8]]) -> Self {
+            Self {
+                chunks: pieces.iter().map(|piece| piece.to_vec()).collect(),
+                at: 0,
+                fails_at: None,
+            }
+        }
+
+        fn failing_at(pieces: &[&[u8]], pull: usize) -> Self {
+            Self {
+                fails_at: Some(pull),
+                ..Self::of(pieces)
+            }
+        }
+    }
+
+    impl RequestBody for Chunks {
+        fn next_chunk(&mut self) -> Result<Option<&[u8]>, Box<str>> {
+            if self.fails_at == Some(self.at) {
+                return Err("the connection failed under it".into());
+            }
+            let at = self.at;
+            if at >= self.chunks.len() {
+                return Ok(None);
+            }
+            self.at = at + 1;
+            Ok(Some(&self.chunks[at]))
+        }
+    }
+
+    /// A context answering a request, carrying `body` where there is one.
+    fn answering(body: Option<Chunks>) -> Ctx {
+        let mut inbound = Inbound::new("POST", "/", "");
+        if let Some(body) = body {
+            inbound.set_body(Box::new(body));
+        }
+        let mut ctx = Ctx::buffered();
+        ctx.set_inbound(inbound);
+        ctx
+    }
 
     /// An `Inbound` carrying `lines` as its header field lines and nothing
     /// interesting on its request line.
@@ -965,6 +1157,90 @@ mod tests {
             cookie_of(&single, b"__Secure-t"),
             Some(&b"a"[..]),
             "`__Secure-` says nothing about `Path`, so two of them are legitimate"
+        );
+    }
+
+    /// A body that arrived in pieces is one value, and where the pieces fell is
+    /// the wire's business: the split below lands inside a multi-byte character,
+    /// so a member that decoded, trimmed or measured per chunk would answer
+    /// something the peer never sent. Beside it, the module doc's second fact —
+    /// a request that carried no body answers empty rather than throwing, which
+    /// is what makes the *first* fact worth a refusal.
+    #[test]
+    fn a_body_is_every_chunk_joined_and_a_chunk_boundary_means_nothing() {
+        let whole = "héllo — a body split mid-character";
+        let bytes = whole.as_bytes();
+        let cut = whole.find('—').expect("the dash is in the subject") + 1;
+        let mut arriving = answering(Some(Chunks::of(&[&bytes[..cut], &bytes[cut..]])));
+        let answer = nvs_runtime::call(nvs_core_request_body, &mut arriving, &[])
+            .expect("a body that arrives whole is read whole");
+        assert_eq!(
+            answer.as_text(),
+            Some(whole),
+            "a chunk boundary is the wire's and means nothing to a reader"
+        );
+
+        let mut bodiless = answering(None);
+        let nothing = nvs_runtime::call(nvs_core_request_body, &mut bodiless, &[])
+            .expect("a request that carried no body is still a request");
+        assert_eq!(
+            nothing.as_text(),
+            Some(""),
+            "\"the request sent nothing\" is an answer, and only \"no request\" is a throw"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "each call transferred the reference it answered"
+        )]
+        unsafe {
+            answer.release();
+            nothing.release();
+        }
+    }
+
+    /// ADR 0105 § 5's cap, named on both sides: a body of exactly
+    /// `[limits] request_body` is read, and the same body plus one byte is
+    /// refused. A member that stopped one byte early — or one late — prints
+    /// plausibly against either half on its own.
+    ///
+    /// The throw's own message is not read here. Doing so needs an exception
+    /// class table installed on the context first, which the playbook's
+    /// `Ctx::pending_slot` bullet owns; what this asserts is the boundary, and
+    /// the boundary is where the member can be wrong.
+    #[test]
+    fn the_request_body_cap_is_the_last_body_read_and_the_first_one_refused() {
+        let full = vec![b'x'; REQUEST_BODY];
+        let mut at_the_bound = answering(Some(Chunks::of(&[&full[..]])));
+        let answer = nvs_runtime::call(nvs_core_request_body, &mut at_the_bound, &[])
+            .expect("a body of exactly the cap has not crossed it");
+        assert_eq!(
+            answer.as_text().map(str::len),
+            Some(REQUEST_BODY),
+            "the last body inside the bound is read whole"
+        );
+        #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+        unsafe {
+            answer.release();
+        }
+
+        let mut over_it = answering(Some(Chunks::of(&[&full[..], &b"x"[..]])));
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut over_it, &[]).is_err(),
+            "one byte past `[limits] request_body` is still past it"
+        );
+    }
+
+    /// A body that stops short is a throw and not a shorter body. `next_chunk`'s
+    /// `Err` ends the stream, so what had arrived before it is a prefix of what
+    /// the peer meant to send — and answering a prefix is exactly the
+    /// silent-wrong-answer this module's refusals exist to close.
+    #[test]
+    fn a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix() {
+        let mut cut_off = answering(Some(Chunks::failing_at(&[&b"the first half"[..]], 1)));
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[]).is_err(),
+            "a connection that failed under a body did not deliver one"
         );
     }
 }

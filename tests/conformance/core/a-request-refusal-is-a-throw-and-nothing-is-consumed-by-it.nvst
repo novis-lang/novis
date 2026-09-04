@@ -54,8 +54,27 @@ try {
     $verb = $verb + 1;
 }
 echo "the verb's second reader still refused ", $verb, " time\n";
+
+// And the one reader whose successful path really does consume something:
+// `body()` pulls the request's bytes to their end, so it is the member a
+// half-spent or cached state would surface in first -- a second read that
+// answered "" where the first threw would be reporting a body that arrived
+// empty. There is no request here to spend, so both reads refuse alike.
+uint $raw = 0;
+try {
+    Core\Request::body();
+} catch (LogicError $fifth) {
+    $raw = $raw + 1;
+}
+try {
+    Core\Request::body();
+} catch (LogicError $sixth) {
+    $raw = $raw + 1;
+}
+echo "the body reader refused ", $raw, " times\n";
 --EXPECT--
 the program took 2 steps past the throw
 the same read refused 2 times
 a later read still refused 1 time
 the verb's second reader still refused 1 time
+the body reader refused 2 times
