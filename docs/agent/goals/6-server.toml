@@ -3649,15 +3649,41 @@ args = ["test", "-p", "nvs-server"]
 tests = [
   # ADR 0073 § 5 -- a ROOT isolate, not a child of a connection.
   "a_schedule_entry_fires_as_a_root_isolate",
-  # ADR 0072 §§ 6-7 -- the connection ends, the tree does not, bounded by max_concurrent.
-  "an_after_response_tree_outlives_its_connection",
-  "the_deferred_queue_is_bounded_by_max_concurrent",
+  # ADR 0072 §§ 6-7 is deliberately NOT here any more -- the two checks below are where it went
+  # and why. Neither half of it is reachable from a crate that forbids `unsafe_code`.
   # ADR 0076 -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
   "an_inbound_traceparent_is_continued_and_a_missing_one_is_generated",
   "a_trace_id_exists_whether_or_not_the_request_is_sampled",
   "no_probe_is_added_to_the_measured_path",
   "the_default_metric_series_are_exported",
 ]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 beside a request"
+name = "nvs-host (ADR 0072 § 6 -- the connection ends, the request tree does not)"
+args = ["test", "-p", "nvs-host"]
+# Filed here rather than under `-p nvs-server`, where it stood until the seam was read. Two reasons,
+# and the second is the one that would have cost a session: a registration is a `callable`, the only
+# way to build one with no compiler in front of it is a leaked `ClassTable` carrying an `invoke`
+# address, and `crates/nvs-server/Cargo.toml` inherits the workspace's `unsafe_code = "forbid"` on
+# purpose (its own comment says why). And the connection never holds the request's context in the
+# first place: a request is an isolate, its tree lives on the task `nvs_host::isolate` spawned, and
+# what the connection does is join that task and then return. So the claim is about a task outliving
+# the one that joined it -- the completion path that files the answer and the tree walk that cancels
+# what a returning task left running are both this crate's.
+tests = ["an_after_response_tree_outlives_its_connection"]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 beside a request"
+name = "nvs-runtime (ADR 0072 § 7 -- max_concurrent counts trees)"
+args = ["test", "-p", "nvs-runtime"]
+# The other half of the same move. § 7's cap is a count of request trees per *core*, taken and given
+# back by `Ctx::defer` and `Ctx::release_deferred_slot`, and the refusal is the `RuntimeError`
+# `Core\Task::afterResponse` raises at the call site -- so the server contributes nothing to it, and
+# a test filed there would sit one layer above the rule it asserts.
+tests = ["the_deferred_queue_is_bounded_by_max_concurrent"]
 
 
 # ---------------------------------------------------------------------------------------------------

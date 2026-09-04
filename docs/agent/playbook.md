@@ -1936,6 +1936,19 @@ is why" — is this file.
   the goal's own § *Standing decisions*. One `grep -rn` for the class name across `crates/` and
   `docs/spec/` costs less than the triage, and a `Verification` section naming `M8:` for a check
   filed in an M7 goal is the sentence that says the ADR is the missing half.
+- **A `loop-goal.toml` check can name a test its crate may not *write*, and `Cargo.toml` naming the
+  right dependency does not settle it — read the `[lints]` block underneath.**
+  `an_after_response_tree_outlives_its_connection` was filed `-p nvs-server`, whose manifest does
+  name `nvs-runtime`, so the sibling bullets' one-call manifest check passes and says nothing. It was
+  still impossible: ADR 0072 § 6's work is a `callable`, the only way to build one with no compiler
+  in front of it is a leaked `ClassTable` carrying an `invoke` address (`allocation_policy.rs`'s
+  `closure_of`), and `crates/nvs-server` inherits the workspace's `unsafe_code = "forbid"` on
+  purpose — a `#[expect(unsafe_code)]` cannot open a `forbid`, so no fixture in that crate compiles.
+  `grep -rn unsafe_code crates/*/Cargo.toml` is the whole triage and lists the five crates that
+  chose `deny` instead. The second half of the same triage: the check assumed the *connection* held
+  the request's context, and it never does — a request is an isolate, its tree lives on the task
+  `nvs_host::isolate` spawned, and the connection only joins it. When a check's crate cannot host
+  the fixture, ask which crate holds the state the claim is about before moving it.
 
 ## Running things
 
