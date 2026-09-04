@@ -7487,6 +7487,16 @@ sibling in the same namespace unqualified.
   smaller shapes from the same crate: `jiff::civil::Date` has no `to_datetime`/`at`, so a date plus a
   time is `DateTime::new(y, m, d, …)`, and `TimeZone` has no `Display` — the name is
   `iana_name() -> Option<&str>`.
+- **A `spawn_child` whose parent task returns is torn down with it, and the test sees *nothing*
+  rather than a failure.** The schedule ticker's first cut spawned each fire and returned as soon as
+  the tick was done; the fire never ran, `Fires::isolate` was never called, and what the assertion
+  reported was an empty log — no panic, no error, no cancelled-task note anywhere. Every loop in
+  this tree that spawns children has the same tail and it is not decoration: a tally incremented
+  *before* the spawn, a guard whose `Drop` decrements it and wakes the parent, and
+  `while outstanding > 0 { suspend_current(Waiting::Parked) }` ahead of the return.
+  `crates/nvs-server/src/serve.rs:1021` is the worked one and ADR 0072 § 4 is why. Copy the tail in
+  the same edit as the spawn — it is three lines written with the loop and half an hour found
+  afterwards.
 
 ## Divergences and refusals already pinned
 

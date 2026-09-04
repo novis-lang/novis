@@ -43,26 +43,25 @@
 >
 > **Open now:** **Goal 6 — the built-in server, M7 — is running.**  **`crates/nvs-db`'s PostgreSQL
 > is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7 nests as a
-> `SAVEPOINT`. **`Core\Db` has opened**: § 18's `connect`, `inList`, `quoteIdentifier` and § 4's
-> four members. **`queryAs<T>` hydrates**, and § 6's *request* converts. **§ 13's pool is
-> complete**, **§ 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's
-> schema and a worker runs on all three**. **ADR 0133's carrier landed**: `Core\Html::escape`
-> answers `Markup`; `.`, `.=` and `as string` refuse one. **Goals 1-5 and M4 closed**.
-> **`crates/nvs-server` runs an h1 request as goal 2's `Isolate`**: a coroutine per connection,
-> `hyper` under `block_on` (ADR 0138), `echo` is the body; `nvs serve` boots the whole mount table
-> on one core and § 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a zero
-> ceiling; § 5's ceiling is arithmetic against the budget, `503` before an isolate; § 6's walk
+> `SAVEPOINT`. **`Core\Db` has opened**: § 18's three and § 4's four members. **`queryAs<T>`
+> hydrates**, and § 6's *request* converts. **§ 13's pool is complete**, **§ 2's `[queue]` resolves
+> at boot** (`E0617`), **`nvs queue migrate` applies § 2's schema and a worker runs on all three**.
+> **ADR 0133's carrier landed**: `Core\Html::escape` answers `Markup`; `.`, `.=` and `as string`
+> refuse one. **Goals 1-5 and M4 closed**. **`crates/nvs-server` runs an h1 request as goal 2's
+> `Isolate`**: a coroutine per connection, `hyper` under `block_on`; `nvs serve` boots the whole
+> mount table on one core and § 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a
+> zero ceiling; § 5's ceiling is arithmetic against the budget, `503` before an isolate; § 6's walk
 > decides the peer, `400` on a bad token; § 8's accept backs off, § 10's mount holds no policy, §
 > 5's drain answers the probe and `isDraining()`; `Core\Response` has seven, `Core\Request`
-> thirteen, an upload walks as parts; the door writes the carrier and pulls the body; every response
-> carries ADR 0074 § 1's set, § 2 is whole; a request is matched once, `route()` and `methodsFor`
-> answer, the door reads it for CSRF and the label, and § 2's two answers are the table's
-> computation not a status it sends; a `decimal` and a `Core\Uuid` convert as a capture and as a
-> command argument, as does a union of literals and an enum by its case; § 7's mount answers a class
-> and `E0801` refuses `echo` beside one. **ADR 0139's session is whole**: `[session]` is shared or
-> db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **Stage 10's corpus opened**: §§
-> 5-7's bindings, naming and flag. Conformance 1515, differential 256, migration 100%; valgrind
-> green.
+> thirteen, an upload walks as parts; the door carries the body; every response carries ADR 0074 §
+> 1's set, § 2 is whole; a request is matched once, `route()` and `methodsFor` answer, the door
+> reads it for CSRF and the label, and § 2's two answers are the table's computation not a status it
+> sends; a `decimal` and a `Core\Uuid` convert as a capture and as a command argument, as does a
+> union of literals and an enum by its case; § 7's mount answers a class and `E0801` refuses `echo`
+> beside one. **ADR 0139's session is whole**: `[session]` is shared or db, `E0626` refuses local, §
+> 1's seven carry it, § 4 sends it. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and
+> flag. **ADR 0073's ticker fires** an entry as a root isolate; `fleet` is unarmed. Conformance
+> 1515, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

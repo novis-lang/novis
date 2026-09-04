@@ -2,56 +2,55 @@
 
 ## State
 
-**Goal 6, M7. ADR 0073's boot is whole and now answers § 6's next fire; nothing arms it yet.**
-`nvs_config::schedule::Cron` (`crates/nvs-config/src/schedule.rs:298`) is the parse the boot refusal
-is already made from, `pub` for that reason: `Cron::parse` replaces the old `cron_fault`, and
-`Cron::next_after` (`:361`) answers the next instant in the entry's own zone. `zone_of` (`:444`) is
-`timezone` or the fault `validate` refuses on. `nvs-config` names `jiff` now (ADR 0051 § 4).
+**Goal 6, M7. ADR 0073's ticker fires.** `nvs_server::schedule`
+(`crates/nvs-server/src/schedule.rs`) is a second task on the accept loop's own scheduler: it sleeps
+until the soonest fire `nvs_config::schedule::Cron::next_after` names, spawns each due entry as a
+task of its own, and runs the caller's isolate there. It takes *how to fire* as a parameter — the
+`Fires` trait, three questions — exactly as the crate takes `handler`, because turning a `script`
+path into a program needs the front end. `nvs serve`'s half is `Scheduled`
+(`crates/nvs-cli/src/serve.rs:562`), resolving per fire through the same `nvs_runtime::script`
+resolver a request uses, so ADR 0017's unit swap reaches a nightly job at its next fire.
 
-**§ 6's two DST rules and POSIX's two-field rule are pinned, in `crates/nvs-config/tests/schedule.rs`**
-— gap fires at the transition, repeat fires on the first occurrence only (including when asked from
-*inside* the repeated hour), and a day-of-month and a day-of-week that both narrow fire on either.
-The `at` helper is where a civil minute becomes an instant, and the playbook bullet says why
-`jiff`'s own disambiguation is not enough for the gap half.
+**§ 6's clock rule is the implementation, not a comment**: every next fire is asked from *now*, so a
+missed interval is skipped rather than replayed, and the two DST answers stay in `next_after` where
+the boot already put them. `a_missed_interval_is_skipped_rather_than_replayed` pins the skip at
+`Armed::rearm`, and `a_schedule_entry_fires_as_a_root_isolate` pins § 5's four readings of one fire
+— it runs at its minute, on a task that is not the tick's, with **no request on the isolate**, and
+its result logged rather than delivered. The clock is a parameter of `tick_on_this_core` for that
+test's sake; `nvs serve` passes `Zoned::now`.
 
-**Nothing fires yet.** `nvs-cli` still spawns only the accept loop, so `[[schedule]]` is inert at run
-time and `a_schedule_entry_fires_as_a_root_isolate` is genuinely unwritten — the driver's stage-6
-failure is that item, not a regression. The fleet half stays triaged out of this goal; the argument
-is the comment above that check in `docs/agent/loop-goal.toml`.
-
-**Orientation gap:** the pack printed no ADR 0073 section at all, so §§ 2 and 6 were sliced by hand.
-`[context] adrs` in `docs/agent/loop-goal.toml` should carry `0073` §§ 2, 5 and 6 — § 5 is what the
-next group is written against.
+**A `fleet` entry is still not armed**, and that is the refusal ADR 0073 § 3 asks for rather than a
+gap: no lease can be taken anywhere in this tree (`Core\Cache` has no compare-and-set), so `arm`
+skips it and names it at boot. The acceptance check's own comment owns that triage.
 
 ## Next group
 
-**ADR 0073's ticker, over one file set:** `crates/nvs-server/src/serve.rs`,
-`crates/nvs-cli/src/serve.rs`, against the landed `crates/nvs-config/src/schedule.rs:361`.
+**ADR 0073 § 6's `overlap`, over one file set:** `crates/nvs-server/src/schedule.rs`, with the
+directive at `crates/nvs-config/src/tree.rs:720` and the boot's reader beside it.
 
-- [ ] **Arm the entries beside the accept loop** (ADR 0073 § 5) — the loop runs as a task spawned at
-      `crates/nvs-cli/src/serve.rs:440`, and the ticker is a second task on that same scheduler, not
-      a second scheduler; `crates/nvs-server/src/serve.rs:909`'s `serve_on_this_core` is the shape to
-      follow — the crate takes the *how to fire* as a parameter, the way it takes `handler`, because
-      compiling the script is `nvs-cli`'s. The clock question is answered:
-      `crates/nvs-config/src/schedule.rs:361`'s `next_after` takes the zone `zone_of` returns, and a
-      missed interval is skipped rather than replayed (§ 6), so the ticker asks it from *now* and
-      never from the last fire. **A `fleet` entry is not armed**: no lease can be taken, and firing it
-      on each host's own clock is the exact failure § 3's key exists to prevent.
-- [ ] **`a_schedule_entry_fires_as_a_root_isolate`** (ADR 0073 § 5) — a fire is a **root**, not a
-      child of a connection, so it spends `[limits]` rather than a connection's budget. The fixture
-      that runs one accept loop on a scheduler of its own is `crates/nvs-server/src/serve.rs:1865`
-      (`served_by`/`served_under`), and a ticker case wants the same shape with no client thread.
-- [ ] **§ 6's `overlap`, once a fire exists to overlap** (ADR 0073 § 6) — `skip` is the default and
-      the other two are `queue` (at most one pending, a second dropped and logged) and `kill` (cancel
-      at the next safepoint, wait for teardown, then start). The key is already deserialized and
-      unread at `crates/nvs-config/src/tree.rs:719`; it is the ticker's state, not the config's.
+- [ ] **`overlap = "skip"`, the default** (ADR 0073 § 6) — a fire is spawned unconditionally today,
+      so an entry whose run outlives its interval overlaps itself. The tally the ticker already
+      keeps is process-wide; what `skip` needs is a per-entry one, read where the due list is built
+      at `crates/nvs-server/src/schedule.rs:250` and given back by the same `Ran` guard at
+      `crates/nvs-server/src/schedule.rs:326`. `Armed` (`crates/nvs-server/src/schedule.rs:70`)
+      is where the mode belongs, read once by `arm` at `crates/nvs-server/src/schedule.rs:163`.
+- [ ] **`queue` and `kill`, decided and recorded** (ADR 0073 § 6) — `queue` is one deferred fire
+      held per entry, which the same counter answers; `kill` needs a running isolate to be torn
+      down, and whether this tree can do that is `crates/nvs-host/src/scheduler.rs`'s cancellation
+      question. If it cannot, the safe half is a boot refusal of `overlap = "kill"` beside the
+      others in `crates/nvs-config/src/schedule.rs:96` — a decided-and-recorded call, not an ADR.
+- [ ] **Per-entry `limits` and `grants`** (ADR 0073 § 5) — narrowing only, and nothing in this tree
+      narrows a budget *per isolate* yet. Carry them on `Armed`
+      (`crates/nvs-server/src/schedule.rs:70`) and spend them in `Scheduled::isolate`
+      (`crates/nvs-cli/src/serve.rs:564`), which is the only side holding a `Ctx` to set them on.
 
 ## Backlog
 
-- `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` — M8's, per ADR 0073
-  *Verification*; it needs an atomic acquire the shared tier's wire does not have.
-- `nvs run`'s half of the write-back is wired and unasserted — `crates/nvs-cli/src/main.rs:1190`.
-- `isolate::finish`'s call is pinned only from `nvs-stdlib`; no `-p nvs-host` case drives it.
-- § 3's `db` backend still throws at run time — `crates/nvs-stdlib/src/session.rs`'s module doc.
-- Stage 6's other six checks: ADR 0072 §§ 6-7's deferred queue and ADR 0076's four metrics rows.
-- Stage 6b: ADR 0083's persistent connections, whose entry rule lands first at `spawn script`.
+- `an_after_response_tree_outlives_its_connection` and `the_deferred_queue_is_bounded_by_max_concurrent`
+  — ADR 0072 §§ 6-7, and nothing in `crates/nvs-server/src/serve.rs` spells `afterResponse` yet.
+- The three ADR 0076 names in the same acceptance check (trace id, sampling, no probe on the
+  measured path) — `docs/agent/loop-goal.toml`'s stage 6 block is the list.
+- A `fleet` entry's lease — ADR 0073 *Verification*'s M8 bullet, waiting on a shared store that can
+  compare-and-set.
+- ADR 0073's boot could compile a scheduled `script` the way § 2 compiles a mounted entry; today a
+  broken one is found at its first fire (`docs/adr/0097` § 2's argument, applied to schedules).
