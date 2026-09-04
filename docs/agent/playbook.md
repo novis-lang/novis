@@ -5147,11 +5147,11 @@ is why" — is this file.
   bytes at every header and asserts how many requests went out passes on short values and fails the
   moment one is `nvarchar(max)`: 4,001 characters is 8,002 bytes of UCS-2 against a negotiated packet
   size of 4,096, so one `sp_prepexec` leaves as three packets and the count reads 5 where the driver
-  sent 3. Reassemble to `Status::EOM` before counting — `crates/nvs-db/src/tds.rs`'s `flushed` is the
+  sent 3. Reassemble to `Status::EOM` before counting — `crates/nvs-db/src/tds/testing.rs`'s `flushed` is the
   helper — and keep the **first** packet's status, since that is the one
   `Status::RESET_CONNECTION` rides.
 - **A sans-io driver's own fixture can agree with its parser on a byte order the wire does not
-  use, and every gate this repo runs will be green.** `crates/nvs-db/src/tds.rs`'s `login_ack`
+  use, and every gate this repo runs will be green.** `crates/nvs-db/src/tds/stream.rs`'s `login_ack`
   read LOGINACK's `TDSVersion` with `long` — little-endian, the order LOGIN7 *writes* it in — and
   `login_ack_token`, the fixture two doors down, wrote it the same way, so
   `a_login_sends_login7_and_the_servers_answer_settles_the_framing` passed on a message no server
@@ -5165,14 +5165,14 @@ is why" — is this file.
   is that a handshake now reaches a server, and prefer it to a fourth fixture asserting what the
   third one already assumed.
 - **A real-SQL-Server case cannot keep its rows in a temporary table, and `sp_reset_connection` does not
-  put the isolation level back.** Two traps in one leg, both invisible to `tds.rs`'s scripted peer. A
+  put the isolation level back.** Two traps in one leg, both invisible to `tds/testing.rs`'s scripted peer. A
   `CREATE TABLE #t` goes out inside `sp_prepexec`, so the table is scoped to *that procedure* and is gone
   before the next statement — use a permanent table dropped on the way **in** (`DROP TABLE IF EXISTS`),
   since a failing assertion skips cleanup, and the matrix database is the driver's own. And the reset
   leaves `transaction_isolation_level` exactly where the last `transaction({isolation})` put it, which
   `SELECT … FROM sys.dm_exec_sessions WHERE session_id = @@SPID` is what proves either way: ADR 0067 § 13
   states the reset as a *property*, so where `sp_reset_connection` falls short of it the driver pays the
-  difference — `crates/nvs-db/src/tds.rs`'s `reset_session` now sends the restore itself. A pooled
+  difference — `crates/nvs-db/src/tds/plan.rs`'s `reset_session` now sends the restore itself. A pooled
   connection is the failure mode: the next request silently runs at `SERIALIZABLE`.
 - **A by-value `reset(self)` on a connection whose rows *borrow* the connection cannot be tested
   against a streaming one at all — the borrow checker gets there first, and the case will not
@@ -5429,6 +5429,17 @@ is why" — is this file.
 - **Header prose splits with the code.** A module doc that grew a paragraph per ADR slice *is* the split
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
   charter — see AGENTS.md's length-target table for why the charter is the part that matters.
+- **Every `](../../../docs/…)` in the moved half needs one more `../`, and no gate says so.** These links
+  are relative to the *rustdoc page*, not to the source file — which is why `crates/nvs-stdlib/src/lib.rs`
+  writes three and `registry.rs`, in the same directory, writes four. A module that gains a directory
+  level gains a `../` with it, `mod.rs` keeps the depth the single file had, and `verify.py --doc` passes
+  either way: the broken-link lint reads intra-doc paths and never a relative URL. Splitting
+  `crates/nvs-db/src/tds.rs` moved 29 of them.
+- **A private `const` that falls out of scope becomes a binding pattern, not an error.** `TY_XML` in a
+  `match` arm is a *new variable* once the module that holds it is a sibling, so the arm matches
+  everything after it. The 20 in that file happened to sit in multi-pattern arms, where `E0408` names
+  each one — an arm of its own would have compiled and matched every column type. `pub(super)` on the
+  consts before the first build is the cheap order; reading the first build's errors is the other one.
 
 ## Writing Novis itself
 
@@ -7185,7 +7196,7 @@ sibling in the same namespace unqualified.
   `ConnectionCommon::complete_io` does `if wrlen > 0 { io.flush()? }` after every write flight and
   before it reads (`rustls-0.23.43/src/conn.rs`). And once `NvsTls::over` has taken the adapter,
   `StreamOwned` hands nothing back, so there is no way to reach in and turn the framing off:
-  `crates/nvs-db/src/tds.rs:989`'s `Tunnel` keeps the flag in an `Rc<Cell<bool>>` and the caller
+  `crates/nvs-db/src/tds/prelogin.rs`'s `Tunnel` keeps the flag in an `Rc<Cell<bool>>` and the caller
   takes its `TunnelEnd` *before* the handshake starts. The adapter then stays in the stream type for
   the connection's life, transparent — that is the price of the shape, not a leak to clean up.
 - **A TDS `DONE`'s *type byte* decides whether the answer ended, and its `DONE_MORE` status bit

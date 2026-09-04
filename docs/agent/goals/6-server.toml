@@ -3077,7 +3077,7 @@ tests = [
   # with it, and that the same statement after it costs the prepare again; MariaDB's `reset` rides the
   # same `crate::mysql::reset_session`, so it is that function's case and not a second one.
   "a_reset_invalidates_the_statement_cache",
-  # The MSSQL half, landed with the driver that made it writable: `crates/nvs-db/src/tds.rs`'s
+  # The MSSQL half, landed with the driver that made it writable: `crates/nvs-db/src/tds/plan.rs`'s
   # `reset_session` and the `TdsPlan` cache it empties. MS-TDS spells the procedure as a header bit
   # rather than as a call, so what the test asserts is that `Status::RESET_CONNECTION` rode a message of
   # its own, that the cache emptied with it, and that the same statement then costs the prepare again.

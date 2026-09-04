@@ -31,7 +31,7 @@ modules = [
   # The three drivers that gain an AF_UNIX connect, and the one that refuses a path.
   "crates/nvs-db/src/pg.rs",
   "crates/nvs-db/src/mysql.rs",
-  "crates/nvs-db/src/tds.rs",
+  "crates/nvs-db/src/tds/mod.rs",
   # `is_relative_file` -- the neighbouring predicate, and deliberately not the answer.
   "crates/nvs-config/src/db.rs",
 ]

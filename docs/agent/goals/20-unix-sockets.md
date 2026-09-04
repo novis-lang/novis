@@ -81,7 +81,7 @@ Goal 19's whole acceptance list — the parity program, never traded.
    what makes this an addition at the edge rather than a second codec.
 3. **Postgres derives `<host>/.s.PGSQL.<port>`**, per § 5, asserted against the path the driver connects
    to rather than against a successful connection — the derivation is what is under test.
-4. **`tds.rs` refuses a path**, reported as a target the driver does not speak. **SQLite is untouched.**
+4. **`tds/mod.rs` refuses a path**, reported as a target the driver does not speak. **SQLite is untouched.**
 5. **The matrix gains a socket leg** for the three drivers, running the case list the TCP legs run: the
    property a second transport has to have is that the driver agrees across both.
 

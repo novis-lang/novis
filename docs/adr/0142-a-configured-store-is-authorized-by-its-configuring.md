@@ -183,7 +183,7 @@ that has not changed in the lifetime of the protocol.
 MySQL and MariaDB take the socket **file** — `/var/run/mysqld/mysqld.sock` — because their socket has no
 naming convention to derive one from, and that too is the string those deployments already hold.
 
-**MSSQL refuses a path.** TDS has no `AF_UNIX` transport, so `crates/nvs-db/src/tds.rs` reports it as a
+**MSSQL refuses a path.** TDS has no `AF_UNIX` transport, so `crates/nvs-db/src/tds/mod.rs` reports it as a
 target this driver does not speak rather than as a file it could not open. SQLite has no socket at all
 and is untouched: its path is the database.
 
