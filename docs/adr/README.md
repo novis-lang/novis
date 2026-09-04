@@ -57,6 +57,7 @@ so you never have to open this file to route a topic.
 | Writing anything under `docs/` — where a fact lives, folding a changed decision, the length targets nothing enforces | [docs/agent/doc-style.md](../agent/doc-style.md) |
 | What one loop session may read, and how a goal narrows it | `python tools/orient.py`, selected by `[context]` in [docs/agent/loop-goal.toml](../agent/loop-goal.toml) |
 | Setting a new loop goal; how many slices a session should take; why the context ceiling is 200k; what to pre-authorize so a run never halts on `BLOCKED` | [docs/agent/loop-authoring.md](../agent/loop-authoring.md), and `python tools/loop-stats.py` for the numbers it rests on |
+| Adding, reordering, renumbering or retiring a goal on the chain; what a goal's three files start as; why 21–49 are free | `python tools/chain.py` — [docs/agent/commands.md](../agent/commands.md) for the tool, [docs/agent/goals/README.md](../agent/goals/README.md) for the contract |
 | Whether a feature is *finished* — what a member, a language feature or a directive owes before it counts: its tests from both sides, its three website examples, its measured cost, the program written to break it; where each goes; how the loop that writes them is generated | `python tools/dossier.py`, and [0134](0134-every-shipped-feature-owes-four-proofs.md) for why the four |
 | Exceptions, the call ABI, helper signatures, panic containment | [0002](0002-error-propagation.md) — the only normative copy of the calling convention |
 | Extensions, wasm, WIT, `.nvsx` | [0003](0003-extension-system.md) |

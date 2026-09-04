@@ -125,6 +125,11 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 
 ## The chain contract
 
+**`python tools/chain.py` is how an entry is added, reordered, renumbered or retired** — it scaffolds the
+three files below, splices the `[[goal]]` block without touching a comment it did not mean to, refuses an
+edit behind the live entry, and `--check` says whether every entry is one the driver can walk.
+[commands.md](../commands.md) is the tool's one home; this section is the contract it enforces.
+
 Each goal is three files, named for it:
 
 | File | Holds |

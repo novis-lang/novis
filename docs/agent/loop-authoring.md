@@ -7,6 +7,11 @@ to be settled with the user *before* the run rather than during it, and the shap
 [coordinator.md](coordinator.md) owns how the loop is *driven*: the driver, the files, the acceptance-check
 kinds, the per-iteration flow. This file owns how a goal is *written*. Neither restates the other.
 
+**Start from the scaffold, not from a blank file or a copied neighbour**: `python tools/chain.py --new
+<slug> --title "…"` writes the three files a chain entry needs with the boilerplate already carried
+forward and every question this file answers left as a marked `TODO`, then splices the `[[goal]]` block
+into `goals/chain.toml`. What each `TODO` wants is the sections below.
+
 ## 1. Measure first — this is step zero, not a formality
 
     python tools/loop-stats.py

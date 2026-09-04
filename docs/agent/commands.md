@@ -87,6 +87,28 @@ The ADR index table is the same arrangement one file over: `python tools/adr.py 
 This is the pattern `docs/novis.md` already established below — derive the machine-derivable half, and let
 a `--check` fail when the committed copy stops agreeing with it.
 
+**The chain is edited with `python tools/chain.py`, never by hand.** `docs/agent/goals/chain.toml` is the
+order the driver walks, and adding one entry to it is three goal files nobody has a template for, a
+`[[goal]]` block, a `README.md` row and a `plan.py --sync`. The tool does the mechanical four and prints
+the fifth: `--new <slug> --title "…"` scaffolds the three files — with the predecessor's `playbook`,
+`plan`, `[valgrind]`, `[wsl]` and `[docker]` blocks copied forward *as text*, so their comments survive,
+and everything that is this goal's own substance left as marked `TODO` — takes the next free number below
+the dossier, and inserts the entry in front of it. `--set N`, `--why N`, `--move N`, `--renumber`,
+`--retitle` and `--remove` are the edits; no flag at all lists the order with where the run stands.
+
+Every mutation is a **text splice**: half of that file is the prose saying why the order is what it is,
+and a `tomllib` round-trip would delete all of it. `--check` re-renders the file it just read and reports
+it if that ever stops being byte-identical, alongside the two failures that are otherwise silent — a goal
+TOML with no `goal-switch` marker line (which makes the switch *into* that goal refuse, stopping the run)
+and one with no `files`/`[valgrind] skip` key for the floor to be unioned into.
+
+Two things it refuses. **An entry at or before the live one**, because `goal-switch.py` has already folded
+each walked entry's checks into the one after it and `.loop/chain.json` indexes the list by position — so
+editing, moving or landing anything back there invalidates a floor that has already been built, and
+nothing downstream notices. And **a number in `dossier.py`'s range**: 21–49 is free space in front of the
+dossier on purpose, since the emitter numbers what it appends from `max(number) + 1`. `--force` is there
+for a tree where the run is over or was never started.
+
 ## One shell call runs one command, and its exit status is the last one's
 
 Do not `;`-chain several probes into a single call. A chain reports only the final command's status, so a
