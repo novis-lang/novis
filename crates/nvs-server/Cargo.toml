@@ -29,6 +29,12 @@ nvs-config.workspace = true
 # § 1's tree comes from. Not a second runtime dependency: `nvs-host` already
 # rests on this one, and what is used here is the three names that spell a task.
 nvs-runtime.workspace = true
+# The workspace's clock, and `src/schedule.rs` reaches it for the same reason
+# `nvs_config::schedule` does: ADR 0073 § 6's next fire is a `Zoned` in the
+# entry's own zone, and the ticker asks `Cron::next_after` for one rather than
+# counting minutes itself. Not a new crate in the graph — `nvs-config` already
+# rests on it, and what is named here is the two types that spell an instant.
+jiff.workspace = true
 
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to

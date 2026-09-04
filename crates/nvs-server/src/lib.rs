@@ -56,6 +56,15 @@
 //! CSRF check, the `route` metric label and § 8's access decision can each read
 //! one answer instead of making three.
 //!
+//! [`schedule`] is the other thing this core runs, and it is a **second task on
+//! the same scheduler** rather than a second scheduler: ADR 0073 § 5's ticker,
+//! sleeping until the soonest `[[schedule]]` fire and spawning each one as a
+//! root isolate of its own. It takes the *how to fire* as a parameter exactly as
+//! [`serve`] takes the handler, because turning a `script` path into runnable
+//! code is the compiler's and this crate has none. A `fleet` entry is not armed
+//! at all; that module's docs § *What is not armed* is the whole of why, and it
+//! is a refusal rather than a gap.
+//!
 //! What is **not** here yet is the rest of `[server]`. [`serve`]'s own docs
 //! § *What this module does not decide yet* is the list.
 //!
@@ -88,6 +97,7 @@ pub mod forwarded;
 pub mod io;
 pub mod mount;
 pub mod route;
+pub mod schedule;
 pub mod secure;
 pub mod serve;
 pub mod statics;
@@ -110,6 +120,7 @@ pub use cors::Cors;
 pub use forwarded::{Arrival, Origin, Trusted, Unusable};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
+pub use schedule::{Armed, Fires, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
 pub use serve::{Answer, Draining, Reply, Serving, serve_connection, serve_on_this_core};
 pub use statics::{Source, Stat};
