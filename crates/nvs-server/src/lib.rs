@@ -75,6 +75,7 @@
 //! reading and of what pinning `hyper` backwards would have cost instead.
 
 pub mod admit;
+pub mod body;
 pub mod io;
 pub mod mount;
 pub mod secure;
@@ -91,6 +92,7 @@ pub use hyper::Request;
 pub use hyper::body::Incoming;
 
 pub use admit::{Admission, Ceiling, InFlight};
+pub use body::{Arrived, Pull, Supply};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
 pub use secure::{Scheme, Secure};

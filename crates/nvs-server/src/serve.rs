@@ -93,6 +93,7 @@ use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 
 use crate::ConnectionIo;
 use crate::admit::Admission;
+use crate::body::Supply;
 use crate::io::Phase;
 use crate::secure::{Scheme, Secure};
 
@@ -177,8 +178,16 @@ pub enum Reply {
     /// Run this isolate as a child of the connection, and answer with what it
     /// echoed — § 4 steps 4 and 5, and [ADR 0088]'s table.
     ///
+    /// **The second field is the connection's half of that request's body**, and
+    /// it comes back out of the handler because it may not travel with the
+    /// isolate: `hyper`'s [`Incoming`] is polled with the *connection's*
+    /// context, and the isolate is a different task
+    /// ([`crate::body`]'s module docs are the whole argument). `None` where the
+    /// request carried no body, which is also what leaves
+    /// [`nvs_runtime::Inbound::has_body`] false.
+    ///
     /// [ADR 0088]: ../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md
-    Run(Isolate),
+    Run(Isolate, Option<Supply>),
     /// Answer with this, having run nothing: § 4 step 1's `404`, step 3's static
     /// file, and every refusal a mount table can reach before a program exists.
     Done(Response<Answer>),
@@ -193,6 +202,28 @@ impl Reply {
         let mut response = Response::new(Answer::empty());
         *response.status_mut() = status;
         Self::Done(response)
+    }
+
+    /// Run this isolate for a request that carries no body — [`Self::Run`] with
+    /// nothing to supply, spelled so that a caller which never reads one does
+    /// not have to name the half it has not got.
+    #[must_use]
+    pub fn run(isolate: Isolate) -> Self {
+        Self::Run(isolate, None)
+    }
+
+    /// A body whose declared length is already over [`crate::body::UPLOAD_TOTAL`]:
+    /// `413`, before a mount is asked for a program.
+    ///
+    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// § 5 puts this refusal in the server rather than in each consumer, and
+    /// before dispatch rather than after it, so that the honest oversized client
+    /// never reaches application code and nothing has been allocated to tell it
+    /// so. A peer that declares no length is bounded on the wire instead, by the
+    /// supplier that is the only thing counting bytes.
+    #[must_use]
+    pub fn too_large() -> Self {
+        Self::status(StatusCode::PAYLOAD_TOO_LARGE)
     }
 
     /// [ADR 0097] § 4 step 1's third arrow — no mount covers the request, so
@@ -433,11 +464,21 @@ impl Drop for Peer {
 /// goes away takes its request's tasks with it rather than leaving them
 /// behind.
 ///
-/// The request is handed to `handler` with its body unread. Nothing in this
-/// slice consumes an [`Incoming`], so a request that carried one ends its
-/// connection rather than being followed by a second —
-/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
-/// lazily yielded parts are the slice that reads one.
+/// The request is handed to `handler` with its body unread, and `handler`
+/// hands the connection's half of it back in [`Reply::Run`]: an [`Incoming`] is
+/// polled with *this* task's context, so it may not travel to the isolate, and
+/// [`crate::body`]'s two halves over one cell are what crosses instead. This
+/// function pumps that half once per poll of the wait above, which is what
+/// makes a pull on the request's stack a read on this one.
+///
+/// **A body the program never reads is never drained.** Nothing here reads
+/// ahead — the supply only polls the [`Incoming`] for a request that has asked
+/// — so a request that ignored its body leaves bytes on the wire and `hyper`
+/// ends the connection rather than framing a second request on it. That is the
+/// fail-closed direction and it costs a keep-alive:
+/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// § 5's cap bounds what a program *asks* for, and draining what it did not ask
+/// for would spend the same bytes with nobody having wanted them.
 ///
 /// **`serving` carries § 5's valve, and it is asked before `handler` is.** A
 /// request over the ceiling is answered with [`crate::admit::over_capacity`] and
@@ -532,11 +573,11 @@ where
             // signalling wakes this connection, its `poll_read` delivers the
             // chunk and wakes the isolate back.
             //
-            // The supplier is the half still missing, and it is stated where
-            // the carrier is built (`nvs-cli/src/serve.rs`): the door hands
-            // over no body yet, so `Inbound::has_body` is false on every
-            // request this server serves.
-            Reply::Run(isolate) => {
+            // The supplier is the other half of that, and it is this future's
+            // to drive: `crate::body::Supply` holds the `Incoming` the handler
+            // could not send to the isolate, and one `pump` per poll reads a
+            // chunk for a request that is waiting for one.
+            Reply::Run(isolate, mut supply) => {
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -552,7 +593,17 @@ where
                         // and ADR 0138 § 1's loop re-polls whatever the task
                         // was resumed for. A waker stored here would be a
                         // second route to the same resume.
-                        std::future::poll_fn(|_cx| {
+                        std::future::poll_fn(|cx| {
+                            // The one thing this wait does besides ask: a
+                            // request parked on a pull has published that it
+                            // wants a chunk and woken this task, and `cx` is
+                            // the context `hyper`'s `Incoming` has to be
+                            // polled with. Ahead of the question, so that a
+                            // request whose last act is to read its body is
+                            // answered on this poll rather than one later.
+                            if let Some(supply) = supply.as_mut() {
+                                supply.pump(cx);
+                            }
                             if peer.finished() {
                                 Poll::Ready(())
                             } else {
@@ -1222,7 +1273,7 @@ mod tests {
                     .expect("a buffer");
                 Value::null()
             });
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
         })
     }
 
@@ -1268,7 +1319,7 @@ mod tests {
                 child.write_output(said.as_bytes()).expect("a buffer");
                 Value::null()
             });
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
         })
     }
 
@@ -1326,6 +1377,165 @@ mod tests {
             answer.ends_with("GET /greet who=world 7 8"),
             "the request did not reach the program as the peer sent it: {answer}"
         );
+    }
+
+    /// The isolate the two body cases answer with: a handler that splits the
+    /// arrived body the way `nvs-cli`'s door does, and a program that pulls it
+    /// to its end off its own context.
+    ///
+    /// It says the bytes rather than a length, so that a case asserting them is
+    /// asserting order and completeness together — a supplier that dropped a
+    /// chunk or answered one twice would still report a plausible count.
+    fn echo_the_body() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
+        Rc::new(|request: Request<Incoming>| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let (head, incoming) = request.into_parts();
+            let supply = match crate::body::of(&head.headers, incoming) {
+                crate::body::Arrived::Streaming(supply, pull) => {
+                    inbound.set_body(pull);
+                    Some(supply)
+                }
+                crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+            };
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let mut said = String::new();
+                {
+                    let inbound = child
+                        .inbound_mut()
+                        .expect("the isolate ran with no request in front of it");
+                    match inbound.body() {
+                        None => said.push_str("no body"),
+                        Some(body) => {
+                            said.push_str("body=");
+                            loop {
+                                match body.next_chunk() {
+                                    Ok(Some(chunk)) => {
+                                        said.push_str(&String::from_utf8_lossy(chunk));
+                                    }
+                                    Ok(None) => break,
+                                    Err(message) => {
+                                        said = format!("failed: {message}");
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
+        })
+    }
+
+    /// A body reaches the program in full, and the pull that read it parked.
+    ///
+    /// The pause between the two halves is the case rather than realism: the
+    /// second half cannot be on the wire when the program asks for it, so the
+    /// only way this answers at all is the shape ADR 0105 § 5 and ADR 0138 § 1
+    /// name together — the isolate parks on its own task, the connection's next
+    /// read delivers, and the isolate is woken back. A supplier polled from
+    /// inside the connection's own poll would deadlock here instead of
+    /// answering late.
+    #[test]
+    fn a_request_body_crosses_to_the_isolate_in_full_across_a_park() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"POST /upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 8\r\n\
+                      Connection: close\r\n\r\nabcd",
+                )
+                .expect("the write failed");
+            std::thread::sleep(Duration::from_millis(50));
+            socket.write_all(b"efgh").expect("the second write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &echo_the_body(), client);
+        assert!(
+            answer.ends_with("body=abcdefgh"),
+            "the body did not reach the program in full and in order: {answer}"
+        );
+    }
+
+    /// A request that carried no body leaves the carrier with none to read —
+    /// `Inbound::body` answering `None` is "there was no body", which is the
+    /// distinction RFC 9110 § 8.6 draws and what a `Core\Request` member reports
+    /// differently from an empty one.
+    #[test]
+    fn a_request_with_no_body_reaches_the_isolate_carrying_none() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /upload HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &echo_the_body(), client);
+        assert!(
+            answer.ends_with("no body"),
+            "a bodiless request did not reach the program as one: {answer}"
+        );
+    }
+
+    /// Runs one accept loop on a scheduler of its own until the client thread
+    /// above it is done, and answers what that client read.
+    fn served_by<H>(
+        mut listener: NvsListener,
+        handler: &Rc<H>,
+        client: std::thread::JoinHandle<String>,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>) -> Reply + 'static,
+    {
+        let handler = Rc::clone(handler);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked")
     }
 
     /// A valve every case but the last one is not about, beside ADR 0074 § 1's
@@ -1646,7 +1856,7 @@ mod tests {
                     .expect("a buffer");
                 Value::null()
             });
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
         })
     }
 
@@ -1745,7 +1955,7 @@ mod tests {
         let handler = Rc::new(|_request: Request<Incoming>| {
             let program: Program =
                 Box::new(|_: &mut Ctx, _args| panic!("the request gave up loudly"));
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture))
         });
 
         let mut sched = nvs_host::Scheduler::new();

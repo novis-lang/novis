@@ -72,7 +72,8 @@ use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
-    Admission, Ceiling, Incoming, OnDisk, Reply, Request, Resolved, Secure, Serving, Table, What,
+    Admission, Arrived, Ceiling, Incoming, OnDisk, Reply, Request, Resolved, Secure, Serving,
+    Table, What,
 };
 
 use crate::script::Compiler;
@@ -309,18 +310,30 @@ pub(crate) fn run(
             for (name, value) in request.headers() {
                 inbound.push_header(name.as_str(), value.as_bytes());
             }
-            // And no body, which is a gap rather than a decision: ADR 0105 § 5
-            // decides that one crosses as `nvs_runtime::RequestBody` and not as
-            // bytes — that trait's own docs are the argument, and the two caps
-            // are what make it arithmetic rather than taste. What used to stand
-            // in the way was the shape of the service that runs the isolate,
-            // and it does not any more: the request is a peer task and its
-            // connection answers `Pending` while it runs, so a pull can park
-            // the isolate and be answered by the connection's next read. What
-            // is missing is the **supplier** — the reader over this request's
-            // `Incoming` that this door would attach — and until it exists
-            // `Inbound::has_body` is false on every request served here.
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+            // Split only here: everything above reads the request whole, and
+            // the body is the one part of it that does not go where the rest
+            // does.
+            let (head, incoming) = request.into_parts();
+            // And the body, which crosses as `nvs_runtime::RequestBody` and not
+            // as bytes — ADR 0105 § 5, and that trait's own docs are the
+            // argument. It is split rather than handed over: `hyper`'s
+            // `Incoming` is polled with the *connection's* context and the
+            // isolate is a peer task, so what the carrier gets is the pulling
+            // half and what goes back with the reply is the half the connection
+            // keeps (`nvs_server::body`). A declared length already over § 5's
+            // cap is refused here, before a program exists to be given it.
+            let supply = match nvs_server::body::of(&head.headers, incoming) {
+                Arrived::Absent => None,
+                Arrived::TooLarge => return Reply::too_large(),
+                Arrived::Streaming(supply, pull) => {
+                    inbound.set_body(pull);
+                    Some(supply)
+                }
+            };
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
         }
     });
 
