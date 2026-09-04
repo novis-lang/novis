@@ -9,12 +9,12 @@
 //! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
-//! over a file the server resolves — and `setHeader`, `addCookie` and
-//! `redirect` are known gaps of this module rather than of
+//! over a file the server resolves — and `addCookie` and `redirect` are known
+//! gaps of this module rather than of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15.
 //!
-//! Beside them, § 15's `setStatus`: the first member here that shapes a
-//! response without writing one.
+//! Beside them, § 15's `setStatus` and `setHeader`: the two members here that
+//! shape a response without writing one.
 //!
 //! # Why five members and not one `write`
 //!
@@ -65,6 +65,43 @@
 //! threw has not created anything, and telling the peer otherwise is worse than
 //! losing the declaration.
 //!
+//! # A header is a list on that same channel, and `Content-Type` is not one
+//!
+//! `setHeader` crosses the way the two words above do — `Ctx::declare_header`
+//! records it, the finish path takes it, `Completion::headers` carries it and
+//! `nvs_server`'s `answer` writes it — but what it records is a **list of
+//! pairs**, because spec § 15 makes it an override of *one* policy-owned
+//! header and a response has as many of those as a program names. The list
+//! replaces rather than appends: the member is `setHeader`, a second value
+//! under one name is `addCookie`'s question, and a replaced pair keeps the
+//! position it was first set at.
+//!
+//! **It is applied after everything the server wrote for itself**, which is
+//! the whole of what
+//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+//! means by an override: the policy states what a response starts with, a
+//! request may set any value for itself, and this member is the last writer.
+//! The reverse order would leave it with no effect on exactly the headers it
+//! exists to change.
+//!
+//! **`Content-Type` is refused here**, and that is this module's call rather
+//! than something either ADR states. § 4's whole argument is that a body
+//! member owns one shape *and* its media type, so that no call site names that
+//! header; admitting it here would let a handler answer `json` and then
+//! relabel it `text/html`, which is the mislabelling § 4 exists to make
+//! unspellable. Nothing is lost, because `bytes` is the member that takes a
+//! media type and it takes it beside the body it describes. The refusal is
+//! ASCII-case-insensitive, a field name being.
+//!
+//! **Both parameters are sinks.** § 1's rule is that a parameter whose content
+//! becomes an instruction is one, and a header line is two instructions: a
+//! `tainted` name or value would let what arrived on the request choose what
+//! the peer is told about the answer. [`nameable`] and [`carriable`] are the
+//! runtime half of the same question, and they are narrower than RFC 9110 on
+//! purpose — a field value may carry a tab and an `obs-text` byte, and neither
+//! is something a program means, so this class spells a header the one way
+//! [`spellable`] already spells a media type.
+//!
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
 //! § 4's table says the body is **contagious**, and
@@ -92,9 +129,10 @@
 //!    "no rendering, the media type says so" are the same gap seen from two
 //!    sides. So a program that calls this member outside a request — where it
 //!    means nothing, and where the compile-time rule below cannot yet refuse
-//!    it — puts its argument on the terminal unsubstituted. `setStatus` off a
-//!    request is the quiet half of the same gap: it declares a status onto a
-//!    context nobody will ask, so the call means nothing and says nothing.
+//!    it — puts its argument on the terminal unsubstituted. `setStatus` and
+//!    `setHeader` off a request are the quiet half of the same gap: each
+//!    declares onto a context nobody will ask, so the call means nothing and
+//!    says nothing.
 //! 2. **Nothing here adjudicates between two declarations**, and the last one
 //!    wins by construction. § 4's sixth row is enforced by `E0801`, in
 //!    `nvs_types::response`, whose module doc owns what that rule reaches and
@@ -131,6 +169,15 @@ const STATUS_MIN: u16 = 100;
 /// nothing downstream knows what it means — the same fail-closed direction
 /// [`spellable`] takes for a media type, at the same layer.
 const STATUS_MAX: u16 = 599;
+
+/// The one header name `setHeader` refuses — ADR 0088 § 4's, owned by whichever
+/// body member wrote the body. The module doc owns why it is refused rather
+/// than admitted as one more override.
+const CONTENT_TYPE_HEADER: &str = "Content-Type";
+
+/// The fifteen non-alphanumeric bytes RFC 9110's `token` admits, which is what
+/// a field name is made of.
+const TOKEN_MARKS: &[u8] = b"!#$%&'*+-.^_`|~";
 
 /// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
 /// order for the three that exist.
@@ -186,6 +233,18 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_set_status",
             doc: Some(&SET_STATUS_DOC),
+        },
+        CoreMethod {
+            name: "setHeader",
+            names: &["name", "value"],
+            // Both are § 1 sinks, unlike `setStatus`' number: a header line is
+            // an instruction to the peer at both ends, so a `tainted` name and
+            // a `tainted` value are refused at compile time alike.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Sink)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_set_header",
+            doc: Some(&SET_HEADER_DOC),
         },
     ],
     instance: &[],
@@ -272,6 +331,35 @@ const SET_STATUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response::setHeader`'s reference card — ADR 0117.
+const SET_HEADER_DOC: MethodDoc = MethodDoc {
+    short: "Sets `$name` to `$value` on this response, replacing whatever the server's own \
+            policy wrote for that header — spec § 15's override, replacing `header`.",
+    params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The field name: a non-empty token, so letters, digits and the marks \
+                   RFC 9110 admits. A sink, and `Content-Type` is refused whatever its case — \
+                   the body member that wrote the body is what declares that one.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The field value: printable ASCII, so a newline cannot smuggle a second \
+                   header and a control character cannot end the line early. A sink; empty is \
+                   admitted, an empty header being a header.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. Setting one name twice keeps the last value, at the first call's position, \
+          and a request that failed answers `500` carrying none of them.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$name` is empty, holds a byte a token cannot, or is `Content-Type`; or \
+               `$value` holds a byte outside printable ASCII.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -280,6 +368,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
+        "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
         _ => return None,
     })
 }
@@ -295,7 +384,29 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// `application/octet-stream` — `nvs_server::serve`'s own fallback, which
 /// stays as the layer below this one rather than as the only one.
 fn spellable(media_type: &str) -> bool {
-    !media_type.is_empty() && media_type.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
+    !media_type.is_empty() && carriable(media_type)
+}
+
+/// Whether `value` is something a header field value can carry — the byte rule
+/// [`spellable`] applies to a media type, without its non-empty half.
+///
+/// That is the whole difference between the two, and it is the right one: an
+/// empty media type is not a media type, while an empty header value is a
+/// header a program may well mean.
+fn carriable(value: &str) -> bool {
+    value.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
+}
+
+/// Whether `name` is an RFC 9110 field name — a non-empty `token`.
+///
+/// The set is that grammar's own: letters, digits and [`TOKEN_MARKS`]. Refusing
+/// here is [`spellable`]'s direction at [`spellable`]'s layer, and it is what
+/// makes `nvs_server`'s own conversion of one of these unreachable from source.
+fn nameable(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || TOKEN_MARKS.contains(&byte))
 }
 
 nvs_runtime::nvs_helper! {
@@ -374,6 +485,71 @@ nvs_runtime::nvs_helper! {
             ));
         };
         ctx.declare_status(declared);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::setHeader(string $name, string $value): void` — spec
+    /// § 15's header, replacing `header`.
+    ///
+    /// The module doc owns the three decisions this member is: the list rather
+    /// than a word, the refusal of `Content-Type`, and why both parameters are
+    /// sinks. What is here is the order — every check runs before anything is
+    /// declared, on `bytes`' reasoning — and the two checks themselves, which
+    /// are [`nameable`] and [`carriable`].
+    fn nvs_core_response_set_header(ctx, args: [2]) {
+        // Unreachable from source for both: the row's parameters are
+        // `CoreTy::Text`, so `E0401` refuses anything that is not a `string`,
+        // and refuses a `tainted` one besides, both being § 1's sink.
+        let name = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::setHeader expected a `string` for the name, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        // Unreachable from source for the second parameter on the same
+        // reasoning: `E0401` refuses it before this runs.
+        let value = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::setHeader expected a `string` for the value, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        if !nameable(name) {
+            // A literal stem before the first hole, which is
+            // `conformance_coverage`'s error-path gate matching a site. The two
+            // refusals below share it, which that gate reads as one site.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::setHeader(): `{name}` is not a header name — a field \
+                     name is a non-empty token, so it carries letters, digits and the \
+                     marks RFC 9110 admits and nothing else"
+                ),
+            ));
+        }
+        if name.eq_ignore_ascii_case(CONTENT_TYPE_HEADER) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::setHeader(): `{name}` is declared by the body member \
+                     that wrote the body — answer with `Core\\Response::bytes($body, \
+                     $contentType)` to say what a body is"
+                ),
+            ));
+        }
+        if !carriable(value) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::setHeader(): `{value}` is not a value a header line can \
+                     carry — a field value is printable ASCII, so a control character or a \
+                     newline that would smuggle a second header is refused"
+                ),
+            ));
+        }
+        ctx.declare_header(name, value);
         Ok(Value::null())
     }
 }

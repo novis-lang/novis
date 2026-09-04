@@ -475,6 +475,9 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // child that threw still said what it said, and a child that set a status
     // and then failed is exactly the case where the declaration matters most.
     let status = isolate_ctx.take_status();
+    // Spec § 15's headers, taken on the same paths again and for the same
+    // reason. A list rather than a word, and empty for the child that set none.
+    let headers = isolate_ctx.take_headers();
 
     if let Some(thrown) = thrown {
         // ADR 0006's second row: the class name and the message as copied data.
@@ -487,6 +490,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             status,
+            headers,
             error: Some(Failure {
                 class,
                 message: thrown.message(),
@@ -501,6 +505,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         completion.output = output;
         completion.content_type = content_type;
         completion.status = status;
+        completion.headers = headers;
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
@@ -517,6 +522,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             status,
+            headers,
             error: None,
         },
         Err(refused) => Completion {
@@ -525,6 +531,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             output,
             content_type,
             status,
+            headers,
             error: Some(Failure {
                 class: "Error".to_owned(),
                 message: refused.to_string(),
@@ -548,6 +555,7 @@ fn refused_completion(message: &str) -> Completion {
         output: Vec::new(),
         content_type: None,
         status: None,
+        headers: Vec::new(),
         error: Some(Failure {
             class: "Error".to_owned(),
             message: message.to_string(),
@@ -564,6 +572,7 @@ fn cancelled_completion() -> Completion {
         output: Vec::new(),
         content_type: None,
         status: None,
+        headers: Vec::new(),
         error: Some(Failure {
             class: "Error".to_owned(),
             message: "the isolate was cancelled".to_owned(),
@@ -1012,6 +1021,50 @@ mod tests {
         assert_eq!(
             ctx.take_buffered_output().unwrap_or_default(),
             b"parent still running"
+        );
+    }
+
+    /// Spec § 15's two declarations cross on **every** path out of [`finish`],
+    /// the throwing one included — which is the whole of what this boundary
+    /// decides about them.
+    ///
+    /// What a *peer* is told is a different question with a different answer:
+    /// `nvs_server::answer` reaches its failure path first and sends `500`
+    /// carrying neither. Pinning the two apart is what keeps that policy
+    /// editable without editing this crate, and it is why the assertions below
+    /// are about the completion rather than about a response.
+    ///
+    /// The second `declare_header` is the case-insensitive replace, asserted
+    /// here because this is the first place a declared header is observable:
+    /// two calls under one name are one header, it keeps the position and the
+    /// spelling of the first, and it carries the value of the last.
+    #[test]
+    fn a_declared_status_and_header_cross_even_when_the_child_threw() {
+        let mut ctx = parent();
+        let program: Program = Box::new(|child: &mut Ctx, _args| {
+            child.declare_status(201);
+            child.declare_header("X-Request-Id", "9f2");
+            child.declare_header("x-request-id", "3b7");
+            child.set_pending("the child gave up after saying what it meant");
+            Value::null()
+        });
+
+        let done = run(
+            Isolate::new(program, Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("a null argument crosses");
+
+        assert!(!done.ok);
+        assert_eq!(
+            done.status,
+            Some(201),
+            "a status declared before a throw did not cross"
+        );
+        let carried: Vec<(Box<str>, Box<str>)> = vec![("X-Request-Id".into(), "3b7".into())];
+        assert_eq!(
+            done.headers, carried,
+            "one name set twice crossed as two headers, or under the wrong spelling or value"
         );
     }
 

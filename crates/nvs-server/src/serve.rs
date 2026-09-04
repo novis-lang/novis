@@ -79,7 +79,7 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use hyper::body::{Body, Bytes, Frame, Incoming, SizeHint};
-use hyper::header::{self, HeaderValue};
+use hyper::header::{self, HeaderName, HeaderValue};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
@@ -474,6 +474,26 @@ fn answer(mut done: Completion) -> Response<Answer> {
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
+    // Last, and that ordering is the whole of what `setHeader` means: spec
+    // § 15 gives a program an override of a policy-owned header on one
+    // response, so what the program set is written after everything this
+    // server wrote for itself. ADR 0074 § 4 is why the policy is not
+    // narrowing-only, and the reverse order would leave the member with no
+    // effect on exactly the headers it exists to change.
+    //
+    // A pair this crate cannot spell is dropped rather than answered with:
+    // `Core\Response::setHeader` refuses a name that is not a token and a value
+    // outside printable ASCII at the member, so nothing a program can write
+    // arrives here — this is [`UNSPELLABLE`]'s arrangement again, kept as a
+    // layer below rather than reduced to a comment about one.
+    for (name, value) in done.headers {
+        let name = HeaderName::try_from(&*name);
+        let value = HeaderValue::from_str(&value);
+        let (Ok(name), Ok(value)) = (name, value) else {
+            continue;
+        };
+        response.headers_mut().insert(name, value);
+    }
     response
 }
 
@@ -807,6 +827,7 @@ mod tests {
             output: output.as_bytes().to_vec(),
             content_type: content_type.map(Into::into),
             status: None,
+            headers: Vec::new(),
             error: None,
         }
     }
@@ -888,6 +909,49 @@ mod tests {
             answer(threw).status(),
             StatusCode::INTERNAL_SERVER_ERROR,
             "a failed request answered with the status it had declared"
+        );
+    }
+
+    /// Spec § 15's `setHeader` reaches the response, and a request that failed
+    /// carries none of what it set — pinned here for the reason the three tests
+    /// above are: a `.nvst` case can assert a body and never a header line.
+    ///
+    /// What is *not* asserted here is the override itself, because there is
+    /// nothing to override yet: the one header this server writes for itself is
+    /// `Content-Type`, which the member refuses outright since a body member
+    /// owns it. The ordering in [`answer`] is what ADR 0074 § 1's policy set
+    /// will be overridden by when it lands, and `insert` rather than `append`
+    /// is what makes that a replacement.
+    #[test]
+    fn a_declared_header_reaches_the_response_and_a_failure_drops_it() {
+        let mut declared = completed("{}", Some("application/json"));
+        declared.headers = vec![
+            ("X-Request-Id".into(), "9f2".into()),
+            ("Cache-Control".into(), "no-store".into()),
+        ];
+        let answered = answer(declared);
+        assert_eq!(
+            answered.headers().get("x-request-id").unwrap(),
+            "9f2",
+            "a `setHeader` did not reach the response"
+        );
+        assert_eq!(
+            answered.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store",
+            "the second of two declared headers did not reach the response"
+        );
+        assert_eq!(
+            answered.headers().get(header::CONTENT_TYPE).unwrap(),
+            "application/json",
+            "a declared header displaced the body member's media type"
+        );
+        let mut threw = completed("half a body", None);
+        threw.headers = vec![("X-Request-Id".into(), "9f2".into())];
+        threw.ok = false;
+        assert_eq!(
+            answer(threw).headers().get("x-request-id"),
+            None,
+            "a failed request answered with a header it had declared"
         );
     }
 

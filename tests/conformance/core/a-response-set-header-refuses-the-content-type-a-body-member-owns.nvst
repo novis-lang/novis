@@ -1,0 +1,45 @@
+--TEST--
+`Core\Response::setHeader` refuses the one header a body member owns, in every case its name can be spelled -- spec § 15 and ADR 0088 § 4
+--FILE--
+<?nvs
+// Agreement, not four separate answers: a field name is case-insensitive, so a
+// member that refused only the spelling it was written against would leave the
+// mislabelling § 4 exists to prevent one lower-case letter away — `json` for
+// the body, `text/html` for the label, and the browser believing the label.
+array<string> $spellings = ["Content-Type", "content-type", "CONTENT-TYPE", "cOnTeNt-TyPe"];
+uint $refused = 0;
+foreach ($spellings as string $name) {
+    try {
+        Core\Response::setHeader($name, "text/html");
+    } catch (LogicError $owned) {
+        $refused = $refused + 1;
+    }
+}
+echo "refused ", $refused, " of 4 spellings\n";
+
+// Its neighbours are not it. A name that merely begins or ends the same way is
+// an ordinary header, which is what makes the refusal above a rule about one
+// header rather than about a prefix.
+array<string> $neighbours = ["Content-Length", "Content-Encoding", "X-Content-Type", "Content-Type-Options"];
+uint $set = 0;
+foreach ($neighbours as string $near) {
+    try {
+        Core\Response::setHeader($near, "0");
+        $set = $set + 1;
+    } catch (LogicError $rejected) {
+    }
+}
+echo "set ", $set, " of 4 neighbours\n";
+
+// And the sentence says where that header went rather than only that it is
+// refused: a program naming a media type has a member that takes one, beside
+// the body it describes.
+try {
+    Core\Response::setHeader("content-type", "text/html");
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+refused 4 of 4 spellings
+set 4 of 4 neighbours
+Core\Response::setHeader(): `content-type` is declared by the body member that wrote the body — answer with `Core\Response::bytes($body, $contentType)` to say what a body is

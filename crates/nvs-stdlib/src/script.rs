@@ -717,6 +717,10 @@ fn result_of(completion: Completion) -> Value {
         // is not a response, so a child that set one said it to whoever is
         // answering a peer, which a `spawn script`'s collector is not.
         status: _,
+        // And its headers, on the same reasoning again: a `ScriptResult` has no
+        // header line for a pair to reach, so what a child declared is read by
+        // whoever is answering a peer or dropped here with the rest of it.
+        headers: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

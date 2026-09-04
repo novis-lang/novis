@@ -905,6 +905,27 @@ pub struct Ctx {
     ///
     /// **What it spends:** one half-word per request, and never an allocation.
     status: Option<u16>,
+    /// The headers this request's response carries beyond the ones whoever is
+    /// answering wrote for itself — spec § 15's `setHeader`, in the order they
+    /// were first set.
+    ///
+    /// A **list** where the two fields above are words, because a header is a
+    /// map rather than a property of the response:
+    /// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+    /// makes `setHeader` an override of *one* policy-owned header on one
+    /// response, so what has to cross is every pair a program set rather than
+    /// one of them.
+    ///
+    /// A `Vec` and not a map: a response carries a handful of these, the order
+    /// a program set them in is the order the peer sees them in, and a hash
+    /// over three entries costs more than the scan that replaces one.
+    /// [`Self::declare_header`] owns the comparison.
+    ///
+    /// **What it spends:** nothing for a request that sets none — an empty
+    /// `Vec` does not allocate — and two short allocations per distinct header
+    /// for one that does, charged to that request's own budget like every
+    /// other allocation it makes.
+    headers: Vec<(Box<str>, Box<str>)>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
@@ -1491,6 +1512,7 @@ impl Ctx {
             captures: Vec::new(),
             content_type: None,
             status: None,
+            headers: Vec::new(),
             stmt_hits: Vec::new(),
             trace: Vec::new(),
             yielder: std::ptr::null(),
@@ -4177,6 +4199,40 @@ impl Ctx {
     #[must_use]
     pub fn take_status(&mut self) -> Option<u16> {
         self.status.take()
+    }
+
+    /// Sets one header on this request's response, replacing any value this
+    /// request had already set under that name — spec § 15's `setHeader`, and
+    /// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+    /// § 4's override of a policy-owned header.
+    ///
+    /// **Set, not add**: the member is named for replacement, and a second
+    /// value under one name is `addCookie`'s question rather than this one's.
+    /// A replaced entry keeps the position it was first set at, so a program
+    /// that overwrote one header did not thereby reorder the rest. The
+    /// comparison is ASCII-case-insensitive because RFC 9110's field name is.
+    ///
+    /// What a name and a value may be is the member's to enforce, on
+    /// [`Self::declare_status`]'s reasoning: `setHeader` refuses anything a
+    /// header line cannot carry before it calls here, so a second check would
+    /// be a second answer to a question that has one.
+    pub fn declare_header(&mut self, name: &str, value: &str) {
+        if let Some(set) = self
+            .headers
+            .iter_mut()
+            .find(|(already, _)| already.eq_ignore_ascii_case(name))
+        {
+            set.1 = value.into();
+            return;
+        }
+        self.headers.push((name.into(), value.into()));
+    }
+
+    /// Takes the declared headers away, leaving the context with none — the
+    /// finish path's third call, made once beside [`Self::take_status`].
+    #[must_use]
+    pub fn take_headers(&mut self) -> Vec<(Box<str>, Box<str>)> {
+        std::mem::take(&mut self.headers)
     }
 
     /// Takes everything written so far, if this context buffers its output.

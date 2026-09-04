@@ -280,6 +280,14 @@ pub struct Completion {
     /// a response is declared with. A child that is not answering a request
     /// carries it and nobody reads it.
     pub status: Option<u16>,
+    /// What else the child said this response carries — spec § 15's
+    /// `setHeader`, in the order it set them, and empty where it set none.
+    ///
+    /// The two fields above own the reasoning for all three; this is the one
+    /// of them that is a list, because a header is a map and a status is a
+    /// word. Whoever answers applies these **after** the headers it wrote for
+    /// itself, which is the whole of what ADR 0074 § 4 means by an override.
+    pub headers: Vec<(Box<str>, Box<str>)>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
 }
@@ -598,6 +606,7 @@ mod tests {
                 output: Vec::new(),
                 content_type: None,
                 status: None,
+                headers: Vec::new(),
                 error: None,
             }
         }

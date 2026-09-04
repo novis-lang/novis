@@ -1,0 +1,54 @@
+--TEST--
+`Core\Response::setHeader` puts no byte in the body, and setting one name twice is admitted rather than refused as a duplicate -- spec § 15
+--FILE--
+<?nvs
+// Like `setStatus` and unlike ADR 0088 § 4's five body members: this one
+// declares and writes nothing. That is why `E0801` does not reach it, and why
+// an `echo` beside it is the ordinary spelling rather than two writers
+// disagreeing about what the body is.
+var $quiet = Core\Out::capture(fn (): void => {
+    Core\Response::setHeader("X-Request-Id", "9f2");
+    Core\Response::setHeader("Cache-Control", "no-store");
+});
+echo "two calls wrote [", $quiet, "]\n";
+
+// A refused one is quieter still: every check runs before the declaration, so
+// a refusal leaves neither a byte nor a header behind. The `catch` inside the
+// closure binds its own name -- repeating an enclosing frame's is an ICE in
+// the lowerer today, which the playbook owns.
+var $onRefusal = Core\Out::capture(fn (): void => {
+    try {
+        Core\Response::setHeader("X Request", "ok");
+    } catch (LogicError $unnameable) {
+    }
+});
+echo "a refusal wrote [", $onRefusal, "]\n";
+
+// Set, not add: one name may be written as often as a program likes and the
+// last value is the one that answers. Nothing here reads a header back — the
+// crossing is asserted in `nvs-server`, where a response exists — so what is
+// pinned is that the second and third calls are admitted rather than refused
+// as duplicates of the first.
+uint $accepted = 0;
+uint $i = 0;
+while ($i < 3) {
+    try {
+        Core\Response::setHeader("X-Request-Id", "9f2");
+        $accepted = $accepted + 1;
+    } catch (LogicError $duplicate) {
+    }
+    $i = $i + 1;
+}
+echo "one name set ", $accepted, " times\n";
+
+// And a header beside a body leaves the body alone, byte for byte.
+var $withHeader = Core\Out::capture(fn (): void => {
+    Core\Response::setHeader("X-Request-Id", "9f2");
+    Core\Response::text("created");
+});
+echo "a body under a header is [", $withHeader, "]\n";
+--EXPECT--
+two calls wrote []
+a refusal wrote []
+one name set 3 times
+a body under a header is [created]
