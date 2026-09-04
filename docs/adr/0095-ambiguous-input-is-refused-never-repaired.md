@@ -95,7 +95,7 @@ Refused, on a request Novis receives **and on a response Novis's outbound client
 | NUL anywhere in a hostname | the name resolved is not the name written |
 | a `Location`, hostname or URI longer than its configured maximum | truncating produces a *different, valid* value, which is worse than an error |
 | a request path containing a dot-segment or an encoded separator (`%2f`) | the path a mount is selected by and the path a reader sees come apart ([0097](0097-development-server-and-proxied-origin.md) § 6) |
-| an `X-Forwarded-For` token in the trusted-walk position that does not parse as an IP address | the value was about to be used as the client's address and cannot be read as one ([0097](0097-development-server-and-proxied-origin.md) § 6) |
+| an `X-Forwarded-For` token in the trusted-walk position that neither names an address nor withholds one | the value was about to be used as the client's address and cannot be read as one; a token that *withholds* it — `unknown` — has said something definite and is not refused ([0097](0097-development-server-and-proxied-origin.md) § 6) |
 
 **No opt-out on the outbound half.** A remote server is an attacker — php-src CVE-2024-8929 had a hostile
 MySQL server read one client's heap containing another user's query — and a response's body flows straight

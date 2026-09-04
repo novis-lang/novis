@@ -29,7 +29,10 @@
 //! 0097 § 6's walk answers both per request, `nvs_server::serve_connection`
 //! hands its `Origin` to the handler, and the carrier holds the answer —
 //! [`nvs_runtime::Inbound::client`] and [`nvs_runtime::Inbound::scheme`]. What
-//! is left for each is this module's own five edits.
+//! is left for each is this module's own five edits, and § 6 fixes the one
+//! signature they cannot settle here: `clientIp(): ?tainted string`, `null` for
+//! the two ways a request arrives with no address at all — a Unix-socket peer
+//! that forwarded nothing, and a trusted hop that withheld it.
 //!
 //! # There is no request here, and that is a throw
 //!

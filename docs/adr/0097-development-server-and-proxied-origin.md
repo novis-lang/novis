@@ -285,12 +285,21 @@ keepalive_timeout  = "75s"
 - **Non-empty** ⇒ `clientIp` is the **rightmost** `X-Forwarded-For` entry that is not itself trusted,
   walking right-to-left from the peer. Leftmost-wins is fully attacker-controlled and is the version most
   frameworks shipped first.
+- **`clientIp(): ?tainted string`, and the `null` is not an absence to be filled in later.** A request can
+  genuinely arrive with no client address — a Unix-socket peer that forwarded nothing, and a hop that
+  withheld it (below) — and `""` or `"0.0.0.0"` for those is exactly the repair
+  [0095](0095-ambiguous-input-is-refused-never-repaired.md) forbids, which a non-nullable member would
+  force. `scheme()` is not nullable: every request arrived over one.
 - **A Unix-socket listener is implicitly trusted**, because the OS enforces who may connect to it. The
   operator warning that belongs beside that: a `0660` socket is trusted by *group membership*, so adding a
   tenant to that group on a multi-tenant host grants them the ability to forge these headers.
 - **One `Warn` at boot** when the mode is `production`, every listener is loopback or a Unix socket, and
   `trusted_proxies` is empty — the shape of a proxied deployment that forgot the line and will now log the
-  proxy's address as every client's.
+  proxy's address as every client's. It is asked of a tree that wrote a `[server]` block, and of the
+  address actually bound: a directive can only be forgotten out of a block somebody wrote, and
+  `nvs serve app.nvs` with no configuration is § 1's *development* server, which matches all three facts
+  and is not the deployment being warned about. A line every dev run prints is a line every operator
+  learns to skip, which costs the warning the one case it exists for.
 
 **`X-Forwarded-Proto` from a trusted peer sets the effective scheme, and feeds exactly two things**:
 `Core\Request::scheme()` and HSTS emission. It does **not** feed redirects: `Core\Response::redirect` emits
@@ -301,20 +310,31 @@ flag, which [0074](0074-http-defaults-safe-and-finite.md) sets unconditionally a
 § 4 already makes `Core\Router::url` answer with a path, so Novis never needs to know its own external origin,
 and deriving one from a header is host-header injection.
 
-**`X-Forwarded-For` is the only forwarded-address header read.** RFC 7239 `Forwarded` is not read at all —
-supporting both is what *creates* an ambiguity that would then have to be refused, and no common proxy emits
-`Forwarded` by default. The defects resolve four ways, and they do not resolve alike:
+**`X-Forwarded-For` is the only client-address header read.** RFC 7239 `Forwarded` is not read, and neither
+are the five vendor spellings — `X-Real-IP`, `CF-Connecting-IP`, `True-Client-IP`, `Fastly-Client-IP`,
+`X-Client-IP`. Supporting two is what *creates* an ambiguity that would then have to be refused, and what a
+proxy may assert must not depend on which header it happened to write. **But a trusted peer that sends one
+of the five, or `Forwarded`, and no `X-Forwarded-For` is warned about**, because that is a misconfiguration
+Novis can see and the deployment cannot: `proxy_set_header X-Real-IP $remote_addr;` with no
+`X-Forwarded-For` beside it is one of the most-copied nginx recipes there is, and under it every client is
+the proxy with nothing said. That list is closed and its one home is `nvs_server::forwarded`; adding a name
+widens nothing a proxy may assert, only what Novis will mention.
+
+Six inputs, and they do not resolve alike:
 
 | Input | Behaviour |
 |---|---|
 | Several `X-Forwarded-For` field lines | joined with commas, then walked — RFC 7230 § 3.2.2 permits combining a list-valued field, so every conforming reader agrees and this is *unusual*, not *ambiguous* |
-| `Forwarded` present, no `X-Forwarded-For`, peer trusted | ignored, request served, **one** `Warn` — a detectable proxy misconfiguration, and refusing would take a site down over a header Novis chose not to support |
-| The token the walk lands on does not parse as an IP | **400** — the value was about to be used and cannot be |
+| A token carrying the port the hop connected from — `203.0.113.9:54321`, or `[2001:db8::1]:443`, the one spelling in which a v6 address can | the port is **removed** and the address read, before the trust test as well as after it. Azure's front ends and IIS write these, a port names no different address, and this is the same *accept verbatim* branch as the `Host` port below. A port that is not a number is not one, and the token falls to the `400` row |
+| The walk lands on a token that **withholds** the address — `unknown`, or an obfuscated `_hidden` (RFC 7239 § 6.3) | `clientIp` is **`null`**: the hop said there is no address to report, which is a fact and not a defect, and Squid emits `unknown` with `forwarded_for` off. Only a *trusted* hop can put one where the walk lands — a client's own sits left of the address its proxy appended, and is never reached |
+| A header from the closed list above, no `X-Forwarded-For`, peer trusted | ignored, request served with the peer as the client, **one** `Warn` — a detectable proxy misconfiguration, and refusing would take a site down over a header Novis chose not to support |
+| The token the walk lands on names no address and withholds none | **400** — the value was about to be used and cannot be read |
 | `X-Forwarded-For` from an untrusted peer | **ignored silently, never refused** |
 
 The last row is load-bearing. Any client can set that header, so refusing on its mere presence would let
 anyone deny service by sending it — or by getting a scanner to. Refusal is reserved for the case where the
-value would have been *used*.
+value would have been *used*, and for the same reason the `Warn` two rows above is raised only for a peer
+that was allowed to speak: a stranger must not be able to turn on a log line per request.
 
 **Host matching.** An absent `Host` on HTTP/1.1 is a `400`. Comparison is on the host part only: the port is
 stripped, the value is ASCII-lowercased and one trailing dot is removed — all three are equivalences the
@@ -327,8 +347,8 @@ host-mounted deployment must set `proxy_set_header Host $host;` or every request
 and lands on the fallback — silently.
 
 **Two rows join [0095](0095-ambiguous-input-is-refused-never-repaired.md) § 2's closed list**: an
-`X-Forwarded-For` token in the trusted-walk position that does not parse as an IP address, and a request
-path containing a dot-segment or an encoded separator (`%2f`). The second also removes any possibility of
+`X-Forwarded-For` token in the trusted-walk position that neither names an address nor withholds one, and a
+request path containing a dot-segment or an encoded separator (`%2f`). The second also removes any possibility of
 one mount's prefix being confused for another's.
 
 ### 7. The three conventions above ADR 0077's table
@@ -521,9 +541,15 @@ In M7, alongside the fixtures [docs/plan/m7.md](../plan/m7.md) already lists:
 - **§ 6.** The `X-Forwarded-For` walk returns the rightmost untrusted entry across a fixture matrix
   including a spoofed leading entry; with `trusted_proxies` empty the header is not parsed and `clientIp` is
   the peer; an untrusted peer's header is ignored rather than refused; a non-IP token in the walk position
-  is a `400`; HSTS is emitted with `X-Forwarded-Proto: https` from a trusted peer and not from an untrusted
-  one; `redirect` never emits a scheme. An absent `Host` is a `400`; `Host: A.EXAMPLE.COM:8080.` matches the
-  mount declared for `a.example.com`.
+  is a `400`; a token carrying a port answers the address without it, in both families and bracketed, and
+  one carrying a port that is not a number is the `400`; a walk landing on `unknown` or `_hidden` answers
+  `null` and one landing left of a real entry never sees it; a trusted peer sending `X-Real-IP` and no
+  `X-Forwarded-For` is served with the peer as the client and warned about, and an untrusted peer sending
+  the same is not warned about; a `production` `[server]` block bound to loopback with no `trusted_proxies`
+  warns at boot, and neither the same block bound to `0.0.0.0` nor a `nvs serve app.nvs` that configured
+  nothing does; HSTS is emitted with `X-Forwarded-Proto: https` from
+  a trusted peer and not from an untrusted one; `redirect` never emits a scheme. An absent `Host` is a
+  `400`; `Host: A.EXAMPLE.COM:8080.` matches the mount declared for `a.example.com`.
 - **§ 7.** `HEAD` on a `Get`-only route returns the `GET` headers with no body and the same
   `Content-Length`; a preflight is answered without the application running; `/users/` does not reach a
   `/users` route.
