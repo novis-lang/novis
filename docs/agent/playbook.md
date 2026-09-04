@@ -5357,6 +5357,19 @@ is why" — is this file.
   every section honoured, costs nothing once `verify.py` has built, and is the same binary the
   driver's acceptance check uses — so it is the answer for any case with `--ARGS--`, `--ENV--`,
   `--INI--` or `--RUN--`, which is most of the ones worth authoring by hand.
+- **A `Core` class whose every member needs a *store* cannot meet the conformance floor with a happy
+  path, and that floor is a gate rather than a target.**
+  `crates/nvs-stdlib/tests/conformance_coverage.rs:155` fails `cargo test -p nvs-stdlib` for any
+  member asked by fewer than three `.nvst` cases, and `BELOW_THE_FLOOR` is empty with its own doc
+  saying the list "only shrinks" — so a `Core\Session` row cannot land ahead of its three cases, and
+  a group cannot carry "the cases for the members above" as a fourth item. For this class every one
+  of those cases is a **refusal** or a directive question, because ADR 0139 § 3's two backends are
+  the shared tier and the database and `tests/conformance/` can reach neither. The three that are
+  writable are: no `[session]` block at all (`crates/nvs-stdlib/src/session.rs:119`'s throw names the
+  block to write), a backend this core has no connection to (`crate::cache::on_shared`'s `Io` throw,
+  `crates/nvs-stdlib/src/cache.rs:717`), and — for the six members that are not `start` — being
+  called before `start`. Plan each member with its refusals, or the row lands red on a gate that has
+  nothing to do with the member.
 
 ## Splitting a file that got too big
 

@@ -93,6 +93,13 @@ modules = [
   # session arrived holding a registry map for work that happens nowhere near it.
   "crates/nvs-stdlib/src/request.rs",
   "crates/nvs-stdlib/src/multipart.rs",
+  # Added when the session group opened: ADR 0139 § 1's seven members are written in the first of
+  # these, and every one of them reaches the store through the second -- `cache::on_shared` is the
+  # only thing that hands a member a connection, and `cache::configured` is how the three `[session]`
+  # directives are read. The map printed neither, so a session arrived unable to see that the store
+  # half of its own file is already on disk.
+  "crates/nvs-stdlib/src/session.rs",
+  "crates/nvs-stdlib/src/cache.rs",
   # Item 9's compile error, and item 3's `tainted` returns.
   "crates/nvs-types/src/expr/quals.rs",
 ]
@@ -128,9 +135,18 @@ adrs = [
   # enforces CSRF" and "the dispatcher enforces access" is stated, 0096 § 4 is the CSRF check itself, and
   # § 4 is the capture grammar the remaining `nvs_runtime::routes` gap is measured against. The routing
   # group's two open items are specified in these three and nothing else prints them.
-  "0102 §4",
-  "0102 §8",
-  "0096 §4",
+  # Added when the session group opened: § 1 is the roster of seven and the rule that a member called
+  # before `start` throws, § 2 is the four operations a backend answers and why `load` answering absent
+  # is the whole strict-id rule, and § 4 is what `clear`, `regenerate` and `destroy` do over a store
+  # with no multi-key atomic step. The group's three implementation items are specified in these and
+  # nothing else prints them -- session 0006 sliced §§ 1-2 by hand to scope one item.
+  "0139 §1",
+  "0139 §2",
+  "0139 §4",
+  # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
+  # group's two open items, both of which are landed -- the door reads the match for CSRF and the
+  # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is
+  # what `Core\Session::start` reads a cookie off.
   # Taken out 2026-09-04, every one of them a closed stage the handoff's group and backlog no longer
   # name: 0074 § 5 (stage 2's bounds), 0012 § 4 and 0059 § 4 (the session fixture), 0105 §§ 2-4
   # (uploads), and 0102 § 2, whose member is landed on both sides of the crossing and whose check now

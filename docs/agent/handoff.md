@@ -2,59 +2,63 @@
 
 ## State
 
-**Goal 6, M7. The stage-5 acceptance failure is closed.**
-`body_stream_is_exclusive_with_body_and_with_files` is written and green in
-`crates/nvs-stdlib/src/request.rs`, so all four names under the
-`nvs-stdlib (ADR 0105 §§ 1-3 …)` check now exist. It asks the pair its twin
-`a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other` leaves unasked —
-`bodyStream` against `files`, both directions, **with no chunk ever pulled** — which is where an
-implementation claiming at the first pull rather than at the naming would let both through.
+**Goal 6, M7. The driver's stage-5 acceptance failure is closed.**
+`an_upload_total_over_the_cap_is_refused_before_dispatch` is green in
+`crates/nvs-server/src/serve.rs`. The mechanism was already there — `crate::body::of` reads the
+declared length off the head and answers `TooLarge` before a program is asked for — so what landed
+is the case, asserting both halves of ADR 0105 § 5's "before dispatch" because neither implies the
+other: the peer's `413`, and a counter only a program that ran could have moved. Its handler is
+`nvs-cli`'s door in the two lines this is about (`crates/nvs-cli/src/serve.rs:422`), the mapping
+from `TooLarge` to a status being the door's while both halves of it are `nvs-server`'s.
 
-**Bookkeeping the next session may want:** that check's own comment says a landed name moves up into
-the sibling `nvs-stdlib (ADR 0105 -- what is landed)` check; all four have been landed for a while
-now and none was moved. Both `docs/agent/loop-goal.toml` and `docs/agent/goals/6-server.toml` would
-have to change together. Nothing fails while it is undone. That comment also cites "§§ 3, 6-8" of
-ADR 0105, which has six sections — the exclusivity rule's home is spec § 15.
+**Nothing of ADR 0139 § 1's class is on disk** — the group below is untouched. This session scoped
+its first item and spent its budget doing so; what that scoping found is in the items' anchors and
+in the new playbook bullet, so the next session should not re-derive any of it.
 
-**ADR 0086 § 6's union is in the corpus.** Two cases landed:
-`command-run-converts-a-union-of-literals-argument-by-its-word` and
-`command-run-refuses-a-union-argument-outside-its-set`, the second reading the refusal off standard
-error so that "names every accepted word" is asserted rather than only the status. The group's third
-item — *a subset of an enum's cases still refuses to convert* — **was already on disk** under
-`command-run-throws-for-a-parameter-no-argument-converts-into.nvst`, which pins exactly that
-`Level::Quiet|Level::Loud` parameter and its `LogicError`. No new case was written for it.
-
-**§ 1's `Core\Session` class is still not on disk**, unchanged: `crates/nvs-stdlib/src/session.rs`
-has the key, the drawn identifier, `load`/`save` and the three directives, and there are no registry
-rows, no cards and no `.nvst` cases. That module's own doc says so, and it is the next group.
+**`[context]` gained this group's selectors**, in `docs/agent/loop-goal.toml` and
+`docs/agent/goals/6-server.toml` alike: `crates/nvs-stdlib/src/session.rs` and `cache.rs` in
+`modules`, ADR 0139 §§ 1, 2 and 4 in `adrs`, with the closed routing group's `0102 §§ 4, 8` and
+`0096 § 4` taken out. The pack printed none of those, which is why § 1's roster was sliced by hand.
 
 ## Next group
 
 **ADR 0139 § 1's seven members, over one file set:** `crates/nvs-stdlib/src/session.rs`,
-`crates/nvs-stdlib/src/registry.rs` and `tests/conformance/core/session-*.nvst`. The member list is
-`docs/spec/01-core-library.md:1093`; the five edits a `Core` member owes are conventions.md's.
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-runtime/src/ctx.rs` and
+`tests/conformance/core/session-*.nvst`. **There are three items, not four**: the conformance floor
+makes each member's cases part of landing that member, per the new playbook bullet, so no item can
+collect them afterwards.
 
-- [ ] **`Core\Session::start` opens the record the store issued** (ADR 0139 §§ 1-2) — the drawn
-      identifier is `crates/nvs-stdlib/src/session.rs:149` and the read is
-      `crates/nvs-stdlib/src/session.rs:173`; the class joins `crates/nvs-stdlib/src/registry.rs:1224`,
-      and the cookie the response carries is `crates/nvs-stdlib/src/session.rs:144`.
-- [ ] **`get`, `set` and `remove` over the started record** (ADR 0139 § 1) — the write-back is
-      `crates/nvs-stdlib/src/session.rs:189` and the key it is stored under is
-      `crates/nvs-stdlib/src/session.rs:98`; § 4's last-write-wins is why no lock is taken between
-      the read and the write.
-- [ ] **`clear`, `regenerate` and `destroy`** (ADR 0139 §§ 1, 4) — `regenerate` draws a second
-      identifier at `crates/nvs-stdlib/src/session.rs:149` and `destroy` expires the entry the store
-      holds through `crates/nvs-stdlib/src/session.rs:189`'s neighbour `set_expiring`.
-- [ ] **Three `.nvst` cases per member the conformance floor asks for**
-      — the floor is `crates/nvs-stdlib/tests/conformance_coverage.rs:155` and the per-member
-      reachability check beside it is `crates/nvs-stdlib/tests/conformance_coverage.rs:52`; a
-      session case configures a backend, so
-      each is a multi-file case, and the playbook's *Writing a test case* bullets own both traps.
+- [ ] **`Core\Session::start` opens the record the store issued** (ADR 0139 §§ 1-2) — conventions'
+      five edits, none of them started: there is no `CLASS` const in
+      `crates/nvs-stdlib/src/session.rs:67` yet and `crates/nvs-stdlib/src/cache.rs:142` is the shape
+      to copy; the class line is `crates/nvs-stdlib/src/registry.rs:1224` and the `address` arm joins
+      the chain at `crates/nvs-stdlib/src/lib.rs:365`. The body is `backend`
+      (`crates/nvs-stdlib/src/session.rs:119`) → `crate::cache::on_shared`
+      (`crates/nvs-stdlib/src/cache.rs:717`) → `load` (`crates/nvs-stdlib/src/session.rs:173`), and
+      on absent `mint` (`crates/nvs-stdlib/src/session.rs:149`), `save`
+      (`crates/nvs-stdlib/src/session.rs:189`) and the cookie
+      (`crates/nvs-stdlib/src/session.rs:144`). **The record has nowhere to live yet**: `Ctx` carries
+      no session field — one goes beside `open_connections` at `crates/nvs-runtime/src/ctx.rs:1106`,
+      initialised at `crates/nvs-runtime/src/ctx.rs:1595`, and holding the id, ADR 0023's byte
+      record and a dirty flag keeps it free of any `Value` to release at teardown.
+- [ ] **`get`, `set` and `remove` over the started record** (ADR 0139 § 1) — each decodes the byte
+      carrier the field above holds, and a call before `start` throws naming it
+      (`crates/nvs-runtime/src/ctx.rs:1106`, `crates/nvs-stdlib/src/session.rs:189` for the
+      write-back).
+- [ ] **`clear`, `regenerate` and `destroy`** (ADR 0139 §§ 1, 4) — `regenerate` is `mint`
+      (`crates/nvs-stdlib/src/session.rs:149`), `save` under the new id
+      (`crates/nvs-stdlib/src/session.rs:189`) and a destroy of the old, in that order; § 4's
+      one-entry-per-session is what keeps all three single-key.
 
 ## Backlog
 
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024 *Revisiting*, narrowed by m7.md.
-- Move ADR 0105's four landed test names into the "what is landed" check — `docs/agent/loop-goal.toml`.
-- The `[session] backend = "db"` tier stores nothing yet — `crates/nvs-stdlib/src/session.rs`'s doc.
-- ADR 0086 § 6's `Core\Uuid` and `decimal` arguments have corpus; the options bag does not —
-  `crates/nvs-stdlib/src/command.rs`.
+- The four landed `ADR 0105 §§ 1-3` names, and now the `nvs-server` one, still have not moved up
+  into the sibling *what is landed* check — `docs/agent/loop-goal.toml:3515`, and the goal copy with
+  it. Nothing fails while it is undone.
+- ADR 0105 § 5's `upload_total` and `request_body` are still constants rather than `[limits]` rows —
+  `crates/nvs-server/src/body.rs:65` and `crates/nvs-stdlib/src/request.rs:1933` say so; owner is
+  `nvs_config`.
+- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, narrowed by
+  `docs/plan/m7.md`.
+- `Core\Session`'s db backend has no store implementation at all; only the shared tier's wire is
+  written (`crates/nvs-stdlib/src/session.rs` module doc).
