@@ -72,7 +72,7 @@ use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
-    Admission, Arrived, Ceiling, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
+    Admission, Arrived, Ceiling, Cors, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
     Serving, Table, Trusted, What,
 };
 
@@ -157,10 +157,14 @@ pub(crate) fn run(
             "note: [server] trusted_proxies entry {entry:?} names no address or network, and is ignored"
         );
     }
+    // ADR 0074 § 2: closed until `[http.cors] origins` names somebody, which is
+    // what a tree that wrote no `[http.cors]` resolves to — `nvs_server::cors`
+    // owns what closed means and where the refusal is taken.
     let serving = Serving::new(
         Arc::new(Admission::new(&ceiling)),
         Arc::new(Secure::of(snapshot.config.http.as_ref())),
         Arc::new(trusted),
+        Arc::new(Cors::of(snapshot.config.http.as_ref())),
     );
     let addr = match address(&configured, listen, port) {
         Ok(addr) => addr,

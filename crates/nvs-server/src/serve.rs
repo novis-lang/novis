@@ -46,12 +46,14 @@
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
-//!   [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 2's
-//!   secure headers and
 //!   [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
-//!   § 3's rendering of a failure into a development response are both the
-//!   configuration slice's, because a mode is what decides them and this loop
-//!   has not been given one.
+//!   § 3's rendering of a failure into a development response is the
+//!   configuration slice's, because a mode is what decides it and this loop has
+//!   not been given one.
+//!   [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) is not
+//!   on that list: § 1's header set is filled into every response this loop
+//!   writes ([`crate::secure`]) and § 2's closed CORS refuses a preflight above
+//!   the handler ([`crate::cors`]), neither of which a mode changes.
 //! - **The accept loop backs off.** ADR 0097 § 5's last process-wide bound, as
 //!   [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //!   § 8 states it: descriptor exhaustion is the one `accept` failure the next
@@ -94,6 +96,7 @@ use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 use crate::ConnectionIo;
 use crate::admit::Admission;
 use crate::body::Supply;
+use crate::cors::Cors;
 use crate::forwarded::{Arrival, Origin, Trusted};
 use crate::io::Phase;
 use crate::secure::{Scheme, Secure};
@@ -372,16 +375,26 @@ pub struct Serving {
     /// client address or a scheme. Empty is the default and means no forwarded
     /// header is read at all — [`crate::forwarded`] owns that difference.
     trusted: Arc<Trusted>,
+    /// ADR 0074 § 2's cross-origin policy, asked of a preflight before the
+    /// handler is. Closed is the default — [`crate::cors`] owns what that means
+    /// and why the refusal is taken here rather than in an application.
+    cors: Arc<Cors>,
 }
 
 impl Serving {
-    /// The three, as a boot resolves them.
+    /// The four, as a boot resolves them.
     #[must_use]
-    pub fn new(admission: Arc<Admission>, secure: Arc<Secure>, trusted: Arc<Trusted>) -> Self {
+    pub fn new(
+        admission: Arc<Admission>,
+        secure: Arc<Secure>,
+        trusted: Arc<Trusted>,
+        cors: Arc<Cors>,
+    ) -> Self {
         Self {
             admission,
             secure,
             trusted,
+            cors,
         }
     }
 }
@@ -590,6 +603,20 @@ where
             serving.secure.fill(refused.headers_mut(), scheme);
             return Ok::<_, Infallible>(refused);
         };
+        // ADR 0074 § 2, asked here for the reason the valve above it is: a
+        // preflight nobody configured selects no mount, allocates no isolate and
+        // runs no Novis code. Under the valve rather than over it, because the
+        // ceiling is what protects the process and a `503` is the answer a server
+        // at capacity owes every request, whatever it was going to ask.
+        // [`crate::cors`] owns why the refusal is the policy's and never an
+        // application's.
+        if let Some(refusal) = serving.cors.preflight(request.method(), request.headers()) {
+            phase.set(Phase::Write);
+            let mut refused = Response::new(Answer::empty());
+            *refused.status_mut() = refusal;
+            serving.secure.fill(refused.headers_mut(), scheme);
+            return Ok::<_, Infallible>(refused);
+        }
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -1534,6 +1561,7 @@ mod tests {
             }))),
             Arc::new(Secure::default()),
             Arc::new(trusted),
+            Arc::new(Cors::default()),
         );
         let answer = served_under(
             listener,
@@ -1803,6 +1831,9 @@ mod tests {
             // ADR 0097 § 6's default: nothing written, so no forwarded header
             // is read and every request's peer is its own client.
             Arc::new(Trusted::none()),
+            // ADR 0074 § 2's default: no origin named, so nothing crosses and no
+            // CORS header is emitted at all.
+            Arc::new(Cors::default()),
         )
     }
 
@@ -2338,6 +2369,120 @@ mod tests {
         );
     }
 
+    /// ADR 0074 § 2's closed default, over the wire: a peer that named an origin
+    /// is told nothing about whether it may read the answer, because
+    /// `[http.cors] origins` names nobody.
+    ///
+    /// The assertion is over the whole `access-control-` prefix rather than over
+    /// `Access-Control-Allow-Origin` alone, because "no CORS header is emitted at
+    /// all" is what § 2 means by closed: a response that withheld the allow line
+    /// while still sending an exposed-header list or a `max-age` would pass the
+    /// narrow assertion having told a browser something nobody configured it to
+    /// say. The `200` and the echoed path are asserted with it so that a request
+    /// refused for some other reason cannot pass by carrying no headers at all.
+    #[test]
+    fn cors_is_closed_with_nothing_configured() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"GET /hello HTTP/1.1\r\nHost: localhost\r\n\
+                      Origin: https://elsewhere.example\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &echo_the_path(), client);
+        let sent = answer.to_ascii_lowercase();
+        assert!(
+            sent.starts_with("http/1.1 200 ok"),
+            "the cross-origin request was not the one this case is about: {answer}"
+        );
+        assert!(
+            sent.contains("hello /hello"),
+            "the request was not answered by the program that ran it: {answer}"
+        );
+        assert!(
+            !sent.contains("access-control"),
+            "§ 2 emits no CORS header at all with `origins = []`, and this answer carried \
+             one: {answer}"
+        );
+    }
+
+    /// ADR 0074 § 2's other half over the wire: a preflight is answered `403`
+    /// with `[http.cors] origins` naming nobody, and **no program is asked**.
+    ///
+    /// The flag is the half of the case that is not the status. A `403` a handler
+    /// produced and a `403` the policy above it took are the same three bytes on
+    /// the wire and are not the same guarantee — [`crate::cors`]'s reason for
+    /// refusing here is that a preflight nobody configured must select no mount
+    /// and allocate no isolate — so what is asserted is that the handler was
+    /// never reached at all. § 1's set is asserted on it beside that, because a
+    /// refusal is a response and is owed the same policy as the request it
+    /// refused.
+    #[test]
+    fn a_preflight_is_refused_before_any_program_runs() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        // Set by the handler, and the point of the case is that it stays false.
+        let asked = Rc::new(Cell::new(false));
+        let handler = Rc::new({
+            let asked = Rc::clone(&asked);
+            move |_request: Request<Incoming>, _origin: Origin| {
+                asked.set(true);
+                Reply::status(StatusCode::OK)
+            }
+        });
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"OPTIONS /widgets HTTP/1.1\r\nHost: localhost\r\n\
+                      Origin: https://elsewhere.example\r\n\
+                      Access-Control-Request-Method: POST\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &handler, client);
+        assert!(
+            answer.starts_with("HTTP/1.1 403 Forbidden"),
+            "§ 2 answers a preflight `403` while no origin is named: {answer}"
+        );
+        assert!(
+            !asked.get(),
+            "the preflight reached the handler, so the refusal was taken below the policy \
+             that owns it: {answer}"
+        );
+        assert!(
+            answer
+                .to_ascii_lowercase()
+                .contains("x-content-type-options: nosniff"),
+            "§ 1's set did not reach a response this server wrote: {answer}"
+        );
+    }
+
     /// ADR 0097 § 5's probe across a shutdown: `200` while the loop is
     /// accepting, `503` from the moment it stops, both from one run and one
     /// handler.
@@ -2783,6 +2928,7 @@ mod tests {
             Arc::clone(&admission),
             Arc::new(Secure::default()),
             Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
         );
         // The one place this valve has, taken and held for the whole run: the
         // request below therefore arrives *at* the ceiling, which is the state
