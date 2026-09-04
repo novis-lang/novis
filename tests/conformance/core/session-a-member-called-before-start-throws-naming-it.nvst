@@ -1,0 +1,78 @@
+--TEST--
+Every `Core\Session` member but `start` throws while the request has started no session, and the refusal names the member that opens one -- ADR 0139 §§ 1, 4
+--FILE--
+<?nvs
+// ADR 0139 § 1: "a member called before `start` throws naming it". That is the
+// whole of what ADR 0012 § 4 was buying — "this request uses sessions" is a
+// line in the source — and it is worth nothing if the first `get` can silently
+// start one. So none of the six below opens a session: all six refuse.
+uint $refused = 0;
+uint $named = 0;
+
+try {
+    Core\Session::get("cart");
+} catch (RuntimeError $noRecordToRead) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToRead->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::set("cart", 1);
+} catch (RuntimeError $noRecordToWrite) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToWrite->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (RuntimeError $noRecordToChange) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToChange->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::clear();
+} catch (RuntimeError $noRecordToEmpty) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noRecordToEmpty->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+// The two that reach the store are refused *before* they reach it, which is
+// what makes this a language rule rather than a store answer: there is no
+// `[session]` block in this tree at all, so a member that got as far as opening
+// a connection would refuse for the other reason and name the wrong thing.
+try {
+    Core\Session::regenerate();
+} catch (RuntimeError $noSessionToMove) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noSessionToMove->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+try {
+    Core\Session::destroy();
+} catch (RuntimeError $noSessionToForget) {
+    $refused = $refused + 1;
+    if (Core\Str::contains($noSessionToForget->message, "::start()")) {
+        $named = $named + 1;
+    }
+}
+
+echo "refused ", $refused, " of 6\n";
+
+// Naming the member is the half that makes the refusal actionable. A program
+// told only "no session" has to go and find which of the seven opens one, and
+// § 1's rule is specifically that the throw says so.
+echo "and each names the member that opens one ", $named, " of 6\n";
+--EXPECT--
+refused 6 of 6
+and each names the member that opens one 6 of 6

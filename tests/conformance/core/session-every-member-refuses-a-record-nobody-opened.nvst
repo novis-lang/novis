@@ -1,0 +1,79 @@
+--TEST--
+The six `Core\Session` members that need a session give one answer to a request that opened none, asserted by counting rather than read off any one of them -- ADR 0139 § 1
+--FILE--
+<?nvs
+// ADR 0139 § 1 states one rule for all of them, so this asks whether they
+// *agree* rather than what each said: a member that grew a refusal of its own
+// still looks right on its own line, and fails here. Each message has its own
+// member name taken out first, which is the only part allowed to differ.
+string $fromGet = "";
+string $fromSet = "";
+string $fromRemove = "";
+string $fromClear = "";
+string $fromRegenerate = "";
+string $fromDestroy = "";
+
+try {
+    Core\Session::get("cart");
+} catch (RuntimeError $noRecordToRead) {
+    $fromGet = Core\Str::replace($noRecordToRead->message, "::get()", "::<member>()");
+}
+
+try {
+    Core\Session::set("cart", 1);
+} catch (RuntimeError $noRecordToWrite) {
+    $fromSet = Core\Str::replace($noRecordToWrite->message, "::set()", "::<member>()");
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (RuntimeError $noRecordToChange) {
+    $fromRemove = Core\Str::replace($noRecordToChange->message, "::remove()", "::<member>()");
+}
+
+try {
+    Core\Session::clear();
+} catch (RuntimeError $noRecordToEmpty) {
+    $fromClear = Core\Str::replace($noRecordToEmpty->message, "::clear()", "::<member>()");
+}
+
+try {
+    Core\Session::regenerate();
+} catch (RuntimeError $noSessionToMove) {
+    $fromRegenerate = Core\Str::replace($noSessionToMove->message, "::regenerate()", "::<member>()");
+}
+
+try {
+    Core\Session::destroy();
+} catch (RuntimeError $noSessionToForget) {
+    $fromDestroy = Core\Str::replace($noSessionToForget->message, "::destroy()", "::<member>()");
+}
+
+uint $agreed = 0;
+if ($fromGet == $fromSet) {
+    $agreed = $agreed + 1;
+}
+if ($fromSet == $fromRemove) {
+    $agreed = $agreed + 1;
+}
+if ($fromRemove == $fromClear) {
+    $agreed = $agreed + 1;
+}
+if ($fromClear == $fromRegenerate) {
+    $agreed = $agreed + 1;
+}
+if ($fromRegenerate == $fromDestroy) {
+    $agreed = $agreed + 1;
+}
+echo "the six refusals agree ", $agreed, " of 5\n";
+
+// Counting is not enough on its own: six empty strings agree too, and would
+// mean nothing was thrown at all. So the answer they agree on is also non-empty.
+if (Core\Str::length($fromGet) > 0) {
+    echo "and what they agree on is an answer\n";
+} else {
+    echo "and what they agree on is nothing at all\n";
+}
+--EXPECT--
+the six refusals agree 5 of 5
+and what they agree on is an answer

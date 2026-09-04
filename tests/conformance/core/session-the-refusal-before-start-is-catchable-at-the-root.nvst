@@ -1,0 +1,54 @@
+--TEST--
+A `Core\Session` member called before `start` refuses with a throw the root of spec § 10's tree catches, so a program that cannot use sessions can say so -- ADR 0139 § 1
+--FILE--
+<?nvs
+// The sibling cases pinned the class and the wording. This pins the *tree*: the
+// refusal is a `Throwable`, so a request that reaches one of these without a
+// session is a request that can answer for itself rather than one that dies.
+uint $caught = 0;
+
+try {
+    Core\Session::get("cart");
+} catch (Throwable $anyForRead) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::set("cart", 1);
+} catch (Throwable $anyForWrite) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::remove("cart");
+} catch (Throwable $anyForChange) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::clear();
+} catch (Throwable $anyForEmpty) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::regenerate();
+} catch (Throwable $anyForMove) {
+    $caught = $caught + 1;
+}
+
+try {
+    Core\Session::destroy();
+} catch (Throwable $anyForForget) {
+    $caught = $caught + 1;
+}
+
+echo "caught by the root of the tree ", $caught, " of 6\n";
+
+// And the request continues past all six. A refusal that left the program
+// unable to go on would be a fatal wearing a class name, which is the
+// distinction spec § 10's tree exists to draw.
+echo "and the program is still running\n";
+--EXPECT--
+caught by the root of the tree 6 of 6
+and the program is still running
