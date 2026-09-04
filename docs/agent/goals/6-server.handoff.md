@@ -50,4 +50,4 @@ One file set: `crates/nvs-server/src/`, `crates/nvs-host/src/stream.rs`,
 - No TLS listener and no h2c: ADR 0097 § 1 dropped both and a proxy terminates TLS.
 - When Stage 9's last check goes green — `check-migration.py` at 100% — **the parity program is finished**
   and the driver switches to goal 7, the post-parity temp sweep (ADR 0131), the chain's last entry. The
-  milestone table's order 6 is M4B, which runs as goals 12 through 15 at the end of the same chain.
+  next milestone the chain reaches is M4B, which runs as goals 12, 14 and 15 at the end of it.

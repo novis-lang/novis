@@ -4,7 +4,7 @@ Finish **M5** — [docs/plan/m5.md](../../plan/m5.md) is the scope and this file
 Novis program can **suspend**: on a socket, on a timer, on a child task, on another core's answer — and a
 core that is waiting on one request keeps serving the others.
 
-This is order 2 of the parity program ([goals/README.md](README.md)) and it is **the keystone**. Nothing
+This is goal 2 of the parity program ([goals/README.md](README.md)) and it is **the keystone**. Nothing
 above it has a socket, a timer or a task without it: the four database drivers, the outbound HTTP client
 and the listener all reach the network through the one stream this goal builds. Every goal after this is
 written against its shape, so a shape that is wrong here is wrong four times.

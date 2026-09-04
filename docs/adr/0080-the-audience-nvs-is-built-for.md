@@ -156,8 +156,8 @@ When two slices compete for a session, the one serving § 1's user wins. Concret
   are the two things a new user hits before they ever reach a language feature.
 
   **They do not, however, outrank language and library completeness, and that ranking was decided
-  explicitly on 2026-08-28** rather than left to be re-argued per session. M15 and M16 sit at orders 10
-  and 11 of [the plan](../implementation-plan.md), behind the parity program, the editor and the
+  explicitly on 2026-08-28** rather than left to be re-argued per session. M15 and M16 are the last two
+  entries of [the plan](../implementation-plan.md)'s backlog, behind the parity program, the editor and the
   extension system. The reason is that the sentence above is about *a user who has arrived* — and a user
   arrives at a language that runs their program. Novis at the moment of that decision could not talk to
   a database, serve a request, or spawn a task; a package registry in front of that ships an excellent

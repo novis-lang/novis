@@ -4,7 +4,7 @@ Finish **M7** — [docs/plan/m7.md](../../plan/m7.md) is the scope and this file
 `nvs serve` accepts a request, dispatches it into a **root isolate of a request tree** — the same
 `Isolate` goal 2 built, not a second isolation path — and answers it.
 
-This is order 5 of the milestone table and the **last goal of the parity program**
+This is goal 6 of the chain and the **last goal of the parity program**
 ([goals/README.md](README.md)). Everything the request-facing half of `Core` was waiting on now exists,
 and `python tools/check-migration.py` reaching **100% classified** is this goal's final stage and the
 program's stop condition.

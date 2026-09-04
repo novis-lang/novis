@@ -1,7 +1,8 @@
 # M4B — Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks)
 
-**Order 6 — after the parity program, before everything else.** It was pulled ahead of M10 to get Novis
-into an editor early, and on 2026-08-28 it was placed behind orders 1–5 for the same reason it was placed
+**Carried by goals 12, 14 and 15 — after the parity program, before everything else.** It was pulled ahead
+of M10 to get Novis into an editor early, and on 2026-08-28 it was placed behind goals 1–6 for the same
+reason it was placed
 behind M4: completion, hover and diagnostics written against a language that cannot open a file or reach a
 database are written twice, and every `.lspt` case authored in the meantime is authored against a surface
 about to change. It runs as **four chain goals** —
@@ -12,7 +13,7 @@ must colour their surface.
 
 **One assertion in *Verify* re-anchors.** "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is
 still exactly true and still checked by `crates/nvs-runtime/tests/manifest_policy.rs` — but by the time
-this milestone runs, `hyper` and its five dependencies are in the tree from order 5. The claim is about a
+this milestone runs, `hyper` and its five dependencies are in the tree from goal 6. The claim is about a
 *runtime*, never about the `Future` trait; ADR 0099's own bullet now says so.
 
 Pulled ahead of M10 by [ADR 0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world

@@ -5,7 +5,7 @@ Finish **M8's database half** — [ADR 0067](../../adr/0067-core-db.md) is the d
 `mysqli`, `pgsql` and `sqlite3`**, over pure-Rust MySQL, MariaDB, PostgreSQL and SQL Server drivers plus
 SQLite.
 
-This is order 5 of the parity program ([goals/README.md](README.md)). It is a separate goal from goal 4
+This is goal 5 of the parity program ([goals/README.md](README.md)). It is a separate goal from goal 4
 purely because `nvs-db` shares no file with `Core\Cli` — the two would have made one manifest naming every
 module in the workspace, which is the cost loop-authoring.md § 2 exists to avoid.
 

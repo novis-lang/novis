@@ -1,6 +1,6 @@
 # The parity program, as six loop goals
 
-Orders 1–5 of [the plan](../../implementation-plan.md) are one continuous unattended run: **PHP core
+Goals 1–6 of [the plan](../../implementation-plan.md) are one continuous unattended run: **PHP core
 feature parity, all five SQL drivers, concurrency, governance and the server.** This directory holds it,
 cut into six goals, and [chain.toml](chain.toml) is the order the driver walks them in. A seventh,
 post-parity goal — [ADR 0131](../../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)'s
@@ -110,7 +110,7 @@ Three rules bind every one of them, and they are the reason the run can be left 
    floor stage. Nothing is copied by hand. By goal 6 the floor is five goals deep, which is the point —
    the parity claim is only worth something if nothing under it was traded away to reach it.
 2. **Every goal names the numbered ADRs it may open, and no session opens another.** The blanket "do not
-   open a numbered ADR" rule that M4's goal carried does not survive this program: orders 2–5 contain
+   open a numbered ADR" rule that M4's goal carried does not survive this program: goals 2–6 contain
    genuinely new designs — a reactor, a driver's wire I/O, a pool reset that is a security boundary — and
    a design of that size recorded as a paragraph in `docs/adr/README.md` is a design nobody can find
    later. So each goal's *Standing decisions* carries a short list of **ADR slots**, each one the first

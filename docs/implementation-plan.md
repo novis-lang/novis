@@ -11,14 +11,14 @@
 
 > **Status:** 2026-08-28. **M4's loop goal is reached** — every check in its acceptance list passes, so
 > the language surface is closed and nothing a CLI program reaches for panics below the front end. The
-> next target is **the parity program**, orders 1–5 of the milestone table: PHP core feature parity, all
+> next target is **the parity program**, goals 1–6 of the chain: PHP core feature parity, all
 > five SQL drivers, concurrency, governance and the server, run as the six-goal chain in
 > [docs/agent/goals/](agent/goals/README.md). Dependencies: `regex` + `fancy-regex` and `jiff` are named
 > by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own 1000-case
-> corpus figure is the one thing left and it is met through orders 1–4. M4S Part I registered —
+> corpus figure is the one thing left and it is met through goals 1–5. M4S Part I registered —
 > `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is this project's
 > definition of *registered*. M1's own section lists the one grammar addition still owed — the pipeline
 > operator, ADR 0098 — which blocks nothing and is scheduled after the current loop goal. Each milestone
@@ -63,7 +63,7 @@
 > `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance
 > 1503, differential 256, migration 100%; valgrind green.
 >
-> **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
+> **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
 > others. One external dependency, two goals wide: **goals 4 and 5 need a reachable Docker daemon**,
 > and on this machine it is up — `examples/transaction.nvs` got an answer from

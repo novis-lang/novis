@@ -5,7 +5,7 @@ not restate it. Every member of [01-core-library.md](../../spec/01-core-library.
 compiler-facing entries of § 13 that were waiting on a capability, a reactor or an open handle **runs, is
 gated, and is cased.**
 
-This is order 4 of the parity program ([goals/README.md](README.md)) and it is the largest goal in it —
+This is goal 4 of the parity program ([goals/README.md](README.md)) and it is the largest goal in it —
 nine subsystems, each with its own ADR. It is deliberately not cut smaller: the stages below are grouped
 by **file set**, and a session takes its group from one of them, so the goal's size costs sessions rather
 than costing any one session context.

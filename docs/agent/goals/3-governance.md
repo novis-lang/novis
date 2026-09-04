@@ -5,7 +5,7 @@ operator can **say what a program may do and how much of it**, and the engine en
 at every syscall-touching entry point, a limit at every safepoint, and a compiled artifact that is
 verified before a single page of it becomes executable.
 
-This is order 3 of the parity program ([goals/README.md](README.md)), and it is here rather than after
+This is goal 3 of the parity program ([goals/README.md](README.md)), and it is here rather than after
 goal 4 for one reason: **every capability-bearing `Core` member in goal 4 is gated on what this goal
 builds.** A member written before its gate exists is a member whose gate gets retrofitted, and a
 retrofitted gate is exactly the kind that has a hole in it. Goal 2's isolates already run under

@@ -5,7 +5,7 @@ Every member of [docs/spec/01-core-library.md](../../spec/01-core-library.md) §
 capability, a reactor, a driver or an open handle **runs, is cased, and is claimed by a row in the
 migration table.**
 
-This is order 1 of the parity program ([goals/README.md](README.md)), and it is first for a reason that
+This is goal 1 of the parity program ([goals/README.md](README.md)), and it is first for a reason that
 compounds the way M4's operator table did: **every goal above this one is written against `Core`.** A
 driver returns `Core\Time\Instant`s, the server returns `tainted string` from `Core\Request`, an isolate
 copies a `Core\ObjectMap`. A member that is registered but wrong, or registered and untested, is a defect

@@ -16,7 +16,8 @@ Its floor is goal 10's whole list.
 ## What lands here that M4B was going to build
 
 **Stage 2 is M4B's tree item, landing early.** ADR 0099 § 1's `Parsed { stmts, trivia, index }` is
-M4B's, and M4B is order 6 — after this whole chain. A doc comment cannot be read without retaining it,
+M4B's, and M4B is carried by goals 12, 14 and 15 — the end of this chain. A doc comment cannot be read
+without retaining it,
 so this goal builds the `Trivia` vector and `TriviaKind` **as ADR 0099 § 1 specifies them**, plus that
 section's fourth variant. M4B then inherits it done and keeps the rest: the `SyntaxIndex`, `nvs-lsp`,
 syntax highlighting, `.lspt`. [docs/plan/m4b.md](../../plan/m4b.md) records the move.
