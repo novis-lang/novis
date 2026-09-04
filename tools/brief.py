@@ -865,6 +865,12 @@ def run_map():
 
 
 CODE_DECL_RE = re.compile(r'Code::new\("(E(\d{2})\d{2})"\)')
+# A retired code is never reused, and its `Code::new` line is gone -- so the
+# comment that replaced it is the only thing left holding the band's ceiling up.
+# Read both spellings the registry uses (the code before the word and after it),
+# within one comment's worth of text and never across a second code.
+RETIRED_BEFORE_RE = re.compile(r"`(E(\d{2})\d{2})`[^`]{0,80}?\bretired\b")
+RETIRED_AFTER_RE = re.compile(r"\bretired\b[^`]{0,80}?`(E(\d{2})\d{2})`")
 CODE_LEGEND_RE = re.compile(r"^///\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|")
 ADR_FILE_RE = re.compile(r"^(\d{4})-.*\.md$")
 
@@ -885,9 +891,10 @@ def run_numbers():
             m = CODE_LEGEND_RE.match(line)
             if m:
                 legend[m.group(1)] = m.group(2).strip()
-        for m in CODE_DECL_RE.finditer(text):
-            band = m.group(2)
-            highest[band] = max(highest.get(band, 0), int(m.group(1)[1:]))
+        for regex in (CODE_DECL_RE, RETIRED_BEFORE_RE, RETIRED_AFTER_RE):
+            for m in regex.finditer(text):
+                band = m.group(2)
+                highest[band] = max(highest.get(band, 0), int(m.group(1)[1:]))
         if not highest:
             warn(f"no `Code::new(\"Ennnn\")` declarations in {rel(DIAGNOSTICS)}")
         else:

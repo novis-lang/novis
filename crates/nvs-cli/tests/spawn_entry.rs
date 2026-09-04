@@ -121,22 +121,56 @@ fn spawn_script_runs_a_static_method_reference_in_a_fresh_isolate() {
     assert_eq!(run("method-entry.nvs"), "ok\n1\n40\n");
 }
 
-/// The half of the method form still unlowered, refused where it is written.
+/// The other half of the entry form: `args:`'s entries reach the entry's
+/// parameters **by name**.
 ///
-/// This case dies with `E0804`: it exists because the child calls the entry
-/// with no arguments, and `nvs_runtime::abi` requires exactly the callee's
-/// arity — so accepting it would be a slot nobody filled rather than a wrong
-/// answer. The slice that binds `args:` by name deletes the code, the fixture
-/// and this test together.
+/// The fixture's map is written in the opposite order to the signature, which
+/// is what makes this a test of the binding rather than of a call: read
+/// positionally it would put the `int` in the `string` parameter, and the
+/// boundary check `nvs_runtime::call_static_bound` runs would refuse it instead
+/// of answering `3+may`.
 #[test]
-fn a_method_entry_declaring_a_parameter_is_refused_until_args_bind() {
-    let stderr = refusal("method-entry-with-parameters.nvs");
+fn spawn_script_binds_args_to_the_entrys_parameters_by_name() {
+    assert_eq!(run("method-entry-with-args.nvs"), "ok\nmay+3\n");
+}
+
+/// `nvs run <fixture>`'s standard error, with the exit status asserted to be a
+/// failure first — the run half of [`refusal`], for a rule that is enforced
+/// where the spawn happens rather than where it is compiled.
+fn failing_run(fixture: &str) -> String {
+    let dir = fixtures();
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--config")
+        .arg(dir.join("spawning.toml"))
+        .arg("run")
+        .arg(dir.join(fixture))
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
     assert!(
-        stderr.contains("E0804"),
-        "the unbound-parameter refusal, not the entry-form one: {stderr}"
+        !out.status.success(),
+        "`{fixture}` fails at the spawn: {stderr}"
+    );
+    stderr
+}
+
+/// A map that does not name the entry's parameters is ADR 0006's ordinary
+/// named-argument error, and it is raised **at the spawn** — the parent's own
+/// frame, where the ADR says a non-literal map's mismatch is reported, so
+/// nothing is started and no `ScriptResult` carries it.
+///
+/// `nvs_stdlib::script`'s `entry_names_agree` is the rule's home; the compile-
+/// time half for a literal map is the known gap `nvs_types::expr::isolate`
+/// records.
+#[test]
+fn a_method_entrys_args_map_must_name_its_parameters() {
+    let stderr = failing_run("method-entry-args-mismatch.nvs");
+    assert!(
+        stderr.contains("no entry for parameter(s) `month`"),
+        "the message names the parameter nothing bound: {stderr}"
     );
     assert!(
-        stderr.contains("Core\\Script::args()"),
-        "the help names the way through for an entry that needs its map: {stderr}"
+        !stderr.contains("unreachable"),
+        "the throw is at the spawn, so the line after it never runs: {stderr}"
     );
 }

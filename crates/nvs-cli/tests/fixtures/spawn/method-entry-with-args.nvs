@@ -1,0 +1,20 @@
+<?nvs
+// ADR 0006 § *Decision*: the isolate calls a method entry with `args:`'s
+// entries as **named arguments** — `Reports::span(from: …, months: …)` — so the
+// entry is an ordinary function with an ordinary signature rather than
+// something that reads a map out of the air.
+class Reports
+{
+    public static function span(string $from, int $months): string {
+        return $from . "+" . ($months as string);
+    }
+}
+
+// The map is written in the *other* order, which is the whole claim: the names
+// decide, and a positional reading of this would put an `int` in a `string`
+// parameter and be refused at the boundary rather than answer wrongly.
+var $job = spawn script Reports::span(...) with(args: ["months" => 3, "from" => "may"]);
+var $result = await $job;
+
+echo $result->ok ? "ok" : "failed", "\n";
+echo $result->value as string, "\n";

@@ -7615,6 +7615,17 @@ sibling in the same namespace unqualified.
   sixth arrives as `left: 587 / right: 586` with nothing naming the symbol or the file. The full
   roster a new row-less symbol owes is: the `const`, the `address()` arm, the `.chain([…])` in
   `symbols()`, and that literal. It is the `nvs_hir::errors::TREE` bullet's shape one crate over.
+- **A `Core` helper that returns `Err` must not release its *transferred* argument, and the
+  double release aborts the process instead of failing a test.** `spawn script`'s `args:` value
+  is `ArgOwnership::Transferred`, and the obvious reading — the lowering emitted no release for
+  it, so a spawn that does not happen is where that reference stops — is wrong.
+  `lower_spawn_script` never calls `forget_transferred_since`, so the value is still on the
+  temporaries stack when `emit_fallible` builds the call's fault edge, and the landing block
+  releases it on every edge the helper returns `Err` through. One added `release()` turned a new
+  refusal path into `thread caused non-unwinding panic. aborting.` inside
+  `nvs_runtime::value::nvs_value_release`, with the harness reporting the abort and nothing about
+  the helper. `nvs_ir::lower::TemporaryKind`'s own doc is the answer and says it in one line —
+  `Transferred` is "released on the error edge only", and that edge is the *caller's*.
 
 ## Divergences and refusals already pinned
 

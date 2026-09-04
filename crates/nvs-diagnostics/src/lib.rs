@@ -2994,19 +2994,13 @@ pub mod code {
     /// sends the reader to fix the wrong half.
     pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802");
 
-    /// `spawn script Class::method(...)` on an entry that **declares a
-    /// parameter** — ADR 0006 § *Decision* binds `args:`'s entries to them as
-    /// named arguments, and that half is not compiled yet.
-    ///
-    /// [`E_SPAWN_OPTION_UNSUPPORTED`]'s reading, applied to the operand rather
-    /// than to an option: a form that is accepted and then does something else
-    /// is worse than one that is refused where it is written. The entry form
-    /// itself now lowers — this is the narrower successor to the retired
-    /// `E0803`, which refused it whole — and what is left is that the child
-    /// calls the method with no arguments, so a callee expecting one would read
-    /// a slot nobody filled (`nvs_runtime::abi`'s arity rule). It is removed
-    /// when the binding lands, exactly as `E0703` and `E0803` were.
-    pub const E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED: Code = Code::new("E0804");
+    // `E0804` is retired and is never reused: it refused a method entry that
+    // declared a parameter, because the child called it with none. ADR 0006
+    // § *Decision*'s binding now lowers — the entry's parameter names ride on
+    // the spawn symbol and `nvs_stdlib::script` binds `args:`'s entries to them
+    // by name — so the shape it refused is the shape that runs, and a mismatch
+    // is the ordinary named-argument error the ADR names, raised at the spawn.
+    // It went the way `E0703` and `E0803` did.
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

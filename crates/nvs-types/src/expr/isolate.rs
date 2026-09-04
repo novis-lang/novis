@@ -1,12 +1,12 @@
 //! ADR 0006's two constructs — `spawn script … with(…)` and `await` — and what
 //! each is typed as.
 //!
-//! Both arms compile: `nvs_ir::lower`'s `lower_spawn_script` and `lower_await`
-//! are the two `CoreCall`s they become. What still refuses here is narrower and
-//! is named where it is reported — three of ADR 0006's five options
-//! (`E0777`), and a method entry that declares a parameter (`E0804`), whose
-//! `args:` binding is the half of the second entry form still unlowered.
-//! [`check_entry`] owns that along with the operand rule itself.
+//! Both arms compile, and so do both entry forms: `nvs_ir::lower`'s
+//! `lower_spawn_script` and `lower_await` are the two `CoreCall`s they become.
+//! What still refuses here is narrower and is named where it is reported —
+//! three of ADR 0006's five options (`E0777`), and an operand that is neither
+//! a path nor a static method (`E0802`). [`check_entry`] owns the operand rule
+//! itself, and the one thing it does not yet ask.
 //!
 //! `spawn script` answers with the handle class and `await` answers with the
 //! shape below, which is what lets a program hear about the *rest* of a line it
@@ -192,12 +192,17 @@ pub(crate) fn check_spawn_script(
 /// - **An `fn` literal or a `callable` value**, refused under
 ///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out the ADR
 ///   names.
-/// - **A method reference**, which is the specified form and lowers to its own
-///   `Core` symbol (`nvs_ir::lower`'s `lower_spawn_script`). One half of it is
-///   still refused here — an entry declaring a parameter, under
-///   [`code::E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED`], because the child calls it
-///   with no arguments until `args:` binds by name; that code's own doc owns why
-///   a half-lowered form is refused rather than accepted.
+/// - **A method reference**, which is the specified form and has nothing left
+///   to refuse: it lowers to its own `Core` symbol (`nvs_ir::lower`'s
+///   `lower_spawn_script`), carrying the entry's parameter names, and
+///   `nvs_stdlib::script` binds `args:`'s entries to them by name.
+///
+/// **Known gap.** ADR 0006 § *Decision* reports a name `args:` holds that the
+/// entry does not declare, or a parameter it omits, *at compile time when
+/// `args:` is a literal* and at the spawn otherwise. Only the second half is
+/// asked: the spawn raises the named-argument error for either mismatch, and a
+/// literal map is not compared against the signature here yet. What that costs
+/// is when the error arrives, never whether it does.
 fn check_entry(
     path: &Expr,
     live: &mut FxHashSet<String>,
@@ -211,35 +216,6 @@ fn check_entry(
     let ty = check_expr(path, None, live, scope, ctx, env);
 
     if is_method_reference(path) {
-        // The reference resolved above, so the table holds the callee this
-        // operand names and with it the one thing left to refuse. A miss is
-        // another diagnostic already reported at the same span — a class or a
-        // member that does not exist — and this rule has nothing to add to it.
-        let declared = match env.exprs.lookup(path.span) {
-            Some(crate::expr_table::ExprInfo::CallableRef(call)) => call.param_tys.len(),
-            _ => 0,
-        };
-        if declared > 0 {
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED,
-                    "`spawn script`'s method entry does not bind `args:` to its parameters yet",
-                )
-                .with_primary(
-                    path.span,
-                    format!(
-                        "this entry declares {declared} parameter(s), and the isolate calls it \
-                         with none"
-                    ),
-                )
-                .with_help(
-                    "ADR 0006 binds `args:`'s entries to the entry's parameters as named \
-                     arguments, and that half is not compiled yet. Declare the entry with no \
-                     parameters and read the map with `Core\\Script::args()`, or write it as a \
-                     `.nvs` file",
-                ),
-            );
-        }
         return;
     }
 
