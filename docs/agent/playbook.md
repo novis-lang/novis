@@ -7294,6 +7294,17 @@ sibling in the same namespace unqualified.
   under a closed policy both readings refuse, and the divergence only became reachable when the
   open half landed. `python tools/peek.py 'docs/adr/*.md:re:<the noun>'` finds every ADR naming
   the event in one call, and it is worth spending before writing the predicate rather than after.
+- **A table the compiler builds and a *running* program must read does not reach the runtime by
+  adding a dependency — it crosses as a second, runtime-side table, and `nvs_runtime::commands` is
+  the worked pattern.** `nvs-runtime` is the bottom of the crate tree and has no `nvs-types`
+  dependency to name one of its types with, so `grep RouteTable` over `crates/` answers "compiler
+  only" and reads as a gap in the wiring rather than as a decision. It is a decision, and it is
+  written down twice: `nvs_runtime::commands`' module doc § *Why the table is a runtime value at
+  all* argues it for ADR 0086 § 6's commands, and `nvs-cli`'s `runtime_commands` is the copy that
+  crosses — strings plus one closed enum for whatever a matcher needs that no string spells. Anything
+  ADR 0102's routes, ADR 0084's jobs or a later table needs is that shape again. Check for the
+  sibling before designing the edge: the cost of missing it is a dependency edge in a review rather
+  than a copy nobody argues with.
 
 ## Divergences and refusals already pinned
 
