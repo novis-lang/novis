@@ -1,8 +1,8 @@
 --TEST--
-Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15
+Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15, ADR 0105 § 3
 --FILE--
 <?nvs
-// Agreement, asked of all eight readers: what decides the answer is whether a
+// Agreement, asked of all nine readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
 // situation ADR 0012 § 7 is about, and the same one a scheduled script and a
@@ -58,7 +58,18 @@ try {
 } catch (LogicError $raw) {
     $refused = $refused + 1;
 }
-echo "refused ", $refused, " of 8\n";
+// And the ninth reads the same bytes the eighth does, a chunk at a time. It is
+// the one reader that answers a *walk* rather than a value, so the collapse it
+// is exposed to is a different one: an empty `Iterable` reads as a body that
+// arrived carrying nothing, and a `foreach` over it would run zero times
+// without a program ever learning there was no request. ADR 0105 § 3's two
+// ways of reading one body agree here, which is the whole claim.
+try {
+    Core\Request::bodyStream();
+} catch (LogicError $chunks) {
+    $refused = $refused + 1;
+}
+echo "refused ", $refused, " of 9\n";
 
 // The sentence names the member that was read, so a handler that wrapped six
 // questions learns which one it was standing on -- and it says why the answer
@@ -70,5 +81,5 @@ try {
     echo $why->message, "\n";
 }
 --EXPECT--
-refused 8 of 8
+refused 9 of 9
 Core\Request::path(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

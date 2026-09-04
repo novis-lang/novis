@@ -4408,6 +4408,29 @@ pub struct Inbound {
     /// of every in-flight request and, through ADR 0106 § 13's arithmetic, the
     /// number of requests this process may admit at once.
     body: Option<Box<dyn RequestBody>>,
+    /// Which member has read the body, once one has — the name it spells
+    /// itself, so a refusal can say what already took it.
+    ///
+    /// `docs/spec/01-core-library.md` § 15 makes `body`, `bodyStream` and
+    /// `files` exclusive on one request, and this field is the whole of that
+    /// rule. **It lives on the carrier rather than on any of the three**,
+    /// because what is exclusive is the *request*: each of them consumes the
+    /// same stream, so a record kept by one of them could not see the other two
+    /// — and the three are two crates apart, `nvs_stdlib::request` owning the
+    /// first two and the parts the third yields being ADR 0105's own machinery.
+    ///
+    /// A name rather than a `bool` or an enum of three: the refusal is only
+    /// worth raising if it says which reading already happened, since the
+    /// program's bug is that it wrote two of them and it needs to know which one
+    /// to delete. An enum here would be this crate holding a roster of stdlib
+    /// members, which is the dependency this field's whole design avoids.
+    ///
+    /// Set even where no body arrived. What is exclusive is the *reading*, not
+    /// the bytes: a request with an empty body still has one program-visible way
+    /// of having been read, and letting the second call through on a request
+    /// that happened to carry nothing would make the rule depend on what the
+    /// peer sent.
+    claimed_by: Option<&'static str>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -4436,6 +4459,7 @@ impl Inbound {
             query: query.into(),
             headers: Vec::new(),
             body: None,
+            claimed_by: None,
         }
     }
     /// The verb, verbatim.
@@ -4493,12 +4517,42 @@ impl Inbound {
     /// the wire, so a reader that could be handed out twice would be two
     /// programs consuming one stream. `&mut self` on the carrier is the half of
     /// spec § 15's exclusivity — `body`, `bodyStream` and `files` are exclusive
-    /// on one request — that no member can talk its way around. The other half,
-    /// recording *which* of the three took the borrow so a second one is refused
-    /// rather than answered empty, is a gap `nvs_stdlib::request`'s module doc
-    /// owns and lands with the second of them.
+    /// on one request — that no member can talk its way around; the other half
+    /// is [`Self::claim_body`], and a member that reads the body owes a call to
+    /// it before the first pull.
+    ///
+    /// This is deliberately *not* the place the claim is made. A `bodyStream`
+    /// pulls one chunk per `advance()` and so borrows here once per chunk, where
+    /// it claims once for the whole walk — so a claim taken on the borrow would
+    /// refuse a program its second chunk.
     pub fn body(&mut self) -> Option<&mut (dyn RequestBody + 'static)> {
         self.body.as_deref_mut()
+    }
+    /// Records that `member` is reading this request's body, or names the one
+    /// that already is.
+    ///
+    /// Spec § 15's exclusivity, enforced: `body`, `bodyStream` and `files` each
+    /// consume the stream the other two would read, so the second of them on one
+    /// request is a program bug. Answering it empty — which is what an exhausted
+    /// stream says on its own — would report "the peer sent nothing" for a
+    /// request whose bytes the program had already been handed, and that is the
+    /// silent-wrong-answer this whole carrier is written against.
+    ///
+    /// The [`Err`] is the claiming member's own name, for the caller to put in
+    /// a message; this crate raises nothing, the three members being
+    /// `nvs_stdlib`'s and the wording theirs.
+    ///
+    /// # Errors
+    ///
+    /// The name of the member that claimed the body first, where one has.
+    pub fn claim_body(&mut self, member: &'static str) -> Result<(), &'static str> {
+        match self.claimed_by {
+            Some(first) => Err(first),
+            None => {
+                self.claimed_by = Some(member);
+                Ok(())
+            }
+        }
     }
     /// Whether a body arrived at all, without reading it or taking a mutable
     /// borrow to ask.
