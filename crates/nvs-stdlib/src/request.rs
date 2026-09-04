@@ -3686,6 +3686,56 @@ mod tests {
         );
     }
 
+    /// `bodyStream` against the other two readings, in both directions and
+    /// with **no chunk ever pulled** — ADR 0105 § 3's second of three ways,
+    /// held to spec § 15.
+    ///
+    /// The pair its twin above leaves unasked is `bodyStream` and `files`,
+    /// which is the one where an implementation could plausibly let both
+    /// through: neither member moves a byte, so a claim taken at the first pull
+    /// rather than at the naming would refuse nothing here and then hand a
+    /// multipart parse a stream a `foreach` was already walking. That is
+    /// `claim_body`'s own doc asserted rather than restated — the claim is
+    /// taken where the reading is *named* — and nothing in this test reads a
+    /// byte, so what can fail is the rule and never the parse.
+    ///
+    /// The `body` half is asked on the same never-pulled terms, which is what
+    /// it adds over the direction its twin already walks.
+    ///
+    /// The refusals' own wording is not read here, for the reason
+    /// `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
+    /// gives: a message needs an exception class table installed on the
+    /// context first, and what this asks about is the claim.
+    #[test]
+    fn body_stream_is_exclusive_with_body_and_with_files() {
+        let mut named = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let unwalked = nvs_runtime::call(nvs_core_request_body_stream, &mut named, &[])
+            .expect("naming the walk is the reading, and it is the first one here");
+        dropped(unwalked);
+        assert!(
+            nvs_runtime::call(nvs_core_request_files, &mut named, &[]).is_err(),
+            "`files` after `bodyStream` is refused though the walk pulled nothing"
+        );
+
+        let mut walking = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut walking, &[])
+            .expect("a request that declared a multipart body can be walked");
+        dropped(files);
+        assert!(
+            nvs_runtime::call(nvs_core_request_body_stream, &mut walking, &[]).is_err(),
+            "and `bodyStream` after `files` is refused on the same terms, the other way round"
+        );
+
+        let mut whole = answering(Some(Chunks::of(&[&b"a body"[..]])));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut whole, &[])
+            .expect("naming the walk cannot fail on a request that carried a body");
+        dropped(stream);
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut whole, &[]).is_err(),
+            "`body` after an unwalked `bodyStream` reads a stream that member already owns"
+        );
+    }
+
     /// A walk that fails mid-body throws rather than ending, which is
     /// `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`'s
     /// property on the streaming side: `advance()` answering `false` means the
