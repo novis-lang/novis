@@ -333,6 +333,10 @@ pub fn resolve(
     // own: the floor is the rung that reports when nothing else can, so the last place to discover
     // that its destination does not parse is the failure it was configured to report.
     crate::log::validate(&resolved.config, &origins)?;
+    // ADR 0139 § 3, enforcing ADR 0059 § 4: which store holds a session is the one directive whose
+    // wrong value never reports itself at run time — a per-core session store forgets people rather
+    // than failing — so the merged tree is the last moment anything can say so.
+    crate::session::validate(&resolved.config, &origins)?;
     resolved.origins = origins;
     Ok(resolved)
 }

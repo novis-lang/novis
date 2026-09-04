@@ -118,6 +118,8 @@ pub struct Config {
     pub control: Option<Control>,
     /// `[opcache]` — revalidation and the file cache (ADRs 0017, 0042 § 9).
     pub opcache: Option<Opcache>,
+    /// `[session]` — where `Core\Session`'s records live, and how long one survives (ADR 0139 § 3).
+    pub session: Option<Session>,
 }
 
 /// One `[[include]]` entry — ADR 0103 § 2.
@@ -854,6 +856,32 @@ pub struct CacheShared {
     pub url: Option<String>,
     /// The bound on the handshake, and on each command. Omitted, the shipped five seconds.
     pub timeout: Option<String>,
+}
+
+/// `[session]` — where a `Core\Session` record lives, what it is called on the way back, and how
+/// long an untouched one survives (ADR 0139 § 3).
+///
+/// Three keys and no fourth, all `System`/`Boot` per `crate::directive`'s `session` row: where a
+/// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
+/// strand every live record in the store nobody reads any more. There is no `gc_probability` pair
+/// and no `save_path` — § 5 gives expiry to the store, and § 3 gives it no backend that keeps files.
+///
+/// The block being absent is **not** a default backend: `Core\Session::start()` throws naming this
+/// block, which is ADR 0074's "nothing configured is already safe" applied to a store nobody chose.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct Session {
+    /// `shared` or `db`. The local cache tier is deliberately unspellable here and writing it is
+    /// `E0626` — `crate::session::Backend` is the roster and ADR 0059 § 4 is the reason.
+    pub backend: Option<String>,
+    /// How long an untouched record survives, written onto the entry so the store expires it.
+    /// Omitted, the two hours `nvs_stdlib::session` ships, which is that module's to state because
+    /// it is the one thing that writes the expiry.
+    pub ttl: Option<String>,
+    /// The cookie name the identifier rides under. Omitted, `nvs_stdlib::session`'s default; the
+    /// cookie's *attributes* are not here, because ADR 0074 § 3 already fixes them for every cookie
+    /// this server writes and a second spelling would be a way to weaken them.
+    pub cookie: Option<String>,
 }
 
 /// `[control]` — ADR 0078 § 3's one local socket.

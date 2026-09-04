@@ -1538,6 +1538,22 @@ pub mod code {
     /// this is about whether the bytes can be transmitted at all.
     pub const E_UNCARRIABLE_HEADER: Code = Code::new("E0625");
 
+    /// `[session] backend` names a store a session may not live in.
+    ///
+    /// ADR 0059 § 4 removed the local cache tier from the candidates and said
+    /// the removal is "enforced rather than documented"; this code is that
+    /// enforcement, and ADR 0139 § 3 is where the roster it checks against is
+    /// written. A session read on one core and written on another must see one
+    /// value, and a per-core map cannot give one — so a deployment that wrote
+    /// `local` has an authentication surface that forgets people at a rate set
+    /// by which core accepted the request.
+    ///
+    /// Refused where the key is written rather than where a session is started,
+    /// for `E0613`'s reason applied to a worse failure: a session that vanishes
+    /// looks like a user signing themselves out, so nothing in the running
+    /// system ever reports it.
+    pub const E_SESSION_BACKEND: Code = Code::new("E0626");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

@@ -77,6 +77,7 @@ pub mod resolve;
 pub mod schedule;
 pub mod secret;
 pub mod server;
+pub mod session;
 pub mod snapshot;
 pub mod tree;
 pub mod trust;

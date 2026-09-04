@@ -156,6 +156,10 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing ADR 0078 § 2 exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
+    // ADR 0139 § 3: where a fleet's sessions live is a deployment decision, so `System`; `Boot`
+    // rather than `Reload` because a backend swapped under a running server strands every live
+    // record in the store nothing reads any more, which is the one failure a session store has.
+    Directive { key: "session", class: Class::System, apply: Apply::Boot },
     Directive { key: "deferred.max_concurrent", class: Class::System, apply: Apply::Reload },
     // Its sibling is `Runtime`, and ADR 0072 § 7 is explicit that the two halves of `[deferred]`
     // are different classes: the cap is a host-sizing decision and the deadline is an ordinary
