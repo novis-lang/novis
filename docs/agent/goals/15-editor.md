@@ -118,9 +118,12 @@ credential the buffer behind it is concealing.
 
 The `@vscode/test-electron` suite: activation on `.nvs` and not `.php`, Tasks present, status item
 rendering, the panel populating, and **the semantic-token legend the client registers equal to the one the
-server declares** — which no unit test on either side alone can see. Then `.vsix` packaging, and **two** CI
-jobs beside the existing nine: the headless suites on all three platforms, since a `.vsix` is
-cross-platform and a path bug is not, and the extension-host run on Linux under `xvfb-run`.
+server declares** — which no unit test on either side alone can see. It runs **in CI and nowhere else**
+(see *Standing decisions*) and it isolates its profile. Then `.vsix` packaging, which is headless and does
+gate an iteration. Two CI jobs are added beside the ones already there —
+[ci.yml](../../../.github/workflows/ci.yml) is the count of those and this file does not restate it: the
+headless suites on all three platforms, since a `.vsix` is cross-platform and a path bug is not, and the
+extension-host run on Linux under `xvfb-run`.
 
 ## Stage 9 — the reference chapter's last heading
 
@@ -143,11 +146,26 @@ test, one example, one hostile program.
   [ADR 0051 § 4](../../adr/0051-standard-library-tiers.md)'s two questions. An npm dependency owes the
   allowlist entry stage 2 builds and nothing else, and lives in `devDependencies` wherever it can — a
   runtime dependency ships to users and a test library does not.
-- **The extension-host tier never gates an iteration.** It is memoized against the green tree the way the
-  valgrind sweep is. A session that finds it red fixes it like any other check; a session that finds it
-  *unrunnable* (no display, no cached VS Code build) says so in the handoff and does not spend the session
-  on the machine.
+- **The extension-host tier is CI's, and is not on the acceptance list.** It needs a display, and the
+  display on the machine the loop runs on belongs to a person who has this repository open in VS Code.
+  Launching a second one there is worse than rude: without an isolated profile it attaches to the running
+  instance and exits, so the suite reports no results and the iteration goes red over a window manager.
+  It cannot be expressed as a skip either — a `command` check has no platform key, and `memoize` only
+  short-circuits a check that has already *passed* — so the only way to keep it off that desktop is to
+  leave it out. **Do not add it**; CI runs it on Linux under `xvfb-run`, which is where ADR 0099 § 8 puts
+  the milestone gate. A session never runs it by hand.
+- **The host suite isolates its profile, wherever it runs.** `--user-data-dir` and `--extensions-dir` to a
+  throwaway directory, and it opens a fixture folder, never this repository. Unisolated it loads the
+  developer's own extensions, and a test touching `ConfigurationTarget.Global` writes the six frozen
+  `nvs.*` settings into their real `settings.json`. Prefer `@vscode/test-cli`, which sets an isolated
+  profile up per run, over driving `@vscode/test-electron` directly.
 - **No ADR slots.** ADRs 0099, 0101 and 0016 decide everything here; anything smaller is
   decided-and-recorded in the extension's own README, never a new number.
 - **No language logic in TypeScript.** If the client seems to need to know what a construct means, the
   answer is a server request that already exists or a `## Backlog` entry — never a regex in the client.
+- **No pixel tier.** Driving the real editor with Playwright to assert a decoration was *drawn* is
+  rejected, and not on cost grounds: anything needing a display is outside the tier the loop gates on, so
+  it cannot buy the loop a check at all. What is left after the range test (the server's), the position
+  conversion (a unit test) and the reveal state machine (logic) is a CSS constant that never varies — the
+  test that never fires. Record it in the extension's own README as decided-and-rejected, so the next
+  session does not re-derive it.

@@ -36,8 +36,10 @@ its lint config and npm scripts), plus the four `.gitignore` lines.
   ADR 0099 § 4 is the list; do not re-derive or shorten it.
 - Stage 5 (the client) and stage 7 (Tasks, the problem matcher, the AST panel) share `src/`. Stage 6
   (`secret` concealment) needs the client, so it follows stage 5.
-- Stage 8's extension-host tier is memoized and never gates an iteration. A session that finds it
-  *unrunnable* — no display, no cached VS Code build — says so here and does not spend the session on it.
+- Stage 8's extension-host suite is **not on the acceptance list and must not be added** — it needs a
+  display, and this machine's display has the developer's own VS Code open on this repository. CI owns it,
+  on Linux under `xvfb-run`. `.vsix` packaging is headless and does gate. The goal's *Standing decisions*
+  carry the whole rule, including the profile isolation the suite owes wherever it runs.
 - **Off path:** `nvs fmt`, rename, extract, workspace symbol search, inlay hints, signature help,
   `documentHighlight`, the Test Explorer, PhpStorm, and publishing to the Marketplace.
 - **When this goal's last check goes green M4B is finished**, and the driver takes goal 16 — the body

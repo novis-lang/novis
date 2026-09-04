@@ -476,24 +476,29 @@ Two tiers, because they answer different questions and cost two orders of magnit
 - **Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests
   of *Decision § 4*; a contributions test asserting `package.json` declares what the extension claims and
   depends only on the allowlist; and a protocol round-trip that spawns the real `nvs lsp` binary and
-  drives it with `vscode-languageclient`. This runs on the native leg and the WSL leg alike, and it is
-  what the loop's acceptance test gates on.
-- **The extension host, once per green tree.** `@vscode/test-electron` downloads a pinned VS Code build
-  and runs Mocha inside the real extension host — the only thing that can prove activation on `.nvs`,
-  that the Tasks appear, that the `LanguageStatusItem` renders, that the AST panel populates, and that
-  the semantic-token legend matches. It needs a display and a one-time download, so it is memoized
-  against the exact tree the way the valgrind sweep and the WSL leg already are
-  ([coordinator.md](../agent/coordinator.md) § *The acceptance test*), and the download is a `docs/setup.md`
-  step rather than something an iteration does.
+  drives it with `vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs
+  **once** rather than once per leg: a `command` check is not a program fixture, so it has no calling
+  convention for the WSL leg to exercise. CI is what runs it on all three platforms.
+- **The extension host, in CI.** `@vscode/test-electron` downloads a pinned VS Code build and runs Mocha
+  inside the real extension host — the only thing that can prove activation on `.nvs`, that the Tasks
+  appear, that the `LanguageStatusItem` renders, that the AST panel populates, and that the
+  semantic-token legend matches. It needs a display, and the only display on a developer's machine is one
+  a person is using: an unisolated second VS Code attaches to the instance they already have open on the
+  repository and exits without running anything, so locally the tier fails for a reason that is not the
+  code. **It runs on Linux under `xvfb-run` in CI and is not on the loop's acceptance list at all** — the
+  driver has no way to express "every machine but this one", and the download stays a `docs/setup.md`
+  step. Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
+  directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
+  the developer's own `settings.json`.
 
 **And the repository plumbing, which is invisible until it is missing.** `.gitignore` gains
 `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` — a session that commits `node_modules` is a session
 whose commit nobody can review. `package-lock.json` **is** committed, because `npm ci` is what the
 acceptance run uses and it requires one, and because an unpinned dependency tree makes the grammar
-snapshots reproducible only by luck. CI grows two jobs beside its existing nine: the headless suites on
-all three platforms, since a `.vsix` is cross-platform and a path bug is not, and the extension-host run
-on Linux under `xvfb-run` — which is the one place the display requirement is a real cost, and the reason
-that tier is memoized rather than run per iteration locally.
+snapshots reproducible only by luck. CI grows two jobs beside the ones already there — `ci.yml` is the
+count of those and this ADR does not restate it: the headless suites on all three platforms, since a
+`.vsix` is cross-platform and a path bug is not, and the extension-host run on Linux under `xvfb-run`,
+which is the only place that tier runs at all.
 
 ## Consequences
 

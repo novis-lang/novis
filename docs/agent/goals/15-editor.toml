@@ -94,23 +94,21 @@ want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 # loudly, which is why they are asserted over `package.json` rather than reviewed.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the extension host and the artifact. Memoized against the green tree the way the valgrind
-# sweep is: it needs a display and a downloaded VS Code build, and neither belongs on the
-# per-iteration path. Goal prose stage 8.
+# Stage 8 -- the artifact. The extension-host suite is NOT here and must not be added. A `command` check
+# is not a PROGRAM_KIND, so it runs once on the NATIVE leg (`loop.py` orders legs native-first), which on
+# this machine is Windows: no `xvfb`, and a desktop with the developer's own VS Code open on this
+# repository. An unisolated second instance attaches to that one and exits without running anything, so
+# the suite would report no results and the iteration would go red over a window manager. Nor can it be
+# skipped: there is no platform key on a `command` check, and `memoize` only short-circuits a check that
+# has already PASSED. Leaving it out is the only way to keep it off that desktop. CI owns it, on Linux
+# under `xvfb-run`, which is where ADR 0099 § 8 puts the milestone gate. Goal prose stage 8.
+#
+# Packaging stays: `vsce` is headless, and a `.vsix` that does not build is a broken artifact.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
-stage = "8 extension host"
-name = "vscode (extension host)"
-cwd = "editors/vscode"
-argv = ["npm", "run", "--silent", "test:host"]
-memoize = true
-want = ["0 failing"]
-
-[[check]]
-kind = "command"
-stage = "8 extension host"
+stage = "8 the artifact"
 name = "vsix packages"
 cwd = "editors/vscode"
 argv = ["npm", "run", "--silent", "package"]
