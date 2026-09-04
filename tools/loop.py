@@ -67,6 +67,8 @@ INTERRUPTED = RUNDIR / "interrupted.json"
 CHAINSTATE = RUNDIR / "chain.json"
 RUNEND = RUNDIR / "run-end.json"
 DOCGATE = RUNDIR / "doc-gate.json"
+RELEASEGATE = RUNDIR / "release-gate.json"
+LASTFAIL = RUNDIR / "last-fail.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -1279,6 +1281,41 @@ def plain_crate_test(args):
     return args[2] if len(args) == 3 and args[0] == "test" and args[1] == "-p" else None
 
 
+def suite_widening(checks):
+    """For every `nvs-suite` directory in the list, the widest directory the SAME list asks about
+    that contains it -- `tests/conformance/core/` -> `tests/conformance/`, and nothing for a
+    directory no other check encloses.
+
+    A suite over a directory runs every case a suite over a directory inside it would, so the
+    narrower run is cases re-run for an answer already on the desk. Measured on the 20260904-143054
+    run: `conformance (the digest roster)` is `nvs test tests/conformance/core/` and cost **52s of
+    a 288s sweep** re-running 908 of the 1503 cases `conformance (Core by name)` had already run
+    over `tests/conformance/`.
+
+    Widening the REQUEST rather than reusing a result after the fact is what makes this
+    order-independent: both checks then ask `suite()` the same question, and the memo it has always
+    had answers the second one. A rule that reused the wider run only if it happened to have gone
+    first would be silently worth nothing the day the stages are reordered.
+
+    Keyed on the argument as the goal file spells it, so two checks naming the same directory the
+    same way share a key and one spelled differently simply does not widen. A `min_passing` check
+    is never widened -- see `Goal.suite`.
+    """
+    dirs = [(tuple(c["args"][:-1]), c["args"][-1]) for c in checks
+            if c["kind"] == "nvs-suite" and len(c.get("args", [])) >= 2]
+    widen = {}
+    for head, spelled in dirs:
+        inner = spelled.replace("\\", "/").rstrip("/")
+        best, best_len = None, len(inner)
+        for other_head, other_spelled in dirs:
+            outer = other_spelled.replace("\\", "/").rstrip("/")
+            if other_head == head and inner.startswith(outer + "/") and len(outer) < best_len:
+                best, best_len = other_spelled, len(outer)
+        if best is not None:
+            widen[(head, spelled)] = best
+    return widen
+
+
 def rustc_version():
     """The exact compiler, so a toolchain bump invalidates every memoized verdict."""
     p = subprocess.run(["rustc", "-vV"], capture_output=True, encoding="utf-8", errors="replace")
@@ -1454,6 +1491,11 @@ class Goal:
         self._memoized = {c["name"] for c in self.checks if c.get("memoize") and "name" in c}
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
+        self.release_gate = True  # may the release profile be built, and its cost guards run?
+        self.release_owed = []  # what the gate held back, for `release_catch_up` to settle
+        self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
+        self.failed_name = ""  # the `cargo-named` check this run died on, for the next one
+        self._widen = suite_widening(self.checks)
         cargo = [c for c in self.checks if c["kind"] not in PROGRAM_KINDS]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
@@ -1518,14 +1560,33 @@ class Goal:
             self._cargo[key] = capture("cargo", args)
         return self._cargo[key]
 
-    def suite(self, leg, args):
+    def suite(self, leg, args, exact=False):
         """`nvs test` on a leg, with the result shared by every check that asks for the same
         argument list there. Keyed on the leg as well as the args because `leg_check()` runs the
-        same lists through the Linux build, and two binaries are two answers."""
+        same lists through the Linux build, and two binaries are two answers.
+
+        The request is first WIDENED to the largest directory the goal asks about that contains
+        it, which is what makes a suite over `tests/conformance/core/` share the run a suite over
+        `tests/conformance/` was going to pay for anyway -- `suite_widening` owns why, and what it
+        was measured to cost unwidened.
+
+        `exact=True` turns that off, and there is exactly one thing it is for: `min_passing` counts
+        the cases that RAN, so a floor over the narrow directory would be satisfied by the wide
+        one's larger count. That is the difference between "this corpus is big enough" and "some
+        corpus is", and it is the loop's stopping condition -- so the floor keeps its own run."""
+        if not exact:
+            args = self.widen_suite(args)
         key = (leg.name, tuple(args))
         if key not in self._suite:
             self._suite[key] = leg.suite(args)
         return self._suite[key]
+
+    def widen_suite(self, args):
+        """`args` with its directory replaced by the widest one that contains it, or unchanged."""
+        if len(args) < 2:
+            return args
+        wider = self._widen.get((tuple(args[:-1]), args[-1]))
+        return [*args[:-1], wider] if wider else args
 
     # -- the workspace test build, and a crate's binaries run off it ---------------------
 
@@ -1653,7 +1714,14 @@ class Goal:
         `--no-run` on purpose, and this is the part that must not be traded away: the guards are
         cost-class assertions, and a cost measured on a machine that is simultaneously linking is
         not the cost. So the BUILD overlaps and the RUN does not -- `cargo()` joins this thread
-        before it starts the real invocation, which by then is a no-op build and a 3s test run."""
+        before it starts the real invocation, which by then is a no-op build and a 3s test run.
+
+        Nothing at all when the release gate is shut: that is the whole point of the gate, since
+        this build IS the sweep's critical path and not merely a step in it. Measured on the
+        20260904-143054 run, the sweep waited **84s** at `join_prebuild` for a build that had been
+        running since t=0, and everything else fitted underneath it."""
+        if not self.release_gate:
+            return
         args = self.release_args()
         cli = self.release_cli()
         if not args and not cli:
@@ -1826,6 +1894,9 @@ class Goal:
             # A check that measures the release CLI waits for the build of it that started at the
             # top of the sweep -- `release_cli` owns why that build is this driver's job at all.
             if measures_release_cli(c):
+                if not self.release_gate:
+                    self.release_owed.append(c["name"])
+                    return ""
                 self.join_prebuild()
             r = self.timed(label, lambda: capture(argv[0], argv[1:],
                                                   cwd=ROOT / c.get("cwd", ".")))
@@ -1851,7 +1922,8 @@ class Goal:
             # rather than at the binary, because `--leg-only` runs these on the Linux build, whose
             # path Windows cannot execute. Shared by every check naming the same args on the same
             # leg, exactly as `cargo()` shares a cargo run -- see the class doc.
-            r = self.timed(label, lambda: self.suite(leg, c["args"]))
+            r = self.timed(label, lambda: self.suite(
+                leg, c["args"], exact=c.get("min_passing") is not None))
         elif crate := plain_crate_test(c["args"]):
             # `cargo test -p <crate>` and nothing else: the crate's binaries off the shared
             # workspace build rather than a cargo run of its own -- the class doc has the rebuild
@@ -2022,6 +2094,8 @@ class Goal:
             n += sum(1 for c in self.cargo_checks if c["kind"] == "nvs-suite")
             return n + (sweep if sweepable else 0)
 
+        if self.fast_check() is not None:
+            n += 1  # last session's failing check, tried before anything is built
         n += 1 + len(self.catch_up_checks) + programs  # native build, catch-up, native fixtures
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
         if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
@@ -2075,6 +2149,11 @@ class Goal:
         if fail:
             return fail
 
+        # Before ANY build, because the whole value of it is not paying for one: see `fast_fail`.
+        fail = self.fast_fail()
+        if fail:
+            return fail
+
         # Before anything else, because it is the longest pole and it is a build: see `prebuild`.
         self.prebuild()
 
@@ -2088,7 +2167,7 @@ class Goal:
 
         for c in self.catch_up_checks:
             trace(f"cargo {c['name']} (catch-up)")
-            fail = self.cargo_check(c, native)
+            fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
 
@@ -2107,7 +2186,7 @@ class Goal:
                 trace(f"cargo {c['name']} (green on these inputs already)")
                 continue
             trace(f"cargo {c['name']}")
-            fail = self.cargo_check(c, native)
+            fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
             self.remember(c["name"])
@@ -2166,8 +2245,12 @@ class Goal:
             if self.remembered(c["name"]):
                 trace(f"cargo {c['name']} (green on these inputs already)")
                 continue
+            if not self.release_gate:
+                self.release_owed.append(c["name"])
+                trace(f"cargo {c['name']} (release gate shut -- owed until the sweep goes green)")
+                continue
             trace(f"cargo {c['name']}")
-            fail = self.cargo_check(c, native)
+            fail = self.run_cargo_check(c, native)
             if fail:
                 return fail
             self.remember(c["name"])
@@ -2176,6 +2259,91 @@ class Goal:
         # anything: everything above is a claim about whether the language is correct on both legs
         # and leaks nothing, and all of it has now run. See `cargo_check`'s `min_passing` arm.
         return self.short[0] if self.short else ""
+
+    # -- the two things that let a sweep cost less than all of it ------------------------
+
+    def run_cargo_check(self, c, leg=None):
+        """`cargo_check`, remembering WHICH check a sweep died on so the next one can try it
+        first. Only a `cargo-named` check is remembered, because only that kind is cheap enough
+        to be worth trying alone -- `fast_fail` says what that costs and what it buys."""
+        fail = self.cargo_check(c, leg)
+        if fail and c["kind"] == "cargo-named" and "--release" not in c.get("args", []):
+            self.failed_name = c["name"]
+        return fail
+
+    def fast_check(self):
+        """The check `fast_path` names, if the goal still holds one of that name and kind."""
+        if not self.fast_path:
+            return None
+        return next((c for c in self.checks
+                     if c.get("name") == self.fast_path and c["kind"] == "cargo-named"
+                     and "--release" not in c.get("args", [])), None)
+
+    def fast_fail(self):
+        """Last session's failing check, run first and alone, before a single build is started.
+
+        The acceptance list is a frontier: a session is handed the check its work has to turn
+        green, and the sweep dies at that same check for as long as the work is unfinished. Over
+        the 20260904 runs that was every session but one -- nine ledger lines in a row ending at a
+        `cargo-named` check whose test was not written yet -- and each of them paid the full sweep
+        to find it out. A `cargo-named` check costs the shared workspace test build and one crate's
+        binaries, so asking it first turns a **4m45s** answer into roughly **15s**.
+
+        What it defers, and the argument that this is safe: a sweep that stops here has not run the
+        fixtures, the suites, the second leg or the valgrind sweep over this session's work. But the
+        session itself has just run `verify.py` -- build, fmt, test, both `.nvst` trees, clippy --
+        and, decisively, **a goal cannot be declared reached without a full green sweep**: `drive`
+        advances the chain only on an empty `fail`, and `fail` is empty only when everything below
+        has run. So the full sweep runs on exactly the sessions that move the frontier, and a
+        regression hidden behind a red check is found by the session that turns it green, with one
+        commit per slice in `git log` to localize it.
+
+        Only `cargo-named`, and never a `--release` one: a fixture or a suite is not cheap enough
+        for the fast path to be worth anything, and a release check would build the profile this
+        run is trying not to build."""
+        c = self.fast_check()
+        if c is None:
+            return ""
+        self.trace(f"fast path: {c['name']}, the check the last sweep died at")
+        fail = self.run_cargo_check(c)
+        if fail:
+            return fail
+        self.trace("fast path green -- the full sweep runs")
+        return ""
+
+    def release_catch_up(self, verbose=False):
+        """Run the release-profile checks the gate held back, now that everything else is green.
+
+        This is the gate's hole, closed at the one place it matters. `release_gate` skips a cost
+        guard on four sessions in five, which is right while the sweep is red -- but a green sweep
+        is the end of a goal, and a goal must not be declared reached on a sweep that skipped one.
+        Reaching here with an empty `fail` IS that moment, for the last goal in the chain as much
+        as for any other, so nothing here has to know what a chain or a milestone is.
+
+        Cheap because it is not a second sweep: `_cargo`, `_crate_runs` and `_exes` still hold this
+        run's answers, so what is paid is the release build the gate declined and the two or three
+        checks that read it."""
+        self.verbose = verbose
+        self.release_gate = True
+        owed = set(self.release_owed)
+        self.release_owed = []
+        if not owed:
+            return ""
+        self.trace(f"release gate: settling {len(owed)} check(s) held back, the rest being green")
+        self.prebuild()
+        native = NativeLeg()
+        fail = self.timed("native build (release catch-up)", native.prepare)
+        if fail:
+            return fail
+        for c in self.checks:
+            if c["kind"] in PROGRAM_KINDS or c.get("name") not in owed:
+                continue
+            self.trace(f"cargo {c['name']} (release gate)")
+            fail = self.run_cargo_check(c, native)
+            if fail:
+                return fail
+            self.remember(c["name"])
+        return ""
 
     def leg_check(self, verbose=False):
         """The Linux leg, with the origin its network fixtures need held open around it -- the same
@@ -2471,21 +2639,57 @@ class Chain:
         self.path = Path(path)
         if not self.path.is_file():
             raise ChainError(f"{rel_to_root(self.path)} does not exist")
+        self.goals = self._load()
+        self.index = self._restore()
+
+    def _load(self):
+        """Every `[[goal]]` in the file, validated. `ChainError` on anything unwalkable."""
         try:
             spec = tomllib.loads(self.path.read_text(encoding="utf-8"))
         except tomllib.TOMLDecodeError as e:
             raise ChainError(f"{rel_to_root(self.path)} did not parse: {e}") from e
-        self.goals = spec.get("goal", [])
-        if not self.goals:
+        goals = spec.get("goal", [])
+        if not goals:
             raise ChainError(f"{rel_to_root(self.path)} holds no [[goal]] entry")
-        for i, g in enumerate(self.goals, 1):
+        for i, g in enumerate(goals, 1):
             for key in ("name", "md", "toml", "handoff"):
                 if key not in g:
                     raise ChainError(f"goal {i} in {rel_to_root(self.path)} has no `{key}`")
             for key in ("md", "toml", "handoff"):
                 if not (ROOT / g[key]).is_file():
                     raise ChainError(f"goal {i} ({g['name']}) names {g[key]}, which does not exist")
-        self.index = self._restore()
+        return goals
+
+    def refresh(self):
+        """Re-read the file, so a goal that *appends* entries is walked in the same run.
+
+        `dossier.py --emit-goals --append-chain` is the reason this exists: a goal whose whole job
+        is to write the next hundred cannot hand them to a driver that read the chain once at
+        start-up, and stopping the run for a human to restart is the thing `--chain` exists to
+        avoid.
+
+        **Only growth is adopted.** `.loop/chain.json` is an index into this list and
+        `goal-switch.py` has already folded each walked entry's checks into the one after it, so a
+        chain whose existing entries moved is not something to follow -- the floor those switches
+        built no longer matches the file. That rewrite, and a file that stops parsing mid-run, both
+        leave the snapshot in place and the run continues on it: every entry it is walking is still
+        on disk, so there is nothing here worth ending three hundred sessions over.
+
+        Returns a one-line note for the console, or "" when nothing changed.
+        """
+        try:
+            fresh = self._load()
+        except ChainError as e:
+            return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {e}"
+        old = [g["md"] for g in self.goals]
+        if [g["md"] for g in fresh[:len(old)]] != old:
+            return (f"chain: {rel_to_root(self.path)} was rewritten under the run rather than "
+                    f"appended to -- walking the {len(old)} entries this run started with")
+        if len(fresh) == len(old):
+            return ""
+        self.goals = fresh
+        return (f"chain: {rel_to_root(self.path)} grew by {len(fresh) - len(old)} goal(s) to "
+                f"{len(fresh)} -- the run walks them without a restart")
 
     def _restore(self):
         """Where the chain stands, from `.loop/chain.json`, or -1 for "nothing installed yet".
@@ -3547,6 +3751,55 @@ def run_cli():
 #: a session; raising it trades a longer blind window for very little more.
 DOC_GATE_EVERY = 5
 
+#: How many sessions run between two runs of the release-profile checks, and the only home for
+#: that number. The release profile is `lto = "thin"` with `codegen-units = 1` and it is the
+#: acceptance check's critical path, not a step in it: measured on the 20260904-143054 run, the
+#: sweep spent **84s of 288s** waiting at `join_prebuild` while everything else fitted underneath
+#: the build. Its only consumers are cost-class assertions -- the abi-probe perf guards and the
+#: CLI warm-start bench -- so a stale verdict is a latency regression (priority 3) and never a
+#: wrong answer, it does not compound the way a leak or a semantics bug does, and the blind window
+#: is at most this many sessions of one commit per slice. `Goal.release_catch_up` closes the one
+#: hole that would matter, by refusing to let a goal be declared reached on a gated sweep.
+RELEASE_GATE_EVERY = 5
+
+
+def read_counter(path, every):
+    """Sessions since a periodic gate last fired. An unreadable file fires it rather than skipping
+    it, which is `inputs_id`'s rule and `verify.py`'s: the safe direction is doing the work."""
+    try:
+        return int(json.loads(path.read_text(encoding="utf-8")).get("since", 0))
+    except (OSError, ValueError, TypeError):
+        return every
+
+
+def write_counter(path, since):
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"since": since, "when": time.time()}, indent=1),
+                        encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def read_last_fail():
+    """The name of the `cargo-named` check the last sweep died at, for `Goal.fast_fail`."""
+    try:
+        name = json.loads(LASTFAIL.read_text(encoding="utf-8")).get("name", "")
+        return name if isinstance(name, str) else ""
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def write_last_fail(name):
+    """Record it, or clear it. Clearing on green matters as much as writing on red: a stale name
+    would send every later sweep through a fast path that cannot fail."""
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        LASTFAIL.write_text(json.dumps({"name": name or "", "when": time.time()}, indent=1),
+                            encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
 
 def write_doc_gate(since, failed=None, session=""):
     """`.loop/doc-gate.json`: sessions since the last gate, and its standing verdict.
@@ -3576,12 +3829,7 @@ def doc_gate(index):
     after that until it is green. Nothing here fails a run or stops one: a broken intra-doc link
     is not a broken tree, and `verify.py` judges the tree. Reaching a session is `orient.py`'s
     job, off the file this writes."""
-    try:
-        state = json.loads(DOCGATE.read_text(encoding="utf-8"))
-        since = int(state.get("since", 0))
-    except (OSError, ValueError, TypeError):
-        since = DOC_GATE_EVERY  # unreadable state runs the gate rather than skipping it
-    since += 1
+    since = read_counter(DOCGATE, DOC_GATE_EVERY) + 1
     if since < DOC_GATE_EVERY:
         write_doc_gate(since)
         return
@@ -3798,9 +4046,22 @@ def drive(opts, goal, chain=None):
         # Verbose on purpose, and the one place a run spends minutes without a session running:
         # a native build, every fixture, both suites, the WSL leg and the valgrind sweep. Silent,
         # this read as a driver that had hung after printing the session's status line.
-        step("acceptance check: build, fixtures, suites, wsl leg, valgrind", C.CYAN)
+        # The two gates the sweep itself does not own: which check to try first, and whether the
+        # release profile is built at all this session. Both are read here rather than inside
+        # `Goal` because both are counted in SESSIONS, and a `Goal` is loaded fresh every one.
+        goal.fast_path = read_last_fail()
+        release_since = read_counter(RELEASEGATE, RELEASE_GATE_EVERY) + 1
+        goal.release_gate = release_since >= RELEASE_GATE_EVERY
+        held = "" if goal.release_gate else f" (release profile held, 1 session in {RELEASE_GATE_EVERY})"
+        step(f"acceptance check: build, fixtures, suites, wsl leg, valgrind{held}", C.CYAN)
         checked = time.monotonic()
         fail = goal.check(verbose=True)
+        # A green sweep is the end of a goal, and a goal must not be reached on one that skipped a
+        # cost guard. `release_catch_up` says why this is the whole of that argument.
+        if not fail and goal.release_owed:
+            fail = goal.release_catch_up(verbose=True)
+        write_counter(RELEASEGATE, 0 if goal.release_gate else release_since)
+        write_last_fail(goal.failed_name)
         step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
         # Beside the acceptance check because it is the same kind of thing: a gate the driver runs
@@ -3816,6 +4077,11 @@ def drive(opts, goal, chain=None):
             done = chain.current["name"]
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
+            # The goal that just passed may have been the one that writes the rest of the chain.
+            grew = chain.refresh()
+            if grew:
+                say(grew, C.CYAN)
+                ledger(f"## {grew}")
             if chain.finished:
                 reason = (f"CHAIN COMPLETE: {done} was the last goal in "
                           f"{rel_to_root(chain.path)}, and every one of them is green")
