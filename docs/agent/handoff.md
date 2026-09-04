@@ -2,68 +2,76 @@
 
 ## State
 
-**Goal 6, Stage 5: a Novis program can read a request body.** `Core\Request::body(): tainted string`
-pulls `nvs_runtime::RequestBody` to its end into one value — eight of spec § 15's fifteen members
-now, and the first that reads what arrived *after* the header block. The cap is
-`crates/nvs-stdlib/src/request.rs:790`'s `REQUEST_BODY` (ADR 0105 § 5's `[limits] request_body`
-default, 8M, as a constant until the row exists — `nvs_server::body::UPLOAD_TOTAL` is its twin) and
-it is checked **before** each chunk is copied, so the buffer never holds more than the bound; a
-`next_chunk` `Err` is an `IOError` rather than a short body. The helper's own doc comment is the
-whole argument, including why nothing is reserved from `Content-Length`.
+**Goal 6, Stage 5: both readings of a request body are on disk, and the request records which
+one took it.** `Core\Request::bodyStream(): Iterable<tainted bytes>` is spec § 15's streaming
+reader — nine of § 15's fifteen members now. It answers `Core\Request\BodyStream`, the one
+`Iterable` in `Core` that is **its own iterator** rather than a `crate::cursor` snapshot:
+`iterate()` hands the receiver back and `advance()` pulls one chunk off
+`nvs_runtime::RequestBody`, so nothing accumulates and no `REQUEST_BODY` bound applies. The
+class's own doc comment at `crates/nvs-stdlib/src/request.rs:445` is the whole argument.
 
-**The exclusivity spec § 15 states is recorded as a gap, not enforced.** `body`, `bodyStream` and
-`files` are exclusive on one request; only the first exists, so a second `body()` answers `""`.
-`crates/nvs-stdlib/src/request.rs:43`'s module-doc section owns why the record belongs on `Inbound`
-rather than on any member. `nvs_runtime::Inbound::body`'s doc cited an ADR 0105 § 8 that does not
-exist — that ADR ends at § 6 — and now cites spec § 15, which is the rule's real home.
+**The element is `tainted bytes`, which needed a new `CoreTy` spelling.** `registry::CoreTy`
+had no return-position `bytes` twin of `TaintedStr`, and a plain `bytes` element would have
+made `bodyStream` a launderer for the same octets `body()` marks. `CoreTy::TaintedBytes` is
+four sites — the variant, `nvs_types::core_lib`'s lowering, `nvs_stdlib::ast`'s leaf list,
+`nvs_cli::meta`'s rendering — and the mark reaches a `foreach` binding through
+`registry::ITERABLES`. **Spec § 15's own signature was amended** to `Iterable<tainted bytes>`;
+it had written plain `bytes`.
 
-**`conformance_coverage.rs`'s error-path gate has a third answer**, because this member's two throws
-are the first that a program reaches and no `.nvst` case can: the playbook bullet is the rule, and
-`OWED_A_CASE` is still empty.
+**Spec § 15's exclusivity is enforced, not recorded as a gap.** `nvs_runtime::Inbound`'s new
+`claimed_by` field and `Inbound::claim_body` are the rule's only home; `nvs_stdlib::request`'s
+`claim_body` is only the wording. The claim is taken where a reading is **named** — so
+`bodyStream()` claims once and its `advance()` never does — and it is taken on a request that
+carried no body too, because what § 15 makes exclusive is the reading. `files` joins the same
+call when it lands.
 
-**`examples/upload.nvs` — the failing acceptance check — stays failing** until `files()` lands; it
-wants parts, and nothing yields one yet.
+**Neither slice could take a `.nvst` case for its throws**: a case answers no request, so both
+new `Fault::` sites carry `conformance_coverage.rs`'s `no case can reach this` declaration
+naming the `#[test]` that asserts them instead.
 
-**`[context]` gaps:** `adrs` still selects no § 3 and no § 5 of ADR 0105, which every item in this
-group needs and which this session peeked by hand; spec § 15 has no `spec` selector and it is
-`docs/spec/01-core-library.md:1048-1070`.
+**`examples/upload.nvs` — the failing acceptance check — stays failing** until `files()` lands;
+it wants parts, and nothing yields one yet. The example itself is still the IO-only placeholder
+and needs rewriting around `files()` in the same slice.
+
+**`[context]` gaps:** `adrs` still selects no § 3 and no § 5 of ADR 0105; spec § 15 has no
+`spec` selector and it is `docs/spec/01-core-library.md:1048-1072`.
 
 ## Next group
 
-**The other two ways to read a body, and the record that keeps them apart.** One file set:
-`crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/io.rs`, `crates/nvs-runtime/src/ctx.rs`,
+**`files()`, the parts it yields, and the example that proves there is no temp file.** One file
+set: `crates/nvs-stdlib/src/request.rs`, `crates/nvs-server/src/body.rs`, `examples/upload.nvs`,
 `tests/conformance/core/`.
 
-- [ ] **`Core\Request::bodyStream(): Iterable<bytes>`** — ADR 0105 § 3's second way and spec § 15
-      (`docs/spec/01-core-library.md:1068`). The shape to copy whole is `Core\IO::lines`' named
-      `Iterable<string>` class at `crates/nvs-stdlib/src/io.rs:1626` with its `iterate()` symbol at
-      `crates/nvs-stdlib/src/io.rs:1618`; the registry's note on the two spellings is
-      `crates/nvs-stdlib/src/registry.rs:1238`. The five edits land beside `body`'s — row at
-      `crates/nvs-stdlib/src/request.rs:241`, card at `crates/nvs-stdlib/src/request.rs:380`,
-      `address` arm at `crates/nvs-stdlib/src/request.rs:417`, helper beside
-      `crates/nvs-stdlib/src/request.rs:820`. The pull is `Inbound::body` at
-      `crates/nvs-runtime/src/ctx.rs:4498` — **on `Inbound`, not `Ctx`** — and a chunk is borrowed
-      only until the next pull, so each yielded `bytes` copies. No `REQUEST_BODY` bound applies:
-      nothing accumulates.
-- [ ] **The body carries which member claimed it** — spec § 15's exclusivity, enforced. A field
-      beside the reader at `crates/nvs-runtime/src/ctx.rs:4486`, set by whichever of the three took
-      the borrow and read back as a `LogicError` naming both members; the gap it closes is written
-      out at `crates/nvs-stdlib/src/request.rs:43`, and `body`'s own refusal wording to reuse is
-      `crates/nvs-stdlib/src/request.rs:400`'s `inbound_of`.
-- [ ] **`Core\Request::files()`, and `examples/upload.nvs` runs** — ADR 0105 §§ 1-4's lazily yielded
-      parts, over the same `Iterable` shape the first item builds — the multipart split is new code
-      beside `crates/nvs-stdlib/src/request.rs:820`, reading the boundary out of `Content-Type` with
-      `crates/nvs-stdlib/src/request.rs:400`'s `inbound_of` and the pull at
-      `crates/nvs-runtime/src/ctx.rs:4498`. This is the item the driver's standing acceptance
-      failure is waiting on.
+- [ ] **The multipart parse, as a `RequestBody` reader** — ADR 0105 §§ 1-2. It pulls the same
+      `nvs_runtime::RequestBody` `bodyStream` walks, so the shape to copy is
+      `crates/nvs-stdlib/src/request.rs:1032`'s `body_stream_step`, and the boundary comes off
+      `Content-Type`, read with `crates/nvs-stdlib/src/request.rs:@joined_field`. The total
+      bound is `crates/nvs-server/src/body.rs`'s `UPLOAD_TOTAL`, not
+      `crates/nvs-stdlib/src/request.rs:@REQUEST_BODY`.
+- [ ] **`Core\Request::files(): Iterable<Part>` and `Core\Request\Part`** — ADR 0105 §§ 3-4 and
+      spec § 15 (`docs/spec/01-core-library.md:1063`). Five edits beside `bodyStream`'s: row at
+      `crates/nvs-stdlib/src/request.rs:250`, card at `crates/nvs-stdlib/src/request.rs:410`,
+      `address` arm at `crates/nvs-stdlib/src/request.rs:490`, class beside
+      `crates/nvs-stdlib/src/request.rs:445`. It owes `crates/nvs-stdlib/src/request.rs:@claim_body`
+      a call with `"files"`, which is the third member that rule was written for. A part's
+      `filename` and `contentType` are `CoreTy::TaintedStr`; `readAll` is `CoreTy::TaintedBytes`.
+- [ ] **`examples/upload.nvs` runs, and the acceptance check passes** — the check wants
+      `parts=2 / field=title / file=report.pdf / saved 4096 bytes / no temp file`. The file is
+      today an IO-only placeholder that never mentions `files()` — `examples/upload.nvs:25` is
+      where it starts inventing a directory instead — so rewrite it around the member, keeping
+      `examples/upload.nvs:63`'s `Core\IO::within` as the launderer between a claimed filename
+      and a path.
 
 ## Backlog
 
-- `[limits] request_body` and `upload_total` as real rows — ADR 0105 § 5; today both are constants
-  (`crates/nvs-stdlib/src/request.rs:790`, `crates/nvs-server/src/body.rs:65`).
-- A multipart body far larger than any in-memory bound, received at a bounded high-water mark —
-  `docs/plan/m7.md`'s load-bearing acceptance case, and it needs `files()` first.
 - Raw/unparsed body access for an arbitrary content-type — `docs/plan/m7.md`, narrowed to what
-  `body()` and `bodyStream()` do not answer.
-- `clientIp`/`scheme`/`host` on `[server] trusted_proxies` and the forwarded-header walk — ADR 0097.
-- `route`/`mount` on the match `nvs_server` makes once before the handler — ADR 0102.
+  `body()`/`bodyStream()` do not answer; the goal's standing decisions pre-authorize the call.
+- `clientIp`, `scheme`, `host` — `crates/nvs-stdlib/src/request.rs`'s module doc; they wait on
+  `[server] trusted_proxies` and the forwarded-header walk.
+- `route`/`mount` — the same module doc; they wait on ADR 0102's match, made once by
+  `nvs_server` before the handler.
+- `Core\Request::post()` for a multipart form's non-file parts — spec § 15, line 1068; it falls
+  out of the parse the next group writes.
+- The `Core\Request\BodyStream` anchor in `docs/novis.md` collides with `Core\Request::bodyStream`'s,
+  as `Core\IO\Lines`' already does with `Core\IO::lines`' — `tools/reference.py`, and
+  `check-links.py` is green either way.
