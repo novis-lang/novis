@@ -7466,6 +7466,18 @@ sibling in the same namespace unqualified.
   absence has no compiler behind it, so when triaging a check that has never passed, re-ask the
   absence the code asserts rather than reading its doc — one `grep -n` of the block name in
   `tree.rs` settled this one, and it changed the triage's answer.
+- **`jiff`'s disambiguation does not spell ADR 0073 § 6's spring-forward rule, and the nearest option
+  is wrong by half an hour.** `AmbiguousZoned::compatible()` shifts a civil time inside a gap
+  *forward by the gap's length* — `02:30` becomes `03:30` — and `earlier()` shifts it back to before
+  the gap; § 6 says the fire is "the first valid instant after the gap", which is the transition
+  itself, `03:00`. Neither option is that instant, and a case asserting only "it fired that day"
+  passes against both. Read the missing minute with the gap's **`after`** offset (that lands
+  *before* the transition, since the offset belongs to the far side), then take
+  `TimeZone::following(that).next()` — `crates/nvs-config/src/schedule.rs`'s `at` is the four lines.
+  The fall-back half *is* a library call, `earlier()`, so only one of § 6's two rules is one. Two
+  smaller shapes from the same crate: `jiff::civil::Date` has no `to_datetime`/`at`, so a date plus a
+  time is `DateTime::new(y, m, d, …)`, and `TimeZone` has no `Display` — the name is
+  `iana_name() -> Option<&str>`.
 
 ## Divergences and refusals already pinned
 
