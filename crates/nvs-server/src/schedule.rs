@@ -28,7 +28,7 @@
 //! exists to prevent — an entry that booted and fires at the wrong minute, which
 //! nothing observes.
 //!
-//! # What is not armed, and what is not decided yet
+//! # What is not armed
 //!
 //! **A `fleet` entry is not armed** ([`arm`] skips it and says so). § 3 makes a
 //! fleet-scoped interval exactly one run *across* the deployment, held by a lease
@@ -38,24 +38,37 @@
 //! failure § 3's key exists to prevent, so the safe half is to run none of them
 //! and name each one at boot.
 //!
-//! Not here yet, in the order § 5 and § 6 state them: the per-entry `limits` and
-//! `grants` sub-caps, which narrow a run's budget and its capabilities and which
-//! nothing in this tree can narrow *per isolate* yet; and § 6's `overlap`, whose
-//! default is `skip` — a fire is spawned unconditionally today, so an entry whose
-//! run outlives its interval overlaps itself. Both are the ticker's questions
-//! rather than the caller's, and both belong to this module when they land.
+//! # An entry never overlaps itself
+//!
+//! § 6's three modes are all here, and what they share is the count they are
+//! asked of: the entry's **own** fires still running, and not the process-wide
+//! tally this loop keeps for its teardown — two entries sharing one would let a
+//! nightly report suppress an hourly one. A fire that is dropped or held rearms
+//! like any other, so a job that runs long falls behind by intervals rather than
+//! by copies. [`Overlap`] states each mode; the two that are not `skip` cost the
+//! loop one thing each. `queue` makes the wait a [`nvs_host::timer::wait_until`]
+//! rather than a `sleep`, because a held fire is waiting on a run *ending* and a
+//! sleep re-arms past exactly that wake; `kill` keeps the id of the task each
+//! fire was spawned as, which is the handle it cancels and then waits out.
+//!
+//! # Not here yet
+//!
+//! The per-entry `limits` and `grants` sub-caps (§ 5), which narrow a run's
+//! budget and its capabilities and which nothing in this tree can narrow *per
+//! isolate* yet. Like `overlap`, they are the ticker's question rather than the
+//! caller's, and they belong to this module when they land.
 
 use std::cell::Cell;
 use std::io;
 use std::ops::ControlFlow;
 use std::rc::Rc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use jiff::Zoned;
 use jiff::tz::TimeZone;
 use nvs_config::schedule::{Cron, zone_of};
 use nvs_config::tree::Schedule;
-use nvs_host::{Completion, Isolate, Waiting, Wake, spawn_child, suspend_current};
+use nvs_host::{Completion, Isolate, TaskId, Waiting, Wake, spawn_child, suspend_current};
 use nvs_runtime::host::Woken;
 use nvs_runtime::{Ctx, OutputSink, TaskRoot};
 
@@ -79,6 +92,46 @@ pub struct Armed {
     /// in the roster and never fires again, which is the same answer as removing it and keeps the
     /// indices a tick walked stable.
     next: Option<Zoned>,
+    /// This entry's own fires, spawned and not yet finished — § 6's question, asked per entry
+    /// rather than of the process-wide tally the tick keeps for its teardown.
+    ///
+    /// An [`Rc`] because the [`Ran`] guard that gives a run back outlives the pass that took it,
+    /// and a [`Cell`] because a roster and its fires are all on one core. The clone a fire carries
+    /// shares this count, which costs nothing and keeps the two from disagreeing.
+    running: Rc<Cell<usize>>,
+    /// § 6's `overlap`, read once at boot: what this entry does when it is due and still running.
+    overlap: Overlap,
+    /// Whether a fire is held for this entry — `queue`'s single pending run, and never more than
+    /// one of them (§ 6).
+    ///
+    /// The tick is the only reader and the only writer, so this is a plain [`Cell`] rather than a
+    /// shared one; the copy a fire's clone carries is dead weight and is never asked.
+    held: Cell<bool>,
+    /// The task the last fire of this entry was spawned as, which is what `kill` cancels.
+    ///
+    /// [`None`] until the first fire, and stale rather than cleared once one ends: cancelling a
+    /// task that has finished marks nothing ([`nvs_host::cancel_task`] answers `0`), and the mode
+    /// only reaches for it when the entry is still running.
+    fired_as: Cell<Option<TaskId>>,
+}
+
+/// § 6's `overlap`: what a fire does when the previous run of the same entry is still going.
+///
+/// The mode is the entry's, read at boot and never re-read, because it is configuration rather
+/// than state — [`arm`] is the one place a written word becomes one of these.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Overlap {
+    /// The default: the fire is dropped and named. A job that is already behind gets no closer to
+    /// finishing by being started twice.
+    #[default]
+    Skip,
+    /// At most one fire is held, and it starts the moment the run before it ends. A second overlap
+    /// while one is already held is dropped and named — the bound is the whole difference between
+    /// this and the unbounded pending queue ADR 0072 § 7 refuses to build.
+    Queue,
+    /// The running isolate is cancelled, its teardown is waited for, and only then does the new run
+    /// start. Cancellation runs no user code (ADR 0072 § 5).
+    Kill,
 }
 
 impl Armed {
@@ -98,6 +151,17 @@ impl Armed {
     #[must_use]
     pub fn next(&self) -> Option<&Zoned> {
         self.next.as_ref()
+    }
+
+    /// Whether a fire of this entry is still going — § 6's question, asked of the entry the tick is
+    /// about to fire and of nothing else.
+    fn busy(&self) -> bool {
+        self.running.get() > 0
+    }
+
+    /// Whether `queue` is holding a fire for this entry.
+    fn held(&self) -> bool {
+        self.held.get()
     }
 
     /// Whether `now` has reached this entry's next fire.
@@ -148,7 +212,8 @@ pub trait Fires {
     /// once, for every fire. An implementation that wants the value in its line renders it here.
     fn ran(&self, entry: &Armed, done: &Completion);
 
-    /// The ticker's own notes — an entry that retired, and nothing else at present.
+    /// The ticker's own notes — an entry that retired, and a fire § 6's `skip` dropped because the
+    /// entry's previous run had not finished.
     fn note(&self, note: &str);
 }
 
@@ -160,6 +225,10 @@ pub trait Fires {
 /// as well, and is unreachable: [`nvs_config::schedule::validate`] refused the boot over every one of
 /// those before a socket existed. The note is what makes a hole in that argument visible rather than
 /// silent, which is the failure mode a schedule has by construction.
+///
+/// An entry naming an `overlap` § 6 does not is armed under `skip` and noted once, for the same
+/// reason and with the same unreachability: the boot refuses an unknown word before this is
+/// reached, so the note exists to make a hole in *that* argument visible rather than silent.
 pub fn arm(entries: &[Schedule], now: &Zoned, mut note: impl FnMut(&str)) -> Vec<Armed> {
     let mut armed = Vec::new();
     for (index, entry) in entries.iter().enumerate() {
@@ -192,6 +261,23 @@ pub fn arm(entries: &[Schedule], now: &Zoned, mut note: impl FnMut(&str)) -> Vec
             ));
             continue;
         };
+        // § 6's mode, read once here rather than at each fire: it is configuration, and a tick that
+        // re-read a string every minute would be deciding the same thing over and over from a
+        // field nothing can change without a reload.
+        let overlap = match entry.overlap.as_deref().map(str::trim) {
+            None | Some("skip") => Overlap::Skip,
+            Some("queue") => Overlap::Queue,
+            Some("kill") => Overlap::Kill,
+            // Not reachable through a boot that validated the tree, and here for the same reason
+            // the refusals above are: a word § 6 does not name falls back to the mode that starts
+            // the fewest runs, and says so rather than choosing quietly.
+            Some(word) => {
+                note(&format!(
+                    "`{name}` names `overlap = \"{word}\"`, which § 6 does not, and runs as `skip`"
+                ));
+                Overlap::Skip
+            }
+        };
         let Some(next) = cron.next_after(&now.with_time_zone(zone.clone())) else {
             note(&format!(
                 "`{name}` names no instant inside the horizon and is not armed"
@@ -204,6 +290,10 @@ pub fn arm(entries: &[Schedule], now: &Zoned, mut note: impl FnMut(&str)) -> Vec
             cron,
             zone,
             next: Some(next),
+            running: Rc::new(Cell::new(0)),
+            overlap,
+            held: Cell::new(false),
+            fired_as: Cell::new(None),
         });
     }
     armed
@@ -247,7 +337,19 @@ where
         // The core is handed back for the wait, which is the whole reason this is a task: the accept
         // loop beside it keeps serving while a schedule waits out its interval. A cancelled wait is
         // this task being torn down.
-        if !wait.is_zero() && matches!(nvs_host::sleep(wait), Woken::Cancelled) {
+        //
+        // Which wait it is depends on what there is to wait for. A held fire is waiting on a run
+        // *ending* rather than on a minute arriving, and a run ending is a wake: `wait_until`
+        // returns on either, where `sleep` deliberately re-arms past a wake because its caller
+        // asked for an instant. So the interval stays the bound and the ending is the answer.
+        let woken = if entries.iter().any(Armed::held) {
+            nvs_host::timer::wait_until(Instant::now() + wait)
+        } else if wait.is_zero() {
+            Woken::Elapsed
+        } else {
+            nvs_host::sleep(wait)
+        };
+        if matches!(woken, Woken::Cancelled) {
             break;
         }
         // Read once for the whole pass, so that two entries due in the same minute are answered
@@ -260,21 +362,79 @@ where
             .map(|(index, _)| index)
             .collect();
         for index in due {
-            // Counted in here rather than inside the fire's own body, so that a run handed over is
-            // already outstanding by the time the tail below can look; `Running`'s `Drop` is what
-            // counts it back out, and it is a drop rather than a line at the end of the body
-            // because a cancelled coroutine is torn down where it parked and never reaches one.
-            outstanding.set(outstanding.get() + 1);
-            let running = Ran {
-                outstanding: Rc::clone(&outstanding),
-                parent: Rc::clone(&parent),
-            };
-            fire(&entries[index], fires, running)?;
+            // § 6, and the whole of it: an entry that is due while its own previous run is still
+            // going is answered by its mode, and the rearm below happens whichever answer it gets —
+            // an entry left due would make the next wait zero and turn one long run into a spin.
+            let entry = &entries[index];
+            if entry.busy() {
+                match entry.overlap {
+                    Overlap::Skip => fires.note(&format!(
+                        "`{}` is still running its previous fire, so this one is dropped (§ 6's \
+                         `overlap = \"skip\"`)",
+                        entry.name()
+                    )),
+                    Overlap::Queue if entry.held() => fires.note(&format!(
+                        "`{}` is still running and already holds a fire, so this one is dropped \
+                         (§ 6's `overlap = \"queue\"` holds one)",
+                        entry.name()
+                    )),
+                    // Held rather than started, and started by the pass at the top of this loop as
+                    // soon as the run ends. One, never a queue: the second overlap above is dropped
+                    // instead, because an unbounded backlog in front of a non-durable executor is
+                    // what ADR 0072 § 7 refuses to build.
+                    Overlap::Queue => entry.held.set(true),
+                    Overlap::Kill => {
+                        // The run is cancelled at its next safepoint and its teardown *waited for*
+                        // before the new one starts, which is the ordering § 6 states: the two must
+                        // not be alive together, or `kill` would be `skip` with an extra run. The
+                        // wait is a park over the entry's own count, given back by the run's guard
+                        // however it ended — ADR 0072 § 5's teardown runs no user code, so that
+                        // `Drop` is the whole of what there is to wait for.
+                        if let Some(task) = entry.fired_as.get() {
+                            nvs_host::cancel_task(task);
+                        }
+                        while entry.busy() {
+                            let resumed = suspend_current(Waiting::Parked);
+                            // Cancelled: this ticker is being torn down and the fire goes with it.
+                            // Not suspended: there is no core, so nothing could ever finish and
+                            // this would spin. Either way the entry stays busy and the fire below
+                            // is dropped rather than started beside a run that is still there.
+                            if resumed.cancelled() || !resumed.suspended() {
+                                break;
+                            }
+                        }
+                        if entry.busy() {
+                            fires.note(&format!(
+                                "`{}` did not tear down, so this fire is dropped rather than \
+                                 started beside it (§ 6's `overlap = \"kill\"`)",
+                                entry.name()
+                            ));
+                        } else {
+                            start(entry, fires, &outstanding, &parent)?;
+                        }
+                    }
+                }
+            } else {
+                start(entry, fires, &outstanding, &parent)?;
+            }
             if !entries[index].rearm(&clock) {
                 fires.note(&format!(
                     "`{}` has no further fire inside the horizon and will not run again",
                     entries[index].name()
                 ));
+            }
+        }
+        // § 6's `queue`: a held fire starts the moment the run before it has ended, and this is
+        // that moment. The wait above is the only line in this loop that hands the core back, so a
+        // run can only have finished while this task was parked in it — which makes this pass the
+        // first look after every ending rather than a poll. After the due walk rather than before
+        // it, so that a pass finding the entry both free and due answers the clock: the held fire
+        // is not lost by that, it starts when *that* run ends, and either order keeps § 6's bound
+        // of one held fire per entry.
+        for entry in entries.iter() {
+            if entry.held() && !entry.busy() {
+                entry.held.set(false);
+                start(entry, fires, &outstanding, &parent)?;
             }
         }
         if keep_ticking().is_break() {
@@ -298,6 +458,33 @@ where
     Ok(())
 }
 
+/// Hand one fire over: both tallies up, the guard built, the task spawned, and its id kept for a
+/// `kill` that may have to cancel it.
+///
+/// Counted here rather than inside the fire's own body, so that a run handed over is already
+/// outstanding by the time the tick's tail can look; [`Ran`]'s `Drop` is what counts it back out,
+/// and it is a drop rather than a line at the end of the body because a cancelled coroutine is torn
+/// down where it parked and never reaches one.
+fn start<F>(
+    entry: &Armed,
+    fires: &Rc<F>,
+    outstanding: &Rc<Cell<usize>>,
+    parent: &Rc<Wake>,
+) -> io::Result<()>
+where
+    F: Fires + 'static,
+{
+    outstanding.set(outstanding.get() + 1);
+    entry.running.set(entry.running.get() + 1);
+    let running = Ran {
+        outstanding: Rc::clone(outstanding),
+        mine: Rc::clone(&entry.running),
+        parent: Rc::clone(parent),
+    };
+    entry.fired_as.set(Some(fire(entry, fires, running)?));
+    Ok(())
+}
+
 /// One fire's place in the ticker's tally, given back however that run's task ended.
 ///
 /// A guard rather than a decrement at the end of the body, for the reason `serve`'s `Served` is
@@ -306,6 +493,9 @@ where
 struct Ran {
     /// The ticker's count of fires spawned and not yet finished.
     outstanding: Rc<Cell<usize>>,
+    /// This fire's own entry's count, which is § 6's question and is the same count
+    /// [`Armed::busy`] reads on the next pass.
+    mine: Rc<Cell<usize>>,
     /// The ticking task, which may be parked on that count reaching zero.
     parent: Rc<Wake>,
 }
@@ -313,6 +503,7 @@ struct Ran {
 impl Drop for Ran {
     fn drop(&mut self) {
         self.outstanding.set(self.outstanding.get() - 1);
+        self.mine.set(self.mine.get() - 1);
         // Waking a task that is not parked does nothing, which is the ordinary case: the ticker is
         // usually asleep on the next interval.
         self.parent.wake();
@@ -329,7 +520,7 @@ impl Drop for Ran {
 ///
 /// The isolate is run to completion **on that task and not on the tick's**, which is what keeps a
 /// run that takes an hour from being the reason the next minute's entry is late.
-fn fire<F>(entry: &Armed, fires: &Rc<F>, running: Ran) -> io::Result<()>
+fn fire<F>(entry: &Armed, fires: &Rc<F>, running: Ran) -> io::Result<TaskId>
 where
     F: Fires + 'static,
 {
@@ -361,10 +552,9 @@ where
             )),
         }
     });
-    if spawned.is_none() {
-        return Err(io::Error::other("the ticker must run as a task on a core"));
-    }
-    Ok(())
+    // The id is `kill`'s handle on this run and nothing else's: § 6's other two modes never reach
+    // for it, and it is answered here because this is where the task exists.
+    spawned.ok_or_else(|| io::Error::other("the ticker must run as a task on a core"))
 }
 
 /// How long until the soonest fire in the roster, or [`None`] when there is none.
@@ -418,6 +608,13 @@ mod tests {
 
     /// What the ticker did, from the caller's side of [`Fires`].
     struct Watcher {
+        /// How long each fire's program holds its task before returning. Zero for a run that ends
+        /// inside the pass that started it; anything else outlives the next interval, which is the
+        /// only way to ask § 6's question.
+        holds: Duration,
+        /// How many fires were asked for an isolate — a run § 6's `skip` dropped never gets here,
+        /// which is what makes this different from counting the runs that *finished*.
+        started: Cell<usize>,
         /// The task [`Fires::isolate`] was asked on — the fire's own, never the tick's.
         asked_on: Cell<Option<TaskId>>,
         /// Whether the isolate's **own** context carried a request, which is what
@@ -427,15 +624,20 @@ mod tests {
         ran_on: Rc<Cell<Option<TaskId>>>,
         /// § 5's log line, one per completed run.
         logged: RefCell<Vec<String>>,
+        /// [`Fires::note`]'s lines — a retired entry, and a fire `skip` dropped.
+        noted: RefCell<Vec<String>>,
     }
 
     impl Watcher {
         fn new() -> Self {
             Self {
+                holds: Duration::ZERO,
+                started: Cell::new(0),
                 asked_on: Cell::new(None),
                 answering: Rc::new(Cell::new(None)),
                 ran_on: Rc::new(Cell::new(None)),
                 logged: RefCell::new(Vec::new()),
+                noted: RefCell::new(Vec::new()),
             }
         }
     }
@@ -443,12 +645,19 @@ mod tests {
     impl Fires for Watcher {
         fn isolate(&self, entry: &Armed, _ctx: &mut Ctx) -> Option<Isolate> {
             self.asked_on.set(nvs_host::current_task());
+            self.started.set(self.started.get() + 1);
             let answering = Rc::clone(&self.answering);
             let ran_on = Rc::clone(&self.ran_on);
             let name = entry.name().to_owned();
+            let holds = self.holds;
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 answering.set(Some(child.inbound().is_some()));
                 ran_on.set(nvs_host::current_task());
+                if !holds.is_zero() {
+                    // The core is handed back, so the tick beside this one keeps its own intervals
+                    // while this run is outstanding — which is the state § 6 is about.
+                    nvs_host::sleep(holds);
+                }
                 child
                     .write_output(format!("ran {name}").as_bytes())
                     .expect("a buffer");
@@ -466,7 +675,9 @@ mod tests {
             ));
         }
 
-        fn note(&self, _note: &str) {}
+        fn note(&self, note: &str) {
+            self.noted.borrow_mut().push(note.to_owned());
+        }
     }
 
     /// ADR 0073 § 5: a fire is a **root** isolate on a task of its own — not a child of a
@@ -620,6 +831,235 @@ mod tests {
             armed[0].next().map(|next| next.timestamp().to_string()),
             Some("2026-01-01T06:00:00Z".to_owned()),
             "the next fire is the next one after *now*, not the four that were missed"
+        );
+    }
+
+    /// Drive the ticker over one `* * * * *` entry in `overlap`'s mode, through two consecutive
+    /// minutes, stopping after `passes` of them.
+    ///
+    /// The clock is a parameter and stands still a tenth of a second before each minute, so the two
+    /// waits the ticker computes are real and short; `holds` is what each fire spends on its own
+    /// task, and setting it far longer than those waits is the only way to hold one run open across
+    /// the next minute — which is the state every mode below is about. A read past the last instant
+    /// answers the last instant, which is the tick's tail parking with nothing due.
+    fn drive(
+        overlap: &str,
+        holds: Duration,
+        passes: usize,
+    ) -> (Rc<Watcher>, Rc<RefCell<Vec<Armed>>>) {
+        let clocks = [
+            instant("2026-01-01T00:00:59.9Z"),
+            instant("2026-01-01T00:01:00Z"),
+            instant("2026-01-01T00:01:59.9Z"),
+            instant("2026-01-01T00:02:00Z"),
+        ];
+        let roster = Rc::new(RefCell::new(arm(
+            &[Schedule {
+                overlap: Some(overlap.to_owned()),
+                ..entry("nightly", "* * * * *", "host")
+            }],
+            &clocks[0],
+            |note| panic!("nothing to report at boot, and it said: {note}"),
+        )));
+        let watcher = Rc::new(Watcher {
+            holds,
+            ..Watcher::new()
+        });
+        let reads = Rc::new(Cell::new(0_usize));
+        let seen = Rc::new(Cell::new(0_usize));
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let roster = Rc::clone(&roster);
+            let watcher = Rc::clone(&watcher);
+            move |_ctx| {
+                tick_on_this_core(
+                    &mut roster.borrow_mut(),
+                    &watcher,
+                    move || {
+                        let read = reads.get();
+                        reads.set(read + 1);
+                        clocks[read.min(clocks.len() - 1)].clone()
+                    },
+                    move || {
+                        let pass = seen.get();
+                        seen.set(pass + 1);
+                        if pass + 1 < passes {
+                            ControlFlow::Continue(())
+                        } else {
+                            ControlFlow::Break(())
+                        }
+                    },
+                )
+                .expect("the ticker ran as a task");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        (watcher, roster)
+    }
+
+    /// The instant an entry fires next, as the assertions below read it.
+    fn next_fire(roster: &Rc<RefCell<Vec<Armed>>>) -> Option<String> {
+        roster.borrow()[0]
+            .next()
+            .map(|next| next.timestamp().to_string())
+    }
+
+    /// § 6's `skip`, the default: an entry whose previous run is still going has this fire dropped,
+    /// and is rearmed anyway.
+    ///
+    /// Both halves matter and only the second is cheap to get wrong. A ticker that dropped the fire
+    /// but left the entry due would make the next wait zero and spin for as long as the run lasts,
+    /// which is worse than the overlap it was avoiding; a ticker that started the run beside its
+    /// predecessor is what § 6 says a job that is already behind must not do.
+    ///
+    /// Two passes: the first minute starts a run that holds its task for far longer than the second
+    /// minute's wait, so the second pass is the overlap.
+    #[test]
+    fn an_overlapping_fire_is_dropped_rather_than_started_beside_its_previous_run() {
+        let (watcher, roster) = drive("skip", Duration::from_millis(750), 2);
+
+        assert_eq!(
+            watcher.started.get(),
+            1,
+            "the second minute asked for no isolate at all: the fire was dropped before one \
+             could be built, not started and abandoned"
+        );
+        assert_eq!(
+            watcher.logged.borrow().as_slice(),
+            ["nightly ok=true ran nightly"],
+            "one run finished, and the ticker waited it out rather than taking it down"
+        );
+        let noted = watcher.noted.borrow();
+        assert_eq!(noted.len(), 1, "the drop is named once: {noted:?}");
+        assert!(
+            noted[0].contains("nightly") && noted[0].contains("skip"),
+            "the note names the entry and the mode that dropped it: {}",
+            noted[0]
+        );
+        assert_eq!(
+            next_fire(&roster),
+            Some("2026-01-01T00:03:00Z".to_owned()),
+            "a dropped fire rearms like any other: the entry is not left due, which would make \
+             the next wait zero and spin for as long as the run lasts"
+        );
+    }
+
+    /// § 6's `queue`: the overlapping fire is **held**, and it starts the moment the run before it
+    /// ends rather than at the next minute the expression names.
+    ///
+    /// The third pass is the one this case exists for. Its wait is a whole minute of the schedule's
+    /// own clock and it returns in three quarters of a second, because what a held fire waits on is
+    /// a run *ending* — a ticker that slept out the interval instead would pass every assertion
+    /// below except the one that says two runs finished, and would be `skip` with a delay.
+    #[test]
+    fn a_queued_fire_starts_when_the_run_before_it_ends_rather_than_at_the_next_minute() {
+        let (watcher, roster) = drive("queue", Duration::from_millis(750), 3);
+
+        assert_eq!(
+            watcher.started.get(),
+            2,
+            "the overlapping fire was held rather than dropped, and it ran"
+        );
+        assert_eq!(
+            watcher.logged.borrow().len(),
+            2,
+            "both runs finished, one after the other and never beside each other: {:?}",
+            watcher.logged.borrow()
+        );
+        assert!(
+            watcher.noted.borrow().is_empty(),
+            "a held fire is not a dropped one, so there is nothing to report: {:?}",
+            watcher.noted.borrow()
+        );
+        assert_eq!(
+            next_fire(&roster),
+            Some("2026-01-01T00:03:00Z".to_owned()),
+            "holding a fire does not hold the schedule: the entry rearmed from the clock"
+        );
+    }
+
+    /// § 6's `kill`: the running isolate is cancelled, its teardown is waited for, and only then
+    /// does the new run start.
+    ///
+    /// The ordering is the claim. A ticker that cancelled and started in the same breath would show
+    /// two started runs here as well, so what pins it is the run that did **not** log: the first
+    /// fire is torn down where it parked and never reaches [`Fires::ran`], which is ADR 0072 § 5's
+    /// rule that cancellation runs no user code — and the second run's own completion proves the
+    /// teardown finished rather than being merely asked for.
+    #[test]
+    fn a_killed_run_is_torn_down_and_waited_for_before_the_new_one_starts() {
+        let (watcher, roster) = drive("kill", Duration::from_millis(750), 2);
+
+        assert_eq!(
+            watcher.started.get(),
+            2,
+            "the second minute started its run"
+        );
+        assert_eq!(
+            watcher.logged.borrow().as_slice(),
+            ["nightly ok=true ran nightly"],
+            "one completion, and it is the second run's: the first was cancelled at its safepoint \
+             and ran nothing after it"
+        );
+        assert!(
+            watcher.noted.borrow().is_empty(),
+            "nothing was dropped, so nothing is reported: {:?}",
+            watcher.noted.borrow()
+        );
+        assert_eq!(
+            next_fire(&roster),
+            Some("2026-01-01T00:03:00Z".to_owned()),
+            "the entry rearmed from the clock, as it does under every mode"
+        );
+    }
+
+    /// § 6's three modes are read at boot, and a word that is none of them is armed as `skip` and
+    /// named.
+    ///
+    /// `nvs_config::schedule::validate` refuses that word before this can be reached, and the
+    /// note is here for the reason the roster's other unreachable notes are: it makes a hole in
+    /// that argument visible, where the silent alternative is an entry running a mode nobody chose.
+    /// The three that are spelled correctly are asserted beside it, because a reader that took the
+    /// fallback branch for all four would look identical from the roster alone.
+    #[test]
+    fn an_overlap_word_that_is_none_of_the_three_is_armed_as_skip_and_named() {
+        let mut notes = Vec::new();
+        let armed = arm(
+            &[
+                Schedule {
+                    overlap: Some("replace".to_owned()),
+                    ..entry("invoices", "@daily", "host")
+                },
+                Schedule {
+                    overlap: Some("queue".to_owned()),
+                    ..entry("nightly", "@daily", "host")
+                },
+                Schedule {
+                    overlap: Some("kill".to_owned()),
+                    ..entry("hourly", "@hourly", "host")
+                },
+                entry("weekly", "@weekly", "host"),
+            ],
+            &instant("2026-01-01T00:00:00Z"),
+            |note| notes.push(note.to_owned()),
+        );
+
+        assert_eq!(
+            armed.iter().map(|entry| entry.overlap).collect::<Vec<_>>(),
+            [Overlap::Skip, Overlap::Queue, Overlap::Kill, Overlap::Skip],
+            "each word is read as the mode it names, and the entry that wrote none gets the default"
+        );
+        assert_eq!(
+            notes.len(),
+            1,
+            "and only the word § 6 does not name is reported"
+        );
+        assert!(
+            notes[0].contains("invoices") && notes[0].contains("replace"),
+            "the note names the entry and what it asked for: {}",
+            notes[0]
         );
     }
 }
