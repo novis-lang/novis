@@ -15757,13 +15757,14 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes
+Keywords: json, text, bytes, setStatus
 
 | Member | Signature |
 |---|---|
 | [`Core\Response::json`](#core-core-response-json) | `json(mixed $value): void` |
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
+| [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
@@ -15814,6 +15815,23 @@ Answers with `$body` verbatim, declaring `$contentType` — the one body member 
 **Returns** `void` — Nothing. Mixing this with `echo` on one response is a compile error.
 
 **Throws** `LogicError` — `$contentType` is empty or holds a byte outside a header field value — a control character, a newline, or anything above ASCII.
+
+<a id="core-core-response-setstatus"></a>
+#### `Core\Response::setStatus`
+
+```nvs skip
+Core\Response::setStatus(uint $code): void
+```
+
+Answers with `$code` as the response's status, replacing `http_response_code` — the one member here that says nothing about the body.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$code` | `uint` | The status to answer with, from 100 to 599. Not a sink, unlike `bytes`' content type: a status line carries a number and never a string, so there is nothing here a `tainted` value could become. |
+
+**Returns** `void` — Nothing. The last call on one response is the one that answers, and a request that failed answers `500` whatever it had set.
+
+**Throws** `LogicError` — `$code` is outside 100 to 599, which is not a status any peer can classify.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
@@ -20329,6 +20347,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
 | `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](spec/01-core-library.md)) |
 | `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
+| `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
 | `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
 | `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](spec/01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
