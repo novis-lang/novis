@@ -1259,6 +1259,122 @@ mod tests {
         );
     }
 
+    /// ADR 0024 § 1 asked as the **converse** of
+    /// `a_verified_signature_does_not_launder_its_claims`, over the one class
+    /// tree every request reads itself through. That test pins which members
+    /// across the whole registry *promise* `tainted`, and a `Core\Request` row
+    /// passes it by not being in the set at all. This one asks what is left
+    /// over: every member of `Core\Request` and of the classes under it,
+    /// partitioned by **how** its answer carries the peer's bytes, with the
+    /// partition asserted rather than the marks.
+    ///
+    /// Three buckets carry the marked rows and the fourth is the one that
+    /// does the work. A row answers qualified; or it answers a walk whose
+    /// element is qualified, which is exactly the place the sibling test's own
+    /// doc says it cannot see, since an `Iterable<T>`'s `T` is written in
+    /// `nvs_stdlib::registry::ITERABLES` and not in the return type; or it
+    /// answers a walk over another class in this same sweep, which hands the
+    /// question on to that class's own rows rather than answering it. What is
+    /// left is `plain`, and `plain` is what the exact-set assertion is for: a
+    /// member added tomorrow that answers a bare `string` off the wire lands
+    /// there and nowhere else, while a test naming the *marked* rows would
+    /// never look at it.
+    ///
+    /// The sweep is taken by **prefix** rather than from a list of four class
+    /// names, so a new class under the request — a trailer bag, a second body
+    /// shape — joins it without anyone remembering to add it.
+    ///
+    /// **`query` is the one plain row that really does answer outside data**,
+    /// and it is the hole this repository has already written down rather than
+    /// an oversight: spec § 9's bracket convention makes a value a `string` or
+    /// a nested `array`, `nvs_types` has no tainted array to hold the second,
+    /// so the row answers `mixed` and the mark has nowhere to sit —
+    /// `nvs_stdlib::request`'s module doc owns why. Naming it here is what
+    /// makes closing it an edit to this assertion instead of a test that stays
+    /// green across the fix. The other three plain rows are not outside data
+    /// at all: `method` has narrowed to a closed enum before anything can hold
+    /// a payload, `isHead` is one bit derived from it, and `saveTo` answers
+    /// `void` because its bytes went to a file rather than to the caller.
+    #[test]
+    fn every_request_member_returning_outside_data_returns_it_tainted() {
+        use nvs_stdlib::registry::iterable_element;
+        use std::collections::BTreeSet;
+
+        let mut interner = TypeInterner::new();
+        let mut marked: BTreeSet<(&'static str, &'static str, String)> = BTreeSet::new();
+        let mut walks_marked_elements: BTreeSet<(&'static str, &'static str, String)> =
+            BTreeSet::new();
+        let mut hands_on: BTreeSet<(&'static str, &'static str, String)> = BTreeSet::new();
+        let mut plain: BTreeSet<(&'static str, &'static str, String)> = BTreeSet::new();
+        for class in CLASSES.iter().filter(|class| {
+            class.name == r"Core\Request" || class.name.starts_with(r"Core\Request\")
+        }) {
+            for method in class.members() {
+                let sig = method_sig(method, true, &mut interner);
+                let answer = interner.describe(sig.return_ty);
+                if answer.contains("tainted") {
+                    marked.insert((class.name, method.name, answer));
+                    continue;
+                }
+                let element = match &method.return_ty {
+                    CoreTy::Instance(name) => iterable_element(name),
+                    _ => None,
+                };
+                if let Some(element) = element {
+                    let described = {
+                        let id = lower(element, &mut interner);
+                        interner.describe(id)
+                    };
+                    if described.contains("tainted") {
+                        walks_marked_elements.insert((class.name, method.name, described));
+                    } else {
+                        hands_on.insert((class.name, method.name, described));
+                    }
+                    continue;
+                }
+                plain.insert((class.name, method.name, answer));
+            }
+        }
+
+        assert_eq!(
+            plain,
+            BTreeSet::from([
+                (r"Core\Request", "isHead", "bool".to_owned()),
+                (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
+                (r"Core\Request", "query", "mixed".to_owned()),
+                (r"Core\Request\Part", "saveTo", "void".to_owned()),
+            ]),
+            "the request tree's rows that answer an unqualified value are closed at four, and \
+             three of them answer nothing a peer chose: a closed method enum, the bit derived \
+             from it, and the `void` of bytes that went to a file. `query` is the fourth and is \
+             the known hole — § 9's brackets make a value a `string` or a nested array and there \
+             is no tainted array, so a member added here answering a bare `string` off the wire \
+             joins this set and is the thing it exists to catch"
+        );
+        assert_eq!(
+            walks_marked_elements,
+            BTreeSet::from([
+                (r"Core\Request", "bodyStream", "tainted bytes".to_owned()),
+                (r"Core\Request\Part", "content", "tainted bytes".to_owned()),
+            ]),
+            "the two members whose mark is on what a `foreach` binds rather than on the return \
+             type — the second place a qualifier can live, which the roster over return types \
+             alone cannot see"
+        );
+        assert_eq!(
+            hands_on,
+            BTreeSet::from([(r"Core\Request", "files", r"Core\Request\Part".to_owned())]),
+            "`files()` answers neither bytes nor a marked element: it walks a class this same \
+             sweep covers, so ADR 0105 § 1's one way in is checked by the `Core\\Request\\Part` \
+             rows above rather than by its own return type"
+        );
+        assert!(
+            marked.len() >= 9,
+            "the marked rows are the sibling test's closed set and are only counted here, to \
+             keep this partition total: {marked:?}"
+        );
+    }
+
     /// ADR 0058 § 1, asked as a **closed set** rather than of one row: across
     /// the whole registry, the only parameter that admits a `tainted` URL is
     /// the launderer's.
