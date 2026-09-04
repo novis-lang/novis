@@ -1787,6 +1787,27 @@ is why" — is this file.
   that built its own. When an edit's anchor is not unique, the cheap fix is usually a change of
   shape that removes the edit rather than a bigger anchor — and here it also kept the function off
   `clippy::too_many_arguments`, which an eighth parameter would have tripped.
+- **A handoff item's "this does not exist yet" can be contradicted by the anchor window
+  `orient.py` printed directly beneath it, and the check costs nothing.** This session's item said
+  `crates/nvs-config/src/tree.rs:366` is `Http`, "which has no `cookies` field" — and the code
+  window the pack prints for that very anchor showed `pub cookies: Option<HttpCookies>` four lines
+  down, with `HttpCookies` fully declared at `tree.rs:429`, four fields and all. The item was
+  written from the state of the tree at the time it was *drafted*, and the anchor is resolved
+  *live*; when they disagree the anchor is right by construction. Read the window the pack already
+  gave you before believing the sentence above it — that is not a `grep`, it is scrolling up. The
+  existing bullets about a stale `loop-goal.toml` comment are the same failure one file over, and
+  the tell is the same: the claim is about the *tree*, so something in the pack already answers it.
+
+- **A crate doc's `ADR NNNN § N` citation can be off by one, and the handoff will copy it forward
+  rather than check it.** `nvs-config`'s `tree.rs` cited ADR 0074 § 2 for `[http.headers]`, § 3 for
+  `[http.cors]` and § 4 for `[http.cookies]`; the ADR's actual headings are § 1 secure headers, § 2
+  CORS, § 3 cookies, § 4 "every directive is `Runtime`". All three blocks were one section high,
+  and this session's own handoff item had inherited the shift — it named "ADR 0074 § 3" for the
+  cookie defaults, which is right, while the group line above it named "§§ 2-4" for "the
+  `[http.headers]` defaults and the cookie and override rules", which is the shifted reading. One
+  `peek.py <adr>:"re:^### "` prints every heading in a few hundred bytes and settles the whole
+  file's citations at once; do it before writing a doc comment that cites two or more sections of
+  one ADR.
 
 ## Running things
 
@@ -7026,6 +7047,15 @@ sibling in the same namespace unqualified.
   dropped header. `addCookie` therefore needs an appending path added at **both** ends before it
   can be a member at all, which makes it a four-crate slice rather than the five edits a `Core`
   member usually is.
+- **An ADR citation is right in every doc comment in `registry.rs` except the one place a card is,
+  and the whole-suite test that says so is the last thing to run.** A `MethodDoc`/`EnumDoc` field
+  is shipped verbatim by `nvs meta --json` to a reader with no ADR tree, so
+  `no_registry_card_cites_an_adr` fails a `desc` carrying "(ADR 0095 § 3)" — while the `///` two
+  lines above it, and the row comment two lines below, are *expected* to cite one. The habit the
+  rest of the file trains is exactly the thing the card refuses, which is why this costs a build
+  cycle rather than being caught while typing: `-p nvs-stdlib --lib` is where it surfaces, after
+  fmt and after every conformance case has already passed. State the fact — "a `__Host-` prefix
+  requires `Secure`" — and let the ADR number live in the `///` beside the card.
 
 ## Divergences and refusals already pinned
 

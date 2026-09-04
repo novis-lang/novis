@@ -1,0 +1,91 @@
+--TEST--
+`Core\Response::addCookie` enforces the `__Host-` and `__Secure-` prefixes rather than documenting them, so a non-conforming cookie is refused on write -- ADR 0095 § 3, spec § 15
+--FILE--
+<?nvs
+// Agreement, asked of the two prefixes: what makes each cookie legal is the
+// *name* it carries and nothing about the options beside it. A prefix whose
+// meaning depends on every call site remembering it is the arrangement that
+// produced CVE-2024-2756, so the rule is asked here once.
+
+// `__Host-` requires `Secure`, requires `Path=/` and forbids `Domain` — and a
+// bare call conforms, because ADR 0074 § 3's defaults are exactly those two.
+// That is the whole of how a program writes a host-locked cookie: by naming it.
+uint $accepted = 0;
+try {
+    Core\Response::addCookie("__Host-sid", "abc");
+    $accepted = $accepted + 1;
+} catch (LogicError $refused) {
+}
+echo "a bare __Host- cookie conformed ", $accepted, " time\n";
+
+// Each of the three conditions, broken one at a time. Every one of them is a
+// cookie a browser would refuse to store, so writing it and learning nothing
+// is the failure this refusal removes.
+uint $host = 0;
+try {
+    Core\Response::addCookie("__Host-sid", "abc", {secure: false});
+} catch (LogicError $insecure) {
+    $host = $host + 1;
+}
+try {
+    Core\Response::addCookie("__Host-sid", "abc", {path: "/app"});
+} catch (LogicError $narrowed) {
+    $host = $host + 1;
+}
+try {
+    Core\Response::addCookie("__Host-sid", "abc", {domain: "example.com"});
+} catch (LogicError $shared) {
+    $host = $host + 1;
+}
+echo "__Host- refused ", $host, " of 3\n";
+
+// `__Secure-` is the weaker of the two and asks for one thing only, which is
+// what makes this an agreement and not a repeat: the same member reads a
+// different rule off a different prefix, so a path and a domain that `__Host-`
+// refuses are admitted here.
+uint $secure = 0;
+try {
+    Core\Response::addCookie("__Secure-sid", "abc");
+    $secure = $secure + 1;
+} catch (LogicError $bare) {
+}
+try {
+    Core\Response::addCookie("__Secure-sid", "abc", {path: "/app", domain: "example.com"});
+    $secure = $secure + 1;
+} catch (LogicError $scoped) {
+}
+echo "__Secure- admitted ", $secure, " of 2\n";
+
+uint $refusedSecure = 0;
+try {
+    Core\Response::addCookie("__Secure-sid", "abc", {secure: false});
+} catch (LogicError $plain) {
+    $refusedSecure = $refusedSecure + 1;
+}
+echo "__Secure- refused ", $refusedSecure, " of 1\n";
+
+// And a name carrying neither prefix is bound by neither rule: the same three
+// options that broke `__Host-` above are an ordinary cookie here. The prefix is
+// the whole of what is being read.
+uint $plainCookie = 0;
+try {
+    Core\Response::addCookie("sid", "abc", {secure: false, path: "/app", domain: "example.com"});
+    $plainCookie = $plainCookie + 1;
+} catch (LogicError $ordinary) {
+}
+echo "an unprefixed cookie took all three ", $plainCookie, " time\n";
+
+// The sentence says which prefix and what it requires, so the program learns
+// the rule at the moment it broke it.
+try {
+    Core\Response::addCookie("__Host-sid", "abc", {domain: "example.com"});
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+a bare __Host- cookie conformed 1 time
+__Host- refused 3 of 3
+__Secure- admitted 2 of 2
+__Secure- refused 1 of 1
+an unprefixed cookie took all three 1 time
+Core\Response::addCookie(): `__Host-sid` carries the `__Host-` prefix, which the runtime enforces rather than documents: it requires `secure: true`, requires `path: "/"` and forbids `domain`. A cookie that does not conform is not visible on read, so it is refused on write

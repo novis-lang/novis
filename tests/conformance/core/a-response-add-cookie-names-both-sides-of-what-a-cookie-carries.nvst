@@ -1,0 +1,89 @@
+--TEST--
+`Core\Response::addCookie` names both sides of what a cookie carries — a name is a token and a value is RFC 6265's octet, so nothing written can end the attribute -- spec § 15, ADR 0074 § 3
+--FILE--
+<?nvs
+// A bound asserted on both sides. `setcookie` and `setrawcookie` were one
+// member each because PHP made the caller choose between encoding the value
+// and letting it close the header; there is one member here because the value
+// is checked instead of encoded, and this case is that check from both
+// directions.
+array<string> $names = ["sid", "session_id", "a1!#-.^_`|~*+'", "X-Pref"];
+uint $named = 0;
+foreach ($names as string $name) {
+    try {
+        Core\Response::addCookie($name, "ok");
+        $named = $named + 1;
+    } catch (LogicError $refused) {
+    }
+}
+echo "named ", $named, " of 4\n";
+
+// The other side: empty, a space, the `=` that separates a name from a value,
+// the `;` that begins the next attribute, and a newline that would end the
+// whole line early.
+array<string> $unnameable = ["", "a b", "a=b", "a;b", "a\nb"];
+uint $refusedNames = 0;
+foreach ($unnameable as string $rejected) {
+    try {
+        Core\Response::addCookie($rejected, "ok");
+    } catch (LogicError $why) {
+        $refusedNames = $refusedNames + 1;
+    }
+}
+echo "refused ", $refusedNames, " of 5 names\n";
+
+// A value is wider than a name — it carries `=`, `/` and `.`, which is what a
+// signed token is made of — and the empty string as well, a cookie with no
+// value being one a program may well mean.
+array<string> $values = ["abc", "", "a=1", "eyJhbGciOiJIUzI1NiJ9.e30", "/nested/path"];
+uint $carried = 0;
+foreach ($values as string $value) {
+    try {
+        Core\Response::addCookie("probe", $value);
+        $carried = $carried + 1;
+    } catch (LogicError $unspellable) {
+    }
+}
+echo "carried ", $carried, " of 5 values\n";
+
+// And the five bytes RFC 6265 leaves out, each of which ends the value and
+// begins something the program never wrote: a space, a semicolon, a comma, a
+// backslash and a newline. This is the injection the member exists to refuse,
+// and it is why no call site here ever escapes anything.
+array<string> $uncarriable = ["a b", "a;HttpOnly", "a,b", "a\\b", "a\nb"];
+uint $refusedValues = 0;
+foreach ($uncarriable as string $smuggled) {
+    try {
+        Core\Response::addCookie("probe", $smuggled);
+    } catch (LogicError $inert) {
+        $refusedValues = $refusedValues + 1;
+    }
+}
+echo "refused ", $refusedValues, " of 5 values\n";
+
+// A cookie declares and writes nothing, like `setStatus`, `setHeader` and
+// `redirect` beside it and unlike ADR 0088 § 4's five body members. Two calls
+// naming one cookie are both admitted, because this member appends where
+// `setHeader` overrides — what the peer receives is asserted in `nvs-server`,
+// where a response exists.
+var $quiet = Core\Out::capture(fn (): void => {
+    Core\Response::addCookie("sid", "one");
+    Core\Response::addCookie("sid", "two");
+});
+echo "two cookies wrote [", $quiet, "]\n";
+
+// The sentence names what it was given rather than only that something was
+// wrong. The name is read back and not the value, for the reason
+// `setHeader`'s own case gives: a refused value holds the control characters.
+try {
+    Core\Response::addCookie("a b", "ok");
+} catch (LogicError $spaced) {
+    echo $spaced->message, "\n";
+}
+--EXPECT--
+named 4 of 4
+refused 5 of 5 names
+carried 5 of 5 values
+refused 5 of 5 values
+two cookies wrote []
+Core\Response::addCookie(): `a b` is not a cookie name — a name is a non-empty token, and it is matched byte for byte on the way back, so nothing here is substituted into something that would be

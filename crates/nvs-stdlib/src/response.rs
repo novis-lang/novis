@@ -9,12 +9,23 @@
 //! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
-//! over a file the server resolves — and `addCookie` are known gaps of this
-//! module rather than of
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15.
+//! over a file the server resolves — are known gaps of this module rather than
+//! of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+//! § 15.
 //!
-//! Beside them, § 15's `setStatus`, `setHeader` and `redirect`: the three
-//! members here that shape a response without writing one.
+//! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`:
+//! the four members here that shape a response without writing one.
+//!
+//! # Why `addCookie` appends where `setHeader` overrides
+//!
+//! The two write to the same header list and are deliberately not the same
+//! operation, which is the one thing about this module worth knowing before
+//! reading it. `setHeader` overrides a policy-owned header, so it *replaces*
+//! every value already under that name; `addCookie` *appends*, because a
+//! response carries as many cookies as it was told to and a scan would collapse
+//! two into the last one. `nvs_runtime::Ctx`'s two members own that split —
+//! `declare_header` and `append_header`, whose doc comments are the rule — and
+//! this class is where the two meanings meet a program.
 //!
 //! # Why five members and not one `write`
 //!
@@ -167,11 +178,11 @@
 //!    what it does not — including the two typed body members in one handler
 //!    that it still admits.
 
-use nvs_runtime::{Fault, Value};
+use nvs_runtime::{Fault, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreOption, CoreTy, EnumDoc, ErrorDoc,
+    MethodDoc, ParamDoc, Qual,
 };
 
 /// What `text` declares — § 4's `text/plain`, with the charset every other
@@ -298,6 +309,79 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_redirect",
             doc: Some(&REDIRECT_DOC),
+        },
+        CoreMethod {
+            name: "addCookie",
+            names: &["name", "value"],
+            params: &[
+                // Both § 1 sinks on `setHeader`'s reasoning, and the value for
+                // one more: a cookie is the one header the *server* reads back
+                // on the next request, so a `tainted` value laundered by
+                // nothing would arrive at that request looking like state this
+                // program chose. The framing is this member's — a value that
+                // could close it is refused below — so the sink is about where
+                // the bytes go next rather than about escaping.
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Options(&[
+                    // Every one of the four `[http.cookies]` states defaults
+                    // to `Const::Null` rather than to § 3's shipped value:
+                    // written here, the default would be the *shipped* one at
+                    // every call site and the configured block would reach
+                    // nothing. Null is "the call site said nothing", which is
+                    // the only spelling that leaves `nvs_config::http::Cookies`
+                    // something to answer — `Core\Queue::push`'s `maxAttempts`
+                    // is the same arrangement over `[queue]`.
+                    CoreOption {
+                        name: "secure",
+                        ty: CoreTy::Bool,
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "httpOnly",
+                        ty: CoreTy::Bool,
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "sameSite",
+                        // An enum and never the string § 3's block writes
+                        // (ADR 0063 R11), which is also why the boot refusal
+                        // for a fourth spelling is `E0624` and not this
+                        // member's problem: by the time a case arrives here
+                        // there are only three it can be.
+                        ty: CoreTy::Enum(SAME_SITE_NAME),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "path",
+                        ty: CoreTy::Text(Qual::Sink),
+                        default: Const::Null,
+                    },
+                    // The two § 3 does not configure, and they are here for
+                    // separate reasons. `domain` exists because ADR 0095 § 3
+                    // *forbids* it under a `__Host-` prefix, and a rule the
+                    // runtime enforces about a spelling the language does not
+                    // have is not a rule. `maxAge` exists because a cookie
+                    // with no expiry is a session cookie and there would
+                    // otherwise be no way to write any other kind. Neither
+                    // takes a configured default — § 3 states none, and a
+                    // shipped lifetime is a policy nobody asked for.
+                    CoreOption {
+                        name: "domain",
+                        ty: CoreTy::Text(Qual::Sink),
+                        default: Const::Null,
+                    },
+                    CoreOption {
+                        name: "maxAge",
+                        ty: CoreTy::Instance(crate::time::DURATION_NAME),
+                        default: Const::Null,
+                    },
+                ]),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_add_cookie",
+            doc: Some(&ADD_COOKIE_DOC),
         },
     ],
     instance: &[],
@@ -442,6 +526,128 @@ const REDIRECT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Response::addCookie`'s reference card — ADR 0117.
+const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
+    short: "Adds one `Set-Cookie` to this response, every option it leaves out taken from \
+            `[http.cookies]` — so a cookie written with no options is `Secure; HttpOnly; \
+            SameSite=Lax; Path=/`.",
+    params: &[
+        ParamDoc {
+            name: "name",
+            desc: "The cookie's name, matched byte for byte on the way back with no substitution \
+                   anywhere. A `__Host-` or `__Secure-` prefix is enforced rather than \
+                   documented: the first requires `Secure` and `Path=/` and forbids `Domain`, \
+                   the second requires `Secure`, and a cookie that does not conform is refused on \
+                   write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "The value, as the bytes RFC 6265 admits — printable ASCII without a space, a \
+                   comma, a semicolon, a backslash or a quote, since each of those ends the value \
+                   and begins something the program did not write.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "secure",
+            desc: "Whether the cookie is sent over HTTPS alone. Defaults to `[http.cookies] \
+                   secure`, which is `true` with nothing configured.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "httpOnly",
+            desc: "Whether the cookie is hidden from script. Defaults to `[http.cookies] \
+                   http_only`, which is `true` with nothing configured — a cookie that genuinely \
+                   needs to be readable says so here, in one field, visibly.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "sameSite",
+            desc: "Which cross-site requests carry it. Defaults to `[http.cookies] same_site`, \
+                   which is `Lax` with nothing configured. `None` without `Secure` is refused, \
+                   for the reason the same pair is refused at boot: every browser drops it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "path",
+            desc: "The path prefix the cookie is sent under. Defaults to `[http.cookies] path`, \
+                   which is `/` with nothing configured.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "domain",
+            desc: "The domain the cookie is sent to. Omitted by default, which is the narrower \
+                   of the two meanings — this host and no subdomain — and `[http.cookies]` \
+                   deliberately configures no default for it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxAge",
+            desc: "How long the cookie lives. Omitted by default, which is a session cookie. \
+                   `0s` is the spelling that deletes one; a negative duration is refused rather \
+                   than read as that second spelling.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. Each call adds a cookie — two calls write two `Set-Cookie` lines, and a name \
+          written twice is sent twice rather than collapsed.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$name` is not a cookie name, or does not conform to the `__Host-`/`__Secure-` \
+               prefix it carries; `$value`, `path` or `domain` holds a byte that would end the \
+               attribute and begin one the program never wrote; `sameSite` is `None` without \
+               `secure`; or `maxAge` is negative.",
+    }],
+};
+
+/// `Core\Response\SameSite`'s fully-qualified name, written once — [`SAME_SITE`]
+/// declares it and the [`CoreTy::Enum`] naming it resolves against
+/// [`crate::registry::ENUMS`], so the two cannot drift apart.
+pub(crate) const SAME_SITE_NAME: &str = r"Core\Response\SameSite";
+
+/// ADR 0074 § 3's `SameSite`, as the enum the spec says it is and never the
+/// string `[http.cookies]` writes.
+///
+/// Numbered from zero, unlike [`REDIRECT`] beside it: this attribute's three
+/// names have no number on the wire, so there is nothing for an ordinal to
+/// coincide with and [`same_site_of`] is the whole conversion.
+///
+/// The cases are `nvs_config::http::SameSite`'s, and the two are converted
+/// across rather than shared, because that crate is not a dependency this one
+/// reaches for a registry constant — the same arrangement `crate::log`'s level
+/// enum already has with `[log] level`.
+pub(crate) const SAME_SITE: CoreEnum = CoreEnum {
+    name: SAME_SITE_NAME,
+    cases: &[("Lax", 0), ("Strict", 1), ("None", 2)],
+    doc: Some(&SAME_SITE_CASES_DOC),
+};
+
+/// [`SAME_SITE`]'s reference card — ADR 0117.
+const SAME_SITE_CASES_DOC: EnumDoc = EnumDoc {
+    short: "Which cross-site requests carry a cookie. The three cases are the attribute's own, \
+            and the default is `Lax` because a cookie that travels on a cross-site subrequest is \
+            what CSRF is made of.",
+    cases: &[
+        CaseDoc {
+            name: "Lax",
+            desc: "Sent with a top-level navigation to this site and with nothing else — not \
+                   with an image, a form post or a `fetch` from somewhere else. The default, \
+                   configured or not.",
+        },
+        CaseDoc {
+            name: "Strict",
+            desc: "Never sent cross-site at all, a navigation included. A visitor arriving from \
+                   a link therefore arrives logged out, which is the cost that makes this the \
+                   deliberate choice rather than the default.",
+        },
+        CaseDoc {
+            name: "None",
+            desc: "Sent cross-site. Requires `Secure`, and is refused without it here and at \
+                   boot alike, because a browser drops the pair rather than honouring it.",
+        },
+    ],
+};
+
 /// `Core\Response\Redirect`'s fully-qualified name, written once — [`REDIRECT`]
 /// declares it and the [`CoreTy::Enum`] naming it resolves against
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
@@ -499,6 +705,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
         "nvs_core_response_redirect" => (nvs_core_response_redirect as *const ()).cast(),
+        "nvs_core_response_add_cookie" => (nvs_core_response_add_cookie as *const ()).cast(),
         _ => return None,
     })
 }
@@ -747,6 +954,314 @@ nvs_runtime::nvs_helper! {
         }
         ctx.declare_status(status);
         ctx.declare_header(LOCATION_HEADER, url);
+        Ok(Value::null())
+    }
+}
+
+/// `secure`'s argument slot, and the five after it in row order.
+const SECURE_ARG: usize = 2;
+/// `httpOnly`'s argument slot.
+const HTTP_ONLY_ARG: usize = 3;
+/// `sameSite`'s argument slot.
+const SAME_SITE_ARG: usize = 4;
+/// `path`'s argument slot.
+const PATH_ARG: usize = 5;
+/// `domain`'s argument slot.
+const DOMAIN_ARG: usize = 6;
+/// `maxAge`'s argument slot.
+const MAX_AGE_ARG: usize = 7;
+
+/// What [`nvs_core_response_add_cookie`] appends under — never `declare_header`,
+/// for the reason [`nvs_runtime::Ctx::append_header`]'s own doc gives.
+const SET_COOKIE_HEADER: &str = "Set-Cookie";
+
+/// ADR 0095 § 3's stricter prefix: `Secure`, `Path=/`, and no `Domain`.
+const HOST_PREFIX: &str = "__Host-";
+
+/// ADR 0095 § 3's other prefix: `Secure` alone.
+const SECURE_PREFIX: &str = "__Secure-";
+
+/// The stem every one of this member's refusals opens with — one literal, which
+/// `conformance_coverage`'s error-path gate reads as one site, exactly as
+/// `setHeader`'s two refusals share theirs.
+const ADD_COOKIE: &str = "Core\\Response::addCookie()";
+
+/// § 3's four defaults as they stand for this request.
+///
+/// A program with no configuration at all still gets them: `Cookies::of(None)`
+/// is ADR 0074 § 3's shipped set, which is the answer a `nvs.toml`-less run
+/// should have. Throwing there — `Core\Queue::push`'s arrangement over
+/// `[queue]` — would be wrong here, because a missing `[queue]` block means the
+/// deployment runs no jobs while a missing `[http.cookies]` block means it
+/// accepted the defaults.
+fn configured_cookies(ctx: &nvs_runtime::Ctx) -> nvs_config::http::Cookies {
+    ctx.config().map_or_else(
+        || nvs_config::http::Cookies::of(None),
+        |config| nvs_config::http::Cookies::of(config.snapshot().config.http.as_ref()),
+    )
+}
+
+/// One `bool` option, or the configured default when the call site said nothing.
+fn flag_of(args: &[Value], at: usize, option: &str, configured: bool) -> Result<bool, Fault> {
+    if matches!(args[at].tag(), Some(Tag::Null)) {
+        return Ok(configured);
+    }
+    args[at].as_bool().ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ADD_COOKIE}: expected a `bool` for `{option}`, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// One text option as written, or [`None`] when the call site said nothing.
+fn text_of<'a>(args: &'a [Value], at: usize, option: &str) -> Result<Option<&'a str>, Fault> {
+    if matches!(args[at].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    args[at].as_text().map(Some).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{ADD_COOKIE}: expected a `string` for `{option}`, got tag {}",
+            args[at].tag_byte()
+        ))
+    })
+}
+
+/// [`SAME_SITE`]'s case as `nvs_config`'s, or [`None`] for an omitted option.
+///
+/// Written out rather than cast off the ordinal, on [`redirect_status`]'s
+/// reasoning: the two enums coincide in order today and a fourth case added to
+/// either would otherwise arrive on the wire as whichever case shares its
+/// number.
+fn same_site_of(value: &Value) -> Result<Option<nvs_config::http::SameSite>, Fault> {
+    use nvs_config::http::SameSite;
+    if matches!(value.tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    match value.as_int() {
+        Some(0) => Ok(Some(SameSite::Lax)),
+        Some(1) => Ok(Some(SameSite::Strict)),
+        Some(2) => Ok(Some(SameSite::None)),
+        _ => Err(Fault::fatal(format!(
+            "{ADD_COOKIE}: expected a `Core\\Response\\SameSite` case, got tag {}",
+            value.tag_byte()
+        ))),
+    }
+}
+
+/// `maxAge` in whole seconds, or [`None`] for the session cookie an omitted
+/// option means.
+///
+/// A negative duration throws rather than being sent: browsers read `Max-Age`
+/// below zero as "delete this now", which `0s` already spells, so a negative
+/// one is a program that computed a lifetime backwards and would silently get
+/// the deletion instead. Sub-second lifetimes truncate toward zero, `Max-Age`
+/// being defined in seconds — `500ms` is `Max-Age=0`, which is that same
+/// deletion and is the honest reading of a cookie that expires before it
+/// arrives.
+fn max_age_of(args: &[Value]) -> Result<Option<i64>, Fault> {
+    if matches!(args[MAX_AGE_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let nanos = crate::time::nanos_of(args, MAX_AGE_ARG, "addCookie")?;
+    if nanos < 0 {
+        return Err(Fault::thrown_as(
+            nvs_runtime::ThrownClass::Logic,
+            format!(
+                "{ADD_COOKIE}: `maxAge` cannot be negative, and this one is {nanos}ns — a \
+                 browser reads a negative `Max-Age` as a deletion, which `0s` already says"
+            ),
+        ));
+    }
+    Ok(Some(nanos / 1_000_000_000))
+}
+
+/// Whether `value` is bytes a cookie value can carry — RFC 6265's `cookie-octet`.
+///
+/// [`carriable`]'s printable-ASCII rule less the five bytes that end a value:
+/// a space and a tab end it, a semicolon begins the next attribute, and a
+/// comma, a backslash and a double quote are what proxies and parsers have
+/// historically disagreed about. Refusing all five is what makes this member's
+/// framing its own — which is in turn why the `Set-Cookie` line below is built
+/// by concatenation and needs no escape anywhere.
+fn cookieable(value: &str) -> bool {
+    value
+        .bytes()
+        .all(|byte| (0x21..=0x7e).contains(&byte) && !matches!(byte, b'"' | b',' | b';' | b'\\'))
+}
+
+/// Whether `value` is bytes a `Path` or a `Domain` attribute can carry.
+///
+/// Non-empty, and [`carriable`] less the semicolon that would begin an
+/// attribute the program never wrote. Wider than [`cookieable`] on purpose: a
+/// path holds `/` and `=` legitimately, and neither ends an attribute.
+fn attributable(value: &str) -> bool {
+    !value.is_empty() && carriable(value) && !value.contains(';')
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::addCookie(string $name, string $value, {secure?: bool,
+    /// httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string,
+    /// domain?: string, maxAge?: Core\Time\Duration}): void` — spec § 15's
+    /// cookie, replacing `setcookie` and `setrawcookie` both.
+    ///
+    /// **One member where PHP has two, because the difference between them was
+    /// an escaping decision and this member does not have one to make.**
+    /// `setcookie` URL-encoded the value and `setrawcookie` did not, so every
+    /// call site chose between a value the next read had to decode and a value
+    /// that could close the header. Here the value is checked against RFC
+    /// 6265's own byte set ([`cookieable`]) and written verbatim: what goes out
+    /// is what comes back, and nothing that could end the attribute gets in.
+    ///
+    /// **Appends, and that is the whole reason it is not `setHeader`.** A
+    /// response carries as many cookies as it was told to, so this writes
+    /// through [`nvs_runtime::Ctx::append_header`] — whose own doc owns why a
+    /// scan would be wrong here — and a name written twice reaches the peer
+    /// twice.
+    ///
+    /// **Every option not written comes from `[http.cookies]`**, which is what
+    /// makes a bare `addCookie($name, $value)` a `Secure; HttpOnly;
+    /// SameSite=Lax; Path=/` cookie. `nvs_config::http::Cookies` owns those
+    /// defaults; this member owns none of them, so a deployment changes its
+    /// cookie policy in one block rather than at every call site.
+    ///
+    /// **ADR 0095 § 3's prefixes are enforced here rather than documented.**
+    /// `__Host-` requires `Secure` and `Path=/` and forbids `Domain`;
+    /// `__Secure-` requires `Secure`. Both are refused on write, which is the
+    /// half of that rule this class owns — the read half is `Core\Request`'s.
+    /// A prefix each call site has to remember is what produced CVE-2024-2756.
+    ///
+    /// **What it spends:** one `String` per call, the rendered line, moved into
+    /// the context's header list and freed with the request. The four
+    /// configured defaults are read off the request's own snapshot, which is an
+    /// `Arc` every request on the core already shares.
+    fn nvs_core_response_add_cookie(ctx, args: [8]) {
+        // Unreachable from source for both: the row types them `CoreTy::Text`,
+        // so `E0401` refuses a non-`string` — and a `tainted` one besides,
+        // both being § 1 sinks.
+        let name = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ADD_COOKIE}: expected a `string` for the name, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let value = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ADD_COOKIE}: expected a `string` for the value, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+
+        let configured = configured_cookies(ctx);
+        let secure = flag_of(args, SECURE_ARG, "secure", configured.secure)?;
+        let http_only = flag_of(args, HTTP_ONLY_ARG, "httpOnly", configured.http_only)?;
+        let same_site = same_site_of(&args[SAME_SITE_ARG])?.unwrap_or(configured.same_site);
+        let path = text_of(args, PATH_ARG, "path")?.unwrap_or(configured.path.as_str());
+        let domain = text_of(args, DOMAIN_ARG, "domain")?;
+        let max_age = max_age_of(args)?;
+
+        if !nameable(name) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{name}` is not a cookie name — a name is a non-empty \
+                     token, and it is matched byte for byte on the way back, so nothing \
+                     here is substituted into something that would be"
+                ),
+            ));
+        }
+        if !cookieable(value) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{value}` is not a value a cookie can carry — a space, a \
+                     comma, a semicolon, a backslash, a quote and anything outside printable \
+                     ASCII would end the value and begin an attribute the program never wrote"
+                ),
+            ));
+        }
+        if !attributable(path) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{path}` is not a `Path` — a path is non-empty printable \
+                     ASCII with no semicolon in it, whether it was written here or read from \
+                     `[http.cookies] path`"
+                ),
+            ));
+        }
+        if let Some(domain) = domain
+            && !attributable(domain)
+        {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{domain}` is not a `Domain` — a domain is non-empty \
+                     printable ASCII with no semicolon in it"
+                ),
+            ));
+        }
+        // ADR 0074 § 3's pair, at the call site rather than only at boot: the
+        // configured half is refused as `E0624`'s neighbour `E0612`, and this
+        // is the same combination arrived at one option at a time. Browsers
+        // drop it either way, so a cookie written like this is never stored.
+        if same_site == nvs_config::http::SameSite::None && !secure {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `sameSite: SameSite::None` needs `secure: true`, and this \
+                     cookie has `secure: false` — a browser drops the pair rather than \
+                     honouring it, so the cookie would never be stored"
+                ),
+            ));
+        }
+        // ADR 0095 § 3, on write. The three conditions are named together
+        // because a cookie failing any of them is invisible on read, and a
+        // write that succeeded into an invisible cookie is the failure mode
+        // that rule exists to remove.
+        if name.starts_with(HOST_PREFIX) && (!secure || path != "/" || domain.is_some()) {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{name}` carries the `__Host-` prefix, which the runtime \
+                     enforces rather than documents: it requires `secure: true`, requires \
+                     `path: \"/\"` and forbids `domain`. A cookie that does not conform is \
+                     not visible on read, so it is refused on write"
+                ),
+            ));
+        }
+        if name.starts_with(SECURE_PREFIX) && !secure {
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "{ADD_COOKIE}: `{name}` carries the `__Secure-` prefix, which requires \
+                     `secure: true`. A cookie that does not conform is not visible on read, \
+                     so it is refused on write"
+                ),
+            ));
+        }
+
+        // Concatenated with no escape anywhere, which is what the four checks
+        // above bought: every part is already known to hold no byte that could
+        // end the part it is in.
+        let mut line = format!("{name}={value}; Path={path}");
+        if let Some(domain) = domain {
+            line.push_str("; Domain=");
+            line.push_str(domain);
+        }
+        if let Some(seconds) = max_age {
+            line.push_str("; Max-Age=");
+            line.push_str(&seconds.to_string());
+        }
+        if secure {
+            line.push_str("; Secure");
+        }
+        if http_only {
+            line.push_str("; HttpOnly");
+        }
+        line.push_str("; SameSite=");
+        line.push_str(same_site.as_str());
+        ctx.append_header(SET_COOKIE_HEADER, &line);
         Ok(Value::null())
     }
 }

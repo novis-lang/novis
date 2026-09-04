@@ -1,0 +1,106 @@
+--TEST--
+`Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- ADR 0074 § 3, spec § 15
+--FILE--
+<?nvs
+// Invariance over a sweep, and the sweep is the options bag. Nothing here reads
+// a header back — that crossing is asserted in `nvs-server`, where a response
+// exists — so what pins the defaults is that two *rules* read them, and each
+// rule answers differently depending on what the unwritten option was.
+
+// § 3's pair: `SameSite=None` needs `Secure`. Written alone it is admitted,
+// and that is only true if `secure` defaulted to `true` — with nothing
+// configured, ADR 0074 § 3 says it does.
+uint $admitted = 0;
+try {
+    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response\SameSite::None});
+    $admitted = $admitted + 1;
+} catch (LogicError $dropped) {
+}
+echo "SameSite::None alone was admitted ", $admitted, " time\n";
+
+// Write the other half of the pair and the same cookie is refused, by the same
+// rule the boot refusal uses on the same two keys.
+uint $pair = 0;
+try {
+    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response\SameSite::None, secure: false});
+} catch (LogicError $meaningless) {
+    $pair = $pair + 1;
+}
+echo "SameSite::None without Secure was refused ", $pair, " of 1\n";
+
+// The pair is `None`'s alone: the other two cases are an ordinary cookie
+// without `Secure`, so a member that had refused on `secure: false` generally
+// would fail here while still looking right on the line above.
+array<Core\Response\SameSite> $cases = [
+    Core\Response\SameSite::Lax,
+    Core\Response\SameSite::Strict,
+];
+uint $insecure = 0;
+foreach ($cases as Core\Response\SameSite $case) {
+    try {
+        Core\Response::addCookie("sid", "abc", {sameSite: $case, secure: false});
+        $insecure = $insecure + 1;
+    } catch (LogicError $unexpected) {
+    }
+}
+echo "Lax and Strict without Secure were admitted ", $insecure, " of 2\n";
+
+// The second rule that reads a default is ADR 0095 § 3's `__Host-`, which
+// requires `Path=/`. A bare call conforms, so the unwritten `path` was `/`;
+// writing any other path breaks it. This is the `path` default asserted
+// through a rule rather than read off a line.
+uint $rooted = 0;
+try {
+    Core\Response::addCookie("__Host-a", "abc");
+    $rooted = $rooted + 1;
+} catch (LogicError $elsewhere) {
+}
+try {
+    Core\Response::addCookie("__Host-b", "abc", {path: "/"});
+    $rooted = $rooted + 1;
+} catch (LogicError $spelled) {
+}
+echo "the unwritten path and `/` agree, ", $rooted, " of 2\n";
+
+// A path is an attribute and carries what an attribute can: never empty, and
+// never a semicolon, which would begin one the program did not write.
+array<string> $paths = ["", "/a;Domain=evil.test"];
+uint $refusedPaths = 0;
+foreach ($paths as string $bad) {
+    try {
+        Core\Response::addCookie("sid", "abc", {path: $bad});
+    } catch (LogicError $unattributable) {
+        $refusedPaths = $refusedPaths + 1;
+    }
+}
+echo "refused ", $refusedPaths, " of 2 paths\n";
+
+// `maxAge` is the one option `[http.cookies]` deliberately does not configure:
+// unwritten is a session cookie, and every non-negative duration is a lifetime.
+// A sub-second one truncates to `Max-Age=0`, which is the deletion `0s` spells
+// and the honest reading of a cookie that expires before it arrives.
+array<Core\Time\Duration> $ages = [0s, 20ms, 2s];
+uint $aged = 0;
+foreach ($ages as Core\Time\Duration $age) {
+    try {
+        Core\Response::addCookie("sid", "abc", {maxAge: $age});
+        $aged = $aged + 1;
+    } catch (LogicError $unlivable) {
+    }
+}
+echo "took ", $aged, " of 3 lifetimes\n";
+
+// And the whole bag left out is the shipped policy, written in one call and
+// with no byte of body.
+var $quiet = Core\Out::capture(fn (): void => {
+    Core\Response::addCookie("sid", "abc");
+});
+echo "a defaulted cookie wrote [", $quiet, "]\n";
+--EXPECT--
+SameSite::None alone was admitted 1 time
+SameSite::None without Secure was refused 1 of 1
+Lax and Strict without Secure were admitted 2 of 2
+the unwritten path and `/` agree, 2 of 2
+refused 2 of 2 paths
+took 3 of 3 lifetimes
+a defaulted cookie wrote []

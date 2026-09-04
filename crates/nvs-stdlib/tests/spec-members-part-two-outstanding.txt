@@ -37,7 +37,6 @@
 §15 Request::query
 §15 Request::route
 §15 Request::scheme
-§15 Response::addCookie
 §15 Response::html
 §15 Response::sendFile
 §15 Session::clear

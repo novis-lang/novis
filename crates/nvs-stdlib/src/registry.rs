@@ -2021,6 +2021,11 @@ pub const ENUMS: &[CoreEnum] = &[
     // doc owns. It sits beside the router's two because all three are read off
     // one request.
     crate::response::REDIRECT,
+    // The other half of the same response: `Set-Cookie`'s attribute, whose
+    // three cases *are* numbered from zero because the wire never numbered
+    // them — [`crate::response::SAME_SITE`] owns that contrast with the row
+    // above it.
+    crate::response::SAME_SITE,
     crate::cli::STREAM,
     crate::cli::COLOR_DEPTH,
     crate::cli::SHELL,
