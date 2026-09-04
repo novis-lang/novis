@@ -3628,10 +3628,27 @@ kind = "cargo-named"
 stage = "6 beside a request"
 name = "nvs-server (schedule, deferred, metrics)"
 args = ["test", "-p", "nvs-server"]
+# ADR 0073's fleet half is deliberately not in this list, and that is a triage rather than an
+# omission. `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` stood here until the
+# ADR's own *Verification* was read against it: "two hosts racing the same fleet-scoped interval
+# produce exactly one run" is filed under **M8 (shared store)**, beside the lease's TTL-expiry
+# bullet, while every M7 bullet in that same list is the ticker -- the clock, DST, overlap, the
+# budget, and `nvs run` producing the identical fire. Two facts about the tree agree with the ADR.
+# `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime`, so this
+# crate cannot reach the store at all; and the store's whole wire is `Core\Cache`'s `put` and `get`
+# (ADR 0059 § 2, `crates/nvs-stdlib/src/cache.rs`), neither of which is a compare-and-set, so no
+# lease can be *taken* anywhere in the tree yet. Inverting the seam the way ADR 0139 § 4 inverts the
+# session write-back -- an `fn` pointer through `nvs-runtime` -- would therefore carry an operation
+# the store does not have, and widening the shared tier with an atomic acquire is an ADR-level
+# decision this goal has no slot left for. The name belongs to whichever goal builds the shared
+# store; the handoff's backlog carries it against ADR 0073 *Verification*'s M8 bullet. What M7 keeps
+# of § 3 has landed instead: `[cache.shared] url` is that store,
+# `nvs_config::schedule::configures_a_shared_store` reads it, and
+# `a_fleet_scope_with_no_shared_store_refuses_the_boot` in `crates/nvs-config/tests/resolve.rs`
+# holds both sides of the boot question.
 tests = [
-  # ADR 0073 -- a ROOT isolate, and a fleet lease over the shared store.
+  # ADR 0073 § 5 -- a ROOT isolate, not a child of a connection.
   "a_schedule_entry_fires_as_a_root_isolate",
-  "a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease",
   # ADR 0072 §§ 6-7 -- the connection ends, the tree does not, bounded by max_concurrent.
   "an_after_response_tree_outlives_its_connection",
   "the_deferred_queue_is_bounded_by_max_concurrent",
