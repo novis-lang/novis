@@ -1065,8 +1065,10 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   by `readAll({max?}): tainted bytes`, by iterating `content: Iterable<bytes>`, or by
   `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
   ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a
-  multipart form's non-file parts are buffered into `post()` as usual; and `bodyStream(): Iterable<bytes>`
-  is the raw-body alternative to `body`, exclusive with it and with `files` on one request
+  multipart form's non-file parts are buffered into `post()` as usual; and
+  `bodyStream(): Iterable<tainted bytes>`
+  is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets, and
+  exclusive with it and with `files` on one request
   ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,

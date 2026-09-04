@@ -1,0 +1,21 @@
+--TEST--
+`Core\Request::bodyStream` walks `tainted bytes`, so a chunk carries the same mark `body` puts on the same octets and a plain `bytes` binding refuses it — spec § 15, ADR 0024 § 1, ADR 0105 § 3
+--FILE--
+<?nvs
+// The qualifier on the *element* is the thing a streaming reader could quietly
+// drop: `body()` answers `tainted string` over these same octets, so a walk
+// that yielded a plain `bytes` would be a launderer reachable by writing the
+// loop instead of the call. No runtime assertion can show it -- a plain value
+// is assignable into a `tainted` target, so a case that only bound one would
+// pass over a member that had dropped the mark. The refusal is the pin, and it
+// is the binding that has to fail: `bytes` narrows through no qualifier bit.
+foreach (Core\Request::bodyStream() as bytes $chunk) {
+    echo "unreachable\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+  --> case.nvs:9:40
+%A
+error: aborting due to 1 error

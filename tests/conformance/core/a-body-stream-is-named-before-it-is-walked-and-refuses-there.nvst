@@ -1,0 +1,21 @@
+--TEST--
+`Core\Request::bodyStream` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first chunk — spec § 15, ADR 0105 § 3, ADR 0012 § 7
+--FILE--
+<?nvs
+// Where the refusal lands is the question, and it is one only a lazy member can
+// get wrong: a `foreach` drives `iterate()`, `advance()` and `current()` after
+// the member has already answered, so a `bodyStream` that deferred its check to
+// the first pull would hand a program a walk it could never take. The loop body
+// below is unreachable either way -- what the case pins is that nothing inside
+// it ran, and that the sentence names `bodyStream` and not one of the three
+// names a `foreach` drives.
+try {
+    foreach (Core\Request::bodyStream() as tainted bytes $chunk) {
+        echo "walked a chunk\n";
+    }
+    echo "the walk ended without a refusal\n";
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+Core\Request::bodyStream(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

@@ -378,6 +378,7 @@ mod tests {
             | CoreTy::SecretBytes
             | CoreTy::SecretBlob(_)
             | CoreTy::TaintedStr
+            | CoreTy::TaintedBytes
             | CoreTy::SecretTaintedStr
             | CoreTy::Void
             | CoreTy::Mixed

@@ -137,6 +137,27 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
         crate::db::ROWS_NAME,
         &[(sequence::ITERATE, crate::db::ROWS_ITERATE_SYMBOL)],
     ),
+    // The second class here that carries all three names rather than handing a
+    // [`crate::cursor`] back, and for [`crate::channel`]'s reason: the next
+    // element does not exist yet when the walk is named. `crate::request`'s
+    // `BODY_STREAM` docs are the argument.
+    (
+        crate::request::BODY_STREAM_NAME,
+        &[
+            (
+                sequence::ITERATE,
+                crate::request::BODY_STREAM_ITERATE_SYMBOL,
+            ),
+            (
+                sequence::ADVANCE,
+                crate::request::BODY_STREAM_ADVANCE_SYMBOL,
+            ),
+            (
+                sequence::CURRENT,
+                crate::request::BODY_STREAM_CURRENT_SYMBOL,
+            ),
+        ],
+    ),
     (
         crate::cursor::NAME,
         &[

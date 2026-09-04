@@ -415,6 +415,10 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // tainted exactly when the token already was, which is the property
         // that ADR reads like an oversight for not having.
         CoreTy::TaintedStr => interner.tainted_string(),
+        // The same arm on the octet axis, and it interns qualified for the same
+        // reason: `Core\Request::bodyStream` hands back the bytes of the body
+        // `body()` already types `tainted string`, one chunk at a time.
+        CoreTy::TaintedBytes => interner.tainted_bytes(),
         // Both axes at once, for the arms above's reasons taken together: ADR
         // 0086 § 4's prompt answers a password that is confidential and came
         // from outside, and only a qualified result type can say both.
@@ -1153,6 +1157,14 @@ mod tests {
     /// All thirteen belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
+    ///
+    /// **One tainted answer is deliberately not here, and it is the shape this
+    /// roster cannot see.** `Core\Request::bodyStream` answers an instance, and
+    /// the mark is on what a `foreach` over it *binds* — written in
+    /// `nvs_stdlib::registry::ITERABLES` rather than in a return type, exactly
+    /// as `Core\Jwt::verify`'s is written on an array's element. So a member
+    /// answering an `Iterable` whose element came from outside has two places to
+    /// be looked at, and this one only covers the first.
     #[test]
     fn a_verified_signature_does_not_launder_its_claims() {
         use std::collections::BTreeSet;

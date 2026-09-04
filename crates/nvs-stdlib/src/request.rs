@@ -4,19 +4,20 @@
 //!
 //! # What is here, and what is not
 //!
-//! Eight of
+//! Nine of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
 //! fifteen members: `method`, `isHead`, `path` and `query` — the request *line*,
 //! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
 //! `header`, `headers` and `cookie`, the fields that arrived with it, and
-//! `body`, the first member here that reads what arrived **after** all of those.
-//! `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount` and
+//! `body` and `bodyStream`, the two members here that read what arrived
+//! **after** all of those — the same [`nvs_runtime::RequestBody`] pulled to its
+//! end into one value, or walked a chunk at a time.
+//! `files`, `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
-//! a different thing: `files`/`bodyStream` on
+//! a different thing: `files` on
 //! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-//! § 3's other two ways of reading the same
-//! [`nvs_runtime::RequestBody`] `body` already pulls — as parts, and as chunks
-//! a program is handed one at a time — `route`/`mount` on the match `nvs_server` makes once
+//! § 3's third way of reading that same body — as parts —
+//! `route`/`mount` on the match `nvs_server` makes once
 //! before the handler, and `clientIp`/`scheme`/`host` on
 //! `[server] trusted_proxies` and the forwarded-header walk. Those three read a
 //! field this module now holds and are still gaps for that reason: which peer is
@@ -40,17 +41,24 @@
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
 //!
-//! # One member reads the body, and nothing yet says which
+//! # Two members read the body, and the request records which one did
 //!
 //! Spec § 15 makes `body`, `bodyStream` and `files` exclusive on one request:
 //! whichever is called first has consumed the stream, so a later read of any of
-//! them is a program bug rather than a small answer. Only `body` exists today,
-//! and nothing enforces that yet — a second `body()` on one request answers the
-//! empty string, because the stream is at its end and that is what an exhausted
-//! one says. The enforcement belongs on the carrier and not here: it is a fact
-//! about the *request*, and [`nvs_runtime::Inbound::body`] hands out a `&mut` borrow
-//! with nowhere to record that a member already took one. It lands with
-//! `bodyStream`, which is the first member that could disagree with this one.
+//! them is a program bug rather than a small answer. Left unenforced, the
+//! second of them would answer *plausibly* — an empty string, or a walk that
+//! yields nothing — because that is all an exhausted stream can say, and a
+//! program would read it as "the peer sent nothing" about bytes it had already
+//! been handed.
+//!
+//! The record is [`nvs_runtime::Inbound::claim_body`] and not a field here,
+//! because what is exclusive is the *request*: that carrier's own doc argues
+//! for the shape, and [`claim_body`] below is only this class's wording of the
+//! refusal. The claim is taken where the reading is **named** — `bodyStream()`
+//! claims when the walk is built, long before an `advance()` moves a byte — so
+//! a program that names two readings is refused whether or not it walked
+//! either, and a program that names one is never refused its second chunk.
+//! `files` joins the same call when it lands.
 //!
 //! # Where a verb becomes a case
 //!
@@ -246,6 +254,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_body",
             doc: Some(&BODY_DOC),
         },
+        CoreMethod {
+            name: "bodyStream",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(BODY_STREAM_NAME),
+            symbol: "nvs_core_request_body_stream",
+            doc: Some(&BODY_STREAM_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -388,7 +405,8 @@ const BODY_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This program is not answering a request.",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `bodyStream` or `files` — the three are exclusive on one request.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -403,6 +421,79 @@ const BODY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Request::bodyStream`'s reference card — ADR 0117.
+const BODY_STREAM_DOC: MethodDoc = MethodDoc {
+    short: "The request body as a walk over its chunks — the streaming way of reading one, for a \
+            body too large to want resident and for a program that can work as the bytes arrive.",
+    params: &[],
+    ret: "An `Iterable<tainted bytes>` a `foreach` walks once, yielding each chunk as it comes off \
+          the wire. A chunk boundary is the wire's and carries no meaning. The walk is empty where \
+          the request carried no body.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request, or this request's body has already been \
+               read by `body` or `files` — the three are exclusive on one request, and naming this \
+               walk is the reading.",
+    }],
+};
+
+/// `Core\Request::bodyStream`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const BODY_STREAM_NAME: &str = r"Core\Request\BodyStream";
+
+/// The symbol behind `Iterable<tainted bytes>::iterate()`, reached by name
+/// through this class's method table rather than as a registered member — see
+/// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
+pub(crate) const BODY_STREAM_ITERATE_SYMBOL: &str = "nvs_core_request_body_stream_iterate";
+/// The symbol behind `Iterator<tainted bytes>::advance()`, which is where the
+/// next chunk is pulled off the wire.
+pub(crate) const BODY_STREAM_ADVANCE_SYMBOL: &str = "nvs_core_request_body_stream_advance";
+/// The symbol behind `Iterator<tainted bytes>::current()`.
+pub(crate) const BODY_STREAM_CURRENT_SYMBOL: &str = "nvs_core_request_body_stream_current";
+
+/// [`BODY_STREAM`]'s one slot: the chunk the last `advance()` pulled, which
+/// `current()` answers, and `null` before the first one.
+const BODY_STREAM_CHUNK: usize = 0;
+
+/// The class `bodyStream` answers with — spec § 15's `Iterable<bytes>`, given
+/// the name the registry needs to write it.
+///
+/// # Decision: it is its own iterator, where [`crate::io::LINES`] is a snapshot
+///
+/// Every other `Iterable` in `Core` answers `iterate()` with a
+/// [`crate::cursor`] over a list it is already holding, because its subject was
+/// read whole before the value existed. This one holds nothing: `iterate()`
+/// answers the receiver itself and `advance()` pulls one chunk off
+/// [`nvs_runtime::RequestBody`], which is the shape `Core\Task\Channel` already
+/// takes for the same reason — a walk whose next element does not exist yet.
+///
+/// **That is the whole difference between this member and `body`.** A snapshot
+/// would make `bodyStream` a spelling of `body` with an extra allocation, and
+/// then the `[limits] request_body` bound would have to apply to it — which is
+/// exactly what ADR 0105 § 3 offers this member as the way *around*. So
+/// [`REQUEST_BODY`] is not checked here and nothing accumulates: what the
+/// program holds is whatever it does with each chunk, and that is its own
+/// decision to make and its own memory limit to make it under.
+///
+/// **A chunk is copied out, once.** `next_chunk` lends its slice only until the
+/// following pull, so the value handed to the loop body is an [`NvsStr`] of its
+/// own — a program that keeps one keeps a value the wire cannot revoke. **What
+/// it spends:** one chunk, resident, for as long as the loop body holds it.
+///
+/// # Why it has no members
+///
+/// [`crate::io::LINES`]'s answer: everything it does is the three names on
+/// [`crate::instance`]'s dispatch roster, so it is a *handle* in the sense
+/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
+/// names. Spec § 15 writes `bodyStream(): Iterable<bytes>` and no member on the
+/// thing it answers with.
+pub(crate) const BODY_STREAM: CoreClass = CoreClass {
+    name: BODY_STREAM_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["chunk"],
+    constants: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -415,7 +506,49 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
+        "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
+        BODY_STREAM_ITERATE_SYMBOL => (nvs_core_request_body_stream_iterate as *const ()).cast(),
+        BODY_STREAM_ADVANCE_SYMBOL => (nvs_core_request_body_stream_advance as *const ()).cast(),
+        BODY_STREAM_CURRENT_SYMBOL => (nvs_core_request_body_stream_current as *const ()).cast(),
         _ => return None,
+    })
+}
+
+/// Claims this request's body for `member`, or spec § 15's refusal naming the
+/// member that already read it.
+///
+/// One function for the same reason [`inbound_of`] is one: what the readers
+/// share is the rule, and [`nvs_runtime::Inbound::claim_body`] is where it
+/// lives — this is only the wording, and a second copy of the wording is how
+/// two members would come to describe one rule differently.
+///
+/// **The claim is taken where the reading is named, not where a byte moves.**
+/// `bodyStream` claims when the walk is built and pulls a chunk per `advance()`
+/// long afterwards, so a claim tied to the first pull would leave a program
+/// free to name both readings and only lose on the one it actually took.
+///
+/// # Errors
+///
+/// `LogicError` where another of the three members has already read the body.
+fn claim_body(ctx: &mut Ctx, member: &'static str) -> Result<(), Fault> {
+    let claimed = ctx
+        .inbound_mut()
+        .expect("the caller reads the request before it claims the body")
+        .claim_body(member);
+    // No case can reach this: a `.nvst` program answers no request, so
+    // `inbound_of` refuses both readers before either reaches the claim.
+    // Asserted by `a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`.
+    claimed.map_err(|first| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Request::{member}(): this request's body has already been read by \
+                 `Core\\Request::{first}()`. Spec § 15 makes `body`, `bodyStream` and `files` \
+                 exclusive on one request, because each of them consumes the stream the other two \
+                 would read — so this is refused rather than answered empty, which is all an \
+                 exhausted stream could say"
+            ),
+        )
     })
 }
 
@@ -822,6 +955,10 @@ nvs_runtime::nvs_helper! {
         // "the request sent nothing" is the empty answer below, and "no request
         // arrived" is this throw.
         inbound_of(ctx, "body")?;
+        // Before the first pull, and before the empty answer below: a second
+        // reading is refused whether or not this request carried any bytes,
+        // because what spec § 15 makes exclusive is the reading.
+        claim_body(ctx, "body")?;
         let inbound = ctx
             .inbound_mut()
             .expect("the read above refuses a context that is answering no request");
@@ -866,14 +1003,149 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::bodyStream(): Iterable<tainted bytes>` — spec § 15's
+    /// streaming body reader, and ADR 0105 § 3's second of three ways.
+    ///
+    /// **It reads nothing.** The pull is `advance()`'s, one chunk at a time, so
+    /// this call is the walk being *named* rather than taken — which is what
+    /// makes it the member for a body that must not be resident whole.
+    /// [`BODY_STREAM`]'s own docs are the argument for that shape and for what
+    /// each chunk costs.
+    ///
+    /// The refusal is still checked here, so that a program answering no
+    /// request learns it where it asked rather than at the first `foreach`: an
+    /// empty walk and no request at all are the two facts this module's doc
+    /// keeps apart.
+    fn nvs_core_request_body_stream(ctx, _args: [0]) {
+        inbound_of(ctx, "bodyStream")?;
+        // The claim is here rather than in `advance()`, which is where the
+        // bytes move: naming the walk is the reading, and a program that named
+        // two of them and walked neither has still written the bug § 15 refuses.
+        claim_body(ctx, "bodyStream")?;
+        Ok(crate::instance::build(&BODY_STREAM, [Value::null()]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<tainted bytes>::iterate(): Iterator<tainted bytes>` — the
+    /// stream itself, because a body has no snapshot to walk.
+    ///
+    /// [`crate::channel`]'s shape rather than [`crate::io`]'s: the receiver's
+    /// transferred reference is handed straight back out rather than released,
+    /// so nothing is allocated and the cursor *is* the stream.
+    fn nvs_core_request_body_stream_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &BODY_STREAM, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::advance(): bool` — pulls the next chunk off
+    /// the wire, answering `false` at the end of the body.
+    ///
+    /// This is the only place a `foreach` over a body suspends, and it parks
+    /// the isolate rather than a thread, exactly as `body`'s loop does.
+    ///
+    /// The chunk is copied into the receiver's slot while it is still the
+    /// supplier's borrowed slice, because [`nvs_runtime::RequestBody`] lends it
+    /// only until the following pull. `current()` then hands that copy out with
+    /// a reference of its own, so a loop body that keeps a chunk keeps a value
+    /// nothing else can invalidate.
+    fn nvs_core_request_body_stream_advance(ctx, args: [1]) {
+        let stepped = body_stream_step(ctx, args[0]);
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<tainted bytes>::current(): tainted bytes` — the chunk the last
+    /// `advance()` pulled.
+    fn nvs_core_request_body_stream_current(_ctx, args: [1]) {
+        let read = body_stream_chunk(args[0]);
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+/// [`BODY_STREAM_ADVANCE_SYMBOL`]'s body: one pull, stored in the receiver's
+/// slot, and whether there was anything to store.
+///
+/// A slot cleared to `null` at the end of the walk rather than left holding the
+/// last chunk: the loop is over, so keeping it would hold a chunk's worth of a
+/// request's memory for as long as the program held the stream value, and that
+/// is a cost with nothing to buy.
+///
+/// # Errors
+///
+/// `LogicError` where the context is answering no request — the same refusal
+/// [`inbound_of`] writes everywhere else — and `IOError` where the connection
+/// failed under the body, which is a short walk this member refuses to report
+/// as a complete one.
+fn body_stream_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let receiver = crate::instance::receiver(value, &BODY_STREAM, member)?;
+    // No case can reach this: a `.nvst` program answers no request, so it can
+    // hold no stream to advance. Asserted by
+    // `a_body_stream_yields_the_chunks_the_wire_delivered`, which drives the
+    // three names a `foreach` drives.
+    inbound_of(ctx, "bodyStream")?;
+    let inbound = ctx
+        .inbound_mut()
+        .expect("the read above refuses a context that is answering no request");
+    let pulled = match inbound.body() {
+        None => None,
+        Some(body) => match body.next_chunk() {
+            Ok(chunk) => chunk.map(NvsStr::new),
+            Err(why) => {
+                // No case can reach this either, for `body`'s reason: a
+                // connection has to exist before it can fail under a body.
+                // Asserted by `a_body_stream_that_fails_mid_walk_throws_rather_than_ending`.
+                return Err(Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!("Core\\Request::bodyStream(): the body did not arrive whole — {why}"),
+                ));
+            }
+        },
+    };
+    let more = pulled.is_some();
+    let held = pulled.map_or_else(Value::null, Value::bytes);
+    crate::instance::set_slot(receiver, BODY_STREAM_CHUNK, held);
+    Ok(Value::bool(more))
+}
+
+/// [`BODY_STREAM_CURRENT_SYMBOL`]'s body: the slot [`body_stream_step`] last
+/// wrote, retained, because the receiver keeps it until the next pull.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not a stream — only a bug in this
+/// crate can produce one, the receiver having been checked at compile time.
+fn body_stream_chunk(value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::CURRENT;
+    let receiver = crate::instance::receiver(value, &BODY_STREAM, member)?;
+    let held = crate::instance::slot(receiver, BODY_STREAM_CHUNK);
+    #[expect(
+        unsafe_code,
+        reason = "the slot keeps its reference until the next `advance`, so the \
+                  value handed back needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         REQUEST_BODY, cookie_of, grouped_fields, joined_field, method_ordinal,
-        nvs_core_request_body,
+        nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
+        nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
     };
     use crate::router::METHOD;
-    use nvs_runtime::{Ctx, Inbound, RequestBody};
+    use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
 
     /// A [`RequestBody`] that hands back a fixed list of chunks and then ends —
     /// or, where `fails_at` names a pull, fails at that one instead, which is
@@ -1241,6 +1513,165 @@ mod tests {
         assert!(
             nvs_runtime::call(nvs_core_request_body, &mut cut_off, &[]).is_err(),
             "a connection that failed under a body did not deliver one"
+        );
+    }
+
+    /// Walks a stream exactly as `foreach` walks one — `iterate()` once, then an
+    /// `advance()`/`current()` pair per element, each call retained because the
+    /// callee consumes its receiver — and hands back what `current()` answered.
+    ///
+    /// The `Err` is the throw a member raised, so a caller can assert on the
+    /// walk failing rather than only on it ending.
+    fn walked(ctx: &mut Ctx, stream: Value) -> Result<Vec<Vec<u8>>, i32> {
+        /// The retain a virtual call's receiver owes — see [`crate::cursor`].
+        fn lend(value: Value) {
+            #[expect(
+                unsafe_code,
+                reason = "each of the three names consumes a reference, so the \
+                          driver holds one of its own and retains per call — \
+                          exactly what `nvs_ir::lower::control`'s loop emits"
+            )]
+            unsafe {
+                value.retain();
+            }
+        }
+        lend(stream);
+        let cursor = nvs_runtime::call(nvs_core_request_body_stream_iterate, ctx, &[stream])
+            .expect("a stream is its own iterator, so naming the walk cannot fail");
+        let mut seen = Vec::new();
+        let walk = loop {
+            lend(cursor);
+            match nvs_runtime::call(nvs_core_request_body_stream_advance, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(more) if more.as_bool() != Some(true) => break Ok(()),
+                Ok(_) => {}
+            }
+            lend(cursor);
+            match nvs_runtime::call(nvs_core_request_body_stream_current, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(chunk) => {
+                    seen.push(chunk.as_bytes().expect("a chunk is `bytes`").to_vec());
+                    #[expect(
+                        unsafe_code,
+                        reason = "`current` transferred the reference it answered"
+                    )]
+                    unsafe {
+                        chunk.release();
+                    }
+                }
+            }
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the driver owns the reference it was handed and the one \
+                      `iterate` answered with, and both are done with here"
+        )]
+        unsafe {
+            cursor.release();
+            stream.release();
+        }
+        walk.map(|()| seen)
+    }
+
+    /// A stream yields the chunks the wire delivered, in order and unjoined —
+    /// the whole difference from `body`, which is handed the same two pieces and
+    /// answers one value. Beside it, the walk that yields nothing: a request
+    /// that carried no body is still a request, and an empty walk is what says
+    /// so.
+    ///
+    /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
+    /// because a case is a program with no request in front of it — the
+    /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    #[test]
+    fn a_body_stream_yields_the_chunks_the_wire_delivered() {
+        let pieces: &[&[u8]] = &[b"h\xc3\xa9llo \xe2\x80", b"\x94 and the rest"];
+        let mut arriving = answering(Some(Chunks::of(pieces)));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut arriving, &[])
+            .expect("a request that arrived can be streamed");
+        assert_eq!(
+            walked(&mut arriving, stream).expect("a body that arrives whole walks whole"),
+            vec![pieces[0].to_vec(), pieces[1].to_vec()],
+            "a chunk is yielded as it came off the wire, boundary and all"
+        );
+
+        let mut bodiless = answering(None);
+        let empty = nvs_runtime::call(nvs_core_request_body_stream, &mut bodiless, &[])
+            .expect("a request that carried no body is still a request");
+        assert!(
+            walked(&mut bodiless, empty)
+                .expect("no body is no chunks")
+                .is_empty(),
+            "\"the request sent nothing\" is an empty walk, and only \"no request\" is a throw"
+        );
+    }
+
+    /// Spec § 15's exclusivity, asked in both directions and on a request with
+    /// no body at all: whichever of the two readings a program takes first is
+    /// the one that has the body, and the other is refused rather than answered
+    /// empty. Both directions matter, because a record kept by one member would
+    /// pass the direction it was written for and fail the other.
+    ///
+    /// The bodiless request is the case that says what the rule is *about*: no
+    /// bytes were consumed either way, so a claim tied to the stream rather than
+    /// to the reading would let the second call through on exactly the requests
+    /// where the empty answer is most convincing.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it is
+    /// refused by `inbound_of` before either member reaches the claim.
+    #[test]
+    fn a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other() {
+        let mut buffered = answering(Some(Chunks::of(&[&b"a body"[..]])));
+        let answer = nvs_runtime::call(nvs_core_request_body, &mut buffered, &[])
+            .expect("the first reading of a body is the one that gets it");
+        #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+        unsafe {
+            answer.release();
+        }
+        assert!(
+            nvs_runtime::call(nvs_core_request_body_stream, &mut buffered, &[]).is_err(),
+            "`bodyStream` after `body` is the program bug § 15 names, not an empty walk"
+        );
+
+        let mut streamed = answering(Some(Chunks::of(&[&b"a body"[..]])));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut streamed, &[])
+            .expect("naming the walk is the reading, and it is the first one here");
+        assert_eq!(
+            walked(&mut streamed, stream).expect("the claimed walk is the one that works"),
+            vec![b"a body".to_vec()],
+            "the member that claimed the body is the one that reads it"
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut streamed, &[]).is_err(),
+            "`body` after `bodyStream` is refused in the same direction as its twin"
+        );
+
+        let mut bodiless = answering(None);
+        let nothing = nvs_runtime::call(nvs_core_request_body, &mut bodiless, &[])
+            .expect("a request that carried no body is still a request");
+        #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+        unsafe {
+            nothing.release();
+        }
+        assert!(
+            nvs_runtime::call(nvs_core_request_body_stream, &mut bodiless, &[]).is_err(),
+            "what is exclusive is the reading, so an empty body is claimed like any other"
+        );
+    }
+
+    /// A walk that fails mid-body throws rather than ending, which is
+    /// `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`'s
+    /// property on the streaming side: `advance()` answering `false` means the
+    /// body is over, so reporting a dead connection that way would tell a loop
+    /// it had seen everything the peer sent. The chunks before the failure are
+    /// still yielded — they did arrive — and the throw lands where it happened.
+    #[test]
+    fn a_body_stream_that_fails_mid_walk_throws_rather_than_ending() {
+        let mut cut_off = answering(Some(Chunks::failing_at(&[&b"the first half"[..]], 1)));
+        let stream = nvs_runtime::call(nvs_core_request_body_stream, &mut cut_off, &[])
+            .expect("the failure is the wire's, and it has not happened yet");
+        assert!(
+            walked(&mut cut_off, stream).is_err(),
+            "a connection that failed under a body did not deliver the end of one"
         );
     }
 }

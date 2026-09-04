@@ -320,6 +320,18 @@ pub enum CoreTy {
     /// none, so a row that wrote it there would be documenting a demand no
     /// caller can fail to meet.
     TaintedStr,
+    /// `tainted bytes` — [`Self::TaintedStr`] on the other of ADR 0009's two
+    /// octet types, and return position only for that variant's reason.
+    ///
+    /// The row that needs it is `Core\Request::bodyStream`, whose element type
+    /// this is: a chunk of a request body is exactly as untrusted as the whole
+    /// of it, so a member that answered a plain `bytes` would be a launderer —
+    /// `body()` writes [`Self::TaintedStr`] over the same octets, and two
+    /// readings of one body that disagree about the mark is the one shape
+    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// cannot survive. Its home in the checker is `nvs_types`' `Ty::TaintedBytes`,
+    /// which already existed because the language can write the type.
+    TaintedBytes,
     /// `secret tainted string` — both qualifiers at once, and the one row that
     /// needs it is `Core\Cli::secret`.
     ///
@@ -1374,6 +1386,12 @@ pub const CLASSES: &[CoreClass] = &[
     // that is answering no request gets a throw rather than an empty answer,
     // and why a verb becomes a `Core\Http\Method` case here and nowhere else.
     crate::request::CLASS,
+    // What `Core\Request::bodyStream` answers with, and the whole of § 15's
+    // `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
+    // `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own
+    // iterator rather than a snapshot, and its own docs say why: the next chunk
+    // of a request body does not exist yet when the walk is named.
+    crate::request::BODY_STREAM,
     // § 15's fourth request-facing class, and the first one that *writes*: ADR
     // 0088 § 4's five body members, of which `text` is registered. Beside
     // `Core\Server` because the two are the same request's two halves, and
@@ -2226,6 +2244,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // own variables, like the three collections above, because § 18's `Rows`
     // and `Rows<T>` are one generic class and not two.
     (crate::db::ROWS_NAME, &CoreTy::Var("T")),
+    // Spec § 15's `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
+    // puts on the same octets: a chunk of a request body is `tainted` whatever
+    // the body held, so this is a concrete element like the two `Core\IO` rows
+    // above and never one of a receiver's own variables.
+    (crate::request::BODY_STREAM_NAME, &CoreTy::TaintedBytes),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -3922,9 +3945,13 @@ mod tests {
     /// bind reads: ADR 0067 § 5's expansion marker is accepted at exactly one
     /// position and nowhere else, so a member answering the values back would
     /// be a surface on a thing whose whole content is where it may appear
-    /// ([`crate::db`]). It is the last entry, and the two that have left this
-    /// list left it the same way: `Core\Db\Connection` when `query` landed on
-    /// it, and `Core\Db\Rows` when its readers did.
+    /// ([`crate::db`]). The last is `Core\Request\BodyStream`, whose one slot
+    /// the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
+    /// writes and reads — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
+    /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
+    /// thing it answers with. Two have left this list, both the same way:
+    /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
+    /// its readers did.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
         const HANDLES: &[&str] = &[
@@ -3939,6 +3966,7 @@ mod tests {
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
             crate::queue::ID_NAME,
+            crate::request::BODY_STREAM_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

@@ -113,6 +113,7 @@ Conventions the whole file uses:
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
 | [`Core\Request`](#core-core-request) |  |
+| [`Core\Request\BodyStream`](#core-core-request-bodystream) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -15758,7 +15759,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body
+Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
 
 | Member | Signature |
 |---|---|
@@ -15770,6 +15771,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body
 | [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
 | [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
+| [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15885,7 +15887,28 @@ The whole request body, pulled to its end into one string — the buffered way o
 
 **Returns** `tainted string` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body, which is a different fact from a program that is answering no request at all — that one throws.
 
-**Throws** `LogicError` — This program is not answering a request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `bodyStream` or `files` — the three are exclusive on one request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-bodystream"></a>
+#### `Core\Request::bodyStream`
+
+```nvs skip
+Core\Request::bodyStream(): Core\Request\BodyStream
+```
+
+The request body as a walk over its chunks — the streaming way of reading one, for a body too large to want resident and for a program that can work as the bytes arrive.
+
+**Returns** `Core\Request\BodyStream` — An `Iterable<tainted bytes>` a `foreach` walks once, yielding each chunk as it comes off the wire. A chunk boundary is the wire's and carries no meaning. The walk is empty where the request carried no body.
+
+**Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `files` — the three are exclusive on one request, and naming this walk is the reading.
+
+<a id="core-core-request-bodystream"></a>
+### `Core\Request\BodyStream`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-response"></a>
 ### `Core\Response`
