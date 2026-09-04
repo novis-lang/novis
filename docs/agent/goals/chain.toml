@@ -162,7 +162,7 @@ handoff = "docs/agent/goals/14-lsp-server.handoff.md"
 milestone = "M4B"
 preflight = "docker"
 
-# `editors/vscode` -- the first non-Rust source in the repository, and the last entry on the chain. Two
+# `editors/vscode` -- the first non-Rust source in the repository, and the last entry of M4B's four. Two
 # TextMate grammars, the client, the Tasks and their problem matcher, the AST panel, `secret`
 # concealment, and the extension-host tier that is memoized and never gates an iteration.
 [[goal]]
@@ -203,11 +203,26 @@ preflight = "docker"
 # type-surface work (ADR 0036's optional field, ADR 0024's qualifier over a shape) and every goal before
 # it writes shapes whose spelling this one widens; running it earlier would mean writing them twice. Its
 # stages 4-5 are proven over goal 16's `.nvst` request sections and goal 17's builder, so both have to
-# exist first. This is the last entry on the chain.
+# exist first.
 [[goal]]
 name = "18 input-shapes"
 md = "docs/agent/goals/18-input-shapes.md"
 toml = "docs/agent/goals/18-input-shapes.toml"
 handoff = "docs/agent/goals/18-input-shapes.handoff.md"
+milestone = "M7"
+preflight = "docker"
+
+# ADR 0141's `Parses` -- the global interface that replaces `converts_from_string`'s `Core\Uuid` name
+# test, so a route capture, a `#[Query]`, a command argument and an option admit any class that declares
+# it can be built from text. Last because it is the only entry that edits a predicate all four of those
+# surfaces read, and every goal before it writes routes and commands against the roster as it stands;
+# running it earlier would mean rewriting their fixtures when the roster opened. Its stage 4 closes the
+# two known gaps goal 6 and the CLI work left behind by name, so both have to exist first. This is the
+# last entry on the chain.
+[[goal]]
+name = "19 parses"
+md = "docs/agent/goals/19-parses.md"
+toml = "docs/agent/goals/19-parses.toml"
+handoff = "docs/agent/goals/19-parses.handoff.md"
 milestone = "M7"
 preflight = "docker"

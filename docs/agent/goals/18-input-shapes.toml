@@ -4,8 +4,8 @@
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# This is the chain's last entry. When its list goes green there is no goal 19 to switch to, and the
-# driver stops with the chain exhausted rather than with a failure.
+# When this list goes green the driver switches to goal 19 (`19-parses.toml`), whose floor this whole
+# list becomes.
 
 files = [
   "examples/input-shapes.nvs",

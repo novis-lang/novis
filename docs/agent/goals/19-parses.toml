@@ -1,0 +1,232 @@
+# Goal 19 -- a class a string names, at one contract. The acceptance test, as data.
+#
+# `19-parses.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# This is the chain's last entry. When its list goes green there is no goal 20 to switch to, and the
+# driver stops with the chain exhausted rather than with a failure.
+
+files = [
+  "examples/parses.nvs",
+]
+
+[context]
+
+modules = [
+  # The reserved roster: `Comparable`, `Stringable`, and the third name this goal adds.
+  "crates/nvs-hir/src/interfaces.rs",
+  # What a class claiming a roster interface owes, and the diagnostic when it owes it still.
+  "crates/nvs-types/src/conformance.rs",
+  # `converts_from_string` -- the one predicate all four binding surfaces read, and the `Core\Uuid`
+  # arm that becomes the contract. Also two of the three roster diagnostics.
+  "crates/nvs-types/src/commands.rs",
+  # The route half: `#[Query]`'s walk, `closed_set`, and the other roster diagnostic.
+  "crates/nvs-types/src/routes.rs",
+  # How a `Core` class satisfies a global interface without naming it -- the `Comparable` seed the
+  # `Parses` seed sits two lines below.
+  "crates/nvs-types/src/core_lib.rs",
+  # `implements_comparable`, which `implements_parses` is written beside and modelled on.
+  "crates/nvs-stdlib/src/registry.rs",
+  # `Core\Uuid`'s rows -- read to confirm they already satisfy the contract, not to change them.
+  "crates/nvs-stdlib/src/uuid.rs",
+  # `CaptureConv` and gap 2: the capture arm that stops handing a segment's text over unconverted.
+  "crates/nvs-runtime/src/routes.rs",
+  # `ArgConv` and gap 1: the same arm for a command argument.
+  "crates/nvs-runtime/src/commands.rs",
+  # The `Core\Uuid` schema arm, and where a `Parses` class answers `{"type": "string"}`.
+  "crates/nvs-cli/src/openapi.rs",
+]
+
+rules = ["0013", "0066", "0077", "0102", "0024", "0007", "0063", "0088", "0004"]
+
+# 0013 whole: it is the precedent for a global interface gating a language operation, and the only ADR
+# a session should need in full. 0066 s3a is the `tryParse` contract being encoded and s3 the class row
+# this goal must NOT widen; 0077 s3 and 0102 s3+s5 are the roster the predicate replaces.
+adrs = ["0013", "0066 §3", "0066 §3a", "0077 §3", "0102 §3", "0102 §5", "0024 §1"]
+
+shapes = [
+  "A `Core` member — the five edits",
+  "A diagnostic",
+  "A `.nvst` test case",
+  "An ADR",
+  "A commit message",
+]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Writing Novis itself > a new core member owes',
+  'Tooling > a core class',
+  'Tooling > a docs/reference/core/<class>.md',
+  "Tooling > nvs-stdlib's gates",
+  'Writing a test case > a new core member owes three conformance cases, not one, and the',
+  'Writing a test case > registering a core member',
+  'Writing a test case > the coverage gate matches',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-18's container-backed checks. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: `Parses` on the reserved roster. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the contract"
+name = "nvs-hir (the roster gains a third global interface)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  "parses_is_a_reserved_interface_taking_no_type_arguments",
+  "a_program_declaring_its_own_interface_named_parses_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the contract"
+name = "nvs-types (what a class claiming Parses owes)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_class_implementing_parses_and_declaring_no_parse_names_the_member",
+  "a_parse_returning_something_other_than_static_is_refused",
+  "a_class_implementing_parses_inherits_try_parse_without_declaring_it",
+  "an_implementor_may_override_try_parse",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the predicate learns the contract, and `Core\Uuid` stops being a name. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the predicate"
+name = "nvs-types (converts_from_string reads the interface, not a name)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_user_class_implementing_parses_may_be_a_route_capture",
+  "a_user_class_implementing_parses_may_be_a_query_parameter",
+  "a_user_class_implementing_parses_may_be_a_command_argument",
+  "a_class_without_the_interface_is_refused_naming_parses_as_the_fix",
+  # The streamlining, asserted rather than assumed: the name test is gone and `Core\Uuid` still passes.
+  "core_uuid_reaches_the_roster_through_the_interface_and_not_its_name",
+  # `closed_set` is untouched: a Parses class converts and narrows nothing.
+  "a_parses_capture_names_no_closed_set_and_changes_no_route_rank",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the predicate"
+name = "nvs-stdlib (a Core class satisfies Parses by carrying the members)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "implements_parses_is_true_for_core_uuid_and_false_for_a_class_without_both_members",
+  "implements_parses_requires_try_parse_to_answer_the_nullable_self",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the runtime arm, closing runtime gap 2 and commands gap 1. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the runtime arm"
+name = "nvs-runtime (a capture and an argument are converted, not handed over)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_parses_capture_converts_the_segment_before_the_handler_is_reached",
+  "a_segment_parse_refuses_is_no_match_rather_than_a_matched_bad_value",
+  "a_decimal_capture_is_converted_and_no_longer_unconverted",
+  "a_parses_command_argument_is_converted_and_a_refusal_is_a_usage_error",
+  "a_decimal_command_argument_is_converted_and_no_longer_unconverted",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the runtime arm"
+name = "conformance (three cases, over a user class at the door)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-class-that-parses-stands-where-a-uuid-stands.nvst",
+  "tests/conformance/core/a-segment-the-class-refuses-never-reaches-the-handler.nvst",
+  "tests/conformance/core/a-class-claiming-the-contract-owes-its-one-member.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the proofs. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "5 the proofs"
+file = "examples/parses.nvs"
+# Run under `nvs run --request` (goal 16 stage 2, goal 17's builder) so the whole path is exercised:
+# a user class in a capture, in a `#[Query]` with a default, and one segment refused at the door.
+want = [
+  "slug is hello-world",
+  "tag is absent",
+  "tag is release-notes",
+  "a segment the class refuses did not match",
+  "and Core\\Uuid took the same door",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the proofs"
+name = "nvs-cli (the OpenAPI schema for a class built from text)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_parses_capture_is_a_string_schema",
+  "core_uuid_keeps_its_named_format_over_that_schema",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the proofs"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
+
+[[check]]
+kind = "command"
+stage = "5 the proofs"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]

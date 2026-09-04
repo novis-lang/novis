@@ -39,8 +39,22 @@ request reader's answer being `mixed`. ADR 0140 gives `Core\Arr` one converter f
 declared shape and `Core\Request` the two members over it, so untrusted data is checked once, where it
 arrives and where a `400` is still the right answer. Its stage 2 is type-surface work the other two need
 nothing of and everything before it would have had to write twice — ADR 0036 § 3's shape gains an
-optional field, and ADR 0024 § 1's qualifier learns to sit in front of one — which is why it is last.
-Goal 18 is the last entry on the chain.
+optional field, and ADR 0024 § 1's qualifier learns to sit in front of one — which is why it comes after
+the other two.
+
+**Then a fourth**: [19 parses](19-parses.md) is the one the user asked for after that conversation ended.
+Four binding surfaces — a route `{capture}`, a `#[Query]`, a command argument and an option — all ask
+`nvs_types::commands::converts_from_string` whether a type can be built from text, and its class arm is a
+comparison against the string `Core\Uuid`. ADR 0141's `Parses` is what that arm becomes: one global
+interface on `Comparable`'s precedent, one required member and one default body, so `Core\Uuid` reaches
+the door through the same contract as a user's own `Slug` and stops being a name in four match arms. Its
+stage 4 closes `nvs-runtime`'s two standing conversion gaps, which is why it goes after the goals that
+wrote them. Goal 19 is the last entry on the chain.
+
+**What goal 19 deliberately does not do**: give `as` a class-building meaning. That was the shape the
+proposal arrived in, and the operator half was rejected — `mixed as Foo` is already a checked downcast,
+`as` is a closed laundering set, and `X as ?Foo` would need two inputs to decide its legality. ADR 0066
+§ 3's *the class row is absolute* survives intact; only the sites that already convert implicitly change.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -77,6 +91,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, ADR 0079 § 18 | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
+| [19 parses](19-parses.md) | M7, ADR 0141 + ADR 0013/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 
 ## The chain contract
 

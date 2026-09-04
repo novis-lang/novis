@@ -3,7 +3,7 @@
 ## State
 
 **Goal 18 — untrusted input becomes a declared shape, at one converter — has just started; nothing of it
-has landed yet.** Goal 17's whole list is this goal's Stage 1 floor. This is the chain's last entry.
+has landed yet.** Goal 17's whole list is this goal's Stage 1 floor.
 
 The scope line matters here: **this goal does not make array key access shape-checked.** It adds one
 converter from `array<mixed>` to a declared shape and two request members over it. A session that finds
@@ -46,5 +46,6 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
   `Core\Request::json(): tainted mixed`, which ADR 0024 § 1's grammar admits no more than it admits
   `tainted {…}`. Either the widening covers `mixed` too or goal 16's signature is corrected to what the
   grammar allows. Decided-and-recorded in ADR 0024's body, never `BLOCKED`.
-- **When this goal's last check goes green the chain is exhausted.** There is no goal 19: the driver stops
-  with the chain finished rather than with a failure, and what happens next is the user's call.
+- **When this goal's last check goes green the driver switches to goal 19** — ADR 0141's `Parses`, which
+  opens the route-capture and command-argument roster to any class declaring it can be built from text.
+  This goal's whole list becomes its floor.
