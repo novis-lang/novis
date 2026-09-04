@@ -3,9 +3,13 @@
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
 //! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
-//! is what drives a connection on it; what this module owns is the three things
+//! is what drives a connection on it; what this module owns is the four things
 //! only the binary can supply — the socket the loop accepts on, the clock it
-//! holds a connection to, and the handler that says which isolate a request is.
+//! holds a connection to, the handler that says which isolate a request is, and
+//! [`Scheduled`], which says the same for a `[[schedule]]` entry that fires
+//! beside it ([`nvs_server::schedule`], ADR 0073 § 5). All four are the same
+//! split: this crate has the front end, so turning a path into a program is
+//! here, and the loop and the ticker are there.
 //!
 //! # Decision: the configuration's mounts are the table, and a bare file is a table of one
 //!
@@ -65,6 +69,7 @@ use std::process::ExitCode;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use jiff::Zoned;
 use nvs_config::mount::Mounted;
 use nvs_config::server::{Listen, capacity_for, listen_on, waits_for};
 use nvs_diagnostics::{Diagnostics, SourceMap};
@@ -439,6 +444,39 @@ pub(crate) fn run(
     // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
     let mut sched = nvs_host::Scheduler::new();
     let stopped = Rc::new(Cell::new(false));
+    // ADR 0073 § 5's roster, armed before anything is spawned so that a `fleet`
+    // entry this host will not run is named while an operator is still reading
+    // the boot. `nvs_server::arm` is where that refusal and its reason live; a
+    // tree with no `[[schedule]]` arms nothing and spawns no ticker, which is why
+    // this costs a boot-time walk of an empty vector and no task at all.
+    let mut armed = nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), |note| {
+        eprintln!("note: {note}");
+    });
+    if !armed.is_empty() {
+        println!(
+            "arming {} scheduled entr{}",
+            armed.len(),
+            if armed.len() == 1 { "y" } else { "ies" }
+        );
+        // A second task on *this* scheduler and not a second scheduler: the
+        // ticker sleeps out its interval on a core the accept loop is still
+        // serving on, and each fire is a child task of it (ADR 0072 § 1).
+        // `TaskRoot::Request` for the same reason the accept loop holds it — a
+        // fault under a fire belongs to that run and must not retire the worker
+        // the requests are being served by.
+        let fires = Rc::new(Scheduled);
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            // `Zoned::now` and not a fixed instant: § 6's missed interval is
+            // skipped rather than replayed, which is the ticker asking the clock
+            // for every fire and never counting from the last one.
+            let ticked = nvs_server::tick_on_this_core(&mut armed, &fires, Zoned::now, || {
+                ControlFlow::Continue(())
+            });
+            if let Err(error) = ticked {
+                eprintln!("error: the schedule ticker stopped: {error}");
+            }
+        });
+    }
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
         let stopped = Rc::clone(&stopped);
         let draining = draining.clone();
@@ -503,6 +541,91 @@ pub(crate) fn run(
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+/// ADR 0073 § 5's fire, from the side only this binary can answer.
+///
+/// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
+/// a task of its own, with its own context, so that a run taking an hour is not
+/// why the next minute's entry is late. What is left is the two things that need
+/// a compiler and a logger: which isolate the entry's `script` is, and what its
+/// result says. Both are this crate's, for the reason the module doc gives for
+/// the handler.
+///
+/// Nothing is carried on it: the resolver is installed for the whole run
+/// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
+/// the same compiled-unit cache a request does, and a scheduled script that is
+/// also a mounted entry is a cache hit rather than a second compile.
+struct Scheduled;
+
+impl nvs_server::Fires for Scheduled {
+    fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
+        // Resolved per fire and not once at boot, because ADR 0017's unit swap is
+        // the point: an entry that fires nightly picks up an edited script at the
+        // next fire, exactly as a request picks it up at the next request. What
+        // the cache makes cheap is the *repeat*, not the first one.
+        let program = match nvs_runtime::script::resolve(ctx, entry.script()) {
+            Ok(program) => program,
+            Err(refused) => {
+                eprintln!(
+                    "warning: the scheduled entry `{}` was not run: {refused}",
+                    entry.name()
+                );
+                return None;
+            }
+        };
+        // § 5: the script is handed its entry's `name` and reads it back through
+        // `Core\Script::args()` — there is no scheduler-specific accessor.
+        // Ownership: `NvsStr::new` makes the one reference `Isolate::new`
+        // consumes, so nothing here releases anything.
+        let args = Value::str(nvs_runtime::NvsStr::new(entry.name().as_bytes()));
+        // `Output::Capture` because a scheduled run's `echo` is its own captured
+        // output rather than this process's stdout (ADR 0088 § 3's table), and
+        // that capture is what the line below reports.
+        Some(Isolate::new(program, args, Output::Capture))
+    }
+
+    fn ran(&self, entry: &nvs_server::Armed, done: &nvs_host::Completion) {
+        if done.ok {
+            // § 5: the result is logged and not delivered — nothing is waiting for
+            // it. A returned `string` is rendered; anything else is reported as
+            // having returned, because rendering an arbitrary value is
+            // `Core\Debug`'s job and a scheduled run has no sink to hand it to.
+            let returned = done.value.as_text().unwrap_or("");
+            eprintln!(
+                "note: the scheduled entry `{}` ran, {} byte(s) of output{}{returned}",
+                entry.name(),
+                done.output.len(),
+                if returned.is_empty() {
+                    ""
+                } else {
+                    ", returning "
+                }
+            );
+            return;
+        }
+        // `error` is present exactly when `ok` is false — `nvs_host::Completion`'s
+        // own doc — so the fallback is unreachable for a completion this host
+        // produced, and is written rather than asserted because a schedule whose
+        // failures are silent is the failure ADR 0073's boot refusals exist to
+        // prevent.
+        match &done.error {
+            Some(failure) => eprintln!(
+                "warning: the scheduled entry `{}` threw {}: {}",
+                entry.name(),
+                failure.class,
+                failure.message
+            ),
+            None => eprintln!(
+                "warning: the scheduled entry `{}` did not return and named no failure",
+                entry.name()
+            ),
+        }
+    }
+
+    fn note(&self, note: &str) {
+        eprintln!("note: {note}");
+    }
 }
 
 /// ADR 0097 § 4's one row for a tree that mounts nothing: the file named on the

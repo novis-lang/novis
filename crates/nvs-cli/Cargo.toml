@@ -33,6 +33,11 @@ nvs-host.workspace = true
 # an isolate's program is `script.rs`'s compiler, which lives here because the
 # front end does. `serve.rs`'s module doc owns the rest of that direction.
 nvs-server.workspace = true
+# The clock `nvs serve` hands ADR 0073 § 5's ticker. `nvs_server::tick_on_this_core`
+# takes one rather than reading the wall clock itself, so the instant a fire is
+# judged against arrives from the caller — and here the caller is the process,
+# whose clock is the system's.
+jiff.workspace = true
 nvs-test.workspace = true
 # `nvs queue migrate` opens the `[db.<name>]` it proved and runs ADR 0084 § 2's
 # statements on it. This is the only path in this binary that talks to a server
