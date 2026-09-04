@@ -1890,6 +1890,7 @@ version = "0.0.1"
 dependencies = [
  "blake3",
  "clap",
+ "jiff",
  "memmap2",
  "nvs-codegen",
  "nvs-config",
@@ -2035,6 +2036,7 @@ name = "nvs-server"
 version = "0.0.1"
 dependencies = [
  "hyper",
+ "jiff",
  "nvs-config",
  "nvs-host",
  "nvs-runtime",
