@@ -23,7 +23,6 @@
 # `Core\Cap` and `Core\Cli` are registered whole; `Core\Request` has the request
 # line (`method`, `path`, `query`) and owes everything a body or a header
 # answers, and `Core\Session` is owed whole.
-§15 Request::body
 §15 Request::bodyStream
 §15 Request::clientIp
 §15 Request::files

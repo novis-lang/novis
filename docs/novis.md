@@ -15758,7 +15758,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie
+Keywords: method, isHead, path, query, header, headers, cookie, body
 
 | Member | Signature |
 |---|---|
@@ -15769,6 +15769,7 @@ Keywords: method, isHead, path, query, header, headers, cookie
 | [`Core\Request::header`](#core-core-request-header) | `header(string $name): ?tainted string` |
 | [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
 | [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
+| [`Core\Request::body`](#core-core-request-body) | `body(): tainted string` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15872,6 +15873,19 @@ One cookie by name, matched **byte for byte** — no dot, space or bracket is su
 **Returns** `?tainted string` — The cookie's value as it arrived, `tainted` and undecoded, or `null` where the request carried no such cookie. A `__Host-` name that arrived more than once is `null` as well: a browser holds at most one, so two did not come from one.
 
 **Throws** `LogicError` — This program is not answering a request.
+
+<a id="core-core-request-body"></a>
+#### `Core\Request::body`
+
+```nvs skip
+Core\Request::body(): tainted string
+```
+
+The whole request body, pulled to its end into one string — the buffered way of reading one, replacing `file_get_contents('php://input')` and the `$HTTP_RAW_POST_DATA` it succeeded.
+
+**Returns** `tainted string` — Every byte the peer sent, in order, `tainted` and decoded by nothing. Empty where the request carried no body, which is a different fact from a program that is answering no request at all — that one throws.
+
+**Throws** `LogicError` — This program is not answering a request.; `RuntimeError` — The body is larger than `[limits] request_body` (8M). The bytes over the bound are never held: the refusal happens at the chunk that would cross it.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
 
 <a id="core-core-response"></a>
 ### `Core\Response`

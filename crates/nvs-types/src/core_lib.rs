@@ -1146,8 +1146,11 @@ mod tests {
     /// class deliberately *absent*: it answers `mixed`, because § 9's bracket
     /// convention makes a value a `string` or a nested array and there is no
     /// tainted array to hold it, which `nvs_stdlib::request`'s module doc names
-    /// as the hole it is.
-    /// All twelve belong in this set for the reason the claims do: a member that
+    /// as the hole it is. `body` is the thirteenth and the widest of them: the
+    /// request's own bytes, undecoded, which is the least trusted thing any of
+    /// these classes hands back and the one a program is most likely to want to
+    /// parse — so the mark is what stands between it and a grammar sink.
+    /// All thirteen belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     #[test]
@@ -1186,6 +1189,7 @@ mod tests {
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
+                (r"Core\Request", "body", "tainted string".to_owned()),
                 (r"Core\Request", "cookie", "null|tainted string".to_owned(),),
                 (r"Core\Request", "header", "null|tainted string".to_owned(),),
                 (
@@ -1195,10 +1199,10 @@ mod tests {
                 ),
                 (r"Core\Request", "path", "tainted string".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at twelve — a \
-             verified claim, an outbound reply's body, the two environment reads, the two \
+            "the roster of members whose *answer* is qualified `tainted` is closed at thirteen — \
+             a verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
-             with, everything attached to its standard input and the four reads of the request \
+             with, everything attached to its standard input and the five reads of the request \
              being answered — and where the answer is a \
              collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
