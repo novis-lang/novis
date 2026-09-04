@@ -66,6 +66,7 @@ LIMIT = RUNDIR / "limit.json"
 INTERRUPTED = RUNDIR / "interrupted.json"
 CHAINSTATE = RUNDIR / "chain.json"
 RUNEND = RUNDIR / "run-end.json"
+DOCGATE = RUNDIR / "doc-gate.json"
 
 IS_WINDOWS = os.name == "nt"
 
@@ -3347,6 +3348,69 @@ def run_cli():
     return 0
 
 
+#: How many sessions run between two `verify.py --doc` gates, and the only home for that number.
+#: The rustdoc gate measured 41.8s over the 72 sessions in `.loop/logs` -- 40% of a green
+#: verification, ~85s a session, 7% of the loop's whole wall clock -- for a lint whose inputs are
+#: doc comments and which `.github/workflows/ci.yml` runs on every push regardless. `verify.py`'s
+#: *Why `doc` is a periodic gate* owns that argument. At ten it costs the loop about four seconds
+#: a session; raising it trades a longer blind window for very little more.
+DOC_GATE_EVERY = 10
+
+
+def write_doc_gate(since, failed=None, session=""):
+    """`.loop/doc-gate.json`: sessions since the last gate, and its standing verdict.
+
+    A file rather than a ledger line because `orient.py` needs the *current* state -- a ledger
+    holds every verdict a run ever wrote, and the newest `doc gate:` line in it stays red forever
+    once one has been written."""
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        DOCGATE.write_text(
+            json.dumps({"since": since, "when": time.time(),
+                        "failed": failed or "", "session": session}, indent=1),
+            encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def doc_gate(index):
+    """`verify.py --doc` every `DOC_GATE_EVERY` sessions, and after every session while it is red.
+
+    Between sessions is where this belongs: the seconds are the driver's, beside the acceptance
+    check, rather than inside a session's context ceiling. The counter persists across runs
+    because a run that ends at its fourth session would never reach a gate keyed on the session
+    index, and runs end early all the time.
+
+    A red gate does not reset the counter, so it runs again after the next session and the one
+    after that until it is green. Nothing here fails a run or stops one: a broken intra-doc link
+    is not a broken tree, and `verify.py` judges the tree. Reaching a session is `orient.py`'s
+    job, off the file this writes."""
+    try:
+        state = json.loads(DOCGATE.read_text(encoding="utf-8"))
+        since = int(state.get("since", 0))
+    except (OSError, ValueError, TypeError):
+        since = DOC_GATE_EVERY  # unreadable state runs the gate rather than skipping it
+    since += 1
+    if since < DOC_GATE_EVERY:
+        write_doc_gate(since)
+        return
+    step(f"rustdoc gate: every link in a doc comment, resolved "
+         f"(1 session in {DOC_GATE_EVERY})", C.CYAN)
+    began = time.monotonic()
+    r = capture(sys.executable, ["tools/verify.py", "--doc"], timeout=900)
+    spent = mmss(time.monotonic() - began)
+    if r.code == 0:
+        step(f"rustdoc gate green in {spent}", C.CYAN)
+        write_doc_gate(0)
+        return
+    text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
+    first = next((ln.strip() for ln in text.split("\n") if ln.strip().startswith("error")), "")
+    why = first or f"`python tools/verify.py --doc` exited {r.code}"
+    step(f"rustdoc gate FAILED in {spent} -- {why}", C.RED)
+    write_doc_gate(since, failed=why, session=f"{index:04d}")
+    ledger(f"       doc gate: {why}")
+
+
 def drive(opts, goal, chain=None):
     """The session loop itself. Split out so `main` can hold the `.loop/running` marker across it,
     and drop it on any exit -- a normal stop, a Ctrl-C, or an exception."""
@@ -3548,6 +3612,9 @@ def drive(opts, goal, chain=None):
         fail = goal.check(verbose=True)
         step(f"acceptance check done in {mmss(time.monotonic() - checked)}", C.CYAN)
         ledger(f"       goal cost: {goal.summary()}")
+        # Beside the acceptance check because it is the same kind of thing: a gate the driver runs
+        # between sessions, over the tree the session left, reported through a file a pack reads.
+        doc_gate(index)
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
         if not fail:

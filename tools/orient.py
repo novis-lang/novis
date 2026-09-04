@@ -80,6 +80,7 @@ GROUND_RULES = ADR_DIR / "ground-rules.md"
 RUNNING = ROOT / ".loop" / "running"
 INTERRUPTED = ROOT / ".loop" / "interrupted.json"
 LEDGER = ROOT / ".loop" / "log.md"
+DOCGATE = ROOT / ".loop" / "doc-gate.json"
 
 # A section is measured for --audit as it is emitted, so the report is of what was actually
 # printed rather than of what the files hold.
@@ -348,6 +349,26 @@ def last_acceptance() -> tuple[str, str] | None:
     return found
 
 
+def doc_gate_failure() -> tuple[str, str] | None:
+    """The rustdoc gate's standing verdict, out of `.loop/doc-gate.json`, or `None` when green.
+
+    `tools/loop.py` runs `verify.py --doc` once every `DOC_GATE_EVERY` sessions rather than inside
+    every verification -- `tools/verify.py`'s *Why `doc` is a periodic gate* is the argument -- and
+    re-runs it after every session until it is green again. A red gate stops nothing, which is
+    exactly why it has to be printed here: no session's own `verify.py` will mention it, and the
+    comment that broke it may be nine sessions old."""
+    try:
+        state = json.loads(read(DOCGATE))
+    except ValueError:
+        return None
+    if not isinstance(state, dict):
+        return None
+    failed = str(state.get("failed") or "").strip()
+    if not failed:
+        return None
+    return str(state.get("session") or "").strip() or "an earlier session", failed
+
+
 def run_marker() -> None:
     section("RUN", "git, .loop/running, .loop/interrupted.json and .loop/log.md")
     if RUNNING.exists():
@@ -381,21 +402,32 @@ def run_marker() -> None:
     emit(f"branch {branch}, {len(changed)} path(s) with uncommitted changes")
     emit(f"head   {git('log', '-1', '--oneline') or '(no commits)'}")
     verdict = last_acceptance()
-    if verdict is None:
+    if verdict is not None:
+        session, fail = verdict
+        emit()
+        if not fail:
+            emit(f"The driver's last acceptance check, after session {session}, passed whole.")
+        else:
+            emit(f"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session {session}:")
+            emit(f"  {fail}")
+            emit("The run ends only when every check in loop-goal.toml passes, and nothing else")
+            emit("shows a session this one -- the driver writes it to the ledger and moves on. If")
+            emit("the group below does not close it, CLOSE THIS FIRST: it outranks the handoff's")
+            emit("next group, and the handoff you write says what you found. A check that names a")
+            emit("test that 'did not run' is an item still open and is the ordinary state of this")
+            emit("goal; any other failure is a regression and outranks new work outright.")
+    # Below the acceptance verdict on purpose: a red check is a regression and outranks this.
+    gate = doc_gate_failure()
+    if gate is None:
         return
-    session, fail = verdict
+    since, why = gate
     emit()
-    if not fail:
-        emit(f"The driver's last acceptance check, after session {session}, passed whole.")
-        return
-    emit(f"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session {session}:")
-    emit(f"  {fail}")
-    emit("The run ends only when every check in loop-goal.toml passes, and nothing else")
-    emit("shows a session this one -- the driver writes it to the ledger and moves on. If")
-    emit("the group below does not close it, CLOSE THIS FIRST: it outranks the handoff's")
-    emit("next group, and the handoff you write says what you found. A check that names a")
-    emit("test that 'did not run' is an item still open and is the ordinary state of this")
-    emit("goal; any other failure is a regression and outranks new work outright.")
+    emit(f"THE RUSTDOC GATE IS RED, since session {since}:")
+    emit(f"  {why}")
+    emit("`python tools/verify.py --doc` is the whole check, and rustdoc names the file and the")
+    emit("line. It is not part of a session's verification -- tools/verify.py says why -- so it")
+    emit("stays red until someone fixes it, and the driver re-runs it after every session until")
+    emit("that happens. Fix it inside whatever group you take, and say so in the handoff.")
 
 
 def run_numbers() -> None:

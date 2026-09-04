@@ -2,10 +2,13 @@
 """AGENTS.md § *Session workflow* step 3, as one command.
 
 `cargo build`, `cargo fmt --check`, `cargo test`, the `.nvst` trees through the binary the build
-just produced, `cargo clippy --all-targets -- -D warnings`, `cargo doc` with rustdoc's broken-link
-lint denied, and -- once `editors/vscode` exists -- that extension's headless suites, in that
-order, stopping at the first failure. Green prints one line per step; a failure prints that step's
-output and nothing else.
+just produced, `cargo clippy --all-targets -- -D warnings`, and -- once `editors/vscode` exists --
+that extension's headless suites, in that order, stopping at the first failure. Green prints one
+line per step; a failure prints that step's output and nothing else.
+
+`cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
+list. It is `--doc`, run alone, and `tools/loop.py` runs it every tenth session rather than every
+verification -- see *Why `doc` is a periodic gate* below.
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
 exactly what `tools/loop.py`'s acceptance check runs, and they print the two counts the plan's
@@ -21,6 +24,7 @@ green verification is one call and about ten lines.
     python tools/verify.py                  # every step
     python tools/verify.py -p nvs-ir        # scope build/test/clippy to one package
     python tools/verify.py --fast           # build and test only, for a mid-work check
+    python tools/verify.py --doc            # the rustdoc gate alone; the driver's periodic call
     python tools/verify.py --start          # run it detached and return at once
     python tools/verify.py --wait           # collect what --start left, with its exit status
     python tools/verify.py --full           # do not truncate the failing step's output
@@ -76,6 +80,31 @@ The cache records the scope and the step list it was produced by, so a `--fast` 
 satisfies a full run and a `-p nvs-ir` verdict never satisfies an unscoped one; the reverse
 directions do, because a superset already proved the subset. Anything unexpected -- an
 unreadable file, a corrupt cache -- makes it fall through and run the steps for real.
+
+## Why `doc` is a periodic gate rather than a step
+
+`cargo doc --no-deps --workspace` resolves every ``[`Foo::bar`]`` in a doc comment. The lint it
+denies, `broken_intra_doc_links`, is warn-by-default and invisible to `build` and to `clippy`
+alike -- 391 of them had accumulated when it was first run, 96 naming an item that does not
+exist -- so it has to run somewhere.
+
+It ran here, as a step, until it was measured. Over the 72 sessions in `.loop/logs` it averaged
+**41.8s**, against 24.0s for `test`, 12.6s for `differential` and 7.5s for `clippy`; the comment
+beside it still claimed twelve, which is what it cost when it was written. That made it 40% of a
+green run, and a session reaches a green run about twice -- ~85 seconds a session, 7% of the
+loop's entire wall clock, for a lint that fires a handful of times a month.
+
+Two things put it in the wrong place. Its inputs are doc *comments*, which most re-runs of this
+script never touch: a re-run after fixing a clippy lint paid the 42 seconds again for an answer
+that could not have changed. And `.github/workflows/ci.yml` runs the identical command with the
+identical `RUSTDOCFLAGS`, so a push was never going to carry a broken link either way.
+
+So it is `--doc`, alone, and `tools/loop.py` calls it after every tenth session -- between
+sessions, where the seconds are the driver's rather than a session's -- and keeps calling it every
+session until it is green again (`DOC_GATE_EVERY` there is the one home for the interval). What
+that trades away is in-session detection: a broken link can now surface up to ten sessions after
+the comment that broke it, named by file and line in the ledger and in the next pack. Ten sessions
+of 42 seconds buys that back nineteen times over.
 
 ## Why the documentation gates are not steps here
 
@@ -274,7 +303,26 @@ def summarize_reference(out):
         "ran, but printed no `N of M examples hold` line -- check the log"
 
 
+def doc_step(opts):
+    """The rustdoc gate: every ``[`Foo::bar`]`` in a doc comment, resolved.
+
+    `private_intra_doc_links` is allowed rather than fixed: these are internal crates nobody
+    publishes, a link to a crate-private item is a correct reference that rustdoc simply will not
+    turn into an anchor, and denying it would be a rule against citing the code by name.
+
+    One home for the command, with two callers -- `tools/loop.py`'s periodic gate and a by-hand
+    `--doc`. The module docstring says why it is not one of `steps_for`'s steps."""
+    scope = ["--workspace"] if not opts.package else ["-p", opts.package]
+    return Step("doc", ["doc", "--no-deps", *scope], summarize_doc,
+                env={"RUSTDOCFLAGS": "-A rustdoc::private_intra_doc_links -D warnings"})
+
+
 def steps_for(opts):
+    # `--doc` is the whole run rather than an addition to it. The gate is periodic and its inputs
+    # are doc comments, so pairing it with build/test/clippy would put back exactly the 42 seconds
+    # a session stopped paying.
+    if opts.doc:
+        return [doc_step(opts)]
     scope = ["-p", opts.package] if opts.package else []
     steps = [Step("build", ["build", *scope], summarize_build)]
     if not opts.fast:
@@ -313,23 +361,6 @@ def steps_for(opts):
         steps.append(
             Step("clippy", ["clippy", "--all-targets", *scope, "--", "-D", "warnings"],
                  summarize_clippy)
-        )
-        # Every `[`Foo::bar`]` in a doc comment, resolved. This crate set states its
-        # architecture in its doc comments and cross-references it by name, and
-        # `broken_intra_doc_links` is warn-by-default and invisible to `build` and to
-        # `clippy` alike -- so 391 of them had accumulated, 96 naming an item that does
-        # not exist. `private_intra_doc_links` is allowed rather than fixed: these are
-        # internal crates nobody publishes, a link to a crate-private item is a correct
-        # reference that rustdoc simply will not turn into an anchor, and denying it
-        # would be a rule against citing the code by name.
-        #
-        # It costs about twelve seconds on a warm tree and shares `check`'s artifacts
-        # with the steps above, which is why it sits here rather than in CI alone.
-        steps.append(
-            Step("doc", ["doc", "--no-deps", "--workspace" if not opts.package else "-p",
-                         *([] if not opts.package else [opts.package])],
-                 summarize_doc,
-                 env={"RUSTDOCFLAGS": "-A rustdoc::private_intra_doc_links -D warnings"})
         )
         # The VS Code extension's headless suites -- the TextMate grammar snapshots, the
         # contributions/dependency-allowlist test and the LSP protocol round-trip. No editor, no
@@ -412,6 +443,21 @@ def cached_verdict(key, opts, steps):
 def store_verdict(key, opts, steps):
     if key is None:
         return
+    # Merged into the standing entry, not written over it, when the tree has not moved since that
+    # entry was made. `--doc` is a run of one step: replacing a full verdict with it would make the
+    # next unscoped run re-derive six green steps over bit-identical inputs, which is the cost the
+    # cache exists to remove. Nothing is carried over unless the key and the scope both match, so a
+    # merged entry still describes exactly one tree; `cached_verdict`'s subset rule reads it back.
+    held, held_seconds = {}, 0.0
+    try:
+        entry = json.loads(CACHE.read_text(encoding="utf-8"))
+        if (entry.get("key") == key and entry.get("package") == opts.package
+                and time.time() - float(entry.get("when", 0)) <= CACHE_TTL):
+            held = dict(entry.get("steps") or {})
+            held_seconds = float(entry.get("seconds") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        held, held_seconds = {}, 0.0
+    held.update({s.name: s.summarize(s.out) for s in steps})
     try:
         TMP.mkdir(exist_ok=True)
         CACHE.write_text(
@@ -420,8 +466,8 @@ def store_verdict(key, opts, steps):
                     "key": key,
                     "when": time.time(),
                     "package": opts.package,
-                    "steps": {s.name: s.summarize(s.out) for s in steps},
-                    "seconds": round(sum(s.seconds for s in steps), 1),
+                    "steps": held,
+                    "seconds": round(held_seconds + sum(s.seconds for s in steps), 1),
                 },
                 indent=1,
             ),
@@ -551,6 +597,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-p", "--package", help="scope build/test/clippy to one package")
     ap.add_argument("--fast", action="store_true", help="build and test only")
+    ap.add_argument("--doc", action="store_true",
+                    help="the rustdoc gate alone; tools/loop.py runs it every tenth session")
     ap.add_argument("--full", action="store_true", help="do not truncate the failing step")
     ap.add_argument("--no-cache", action="store_true",
                     help="re-run the steps even if the tree is provably unchanged")
@@ -568,6 +616,9 @@ def main():
 
     if opts.start and opts.wait:
         print("verify: --start and --wait are two calls, not one flag pair.")
+        return 2
+    if opts.doc and opts.fast:
+        print("verify: --doc is a run of one step; --fast has nothing to narrow.")
         return 2
     if opts.start:
         return start_background(sys.argv[1:])
