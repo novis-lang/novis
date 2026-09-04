@@ -72,8 +72,8 @@ use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
 use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
 use nvs_server::{
-    Admission, Arrived, Ceiling, Incoming, OnDisk, Reply, Request, Resolved, Secure, Serving,
-    Table, Trusted, What,
+    Admission, Arrived, Ceiling, Incoming, OnDisk, Origin, Reply, Request, Resolved, Secure,
+    Serving, Table, Trusted, What,
 };
 
 use crate::script::Compiler;
@@ -261,7 +261,7 @@ pub(crate) fn run(
         let compiler = Rc::clone(&compiler);
         let table = Rc::clone(&table);
         let draining = draining.clone();
-        move |request: Request<Incoming>| {
+        move |request: Request<Incoming>, origin: Origin| {
             // Ahead of the table, because a verb outside `Core\Http\Method`'s
             // eight names no application on this server rather than none at
             // this path: `Reply::not_implemented` owns why that is a `501` and
@@ -328,6 +328,14 @@ pub(crate) fn run(
             for (name, value) in request.headers() {
                 inbound.push_header(name.as_str(), value.as_bytes());
             }
+            // And who it came from, which this handler is *told* rather than
+            // reading: ADR 0097 § 6's walk ran on the connection, before the
+            // ceiling and before this closure, because the answer decides
+            // policy on responses no handler ever sees. Both of its answers
+            // land here together — `Inbound::set_peer` owns why they are one
+            // call — and `Core\Request::clientIp()` and `::scheme()` are what
+            // read them back.
+            inbound.set_peer(origin.client(), origin.scheme());
             // Split only here: everything above reads the request whole, and
             // the body is the one part of it that does not go where the rest
             // does.

@@ -86,7 +86,10 @@ pub mod statics;
 // The request a handler is handed, so that one can be *spelled* where it is
 // written. `hyper` is this crate's dependency and deliberately not its callers'
 // — ADR 0051 § 4's answer is one crate owning h1 — but the parameter type of a
-// `Fn(Request<Incoming>) -> Reply` has to be nameable outside it, and a handler
+// `Fn(Request<Incoming>, Origin) -> Reply` has to be nameable outside it — the
+// second parameter is ADR 0097 § 6's walk, which ran on the connection before
+// the handler because its answer decides policy on responses no handler sees —
+// and a handler
 // that cannot annotate its own parameter is one whose first statement decides
 // what it is.
 pub use hyper::Request;

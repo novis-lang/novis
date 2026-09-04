@@ -142,6 +142,7 @@
 
 use std::borrow::Cow;
 use std::io::{self, Write};
+use std::net::IpAddr;
 
 use nvs_config::log::Format as LogFormat;
 use nvs_render::{Level, Record};
@@ -4346,6 +4347,32 @@ impl Ctx {
     }
 }
 
+/// The scheme a request effectively arrived over.
+///
+/// **Effective, not observed**: Novis terminates no TLS
+/// ([ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// § 1), so `Https` is only ever what a *trusted* proxy asserted through
+/// `X-Forwarded-Proto` — § 6's walk is the one thing that decides it, and this
+/// carrier holds its answer rather than re-deriving one.
+///
+/// Not a boolean, because the two values are named in the ADR and a `bool` at a
+/// call site would need a comment saying which way round it goes.
+///
+/// It lives here, one crate below the door, because two readers a crate apart
+/// need the same two values and a copy in each is two answers to one question:
+/// `nvs_server::secure` conditions [ADR 0074] § 1's HSTS header on it, and
+/// [`Inbound::scheme`] is what `Core\Request::scheme()` reads. `nvs_server`
+/// re-exports this type rather than declaring its own.
+///
+/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scheme {
+    /// A plaintext connection, and what a trusted proxy asserted nothing about.
+    Http,
+    /// TLS, as a trusted proxy asserted it (ADR 0097 § 6).
+    Https,
+}
+
 /// The request line a context is answering, as it arrived off the wire —
 /// what spec § 15's `Core\Request` reads and the only thing on a context that
 /// came from outside the process.
@@ -4371,7 +4398,9 @@ impl Ctx {
 /// **What it spends:** three short allocations per served request, plus two per
 /// header field line and one growing vector to hold them, one more allocation
 /// for a request that arrived with a body, and nothing at all for a process
-/// serving none. **Not the body's bytes** — see [`RequestBody`].
+/// serving none. **Not the body's bytes** — see [`RequestBody`]. The peer costs
+/// no allocation at all: an address and a scheme are held inline, as the words
+/// the door decided them as.
 pub struct Inbound {
     /// The method token the peer wrote, verbatim and un-uppercased.
     method: Box<str>,
@@ -4408,6 +4437,28 @@ pub struct Inbound {
     /// of every in-flight request and, through ADR 0106 § 13's arithmetic, the
     /// number of requests this process may admit at once.
     body: Option<Box<dyn RequestBody>>,
+    /// The address the request came from, as ADR 0097 § 6's walk decided it —
+    /// the socket's own peer, or what a *trusted* proxy said instead.
+    ///
+    /// `None` for a peer that has no address at all: a Unix-domain socket that
+    /// forwarded nothing. That is a value `Core\Request::clientIp()` has to be
+    /// able to answer, and inventing `"0.0.0.0"` for it would be the repair
+    /// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+    /// forbids.
+    ///
+    /// An [`IpAddr`] and not the text of one, so that a request nobody asks
+    /// pays nothing: this is two words held inline, and the string spelling is
+    /// built by the member that answers, on the calls that ask for it.
+    ///
+    /// **It is not "everything on it is `tainted`"'s exception.** A forwarded
+    /// address is a header a proxy wrote and is untrusted on the same terms as
+    /// the rest; what the walk decides is *who was allowed to say it*, not that
+    /// what they said is safe to concatenate.
+    client: Option<IpAddr>,
+    /// The scheme this request effectively arrived over — the walk's other
+    /// answer, and `Http` for every request until a trusted proxy asserts
+    /// otherwise. [`Scheme`] owns why it is two named values.
+    scheme: Scheme,
     /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
     /// §§ 1-2's parse of that body, once `Core\Request::files()` has named one
     /// — **type-erased**, because the parse is `nvs_stdlib::multipart`'s and
@@ -4495,6 +4546,8 @@ impl std::fmt::Debug for Inbound {
             .field("path", &self.path)
             .field("query", &self.query)
             .field("headers", &self.headers)
+            .field("client", &self.client)
+            .field("scheme", &self.scheme)
             .field("body", &self.body.is_some())
             .field("parts", &self.parts.is_some())
             .finish()
@@ -4512,10 +4565,38 @@ impl Inbound {
             query: query.into(),
             headers: Vec::new(),
             body: None,
+            // The fail-closed pair, and both are what a carrier built by
+            // something that never asked the question says: no peer to name,
+            // and a plaintext scheme. `Scheme::Https` is a claim, so it is
+            // never a default — [`Self::set_peer`] is the only way to it.
+            client: None,
+            scheme: Scheme::Http,
             parts: None,
             form: None,
             claimed_by: None,
         }
+    }
+    /// Records who the request came from, as ADR 0097 § 6's walk decided it.
+    ///
+    /// Called at most once, by whoever accepted the request, beside the
+    /// [`Self::push_header`] calls and before the program runs. Both facts
+    /// arrive together because one walk answers both: a proxy trusted to state
+    /// the client address is the same proxy trusted to state the scheme, and
+    /// setting them apart would let a carrier hold half of one answer.
+    pub fn set_peer(&mut self, client: Option<IpAddr>, scheme: Scheme) {
+        self.client = client;
+        self.scheme = scheme;
+    }
+    /// The address the request came from, and `None` for a peer that has no
+    /// address — the field's own doc owns what that is.
+    #[must_use]
+    pub fn client(&self) -> Option<IpAddr> {
+        self.client
+    }
+    /// The scheme this request effectively arrived over.
+    #[must_use]
+    pub fn scheme(&self) -> Scheme {
+        self.scheme
     }
     /// The verb, verbatim.
     #[must_use]

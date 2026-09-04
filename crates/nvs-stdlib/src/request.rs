@@ -21,12 +21,15 @@
 //! `route` are known gaps of this module rather than of § 15, and each waits on
 //! a different thing:
 //! `route`/`mount` on the match `nvs_server` makes once
-//! before the handler, and `clientIp`/`scheme`/`host` on a carrier. The walk
-//! those last two wait on has landed — `nvs_server::forwarded` is ADR 0097
-//! § 6's, and it answers both facts per request — but nothing carries its answer
-//! down here: [`nvs_runtime::Inbound`] holds a method, a path, a query, the
-//! header lines and the body, and no peer. Adding that field, and a handler
-//! signature that can be handed one, is what these three are now waiting on.
+//! before the handler, and `host` not on a carrier at all — a `Host` line is
+//! already one of [`nvs_runtime::Inbound`]'s headers, and what that member
+//! waits on is whether a *forwarded* host may be believed, which ADR 0097 § 6's
+//! walk answers for an address and a scheme and deliberately not for this.
+//! **`clientIp` and `scheme` wait on nothing now**: ADR
+//! 0097 § 6's walk answers both per request, `nvs_server::serve_connection`
+//! hands its `Origin` to the handler, and the carrier holds the answer —
+//! [`nvs_runtime::Inbound::client`] and [`nvs_runtime::Inbound::scheme`]. What
+//! is left for each is this module's own five edits.
 //!
 //! # There is no request here, and that is a throw
 //!

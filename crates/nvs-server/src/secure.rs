@@ -84,15 +84,12 @@ const PERMISSIONS_POLICY: HeaderName = HeaderName::from_static("permissions-poli
 /// The scheme a request effectively arrived over — § 1's condition on HSTS, and nothing else
 /// in this module reads it.
 ///
-/// Not a boolean, because the two values are named in the ADR and a `bool` at a call site
-/// would need a comment saying which way round it goes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Scheme {
-    /// A plaintext connection, and what a trusted proxy asserted nothing about.
-    Http,
-    /// TLS, as a trusted proxy asserted it through `X-Forwarded-Proto` (ADR 0097 § 6).
-    Https,
-}
+/// **Declared one crate down**, in `nvs_runtime`, and re-exported here under the name every
+/// call site in this crate already spells. ADR 0097 § 6's walk decides it once per request and
+/// two things then read that answer: this module, which sends HSTS only over `Https`, and
+/// `nvs_runtime::Inbound`, which carries it to `Core\Request::scheme()`. A second enum here
+/// would be a second home for one fact and a conversion at the seam between them.
+pub use nvs_runtime::Scheme;
 
 /// [ADR 0074] § 1's header set, resolved from `[http.headers]` and rendered once.
 ///

@@ -94,7 +94,7 @@ use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
 use crate::ConnectionIo;
 use crate::admit::Admission;
 use crate::body::Supply;
-use crate::forwarded::{Arrival, Trusted};
+use crate::forwarded::{Arrival, Origin, Trusted};
 use crate::io::Phase;
 use crate::secure::{Scheme, Secure};
 
@@ -526,7 +526,7 @@ pub fn serve_connection<H>(
     serving: &Serving,
 ) -> hyper::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Reply,
+    H: Fn(Request<Incoming>, Origin) -> Reply,
 {
     let ctx = RefCell::new(ctx);
     // Borrowed once, here, rather than captured: the service below hands its
@@ -566,11 +566,16 @@ where
                 return Ok::<_, Infallible>(refused);
             }
         };
-        // `origin.client()` has no destination yet — `nvs_runtime::Inbound`
-        // carries no peer, so `Core\Request::clientIp()` is still that crate's
-        // gap — and `origin.ignored_forwarded()` is § 6's one `Warn`, which
-        // goes wherever this loop's other reports go once it has been given a
-        // log. Both are the same slice and neither changes what is served.
+        // The whole `Origin` goes to the handler below, because the carrier a
+        // request reaches its program through is built there — this loop never
+        // holds one — and both of the walk's answers belong on it
+        // (`nvs_runtime::Inbound::set_peer`). What stays here is the scheme,
+        // read again for ADR 0074 § 1's header set at the end of this closure:
+        // an `Origin` is `Copy`, so the two readings are one decision.
+        //
+        // `origin.ignored_forwarded()` is § 6's one `Warn` and still has
+        // nowhere to go: it goes wherever this loop's other reports go once it
+        // has been given a log, and it changes nothing about what is served.
         let scheme = origin.scheme();
         // ADR 0097 § 5, and this line is the *order* rather than the number:
         // the ceiling is asked before the handler is, so a refused request has
@@ -585,7 +590,7 @@ where
             serving.secure.fill(refused.headers_mut(), scheme);
             return Ok::<_, Infallible>(refused);
         };
-        let mut answered = match handler(request) {
+        let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
             // isolate accounting below does not apply to it either.
@@ -870,7 +875,7 @@ pub fn serve_on_this_core<H>(
     mut keep_serving: impl FnMut() -> ControlFlow<()>,
 ) -> io::Result<()>
 where
-    H: Fn(Request<Incoming>) -> Reply + 'static,
+    H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
 {
     // Taken once, and it is also the check that this is a task at all: a wake
     // exists exactly when `spawn_child` has a parent to hang a child off.
@@ -1316,8 +1321,8 @@ mod tests {
     /// compiler in this crate — and it writes through `Ctx::write_output`,
     /// which is the buffer a compiled `echo` reaches under ADR 0088 § 3's
     /// table.
-    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
-        Rc::new(|request: Request<Incoming>| {
+    fn echo_the_path() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
             let path = request.uri().path().to_owned();
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 child
@@ -1339,8 +1344,8 @@ mod tests {
     /// response merely being well-formed. The path is the target's own here:
     /// stripping a mount prefix is `crate::mount`'s step 2 and this crate's
     /// tests have no table.
-    fn echo_the_carrier() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
-        Rc::new(|request: Request<Incoming>| {
+    fn echo_the_carrier() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
             let mut inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -1431,6 +1436,117 @@ mod tests {
         );
     }
 
+    /// The handler ADR 0097 § 6's case answers with: the walk's two answers put
+    /// on the carrier exactly as `nvs-cli`'s door puts them there, and a program
+    /// that says them back.
+    ///
+    /// It reads nothing off the request itself — not even the headers the walk
+    /// decided from — so what the assertion sees is the walk's answer and could
+    /// not be a header echoed back under another name.
+    fn echo_the_peer() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|_request: Request<Incoming>, origin: Origin| {
+            let mut inbound = nvs_runtime::Inbound::new("GET", "/", "");
+            inbound.set_peer(origin.client(), origin.scheme());
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let said = {
+                    let inbound = child
+                        .inbound()
+                        .expect("the isolate ran with no request in front of it");
+                    format!(
+                        "{} {:?}",
+                        inbound
+                            .client()
+                            .map_or_else(|| "none".to_owned(), |ip| ip.to_string()),
+                        inbound.scheme()
+                    )
+                };
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// The request that claims to have been forwarded, which is the only
+    /// request either half below sends: what changes between them is who this
+    /// server was told to believe.
+    fn claiming_to_be_forwarded(addr: std::net::SocketAddr) -> std::thread::JoinHandle<String> {
+        std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"GET / HTTP/1.1\r\nHost: localhost\r\nX-Forwarded-For: 203.0.113.9\r\n\
+                      X-Forwarded-Proto: https\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        })
+    }
+
+    /// ADR 0097 § 6's answer reaches the program, and it is the *walk's* answer:
+    /// `nvs_runtime::Inbound` carries the client address and the effective
+    /// scheme, which is what `Core\Request::clientIp()` and `::scheme()` read.
+    ///
+    /// Asserted from both sides of the trust decision with **one request**, so
+    /// the case is about who was allowed to speak for the peer rather than
+    /// about a header being parsed. With nothing configured the two forwarded
+    /// lines are inert and the carrier says the socket's own peer over
+    /// plaintext; with the loopback trusted the same lines are the answer. A
+    /// carrier that stored what arrived rather than what the walk decided would
+    /// print the same string for both halves.
+    #[test]
+    fn the_walks_answer_reaches_the_program_on_the_carrier() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let answer = served_under(
+            listener,
+            &echo_the_peer(),
+            claiming_to_be_forwarded(addr),
+            wide_open(),
+        );
+        assert!(
+            answer.ends_with("127.0.0.1 Http"),
+            "an untrusted peer speaks only for itself: {answer}"
+        );
+
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let (trusted, rejected) = Trusted::of(&["127.0.0.1/32".to_owned()]);
+        assert!(
+            rejected.is_empty(),
+            "the fixture named no network: {rejected:?}"
+        );
+        let behind_a_proxy = Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::default()),
+            Arc::new(trusted),
+        );
+        let answer = served_under(
+            listener,
+            &echo_the_peer(),
+            claiming_to_be_forwarded(addr),
+            behind_a_proxy,
+        );
+        assert!(
+            answer.ends_with("203.0.113.9 Https"),
+            "a trusted proxy states both facts, and both reach the carrier: {answer}"
+        );
+    }
+
     /// The isolate the two body cases answer with: a handler that splits the
     /// arrived body the way `nvs-cli`'s door does, and a program that pulls it
     /// to its end off its own context.
@@ -1438,8 +1554,8 @@ mod tests {
     /// It says the bytes rather than a length, so that a case asserting them is
     /// asserting order and completeness together — a supplier that dropped a
     /// chunk or answered one twice would still report a plausible count.
-    fn echo_the_body() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
-        Rc::new(|request: Request<Incoming>| {
+    fn echo_the_body() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
             let mut inbound = nvs_runtime::Inbound::new(
                 request.method().as_str(),
                 request.uri().path(),
@@ -1563,12 +1679,26 @@ mod tests {
     /// Runs one accept loop on a scheduler of its own until the client thread
     /// above it is done, and answers what that client read.
     fn served_by<H>(
-        mut listener: NvsListener,
+        listener: NvsListener,
         handler: &Rc<H>,
         client: std::thread::JoinHandle<String>,
     ) -> String
     where
-        H: Fn(Request<Incoming>) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
+        served_under(listener, handler, client, wide_open())
+    }
+
+    /// [`served_by`], under a policy the case names — the one thing a request
+    /// cannot state about itself, and what ADR 0097 § 6's case is about.
+    fn served_under<H>(
+        mut listener: NvsListener,
+        handler: &Rc<H>,
+        client: std::thread::JoinHandle<String>,
+        serving: Serving,
+    ) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
         let handler = Rc::clone(handler);
         let mut sched = nvs_host::Scheduler::new();
@@ -1579,7 +1709,7 @@ mod tests {
                 &mut listener,
                 &handler,
                 Waits::default(),
-                &wide_open(),
+                &serving,
                 &Draining::detached(),
                 |_note| {},
                 || ControlFlow::Break(()),
@@ -1719,7 +1849,7 @@ mod tests {
         let polled_on: Rc<RefCell<Vec<nvs_host::TaskId>>> = Rc::new(RefCell::new(Vec::new()));
         let handler = Rc::new({
             let polled_on = Rc::clone(&polled_on);
-            move |request: Request<Incoming>| {
+            move |request: Request<Incoming>, _origin: Origin| {
                 polled_on.borrow_mut().push(
                     nvs_host::current_task().expect("the connection future was polled off a task"),
                 );
@@ -1875,7 +2005,7 @@ mod tests {
     /// accepting rather than the order the OS hands connections over in.
     fn tasks_finished<H>(connections: usize, handler: &Rc<H>) -> usize
     where
-        H: Fn(Request<Incoming>) -> Reply + 'static,
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
             .expect("the OS refused a port");
@@ -1953,7 +2083,7 @@ mod tests {
     /// ever went up by one per connection could not tell the two apart.
     #[test]
     fn no_task_is_spawned_to_serve_a_connection() {
-        let a_status = Rc::new(|_request: Request<Incoming>| Reply::not_found());
+        let a_status = Rc::new(|_request: Request<Incoming>, _origin: Origin| Reply::not_found());
         let one = tasks_finished(1, &a_status);
         let two = tasks_finished(2, &a_status);
         assert_eq!(
@@ -2014,7 +2144,7 @@ mod tests {
         let handler = Rc::new({
             let connection = Rc::clone(&connection);
             let request = Rc::clone(&request);
-            move |_request: Request<Incoming>| {
+            move |_request: Request<Incoming>, _origin: Origin| {
                 connection.set(nvs_host::current_task());
                 let ran_on = Rc::clone(&request);
                 let program: Program = Box::new(move |child: &mut Ctx, _args| {
@@ -2183,7 +2313,7 @@ mod tests {
         let draining = Draining::detached();
         let handler = Rc::new({
             let draining = draining.clone();
-            move |request: Request<Incoming>| {
+            move |request: Request<Incoming>, _origin: Origin| {
                 assert_eq!(request.uri().path(), "/healthz");
                 Reply::health(&draining)
             }
@@ -2299,8 +2429,8 @@ mod tests {
     /// The isolate answering this one hands the core back twice before it says
     /// anything, so the request cannot be finished inside the poll that started
     /// it.
-    fn echo_after_two_parks() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
-        Rc::new(|_request: Request<Incoming>| {
+    fn echo_after_two_parks() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|_request: Request<Incoming>, _origin: Origin| {
             let program: Program = Box::new(move |child: &mut Ctx, _args| {
                 for _ in 0..2 {
                     // `Yielded` rather than `Parked`: nothing is going to wake
@@ -2410,7 +2540,7 @@ mod tests {
             answer
         });
 
-        let handler = Rc::new(|_request: Request<Incoming>| {
+        let handler = Rc::new(|_request: Request<Incoming>, _origin: Origin| {
             let program: Program =
                 Box::new(|_: &mut Ctx, _args| panic!("the request gave up loudly"));
             Reply::run(Isolate::new(program, Value::null(), Output::Capture))
@@ -2594,7 +2724,7 @@ mod tests {
         let asked = Rc::new(Cell::new(false));
         let handler = Rc::new({
             let asked = Rc::clone(&asked);
-            move |_request: Request<Incoming>| {
+            move |_request: Request<Incoming>, _origin: Origin| {
                 asked.set(true);
                 Reply::not_found()
             }
