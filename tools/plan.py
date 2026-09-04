@@ -207,9 +207,16 @@ def milestones(lines=None):
 
 # ---------------------------------------------------------------------------- the chain
 
-#: What a chain entry writes for work that lands in no milestone at all -- goals 7-11 are five of
+#: What this chain writes for work that lands in no milestone at all -- goals 7-11 are five of
 #: them. A milestone is not invented to hold a goal; the goal says so and `--check` accepts it.
+#: It is a convention rather than the only legal word: `dossier.py --emit-goals` writes chains
+#: tagged `dossier`, and a future program will have its own. Hence MILESTONE_TAG_RE below --
+#: **what `--check` gates on is the shape**, so a tag spelled like a milestone must be a real row
+#: (`M18` is a typo worth catching) and a tag that is plainly a label is taken as one.
 POST_PARITY = "post-parity"
+
+#: A chain tag that claims to be a milestone id. Anything matching this must be in the table.
+MILESTONE_TAG_RE = re.compile(r"^M\d+[A-Z]?$")
 
 #: `1 core-depth` -> 1. The number is what a person says out loud ("goal 19"), and it is read off
 #: the entry's own name rather than its position, so inserting a goal cannot silently renumber the
@@ -254,7 +261,7 @@ def carried_by(goals=None):
     and no column of one number per milestone can say either."""
     by = {}
     for g in chain_goals() if goals is None else goals:
-        if g["milestone"] and g["milestone"] != POST_PARITY:
+        if MILESTONE_TAG_RE.match(g["milestone"]):
             by.setdefault(g["milestone"], []).append(g["num"])
     return by
 
@@ -545,10 +552,10 @@ def run_check(fields, index, aim):
                     f"chain.toml: goal {g['num']} ({g['name']}) names no milestone -- give it one, "
                     f'or `milestone = "{POST_PARITY}"` if it lands in none'
                 )
-            elif g["milestone"] != POST_PARITY and g["milestone"] not in ids:
+            elif MILESTONE_TAG_RE.match(g["milestone"]) and g["milestone"] not in ids:
                 problems.append(
                     f"chain.toml: goal {g['num']} ({g['name']}) is tagged {g['milestone']}, which "
-                    "is not a row in the milestone table"
+                    "is spelled like a milestone id but is not a row in the milestone table"
                 )
         for m in index:
             nums = by.get(m["id"])
@@ -564,10 +571,13 @@ def run_check(fields, index, aim):
                     f"{m['id']}: no chain goal carries it, so its cell says where it stands on its "
                     f"own -- `done`, `ongoing` or `backlog N`, not {m['carried'] or '(empty)'!r}"
                 )
-        pp = [str(g["num"]) for g in goals if g["milestone"] == POST_PARITY]
+        labels = sorted({g["milestone"] for g in goals
+                         if g["milestone"] and not MILESTONE_TAG_RE.match(g["milestone"])})
+        pp = [str(g["num"]) for g in goals if g["milestone"] in labels]
         live = live_goal()
         print(f"  chain: {len(goals)} goals, {len(by)} milestone(s) carried"
-              + (f", {len(pp)} in none (goals {', '.join(pp)})" if pp else "")
+              + (f", {len(pp)} in none (goals {', '.join(pp)}, tagged {'/'.join(labels)})"
+                 if pp else "")
               + (f"; live at goal {live['num']}" if live else "; nothing live"))
     else:
         print(f"  chain: no {CHAIN.relative_to(ROOT).as_posix()}, so the `Carried by` cells are "
