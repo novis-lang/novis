@@ -9,6 +9,7 @@ from files written with the Write tool, never from the command line.
     python tools/splice.py <target> --patch <patch-file>     # one file, targets named on argv
     python tools/splice.py <target> <old-file> <new-file>    # two files
     python tools/splice.py --patch <f> --dry-run             # do the anchors match?
+    python tools/splice.py --help                            # this, down to the patch format
 
 A **patch file** holds the blocks, in conflict-marker form, each under the file it edits:
 
@@ -75,6 +76,22 @@ FILE_MARK = "--- "
 def die(msg, code=1):
     sys.stdout.write(msg.rstrip("\n") + "\n")
     raise SystemExit(code)
+
+
+def help_text(full):
+    """`--help` prints everything above the rationale; a misuse prints the invocation forms alone.
+
+    Both are sliced out of the module docstring rather than written a second time here, because a
+    second copy is what went wrong: `--dry-run` was documented at the top of this file and in no
+    string `--help` could reach, so two consecutive optimization passes hand-verified the same
+    false positive. The full form stops at the rationale heading -- a session reaching for `--help`
+    wants the patch format, not why the tool exists.
+    """
+    doc = __doc__.strip()
+    if full:
+        return doc.split("## Why this exists", 1)[0].rstrip()
+    forms = [p for p in doc.split("\n\n") if p.lstrip().startswith("python tools/splice.py")]
+    return (forms[0] if forms else doc) + "\n\n`--help` prints the patch format in full."
 
 
 def read(path):
@@ -160,8 +177,12 @@ def main(argv):
     except AttributeError:
         pass
 
+    # `--help` exits 0 on purpose: `loop-supervisor.py` probes every changed `tools/*.py` with it
+    # and reads a non-zero status as a broken script.
+    if any(a in ("-h", "--help") for a in argv):
+        die(help_text(True), 0)
     if not argv:
-        die(__doc__.strip().split("\n\n")[1], 2)
+        die(help_text(False), 2)
 
     dry = "--dry-run" in argv
     args = [a for a in argv if a != "--dry-run"]
@@ -177,9 +198,7 @@ def main(argv):
     elif len(args) == 3:
         blocks = [(args[0], read(args[1]), read(args[2]))]
     else:
-        die("usage: splice.py --patch <patch-file>            # `--- <path>` headers in the patch\n"
-            "       splice.py <target> --patch <patch-file>\n"
-            "       splice.py <target> <old-file> <new-file>", 2)
+        die(help_text(False), 2)
 
     # Check every block in every file before writing anything: a patch that half-applies is
     # worse than one that does not apply at all, and with several targets "half" now means

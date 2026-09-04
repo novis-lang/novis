@@ -1462,9 +1462,9 @@ is why" — is this file.
   skeleton is the one you will have read most recently. A splice patch is git conflict markers —
   `--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` around each block — while a wrap
   file's `## plan-edit:` is `--- old` / `--- new`. Writing the wrap form into a splice patch fails
-  with `no <<<<<<< OLD block`, which names the fix but not the shape, and `splice.py --help` prints
-  three usage lines without it. The format is the first 30 lines of that file's own docstring:
-  `python tools/peek.py tools/splice.py:1-40`.
+  with `no <<<<<<< OLD block`, which names the fix but not the shape. `python tools/splice.py
+  --help` prints the shape — the invocation forms and the patch format, stopping above the
+  rationale.
 - **`peek.py --locate` does not compose with `path:target` windows in the same call, and the
   failure reads as a missing symbol rather than as a misuse.** `python tools/peek.py a.rs:800-960
   b.rs:@Sym --locate PgTarget time_zone` printed one anchor, `time_zone: NOT FOUND`, and exited 1 —
@@ -1544,12 +1544,14 @@ is why" — is this file.
   it in, and never mask a `git commit`'s exit status. `session.py --wrap` is immune — it writes and
   commits from one validated file — so this only bites the hand-rolled commit for something the
   wrap did not name, such as the reference leg's regenerated `docs/novis.md`.
-- **`python tools/splice.py --help` prints three usage lines and not the patch format** — the
-  conflict-marker shape (`--- <path>`, then `<<<<<<< OLD` / `=======` / `>>>>>>> NEW` blocks, any
-  number per file) is in the module docstring at the top of `tools/splice.py`, which `sed -n '1,40p'`
-  reads for the same cost. A session that reaches for `--help` to learn the format pays a call and
-  still does not have it, then guesses; a guessed format is refused block by block. The `--help` text
-  is deliberately short because the tool is used far more often than it is learned.
+- **A hand-rolled tool's `--help` is worth one look before you trust its absence.** `splice.py`
+  used to answer `--help` with three usage lines that omitted its own `--dry-run`, and
+  `check-migration.py` ignored `--help` and ran the full inventory instead, hiding `--report`,
+  `--seed` and `--min` from any session or audit that asks a script what it takes. Both now print
+  their docstring's flag block and exit 0, so `--help` is the cheap first move again — but the
+  argparse tools are the ones that get this for free, and anything hand-rolled can drift the same
+  way. `loop-supervisor.py` probes every changed `tools/*.py` with `--help` and reads a non-zero
+  status as a broken script, so a new hand-rolled tool must exit 0 on it.
 - **A `peek.py` window's first printed line is a bad `splice.py` anchor when it lands inside a doc
   comment.** The window starts at the line you asked for, and a wrapped `///` sentence almost always
   began on the line above it — so the anchor you copy starts mid-sentence (`/// declares § 8's

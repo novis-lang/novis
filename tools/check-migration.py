@@ -3,11 +3,12 @@
 Rule 2 of the library review -- every change gets a migration path -- is only auditable if every PHP
 name has a recorded outcome. This script is what records that it does.
 
-  python tools/check-migration.py            # audit; exit 1 on a structural error
+  python tools/check-migration.py             # audit; exit 1 on a structural error
   python tools/check-migration.py --report    # audit, then list every unclassified name
   python tools/check-migration.py --min 85    # also exit 1 below 85% classified
   python tools/check-migration.py --seed      # emit rows derived from 01-core-library.md's
                                               # Replaces column, for pasting into the table
+  python tools/check-migration.py --help      # this text, without running the audit
 
 `--min` is what the parity program gates on. Coverage on its own is deliberately not an error -- the
 table is filled in over several passes and CI going red at 31% would say nothing -- so the threshold
@@ -222,6 +223,13 @@ def seed() -> None:
 
 
 def main() -> int:
+    # Before the audit, not after: without this the tool answered `--help` by running the whole
+    # inventory, so `--report`, `--seed` and `--min` were invisible to anything -- a session or a
+    # mechanical audit -- that asks a script what it takes.
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        print(__doc__.strip())
+        return 0
+
     if "--seed" in sys.argv:
         seed()
         return 0
