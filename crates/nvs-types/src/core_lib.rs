@@ -1138,12 +1138,16 @@ mod tests {
     /// word is. `Core\Request::path` is the ninth and the least surprising of
     /// them — spec § 15's opening sentence marks every value these classes
     /// answer that came from outside the process, and a request path is the
-    /// canonical one. It is the *only* row `Core\Request` has here so far, and
-    /// deliberately: `query` answers `mixed`, because § 9's bracket convention
-    /// makes a value a `string` or a nested array and there is no tainted array
-    /// to hold it, which `nvs_stdlib::request`'s module doc names as the hole it
-    /// is. `header` and `cookie` join this list when they land.
-    /// All nine belong in this set for the reason the claims do: a member that
+    /// canonical one. `header`, `headers` and `cookie` are the tenth, eleventh
+    /// and twelfth, and the same sentence read three more times: a field line
+    /// and a cookie are what a client sent. `headers` puts the qualifier two
+    /// levels down, a repeated field name being a list of values under one key
+    /// and neither array able to carry it. `query` is the one member of that
+    /// class deliberately *absent*: it answers `mixed`, because § 9's bracket
+    /// convention makes a value a `string` or a nested array and there is no
+    /// tainted array to hold it, which `nvs_stdlib::request`'s module doc names
+    /// as the hole it is.
+    /// All twelve belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     #[test]
@@ -1182,13 +1186,20 @@ mod tests {
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
+                (r"Core\Request", "cookie", "null|tainted string".to_owned(),),
+                (r"Core\Request", "header", "null|tainted string".to_owned(),),
+                (
+                    r"Core\Request",
+                    "headers",
+                    "array<array<tainted string>>".to_owned(),
+                ),
                 (r"Core\Request", "path", "tainted string".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at nine — a \
+            "the roster of members whose *answer* is qualified `tainted` is closed at twelve — a \
              verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
-             with, everything attached to its standard input and the path of the request being \
-             answered — and where the answer is a \
+             with, everything attached to its standard input and the four reads of the request \
+             being answered — and where the answer is a \
              collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"

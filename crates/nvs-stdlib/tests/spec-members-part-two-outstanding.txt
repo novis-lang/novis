@@ -26,10 +26,7 @@
 §15 Request::body
 §15 Request::bodyStream
 §15 Request::clientIp
-§15 Request::cookie
 §15 Request::files
-§15 Request::header
-§15 Request::headers
 §15 Request::host
 §15 Request::isHead
 §15 Request::mount

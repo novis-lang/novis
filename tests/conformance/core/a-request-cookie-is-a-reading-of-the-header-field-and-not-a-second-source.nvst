@@ -1,0 +1,41 @@
+--TEST--
+`Core\Request::cookie` is unavailable exactly when the `Cookie` field it parses is, because it reads that field rather than a set of its own -- ADR 0012 § 7, ADR 0095 § 3, spec § 15
+--FILE--
+<?nvs
+// Agreement, asked of the three members that answer off one field. `cookie` is
+// a *reading* of the `Cookie` header: there is no second place a request's
+// cookies are kept, so nothing can hold a set of them that disagrees with the
+// headers the request arrived with -- and the way that shows from a program is
+// that all three become available and unavailable together.
+uint $together = 0;
+try {
+    Core\Request::header("cookie");
+} catch (LogicError $one) {
+    $together = $together + 1;
+}
+try {
+    Core\Request::headers();
+} catch (LogicError $all) {
+    $together = $together + 1;
+}
+try {
+    Core\Request::cookie("session");
+} catch (LogicError $parsed) {
+    $together = $together + 1;
+}
+echo "the field and its reading refused together: ", $together, " of 3\n";
+
+// The reading names itself and not the field it went through, so a handler
+// standing on both learns which question it asked.
+try {
+    Core\Request::cookie("session");
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+
+// A throw rather than a fatal, so the program is still here to ask again.
+echo "still running\n";
+--EXPECT--
+the field and its reading refused together: 3 of 3
+Core\Request::cookie(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+still running

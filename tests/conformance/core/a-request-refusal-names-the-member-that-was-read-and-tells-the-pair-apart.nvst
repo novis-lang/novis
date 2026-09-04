@@ -1,0 +1,28 @@
+--TEST--
+`Core\Request`'s refusal names the member that was read exactly, so the singular header reader and the plural one are told apart by their own messages -- ADR 0012 § 7, ADR 0020 § 1, spec § 15
+--FILE--
+<?nvs
+// Agreement asked the other way round: every member shares one refusal *rule*,
+// and each has to name itself while stating it. `header` and `headers` are the
+// pair where that is worth pinning -- one is the other's name plus a letter, so
+// a reader that passed its sibling's name to the shared refusal would produce a
+// sentence that is true, well-formed, and about the wrong member.
+try {
+    Core\Request::header("content-type");
+} catch (LogicError $one) {
+    echo $one->message, "\n";
+}
+try {
+    Core\Request::headers();
+} catch (LogicError $all) {
+    echo $all->message, "\n";
+}
+
+// And a program continues past both: the refusal is a rung of ADR 0020's ladder
+// rather than a fatal, so a handler standing on two reads of one class reaches
+// the line after them.
+echo "still running\n";
+--EXPECT--
+Core\Request::header(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+Core\Request::headers(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+still running

@@ -5123,6 +5123,18 @@ is why" — is this file.
   each into a `string` first — `string $s = "{$captured}";` renders the carrier through ADR 0088
   § 5's `value_to_string` and `==` then compares content. The neighbouring `Core\Response` cases
   hide this by only ever printing a capture, so the corpus is no warning.
+- **A `Core` member whose answer no `.nvst` case can reach still owes three of them, so write the
+  member's logic as a free function over the carrier and pin it twice.** Every `Core\Request`
+  member refuses in a conformance case — a case is a program with no request in front of it — so
+  the corpus can only ask about the refusal, and `conformance_coverage`'s floor of three *different*
+  questions per member runs out at about "does it refuse", "does the name reach the decision" and
+  "does the message name the member". The behaviour itself — a case-insensitive field match, a
+  repeated field joining in order, a cookie name matched byte for byte — is pinned by
+  `#[cfg(test)]` tests in the module, which can build a `nvs_runtime::Inbound` directly. That only
+  works if the logic is a free function taking `&Inbound` rather than a body inside
+  `nvs_runtime::nvs_helper!`, whose `fn` is an `unsafe extern "C"` a unit test cannot call without
+  a `Ctx`: `crates/nvs-stdlib/src/request.rs`'s `joined_field`, `grouped_fields` and `cookie_of`
+  are the shape. Decide that before writing the body, not after the floor fails.
 
 ## Splitting a file that got too big
 
@@ -7081,6 +7093,15 @@ sibling in the same namespace unqualified.
   message counts them out loud — so the edit is four places, not one. Same shape as the
   `nvs_hir::errors::TREE` bullet under *Running things*: a roster held in a crate below the one
   you are writing in.
+- **A `Core` member whose answer carries a qualifier owes a sixth edit, in a crate the slice never
+  touches.** `crates/nvs-types/src/core_lib.rs`'s
+  `a_verified_signature_does_not_launder_its_claims` holds the roster of every member whose
+  *return* type contains `tainted` as a written `BTreeSet` plus a count in its own message ("closed
+  at nine"), so registering one more fails `-p nvs-types --lib` — a crate whose files the slice
+  never opened — with a diff of two twelve-line sets and nothing naming the registry row that
+  caused it. The same shape as the `nvs-ir` label list an `errors::TREE` row breaks, and found the
+  same way: run the whole gate rather than `-p nvs-stdlib`. Update the set, the count in the
+  message and the doc comment's enumeration together; they are three statements of one roster.
 
 ## Divergences and refusals already pinned
 

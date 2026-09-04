@@ -15758,13 +15758,16 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, path, query
+Keywords: method, path, query, header, headers, cookie
 
 | Member | Signature |
 |---|---|
 | [`Core\Request::method`](#core-core-request-method) | `method(): Core\Http\Method` |
 | [`Core\Request::path`](#core-core-request-path) | `path(): tainted string` |
 | [`Core\Request::query`](#core-core-request-query) | `query(string $name): mixed` |
+| [`Core\Request::header`](#core-core-request-header) | `header(string $name): ?tainted string` |
+| [`Core\Request::headers`](#core-core-request-headers) | `headers(): array<array<tainted string>>` |
+| [`Core\Request::cookie`](#core-core-request-cookie) | `cookie(string $name): ?tainted string` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15808,6 +15811,53 @@ One query-string parameter by name, read with PHP's bracket convention — the s
 **Returns** `mixed` — The parameter's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the query carried no such name. Check it out with `as`, which throws on input the type does not fit rather than quietly yielding zero.
 
 **Throws** `LogicError` — This program is not answering a request, or the query string holds percent escapes that decode to octets that are not UTF-8.
+
+<a id="core-core-request-header"></a>
+#### `Core\Request::header`
+
+```nvs skip
+Core\Request::header(string $name): ?tainted string
+```
+
+One request header by name, matched without regard to case — and where the peer sent the field more than once, its lines joined by `, ` as RFC 9110 § 5.3 defines them to be equivalent.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field name, in any case — `Content-Type` and `content-type` are one question. |
+
+**Returns** `?tainted string` — The field's value as it arrived, `tainted`, or `null` where the request carried no such field. `headers()` is the answer that keeps two lines of one name apart.
+
+**Throws** `LogicError` — This program is not answering a request.
+
+<a id="core-core-request-headers"></a>
+#### `Core\Request::headers`
+
+```nvs skip
+Core\Request::headers(): array<array<tainted string>>
+```
+
+Every header the request carried, keyed by the lower-cased field name, replacing `getallheaders` and the `HTTP_*` half of `$_SERVER`.
+
+**Returns** `array<array<tainted string>>` — An `array<array<tainted string>>`: one key per distinct field name, holding one entry per field *line* in the order the peer sent them, so a repeated name keeps every value rather than the last. Empty where the request carried no headers at all.
+
+**Throws** `LogicError` — This program is not answering a request.
+
+<a id="core-core-request-cookie"></a>
+#### `Core\Request::cookie`
+
+```nvs skip
+Core\Request::cookie(string $name): ?tainted string
+```
+
+One cookie by name, matched **byte for byte** — no dot, space or bracket is substituted in either direction, which is what PHP's `$_COOKIE` mangling did and CVE-2024-2756 is.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The cookie's name, exactly as it was written — the match is case-sensitive and substitutes nothing. |
+
+**Returns** `?tainted string` — The cookie's value as it arrived, `tainted` and undecoded, or `null` where the request carried no such cookie. A `__Host-` name that arrived more than once is `null` as well: a browser holds at most one, so two did not come from one.
+
+**Throws** `LogicError` — This program is not answering a request.
 
 <a id="core-core-response"></a>
 ### `Core\Response`

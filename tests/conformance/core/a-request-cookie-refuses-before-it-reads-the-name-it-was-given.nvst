@@ -1,0 +1,55 @@
+--TEST--
+`Core\Request::cookie` answers the same way for every name it is given when no request arrived, so neither a prefix nor a spelling reaches the decision -- ADR 0012 § 7, ADR 0095 § 3, spec § 15
+--FILE--
+<?nvs
+// Invariance over a sweep, counted rather than read off a line. A cookie name
+// is bytes and nothing is substituted in either direction, so the four
+// spellings below are four different cookies -- and `__Host-` carries a rule of
+// its own about what is visible. None of that is reached here: whether a
+// request arrived is decided before the name is looked at, so a member that
+// answered `null` for one spelling and refused for another would be telling a
+// caller which cookies a request it never received did not carry.
+uint $refused = 0;
+try {
+    Core\Request::cookie("session");
+} catch (LogicError $ordinary) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("__Host-session");
+} catch (LogicError $hosted) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("__Secure-session");
+} catch (LogicError $secured) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("a.b");
+} catch (LogicError $dotted) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("a_b");
+} catch (LogicError $scored) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("");
+} catch (LogicError $empty) {
+    $refused = $refused + 1;
+}
+echo "every name refused: ", $refused, " of 6\n";
+
+// And the message names the member rather than the name, which is the counted
+// claim stated the other way: no spelling of a cookie can be told from another
+// by reading it.
+try {
+    Core\Request::cookie("__Host-session");
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+--EXPECT--
+every name refused: 6 of 6
+Core\Request::cookie(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

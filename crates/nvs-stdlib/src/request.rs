@@ -4,18 +4,20 @@
 //!
 //! # What is here, and what is not
 //!
-//! Three of
+//! Six of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
-//! fifteen members: `method`, `path` and `query` — the request *line*, which is
-//! what a request has before anything has been read off its body or its
-//! headers. `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`,
-//! `clientIp`, `scheme`, `host`, `mount`, `route` and `isHead` are known gaps of
-//! this module rather than of § 15, and each waits on a different thing:
-//! `header`/`cookie` on the inbound headers reaching
-//! [`nvs_runtime::Inbound`], `files`/`body`/`bodyStream` on
+//! fifteen members: `method`, `path` and `query` — the request *line* — and
+//! `header`, `headers` and `cookie`, the fields that arrived with it. Those six
+//! are what a request has before anything has been read off its **body**.
+//! `body`, `bodyStream`, `files`, `clientIp`, `scheme`, `host`, `mount`,
+//! `route` and `isHead` are known gaps of this module rather than of § 15, and
+//! each waits on a different thing: `files`/`body`/`bodyStream` on
 //! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 //! streaming reader, `route`/`mount` on the match `nvs_server` makes once
-//! before the handler, and `isHead` on the two lines below it.
+//! before the handler, `clientIp`/`scheme`/`host` on `[server] trusted_proxies`
+//! and the forwarded-header walk, and `isHead` on the two lines below it. Those
+//! three read a field this module now holds and are still gaps for that reason:
+//! which peer is allowed to have asserted one is not this module's to decide.
 //!
 //! # There is no request here, and that is a throw
 //!
@@ -54,6 +56,66 @@
 //! `method()` never answers, and the truth is `isHead`'s to carry — which is
 //! the one gap above that this member's shape creates rather than inherits.
 //!
+//! # One field, or every one of them
+//!
+//! `header(string $name): ?tainted string` answers **one** field and `headers():
+//! array<array<tainted string>>` answers all of them. Both read
+//! [`nvs_runtime::Inbound`]'s list of field lines, which holds one entry per
+//! *line* — a name the peer sent twice is two entries there and neither is lost,
+//! which is the decision that ADR's carrier states and this module is the reader
+//! of.
+//!
+//! **A name matches without regard to case**, RFC 9110 § 5.1 making a field name
+//! case-insensitive, so `header("Content-Type")` and `header("content-type")` are
+//! one question. `headers()` keys its answer by the **lower-cased** name for the
+//! same reason: a program that indexed the map would otherwise have to guess the
+//! peer's spelling, and two spellings of one name would be two entries of a map
+//! HTTP says has one. The convention is here rather than on the carrier because
+//! it is a reading of what arrived, exactly as the verb roster is.
+//!
+//! **A field the peer sent twice is joined by `header` and kept apart by
+//! `headers`**, and that is the whole reason both exist. RFC 9110 § 5.3 defines
+//! two field lines of one name as equivalent to one value with the lines joined
+//! by a comma in the order received, so joining is that section's own equivalence
+//! and not [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! repair — nothing is dropped and nothing is invented. What joining *does* lose
+//! is the line boundary, which matters for a value that may itself contain a
+//! comma (`Date` is the standard example), so the exact answer is `headers()`'s
+//! and the convenient one is `header`'s. Answering the *first* line was rejected:
+//! it is the reading that silently drops what a peer sent, which is the failure
+//! mode [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) exists to
+//! close.
+//!
+//! **What they spend.** `header` walks the list once and allocates only the
+//! answer; `headers` allocates one array per distinct name plus one string per
+//! line, and groups by scanning the names it has already seen, which is
+//! quadratic in the number of *distinct* names and bounded by the door's own
+//! header-count cap. Neither memoizes, for the reason `query` does not.
+//!
+//! # A cookie is the `Cookie` field, read
+//!
+//! `cookie(string $name): ?tainted string` parses the same field lines the two
+//! members above read, and the carrier holds **no second field for cookies** —
+//! so nothing here can hold a set of cookies that disagrees with the headers the
+//! request arrived with, which is the state a parsed-once cache would introduce.
+//! The parse costs one walk of the `Cookie` lines per call, as `query`'s does
+//! and for the same reason.
+//!
+//! The name is matched **byte for byte**
+//! ([ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! § 3): no dot, space or bracket is substituted in either direction. That
+//! mangling is PHP's `register_globals`-era name repair, it is what
+//! CVE-2024-2756 was, and the superglobals it served are what
+//! [ADR 0012](../../../docs/adr/0012-no-superglobals.md) deleted.
+//!
+//! **The prefixes are enforced here as far as the field can show them**, which
+//! is [`cookie_of`]'s doc: a `__Host-` name arriving twice is not visible,
+//! because a browser holds at most one per host. The other half of § 3 — that
+//! the connection was secure — is a known gap waiting on `scheme()`, since the
+//! carrier does not hold what the door concluded about the connection.
+//! `Core\Response::addCookie` refuses to *write* a cookie that would not be
+//! visible, which is the same rule from the end that can see every attribute.
+//!
 //! # What `query` costs, and what it does not carry
 //!
 //! `query` parses the raw query string on **every call**, through
@@ -78,7 +140,7 @@
 //! source of an injection: `Core\Request::header` and `::cookie`, which answer
 //! a `tainted string` directly, do carry it.
 
-use nvs_runtime::{Ctx, Fault, Inbound, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, Inbound, NvsArray, NvsStr, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
@@ -123,11 +185,47 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_query",
             doc: Some(&QUERY_DOC),
         },
+        CoreMethod {
+            name: "header",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_request_header",
+            doc: Some(&HEADER_DOC),
+        },
+        CoreMethod {
+            name: "headers",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&HEADER_LINES),
+            symbol: "nvs_core_request_headers",
+            doc: Some(&HEADERS_DOC),
+        },
+        CoreMethod {
+            name: "cookie",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_request_cookie",
+            doc: Some(&COOKIE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
 };
+
+/// `array<tainted string>` — what one key of `headers()`'s answer holds, and so
+/// the element type of that member's own `array<…>`.
+///
+/// A named constant because it is nested one level: the qualifier has to sit on
+/// the value a program actually reaches, exactly as
+/// [`CoreTy::TaintedStr`]'s own docs argue for `Core\Jwt::verify`, and there is
+/// no `tainted array<T>` for it to sit on instead.
+const HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
 /// `Core\Request::method`'s reference card — ADR 0117.
 const METHOD_DOC: MethodDoc = MethodDoc {
@@ -179,6 +277,58 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Request::header`'s reference card — ADR 0117.
+const HEADER_DOC: MethodDoc = MethodDoc {
+    short: "One request header by name, matched without regard to case — and where the peer sent \
+            the field more than once, its lines joined by `, ` as RFC 9110 § 5.3 defines them to \
+            be equivalent.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field name, in any case — `Content-Type` and `content-type` are one question.",
+        shape: &[],
+    }],
+    ret: "The field's value as it arrived, `tainted`, or `null` where the request carried no such \
+          field. `headers()` is the answer that keeps two lines of one name apart.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request.",
+    }],
+};
+
+/// `Core\Request::headers`'s reference card — ADR 0117.
+const HEADERS_DOC: MethodDoc = MethodDoc {
+    short: "Every header the request carried, keyed by the lower-cased field name, replacing \
+            `getallheaders` and the `HTTP_*` half of `$_SERVER`.",
+    params: &[],
+    ret: "An `array<array<tainted string>>`: one key per distinct field name, holding one entry \
+          per field *line* in the order the peer sent them, so a repeated name keeps every value \
+          rather than the last. Empty where the request carried no headers at all.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request.",
+    }],
+};
+
+/// `Core\Request::cookie`'s reference card — ADR 0117.
+const COOKIE_DOC: MethodDoc = MethodDoc {
+    short: "One cookie by name, matched **byte for byte** — no dot, space or bracket is \
+            substituted in either direction, which is what PHP's `$_COOKIE` mangling did and \
+            CVE-2024-2756 is.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The cookie's name, exactly as it was written — the match is case-sensitive and \
+               substitutes nothing.",
+        shape: &[],
+    }],
+    ret: "The cookie's value as it arrived, `tainted` and undecoded, or `null` where the request \
+          carried no such cookie. A `__Host-` name that arrived more than once is `null` as well: \
+          a browser holds at most one, so two did not come from one.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -186,6 +336,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_method" => (nvs_core_request_method as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
+        "nvs_core_request_header" => (nvs_core_request_header as *const ()).cast(),
+        "nvs_core_request_headers" => (nvs_core_request_headers as *const ()).cast(),
+        "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         _ => return None,
     })
 }
@@ -227,6 +380,133 @@ fn method_ordinal(verb: &str) -> Option<i64> {
         "DELETE" => 7,
         _ => return None,
     })
+}
+
+/// Every line the request carried under `name`, joined by `, ` — RFC 9110
+/// § 5.3's own equivalence — or `None` where it carried none.
+///
+/// The comparison is ASCII-case-insensitive on both sides (RFC 9110 § 5.1), and
+/// the join preserves arrival order, which is part of the value for every
+/// ordered field there is.
+fn joined_field(inbound: &Inbound, name: &[u8]) -> Option<Vec<u8>> {
+    let mut joined: Option<Vec<u8>> = None;
+    for (field, value) in inbound.headers() {
+        if !field.as_bytes().eq_ignore_ascii_case(name) {
+            continue;
+        }
+        match &mut joined {
+            None => joined = Some(value.to_vec()),
+            Some(seen) => {
+                seen.extend_from_slice(b", ");
+                seen.extend_from_slice(value);
+            }
+        }
+    }
+    joined
+}
+
+/// The request's field lines grouped by lower-cased name, each group in arrival
+/// order, and the groups themselves in the order their names were first seen.
+///
+/// One entry per *line* inside a group rather than a joined value: this is the
+/// half of the pair that keeps two lines of one name apart, which the module doc
+/// argues is the only reading `joined_field`'s answer cannot be recovered from.
+///
+/// A linear scan of the names already seen rather than a hash map, because the
+/// number of distinct field names on one request is small and bounded at the
+/// door, and a map would cost an allocation per group to save a comparison per
+/// line.
+fn grouped_fields<'a>(inbound: &'a Inbound) -> Vec<(String, Vec<&'a [u8]>)> {
+    let mut groups: Vec<(String, Vec<&'a [u8]>)> = Vec::new();
+    for (field, value) in inbound.headers() {
+        let name = field.to_ascii_lowercase();
+        match groups.iter_mut().find(|(seen, _)| *seen == name) {
+            Some((_, lines)) => lines.push(value),
+            None => groups.push((name, vec![value])),
+        }
+    }
+    groups
+}
+
+/// The field a request's cookies arrive under, matched as every field name is.
+const COOKIE_FIELD: &[u8] = b"cookie";
+
+/// ADR 0095 § 3's stricter prefix, on the read side — the write side's spelling
+/// of it is `crate::response`'s `HOST_PREFIX`, and the two are one rule read
+/// from its two ends.
+const HOST_PREFIX: &[u8] = b"__Host-";
+
+/// `bytes` without the ASCII spaces and tabs it opens with.
+///
+/// The delimiter between two cookie pairs is `"; "` (RFC 6265 § 4.2.1), so the
+/// padding belongs to the delimiter and not to the name that follows it. Only
+/// the leading side is trimmed: anything after the `=` is the value, and a
+/// trailing space inside one is a byte the peer sent.
+fn without_leading_padding(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|byte| *byte != b' ' && *byte != b'\t')
+        .unwrap_or(bytes.len());
+    &bytes[start..]
+}
+
+/// Every value the request's `Cookie` field lines carry under exactly `name`, in
+/// arrival order.
+///
+/// **The comparison is byte for byte**, which is ADR 0095 § 3 and the whole of
+/// what CVE-2024-2756 was: PHP substituted a dot and a space in a cookie name
+/// for an underscore, so a name a browser refused to give the `__Host-` meaning
+/// could be mangled into one that had it. Nothing is substituted here in either
+/// direction, and a name that differs by one byte is a different cookie.
+///
+/// A pair with no `=` in it is skipped rather than read as a name with an empty
+/// value — RFC 6265 § 5.4's own rule for parsing a `Cookie` field, and the same
+/// refusal-not-repair the rest of this module makes.
+fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
+    let mut found = Vec::new();
+    for (field, value) in inbound.headers() {
+        if !field.as_bytes().eq_ignore_ascii_case(COOKIE_FIELD) {
+            continue;
+        }
+        for pair in value.split(|byte| *byte == b';') {
+            let pair = without_leading_padding(pair);
+            let Some(equals) = pair.iter().position(|byte| *byte == b'=') else {
+                continue;
+            };
+            if &pair[..equals] == name {
+                found.push(&pair[equals + 1..]);
+            }
+        }
+    }
+    found
+}
+
+/// The cookie the program asked for, or `None` where the request carries none it
+/// is allowed to see.
+///
+/// **A `__Host-` name that arrived twice is not visible**, which is ADR 0095
+/// § 3's "a non-conforming cookie carrying the prefix is not visible on read"
+/// stated over the one non-conformance a `Cookie` field can actually show. The
+/// prefix means host-locked and `Path=/`, so a conforming browser holds at most
+/// one of them per host; two lines are either a client that is not one or a
+/// shadowing attempt from a name that was supposed to be unshadowable, and
+/// picking between them is the arrangement the prefix exists to end. The other
+/// half of § 3 — that the connection carrying a `__Host-` or `__Secure-` cookie
+/// was secure — is not decidable here and is a known gap of this module, waiting
+/// on `scheme()`, because the carrier does not hold what the door concluded
+/// about the connection. `Core\Response::addCookie` refuses to *write* a
+/// non-conforming one either way, which is the same rule from the other end.
+///
+/// Otherwise the **first** line wins. RFC 6265 § 5.4 has a user agent send the
+/// most specific cookie first, so the first is the one that applies most closely
+/// to this path; that is reading the peer's own order rather than choosing among
+/// answers, exactly as [`joined_field`] preserves it.
+fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
+    let lines = cookie_lines(inbound, name);
+    if name.starts_with(HOST_PREFIX) && lines.len() > 1 {
+        return None;
+    }
+    lines.first().copied()
 }
 
 nvs_runtime::nvs_helper! {
@@ -306,10 +586,101 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::header(string $name): ?tainted string` — spec § 15's
+    /// single-field reader, replacing the `HTTP_*` half of `$_SERVER` and
+    /// `filter_input(INPUT_SERVER, …)`.
+    ///
+    /// The case rule and the join rule are the module doc's, and both are
+    /// readings of what arrived rather than properties of the carrier —
+    /// [`nvs_runtime::Inbound`] holds the lines and interprets none of them.
+    fn nvs_core_request_header(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is `CoreTy::Text`, so
+        // `E0401` refuses anything that is not a `string` before this runs.
+        let name = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Request::header expected a `string` for the name, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let inbound = inbound_of(ctx, "header")?;
+        Ok(match joined_field(inbound, name.as_bytes()) {
+            None => Value::null(),
+            Some(value) => Value::str(NvsStr::new(&value)),
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::headers(): array<array<tainted string>>` — spec § 15's
+    /// whole-header reader, replacing `getallheaders`.
+    ///
+    /// Nested rather than one string per name, because a field the peer sent
+    /// twice is two values and a map of strings could only hold one of them.
+    /// The qualifier rides on the innermost value for the same reason
+    /// `Core\Jwt::verify`'s does: there is no `tainted array<T>`, so a shape
+    /// that put the strings any deeper would drop it.
+    fn nvs_core_request_headers(ctx, _args: [0]) {
+        let inbound = inbound_of(ctx, "headers")?;
+        let mut out = NvsArray::new();
+        for (name, lines) in grouped_fields(inbound) {
+            let mut values = NvsArray::new();
+            for line in lines {
+                values.append(Value::str(NvsStr::new(line)));
+            }
+            out.set(NvsStr::new(name.as_bytes()), Value::array(values));
+        }
+        Ok(Value::array(out))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::cookie(string $name): ?tainted string` — spec § 15's
+    /// cookie reader, replacing `$_COOKIE` and `filter_input(INPUT_COOKIE, …)`.
+    ///
+    /// The parse is [`cookie_lines`]'s and the visibility rule is
+    /// [`cookie_of`]'s; both are ADR 0095 § 3, whose other end is
+    /// `Core\Response::addCookie`'s refusal to write what would not be visible
+    /// here. There is no second field on the carrier for cookies: they are the
+    /// `Cookie` header, read as such, so nothing can hold a set of cookies that
+    /// disagrees with the headers the request arrived with.
+    ///
+    /// A value is handed back **undecoded**, which is what makes it the same
+    /// bytes `addCookie` wrote: that member percent-encodes nothing and refuses
+    /// a value it could not write verbatim, so a decode here would be a
+    /// substitution in the direction ADR 0095 § 3 closes.
+    fn nvs_core_request_cookie(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is `CoreTy::Text`, so
+        // `E0401` refuses anything that is not a `string` before this runs.
+        let name = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Request::cookie expected a `string` for the name, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        let inbound = inbound_of(ctx, "cookie")?;
+        Ok(match cookie_of(inbound, name.as_bytes()) {
+            None => Value::null(),
+            Some(value) => Value::str(NvsStr::new(value)),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::method_ordinal;
+    use super::{cookie_of, grouped_fields, joined_field, method_ordinal};
     use crate::router::METHOD;
+    use nvs_runtime::Inbound;
+
+    /// An `Inbound` carrying `lines` as its header field lines and nothing
+    /// interesting on its request line.
+    fn carrying(lines: &[(&str, &str)]) -> Inbound {
+        let mut inbound = Inbound::new("GET", "/", "");
+        for (name, value) in lines {
+            inbound.push_header(name, value.as_bytes());
+        }
+        inbound
+    }
 
     /// Every ordinal the parse answers is a case of the roster it claims to be
     /// reading, and `HEAD` is the one token that answers another verb's.
@@ -346,5 +717,192 @@ mod tests {
         for verb in ["CONNECT", "get", "Post", "", "GET "] {
             assert_eq!(method_ordinal(verb), None, "`{verb}` parsed to a case");
         }
+    }
+
+    /// A field name is case-insensitive both ways round — the spelling the peer
+    /// wrote and the spelling the program asked for are independent, which is
+    /// RFC 9110 § 5.1 and the one rule a caller would otherwise have to guess.
+    #[test]
+    fn a_field_name_matches_without_regard_to_case() {
+        let inbound = carrying(&[("Content-Type", "text/html")]);
+        for asked in [
+            "Content-Type",
+            "content-type",
+            "CONTENT-TYPE",
+            "cOnTeNt-TyPe",
+        ] {
+            assert_eq!(
+                joined_field(&inbound, asked.as_bytes()).as_deref(),
+                Some(&b"text/html"[..]),
+                "`{asked}` did not match the field the peer wrote"
+            );
+        }
+        assert_eq!(
+            joined_field(&carrying(&[("content-type", "text/html")]), b"Content-Type").as_deref(),
+            Some(&b"text/html"[..]),
+            "the peer's own spelling is not what the match is made against"
+        );
+    }
+
+    /// A repeated field joins in arrival order and loses nothing, and the same
+    /// request read through the other member keeps the lines apart — the two
+    /// answers are the same set of values in two shapes, which is the whole
+    /// reason both members exist.
+    #[test]
+    fn a_repeated_field_is_joined_in_order_and_kept_apart_beside_it() {
+        let inbound = carrying(&[
+            ("X-Forwarded-For", "203.0.113.1"),
+            ("Accept", "text/html"),
+            ("x-forwarded-for", "198.51.100.7"),
+            ("X-FORWARDED-FOR", "192.0.2.9"),
+        ]);
+        assert_eq!(
+            joined_field(&inbound, b"x-forwarded-for").as_deref(),
+            Some(&b"203.0.113.1, 198.51.100.7, 192.0.2.9"[..]),
+            "the three lines did not join in the order the peer sent them"
+        );
+        let grouped = grouped_fields(&inbound);
+        assert_eq!(
+            grouped,
+            vec![
+                (
+                    "x-forwarded-for".to_owned(),
+                    vec![&b"203.0.113.1"[..], b"198.51.100.7", b"192.0.2.9"],
+                ),
+                ("accept".to_owned(), vec![&b"text/html"[..]]),
+            ],
+            "three spellings of one name are one group, keyed lower-cased, in first-seen order"
+        );
+    }
+
+    /// A field that did not arrive is absent, and a field that arrived empty is
+    /// present and empty — the two facts this whole class refuses to collapse,
+    /// asked one level down from `Core\Request`'s own "there is no request".
+    #[test]
+    fn a_field_that_did_not_arrive_is_absent_rather_than_empty() {
+        let inbound = carrying(&[("X-Trace", "")]);
+        assert_eq!(
+            joined_field(&inbound, b"x-trace").as_deref(),
+            Some(&b""[..]),
+            "a field sent empty is a field the peer sent"
+        );
+        assert_eq!(
+            joined_field(&inbound, b"x-absent"),
+            None,
+            "a field the request never carried has no value at all"
+        );
+        assert_eq!(
+            joined_field(&inbound, b""),
+            None,
+            "the empty name matches no field, rather than the first one"
+        );
+        assert!(
+            grouped_fields(&carrying(&[])).is_empty(),
+            "a request carrying no headers groups to nothing"
+        );
+    }
+
+    /// A cookie name is matched byte for byte: nothing is substituted in either
+    /// direction, so the four spellings PHP's mangling collapsed into one are
+    /// four cookies here. This is CVE-2024-2756 asked as a test — the mangling
+    /// is what let a name a browser would not give the `__Host-` meaning become
+    /// one that had it.
+    #[test]
+    fn a_cookie_name_is_matched_byte_for_byte() {
+        let inbound = carrying(&[("Cookie", "a.b=dotted; a_b=scored; a b=spaced; ab=bare")]);
+        for (name, value) in [
+            ("a.b", "dotted"),
+            ("a_b", "scored"),
+            ("a b", "spaced"),
+            ("ab", "bare"),
+        ] {
+            assert_eq!(
+                cookie_of(&inbound, name.as_bytes()),
+                Some(value.as_bytes()),
+                "`{name}` did not read the cookie of exactly that name"
+            );
+        }
+        assert_eq!(
+            cookie_of(&inbound, b"A.B"),
+            None,
+            "the match is case-sensitive, a cookie name being bytes"
+        );
+    }
+
+    /// The parse follows the field's own grammar and stops there: pairs are
+    /// separated by `;`, the delimiter's padding is not part of a name, a value
+    /// is every byte after the first `=` and is decoded by nothing, and a pair
+    /// with no `=` in it is skipped rather than read as an empty value.
+    #[test]
+    fn a_cookie_value_is_every_byte_after_the_first_equals() {
+        let inbound = carrying(&[(
+            "cookie",
+            "session=a=b=c; empty=; flag; padded=  spaced out  ; encoded=%2F%2F",
+        )]);
+        assert_eq!(
+            cookie_of(&inbound, b"session"),
+            Some(&b"a=b=c"[..]),
+            "only the first `=` separates a name from a value"
+        );
+        assert_eq!(
+            cookie_of(&inbound, b"empty"),
+            Some(&b""[..]),
+            "a cookie sent empty is a cookie the request carried"
+        );
+        assert_eq!(
+            cookie_of(&inbound, b"flag"),
+            None,
+            "a pair with no `=` is not a cookie, per RFC 6265 § 5.4"
+        );
+        assert_eq!(
+            cookie_of(&inbound, b"padded"),
+            Some(&b"  spaced out  "[..]),
+            "the padding trimmed belongs to the delimiter, never to a value"
+        );
+        assert_eq!(
+            cookie_of(&inbound, b"encoded"),
+            Some(&b"%2F%2F"[..]),
+            "a value is handed back undecoded, as `addCookie` wrote it"
+        );
+        assert_eq!(
+            cookie_of(&inbound, b"absent"),
+            None,
+            "a cookie the request never carried has no value at all"
+        );
+    }
+
+    /// A repeated name reads as the first line — the user agent's own order,
+    /// most specific first — unless it carries `__Host-`, which a conforming
+    /// browser holds at most one of per host, so two of them are not a browser's
+    /// and neither is visible. ADR 0095 § 3, and the read end of the refusal
+    /// `Core\Response::addCookie` makes on write.
+    #[test]
+    fn a_repeated_host_prefixed_cookie_is_not_visible_and_an_ordinary_one_is_the_first() {
+        let ordinary = carrying(&[
+            ("Cookie", "seen=first; seen=second"),
+            ("Cookie", "seen=third"),
+        ]);
+        assert_eq!(
+            cookie_of(&ordinary, b"seen"),
+            Some(&b"first"[..]),
+            "the first line the peer sent is the most specific one"
+        );
+        let shadowed = carrying(&[("Cookie", "__Host-id=real; __Host-id=planted")]);
+        assert_eq!(
+            cookie_of(&shadowed, b"__Host-id"),
+            None,
+            "two `__Host-` cookies of one name did not come from a browser"
+        );
+        let single = carrying(&[("Cookie", "__Host-id=real; __Secure-t=a; __Secure-t=b")]);
+        assert_eq!(
+            cookie_of(&single, b"__Host-id"),
+            Some(&b"real"[..]),
+            "one `__Host-` cookie is an ordinary one to read"
+        );
+        assert_eq!(
+            cookie_of(&single, b"__Secure-t"),
+            Some(&b"a"[..]),
+            "`__Secure-` says nothing about `Path`, so two of them are legitimate"
+        );
     }
 }

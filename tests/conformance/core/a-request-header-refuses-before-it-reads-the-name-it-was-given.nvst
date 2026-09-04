@@ -1,0 +1,52 @@
+--TEST--
+`Core\Request::header` answers the same way for every field name it is given when no request arrived, so nothing about the name reaches the decision -- ADR 0012 § 7, spec § 15
+--FILE--
+<?nvs
+// Invariance over a sweep, counted rather than read off a line: `header` is one
+// of the two readers of what arrived with the request line, and the one of them
+// that takes an argument -- so it is the one that could answer differently for
+// one field than for another. It must not. Whether a request arrived is decided
+// before the name is looked at, and a member that answered `null` for a field
+// nobody sent would be telling a caller that a request it never received
+// carried no such header.
+uint $refused = 0;
+try {
+    Core\Request::header("content-type");
+} catch (LogicError $ordinary) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::header("Content-Type");
+} catch (LogicError $capitalised) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::header("");
+} catch (LogicError $empty) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::header("x-forwarded-for");
+} catch (LogicError $repeatable) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::header("a name: with a colon and spaces in it");
+} catch (LogicError $unspellable) {
+    $refused = $refused + 1;
+}
+echo "every name refused: ", $refused, " of 5\n";
+
+// The case-insensitive match is a reading of a request that arrived, so the two
+// spellings above are not two answers here -- there is nothing to match
+// against, and both stop one step earlier.
+uint $plural = 0;
+try {
+    Core\Request::headers();
+} catch (LogicError $all) {
+    $plural = $plural + 1;
+}
+echo "its no-argument sibling refused: ", $plural, " of 1\n";
+--EXPECT--
+every name refused: 5 of 5
+its no-argument sibling refused: 1 of 1

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Request`'s three readers of the request line refuse rather than answer empty in a program that is answering no request -- ADR 0012 § 7, spec § 15
+Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15
 --FILE--
 <?nvs
-// Agreement, asked of all three readers: what decides the answer is whether a
+// Agreement, asked of all six readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
 // situation ADR 0012 § 7 is about, and the same one a scheduled script and a
@@ -23,9 +23,27 @@ try {
 } catch (LogicError $parameter) {
     $refused = $refused + 1;
 }
-echo "refused ", $refused, " of 3\n";
+// The three readers of what arrived *with* the request line answer on the same
+// terms as the three that are the request line: a header is something a request
+// carried, so a program with no request has no empty set of them either.
+try {
+    Core\Request::header("content-type");
+} catch (LogicError $field) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::headers();
+} catch (LogicError $fields) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::cookie("session");
+} catch (LogicError $crumb) {
+    $refused = $refused + 1;
+}
+echo "refused ", $refused, " of 6\n";
 
-// The sentence names the member that was read, so a handler that wrapped three
+// The sentence names the member that was read, so a handler that wrapped six
 // questions learns which one it was standing on -- and it says why the answer
 // is a refusal, because "no request arrived" and "the request sent nothing"
 // are the two facts this exists to keep apart.
@@ -35,5 +53,5 @@ try {
     echo $why->message, "\n";
 }
 --EXPECT--
-refused 3 of 3
+refused 6 of 6
 Core\Request::path(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
