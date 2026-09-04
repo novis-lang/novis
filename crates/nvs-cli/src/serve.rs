@@ -157,6 +157,10 @@ pub(crate) fn run(
             "note: [server] trusted_proxies entry {entry:?} names no address or network, and is ignored"
         );
     }
+    // Read here because the resolved set is about to become the server's, and
+    // § 6's boot `Warn` below needs the address this process actually binds —
+    // which the flags have not had their say over yet.
+    let nobody_trusted = trusted.is_empty();
     // ADR 0074 § 2: closed until `[http.cors] origins` names somebody, which is
     // what a tree that wrote no `[http.cors]` resolves to — `nvs_server::cors`
     // owns what closed means and where the refusal is taken.
@@ -173,6 +177,38 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    // ADR 0097 § 6's boot `Warn`: `production`, nothing bound but the loopback,
+    // and nobody trusted. That is the shape of a proxied deployment that forgot
+    // the directive — nothing off this machine can reach it except through a
+    // proxy, and it is about to answer that proxy's address as every client's.
+    //
+    // A warning and not a refusal, because the same three facts also describe a
+    // correct single-machine deployment that has no proxy at all, and this
+    // server cannot tell those apart. It is asked of the address actually
+    // bound rather than of `[server] listen`, so `--listen 0.0.0.0:80` — a
+    // deployment reachable on its own — is not warned at, and it is asked only
+    // of a tree that wrote a `[server]` block, because a directive can only be
+    // forgotten out of a block somebody wrote. `nvs serve app.nvs` with no
+    // configuration at all is § 1's *development* server and matches all three
+    // facts on the way to matching nothing, and a line every such run prints is
+    // a line every operator learns to skip.
+    let started_in = snapshot
+        .config
+        .mode
+        .as_ref()
+        .and_then(|mode| mode.default.as_deref())
+        .unwrap_or(nvs_config::mode::PRODUCTION);
+    if nobody_trusted
+        && snapshot.config.server.is_some()
+        && started_in == nvs_config::mode::PRODUCTION
+        && addr.ip().is_loopback()
+    {
+        eprintln!(
+            "warning: [server] trusted_proxies is empty and {addr} is loopback, so no forwarded \
+             header is read and the proxy's own address is what `Core\\Request::clientIp()` will \
+             answer; write the proxy's address or network there"
+        );
+    }
 
     // § 4's table. A tree that writes `[[server.mount]]` is served through the
     // whole of it — `expand` has already walked § 3's globs against the disk —
