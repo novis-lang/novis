@@ -1,4 +1,4 @@
-//! [ADR 0067 § 7](../../../../docs/adr/0067-core-db.md): a transaction is a
+//! [ADR 0067 § 7](/docs/adr/0067-core-db.md): a transaction is a
 //! closure, and what happens when it conflicts.
 //!
 //! The closure being the whole interface is what makes commit and rollback this
@@ -300,7 +300,7 @@ pub(super) const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::f
 ///
 /// **Full jitter — uniform in `[0, base × 2^taken]` — and not the rung
 /// itself**, which is `crate::http::transport`'s shape for
-/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 6 and
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6 and
 /// holds here for a sharper reason: two requests that deadlocked against each
 /// other were, by construction, running at the same time, so an unjittered
 /// backoff hands them the same next instant and they collide again. Spreading
@@ -311,7 +311,7 @@ pub(super) const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::f
 /// conflicting requests share their statements and their timing and differ in
 /// nothing this function can read. `rand` is already this crate's, for the
 /// jitter above, so the draw costs no dependency and reopens no question under
-/// [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4.
+/// [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4.
 pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
     // Clamped before the shift rather than after: sixteen rungs is already past
     // the cap for this base, and a shift by 32 is undefined rather than
@@ -335,7 +335,7 @@ pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
 /// With no host on the thread the wait still happens, blocking, for
 /// `Core\Time::sleep`'s reason: there is no scheduler under the call, so there
 /// is no neighbour for
-/// [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 6's tier-B failure to have as its victim.
 ///
 /// # Errors

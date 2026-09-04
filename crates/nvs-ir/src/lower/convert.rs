@@ -364,7 +364,7 @@ impl<'a> Lowering<'a> {
         }
     }
     /// Lowers one `expr as ?T` —
-    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
     /// § 1's non-throwing form of [`Self::convert`], where `to` is the target
     /// *inside* the `?`.
     ///
@@ -909,7 +909,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 2's two rows into a `class<T>` — `as` being a class reference's only
     /// source, this function is the only place a [`Ty::ClassDesc`] a program
     /// can name comes from.
@@ -1203,7 +1203,7 @@ impl<'a> Lowering<'a> {
         (out, Ty::Object)
     }
 
-    /// Whether `ty` names [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// Whether `ty` names [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's `Core\Html\Markup` — the one class target this crate lowers by
     /// *building* rather than by testing.
     ///
@@ -1228,7 +1228,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's `"<b>" as Core\Html\Markup` — the sink's only raw-write bypass,
     /// and the one conversion in this crate whose result is *constructed*.
     ///
@@ -1275,7 +1275,7 @@ impl<'a> Lowering<'a> {
         out
     }
 
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
     /// `array<T> as array<U>` row: every element must satisfy `U`, checked as
     /// the walk goes, in [`Helper::ToArrayOf`] — or in
     /// [`Helper::ToArrayOfOrNull`] when `or_null`, ADR 0066's spelling of the
@@ -1355,12 +1355,12 @@ impl<'a> Lowering<'a> {
 
     /// The closed set of literals an `expr as T` has to test its operand
     /// against at run time —
-    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5's
     /// "the only place either type costs anything at runtime" — or `None`
     /// where this conversion is one of § 4's ordinary rows.
     ///
     /// A **whole enum** is one of these sets too, and is where
-    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's
+    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's
     /// "throws on a value no case names" is emitted from: the annotation
     /// names no members, but the declaration does, so the set is built from
     /// every case of it ([`whole_enum_set`]) and the chain that follows
@@ -1400,7 +1400,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// The set of names a checked `as property<T>` accepts —
-    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
     /// § 2's two run-time rows, as the same [`AcceptedSet`] ADR 0047 § 3's
     /// literal union already tests against.
     ///
@@ -1593,7 +1593,7 @@ impl<'a> Lowering<'a> {
     /// Relabels an enum value as the `int`/`uint` its cases *are*, leaving
     /// every other representation exactly as it arrived.
     ///
-    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 3 makes
+    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 3 makes
     /// a case a compile-time integer constant, and [`Ty::Enum`] is a zero-byte
     /// tag over it — so this is the free [`InstKind::Reinterpret`] row 1 of
     /// that ADR's *5* already uses for `$m as int`, emitting no machine
@@ -1621,7 +1621,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3
     /// row 2 — `expr as ?T` where `T` is a literal type, an enum-case subset
     /// or a whole enum: "that conversion is already checked and throwing;
     /// this is its non-throwing twin."
@@ -1723,7 +1723,7 @@ impl<'a> Lowering<'a> {
         (merged, Ty::Tagged)
     }
 
-    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5's
+    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5's
     /// membership test: a chain of equality comparisons, each branching
     /// straight to the one block where the conversion succeeded, with the
     /// throw at the far end where every one of them missed.
@@ -1862,7 +1862,7 @@ impl<'a> Lowering<'a> {
 /// cost exactly nothing.
 /// Every case of one enum declaration, as the [`AcceptedSet`] an
 /// `expr as EnumName` tests its operand against —
-/// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's "throws
+/// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's "throws
 /// on a value no case names" made concrete, and the one thing that keeps an
 /// enum a *closed* set once a plain integer can be converted into it.
 ///
@@ -1906,7 +1906,7 @@ pub(crate) fn whole_enum_set(info: &nvs_types::EnumInfo, name: &str) -> Accepted
 }
 
 /// The closed set of values a checked `as` into an
-/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) literal
+/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) literal
 /// type accepts — see [`Lowering::closed_literal_set`], which is the only
 /// thing that builds one, and [`Lowering::lower_literal_membership`], which is
 /// the only thing that consumes it.

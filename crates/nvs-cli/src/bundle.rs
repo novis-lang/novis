@@ -1,4 +1,4 @@
-//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
 //! portable single-file executable: `nvs build --compile` on the way out, and
 //! the footer check every `nvs` process makes on the way in.
 //!

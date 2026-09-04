@@ -13,7 +13,7 @@
 //! # Re-pinning is asked of the caller, not done here
 //!
 //! [`send`] takes a `repin` closure and calls it for every redirect hop, which
-//! is [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4's
+//! is [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's
 //! "every hop is re-checked and re-pinned" with the checking left where the
 //! checking lives. A retry never calls it: § 4's other half is that every
 //! attempt of one call reuses the address the launderer approved, so there is
@@ -26,7 +26,7 @@
 //! That costs a connection setup per attempt and buys the whole framing
 //! question: a reply that ends when the socket does needs no agreement about
 //! what comes after it. A pool is a later slice and a measurable one — it is
-//! [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md) priority 3
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) priority 3
 //! against priority 4, and nothing in this goal's acceptance is waiting on it.
 //!
 //! What a call spends is one buffer holding the whole reply, capped at
@@ -44,7 +44,7 @@
 //!
 //! Two things are decided here rather than there. The certificate is checked
 //! against the **host the launderer approved**, never the address it was pinned
-//! to: [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4
+//! to: [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4
 //! pins where the bytes go, and pinning is not a claim about who is there. And
 //! a handshake failure splits the same way the rest of this module splits — a
 //! certificate that does not verify is a statement about the other end that a
@@ -128,7 +128,7 @@ pub(crate) struct Reply {
 
 /// What one attempt produced: an answer, or a failure worth trying again.
 ///
-/// The distinction is [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+/// The distinction is [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
 /// § 6's "what is retried": a connection failure and a timeout are transport
 /// weather and come back as [`Attempt::Failed`], while a malformed reply is a
 /// statement about the other end that a second identical request will not
@@ -582,12 +582,12 @@ fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>
 }
 
 /// The body as a `string`, which is UTF-8 by
-/// [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1.
+/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1.
 ///
 /// Bytes that are not text are **refused** rather than repaired: replacing them
 /// would hand a program a body that is not what the origin sent and give it no
 /// way to tell, which is
-/// [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 /// whole rule. The member that answers `bytes` instead is the one this class
 /// does not have yet, and it is where a binary body belongs.
 fn decode(body: Vec<u8>, member: &str) -> Result<String, Fault> {

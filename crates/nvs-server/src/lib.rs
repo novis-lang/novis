@@ -1,6 +1,6 @@
 //! The built-in HTTP server: a socket to a root isolate and back.
 //!
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! is this crate's specification, and its § 2 is the rule everything else here
 //! is built to keep: **a filesystem path is never derived from a URL at request
 //! time.** A request *selects* an entry point from a table expanded against
@@ -18,7 +18,7 @@
 //! answers a request by **running** it: its caller's handler names the isolate
 //! a request is, [`nvs_host::Isolate`] runs it as a child of the connection's
 //! own task, and what that isolate echoed is the response body
-//! ([ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 3). There is one isolation path in this tree and that is it; a second one
 //! would leave M7's state-bleed suite proving nothing.
 //!
@@ -79,8 +79,8 @@
 //! **There is no second scheduler.** `hyper` with `http1` and `server` alone
 //! needs no `Executor` and `serve_connection` spawns nothing, so what drives a
 //! connection is one `Future` polled on the accepting coroutine's own stack
-//! ([ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)).
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)'s
+//! ([ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)).
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)'s
 //! refusal of tokio's task primitives is untouched by that.
 //!
 //! `tokio` itself is nevertheless in the lock file, because `hyper` 1.11 depends

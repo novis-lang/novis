@@ -1,9 +1,9 @@
 //! The closed exception tree the compiler declares for every program.
 //!
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 10
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
 //! is authoritative for the tree's shape and its members; this module is the
 //! one place that shape becomes data the rest of the compiler can read.
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 points
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 points
 //! at § 10 rather than restating it, so nothing else here needs to.
 //!
 //! # Why a table rather than a written declaration
@@ -20,7 +20,7 @@
 //!
 //! Both are gone, and deliberately: § 10 makes `Throwable` the root that user
 //! classes extend directly, so a second root-shaped name would be a second
-//! way to spell the same thing ([ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+//! way to spell the same thing ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
 //! R20). A program naming either gets an ordinary undeclared-class
 //! diagnostic.
 
@@ -31,7 +31,7 @@
 ///
 /// # Four entries are namespaced, and they are here rather than in the registry
 ///
-/// `Core\Test\Failure` is [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// `Core\Test\Failure` is [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 /// § 5's assertion failure, and that section makes it "an ordinary
 /// `Throwable`" — so it is a *class in this tree* rather than a
 /// `nvs_stdlib::registry` row, which is what buys it every property the root
@@ -42,7 +42,7 @@
 ///
 /// `Core\Cli\NotInteractive` is the second, and it is here for exactly that
 /// reason rather than by analogy:
-/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4 makes
+/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4 makes
 /// it what a prompt throws when the process has no controlling terminal and
 /// the call named no default, so a program that wants to fall back writes a
 /// `catch` — and a `catch` matches a name in this tree and nothing else. Its
@@ -51,9 +51,9 @@
 /// it is run from a terminal.
 ///
 /// `Core\Db\RolledBack` is the third, and it is here for the same reason once
-/// more: [ADR 0067](../../../docs/adr/0067-core-db.md) § 7 makes
+/// more: [ADR 0067](/docs/adr/0067-core-db.md) § 7 makes
 /// `Transaction::rollBack` throw it and
-/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 18
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 18
 /// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
 /// the database saying no rather than a bug in the program, and the closure
 /// that owns the transaction propagates it to a `catch` written by name. It is
@@ -61,7 +61,7 @@
 /// [`OWN_PROPERTIES`].
 ///
 /// `Core\Db\DbError` is the fourth, and it is § 18's other half: everything the
-/// server itself refused, which [ADR 0067](../../../docs/adr/0067-core-db.md)
+/// server itself refused, which [ADR 0067](/docs/adr/0067-core-db.md)
 /// § 8 makes **one** class carrying a normalised `kind` rather than ten whose
 /// boundaries would differ per driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
@@ -76,7 +76,7 @@
 /// row as a bare global segment. `QName::is_reserved_global_class`
 /// deliberately still answers only for the single-segment rows: what makes
 /// these trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
-/// ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+/// ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
 /// § 2), which every site pairs with that predicate already.
 pub const TREE: &[(&str, Option<&str>)] = &[
     ("Throwable", None),
@@ -118,11 +118,11 @@ pub const BACKTRACE_SLOT: usize = 2;
 ///
 /// [`PROPERTIES`] is the root's row; the rest of the tree inherits those four
 /// and, with two exceptions, adds nothing. The first is `ParseError`, which
-/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5 gives an
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5 gives an
 /// `issues` list so that a decode reports **every** bad field from one throw
 /// rather than the first. The second is `Core\Db\RolledBack`, which spec § 18
 /// gives a `reason` — the string
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's `Transaction::rollBack`
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's `Transaction::rollBack`
 /// was called with, readable from the `catch` outside the transaction closure
 /// that the throw unwound.
 ///
@@ -130,9 +130,9 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// root is allocated by every `throw` in every program, and a fifth slot there
 /// would cost sixteen bytes plus one empty-array allocation on a path that
 /// PHP-shaped code takes for ordinary control flow
-/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)'s measured cost).
+/// ([ADR 0002](/docs/adr/0002-error-propagation.md)'s measured cost).
 /// The third is `Core\Db\DbError`, which
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8 gives a normalised `kind`
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 8 gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
 /// read off plus the `sql` that was refused. All five of spec § 18's are here,
@@ -242,7 +242,7 @@ pub fn own_properties(name: &str) -> &'static [&'static str] {
 /// Whether `name` declares a synthesized constructor of its own.
 ///
 /// Exactly the classes with own properties: a constructor exists to assign
-/// them ([ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)),
+/// them ([ADR 0022](/docs/adr/0022-definite-property-initialization.md)),
 /// so a class that adds none inherits its parent's and needs no second one.
 /// `nvs_ir::lower::exception` is what actually builds each body.
 #[must_use]

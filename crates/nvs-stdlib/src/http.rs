@@ -1,4 +1,4 @@
-//! `Core\Http` — [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md)'s outbound door,
+//! `Core\Http` — [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s outbound door,
 //! which is one member: the launderer every outbound URL has to pass through, and the pinned
 //! `Core\Http\Target` it answers with.
 //!
@@ -16,7 +16,7 @@
 //! So [`allowUrl`](CLASS) hands back a [`TARGET`] carrying **both the URL and the address that was
 //! approved**, and the connection is made to the address inside it. There is no second resolution
 //! for an attacker to poison, and a retry reuses the same `Target` rather than asking again
-//! ([ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 6). ADR 0058 § 2 calls
+//! ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6). ADR 0058 § 2 calls
 //! this the first ADR 0024 launderer whose output is a value rather than a plain string; it is the
 //! reason the roster has one.
 //!
@@ -43,7 +43,7 @@
 //!
 //! # The client's five rows, and the one shape behind all of them
 //!
-//! [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5 gives every request
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5 gives every request
 //! member the same two parameters: the URL, and one trailing [`OPTIONS`] bag. The URL is ADR 0058
 //! § 1's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
 //! diagnostic and [`allowUrl`](CLASS) is the only way past it. A `Target` argument was pinned by
@@ -81,7 +81,7 @@
 //!
 //! **`text()` answers a `tainted string`.** A reply is bytes another host chose, and pinning says
 //! where they came from and nothing about what is in them, so a body is input in exactly the sense
-//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 1 means — its
+//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 1 means — its
 //! roster names these readers for that reason. `status()` is an `int` and carries no qualifier,
 //! because there is nothing in three digits for a sink to misread.
 //!
@@ -925,7 +925,7 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
 /// The `traceparent` this call carries: the request's own trace, when
 /// `[trace] propagate` is on.
 ///
-/// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2 — propagating
+/// [ADR 0076](/docs/adr/0076-observability-export.md) § 2 — propagating
 /// it is what makes a trace cross a service boundary at all — and § 6 ships the
 /// directive **on**, so a deployment that configured nothing propagates. There
 /// is no per-call option beside it: which traces leave this process is a

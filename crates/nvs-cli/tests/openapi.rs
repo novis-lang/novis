@@ -1,5 +1,5 @@
 //! `nvs build --openapi` and `nvs api diff`, driven as a user drives them —
-//! [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
+//! [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
 //! *Verification* section, for the rows the route table supplies today.
 //!
 //! Through the built binary rather than by calling the emitter, because
@@ -201,7 +201,7 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
 }
 
 /// § 1's *Enumerations* row, and
-/// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 5's own promise about it — "the generated document emits
 /// `enum: [en, de, fr]` with no further work".
 ///

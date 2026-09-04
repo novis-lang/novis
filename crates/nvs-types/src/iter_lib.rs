@@ -26,7 +26,7 @@
 //!
 //! # `compareTo`'s parameter is `Comparable`, and that is `self` here
 //!
-//! [ADR 0013](../../../docs/adr/0013-comparable-interface.md) § 1 writes the
+//! [ADR 0013](/docs/adr/0013-comparable-interface.md) § 1 writes the
 //! member as `compareTo(self $other): int`, and `self` in the declaration
 //! this seeds *is* `Comparable` — an implementation narrows it to its own
 //! class, exactly as the ADR's variance paragraph says. Nothing is lost by

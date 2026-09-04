@@ -1,4 +1,4 @@
-//! [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's connection pool: where a
+//! [ADR 0067](/docs/adr/0067-core-db.md) § 13's connection pool: where a
 //! request's database connection goes at teardown instead of being dropped.
 //!
 //! **Per core, and never shared between cores** — § 13's first bullet, and the
@@ -204,7 +204,7 @@ impl Ticket {
     /// configuration.** § 13 keys a pool on every credential and names the
     /// block's name as that key for `connect`, which holds because the block is
     /// where the credentials are written — until
-    /// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+    /// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
     /// § 1's reload publishes a `[db.main]` naming a different database user
     /// under the same name. A pool keyed on the name alone would then hand the
     /// new generation's request a connection authenticated as the old one's

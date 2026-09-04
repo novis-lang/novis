@@ -1,4 +1,4 @@
-//! [ADR 0073](../../../docs/adr/0073-scheduled-work-is-config.md) § 5's ticker:
+//! [ADR 0073](/docs/adr/0073-scheduled-work-is-config.md) § 5's ticker:
 //! the `[[schedule]]` entries a boot accepted, fired beside the accept loop.
 //!
 //! **A second task, not a second scheduler.** [`serve_on_this_core`](crate::serve::serve_on_this_core)

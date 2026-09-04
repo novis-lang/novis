@@ -28,7 +28,7 @@ impl<'a> Lowering<'a> {
             .is_some_and(|id| matches!(self.checked_types.get(id), CheckedTy::Decimal))
     }
     /// One binary operator with a [`Ty::Decimal`] operand —
-    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's whole
+    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3's whole
     /// table, as [`Helper`] calls rather than machine instructions.
     ///
     /// Three helpers cover all six comparisons, which is why this is a
@@ -484,7 +484,7 @@ impl<'a> Lowering<'a> {
     /// exactly one spelling.
     ///
     /// `==`/`!=` are the whole of it:
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 1 leaves one spelling, and its § 3 makes that spelling this tag
     /// test rather than PHP's truthy-table question (`0 == null` was
     /// *true* there, which is why this arm read `===`/`!==` while both
@@ -560,9 +560,9 @@ impl<'a> Lowering<'a> {
         )
     }
 
-    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's `Markup + Markup` and
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
     /// `Text + Text` — two carrier fragments composed into one, and the last
     /// way each of the two classes is obtained.
     ///

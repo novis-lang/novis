@@ -10,7 +10,7 @@
 //! the repository, not the crate.
 //!
 //! **The enumerable set is what is registered, not what the spec owes.**
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) §§ 1-12
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) §§ 1-12
 //! is the work list and `nvs-stdlib`'s known gap 1 tracks how much of it is on
 //! disk; a member the registry does not hold is not yet a member, and the
 //! compiler refuses to resolve a call to one, so there is nothing here to
@@ -144,7 +144,7 @@ const BELOW_THE_FLOOR: &[&str] = &[];
 /// rises without any member moving at all. What this forbids is a member that
 /// ships with one case pinning the happy path and nothing on either side of
 /// it; the four shapes a third case takes are in
-/// [docs/agent/conventions.md](../../../docs/agent/conventions.md).
+/// [docs/agent/conventions.md](/docs/agent/conventions.md).
 ///
 /// Three is the smallest floor that cannot be met by the happy path alone: a
 /// member with three cases has been asked something it refuses, or something

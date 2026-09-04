@@ -1,4 +1,4 @@
-//! [ADR 0070](../../../docs/adr/0070-duration-literals.md)'s duration grammar,
+//! [ADR 0070](/docs/adr/0070-duration-literals.md)'s duration grammar,
 //! in the one implementation its § 5 requires.
 //!
 //! `30s`, `1h30m`, `500ms` — Go's `time.ParseDuration` grammar with `d` and `w`
@@ -13,7 +13,7 @@
 //! and miss the others. Exactly one of the three is lexical, so exactly one
 //! crate is forced: the lexer cannot reach `nvs-stdlib` without the front end
 //! depending on the runtime heap, while `nvs-stdlib` reaching *here* is an edge
-//! [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+//! [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
 //! already owes for `Core\Ast`. So this is `nvs-syntax`'s, and the other two
 //! call in.
 //!
@@ -49,7 +49,7 @@ pub enum DurationError {
     /// A unit written in upper or mixed case — `30S`.
     ///
     /// Its own variant rather than an [`Self::UnknownUnit`] because
-    /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2 makes "the same word, wrong case" a distinct thing to say, and this
     /// is the message that says it.
     MisCasedUnit(String),

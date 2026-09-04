@@ -1,10 +1,10 @@
-//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! § 3's JSON rendering — what a log target emits under `[log] format = "json"`,
 //! and the second of the three renderings to exist.
 //!
 //! # Why it is here rather than in `nvs-runtime`
 //!
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 6's claim is
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 6's claim is
 //! that ordinary application code and the engine floor write the **same record
 //! through the same native helper**, so a log pipeline never has to reconcile
 //! two shapes depending on which tier produced a line. [`line()`] is that
@@ -25,7 +25,7 @@
 //! `trace_id`/`span_id` in particular.
 //!
 //! `count` is the one key § 6 does not list, because it is
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 10's later amendment; it sits last of the envelope's own keys and ahead of
 //! the producer's `fields` for the reason [`Envelope::count`] gives — it is the
 //! sink talking about the record, not the call site talking about the failure.
@@ -72,7 +72,7 @@ use crate::{Elision, Envelope, Node, Record, Rendered, Scalar, Source};
 /// One record as a JSON Lines line — the terminating newline included, because
 /// a JSON Lines record without it is not one.
 ///
-/// Infallible on purpose: this is what [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// Infallible on purpose: this is what [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 /// § 6's tier-4 floor calls with its one shot, so a record always renders to a
 /// line rather than to a `Result` the floor has nowhere to send.
 #[must_use]

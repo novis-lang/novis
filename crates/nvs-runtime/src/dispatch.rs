@@ -2,9 +2,9 @@
 //! through its receiver's descriptor, and a `static` one through its class's.
 //!
 //! A helper that has to ask an *object* something — `Comparable::compareTo`
-//! for [ADR 0013](../../../docs/adr/0013-comparable-interface.md), the
+//! for [ADR 0013](/docs/adr/0013-comparable-interface.md), the
 //! `iterate`/`advance`/`current` trio for
-//! [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) — cannot
+//! [ADR 0053](/docs/adr/0053-iteration-and-generators.md) — cannot
 //! name a compiled function: the class is one this crate and `nvs-stdlib` know
 //! nothing about, and the interface member is a bodiless declaration
 //! (`nvs_types::iter_lib`), so no symbol exists for a call site to resolve.
@@ -107,7 +107,7 @@ pub fn call_method(
 /// `args`, or `None` where this program declares no such class or no such
 /// method on it.
 ///
-/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
 /// dispatch is the caller: a `#[Command]` handler is named by a string the
 /// compiler put in the table and reached from a native member, which is the one
 /// shape the receiver-keyed [`call_method`] above cannot serve — there is no
@@ -146,7 +146,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 /// `$m->name(...)` on a **`mixed`** receiver — `nvs_ir::Helper::CallErasedMethod`'s
 /// whole answer, and the one dispatch here that a *program* reaches.
 ///
-/// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4 defers
+/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4 defers
 /// which class is behind the handle and whether there is one at all, so every
 /// question a checker would have answered is answered here instead, from the
 /// receiver's own [`ClassDesc`]: its [`crate::MethodRow`] carries the callee's
@@ -170,7 +170,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 ///
 /// Every refusal below is a **catchable** throw, a `mixed` receiver being a
 /// mistake a program can write rather than one a compiler can make
-/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)):
+/// ([ADR 0002](/docs/adr/0002-error-propagation.md)):
 ///
 /// - a receiver whose tag is not an object at all, worded as ADR 0036 § 4 says
 ///   the erased property fetch words its own;
@@ -363,7 +363,7 @@ pub(crate) fn call_unwind(
     })
 }
 
-/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 8's
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 8's
 /// fixtures, built once and owned until the class they belong to is done with.
 ///
 /// It exists to put the **ownership** of a built fixture in one place. A
@@ -490,7 +490,7 @@ impl Drop for Fixtures {
     }
 }
 
-/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 9's
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 9's
 /// data row, materialized into the values one call takes.
 ///
 /// It sits beside [`Fixtures`] for that type's own reason: a row's `string` is
@@ -575,7 +575,7 @@ impl Drop for RowValues {
 
 /// One test isolate's own copies of the fixtures it asked for — ADR 0079 § 8's
 /// "built once in the parent, copied into each test", which is
-/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 /// § 2's graph copy and nothing else.
 ///
 /// It is [`RowValues`]'s shape over a different source, and it is here for that
@@ -660,7 +660,7 @@ impl Drop for CrossedFixtures {
     }
 }
 
-/// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md) § 20's
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 20's
 /// one test: a fresh instance of `class`, its `method` called on that instance
 /// with `args` — § 8's fixtures, in the order the checker resolved them — and
 /// the instance released.

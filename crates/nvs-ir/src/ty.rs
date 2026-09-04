@@ -53,7 +53,7 @@ pub enum Ty {
     Uint,
     /// `float`.
     Float,
-    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
     /// scalar, sign plus a 96-bit mantissa plus a scale of 0 to 28.
     ///
     /// # The representation
@@ -202,7 +202,7 @@ pub enum Ty {
     /// `nvs_runtime::nvs_value_retain`/`nvs_value_release`, which branches on
     /// the tag, where a statically-typed value calls the exact primitive its
     /// representation names. That is priority 5 spent to buy priority 2 in
-    /// [AGENTS.md](../../../AGENTS.md)'s ordering, on the same terms the
+    /// [AGENTS.md](/AGENTS.md)'s ordering, on the same terms the
     /// 16-byte `Value` itself was bought.
     ///
     /// # Getting in and out
@@ -236,7 +236,7 @@ pub enum Ty {
     /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
     /// rather than a second representation.
     Tagged,
-    /// An enum value — [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)'s
+    /// An enum value — [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s
     /// closed, named integer type.
     ///
     /// Its *representation* is exactly the backing integer it carries, which
@@ -245,7 +245,7 @@ pub enum Ty {
     /// representation, reinterpreted." So this variant is not here to describe
     /// a different machine value. It is here because one rule reads an enum
     /// differently from the integer under it:
-    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 4 makes
+    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 4 makes
     /// an enum case **always truthy**, never judged by its backing value — a
     /// case backed by `0` is `true` in a condition, where a plain `int` `0`
     /// is `false`. Erasing an enum to [`Self::Int`] here would silently get
@@ -331,7 +331,7 @@ pub enum Ty {
     Ref,
     /// A `nvs_runtime::ClassDesc` address — the *class* a frame was called on,
     /// and, since
-    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md),
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md),
     /// the value of a `class<T>` binding.
     ///
     /// This is late static binding's whole representation. It is produced by

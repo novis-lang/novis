@@ -31,7 +31,7 @@
 //!   for is repairing the request, and a client that meant to resume would write
 //!   the wrong bytes to disk on the strength of it.
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
-//!   one — which [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)'s
+//!   one — which [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s
 //!   `nosniff` renders inert rather than leaving to a browser to guess.
 //!
 //! # Decision: the default document is not the mount's root
@@ -48,7 +48,7 @@
 //!
 //! # What it spends
 //!
-//! Per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md): one buffer
+//! Per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md): one buffer
 //! per in-flight static request, holding exactly the bytes that response
 //! carries — the whole file, or the one range that was asked for. Nothing is
 //! cached between requests, so it is O(in-flight) and not O(files served): a

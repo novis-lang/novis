@@ -1,4 +1,4 @@
-//! [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s `decimal`
+//! [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s `decimal`
 //! scalar: sign, a 96-bit unsigned mantissa and a scale of 0 to 28, with the
 //! whole of § 3's arithmetic and § 4's conversions.
 //!

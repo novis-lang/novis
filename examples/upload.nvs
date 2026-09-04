@@ -1,7 +1,7 @@
 <?nvs
 // The receiving end of an upload, as a program.
 //
-// [ADR 0105](../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 // states one rule, and this fixture is the shape of it: **there is no temp
 // file, because the destination is the application's own call.** The host never
 // picks a path, never writes one behind the program's back, and never leaves

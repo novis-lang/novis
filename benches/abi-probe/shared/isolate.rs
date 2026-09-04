@@ -1,4 +1,4 @@
-//! The in-process isolate that [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)
+//! The in-process isolate that [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
 //! replaces a child process with, as one measurable operation.
 //!
 //! [`nvs_abi_probe::process`] is the other half of the same comparison and is
@@ -40,7 +40,7 @@ use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
 /// What the first crossings pay for is whatever the parent's ownership root and
 /// the pooled allocator's size classes allocate once — which a real request has
 /// already paid before its first `spawn script`, and which is what "on a warm
-/// cache" means in [M5's acceptance](../../../docs/plan/m5.md).
+/// cache" means in [M5's acceptance](/docs/plan/m5.md).
 const WARM: u64 = 200;
 
 /// `iters` spawn-to-result round trips inside one task, and how long they took.

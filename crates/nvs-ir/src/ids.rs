@@ -1,6 +1,6 @@
 //! Stable per-statement and per-conditional-edge identifiers.
 //!
-//! [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+//! [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //! needs every lowered statement and every conditional CFG edge to carry an id
 //! a coverage/branch probe can address — reserved here from this crate's
 //! first commit because retrofitting it once M3's codegen builds probe sites

@@ -152,7 +152,7 @@ pub(crate) struct LocalScope {
 
 /// The outer bindings a closure body may read, and the ones it actually did.
 ///
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 2
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 2
 /// captures "exactly the outer variables its body reads," which is a fact
 /// about the body rather than about the enclosing scope — so `available`
 /// holds every name that *could* be captured, and `used` accumulates the ones
@@ -335,7 +335,7 @@ impl Narrowing {
 /// variable is not `null`.
 ///
 /// `==`/`!=` are the whole of it, because
-/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 1 leaves one spelling and its § 3 makes it a tag test rather than PHP's
 /// truthy-table question — `0 == null` was *true* in PHP, which is why this
 /// read only `===`/`!==` while both spellings existed. A bare `if ($x)` is
@@ -523,7 +523,7 @@ fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 /// The local a comparison against a written literal narrows on the branch
 /// where it evaluates to `when`, and the literal type it proves.
 ///
-/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 4's own
+/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 4's own
 /// row: a wider literal union reaches a narrower one through a guard, and `==`
 /// is that guard's simplest spelling. `==` proves the literal where it holds
 /// and `!=` where it does not, which is the same edge written two ways.

@@ -1,4 +1,4 @@
-//! [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2's trace
+//! [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace
 //! identity, taken at the door: the `traceparent` the request arrived with,
 //! read once, before any application code runs.
 //!

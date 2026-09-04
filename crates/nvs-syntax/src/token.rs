@@ -34,8 +34,8 @@ impl Token {
 /// `self`, and so on — are their own [`Keyword`] variant, not an [`Ident`]. Three
 /// spellings the spec introduces are deliberately kept *contextual* instead:
 /// `spawn`, `script` and `with` (the `spawn script … with(…)` grammar,
-/// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)) and `type`
-/// (the alias declaration, [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md))
+/// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)) and `type`
+/// (the alias declaration, [ADR 0015](/docs/adr/0015-no-name-aliasing.md))
 /// lex as plain [`Ident`]s; the parser recognises them by text only at the one
 /// grammar position each is meaningful in. Reserving common English words
 /// globally when only a handful of ADR-introduced constructs need them would
@@ -74,12 +74,12 @@ pub enum TokenKind {
     /// An integer literal: decimal, `0x`/`0X` hex, `0o`/`0O` octal, `0b`/`0B`
     /// binary, with PHP's `_` digit separators. The lexer does not evaluate it
     /// or decide `int` versus `uint` — that is a checker question
-    /// ([ADR 0007 § 4](../../../docs/adr/0007-explicit-type-system.md)).
+    /// ([ADR 0007 § 4](/docs/adr/0007-explicit-type-system.md)).
     IntLiteral,
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,
     /// A duration literal — `30s`, `1h30m`, `500ms`
-    /// ([ADR 0070](../../../docs/adr/0070-duration-literals.md)).
+    /// ([ADR 0070](/docs/adr/0070-duration-literals.md)).
     ///
     /// **One token, maximal munch**: `1h30m` is this, not three tokens. The
     /// lexer has already checked the whole grammar
@@ -257,7 +257,7 @@ pub enum TokenKind {
 /// A reserved word.
 ///
 /// Spelling is matched **exactly**, in lower case only
-/// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// § 2) — unlike PHP, which matches its own keywords case-insensitively.
 /// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
 /// token; nothing diagnoses them, because ADR 0029 makes both legal class

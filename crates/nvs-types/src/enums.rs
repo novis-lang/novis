@@ -4,7 +4,7 @@
 //!
 //! # Why this table exists at all
 //!
-//! [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) makes an enum a
+//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) makes an enum a
 //! closed, named **integer** type: a case is a compile-time constant, never a
 //! singleton object, and "every enum has exactly one underlying integer type,
 //! `int` unless `: uint` is written." Both halves of that sentence are facts
@@ -147,7 +147,7 @@ pub(crate) fn build_enum_table(
 ///
 /// Seeded first so a *declared* `Core\Order` would overwrite it rather than
 /// the other way round. That cannot happen today: `Core` is the reserved
-/// namespace ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)),
+/// namespace ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)),
 /// and a program declaring into it is a question for `nvs-hir`'s resolver,
 /// not something this table should answer by silently winning.
 fn seed_core(table: &mut EnumTable) {

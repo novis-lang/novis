@@ -1,18 +1,18 @@
 <?nvs
 // One connection, one prepared statement, one row — and then a typed one.
 //
-// [ADR 0067](../docs/adr/0067-core-db.md) is the design. § 1 is why there is
+// [ADR 0067](/docs/adr/0067-core-db.md) is the design. § 1 is why there is
 // no `prepare` step: `query`/`execute` take SQL and parameters together and
 // each connection holds an LRU cache of server-side prepared statements, so
 // the two spellings PDO has collapse into one that is always prepared.
 // Binding is the whole injection story (§ 1 again, and
-// [ADR 0024](../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 4):
+// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 4):
 // there is no `quote`, no escaper, and the query-text parameter refuses
 // `tainted` while the bound parameters accept it freely.
 //
 // § 6 is the last three lines. A column arrives with the type § 9's map gives
 // it, text arrives `tainted`, and a class reads a row through
-// [ADR 0071](../docs/adr/0071-derived-codecs.md)'s `#[Core\Db\Derive]` rather
+// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s `#[Core\Db\Derive]` rather
 // than through hand-written hydration — read-only by design, because writing
 // rows from objects is an ORM concern and not `Core`'s.
 //

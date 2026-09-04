@@ -1,6 +1,6 @@
-//! `Core\Config` — [ADR 0064](../../../../docs/adr/0064-configuration-file-format.md)
+//! `Core\Config` — [ADR 0064](/docs/adr/0064-configuration-file-format.md)
 //! § 5's four members, and PHP's `ini_get` family with the free functions taken
-//! off it ([ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)).
+//! off it ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)).
 //!
 //! Every member is four lines long, because none of the rules is here. What a
 //! name resolves to, what a `set` is allowed to do and where the ceiling comes
@@ -12,7 +12,7 @@
 //!
 //! **The context is the configuration.** `Ctx::config` holds the snapshot the
 //! request cloned at start plus its own overlay
-//! ([ADR 0078](../../../../docs/adr/0078-config-reload-and-control-socket.md)
+//! ([ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
 //! § 1), so a `set` moves one request's view and is invisible to the next
 //! request on the same core. No member here reaches a process-wide table,
 //! because there is none to reach.

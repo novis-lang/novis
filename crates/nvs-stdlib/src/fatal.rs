@@ -1,4 +1,4 @@
-//! `Core\Fatal` — [ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md)
+//! `Core\Fatal` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! §§ 1-2's tiers 1 and 2: the two places a program gets to say anything at all
 //! after a resource limit has stopped it, or after a throw reached the root of
 //! the request with nothing left to catch it.
@@ -19,8 +19,8 @@
 //!
 //! **Why the closure is held by the context and not by this module.** A handler
 //! is request-local by ADR 0020 § 1 — it dies with the request like every other
-//! per-request slot ([ADR 0008](../../../../docs/adr/0008-static-and-global.md),
-//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md)) — so a `static`
+//! per-request slot ([ADR 0008](/docs/adr/0008-static-and-global.md),
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md)) — so a `static`
 //! here would be the exact thing that section refuses: one request's safety net
 //! still armed while another request runs on the same core.
 //!

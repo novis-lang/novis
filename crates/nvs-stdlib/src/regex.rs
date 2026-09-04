@@ -1,5 +1,5 @@
-//! `Core\Regex` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
-//! § 5, over [ADR 0056](../../../../docs/adr/0056-regex-engine-policy.md)'s
+//! `Core\Regex` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+//! § 5, over [ADR 0056](/docs/adr/0056-regex-engine-policy.md)'s
 //! two engines.
 //!
 //! That ADR's body is the rule and this module is its implementation; nothing
@@ -26,7 +26,7 @@
 //! # Tiering happens at the first call, not while checking
 //!
 //! ADR 0056 § 3 makes a **literal** pattern's tier a compile-time fact, over
-//! [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s
+//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s
 //! literal-folding mechanism. That mechanism is not built, so today every
 //! pattern — literal or assembled — takes the run-time path in [`compiled`]:
 //! the linear engine is offered the pattern first and the backtracking engine
@@ -47,7 +47,7 @@
 //! Thread-local is not a compromise here: the runtime is thread-per-core and
 //! shared-nothing, so a per-thread cache needs no lock on the hot path and
 //! cannot become cross-request state
-//! ([ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)
+//! ([ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)
 //! forbids that) — a compiled pattern is derived from the pattern text and
 //! its flags alone, observable only as speed.
 //!
@@ -667,7 +667,7 @@ const OFFSET_SLOT: usize = 1;
 ///
 /// A [`crate::granularity::DEFAULT`]-unit index, like every other `string`
 /// position Novis takes or hands back, and negative counts from the end under
-/// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8. It is
+/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8. It is
 /// **not** `preg_match`'s `$offset`, which counts bytes and documents that a
 /// value inside a multi-byte character is undefined behaviour.
 ///
@@ -941,7 +941,7 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
 /// ADR 0056 § 3's compile-time fact and not the automaton —
-/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
 /// which reads a **literal** pattern while checking and reports § 3's
 /// diagnostic instead of the throw [`compiled`] would have made.
 ///

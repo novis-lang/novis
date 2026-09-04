@@ -1,4 +1,4 @@
-//! `Core\Debug` — [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `Core\Debug` — [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! § 4's `dump` and `render`, and the walk that turns a runtime value into
 //! § 1's record.
 //!
@@ -34,7 +34,7 @@
 //!
 //! `render` answers the carrier of the sink in force — `Core\Cli\Text` today —
 //! so a dump can be *embedded* rather than written, by
-//! [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 5's rule verbatim. Because it answers a carrier, `echo Core\Debug::render($x)`
 //! is singly escaped: those bytes have already been through the record's own
 //! transformations, and the carrier is what stops the next `echo` escaping
@@ -90,7 +90,7 @@ pub(crate) const NAME: &str = r"Core\Debug";
 /// Spec § 16's `Core\Debug`, as much of it as ADR 0092 § 4 declares.
 ///
 /// The coverage, trace and profile members that section also lists are
-/// [ADR 0018](../../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
 /// and land at M10 — that ADR's own scope, which the spec row used to
 /// attribute `dump` to as well.
 pub(crate) const CLASS: CoreClass = CoreClass {

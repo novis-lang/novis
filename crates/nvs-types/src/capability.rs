@@ -1,4 +1,4 @@
-//! [ADR 0112](../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+//! [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
 //! § 6's `Core\Cap::has`, and the one thing about it that is decided while
 //! compiling: the name it asks about has to be a capability.
 //!

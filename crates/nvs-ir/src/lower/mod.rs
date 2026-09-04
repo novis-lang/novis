@@ -411,7 +411,7 @@ fn static_props(
 /// `secret` either, which is the safe direction only because the fallback is
 /// reached by a class the checker never typed at all: a declared `secret`
 /// property always reaches [`ExprTypeTable::property_types`].
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md)'s field list joined
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s field list joined
 /// to `layout`'s slot order — the one place both tables are in hand, and the
 /// same join for either format ([`crate::ir::Class::codec`] and
 /// [`crate::ir::Class::db_codec`] differ in which table they come out of and in
@@ -529,7 +529,7 @@ pub fn file_script_label(id: SourceId) -> String {
 ///
 /// Enums are not walked; interfaces are, because an `interface` method may
 /// carry a body
-/// ([ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// ([ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
 /// § 2) and a default is an ordinary compiled method under the interface's own
 /// label. § 4's `implements I by $field;` forwards have no declaration to walk
 /// at all — one is synthesized per `nvs_types::Delegation` at the end of this
@@ -1029,7 +1029,7 @@ fn promoted_stores(
     }
 }
 
-/// Lowers one of `p`'s [ADR 0014](../../../docs/adr/0014-property-observer.md)
+/// Lowers one of `p`'s [ADR 0014](/docs/adr/0014-property-observer.md)
 /// § 1 property hooks to a [`Function`] named `name` — which must be the
 /// label `nvs_types::signatures::hook_label` spelled for it, since a `set`
 /// hook's short form recovers the declaring class's own label back out of it.
@@ -1182,12 +1182,12 @@ pub fn lower_property_hook(
 /// `return 1` is indistinguishable from a fall-through. So the difference is
 /// spelled once, where the frame is lowered and its caller is still known.
 ///
-/// - [`ScriptRole::Required`] — [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+/// - [`ScriptRole::Required`] — [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
 ///   § 3's `1`, which is PHP's own answer for an `include` of a file that
 ///   never `return`s, kept for the construct PHP has.
 /// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
 ///   a `return` produces"
-///   ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)
+///   ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)
 ///   § *Decision*, which names it *deliberately not* `require`'s `1`). The
 ///   entry frame is the one a `spawn script` child is, so this is the child's
 ///   answer; under `nvs run` nothing reads it.
@@ -1200,7 +1200,7 @@ pub enum ScriptRole {
 }
 
 /// Lowers a file's own top-level statements into one synthesized function
-/// — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's "the
+/// — [ADR 0008](/docs/adr/0008-static-and-global.md) § 2's "the
 /// script body is a function, so its variables are locals". `name` is the
 /// label the listing/a future codegen symbol table uses; the caller picks
 /// it, exactly as for [`lower_method`].
@@ -1214,7 +1214,7 @@ pub enum ScriptRole {
 /// - **The return representation is [`Ty::Tagged`], and `role` decides what
 ///   running out of statements hands back.** A top-level `return` hands a
 ///   value back to whatever entered the file, and
-///   [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+///   [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
 ///   types that boundary `mixed`. Where the statements run out instead, the
 ///   seal is [`ScriptRole`]'s answer — the tagged `1` for a `require`, `null`
 ///   for the entry frame — and never the `Terminator::Return(None)`
@@ -1891,7 +1891,7 @@ impl<'a> Lowering<'a> {
         (v, ty)
     }
     /// [`Self::emit`] for a call-shaped instruction: the same append, plus
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s error edge to
+    /// [ADR 0002](/docs/adr/0002-error-propagation.md)'s error edge to
     /// a landing block built for this exact program point.
     ///
     /// Every instruction that returns a status goes through here, and nothing
@@ -2680,7 +2680,7 @@ fn clean_digits(src: &SourceFile, span: nvs_diagnostics::Span) -> String {
     span_text(src, span).chars().filter(|&c| c != '_').collect()
 }
 
-/// A fractional literal's text as [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)
+/// A fractional literal's text as [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
 /// § 1's `(mantissa, scale)`, with any exponent folded into the scale, or
 /// `None` where either bound is exceeded.
 ///
@@ -3216,14 +3216,14 @@ pub(crate) fn is_aliasing_read(kind: &ExprKind) -> bool {
     )
 }
 
-/// The one method an [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// The one method an [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
 /// closure's environment class answers, as the method table spells it.
 pub(crate) const FN_INVOKE: &str = "invoke";
 
 /// The reserved **first** field of every closure's environment class: how many
 /// parameters [`FN_INVOKE`] declares, not counting the receiver.
 ///
-/// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 2 hands every `Core\Arr` callback `($value, $key)` and lets it "declare
 /// fewer parameters" — so a native caller has to know how many the closure
 /// actually wants before it can pass, and retain, the right number. A
@@ -3244,7 +3244,7 @@ pub(crate) const FN_ARITY: &str = "fn#arity";
 ///
 /// # Why the object carries it
 ///
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives `callable` no parameter list, so **no checker can compare a call site
 /// against the body it will reach** — and the compiled `invoke` reads argument
 /// slot *i* at its own declared representation, which turns a mismatch into an

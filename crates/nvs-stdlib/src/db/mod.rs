@@ -1,7 +1,7 @@
-//! `Core\Db` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Db` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 18's entry points, over [`nvs_db`]'s wire half.
 //!
-//! [ADR 0067](../../../../docs/adr/0067-core-db.md) is authoritative for every
+//! [ADR 0067](/docs/adr/0067-core-db.md) is authoritative for every
 //! semantic and § 18 for every signature. What belongs here is the two
 //! decisions this side of the boundary owns: what an `InList` *is* once it is a
 //! value a program holds, and what `quoteIdentifier` can honestly promise from
@@ -39,7 +39,7 @@
 //! a cosmetic problem: on MySQL a double-quoted identifier is a string literal,
 //! so the answer would parse and mean something else.
 //!
-//! What laundering owes [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! What laundering owes [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! § 4 is that the result cannot end the identifier and start something else.
 //! A strict character class — a letter or `_`, then letters, digits or `_` —
 //! guarantees that under *every* dialect at once, which no quoting scheme does:
@@ -397,7 +397,7 @@ const COLUMN_NAME: &str = r"Core\Db\Column";
 const LABEL_SLOT: &str = "name";
 
 /// Its second: [`COLUMN_TYPE`]'s case for that column, held as the ordinal an
-/// enum *is* at runtime ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)).
+/// enum *is* at runtime ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
 /// [`column_type_value`] is where a [`nvs_db::ColumnType`] becomes one.
 const DECLARED_SLOT: &str = "type";
 

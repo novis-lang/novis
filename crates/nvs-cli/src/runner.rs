@@ -1,4 +1,4 @@
-//! [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)'s
+//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)'s
 //! runner: the `#[Test]` table a compile already built (§ 1), constructed and
 //! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
 //! the exception state — and reported in one of § 22's three formats.

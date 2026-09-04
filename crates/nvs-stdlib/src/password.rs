@@ -1,11 +1,11 @@
-//! `Core\Password` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Password` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 16's three members, and the second of exactly two operations that take a
 //! `secret` and answer something that is not one.
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 3 places
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 places
 //! this class in `Core` by tests 1 and 2 — "as a `Core\Crypto` primitive over a
 //! `secret`" — rather than in
-//! [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)'s
+//! [ADR 0060](/docs/adr/0060-application-security-protocols.md)'s
 //! closed protocol roster. What belongs here is the parameter choice, the
 //! salt's provenance, what `needsRehash` compares, and the two places this
 //! module refuses a stored hash the C `password_verify` would have answered
@@ -35,7 +35,7 @@
 //! time-memory tradeoff Argon2i is exposed to is closed too.
 //!
 //! **What that spends is 19 MiB, transiently, per `hash` or `verify` call, on
-//! the calling task** ([AGENTS.md](../../../../AGENTS.md)'s priority ordering
+//! the calling task** ([AGENTS.md](/AGENTS.md)'s priority ordering
 //! asks for the number). It is allocated and released inside the one call, so
 //! it is O(in-flight logins) and never O(logins served), and it goes through
 //! this process's own allocator, which means `nvs_runtime::budget` charges it
@@ -60,7 +60,7 @@
 //!
 //! # The read roster has two entries, and only one of them is ever written
 //!
-//! [ADR 0129](../../../../docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
+//! [ADR 0129](/docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
 //! is the whole contract, and its § 1 is the roster: [`nvs_core_password_verify`]
 //! reads the Argon2id PHC string [`nvs_core_password_hash`] writes, and a
 //! bcrypt hash under `$2y$`, `$2a$` or `$2b$` — one algorithm under three tags,
@@ -81,7 +81,7 @@
 //! bcrypt hash, it only stopped refusing to read one.
 //!
 //! **What that spends is ~4 KiB, transiently, per `verify` of a legacy row**,
-//! on the calling task (again [AGENTS.md](../../../../AGENTS.md)'s ordering
+//! on the calling task (again [AGENTS.md](/AGENTS.md)'s ordering
 //! asking for the number) — the eksblowfish key schedule, against Argon2id's
 //! 19 MiB above. It is O(in-flight logins) for the same reason, and it shrinks
 //! as § 3's loop upgrades the table.
@@ -98,7 +98,7 @@
 //! `password_needs_rehash` answers `true`, and both readings hide the same bug:
 //! a storage layer handing back a column that is not a hash looks exactly like
 //! every user suddenly typing the wrong password. Under
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) failure throws
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) failure throws
 //! and absence is `?T`, and this is failure — the argument is not the thing the
 //! parameter names — so both members throw `LogicError`. The refusal is the
 //! same either way at the login screen; the difference is whether the operator
@@ -111,7 +111,7 @@
 //!
 //! This section is the *mechanism*. Which stored values are inside the roster
 //! and which are outside it is
-//! [ADR 0129](../../../../docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
+//! [ADR 0129](/docs/adr/0129-password-verify-reads-a-stored-bcrypt-hash.md)
 //! § 6, and that is the one home of the boundary: the roster has two entries
 //! instead of one, and the property that a wrong column wakes an operator is
 //! unchanged by that.

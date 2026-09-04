@@ -3,7 +3,7 @@
 //! `query`, `queryAs`, `execute` and `executeMany` are one shape over five
 //! drivers, so everything that varies is pushed to the bottom of this module:
 //! the `*_rows` and `*_write` pairs are where a driver's own result becomes the
-//! rows and the write [ADR 0067](../../../../docs/adr/0067-core-db.md) § 18
+//! rows and the write [ADR 0067](/docs/adr/0067-core-db.md) § 18
 //! declares.
 //!
 //! **SQLite is the one that cannot be written like the others.** Its cells
@@ -864,7 +864,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
     described
 }
 
-/// One stepped cell as [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s
+/// One stepped cell as [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s
 /// value for the type its column was **declared** — the storage class it
 /// arrived in wherever that declaration names something SQLite can hold, and a
 /// `Core\Time`, a `Core\Uuid`, a `decimal` or a `bool` where it does not.
@@ -895,7 +895,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
 /// binds into a `REAL` on the way in; refusing one here would mean no `decimal`
 /// column on this backend ever reads back. The shortest round-trip rendering is
 /// therefore the honest answer for what is actually stored, and
-/// [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md) is not weakened
+/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) is not weakened
 /// by it — the value crossed binary floating point in the *engine*, and reading
 /// it back as a `float` would only hide that.
 ///
@@ -1314,7 +1314,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s SQLite rule, asserted
+    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s SQLite rule, asserted
     /// as the **agreement** it is: one cell, five declarations, five different
     /// answers.
     ///

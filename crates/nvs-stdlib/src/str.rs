@@ -1,4 +1,4 @@
-//! `Core\Str` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Str` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 1, over `nvs_runtime`'s reference-counted `NvsStr`.
 //!
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
@@ -7,7 +7,7 @@
 //!
 //! # `string` is valid UTF-8, so this module never validates
 //!
-//! [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) guarantees a
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) guarantees a
 //! `string`'s bytes are valid UTF-8, which is what lets every member below
 //! reach for `&str` operations directly. [`text`] is the one place an argument
 //! becomes one, and it checks the **tag** and nothing else: the guarantee is a
@@ -1866,7 +1866,7 @@ nvs_runtime::nvs_helper! {
     ///   under ADR 0009's UTF-8 invariant.
     /// * **An index that addresses nothing throws**, rather than PHP's warning
     ///   plus `""`. The declared return type is `string`, not `?string`, and
-    ///   [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4/R5
+    ///   [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4/R5
     ///   make that the difference between the two: absence would have to be
     ///   spelled in the type.
     ///
@@ -3404,7 +3404,7 @@ fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
 /// PHP's `mb_chr` answers `false` for both; Novis throws, because a `string` is
 /// guaranteed well-formed UTF-8 (ADR 0009 § 1) and a substituted replacement
 /// character would be the silent-lossy conversion
-/// [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md) § 2 refuses
+/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2 refuses
 /// everywhere else.
 fn scalar_value(point: i128, member: &str) -> Result<char, Fault> {
     u32::try_from(point)

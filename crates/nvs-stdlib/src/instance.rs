@@ -54,13 +54,13 @@
 //! instance made from it. A compiled unit's own [`ClassTable`] cannot own these
 //! — a `Core` class is not in any program's class list, and an instance can
 //! outlive the unit that produced it in a hot-reload swap
-//! ([ADR 0017](../../../../docs/adr/0017-hot-reload-without-restart.md)). So
+//! ([ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)). So
 //! this module builds one table per thread, on first use, and **leaks** it.
 //!
 //! **What it spends:** one descriptor per `Core` instance class per core —
 //! O(cores × classes), bounded by [`registry::CLASSES`] and never growing with
 //! traffic, which is the property
-//! [AGENTS.md](../../../../AGENTS.md)'s memory rule actually asks for. Leaked
+//! [AGENTS.md](/AGENTS.md)'s memory rule actually asks for. Leaked
 //! rather than dropped at thread exit because a dangling descriptor is a
 //! use-after-free and the bytes are bounded by a compile-time roster; per-core
 //! rather than shared because the runtime is thread-per-core and shared-nothing,
@@ -85,7 +85,7 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 /// Every member compiled code reaches on a `Core` instance **by name** — one
 /// row per class, `(member, symbol)`.
 ///
-/// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 1's
+/// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 1's
 /// iteration trio and nothing else so far. Those three declarations are
 /// bodiless (`nvs_types::iter_lib`), so a `foreach` names no helper to call and
 /// dispatches on the receiver's runtime class instead — this table is what a

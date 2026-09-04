@@ -2,7 +2,7 @@
 //! that answers most of them without segmenting, and the one question a
 //! concatenation asks at its seam.
 //!
-//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 2 decides that a
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 decides that a
 //! `string`'s length, indexing and iteration count extended grapheme clusters,
 //! and `nvs_stdlib::granularity` is where that *choice* is stated — which unit
 //! is the default, and what splitting and indexing in it mean. This module is
@@ -36,7 +36,7 @@ use unicode_segmentation::{GraphemeCursor, UnicodeSegmentation};
 /// the overwhelmingly common case — a request path full of ASCII — pays a
 /// single vectorizable scan rather than a segmentation one.
 /// `a_grapheme_index_costs_more_than_a_code_point_index` in
-/// [`benches/abi-probe`](../../../benches/abi-probe/) measures both halves of
+/// [`benches/abi-probe`](/benches/abi-probe/) measures both halves of
 /// that claim.
 ///
 /// The obvious spelling, `subject.is_ascii() && !bytes.contains(&b'\r')`, is

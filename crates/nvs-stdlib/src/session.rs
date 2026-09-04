@@ -1,4 +1,4 @@
-//! [ADR 0139](../../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)'s session store:
+//! [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)'s session store:
 //! the identifier a store issues, the record it keeps under it, and the two directives that decide
 //! where that store is and how long a record survives.
 //!
@@ -8,7 +8,7 @@
 //! identifier the client presented, loads the record the store issued it for, and issues a fresh
 //! one where there is none. The other six operate on the record `start` left on the request
 //! ([`nvs_runtime::Session`]), and each of them throws until `start` has run — the whole benefit
-//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 4 was buying, and worth nothing if
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 4 was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
 //! **§ 4's write-back is on disk too.** [`write_back`] marks the record changed on the request,
@@ -34,9 +34,9 @@
 //!
 //! **Not the door.** The obvious reading of § 4 puts the send in `nvs-server`, at the line where a
 //! request's response is collected — and the door does not have the record. A request is a root
-//! isolate ([ADR 0006](../../../../docs/adr/0006-isolated-script-execution.md)), so
+//! isolate ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)), so
 //! `Core\Session::start` opened the session on the *isolate's* context, which is built and dropped
-//! inside `nvs-host` ([ADR 0116](../../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! inside `nvs-host` ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 //! § 2) and is nothing the connection's own context can reach. Giving `nvs-server` a dependency on
 //! this crate would not have fixed that; it would have bought the wrong context with a new edge.
 //!
@@ -53,13 +53,13 @@
 //!
 //! What this leaves as the rule: **a session is written back when the program that started it
 //! ends**, which is every isolate — so every HTTP request — and `nvs run`'s root task, after
-//! [ADR 0127](../../../../docs/adr/0127-the-end-of-a-script-is-observable.md)'s exit hooks, since
+//! [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s exit hooks, since
 //! a hook is user code that may still write. A cancelled task is the one end that sends nothing,
 //! because the send parks and a task being torn down may not park.
 //!
 //! # Decision: the local tier is unreachable from here, structurally
 //!
-//! [ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md) § 4 refuses
+//! [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 4 refuses
 //! `Core\Session` the per-core tier, and § 4's own word for the refusal is *enforced*. Two things
 //! carry that here and neither is a comment. [`nvs_config::session::Backend`] has no variant naming
 //! the local tier, so there is no value this module could match on to select it; and every
@@ -109,7 +109,7 @@
 //! oversight: a session record is a handful of keys beside the network round trip `start` has
 //! already spent, and the alternative — holding the decoded array on the context — would put an
 //! object at teardown that an
-//! [ADR 0017](../../../../docs/adr/0017-hot-reload-without-restart.md) unit swap could strand,
+//! [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md) unit swap could strand,
 //! which is the whole reason that struct holds bytes.
 
 use std::time::Duration;
@@ -456,7 +456,7 @@ pub(crate) fn key_of(id: &str) -> Vec<u8> {
 /// A thrown `RuntimeError` for a tree that configured no `[session]` block, naming the block to
 /// write. ADR 0139 § 3: an absent block is not a default backend, because the safe answer for a
 /// store nobody chose is no store — the same direction
-/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) takes for everything it
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) takes for everything it
 /// leaves unconfigured.
 ///
 /// A word this module cannot spell is the same throw, and it is unreachable from a server that
@@ -507,7 +507,7 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
 /// § 2's `load` — the record under `id`, or **absent**.
 ///
 /// Absent is the answer to all three of
-/// [ADR 0124](../../../../docs/adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md)
+/// [ADR 0124](/docs/adr/0124-php-86-lands-as-four-refusals-and-one-session-rule.md)
 /// § 6's cases at once: an id no store issued, one that has expired, and one an attacker minted.
 /// `Core\Session::start()` responds to it by issuing a fresh id, which is why there is no separate
 /// `validateId` for the two of them to disagree about.
@@ -537,7 +537,7 @@ pub(crate) fn destroy(open: &mut Connection, id: &str) -> Result<(), String> {
 ///
 /// The whole record and not one key of it, per § 4: one session is one entry, which is what keeps
 /// `clear`, `regenerate` and `destroy` single-key operations over a store
-/// [ADR 0075](../../../../docs/adr/0075-core-ratelimit.md) § 4 gives no multi-key atomic step.
+/// [ADR 0075](/docs/adr/0075-core-ratelimit.md) § 4 gives no multi-key atomic step.
 ///
 /// A `ttl` under a second rounds **up** to one rather than down to zero: zero is `SET`'s spelling
 /// for an error, and a record written with no expiry at all is § 5's sweeper coming back.
@@ -1056,7 +1056,7 @@ const SENDER: &str = "Core\\Session's write-back at the end of the request";
 ///
 /// **Losing them is the answer, rather than holding the response until the store comes back.** A
 /// request that cannot reach its store at the end has already produced its output; waiting there
-/// is the wedge [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// is the wedge [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// is named after, and § 4's last-write-wins already declines to repair a lost write.
 fn send_at_end(ctx: &mut Ctx) {
     // Nothing is copied out of the record: `open_configured` and `on_shared` both borrow, and the

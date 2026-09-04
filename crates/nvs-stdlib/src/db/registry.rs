@@ -5,12 +5,12 @@
 //! the join between the two is checked when the crate links rather than by
 //! anything in this file — [`crate::registry`]'s own doc owns why that is the
 //! check. It stays one module because a card sits directly after the row it
-//! describes, per [docs/agent/conventions.md](../../../../docs/agent/conventions.md).
+//! describes, per [docs/agent/conventions.md](/docs/agent/conventions.md).
 
 use super::*;
 
 /// Spec § 18's `Db\Settings` — the two arms `open` takes, in the spec's own
-/// order, per [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// order, per [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
 /// § 1.
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
@@ -375,7 +375,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// only place a transaction is nameable.
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
-/// under the same symbols**, which is [ADR 0043](../../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// under the same symbols**, which is [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
 /// delegation with no second body to drift from the first: `query`, `execute`,
 /// `executeMany` and `transaction` resolve to [`CONNECTION`]'s helpers, which
 /// reach the connection through [`handle_of`] and so accept either receiver.
@@ -673,7 +673,7 @@ pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// together rather than this sentence.
 pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 
-/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 8's `ErrorKind` — the
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 8's `ErrorKind` — the
 /// eleven conditions an application branches on, as the registry half of
 /// [`nvs_db::DbErrorKind`].
 ///
@@ -687,7 +687,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 ///
 /// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
 /// types in the deliberately small closed exception set
-/// [0063 § 4](../../../../docs/adr/0063-core-api-conventions.md) fixes, for
+/// [0063 § 4](/docs/adr/0063-core-api-conventions.md) fixes, for
 /// boundaries that are driver-dependent anyway. What normalising does not
 /// reach stays readable as the raw `sqlState`, `constraint` and `driverCode`
 /// beside it.
@@ -788,7 +788,7 @@ pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\ColumnType";
 /// classifies a column into, and its doc comment owns the rule every
 /// description below is written to: **a case says what the column was
 /// *declared* as, never what a read of it produces.** That is why `Json` is a
-/// case of its own although [ADR 0067](../../../../docs/adr/0067-core-db.md) § 9
+/// case of its own although [ADR 0067](/docs/adr/0067-core-db.md) § 9
 /// decodes a `JSON` column to the same `tainted string` a `TEXT` one decodes
 /// to, and why there is no array case at all — § 9 reads a PostgreSQL array as
 /// `array<T>` and MySQL's `SET` as `array<string>`, and both *describe* as
@@ -931,7 +931,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// **Buffered is ADR 0067 § 4's default and this is what it spends**: a result
 /// set is held whole, per request, and the connection is free the moment
 /// `query` returns. § 4 chose that over the alternative because
-/// [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md) ranks memory
+/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) ranks memory
 /// last and because a cursor breaks the commonest loop in web programming on a
 /// connection-busy rule; `stream` is the member for a result set that does not
 /// fit, and it is the one that holds the connection.
@@ -1021,18 +1021,18 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// numeric twin to ask for and no object twin either: `get`/`toArray` are the
 /// associative reading, the typed readers below are what an object reading was
 /// wanted for, and `queryAs<T>` — ADR 0071's `#[Db\Derive]` — is where a real
-/// class comes from. A fetch-mode argument would be [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+/// class comes from. A fetch-mode argument would be [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R11's flag deciding what a member returns, which is the thing that section
 /// removes.
 ///
 /// **The eleven typed readers convert losslessly or throw, and the rule is one
 /// sentence: a reader answers its own tag, and `int`/`uint` are the single
-/// crossing** — [ADR 0007](../../../../docs/adr/0007-static-type-system.md) § 4
+/// crossing** — [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4
 /// makes those two views of one integer, so a `BIGINT` read as `uint` is the
 /// same value and a negative one throws rather than wrapping. Everything else
 /// refuses: `->float` on a `NUMERIC` is not the rounding PHP does silently, and
 /// `->string` on a `BYTEA` is not the re-interpretation
-/// [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) keeps apart. The
+/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) keeps apart. The
 /// universal path § 18 names — `->get()` plus `as` — is what a program that
 /// means a conversion writes.
 ///
@@ -1266,7 +1266,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// which is the thing [`COLUMN_TYPE`] exists to replace; the rest is either a
 /// property of the wire encoding rather than of the column, or a second catalog
 /// round trip per statement — and PHP's own answer for it is an array whose keys
-/// differ per driver, which is the shape [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+/// differ per driver, which is the shape [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R11 removes.
 pub(crate) const COLUMN: CoreClass = CoreClass {
     name: COLUMN_NAME,

@@ -687,7 +687,7 @@ impl<'a> Lowering<'a> {
         self.emit(cur, ty, kind)
     }
 
-    /// An [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
     /// shape value, materialized from a constant rather than from a written
     /// literal — ADR 0046 § 5's fold is the one producer.
     ///
@@ -736,7 +736,7 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
     /// `$fn(...)` —
-    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
     /// closure, called through the variable holding it.
     ///
     /// One [`Helper::CallClosure`], with the closure at `args[0]` and its
@@ -771,7 +771,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for a first-class-callable argument list, the way
     /// [`Self::lower_call_args`] does for a resolved call, and for a `name:`
-    /// argument — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// argument — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1 gives `callable` no parameter list, so there is no parameter for a
     /// name to fill and `nvs_types` refuses one where it is written (`E0712`).
     pub(crate) fn lower_closure_call(
@@ -838,7 +838,7 @@ impl<'a> Lowering<'a> {
         called
     }
     /// `$m->method(...)` on a **`mixed`** receiver —
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
     /// deferral applied to a call, which
     /// [`crate::ir::Helper::CallErasedMethod`] owns the convention for.
     ///
@@ -1155,7 +1155,7 @@ impl<'a> Lowering<'a> {
 /// what it was handed.
 ///
 /// **`never_written` splits the entry block in two**, and it is
-/// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+/// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
 /// § 3 reaching the one read this function makes. A `lateinit` delegate field
 /// (ADR 0038) is the only one `E0720` admits that no constructor is obliged to
 /// fill, and dispatching on what the slot then holds is not a null-receiver

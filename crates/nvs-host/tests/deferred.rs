@@ -1,4 +1,4 @@
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
 //! after-response work, at the seam that runs it: the completion path of the
 //! isolate a request is.
 //!

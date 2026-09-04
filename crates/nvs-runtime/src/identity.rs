@@ -6,7 +6,7 @@
 //! `diff` and `intersect` "compare by **strict identity**", and a second
 //! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
-//! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 //! § 3's table is this module's rows, reached three ways depending on what the
 //! operands' static types already settled. A scalar pair is one machine
 //! comparison and never arrives here. An array pair arrives through
@@ -40,7 +40,7 @@
 //!   one row:
 //!     * `int` against `uint` goes through `i128`, so no large `uint` is ever
 //!       reinterpreted as a negative `int`.
-//!       [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 makes
+//!       [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 makes
 //!       `uint` a *range* restriction over the same integers rather than a
 //!       different value space, so there was never a second value here.
 //!     * Two floats compare with `==`, not by bits: `0.0` and `-0.0` are
@@ -48,7 +48,7 @@
 //!       both the opposite of what `total_cmp` (which `Core\Arr::sort` needs,
 //!       and which is a different question) would say.
 //!     * Two decimals compare by value and never by scale.
-//!       [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4 puts it
+//!       [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4 puts it
 //!       outright — "scale is carried for rendering, and does not affect
 //!       equality or hashing" — so `1.10` and `1.1000` are one value even
 //!       though they hold different bits.
@@ -60,7 +60,7 @@
 //!       value rather than about each other — [`hash_numeric`] carries the
 //!       consequence.
 //! * **`string`/`bytes`** — by content, never by pointer, so a computed
-//!   string matches a literal. [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+//!   string matches a literal. [ADR 0009](/docs/adr/0009-string-and-bytes.md)
 //!   makes a `string` valid UTF-8 but does *not* normalize it, so this is a
 //!   byte comparison and `"é"` written two ways is two values.
 //! * **An `array` is compared entry by entry, in order** — the same count,
@@ -69,7 +69,7 @@
 //!   circuit to `true` before anything is walked.
 //! * **An object is identical only to itself.** Pointer identity, PHP's
 //!   answer, and the one that stays coherent under
-//!   [ADR 0013](../../../docs/adr/0013-comparable-interface.md): comparing
+//!   [ADR 0013](/docs/adr/0013-comparable-interface.md): comparing
 //!   two instances *by their contents* is a `Comparable::compareTo` call the
 //!   class opts into, so a member that walked properties here would be the
 //!   property-walk fallback that ADR removed. A closure is an object
@@ -146,7 +146,7 @@ pub fn value_identical(left: Value, right: Value) -> bool {
 
 /// Whether two arrays hold the same entries in the same order —
 /// `nvs_ir::ir::BinOp::Eq` over a `Ty::Array` operand pair, and
-/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 3's array row.
 ///
 /// Compiled code reaches [`value_identical`] through this entry point rather
@@ -389,7 +389,7 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 
 /// Whether two numeric values are mathematically equal with `int`, `uint`,
 /// `float` and `decimal` read as **one domain** —
-/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 3's numeric row, which its § 2 admits as a compiling pairing and its § 5
 /// resolves a `mixed` operand to.
 ///
@@ -458,7 +458,7 @@ fn decimal_eq_integer(decimal: Value, integer: i128) -> bool {
 /// read at the decimal it **prints** as.
 ///
 /// That is `crate::Decimal::compare_f64`'s reading and
-/// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4's `float →
+/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's `float →
 /// decimal` row, so `(0.1 as decimal) == 0.1` holds — the answer this pairing
 /// exists to give, and the one the statically typed `nvs_ir::Helper::DecimalEq`
 /// already gave. It differs from [`integer_eq_float`]'s exact reading only for

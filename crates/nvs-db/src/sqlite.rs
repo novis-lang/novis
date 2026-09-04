@@ -2,12 +2,12 @@
 //! blocking pool and the rows are in hand before the core is taken back.
 //!
 //! This is the fifth driver and the only one whose shape is not
-//! [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! § 2's borrowed codec over § 3's parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
 //! the four things the other four get from their own machinery — § 3's
-//! handoff off the core, [ADR 0067](../../../docs/adr/0067-core-db.md) § 4's
+//! handoff off the core, [ADR 0067](/docs/adr/0067-core-db.md) § 4's
 //! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
 //! nesting with the § 13 reset that closes it.
 //!
@@ -182,7 +182,7 @@ impl<'a> SqliteTarget<'a> {
 /// The same enum binds a parameter and carries a read cell, because on this
 /// backend those genuinely are one set — SQLite stores a value as one of these
 /// five whatever the column was declared as, which is the fact
-/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md) works around by keying its
+/// [ADR 0067 § 9](/docs/adr/0067-core-db.md) works around by keying its
 /// map off the *declared* type. Nothing here is that map: this is the storage
 /// class, and turning `Int(20260903)` into a `Core\Time\Date` because the column
 /// says `date` happens a layer up.
@@ -213,7 +213,7 @@ impl SqliteValue {
     /// # Errors
     ///
     /// `InvalidData` for a `TEXT` cell that is not UTF-8. Every other driver
-    /// gets [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s guarantee
+    /// gets [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s guarantee
     /// from § 3's forced connection charset; SQLite has no charset to force and
     /// will store whatever bytes were handed to it, so the guarantee has to be
     /// checked here or abandoned. Lossy conversion is the one answer that is
@@ -282,14 +282,14 @@ impl rusqlite::types::ToSql for SqliteValue {
 ///   three: those two write a *literal* into text and neither dialect has one
 ///   for any of them, where this binds a double and two of the three survive it.
 /// - **A `decimal` goes out as `TEXT`, and what becomes of it then is the
-///   column's.** [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+///   column's.** [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
 ///   digits are exact and text is the only arm that keeps them so; a column with
 ///   `TEXT` affinity holds them exactly, and one with `NUMERIC` affinity — which
 ///   is what `DECIMAL(10,2)` has — converts them to a `REAL` by SQLite's own
 ///   affinity rule and rounds. That is the engine's storage model rather than an
 ///   encoding decided here, and the alternative is refusing `decimal` on this
 ///   backend outright, which would leave
-///   [ADR 0067](../../../docs/adr/0067-core-db.md) § 9's `decimal` row with a
+///   [ADR 0067](/docs/adr/0067-core-db.md) § 9's `decimal` row with a
 ///   read half and no write half.
 ///
 /// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
@@ -381,7 +381,7 @@ pub struct SqliteColumn {
 }
 
 impl SqliteColumn {
-    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type for this
+    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type for this
     /// column, off the *declared* name — the one backend where that is the only
     /// thing to key on.
     ///
@@ -567,7 +567,7 @@ pub fn open(target: &SqliteTarget<'_>) -> io::Result<SqliteConn> {
 }
 
 impl SqliteConn {
-    /// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s declared zone, in
+    /// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s declared zone, in
     /// seconds east of UTC.
     ///
     /// Public where the other four drivers keep theirs private, because they
@@ -580,7 +580,7 @@ impl SqliteConn {
         self.time_zone
     }
 
-    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s statement: prepared
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s statement: prepared
     /// through § 1's cache, stepped off the core, and answered with its rows.
     ///
     /// **`execute` is this same method**, for [`crate::TdsConn::query`]'s reason:
@@ -625,7 +625,7 @@ impl SqliteConn {
         }
     }
 
-    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The whole loop is *one* handoff off the core rather than one per set.
@@ -662,7 +662,7 @@ impl SqliteConn {
         applied.map_err(server_error)
     }
 
-    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `BEGIN`, or the
+    /// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
     /// The nesting, the names and the depth accounting are
@@ -791,7 +791,7 @@ impl SqliteConn {
         Ok(span)
     }
 
-    /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, and the
+    /// [ADR 0067 § 13](/docs/adr/0067-core-db.md)'s reset, and the
     /// connection back only if it worked.
     ///
     /// **Rolling back an open transaction is the whole reset**, which is § 13's
@@ -1010,7 +1010,7 @@ fn server_error(error: rusqlite::Error) -> io::Error {
     })
 }
 
-/// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s kind, from SQLite's
+/// [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s kind, from SQLite's
 /// extended result code.
 ///
 /// Keyed on the extended code because the primary one is too coarse to answer

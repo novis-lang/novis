@@ -2,12 +2,12 @@
 //! statement borrows the context.
 //!
 //! [`QueryWatch`] is the whole of it, and its own doc owns why ADR 0041's trace
-//! and [ADR 0067](../../../../docs/adr/0067-core-db.md) § 11's `slow_query`
+//! and [ADR 0067](/docs/adr/0067-core-db.md) § 11's `slow_query`
 //! line are one type rather than two readers.
 
 use super::*;
 
-/// What is reading this statement's span — [ADR 0041](../../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// What is reading this statement's span — [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
 /// § 1's trace, ADR 0067 § 11's `slow_query` line, both or neither — asked
 /// **before** a statement borrows the context.
 ///

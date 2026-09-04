@@ -8,7 +8,7 @@ mod common;
 
 use common::*;
 
-/// The whole of [ADR 0014](../../../docs/adr/0014-property-observer.md) § 1,
+/// The whole of [ADR 0014](/docs/adr/0014-property-observer.md) § 1,
 /// end to end: a `get` hook produces the value a read yields, a `set` hook
 /// commits what a write hands it, the short `=> expr;` form means "return
 /// this" for `get` and "store this" for `set`, and inside a hook the property
@@ -69,7 +69,7 @@ echo (new Box(2))->doubled;
 }
 
 /// A hook that throws propagates through
-/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s checked-return
+/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s checked-return
 /// path like any other call, because it *is* one — the read carries the same
 /// error edge a method call does, so the throw reaches an ordinary `catch`
 /// rather than escaping the expression that triggered it.

@@ -1,16 +1,16 @@
-//! [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md) § 1's
+//! [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 1's
 //! `#[Route]`: what one route declaration may carry.
 //!
 //! # Why this is a recognized name rather than a shape alias
 //!
 //! § 1 writes the attribute as an ordinary
-//! [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 //! `type Core\Route = {path: string, method: Core\Http\Method, name?: string};`
 //! and then adds the one thing that makes it not one: the compiler acts on the
 //! attribute only when its name **resolves** to `Core\Route`, so a userland
 //! `type Route = {…};` is not it however it is spelled and a framework carrying
 //! its own `Route`-shaped literal does not contribute a route. That is
-//! [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 1's rule, so the
+//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so the
 //! name sits on [`crate::derive::ATTRIBUTES`] and is matched *nominally* after
 //! [`nvs_hir::resolve_ref`] — and, being matched nominally, it names no shape,
 //! which is why what it may hold is the roster below rather than an alias
@@ -45,7 +45,7 @@
 //! declaration around it can see neither the parameter list nor the class.
 //!
 //! The same walk reads
-//! [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 //! § 3's `#[Query]` ([`query_params`]): a parameter the *declaration* binds from
 //! the query string rather than one the path names, so it is a second reading of
 //! the same parameter list and not a third reading of the path. The keys land on
@@ -53,7 +53,7 @@
 //! from [`crate::links`] once the whole table exists.
 //!
 //! And it reads
-//! [ADR 0096](../../../../docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
+//! [ADR 0096](/docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
 //! § 1's `#[Access]`, which is here for `#[Query]`'s reason — it is a
 //! `#[Route]`'s sibling and means nothing away from one. Its *payload* is
 //! [`ACCESS_OPTIONS`] and [`check_access`], from the per-attribute walk; § 1's
@@ -75,7 +75,7 @@
 //! nothing else.
 //!
 //! And it reads
-//! [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+//! [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 //! § 2's `#[Api]`, which is here for the same reason again and is the one
 //! attribute on this list that changes nothing a program does: it supplies
 //! what the route table and the signature cannot say, and § 2's whole rule is
@@ -144,7 +144,7 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 /// § 1's own spelling, in the order that section writes it.
 ///
 /// `method` is an enum case rather than a string
-/// ([ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R11), and an
+/// ([ADR 0063](/docs/adr/0063-core-api-conventions.md) R11), and an
 /// enum case is one of the three things a payload may contain (ADR 0046 § 2);
 /// it is the same `Core\Http\Method` `Core\Request::method` answers with, which
 /// is why the row names that enum rather than a spelling of its own. There is
@@ -234,7 +234,7 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
 /// is already an attribute that will be read by whoever dispatches — two of them
 /// there are the same two readings.
 ///
-/// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 /// § 3 makes every attribute repeatable in general, and this is the narrowing
 /// § 1a writes over it: a *third* is reported too, each against the first, so an
 /// author deleting the extras is told about all of them at once rather than one
@@ -343,13 +343,13 @@ pub struct Route {
     /// past the walk that built it. [`crate::links`] asks § 6's question after
     /// every file has been walked, by which time the method that declared these
     /// is in a file the walk has moved past; and
-    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 1 reads the same rows out of the finished table, where the declaration
     /// is not in reach at all.
     pub params: Vec<RouteParam>,
     /// ADR 0096 § 1's access decision, as the name it resolves to —
     /// `Core\Audience::Public`, `App\Role::Admin` — because
-    /// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 8 leaves enforcement to whoever dispatches. The decision has to cross
     /// into `nvs-ir` on the row for that reason, exactly as [`Self::params`]
     /// does, and it is resolved here rather than left as written because a name
@@ -375,7 +375,7 @@ pub struct Route {
     /// out of, so a `false` under four safe verbs belongs to a program that did
     /// not compile and never reaches a table.
     pub csrf: bool,
-    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 1's summary: the first sentence of the declaration's own doc comment,
     /// or `None` where the method carries none.
     ///
@@ -400,7 +400,7 @@ pub struct Route {
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
     pub returns: Option<String>,
-    /// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 2's `tags`, in the order the attribute wrote them.
     ///
     /// Empty where the method carries no `#[Api]`, and empty where it carries
@@ -424,7 +424,7 @@ pub struct Route {
     ///
     /// Folded here for [`Self::summary`]'s reason: what rides across is a value
     /// with no resolution left in it, and a payload's constant form is
-    /// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
     /// § 5's fold — a reading of the source, over that file's own imports, that
     /// nothing past this pass can still make.
     pub example: Option<ConstArg>,
@@ -432,7 +432,7 @@ pub struct Route {
     pub span: Span,
 }
 
-/// One entry of [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// One entry of [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 /// § 2's `errors`: a response the declared return type cannot state, as the two
 /// halves § 2 writes it with.
 #[derive(Clone, Debug)]
@@ -473,9 +473,9 @@ pub enum ParamIn {
 /// Deliberately *not* a second copy of the declaration: it holds the name the
 /// value binds by, where it arrives from, whether it may be absent, the
 /// declared type rendered by [`crate::TypeInterner::describe`], and — where
-/// that type is one — [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// that type is one — [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 5's closed set of values it admits. Those are the five things
-/// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 /// § 1's document is built out of — the last of them is that section's
 /// *Enumerations* row, `enum: [en, de, fr]` — and nothing else. A rendered type
 /// rather than a `TypeId` because the interner that would answer it is dropped
@@ -519,7 +519,7 @@ pub struct RouteParam {
 /// precedence makes the path key a shape rather than the written text. Order
 /// is what makes the pair deterministic — a duplicate is always reported at
 /// the row that arrives second, and the load order it arrives in does not
-/// depend on filesystem enumeration ([ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// depend on filesystem enumeration ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 /// § 3).
 #[derive(Debug, Default)]
 pub struct RouteTable {
@@ -871,7 +871,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   mistake twice. The narrower question § 2's phrase could also mean — does
 ///   *this* handler reach *that* class — is asked by nothing, and cannot be:
 ///   Novis has no `throws` clause, and
-///   [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md) § 4 keeps
+///   [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4 keeps
 ///   this compiler out of the handler's body on purpose. The roster is
 ///   [`crate::signatures::SignatureTable`], which [`crate::error_lib::seed`]
 ///   has already filled with spec § 10's tree, so `Core\NotFound` answers
@@ -1197,7 +1197,7 @@ fn check_api_example(
 /// § 2's `example` as the constant it is: one entry per written field, in
 /// written order, over the declaring file's own imports.
 ///
-/// [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 /// § 5's fold, which is the same one a retrieval's payload goes through — so an
 /// enum case and a `Foo::class` in an example are the values they name rather
 /// than the text that names them, and the emitter is handed a document's worth
@@ -1370,7 +1370,7 @@ struct Handler<'a> {
     api: Option<&'a Api>,
 }
 
-/// [ADR 0085](../../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 /// § 1's last row, as the two strings it is: *first sentence is the summary,
 /// remainder the description*.
 struct Doc {
@@ -1390,7 +1390,7 @@ struct Doc {
 /// token to read: `nvs_syntax`'s lexer preserves no trivia at all — its own
 /// module doc is that contract, and a token stream that carried comments would
 /// make every consumer skip them — and
-/// [ADR 0099](../../../../docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s
+/// [ADR 0099](/docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s
 /// trivia layer, which is where a declaration's doc comment is meant to come
 /// from once `nvs lsp` needs it for hover, is M10's. Until then this is the one
 /// question asked of a comment anywhere in the compiler, it is asked at a
@@ -1473,7 +1473,7 @@ fn split_doc(text: &str) -> Option<Doc> {
 
 /// § 2's three capture forms, each holding the name it binds. A segment that is
 /// none of them is a literal, compared byte for byte and case-sensitively
-/// ([ADR 0062](../../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
 /// and is not held here at all.
 #[derive(Clone, Copy, Debug)]
 enum Capture<'a> {
@@ -1569,7 +1569,7 @@ fn parse_path(path: &str) -> Result<Vec<Capture<'_>>, Refusal> {
 /// There is no escape and no partial form, which is the half of § 2 that keeps
 /// `{` an ordinary byte in a literal segment impossible rather than ambiguous:
 /// a path meaning one of two things is refused rather than repaired
-/// ([ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+/// ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
 fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
     if !segment.contains('{') && !segment.contains('}') {
         return Ok(None);
@@ -1759,7 +1759,7 @@ fn check_captures(
     params
 }
 
-/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 5's closed set: every value `ty` admits, spelled as the path segment or
 /// query value that arrives at it — or `None` where `ty` is not a closed set.
 ///
@@ -1937,7 +1937,7 @@ fn access_name(attr: &Attribute, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<String>
 /// on the filesystem.
 ///
 /// The `name` half carries
-/// [ADR 0110](../../../../docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
+/// [ADR 0110](/docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
 /// § 1's exception — repetitions on one method sharing a path share a name —
 /// and it is asked here rather than in [`check_class_routes`] because it is the
 /// same question the rest of this walk asks: two rows, and whether they are the

@@ -2,11 +2,11 @@
 //! standard streams are terminals, how wide and tall one is, how much colour it
 //! can show — and how many of its columns a given string will occupy.
 //!
-//! [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3
 //! specifies the answers and `crates/nvs-stdlib/src/cli.rs` is the surface that
 //! hands them to a program. What lives here is the *reaching*: an `ioctl` on
 //! Unix, two console calls on Windows, and the environment variables that
-//! decide colour. [ADR 0118](../../../../docs/adr/0118-capabilities-are-configured-not-requested.md)
+//! decide colour. [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! § 2 is why the split is at this crate's edge rather than inside `Core\Cli` —
 //! a `Core` member may not reach the operating system directly, and
 //! `crates/nvs-stdlib/tests/capability.rs` holds that shut by name.
@@ -53,7 +53,7 @@
 //!
 //! It sits in this module rather than beside `Core\Str`'s units because a
 //! column count is a property of the renderer, not of the string
-//! ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 2 fixed the two
+//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 fixed the two
 //! that are properties of the string, and ADR 0086 § 3's last paragraph is why
 //! this third one is not a `Core\Str` member).
 //!
@@ -96,7 +96,7 @@
 //! ADR 0086 § 5's in-place output is the module's third half: [`Region`] owns
 //! the cursor between the two ends of one `Core\Cli::live` call. § 8 makes
 //! putting the terminal back an obligation on **every** exit path — a throw, a
-//! fatal, an internal panic ([ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md)
+//! fatal, an internal panic ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 5), a signal — and the only construct in Rust that runs on all of them is
 //! a destructor. So restoration is [`Region`]'s `Drop` and lives nowhere else:
 //! there is no `close()` a caller can forget, no `finally` for a Novis program
@@ -435,7 +435,7 @@ const MAX_ANSWER: usize = 4096;
 /// How long a prompt waits for an answer before it gives up.
 ///
 /// ADR 0086 § 4 says a prompt never blocks, and
-/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) says
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) says
 /// no wait may be spelled unbounded. Five minutes is what those two come to
 /// here: two orders of magnitude past the seconds a person spends answering a
 /// one-line question, and still short enough that a CI job holding a pty

@@ -12,7 +12,7 @@
 //!
 //! An unbounded queue between a fast producer and a slow consumer is a leak
 //! wearing a channel's clothes: its footprint is O(messages produced), which is
-//! precisely what [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
+//! precisely what [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
 //! calls growth with total traffic rather than with concurrency. A bounded one
 //! turns that into backpressure — the producer stops being scheduled until the
 //! consumer has taken something — and what a channel can hold is then
@@ -62,7 +62,7 @@
 //! A task parked on a channel is torn down like any other: it is already
 //! standing on a safepoint, so [`Scheduler::run`]'s sweep over the parked set
 //! force-unwinds it where it is. That unwind runs native `Drop` and no script
-//! code, which is [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! code, which is [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 //! § 5, and it is the whole mechanism by which a channel does not accumulate
 //! the wakes of dead tasks: a registration is an RAII guard living on the
 //! waiting task's own stack, so whatever ends the wait — a wake, a
@@ -212,7 +212,7 @@ pub enum SendError<T> {
     /// scheduler is turning beneath this call.
     ///
     /// Waiting here would block the thread, which is the one thing this crate
-    /// exists not to do ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// exists not to do ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 6), and unlike a socket there is nothing to poll instead: a channel is
     /// only ever drained by another task on this core, so off a core there is
     /// nobody who could make room.

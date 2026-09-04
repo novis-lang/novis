@@ -322,7 +322,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `autoload 'Prefix' from 'a', 'b';` and `autoload discover 'glob';` —
     /// ADR 0061 § 1's two forms, spelled the way
-    /// [`docs/spec/00-overview.md` § 2](../../../../docs/spec/00-overview.md)
+    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
     /// writes them.
     ///
     /// A file-scope form that is not a statement, exactly like
@@ -377,7 +377,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// of its roots, or its glob.
     ///
     /// Only a literal is accepted, the restriction `require`'s static
-    /// resolution already carries ([ADR 0021](../../../../docs/adr/0021-single-file-inclusion-construct.md),
+    /// resolution already carries ([ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md),
     /// ADR 0061 § 1) and for the same reason: the map is built at compile
     /// time, so a path assembled at run time could not contribute to it. A
     /// double-quoted spelling is read for its escapes and refused if it
@@ -693,10 +693,10 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// PHP's `var $x;` property form, which
-    /// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+    /// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
     /// § 4 answers with the same `E_MISSING_VISIBILITY` a bare `int $x;`
     /// gets. It needs its own arm because `var` is
-    /// [ADR 0037](../../../docs/adr/0037-var-local-type-inference.md)'s
+    /// [ADR 0037](/docs/adr/0037-var-local-type-inference.md)'s
     /// local-inference keyword and starts no type, so without this the
     /// declaration falls through to `expected a class member` — a message
     /// about the grammar, aimed at an author who wrote the one shape the

@@ -43,7 +43,7 @@ use nvs_diagnostics::Span;
 /// optionally interspersed with [`Backslash`](crate::TokenKind::Backslash) — so
 /// the parser folds the whole run into one span. A *leading* separator is not
 /// part of the spelling: it is refused where the name is parsed
-/// ([ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3), so
+/// ([ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3), so
 /// a `Name`'s span never opens on one. Splitting it into segments and resolving
 /// it to a declaration is name resolution's job (M2), not this stage's.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -452,7 +452,7 @@ pub struct AttributeGroup {
 /// One attribute inside an [`AttributeGroup`] — ADR 0046 § 1's two forms,
 /// `Name(field: value, ...)` and a bare `{field: value, ...}`.
 ///
-/// Both attach the *same* thing: [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+/// Both attach the *same* thing: [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
 /// § 2's anonymous object literal. The named form is sugar for a name
 /// immediately followed by that literal, so the payload is
 /// [`ObjectLiteralField`]s in either case rather than a [`CallArgs`] list —
@@ -543,7 +543,7 @@ pub struct Param {
 impl Param {
     /// Whether this parameter declares a property rather than only a binding
     /// — PHP 8's constructor promotion, which
-    /// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+    /// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
     /// § 4's own worked example spells `constructor(private Clock $clock)`.
     ///
     /// A **visibility** keyword is what promotes, exactly as in PHP: it is
@@ -589,7 +589,7 @@ pub enum FnBody {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
-    /// diagnostic per [ADR 0008](../../../docs/adr/0008-static-and-global.md)
+    /// diagnostic per [ADR 0008](/docs/adr/0008-static-and-global.md)
     /// § 4, but still parsed so the caller can build the node and keep going.
     pub is_static: bool,
     /// The optional self-name, visible only inside `body`.
@@ -667,7 +667,7 @@ pub struct AnonClassDecl {
 }
 
 /// The key of one `spawn script … with(…)` option
-/// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)).
+/// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[expect(
     missing_docs,
@@ -747,7 +747,7 @@ pub enum ExprKind {
     /// A float literal; the digits are cooked later.
     Float(Span),
     /// A duration literal — `30s`, `1h30m`
-    /// ([ADR 0070](../../../docs/adr/0070-duration-literals.md)).
+    /// ([ADR 0070](/docs/adr/0070-duration-literals.md)).
     ///
     /// A span like every other literal, cooked by
     /// [`crate::duration::parse`] wherever the value is wanted. The lexer has
@@ -755,7 +755,7 @@ pub enum ExprKind {
     /// cannot fail.
     ///
     /// Its type is `Core\Time\Duration` and nothing places it, unlike
-    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s fractional
+    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s fractional
     /// literal — the suffix *is* the type (ADR 0070 § 2).
     Duration(Span),
     /// A single-quoted string, or a double-quoted/heredoc/nowdoc string with
@@ -834,7 +834,7 @@ pub enum ExprKind {
         else_: Box<Expr>,
     },
     /// `expr as Type` — the checked conversion operator
-    /// ([`docs/spec/00-overview.md` § 3.4](../../../docs/spec/00-overview.md)).
+    /// ([`docs/spec/00-overview.md` § 3.4](/docs/spec/00-overview.md)).
     Conversion {
         /// The value being converted.
         expr: Box<Expr>,
@@ -984,7 +984,7 @@ pub enum ExprKind {
     /// rejected synonym (ADR 0049 § 1) and never reaches this variant.
     Exit(Option<Box<Expr>>),
     /// `spawn script path with(...)`
-    /// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)).
+    /// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)).
     SpawnScript {
         /// The path expression, evaluated once at the spawn site.
         path: Box<Expr>,
@@ -992,16 +992,16 @@ pub enum ExprKind {
         options: Vec<SpawnOption>,
     },
     /// `await expr` — the prefix half of the same grammar
-    /// ([`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)):
+    /// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)):
     /// the awaitable handle a `spawn script` produced becomes a
     /// `ScriptResult`. Contextual like `spawn` itself — see
     /// [`crate::token`]'s module docs — so it is this variant only where an
     /// operand follows, and a bare `await` is still an ordinary name.
     Await(Box<Expr>),
     /// `require` — an expression, not a statement, per
-    /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
+    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
     /// `$x = require 'a.nvs';` is legal.
-    /// [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+    /// [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
     /// is why this is the only same-frame inclusion keyword left — `include`,
     /// `include_once` and `require_once` are rejected at parse time instead
     /// of reaching the AST at all.
@@ -1631,8 +1631,8 @@ pub struct UseDecl {
 }
 
 /// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
-/// two forms of [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
-/// § 1, whose grammar [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md)
+/// two forms of [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// § 1, whose grammar [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
 /// owns.
 ///
 /// Every string here is a *span*, not a cooked value, exactly as

@@ -11,7 +11,7 @@
 //!
 //! **The runtime is ours and it is not `async`.** `docs/plan/design.md`
 //! § *Thread-per-core, shared-nothing runtime* is that decision's only home,
-//! and [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! and [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6 is what it buys: a core is never blocked on a syscall, because a task
 //! that would wait suspends its own stack and hands the core back. A helper
 //! reaches its yielder through the [`nvs_runtime::Ctx`] it was already given
@@ -79,7 +79,7 @@
 //! the scheduler that is resuming it.
 //!
 //! [`mod@block_on`] is the one place in this tree that speaks `Future`, and
-//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
 //! is why it is a loop rather than a runtime: an HTTP/1 connection is one
 //! future, driven to completion on the coroutine that accepted it, whose waker
 //! is a permission to poll again and nothing else. Nothing is spawned, nothing

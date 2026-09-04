@@ -1,4 +1,4 @@
-//! [ADR 0071](../../../../docs/adr/0071-derived-codecs.md)'s derive pass:
+//! [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derive pass:
 //! which classes carry `#[Json\Derive]` or `#[Db\Derive]`, which of their
 //! properties are fields, and what wire key each field has.
 //!
@@ -8,7 +8,7 @@
 //! for each of its two values over the same class. ADR 0071 states §§ 2, 3, 5
 //! and 7 once, for "a derived codec", so they are written here once and asked
 //! of both: the two formats differ in their **type map** — JSON's is § 2's
-//! reachable set, a row's is [ADR 0067](../../../../docs/adr/0067-core-db.md)
+//! reachable set, a row's is [ADR 0067](/docs/adr/0067-core-db.md)
 //! § 9's — in the attribute pair that names them, and in nothing else. Two
 //! passes that agreed today would be two passes that disagree the first time
 //! one of those sections is amended.
@@ -25,7 +25,7 @@
 //!
 //! [`ATTRIBUTES`] is that closed list. Nothing else is ever matched by name;
 //! `Core\Attributes::get<T>`/`::all<T>` retrieval stays structural
-//! ([ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+//! ([ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 //! § 4), and a userland `type Derive = {};` resolves to a different `QName` and
 //! generates nothing.
 //!
@@ -124,7 +124,7 @@ pub const FIELD: &str = r"Core\Json\Field";
 /// `#[Db\Derive]` — ADR 0071 § 1's opt-in again, on a class, for the row half
 /// of the same table. It generates `Core\Db\Codec`'s `fromRow` and nothing
 /// else: § 7 makes this format one-directional, because a write is
-/// [ADR 0067](../../../../docs/adr/0067-core-db.md)'s explicit statement plus
+/// [ADR 0067](/docs/adr/0067-core-db.md)'s explicit statement plus
 /// bound parameters and a generated `INSERT` is the ORM that ADR settled
 /// against.
 pub const DB_DERIVE: &str = r"Core\Db\Derive";

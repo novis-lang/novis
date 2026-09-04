@@ -1,4 +1,4 @@
-//! The other half of [`refusals`](../refusals.rs)' gate: **every shape a
+//! The other half of [`refusals`](/crates/nvs-ir/tests/refusals.rs)' gate: **every shape a
 //! program can spell reaches a diagnostic or an IR, and never a panic** — the
 //! *types* ADR 0007 § 3 admits, in the table this file opened with, and the
 //! *expressions and statements* `nvs_syntax::ast` admits, in the roster below

@@ -1,6 +1,6 @@
 //! The price of an isolation boundary: a child process versus a task.
 //!
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) gives Novis a
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives Novis a
 //! language construct for running another `.nvs` file with its own heap, globals
 //! and limits inside the same process. PHP can only express that by spawning
 //! another interpreter, so the decision rests on the gap between the two numbers
@@ -17,7 +17,7 @@
 //!   landed it: `nvs_host::Isolate::run`, which copies the argument across the
 //!   heap boundary, builds the child's own ownership root and context, runs it
 //!   as a child task, copies the answer back and releases the root. It is the
-//!   figure [M5's acceptance](../../../docs/plan/m5.md) asks for, and the gap
+//!   figure [M5's acceptance](/docs/plan/m5.md) asks for, and the gap
 //!   between it and `task/create_and_finish` is what the boundary itself costs
 //!   over the coroutine underneath it.
 //!

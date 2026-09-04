@@ -1,5 +1,5 @@
 //! HIR for Novis: name resolution over the `nvs-syntax` AST
-//! ([`docs/implementation-plan.md`](../../../docs/implementation-plan.md)'s
+//! ([`docs/implementation-plan.md`](/docs/implementation-plan.md)'s
 //! Architecture diagram — the layer between `nvs-syntax` and `nvs-types`).
 //!
 //! # Layout

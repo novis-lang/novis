@@ -6,7 +6,7 @@
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
-//!   [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//!   [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //!   § 1's last sentence; the shape is `nvs_hir::autoload`'s module doc.
 //! * `nvs run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
@@ -18,12 +18,12 @@
 //!   module doc, and this crate contributes only the argument parsing and the
 //!   exit code; the `#[Test]` half is [`runner`].
 //! * `nvs build --openapi` — the OpenAPI 3.1 document
-//!   [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+//!   [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 //!   generates from the compile-time route table, on standard output. A build
 //!   artifact and never a runtime feature; see [`openapi`] for what the table
 //!   supplies and what it does not yet.
 //! * `nvs build --compile` (M6) —
-//!   [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+//!   [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
 //!   portable single-file executable: the program's `require` graph as plain
 //!   source, appended to a copy of this binary. Also the one subcommand this
 //!   binary can *be*: a copy carrying that payload runs it instead of parsing
@@ -34,7 +34,7 @@
 //!   diff is a released artifact rather than a program; see [`api_diff`].
 //! * `nvs config check` (M6) — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
-//!   [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+//!   [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
 //!   § 9's offline audit, which exists because § 3's later-wins precedence is
 //!   only safe while it is auditable. It compiles nothing and needs no server;
 //!   see [`config`], which also holds the reader `run` resolves that tree
@@ -44,7 +44,7 @@
 //!   the spelling anyone arriving from PHP will try first; see [`info`].
 //! * `nvs meta --json` — the `Core` registry as JSON: every class, every
 //!   member, and each documented member's reference card, which is
-//!   [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
+//!   [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
 //!   § 2's contract. A build-time consumer's input, never a runtime feature;
 //!   see [`meta`].
 //!
@@ -58,19 +58,19 @@
 //!
 //! The whole file, through `nvs_ir::lower::lower_file`: every class method
 //! with a body, plus one synthesized frame for the file's own top-level
-//! statements — [ADR 0008](../../../docs/adr/0008-static-and-global.md) § 2's
+//! statements — [ADR 0008](/docs/adr/0008-static-and-global.md) § 2's
 //! "the script body is a function, so its variables are locals". That frame is
 //! the entry point; the methods are reachable from it by name.
 //!
 //! It runs **inside a task**, on a [`nvs_host::Scheduler`] of its own with a
 //! reactor installed over it, rather than on the main thread's stack. That is
 //! not about concurrency at the top level — there is one task — but about what
-//! is beneath it: [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! is beneath it: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 //! § 1's children are children *of the calling task*, and a `Core\Task::all`
 //! in a CLI program has nowhere to put them if the program is not one. The
 //! root is `TaskRoot::Request`, so a panic that reaches it fails this run
 //! rather than retiring anything
-//! ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 2).
 
 #![allow(
@@ -114,7 +114,7 @@ struct Cli {
     /// Read this configuration file instead of `./nvs.toml`, and repeat it to
     /// read several in order.
     ///
-    /// [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
     /// § 1 step 1: naming any file disables step 2 entirely, so an operator
     /// who names a tree never gets a surprise merge with whatever `nvs.toml`
     /// happens to be in the working directory. A path is resolved against that
@@ -257,9 +257,9 @@ enum Command {
     /// build` with nothing named would be a subcommand that succeeds having
     /// done nothing, and the group is how the next artifact joins without
     /// changing what this invocation means
-    /// ([ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// ([ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 3 spells the OpenAPI command,
-    /// [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)
+    /// [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
     /// § 5 the bundle).
     #[command(group = clap::ArgGroup::new("artifact").required(true).args(["openapi", "compile"]))]
     Build {
@@ -282,7 +282,7 @@ enum Command {
     /// A group rather than a flag on `build`, because `diff` reads two finished
     /// documents and compiles nothing: the old side of a diff is the last
     /// release's artifact, and there may be no source for it on this machine at
-    /// all ([ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// all ([ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 4).
     Api {
         #[command(subcommand)]
@@ -292,7 +292,7 @@ enum Command {
     ///
     /// A namespace beside `api`, and deliberately not part of `nvs check`,
     /// which checks *source*:
-    /// [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
     /// § 9 separates the two. See [`config`].
     Config {
         #[command(subcommand)]
@@ -301,7 +301,7 @@ enum Command {
     /// Build and inspect the durable job queue's own tables.
     ///
     /// A namespace of the operator's rather than the program's:
-    /// [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md) § 2 gives
+    /// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) § 2 gives
     /// the runtime the queue's schema and has it created by an explicit command,
     /// never at boot and never from a request. See [`queue`].
     Queue {
@@ -344,7 +344,7 @@ enum ApiCommand {
     /// a breaking one.
     ///
     /// The gate of
-    /// [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+    /// [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
     /// § 4: run it in CI against the document from the last release and a
     /// breaking change stops the build. See [`api_diff`] for what each class
     /// covers.
@@ -360,7 +360,7 @@ enum ApiCommand {
 ///
 /// ADR 0103 § 9 names three of these — `check`, `dump` and `ctl config` — and
 /// this enum holds the two that are offline. `ctl config` belongs to the
-/// control socket [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+/// control socket [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
 /// § 3 reserves and arrives with `nvs ctl`.
 #[derive(Subcommand)]
 enum ConfigCommand {
@@ -710,7 +710,7 @@ fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
     }
 }
 
-/// `nvs build --openapi` — [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)
+/// `nvs build --openapi` — [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)
 /// § 3's emission, on standard output.
 ///
 /// The program goes through the same front end `check` does, and the document

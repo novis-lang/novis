@@ -2,12 +2,12 @@
 //! bounded queue between two tasks whose `send` **suspends** at the bound
 //! instead of growing.
 //!
-//! [ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 //! scopes the roster and explicitly not this type's spelling, so what is
 //! decided here is decided here. `crates/nvs-host/src/channel.rs`'s module doc
 //! is the one home for *why* a bound rather than growth — an unbounded queue
 //! between a fast producer and a slow consumer is O(messages produced), which
-//! is [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md)'s growth
+//! is [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s growth
 //! with traffic rather than with concurrency — and this module does not restate
 //! it.
 //!
@@ -19,7 +19,7 @@
 //! ([`crate::instance`]), so nothing would ever tell the host that the last
 //! reference to a channel had gone. The table's footprint would then be
 //! O(channels created) for the life of the worker, which
-//! [AGENTS.md](../../../../AGENTS.md)'s memory rule calls a leak rather than a
+//! [AGENTS.md](/AGENTS.md)'s memory rule calls a leak rather than a
 //! trade-off.
 //!
 //! Keeping the queue in ordinary slots costs the duplication of about thirty

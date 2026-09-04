@@ -23,7 +23,7 @@
 //! # The status check
 //!
 //! Every call this file emits — a runtime helper, `nvs_safepoint` — is
-//! followed by the compare-and-branch [ADR 0002](../../../docs/adr/0002-error-propagation.md)
+//! followed by the compare-and-branch [ADR 0002](/docs/adr/0002-error-propagation.md)
 //! puts in place of a landing pad, and a non-`OK` status returns onward
 //! unchanged. `nvs_probe_stmt` and the refcount primitives are the exceptions,
 //! and only because they return no status at all: neither can fail.
@@ -235,7 +235,7 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 
 /// Whether `f` can be entered without growing the machine stack by more than
 /// [`nvs_runtime::STACK_RESERVE`] — in which case
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 elides
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 elides
 /// its call-stack check, because whoever called it passed the compare with
 /// that much stack still underneath.
 ///
@@ -302,7 +302,7 @@ pub(crate) fn internal(what: &str) -> CodegenError {
 /// through a block parameter rather than the map. `nvs-ir` numbers a block
 /// when it *creates* one, which coincides with this order for straight-line
 /// and loop code but not for
-/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s landing blocks:
+/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s landing blocks:
 /// a nested `try`'s inner cleanup block is created *after* the outer one it
 /// flows into, so the outer one reads a value the inner one defines.
 ///
@@ -918,7 +918,7 @@ impl Emitter<'_, '_> {
         Ok(cur)
     }
 
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// call-stack limit: one load of [`nvs_runtime::Ctx`]'s third word, one
     /// compare against this frame's stack pointer, one predicted-not-taken
     /// branch, and an out-of-line call to
@@ -997,7 +997,7 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary probe: the identical load-and-branch shape as
     /// [`Self::emit_safepoint`], against the *second* hot word, with no status
     /// to check because [`nvs_runtime::nvs_probe_stmt`] cannot fail.
@@ -2718,7 +2718,7 @@ impl Emitter<'_, '_> {
             .map_err(|_| internal("an object field sitting past a 2 GiB offset"))
     }
 
-    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's call-site probe, emitted twice per call: once before and once
     /// after, `status` distinguishing them.
     ///

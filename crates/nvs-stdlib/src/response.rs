@@ -1,16 +1,16 @@
 //! `Core\Response` — the response a request is answering with, replacing
 //! `header`, `http_response_code` and `setcookie`
-//! ([ADR 0012](../../../docs/adr/0012-no-superglobals.md)).
+//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
 //!
 //! # What is here, and what is not
 //!
 //! Three of
-//! [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
 //! over a file the server resolves — are known gaps of this module rather than
-//! of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+//! of [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 15.
 //!
 //! Beside them, § 15's `setStatus`, `setHeader`, `redirect` and `addCookie`:
@@ -89,7 +89,7 @@
 //!
 //! **It is applied after everything the server wrote for itself**, which is
 //! the whole of what
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4
 //! means by an override: the policy states what a response starts with, a
 //! request may set any value for itself, and this member is the last writer.
 //! The reverse order would leave it with no effect on exactly the headers it
@@ -144,7 +144,7 @@
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
 //! § 4's table says the body is **contagious**, and
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) is why
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) is why
 //! it may be: `X-Content-Type-Options: nosniff` is on with nothing configured,
 //! so a `text/plain` body is not re-parsed as HTML. Removing that default is
 //! visibly a change to two ADRs.

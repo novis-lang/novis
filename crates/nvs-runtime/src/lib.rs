@@ -17,7 +17,7 @@
 //! # The three normative shapes
 //!
 //! 1. **The calling convention** is
-//!    [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
+//!    [ADR 0002](/docs/adr/0002-error-propagation.md)'s
 //!    `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`. Nothing
 //!    unwinds through a JIT frame; a failure travels in the return value as
 //!    [`OK`]/[`THROWN`]/[`FATAL`]. Every helper is written through
@@ -64,7 +64,7 @@
 //!
 //! # `bytes` is a tag, not a second heap shape
 //!
-//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) makes `bytes` a
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) makes `bytes` a
 //! scalar of its own, and it lands here as **one new [`Tag`] row over the
 //! existing [`NvsStr`] allocation**. A `bytes` payload is a [`StrHeader`]
 //! pointer, allocated, retained, released and freed by exactly the machinery
@@ -87,7 +87,7 @@
 //!   equal to the text that spells it although ADR 0090 § 3 makes the two
 //!   types disjoint, and `Core\Json::encode` could not tell a payload it must
 //!   refuse from one it may emit. Priority 2 over priority 5, per
-//!   [AGENTS.md](../../../AGENTS.md)'s ordering.
+//!   [AGENTS.md](/AGENTS.md)'s ordering.
 //!
 //! **What it spends is nothing per value** — no wider `Value`, no extra
 //! allocation, no second release path ([`release`] keeps one arm for the pair,
@@ -120,7 +120,7 @@
 //!   `nvs_ir::InstKind::ConstStr`/`Concat`/`StrAppend`/`Retain`/`Release`;
 //! * the [`SafepointFlags`] word and `nvs_safepoint` slow path backing
 //!   `nvs_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
-//!   [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+//!   [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's probe sites check, with [`nvs_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
 //! * every `nvs_ir::Helper` variant — see [`helpers`];
@@ -172,7 +172,7 @@
 //!   [`System`](std::alloc::System) — a `#[global_allocator]` is chosen once
 //!   for a whole crate graph, so this crate choosing one chooses it for
 //!   `nvs-cli` and for anything embedding the runtime. **What it spends**, per
-//!   [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s *say what
+//!   [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *say what
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
 //!   the process exits and never returned to the platform. That is a

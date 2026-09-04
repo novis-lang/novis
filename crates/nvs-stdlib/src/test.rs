@@ -1,4 +1,4 @@
-//! `Core\Test` — [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+//! `Core\Test` — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 //! § 4's assertion surface, and the other half of the `QName` `#[Test]` already
 //! names.
 //!
@@ -12,7 +12,7 @@
 //!
 //! Every member takes `$actual` then `$expected`, which is the **opposite** of
 //! PHPUnit's order and falls out of
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) rather than
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) rather than
 //! out of a preference. Because reversing the two is the single commonest
 //! mistake in the ecosystem this language is migrated from, every failure
 //! message below labels the sides `$actual` and `$expected` by **name**, so a
@@ -32,7 +32,7 @@
 //! * `assertSame` is [`nvs_runtime::identity`] — ADR 0090 § 3's table exactly,
 //!   so two objects are the same object and nothing else is.
 //! * `assertEquals` is that comparison with the object row replaced by
-//!   [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
+//!   [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
 //!   `compareTo`.
 //! * `assertEqualsDeep` replaces it with the structural walk below.
 //!
@@ -106,7 +106,7 @@
 //!
 //! * **[`MESSAGE`]'s `message` is not a sink.** It really does reach a
 //!   terminal — [`failed`] renders it into the line the runner prints — and a
-//!   reader who knows [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md)
+//!   reader who knows [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
 //!   may expect the refusal there. The refusal is the *terminal's*, made once
 //!   where the bytes are written and where control bytes are substituted
 //!   visibly, not made a second time at every member whose text might one day
@@ -1018,7 +1018,7 @@ nvs_runtime::nvs_helper! {
     /// **`callable`** and whose expectation is a class.
     ///
     /// The expectation is a `string` because that is what
-    /// [ADR 0008](../../../../docs/adr/0008-late-static-binding.md)'s
+    /// [ADR 0008](/docs/adr/0008-static-and-global.md)'s
     /// `ParseError::class` folds to — a fully qualified name, compiled in as a
     /// constant — so the match is by name and no class value has to exist for
     /// a member to take one. What decides it is
@@ -1254,7 +1254,7 @@ fn held(ctx: &mut Ctx, member: &'static str) -> Value {
 // ============================================================================
 
 /// § 4's value comparison: ADR 0090 § 3's table, with the object row answered
-/// by [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
+/// by [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
 /// `compareTo` instead of by pointer identity.
 ///
 /// # Errors

@@ -47,7 +47,7 @@
 //! ## Which subcommand a case is run through
 //!
 //! `--RUN--` is how a case reaches
-//! [ADR 0079](../../../docs/adr/0079-testing-and-assertions.md)'s other
+//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)'s other
 //! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
 //! `#[Test]` classes and what the case pins is the *report* of running them —
 //! the only way a `.nvst` can observe the `#[Test]` table at all, since a row
@@ -65,7 +65,7 @@
 //!
 //! `--RUN--\nconfig dump --origin` is the one spelling that runs no program.
 //! It names no file on the command line, so `nvs config dump` resolves
-//! [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+//! [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
 //! § 1 step 2's `./nvs.toml` out of the case's own working directory — which
 //! makes a tree written with `--FILE nvs.toml--` and `--FILE conf.d/…--` the
 //! thing under test, and § 9's listing the expectation. That is where § 3's
@@ -81,7 +81,7 @@
 //! *another* file into that same directory, at the path it names, creating
 //! the directories along the way — so a case can hold a `require` target, an
 //! autoload root and the class it declares, which is what
-//! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! needs to be observable end to end at all:
 //!
 //! ```text
@@ -131,13 +131,13 @@
 //! A development machine carries PHP 8.5 on `PATH` on both sides of a Windows
 //! setup — Windows and the WSL distro, at the same version — so the Linux leg
 //! runs this suite rather than skipping it
-//! ([docs/setup.md](../../../docs/setup.md)).
+//! ([docs/setup.md](/docs/setup.md)).
 //!
 //! ## What is parsed but not yet honoured
 //!
 //! `--INI--` parses — that is what keeps the M11 importer mechanical — but
 //! nothing can act on it yet: `nvs.toml` is not read until M6
-//! ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)). A case
+//! ([ADR 0064](/docs/adr/0064-configuration-file-format.md)). A case
 //! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
 //!
@@ -147,7 +147,7 @@
 //! differential case get them — [`case::Case::env`] owns both rules.
 //!
 //! `--ARGS--` **is** honoured, since
-//! [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
 //! `Core\Command::run` gave `nvs run` a command line to pass on. Its lines are
 //! appended past the case file, so they are the program's arguments and never
 //! the runner's, and each line is one argument with no splitting and no

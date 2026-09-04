@@ -5,7 +5,7 @@
 //! A row is an array the query already built, so every member here reads that
 //! and never the wire. The typed accessors are where the type a value is stored
 //! as meets the one the caller asked for, which is why [`Requested`] has three
-//! answers and not two: [ADR 0067 § 6](../../../../docs/adr/0067-core-db.md)
+//! answers and not two: [ADR 0067 § 6](/docs/adr/0067-core-db.md)
 //! names "no such column" and "a value that will not fit" as different
 //! refusals, and a `bool` that is really a `0` has to be told from a `7`.
 
@@ -582,7 +582,7 @@ pub(super) fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fau
     )
 }
 
-/// What one of [ADR 0067](../../../../docs/adr/0067-core-db.md) § 6's *requests*
+/// What one of [ADR 0067](/docs/adr/0067-core-db.md) § 6's *requests*
 /// makes of the value a column's natural type already produced.
 ///
 /// Three answers rather than two, because the two refusals are different
@@ -1178,7 +1178,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 6's first named crossing:
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 6's first named crossing:
     /// **`TINYINT(1)` is naturally `int` and reads as `bool` on request, with a
     /// stored `7` throwing.**
     ///
@@ -1342,7 +1342,7 @@ mod tests {
 
     /// § 6's third named crossing, which is the one that is not a crossing: **a
     /// `DECIMAL` refuses a `float` field**, since
-    /// [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md) keeps the two
+    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) keeps the two
     /// apart.
     ///
     /// This is the ADR's own § *Context* defect at the hydration boundary. PDO
@@ -1401,7 +1401,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 6's refusal for
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 6's refusal for
     /// `queryAs<T>`: a wrong type, a missing column or a NULL in a field
     /// declared non-nullable throws **naming every offending column, not the
     /// first**.
@@ -1417,7 +1417,7 @@ mod tests {
     /// Naming the column is the item rather than a nicety. § 6 has field names
     /// match column names exactly and `AS` as the way to rename, so at a table
     /// of forty columns the path is the only thing separating "one of these did
-    /// not match" from a fix — [ADR 0071 § 5](../../../../docs/adr/0071-derived-codecs.md)
+    /// not match" from a fix — [ADR 0071 § 5](/docs/adr/0071-derived-codecs.md)
     /// is where the `issues` list this reads back is specified, and the throw is
     /// a `ParseError` for the reason [`hydrate`]'s own docs give.
     #[test]

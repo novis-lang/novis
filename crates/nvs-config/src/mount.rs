@@ -4,7 +4,7 @@
 //! § 2 is the rule the rest of the ADR is built to keep — a request **selects** an entry point from
 //! a set enumerated before it arrived, and never **constructs** one. That is what this module is:
 //! the one place a `*` in a `scan` meets a directory listing, and it runs at boot and at
-//! [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)'s reload, never on a
+//! [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)'s reload, never on a
 //! request path. The same glob evaluated per request would be `cgi.fix_pathinfo` with a different
 //! spelling, which is § 2's own sentence for why the expansion is here rather than in the router.
 //!
@@ -18,7 +18,7 @@
 //!
 //! **A capture that reaches a candidate is refused rather than skipped.** § 3 bounds a capture to
 //! `[A-Za-z0-9._-]+`, forbids a leading dot and refuses a reserved Windows device name
-//! ([ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md) § 5 owns that
+//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md) § 5 owns that
 //! list, and § 5's own reasoning is why it fires on every platform). Only a directory that actually
 //! holds the scanned entry ever reaches the test, so `.git` beside a module costs nothing — and a
 //! module directory named `CON` that *does* hold one is a boot refusal rather than a mount silently
@@ -272,7 +272,7 @@ pub fn expand(
 /// `[server] root`, canonical — the one directory every mount path must resolve inside.
 ///
 /// An unwritten `root` is the directory the configuration was written in, which is
-/// [ADR 0103](../../../docs/adr/0103-configuration-file-resolution.md) § 5's rule for every
+/// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md) § 5's rule for every
 /// relative path in the tree rather than a default chosen here.
 fn root_of(
     config: &Config,

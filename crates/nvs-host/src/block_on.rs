@@ -1,7 +1,7 @@
 //! Driving one `Future` on a coroutine: the seam between a library that is
 //! `async` and a runtime that is not.
 //!
-//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
 //! is this module's specification and its § 1 is the whole loop: **clear the
 //! flag, poll, park.** [`block_on`] runs that on the stack of the task that
 //! called it, which for the server is the coroutine that accepted the
@@ -13,7 +13,7 @@
 //! `Pending` suspends the **task** and not the thread. That is the only reason
 //! the word `block` is honest in the name — the core goes back to its run queue
 //! and serves its other connections, which is
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6 applied to a poll instead of to a syscall.
 //!
 //! # A waker is a permission to poll again, and it decides nothing
@@ -44,7 +44,7 @@
 //! socket readiness — the ordinary case, since the reactor wakes a task by id
 //! and never through a waker — issues exactly one for its whole life.
 //!
-//! What it spends, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! What it spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! one `Arc` holding a flag and a slot, one `Waker`, at most one `RemoteWake`,
 //! and the future itself on the coroutine's own stack. Per connection, so
 //! O(in-flight), and nothing at all per poll or per park.
@@ -92,7 +92,7 @@ use crate::scheduler::{Waiting, current_task, suspend_current};
 /// at all — the coroutine is torn down where it parked and the unwind drops the
 /// future, closing whatever it held through Rust's own drops. Both run no Novis
 /// frame, which is
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
 /// rule; `Scheduler`'s teardown owns which of the two applies.
 ///
 /// One future, on the calling task's own stack. Nothing is spawned and nothing

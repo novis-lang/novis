@@ -89,7 +89,7 @@ pub fn check_program(
 }
 
 /// [`check_program`] with the deployment's `[capabilities]` block in front of
-/// it — [ADR 0118](../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// it — [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 /// § 1's grants, as the machine that is compiling reads them.
 ///
 /// **`None` is "no configuration was read", and it is not an empty grant
@@ -97,7 +97,7 @@ pub fn check_program(
 /// every program compiled outside a project root, which is the opposite of
 /// what deny-by-default means here: the door is
 /// `nvs_runtime::capability::require`, and this pass only ever moves one of
-/// that door's refusals earlier ([ADR 0057](../../docs/adr/0057-intrinsic-folding.md)
+/// that door's refusals earlier ([ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
 /// § 4). Every fixture in the tree checks with `None` for that reason, and
 /// says nothing about capabilities at all.
 ///

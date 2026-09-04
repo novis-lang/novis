@@ -1,4 +1,4 @@
-//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 //! § 1's route table, as a *running* program sees it: the rows the compiler
 //! built, and the match the door takes against them once.
 //!
@@ -45,7 +45,7 @@
 //! of them for an application, and nothing at all for a program that declares no
 //! route. A *matched* request holds one `Arc` bump on the row plus one `String`
 //! per capture, which is the segment text it converted. O(in-flight requests),
-//! per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+//! per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
 //!
 //! # Known gaps
 //!
@@ -156,7 +156,7 @@ pub enum Param {
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Seg {
     /// Compared byte for byte and case-sensitively
-    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)).
+    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)).
     Literal(String),
     /// `{name}` — one whole segment, which may not be empty.
     One(String),
@@ -307,7 +307,7 @@ impl Route {
     }
 
     /// ADR 0096 § 1's access decision as the name it resolved to, which
-    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 8 leaves to whoever dispatches. `None` only for a program that was
     /// already refused.
     #[must_use]
@@ -451,7 +451,7 @@ impl Match {
     }
 
     /// § 1's declared name, which
-    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 1's `route`
+    /// [ADR 0076](/docs/adr/0076-observability-export.md) § 1's `route`
     /// label reads. `None` where the route declares none.
     #[must_use]
     pub fn name(&self) -> Option<&str> {

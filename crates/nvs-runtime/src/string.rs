@@ -4,7 +4,7 @@
 //! This is the first non-scalar representation the runtime owns, and the one
 //! both `nvs_ir::ty::Ty::Str` and `nvs_ir::ty::Ty::Bytes` lower to. They share
 //! it verbatim — the two differ only in the UTF-8 guarantee
-//! ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)), which is a
+//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)), which is a
 //! checker property, not a layout one — so nothing here validates encoding.
 //! They are told apart at the *tag*, not here; the crate docs'
 //! § *`bytes` is a tag, not a second heap shape* owns that split.
@@ -21,7 +21,7 @@
 //! One allocation, not two. A `Box<StrData>` holding a `Box<[u8]>` would be
 //! simpler to write, but it costs a second allocation and a second cache miss
 //! on every string produced, which is a latency question (priority 3 in
-//! [AGENTS.md](../../../AGENTS.md)) rather than a footprint one. Codegen will
+//! [AGENTS.md](/AGENTS.md)) rather than a footprint one. Codegen will
 //! eventually inline the refcount increment/decrement using
 //! [`REFCOUNT_OFFSET`]/[`LEN_OFFSET`]/[`CAP_OFFSET`]/[`PAYLOAD_OFFSET`] rather
 //! than calling [`nvs_str_retain`]/[`nvs_str_release`]; those constants exist
@@ -44,12 +44,12 @@
 //! super-linear shape being the tell. A string that is appended to holds up
 //! to **twice its payload**, which is [`grown_capacity`]'s doubling; a string
 //! that is never appended to holds exactly its payload. That is priority 5
-//! spent on priority 3, which is the direction [AGENTS.md](../../../AGENTS.md)
+//! spent on priority 3, which is the direction [AGENTS.md](/AGENTS.md)
 //! asks for, and it is the whole of what this word spends.
 //!
 //! # The cached grapheme count, and what it spends
 //!
-//! [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 2 makes a
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 makes a
 //! `string`'s length a count of extended grapheme clusters, which is O(n)
 //! where PHP's `strlen` is O(1) — so a program asking twice used to pay
 //! twice. The fourth word is that answer, kept: [`NvsStr::grapheme_count`]
@@ -61,7 +61,7 @@
 //!
 //! What it costs is **8 more bytes per string allocation**, a 24-byte header
 //! becoming 32 — priority 5 spent on priority 3, the direction
-//! [AGENTS.md](../../../AGENTS.md) asks for.
+//! [AGENTS.md](/AGENTS.md) asks for.
 //!
 //! A concatenation does **not** sum the two counts: a cluster can span the
 //! join — a base letter in one buffer and a combining mark in the next — so
@@ -86,7 +86,7 @@
 //! A request shares nothing with any other request but compiled code
 //! (`docs/adr/README.md`'s project-start decisions), and a value crossing a
 //! `spawn`/`spawn worker`/`spawn script` boundary is deep-copied rather than
-//! shared ([ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)).
+//! shared ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)).
 //! No `NvsStr` a request *allocates* is ever reachable from two threads, so
 //! an atomic increment would buy nothing and cost a locked instruction on the
 //! hottest operation in the runtime. [`NvsStr`] is correspondingly neither
@@ -130,7 +130,7 @@
 //!
 //! What discharges it is a property of the **tag**, not of this module: a
 //! `string` is well-formed UTF-8 by construction
-//! ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)). Its § 3 makes
+//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)). Its § 3 makes
 //! `bytes as string` — the one conversion that could introduce arbitrary
 //! octets — checked and throwing, and every other producer either copies a
 //! payload whole or joins payloads end to end, neither of which can split a
@@ -375,7 +375,7 @@ impl NvsStr {
     ///
     /// Aborts the process through [`handle_alloc_error`] if the allocator
     /// fails. A request-attributable out-of-memory is
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s
     /// resource-limit tier and belongs to the per-request arena that does not
     /// exist yet (known gap 3 in the crate docs); until it does, the global
     /// allocator's own behaviour is the honest one.
@@ -1229,7 +1229,7 @@ pub unsafe extern "C" fn nvs_str_append(
 /// `Ty::Str` operand pair.
 ///
 /// A byte comparison, not a collation: `string` is guaranteed-valid UTF-8
-/// ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)), and PHP's `===`
+/// ([ADR 0009](/docs/adr/0009-string-and-bytes.md)), and PHP's `===`
 /// on two strings is byte equality, which is what Novis keeps. Neither operand
 /// is retained or released — the same read-only treatment
 /// [`nvs_str_concat`] gives its two.

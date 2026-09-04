@@ -27,7 +27,7 @@ use crate::tree::{Capabilities, Setting};
 /// One capability, by the name `nvs.toml` grants it under.
 ///
 /// The roster is closed: a member needing something not in it has no `Cap` to pass, which is
-/// [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)'s last
+/// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)'s last
 /// consequence — a capability the configuration cannot express fails visibly at the door rather than
 /// quietly at a review.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,7 +74,7 @@ pub enum Scope<'a> {
     Name(&'a str),
 }
 
-/// The address ranges [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md) § 3 denies
+/// The address ranges [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3 denies
 /// before any grant is consulted, named so a refusal can say which one it was.
 ///
 /// **Here rather than in the client**, which is § 5: `Core\Http`, `Core\Net`, `Core\Db::open`'s
@@ -303,7 +303,7 @@ impl Capabilities {
     /// [`Scope::Host`] never reaches [`Files`] — a hostname is matched against the grant list and
     /// nothing is canonicalized — so demanding one is demanding a parameter the answer does not
     /// depend on. The compiler is the caller that has none:
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 10 has `nvs check` refuse a **literal**
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 10 has `nvs check` refuse a **literal**
     /// `Core\Db::open` host no `db.open` grant covers, and a checking pass has no request, no
     /// resolver and no reason to grow one. Both spellings share this list walk, so a run and a
     /// check cannot disagree about which hosts are granted.
@@ -319,7 +319,7 @@ impl Capabilities {
         }
     }
 
-    /// [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md) § 3's question, asked of a
+    /// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's question, asked of a
     /// **resolved address** rather than of a name: which denied range this address is in, or `None`
     /// when nothing refuses it.
     ///

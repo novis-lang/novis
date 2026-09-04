@@ -12,9 +12,9 @@ use std::fmt;
 /// Comparison is **case-sensitive**, deliberately: PHP resolves a class or
 /// namespace segment case-insensitively, which is what lets a name work on one
 /// machine and not another. This is a decided property, not a gap —
-/// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// § 1 states it, and
-/// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 /// § 1 already relies on it to keep an autoloaded file's on-disk name exact.
 /// Do not "fix" it back toward PHP.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -27,7 +27,7 @@ impl QName {
     ///
     /// Nothing arrives here with a leading separator, so nothing strips one.
     /// The parser refuses that spelling
-    /// ([ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3,
+    /// ([ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3,
     /// `E0240`) and, on the recovery path where it reports and keeps going,
     /// leaves it outside the [`nvs_syntax::ast::Name`]'s span — so a name's
     /// text is the name. Every other caller builds from a string this compiler
@@ -91,7 +91,7 @@ impl QName {
     }
 
     /// Whether this name's root segment is `Core`, Novis's reserved namespace
-    /// for built-ins ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// for built-ins ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
     /// § 2).
     ///
     /// `Core`'s own classes are not yet declarations `nvs-hir` can see —

@@ -1,6 +1,6 @@
 //! `Core\IO` — the first `Core` class that reaches the operating system, and
 //! so the first one written entirely behind
-//! [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! §§ 2-3's doors.
 //!
 //! **There is no capability check in this file, and that is the design.** Every
@@ -396,7 +396,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// separates that member from [`nvs_core_io_read`].
 ///
 /// UTF-8 by default because that is what Novis text already is
-/// ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1): a caller who
+/// ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1): a caller who
 /// says nothing gets the decode that is the identity on a file written the way
 /// the language spells strings, and every other encoding has to name itself. A
 /// default of "whatever the file looks like" is the guess this member exists to
@@ -1686,7 +1686,7 @@ const WALK_SLOT: usize = 0;
 ///
 /// Spec § 14 writes `list(string $path): array<string>` and
 /// `walk(string $path): Iterable<string>` next to each other, and the only
-/// reading of that pair [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// reading of that pair [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R6 admits is two *questions*: a member that answered the same entries in a
 /// second container would be one operation reachable two ways, which is the
 /// shape that rule closes. So `list` reads one directory and this reads the
@@ -2073,7 +2073,7 @@ nvs_runtime::nvs_helper! {
     /// # Decision: the reading half is a value, and there is no writing half
     ///
     /// **Standard output and standard error are not here at all.**
-    /// [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
     /// makes both a sink whose substitution is uniform — not qualifier-dependent
     /// and, in that section's own words, not tty-dependent either, because a CI
     /// log is written to a pipe and read by a human afterwards. A
@@ -2081,7 +2081,7 @@ nvs_runtime::nvs_helper! {
     /// a raw door onto that stream, so the sink would hold only for the program
     /// that did not take the other door; and it would be a second spelling of
     /// `Core\Cli::write`, which
-    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)'s "no
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s "no
     /// operation is reachable two ways" refuses on its own. The consequence is
     /// recorded rather than hidden: a program cannot emit byte-exact binary on
     /// its standard output, and one that must emit bytes names a file.

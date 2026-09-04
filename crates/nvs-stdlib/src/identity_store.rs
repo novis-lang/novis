@@ -8,7 +8,7 @@
 //! ([`crate::instance`]), so a collection's state cannot be a native
 //! `HashMap` — an instance has no destructor to free one with, and a side
 //! table keyed by the object's address would grow with every collection ever
-//! constructed, which is the leak [AGENTS.md](../../../../AGENTS.md)'s memory
+//! constructed, which is the leak [AGENTS.md](/AGENTS.md)'s memory
 //! rule names outright. So the slot holds an [`NvsArray`], whose keys are
 //! byte strings, and this module chooses those keys.
 //!
@@ -166,7 +166,7 @@ pub(crate) fn borrow(
 ///
 /// The common case is that the object holds the store's only reference, and
 /// then the edit happens in place and the slot's pointer never moves. A
-/// `clone`d collection ([ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md))
+/// `clone`d collection ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md))
 /// is the other case: two objects share one store, so [`NvsArray::set`]
 /// separates a copy, and the slot has to take over that copy or the write
 /// would land on an allocation this object no longer reads. The retain before

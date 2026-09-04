@@ -1,4 +1,4 @@
-//! [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 //! § 1's `#[Test]` attribute: what its payload may hold.
 //!
 //! `#[Test]` is one of [`crate::derive::ATTRIBUTES`]' compiler-recognized
@@ -7,7 +7,7 @@
 //! [`crate::attributes`]'s § 1 rule to check the literal against, and the
 //! payload is checked here instead. A test is marked by an attribute the
 //! compiler acts on, not by a spelling convention, which is the position
-//! [ADR 0029](../../../../docs/adr/0029-identifier-casing-is-checked.md)
+//! [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md)
 //! takes everywhere else.
 //!
 //! # The option roster is the shape
@@ -170,7 +170,7 @@ pub(crate) enum OptionTy {
     /// One enum, by fully-qualified name — the type of an option whose value
     /// is a case of it.
     Enum(&'static str),
-    /// No declared type at all — [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)'s
+    /// No declared type at all — [ADR 0007](/docs/adr/0007-explicit-type-system.md)'s
     /// one unchecked position, and ADR 0096 § 1a's `allow`.
     ///
     /// The value is still ADR 0046 § 2's compile-time constant, which

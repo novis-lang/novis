@@ -521,7 +521,7 @@ pub struct ClassSignature {
     /// instance call only pays for a name lookup where the language
     /// actually admits two answers (`nvs_ir::ir::InstKind::CallVirtual`).
     pub overridden_methods: FxHashSet<String>,
-    /// This declaration's own class constants ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)),
+    /// This declaration's own class constants ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)),
     /// by name — the type a *read* of one answers with, and the value that
     /// read is emitted as. Own declarations only, exactly like every other map
     /// here; [`resolve_const`] walks the ancestors.
@@ -1685,7 +1685,7 @@ fn resolve_iteration_rec(
 /// discharged by calling `parent::constructor(...)`, not by assigning it a
 /// second time — see `crate::ctor_init`.
 ///
-/// Before [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md),
+/// Before [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md),
 /// this also flattened in every used trait's own required properties
 /// (recursively, through nested trait-use); that ancestor walk is gone along
 /// with traits themselves — a `by`-target field used for delegation is an
@@ -1709,7 +1709,7 @@ pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(St
 /// `lateinit` property through `$this` is not covered by this
 /// intraprocedural pass).
 ///
-/// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
 /// retired this function's former trait-flattening role the same way it did
 /// [`own_required_properties`]'s.
 #[must_use]

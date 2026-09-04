@@ -3,7 +3,7 @@
 //!
 //! § 2 gives the runtime one jobs table and one dead-letter table and has them created from here and
 //! nowhere else: DDL is an injection sink and a privileged act
-//! ([ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)), so the runtime never
+//! ([ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)), so the runtime never
 //! issues it at boot or from a request, and a queue's schema arrives by an operator running a
 //! command rather than by a request being served. This module is that command's front half — the
 //! configuration tree resolved, the `[db.<name>]` block proven, the driver read — and the
@@ -209,7 +209,7 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(10);
 /// statements to [`run_all`].
 ///
 /// **A macro because the three arms differ in names and not in shape.**
-/// [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) § 5
+/// [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md) § 5
 /// makes the five drivers an enum with one `match` per entry point rather than a `Driver` trait, so
 /// there is no type parameter to write this as a generic function over — and writing it out three
 /// times would be one body with `Pg`, `MySql` and `Maria` in it plus three copies of every refusal

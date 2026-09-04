@@ -1,4 +1,4 @@
-//! `Core\Uuid` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Uuid` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 11's second table, which replaces `uniqid`, `com_create_guid` and every
 //! userland UUID library with one type.
 //!
@@ -57,7 +57,7 @@
 //!
 //! # The dependency, and why `uuid`
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's first
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
 //! question — does attacker-controlled data reach it — is **yes** for this
 //! class, at `Uuid::parse`, which is exactly why the parser should not
 //! be hand-written here. `uuid` is the crate every Rust program already uses
@@ -88,7 +88,7 @@
 //!    `nvs_runtime::Tag::Bytes` variant [`crate::random`]'s gap 1 does.
 //! 2. **`==` on two `Uuid` values is object identity**, so two instances
 //!    holding the same 128 bits are not equal
-//!    ([ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//!    ([ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 //!    § 3's non-scalar row). Comparing `toString()` is the spelling that works
 //!    today. This is every `Core`-owned instance's gap, not this class's, and
 //!    it is why no member here answers `bool` about another UUID.
@@ -322,7 +322,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 /// somewhere, so it is the one value in this module a caller controls the size
 /// of. A message is written to a log, so quoting it whole would let a request
 /// choose how many bytes that log gains
-/// ([ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// is the wider rule); a bounded quote is still the only thing that makes the
 /// diagnostic actionable.
 fn shown(text: &str) -> String {
@@ -456,7 +456,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Uuid::tryParse(string $s): ?Uuid` —
-    /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
     /// § 3a: [`nvs_core_uuid_parse`] exactly, with `null` where it throws.
     ///
     /// This replaces the `isValid` that used to sit here, which was already
@@ -487,7 +487,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Named `toString` rather than `format` or `toText` so that it is already
     /// the member `Stringable` declares
-    /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+    /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
     /// § 1), which is what makes `echo $uuid` render: that name is the whole
     /// of what says a `Core`-owned class is stringifiable, read by
     /// `nvs_types::expr::operators::require_stringable` where the operand's

@@ -1,4 +1,4 @@
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s calling
+//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s calling
 //! convention, and the macro that makes it impossible to write a helper
 //! without it.
 //!
@@ -22,7 +22,7 @@
 //!
 //! The helper wrapper is the **inner** one, and it only ever sees a fault
 //! raised beneath a JIT frame.
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 2 puts the **outer** one at the root of every task, because the code a
 //! worker runs with no request beneath it — the accept loop, the HTTP reader,
 //! the compiled-unit cache index — has no helper frame to be contained by.
@@ -43,7 +43,7 @@ pub const THROWN: i32 = 1;
 
 /// Unrecoverable: a resource limit, or an internal error caught at a helper
 /// boundary. Propagates to the request boundary, and Novis code cannot catch it
-/// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
+/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)).
 pub const FATAL: i32 = 2;
 
 /// The program stopped itself: `exit` or `exit(...)` ran, and the status it
@@ -87,10 +87,10 @@ pub enum Fault {
     /// such property reaches its slot through this one variant.
     ///
     /// Two fill it today, and a third owes a caller rather than a variant:
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's `issues` on
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's `issues` on
     /// `ParseError`, so a member that found *several* things wrong with one
     /// input tells a form about all four bad fields rather than the first, and
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's `kind` on
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's `kind` on
     /// `Core\Db\DbError`, so a `catch` branches on the condition the server
     /// named rather than on the wording of the message. A sibling variant per
     /// property was the alternative and was rejected: each one costs an arm in
@@ -107,7 +107,7 @@ pub enum Fault {
     /// would have to release on every replacement path.
     ///
     /// The pairs are boxed rather than held inline, which is
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's measurement: a
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's measurement: a
     /// `Box<[_]>` is two words where one `(slot, value)` pair is three, so this
     /// carries any number of properties in **less** width than it carried one,
     /// and every helper's `Result` is narrower for it. The allocation is paid
@@ -166,7 +166,7 @@ impl Fault {
     /// [`Self::thrown_with_slot`] for a class filling more than one of its own
     /// properties — `Core\Db\DbError`'s normalised `kind` beside the raw
     /// `sqlState` the driver read it off
-    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
     ///
     /// Takes over every value's reference.
     #[must_use]
@@ -223,7 +223,7 @@ impl Fault {
 /// Today it refuses only what cannot be allocated at all — a size past
 /// `isize::MAX`, or a computation that already overflowed to `None`. It is
 /// **not** a budget: nothing here knows what a request may spend.
-/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) settles that
+/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) settles that
 /// it will be, through the `[limits.hard]` per-request ceiling the M6 arena
 /// enforces, and this function is the seam that ceiling attaches to — one
 /// place to change rather than seven.
@@ -247,7 +247,7 @@ pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
 
 /// How many iterations of a [`bounded_loop`] pass between two deadline polls.
 ///
-/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 5 requires the *amortised* poll to stay under the stack check's own
 /// per-call cost, and this constant is the only thing that number depends on:
 /// a poll is one relaxed load and a compare against a line
@@ -261,7 +261,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 
 /// Runs a helper's O(input) loop and polls the request's deadline *for* it.
 ///
-/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 5's first constraint: **the poll is supplied by a bounded-loop
 /// combinator, not remembered per helper.** The safepoint bounds Novis code
 /// because it sits between calls, and a helper is one call — so a member whose
@@ -283,7 +283,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 /// A sort cannot hand back a half-permuted array; where the operation has no
 /// such point the bound belongs on the *input* instead, which is ADR 0106 § 5's
 /// second constraint and what
-/// [ADR 0056](../../../docs/adr/0056-regex-engine-policy.md) already did for
+/// [ADR 0056](/docs/adr/0056-regex-engine-policy.md) already did for
 /// patterns. Between two iterations of *this* loop is such a point by
 /// construction, because `body` has returned.
 ///
@@ -292,7 +292,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 /// Whatever `body` returns, or a [`Fault::Fatal`] naming `member` when the
 /// deadline has passed. Fatal rather than thrown because a deadline is a
 /// cancellation, and
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5
 /// settles that cancellation is not a `Throwable` and runs no user code — the
 /// same standing [`FATAL`] already gives a resource limit, and the same one
 /// [`crate::nvs_safepoint`] gives `SafepointFlags::CANCEL`.
@@ -591,14 +591,14 @@ pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32
 /// What a task's root was running, and therefore who owns a panic that
 /// reaches it.
 ///
-/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 2 splits containment's two outcomes on exactly this question and on
 /// nothing else, so it is the whole of what [`run_task`] has to be told.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskRoot {
     /// A request. Everything the fault touched belongs to that request and is
     /// released wholesale with its arena, so the request fails through
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s ladder
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s ladder
     /// as an internal panic and the worker's other in-flight requests are
     /// untouched.
     Request,
@@ -712,13 +712,13 @@ thread_local! {
 /// process because it cannot tell a swallowed teardown from a corrupted stack.
 /// That is a path to `abort()` reached by an ordinary worker shutdown with a
 /// request still parked, which
-/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// does not allow.
 ///
 /// It is *narrow* on purpose: the guard is held only across the drop of a
 /// suspended task, by the host that is doing the dropping, on the thread doing
 /// it. Nothing script-level runs inside the window —
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
 /// "cancellation runs no user code" is untouched, because what unwinds is
 /// native `Drop` code, which that section already permits and requires.
 ///
@@ -770,9 +770,9 @@ thread_local! {
 /// unwind through the compiled Novis frames underneath it, which carry no
 /// unwind tables. A host that cancels a task standing on such a stack therefore
 /// may not unwind it; it has to resume the task and let it die by
-/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status at
+/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status at
 /// its next safepoint, which is
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
 /// rule reached the only way this stack allows. `nvs-host`'s scheduler module
 /// owns that decision and is this type's only consumer.
 ///

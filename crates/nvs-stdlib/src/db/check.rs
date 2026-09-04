@@ -1,6 +1,6 @@
 //! What a `Core\Db` call's SQL has to satisfy at *compile* time.
 //!
-//! [ADR 0067 § 4](../../../../docs/adr/0067-core-db.md)'s one-statement rule and
+//! [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s one-statement rule and
 //! § 10's placeholder count are properties of a literal string alone, so a call
 //! that breaks either is refused where it is written and never reaches a
 //! connection. These three items are the whole of that surface and the only
@@ -12,7 +12,7 @@
 //! this module and not on a database connection.
 
 /// Whether a literal query holds the one statement [ADR 0067
-/// § 1](../../../../docs/adr/0067-core-db.md) prepares — § 10's "a refused second
+/// § 1](/docs/adr/0067-core-db.md) prepares — § 10's "a refused second
 /// statement", over [`nvs_db::sql::holds_a_second_statement`].
 ///
 /// All four dialects, for [`check_literal_query`]'s reason and with the same
@@ -42,7 +42,7 @@ pub fn check_single_statement(sql: &str) -> Result<(), String> {
 }
 
 /// A literal params array as far as the *compiler* can read one — [ADR 0067
-/// § 10](../../../../docs/adr/0067-core-db.md)'s "a literal params array", which is
+/// § 10](/docs/adr/0067-core-db.md)'s "a literal params array", which is
 /// the only shape it promises anything about.
 ///
 /// § 5's two spellings are exclusive, so this is two cases and not a pair: a
@@ -59,7 +59,7 @@ pub enum LiteralParams<'a> {
 }
 
 /// Whether a literal query agrees with the literal params array written beside
-/// it — [ADR 0067 § 10](../../../../docs/adr/0067-core-db.md)'s "placeholder count
+/// it — [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s "placeholder count
 /// against a literal params array, positional-vs-named consistency".
 ///
 /// It is [`nvs_db::sql::rewrite`] itself and deliberately not a second reader of

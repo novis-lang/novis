@@ -3,7 +3,7 @@
 //! `Class::class`, or a static property — must name something actually
 //! declared on that class or reached transitively through the
 //! [`ClassGraph`] built in [`crate::hierarchy`] (`extends`/`implements`).
-//! [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+//! [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
@@ -22,7 +22,7 @@
 //! Also carries M2 item 5, the property-access counterpart: `$this->name`
 //! must name an instance property actually declared on the enclosing class
 //! or reached the same way through [`ClassGraph`], per
-//! [ADR 0014](../../../docs/adr/0014-property-observer.md) § 5's "no
+//! [ADR 0014](/docs/adr/0014-property-observer.md) § 5's "no
 //! `__get`/`__set` fallback." `$this` is the only property-access receiver
 //! whose class is knowable without a type checker — see the known gaps
 //! below for every other receiver shape.
@@ -320,7 +320,7 @@ struct Env<'a> {
     /// `E0319` skip a name in here rather than reporting the cascade.
     refused_toplevel: FxHashSet<String>,
     /// The self-name of the `fn` literal whose body is being walked
-    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 3), or `None` outside one.
     ///
     /// Set to *this* closure's own name on entering its body and restored

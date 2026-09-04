@@ -1,6 +1,6 @@
-//! [ADR 0139](../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md) § 3's
+//! [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md) § 3's
 //! `[session] backend`: the two stores a session record may live in, and the boot-time refusal of
-//! the one [ADR 0059](../../../docs/adr/0059-cross-request-state-is-explicit.md) § 4 removed.
+//! the one [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 4 removed.
 //!
 //! **This module is what § 4's "enforced rather than documented" means.** That section says
 //! `Core\Session`'s configurable backends do not include the local tier, which is a claim about a

@@ -21,9 +21,9 @@
 //!
 //! # These are the only generics user code can name
 //!
-//! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 1 parks
+//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 1 parks
 //! user-declared type parameters and
-//! [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 2 opens
+//! [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 2 opens
 //! exactly one door in that wall: a user class may implement a
 //! *compiler-owned* generic interface at a concrete type. This table is that
 //! door's full extent — a type-argument list on any name not in it is
@@ -32,13 +32,13 @@
 /// Every compiler-declared global interface, as `(name, type-parameter
 /// names)`.
 ///
-/// `Comparable` ([ADR 0013](../../../docs/adr/0013-comparable-interface.md))
+/// `Comparable` ([ADR 0013](/docs/adr/0013-comparable-interface.md))
 /// and `Stringable`
-/// ([ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1) take none; `Iterable` and `Iterator`
-/// ([ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 1) each
+/// ([ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 1) each
 /// take one. `PropertyObserver`
-/// ([ADR 0014](../../../docs/adr/0014-property-observer.md) § 2) takes none
+/// ([ADR 0014](/docs/adr/0014-property-observer.md) § 2) takes none
 /// either: it is a contract an ordinary class implements, not a `Core` domain
 /// class, so it belongs on this roster beside `Comparable` rather than under a
 /// namespace.

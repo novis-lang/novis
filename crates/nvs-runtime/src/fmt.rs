@@ -7,12 +7,12 @@
 //! the non-finite values `INF`/`-INF`/`NAN`. Rust's `{}` for `f64` does none
 //! of those, so the rule is implemented rather than delegated.
 //!
-//! This is [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)'s
+//! This is [ADR 0007](/docs/adr/0007-explicit-type-system.md)'s
 //! conversion table for `float -> string`, which that ADR does not list as a
 //! deliberate divergence — so the behaviour has to match PHP's, and it is
 //! checked against `php -r` output in this module's tests.
 //!
-//! `decimal` ([ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)) is
+//! `decimal` ([ADR 0054](/docs/adr/0054-decimal-scalar-type.md)) is
 //! deliberately *not* here: its whole point is a fixed scale with no float
 //! round-tripping, so it gets its own formatting when its i128 backend lands.
 

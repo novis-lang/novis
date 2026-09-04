@@ -1,6 +1,6 @@
 //! The parse tree as a walkable shape: one entry per node, its production's
 //! name and the nodes it contains — what
-//! [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+//! [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
 //! § 3's `Core\Ast::parse` hands a running program.
 //!
 //! # Decision: the walk lives beside the grammar, not beside the `Core` class

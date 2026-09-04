@@ -1,7 +1,7 @@
 //! Novis's CFG/SSA IR: the one representation between the checked AST and
 //! `nvs-codegen`, carrying explicit safepoints, refcount operations and
 //! runtime-helper calls, with a stable per-statement and per-edge id
-//! ([ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
+//! ([ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
 //!
 //! [`lower`] is the whole front-to-IR pass, split across `lower/` by area;
 //! [`ir`] is the data; [`ty`] is this crate's own representation-level type
@@ -437,7 +437,7 @@
 //!     `finally`-owning region takes the unwind arm and runs exactly what
 //!     `return;` runs at that point. [`lower::generator::lower_generator`]
 //!     § *An abandoned generator runs its `finally`* owns the mechanism, and
-//!     [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+//!     [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 //!     § 2 records why it is not the destructor Novis does not have. What is
 //!     left is one divergence, and it is the runtime's: a release has no error
 //!     edge, so an exception a `finally` raises on that path is discarded
@@ -464,7 +464,7 @@
 //!
 //!     The same mismatch under a *different* operator is closed too, and it
 //!     splits in two rather than following equality — which is
-//!     [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's own
+//!     [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's own
 //!     division, not a new one. **Arithmetic widens**: `$n + $f` is that
 //!     table's "either operand a `float`" row, so the integer side is
 //!     converted in [`lower::Lowering::lower_binary`] through the very
@@ -588,7 +588,7 @@
 //!
 //!     A statically settled operand needs no check and already worked, since
 //!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
-//!     ([ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
+//!     ([ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
 //!     non-throwing form) runs no membership test either: its yield-`null`
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.

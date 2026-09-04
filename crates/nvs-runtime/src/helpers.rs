@@ -15,7 +15,7 @@
 //!
 //! Every helper below re-checks its arguments' tags and returns [`Fault::Fatal`] on a
 //! mismatch rather than reading the payload anyway. A mismatch cannot happen
-//! in a well-typed program — [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+//! in a well-typed program — [ADR 0007](/docs/adr/0007-explicit-type-system.md)
 //! settles every operand type before lowering, and `nvs_ir::lower` picks the
 //! helper from that type — so the check is not defending against user code. It
 //! is defending against a *miscompile*: reading a `Value`'s payload under the
@@ -128,7 +128,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::BytesTruthy` — falsy iff the buffer is empty, which
     /// is [`nvs_str_truthy`]'s row **without** its `"0"` case. That case is
     /// PHP's numeric-string rule and
-    /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s binary scalar
+    /// [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s binary scalar
     /// never converts to a number, so a one-octet buffer holding `0x30` is
     /// truthy here where the `string` spelling of the same octet is not.
     /// [`value_truthy`]'s `Tag::Bytes` arm is this rule reached through a
@@ -160,7 +160,7 @@ crate::nvs_helper! {
 
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ValueTruthy` —
-    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's
     /// table over a value whose type the compiler erased, which is the table's
     /// own last row. Every other row is reached without this helper, because
     /// the operand's static type already named it:
@@ -438,7 +438,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::Identical` — `==` where at least one operand is a
     /// `mixed` or a union, which is
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 5's case and the only one whose row is a runtime tag rather than a
     /// static type. The row itself is [`crate::value_identical`], so a tagged
     /// operand and a statically typed one answer alike; a pair whose tags name
@@ -453,7 +453,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::NumericEq` — `==` over two operands whose
     /// representations differ but whose types are
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 2's one numeric domain. The row is [`crate::numeric_identical`],
     /// which is total, so this carries no error edge; `!=` is this helper
     /// under an `nvs_ir::UnOp::Not`, the arrangement [`nvs_decimal_eq`]
@@ -1224,7 +1224,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::SecretEq` — `==` where the checker typed at least one
     /// operand `secret`, which
-    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 5 makes a **constant-time** comparison rather than the
     /// short-circuiting one `nvs_str_eq` performs for every other
     /// `string`/`bytes` pair.
@@ -1301,7 +1301,7 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
 /// tag-dispatching [`to_int`]/[`to_uint`]/[`to_float`], which every operand
 /// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Those
 /// three are read twice each — once throwing, once answering `null` for
-/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)'s
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
 /// `expr as ?T`. That ADR's "one implementation now exists because there is one
 /// operation" is what this split makes true rather than promised — the throwing
 /// and the nullable form cannot drift apart, because there is one row.
@@ -1621,7 +1621,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
 /// scalar-to-`string` rows, applied to a value whose representation is
 /// `nvs_ir::ty::Ty::Tagged` — a `mixed`, a `?T`, or any other union.
 ///
@@ -1634,7 +1634,7 @@ crate::nvs_helper! {
 /// per (source, target) pair" rule [`to_int`] already follows.
 ///
 /// **Three tags convert to nothing, and each throws** rather than producing
-/// PHP's `"Array"`-plus-warning: [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// PHP's `"Array"`-plus-warning: [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer ADR 0007 § 2 removed from the language. An **object** is among them
 /// here, but this is the *tag* table and not the whole rule: ADR 0028 § 1 makes
@@ -1763,7 +1763,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
     }
 }
 
-/// The method [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// The method [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1 fixes as the one way an object renders. The spelling is the interface's,
 /// and `nvs_types::expr::operators::require_stringable` resolves the *static*
 /// half of the same name.
@@ -1778,7 +1778,7 @@ const TO_STRING: &str = "toString";
 /// then emits an ordinary call — nothing on that path reaches here. What is
 /// left is every operand whose static type names *no* class to resolve against:
 /// a `mixed`, a `?T` or another union, and the erased `object` of
-/// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4, whose
+/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4, whose
 /// receiver "cannot be checked at compile time at all" and whose answer is
 /// therefore decided by the concrete instance behind the handle. Refusing those
 /// instead would diverge from PHP — `function f(object $o) { echo $o; }` calls
@@ -1836,7 +1836,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 1's
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 1's
 /// `as ?string`: [`fn@stringify`]'s answer, with `null` exactly where that one
 /// throws.
 ///
@@ -1878,7 +1878,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's
+/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's
 /// `bytes as string` row: **checked**, and the one direction of that pair that
 /// runs any code at all.
 ///
@@ -1931,7 +1931,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's pair the other
+/// [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's pair the other
 /// way, applied to a value whose representation is `nvs_ir::ty::Ty::Tagged` — a
 /// `mixed`, a `?T`, or any other union.
 ///
@@ -2140,7 +2140,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3's
+/// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3's
 /// `ArithmeticError`: an overflow of either kind, or a zero divisor.
 fn arithmetic_error(operation: &str) -> Fault {
     Fault::thrown_as(
@@ -2389,7 +2389,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::EchoStr` — the terminal sink, which neutralizes every
     /// control byte on the way in.
     ///
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 is
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 is
     /// the rule and [`nvs_render::text::substitute`] is the table, called rather
     /// than restated: `ESC` becomes `␛`, a bare `CR` becomes `␍`, `DEL` becomes
     /// `␡`, a C1 code point and an unterminated bidirectional control both
@@ -2403,7 +2403,7 @@ crate::nvs_helper! {
     /// affordable: the bytes replaced here are commands the terminal consumes
     /// and shows to nobody, so substituting them makes `echo` show *more* of
     /// what arrived rather than less. That asymmetry with
-    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's HTML `&`→`&amp;` is stated in 0086's *Context*.
     ///
     /// The table is idempotent — a Control Picture is not a control byte — so
@@ -2414,7 +2414,7 @@ crate::nvs_helper! {
     /// used to be.
     ///
     /// **Ill-formed UTF-8 goes through `from_utf8_lossy` first.** A `Tag::Str`
-    /// is UTF-8 by [ADR 0009](../../../docs/adr/0009-string-and-bytes.md), so
+    /// is UTF-8 by [ADR 0009](/docs/adr/0009-string-and-bytes.md), so
     /// this is unreachable from a well-formed value; where a test reaches it
     /// anyway, `�` is the answer the table already gives a byte that is never
     /// legitimate text, and a raw control byte cannot survive the pass. Reading
@@ -2473,7 +2473,7 @@ fn write_rendered(
 /// Whether `value` is a **sink carrier** — the one shape the terminal sink
 /// must not substitute over.
 ///
-/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 puts
+/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1 puts
 /// exactly one raw path in the language and § 2 makes it a *type*,
 /// `Core\Cli\Text`, rather than a member or a bit riding on a string. Both of
 /// that type's constructors apply § 1's substitution to their own input, so the
@@ -2510,7 +2510,7 @@ crate::nvs_helper! {
     /// anything has turned the operand into bytes.
     ///
     /// **The sink substitutes everything except its own carrier.** That is
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1's
     /// "exactly one raw path, `Cli\Text`" read literally: the raw path is a
     /// *type*, so it has to be recognised while the operand still has one.
     /// `nvs-ir` sends every `Ty::Object` and `Ty::Tagged` operand here for that
@@ -2569,7 +2569,7 @@ crate::nvs_helper! {
 }
 
 /// One operand of a failed
-/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 5
+/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 5
 /// membership test, rendered the way § 6's compile-time sibling renders it:
 /// a `string` double-quoted, an integer bare. Only the representations a
 /// closed literal set can name reach this — `nvs-codegen` boxed the operand
@@ -2634,7 +2634,7 @@ crate::nvs_helper! {
     }
 }
 
-/// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md)'s truthy
+/// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md)'s truthy
 /// table, applied to a value whose type is known only at runtime.
 ///
 /// The per-type helpers above are what compiled code reaches wherever a static

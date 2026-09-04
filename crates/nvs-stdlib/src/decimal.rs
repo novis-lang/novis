@@ -1,12 +1,12 @@
-//! `Core\Decimal` — [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)
+//! `Core\Decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
 //! § 3's named-rounding members: the two spellings a program reaches for when
 //! rounding is business logic rather than an artifact of the operator.
 //!
 //! The `/` operator is already total over `decimal` and already rounds — half
 //! to even, at the widest scale the result admits, fixed in the language and
 //! not configurable, because an ambient precision read by unrelated later code
-//! is the shape [ADR 0008](../../../../docs/adr/0008-static-and-global.md) and
-//! [ADR 0052](../../../../docs/adr/0052-closed-doors.md) § 3 both close. What
+//! is the shape [ADR 0008](/docs/adr/0008-static-and-global.md) and
+//! [ADR 0052](/docs/adr/0052-closed-doors.md) § 3 both close. What
 //! this class adds is the two questions that policy cannot answer:
 //!
 //! * **"this division must not lose anything"** — `divExact`, which throws

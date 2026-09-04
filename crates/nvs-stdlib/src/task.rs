@@ -1,4 +1,4 @@
-//! `Core\Task` — [ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)'s
+//! `Core\Task` — [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)'s
 //! structured concurrency: two members that hand their host a group, and a
 //! third that hands the request one closure to run once it is over.
 //!

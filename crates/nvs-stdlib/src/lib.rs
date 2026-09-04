@@ -1,11 +1,11 @@
 //! Novis's Tier 0 standard library: every `Core` member, written in native
 //! Rust, plus the signature registry the compiler resolves a call against.
 //!
-//! [ADR 0051](../../../docs/adr/0051-standard-library-tiers.md) § *Tier 0*
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § *Tier 0*
 //! makes this "compiled into the binary, native, direct heap access, no
 //! boundary," and `docs/agent/loop-goal.md` records that it is meant literally:
-//! no part of `Core` is written in Novis. [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
-//! fixes every member's *shape* and [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+//! no part of `Core` is written in Novis. [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! fixes every member's *shape* and [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! is authoritative for every *signature* — this crate restates neither. It
 //! holds the two things a signature on paper cannot be: a resolvable entry in
 //! [`registry::CLASSES`], and a callable symbol in [`symbols`].
@@ -50,7 +50,7 @@
 //! # A `Core` call is a helper call
 //!
 //! Every member has the one signature
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md) makes normative for
+//! [ADR 0002](/docs/adr/0002-error-propagation.md) makes normative for
 //! a runtime helper — `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`
 //! — reached through [`nvs_runtime::nvs_helper!`], so `nvs-codegen` emits a
 //! `Core` call through the *same* path it already emits
@@ -67,7 +67,7 @@
 //!   owns, exactly like `nvs_str_concat`'s result.
 //! * **Failure is a `Fault`**, which becomes ADR 0002's `THROWN` or `FATAL`
 //!   status; nothing unwinds. A `Fault::thrown_as` names which of
-//!   [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+//!   [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //!   § 10's classes a `catch` will see — `Core\Json::decode` answers with
 //!   `ParseError` — and a bare `Fault::thrown` means `RuntimeError`, which is
 //!   what a failure with nothing more specific to say is.
@@ -490,10 +490,10 @@ mod tests {
     /// sharing one would silently call the same code — which is what this
     /// still refuses, and the whole of what it refused when it was written.
     /// What it now admits is
-    /// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+    /// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
     /// `by` delegation, whose entire content is that the two rows *are* one
     /// member: `Core\Db\Transaction implements Queryable by $connection`
-    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 7, and the first
+    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 7, and the first
     /// `Core` type to use the construct) declares the interface once on the
     /// connection and forwards it, so a second body under a second symbol
     /// would be exactly the drift the delegation exists to prevent. The price

@@ -3,7 +3,7 @@
 //!
 //! [`crate::resolve::Resolver`] already collects each `type` alias's own
 //! declaration into the [`crate::symbol::SymbolTable`] and rejects the
-//! single-bare-class shape ([ADR 0015](../../../docs/adr/0015-no-name-aliasing.md)
+//! single-bare-class shape ([ADR 0015](/docs/adr/0015-no-name-aliasing.md)
 //! § 6). What is still open is *what an alias expands to*: § 5 says a `type`
 //! alias is "fully transparent" — every occurrence of its name, including
 //! inside another alias's own expansion, resolves to the same fully-expanded
@@ -24,7 +24,7 @@
 //! `array<...>`'s own shape — is left exactly as written.
 //!
 //! A cycle (`type A = B; type B = A;`, or any longer chain) is diagnosed
-//! (`E_TYPE_ALIAS_CYCLE`, [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md)
+//! (`E_TYPE_ALIAS_CYCLE`, [ADR 0015](/docs/adr/0015-no-name-aliasing.md)
 //! § 5/7) rather than looped forever or silently bottomed out at `mixed`;
 //! every alias name that took part in the cycle still gets an entry in the
 //! resulting [`AliasTable`], expanding to `mixed`, so a lookup miss keeps

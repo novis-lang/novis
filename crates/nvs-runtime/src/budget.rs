@@ -2,7 +2,7 @@
 //! counter the runtime keeps in every build, and the `[limits] memory` and
 //! `[limits] max_output` ceilings a request is measured against.
 //!
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 names
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 names
 //! memory as the first of the five resource limits whose breach is a `FATAL`,
 //! and [`crate::affordable`]'s own doc comment already says why the count lives
 //! here rather than at the members that allocate: a guard written per call site
@@ -32,7 +32,7 @@
 //! balance now and the balance when its [`Ctx`](crate::Ctx) was made —
 //! [`Ctx::memory_used`](crate::Ctx::memory_used) — which is exact for the one
 //! request a thread runs at a time and is what
-//! [ADR 0006](../../../docs/adr/0006-isolate-model.md)'s isolate boundary will
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate boundary will
 //! sharpen when a core runs several.
 //!
 //! A block allocated on one thread and freed on another makes the freeing
@@ -45,7 +45,7 @@
 //! per-context field could not have. An isolate writes on the thread that
 //! spawned it, so a thread-local count puts a child's bytes on the root's
 //! reading as well as on the child's own — which is what
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) already says
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) already says
 //! the directive means, and what makes the tree's output budget a budget for
 //! the tree rather than one per isolate. Monotonic where [`live_bytes`] is a
 //! balance, because bytes written to a response are never given back, so it
@@ -75,7 +75,7 @@
 //!
 //! # What it spends
 //!
-//! Per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s *say what
+//! Per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *say what
 //! you spend*: three words per thread — never per request, and never growing
 //! with requests served — and on the allocation path one thread-local
 //! read-modify-write per `dealloc` and three per `alloc`. Each is a

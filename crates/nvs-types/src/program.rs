@@ -1,4 +1,4 @@
-//! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! § 3: `Core\Program::implementing<T>()`, answered here rather than at run
 //! time.
 //!
@@ -12,7 +12,7 @@
 //! [`crate::expr_table::ExprInfo::CoreConst`], and `nvs-ir` emits the `new`s
 //! and the array. The instances are therefore per-request like any other
 //! object and nothing crosses an isolate boundary
-//! ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)).
+//! ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)).
 //!
 //! # The scan already happened
 //!

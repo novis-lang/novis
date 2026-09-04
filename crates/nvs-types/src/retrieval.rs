@@ -1,4 +1,4 @@
-//! [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 //! §§ 4-5: `Core\Attributes::get<T>` and `::all<T>`, answered here rather than
 //! at run time.
 //!

@@ -1,7 +1,7 @@
 //! ADR 0009 § 2's granularity, in one place: what unit a `string`'s length,
 //! indexing and slicing count in.
 //!
-//! [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 2 is settled
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 2 is settled
 //! here — [`DEFAULT`] is the answer, and that ADR's own body states the rule.
 //! Every `Core\Str` member that has a unit at all reaches for [`DEFAULT`]
 //! rather than choosing one, so there is exactly one place a granularity is
@@ -9,7 +9,7 @@
 //!
 //! # Why `unicode-segmentation`
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's two
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's two
 //! questions: UAX #29 is an external specification with a mature pure-Rust
 //! implementation, so it is a dependency rather than ours to write.
 //! `unicode-segmentation` is the crate the Rust ecosystem's own text tooling
@@ -17,7 +17,7 @@
 //! Apache-2.0 — so `cargo deny check` needs no exception for it. The
 //! alternative considered was `icu_segmenter`: correct too, and carrying a
 //! data-provider architecture and a locale story that
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) already
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) already
 //! rules out of `Core`.
 //!
 //! # The Unicode version is part of the answer
@@ -71,7 +71,7 @@ pub enum Unit {
 ///
 /// The cost that decides it is measured by
 /// `a_grapheme_index_costs_more_than_a_code_point_index` in
-/// [`benches/abi-probe`](../../../../benches/abi-probe/), which is where the
+/// [`benches/abi-probe`](/benches/abi-probe/), which is where the
 /// figure and its bound live; ADR 0009's *Revisiting* asked for exactly that
 /// test and its § 2 records the outcome.
 pub const DEFAULT: Unit = Unit::Grapheme;
@@ -143,7 +143,7 @@ impl Unit {
     /// negative, or `None` when it addresses nothing.
     ///
     /// Negative-from-the-end is the same rule
-    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8 fixes
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8 fixes
     /// for every range in the spec; `at` is a range of one.
     #[must_use]
     pub fn at(self, subject: &str, index: i64) -> Option<&str> {
@@ -186,7 +186,7 @@ impl Unit {
     /// counting from the end and either end saturating.
     ///
     /// [`Self::byte_of_index`] with
-    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R8's sign
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8's sign
     /// rule applied first, so every member that takes a *position* — the `from`
     /// of `Core\Regex::match` and `Core\Str::indexOf`, the `before` of
     /// `lastIndexOf`, the `offset` of `slice` — reads it the same way. It

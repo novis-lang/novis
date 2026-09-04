@@ -19,7 +19,7 @@
 //! which dialect a driver gets.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 2:
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 2:
 //! there is no request beneath a worker to charge a panic to.
 //!
 //! ## Why it is stopped rather than left running
@@ -35,7 +35,7 @@
 //! ## Why the grants are the run's own
 //!
 //! A claimed job is § 5's root isolate, and an isolate is reached through
-//! [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md) § 2's
+//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md) § 2's
 //! spawn door like any other — [`nvs_runtime::script::resolve`] asks `script.spawn` with the job's
 //! path as its scope. That question is asked of the *context*, and a worker's context is not the
 //! script's, so each one is handed the same configuration snapshot the run resolved at boot. § 5's
@@ -814,7 +814,7 @@ fn nap() -> Woken {
 /// the arm of [`Wire`] it belongs to.
 ///
 /// **A macro for [`crate::queue`]'s `open_and_apply` reason** — the three arms differ in names and
-/// not in shape, and [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+/// not in shape, and [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 /// § 5 makes the drivers an enum rather than a trait, so there is no type parameter to write this as
 /// a generic function over. It is not that macro because every refusal here is a `warning:` that
 /// returns no worker where that one is an `error:` that returns an exit code.

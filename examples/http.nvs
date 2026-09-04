@@ -3,7 +3,7 @@
 // two that are refused before a socket is opened, and one that runs out of
 // time.
 //
-// [ADR 0058](../docs/adr/0058-outbound-request-policy.md) makes an outbound
+// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) makes an outbound
 // URL a sink. `Core\Http\Client::get` will not take a `tainted` string at
 // all — that is a compile-time refusal and so is not one of the lines below
 // — and `Core\Http::allowUrl` is the only door. It is a launderer that
@@ -13,7 +13,7 @@
 // capability rather than in the client (§ 5), which is what makes it
 // enforceable by an operator rather than by the calling code.
 //
-// [ADR 0074](../docs/adr/0074-http-defaults-safe-and-finite.md) §§ 5-7 is
+// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) §§ 5-7 is
 // the last line. There is **no spelling for an unbounded wait**: `deadline`
 // is the whole budget, covering every attempt and every redirect hop, so a
 // deadline this short is the one thing a caller can reliably prove.

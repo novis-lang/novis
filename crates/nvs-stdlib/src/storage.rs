@@ -1,6 +1,6 @@
-//! `Core\Storage` — [ADR 0082](../../../../docs/adr/0082-the-first-party-framework.md) § 2's
+//! `Core\Storage` — [ADR 0082](/docs/adr/0082-the-first-party-framework.md) § 2's
 //! object storage: four members that put, get, delete and enumerate **named objects on a disk an
-//! operator configured**, over the `fs.*` capabilities [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md)
+//! operator configured**, over the `fs.*` capabilities [ADR 0051](/docs/adr/0051-standard-library-tiers.md)
 //! § 3 already grants and no capability of its own.
 //!
 //! ADR 0082 § 2's row is one sentence — "local-filesystem object storage over ADR 0051's existing
@@ -28,7 +28,7 @@
 //! `$key` names an object; it does not name a file. It is one flat segment of ASCII letters,
 //! digits, `.`, `-` and `_`, at most [`MAX_KEY`] bytes, not beginning with a `.` — and every
 //! other spelling is **refused** rather than escaped or trimmed
-//! ([ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)). A `/`,
+//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)). A `/`,
 //! a `\`, a `..` and a NUL are each that refusal.
 //!
 //! The flatness is the load-bearing half. Every path this class can construct is
@@ -41,7 +41,7 @@
 //! this class encodes it in the key it hands us.
 //!
 //! Because the grammar refuses rather than repairs, `$key` accepts a `tainted` argument freely —
-//! it is data in [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! it is data in [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 7's sense, and storing a file a user named is the ordinary case. `$disk` is the opposite and
 //! is the one [`Qual::Sink`] here, for [`crate::mail`]'s `$endpoint` reason: it selects between
 //! deployments an operator wrote, so it belongs at the call site and never in input. *Which*
@@ -83,7 +83,7 @@
 //! # Known gaps, recorded rather than worked around
 //!
 //! **There is no `exists`, and that one is deliberate.** [`get`](CLASS) answers absence as `null`
-//! under [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R7, so a second member
+//! under [ADR 0063](/docs/adr/0063-core-api-conventions.md) R7, so a second member
 //! asking the same question would be the one operation reachable two ways that R20 forbids. The
 //! cost is real and named: `get` on a large object reads it to answer a question about its
 //! existence. [`list`](CLASS) under a `prefix` is the cheap half of that — it reads the directory

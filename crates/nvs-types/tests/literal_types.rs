@@ -1,4 +1,4 @@
-//! Literal and enum-case types — [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
+//! Literal and enum-case types — [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
 //! §§ 1-4, at the point each atom becomes a real type and a value of one
 //! becomes writable.
 //!
@@ -11,7 +11,7 @@
 //! The two facts this file exists to hold are the ones § 3 turns on — an enum
 //! case is **not** an int literal of its backing value, and a class constant
 //! **is** its value's own literal type — because unifying either one reopens
-//! [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5's hole.
+//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5's hole.
 
 mod common;
 
@@ -302,7 +302,7 @@ fn a_base_type_does_not_narrow_to_a_literal_type_by_assignment() {
 /// § 3's atom, both halves at once: `Mode::Read` written where the position
 /// names it *is* that case's type, it widens to `Mode` for free, and the raw
 /// `int` its backing value equals still does not satisfy it — which is the
-/// hole [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5
+/// hole [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5
 /// closed and § 3 refuses to reopen.
 #[test]
 fn an_enum_case_expression_satisfies_a_case_subset_type_and_widens_to_the_enum() {

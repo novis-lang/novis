@@ -1,11 +1,11 @@
 //! `Core\Request` — the request a program is answering, replacing `$_GET`,
 //! `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST` and `filter_input`
-//! ([ADR 0012](../../../docs/adr/0012-no-superglobals.md)).
+//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
 //!
 //! # What is here, and what is not
 //!
 //! Eleven of
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
 //! sixteen members: `method`, `isHead`, `path` and `query` — the request *line*,
 //! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
 //! `header`, `headers` and `cookie`, the fields that arrived with it, and
@@ -13,7 +13,7 @@
 //! what arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
 //! pulled to its end into one value, walked a chunk at a time, walked as the
 //! parts a `multipart/form-data` body declares
-//! ([ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+//! ([ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 //! § 1, the parse itself being [`crate::multipart`]'s), or read to its end as
 //! the form it submitted (§ 2, and `post` is the one of the four that joins
 //! another's reading rather than claiming against it — [`claim_form`]).
@@ -37,13 +37,13 @@
 //! # There is no request here, and that is a throw
 //!
 //! Every member refuses when the context is answering no request —
-//! [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 7's rule, which that
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7's rule, which that
 //! ADR argues over a *spawned isolate* and which reaches the same conclusion
 //! one step wider. A CLI program, a scheduled script, a job worker and a
 //! `#[Test]` method are all running with nothing inbound, and an empty string
 //! would say the request arrived and sent nothing. Those are different facts,
 //! and collapsing them is the silent-wrong-answer failure mode
-//! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) exists to close:
+//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) exists to close:
 //! a program that read a path out of a scheduled script and got `""` would
 //! route on it.
 //!
@@ -79,7 +79,7 @@
 //! it never reaches a route table, so the parse here is exact and
 //! case-sensitive (RFC 9110 § 9.1 makes a method a case-sensitive token) and an
 //! unrecognized one is refused rather than mapped to something near it, which
-//! is [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! is [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 //! rule. **A peer never sees that refusal**: the server answers `501` at the
 //! door, before an isolate exists, so what this throw covers is an embedder
 //! that wrote a verb of its own onto a context.
@@ -112,13 +112,13 @@
 //! `headers`**, and that is the whole reason both exist. RFC 9110 § 5.3 defines
 //! two field lines of one name as equivalent to one value with the lines joined
 //! by a comma in the order received, so joining is that section's own equivalence
-//! and not [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! and not [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 //! repair — nothing is dropped and nothing is invented. What joining *does* lose
 //! is the line boundary, which matters for a value that may itself contain a
 //! comma (`Date` is the standard example), so the exact answer is `headers()`'s
 //! and the convenient one is `header`'s. Answering the *first* line was rejected:
 //! it is the reading that silently drops what a peer sent, which is the failure
-//! mode [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) exists to
+//! mode [ADR 0007](/docs/adr/0007-explicit-type-system.md) exists to
 //! close.
 //!
 //! **What they spend.** `header` walks the list once and allocates only the
@@ -137,11 +137,11 @@
 //! and for the same reason.
 //!
 //! The name is matched **byte for byte**
-//! ([ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 //! § 3): no dot, space or bracket is substituted in either direction. That
 //! mangling is PHP's `register_globals`-era name repair, it is what
 //! CVE-2024-2756 was, and the superglobals it served are what
-//! [ADR 0012](../../../docs/adr/0012-no-superglobals.md) deleted.
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md) deleted.
 //!
 //! **The prefixes are enforced here as far as the field can show them**, which
 //! is [`cookie_of`]'s doc: a `__Host-` name arriving twice is not visible,
@@ -165,7 +165,7 @@
 //!
 //! **The `tainted` qualifier does not survive `mixed`.** `path` is a
 //! `tainted string` and the checker holds it to
-//! [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
 //! sinks; `query` answers `mixed`, because § 9's bracket convention makes a
 //! value a `string` *or* a nested array, and `nvs_types` has no `tainted
 //! array<T>` — the qualifier axes are defined over `string` and `bytes`. So a
@@ -607,7 +607,7 @@ const MOUNT_CAPTURES: usize = 1;
 /// to sit on instead.
 const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
-/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 7's mount, as the program answering the request reads it.
 ///
 /// # Why a class, where § 7 spells a shape
@@ -626,7 +626,7 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// # The prefix is the deployment's, the captures are read as the peer's
 ///
 /// Both come off the `nvs_config::mount` row that
-/// [ADR 0097](../../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 /// § 4 step 1 selected, and every such row was expanded against the disk at
 /// boot — § 2's rule that a path is never derived from a URL at request time is
 /// exactly what makes that so. The prefix is therefore one of a set the
@@ -764,7 +764,7 @@ pub(crate) const FILES_CURRENT_SYMBOL: &str = "nvs_core_request_files_current";
 /// answers, and `null` before the first one and after the last.
 const FILES_PART: usize = 0;
 
-/// The class [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// The class [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 /// § 1's `files()` answers with — `Iterable<Core\Request\Part>`, given the name
 /// the registry needs to write it.
 ///
@@ -809,7 +809,7 @@ const PART_CONTENT_TYPE: usize = 2;
 /// against, by [`part_parse`] and on behalf of both members that read bytes.
 const PART_ORDINAL: usize = 3;
 
-/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 /// § 2's file part: what one upload declared about itself, ahead of its bytes.
 ///
 /// # A part is a file part iff it declared a `filename`
@@ -824,7 +824,7 @@ const PART_ORDINAL: usize = 3;
 /// `filename` and `contentType` are what § 2 marks, and `name` is marked here
 /// as well: a field name arrives off the same wire, from a peer that is under
 /// no obligation to send back the names the form declared, and
-/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
 /// rule is over untrusted *input* rather than over a list of fields. Leaving it
 /// plain would have made the part's own name the one launderer on the class —
 /// reachable by using it as a path or an identifier — which is the direction
@@ -834,7 +834,7 @@ const PART_ORDINAL: usize = 3;
 ///
 /// § 2 refuses a `size`: there is no honest value before the part has been
 /// consumed, and inventing one is the repair
-/// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 /// exists to forbid. `filename` is the client's *claim* and is never treated as
 /// a path — as a `tainted string` it reaches no path sink without
 /// `Core\IO::within` laundering it, which is the same refusal every other
@@ -1110,7 +1110,7 @@ pub(crate) const PART_CONTENT_CURRENT_SYMBOL: &str = "nvs_core_request_part_cont
 const PART_CONTENT_CHUNK: usize = 0;
 const PART_CONTENT_ORDINAL: usize = 1;
 
-/// The class [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// The class [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 /// § 3's `content()` answers with — `Iterable<bytes>` over one part, given the
 /// name the registry needs to write it.
 ///
@@ -1918,7 +1918,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 /// § 5's `[limits] request_body` default, as a constant until that row exists.
 ///
 /// The twin of `nvs_server::body::UPLOAD_TOTAL` and deliberately the smaller of
@@ -2764,7 +2764,7 @@ const SAVE_TO: &str = r"Core\Request\Part::saveTo";
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request\Part::saveTo(string $path, {max?, overwrite?}): void` —
-    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
     /// § 4, and the path 99.9% of uploads take.
     ///
     /// **A delegation, not an implementation.** § 4 says `Core\IO::writeStream`

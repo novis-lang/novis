@@ -1,4 +1,4 @@
-//! `Core\Bytes` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Bytes` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 7's second class, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
 //!
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
@@ -26,7 +26,7 @@
 //! and R6 makes the names identical because the *operation* is identical. What
 //! differs is the unit: `Core\Str` counts in
 //! [`crate::granularity::DEFAULT`]'s grapheme clusters, and this counts in
-//! bytes — which [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1
+//! bytes — which [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1
 //! says is the only unit `bytes` has to be ambiguous about.
 //!
 //! So these bodies are *simpler* than `str.rs`'s rather than a copy of them.
@@ -73,7 +73,7 @@
 //!   is `memcmp`'s question and PHP's `strcmp`'s: lexicographic over unsigned
 //!   octets. `Core\Str` has no `compare` yet, and when it grows one it takes
 //!   this shape over its own unit. This is *not* the `==` operator
-//!   ([ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
+//!   ([ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
 //!   which already compares two `bytes` for equality and is what a program
 //!   should write when that is the question; `compare` exists for the ordering
 //!   `==` does not answer.
@@ -1449,12 +1449,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Two classifications are still owed**, both named by spec § 7 and
     /// neither invented here: the format is an
-    /// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+    /// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
     /// intrinsic, so a *literal* format should have its field count checked
     /// against the argument list at compile time rather than at the call —
     /// exactly as `Core\Str::format`'s template still owes; and it is a
     /// **sink**
-    /// ([ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)),
+    /// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)),
     /// which is that ADR's registry-wide item — no member row anywhere carries
     /// a qualifier classification yet, so half of one here would be a lie
     /// about what is enforced.

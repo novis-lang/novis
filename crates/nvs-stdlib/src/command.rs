@@ -1,6 +1,6 @@
 //! `Core\Command` — the compiled command table, as the members that read it.
 //!
-//! [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6
 //! builds the table *while compiling*, from the `#[Command]` methods the ADR
 //! 0061 § 3 scan found, and this class is the whole of what a program does with
 //! it. `nvs_runtime::commands` is the table as a running program holds it, and
@@ -27,7 +27,7 @@
 //!
 //! A **positional argument** is `<param>` and an **option** is `[--spelling]`,
 //! which is the convention every CLI in the audience's world already reads
-//! ([ADR 0080](../../../../docs/adr/0080-the-audience-nvs-is-built-for.md)) —
+//! ([ADR 0080](/docs/adr/0080-the-audience-nvs-is-built-for.md)) —
 //! and it is read off the row's own `spellings` rather than off a second field,
 //! for the reason `nvs_runtime::commands::CommandArg::spellings` states. An
 //! option that declares both a short and a long spelling is *summarized* by its

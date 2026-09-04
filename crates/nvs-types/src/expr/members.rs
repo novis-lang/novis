@@ -488,7 +488,7 @@ pub(crate) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QNam
 }
 
 /// The class a `class<T>` value names, or `None` for every other type — the
-/// question [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+/// question [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
 /// § 4's three sites ask before they fall through to
 /// [`reject_dynamic_class_name`].
 ///
@@ -507,7 +507,7 @@ pub(crate) fn class_ref_argument(ty: TypeId, interner: &TypeInterner) -> Option<
 
 /// The class a `property<T>` value's names belong to, or `None` for every
 /// other type — [`class_ref_argument`]'s question asked of
-/// [ADR 0126](../../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+/// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
 /// § 1's key, answered the same way and for the same reason: the argument's own
 /// [`TypeId`], since the one caller that wants a name asks [`class_qname_of`]
 /// for it. `T` is a class by construction, `crate::lower`'s

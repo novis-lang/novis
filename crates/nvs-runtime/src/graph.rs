@@ -1,4 +1,4 @@
-//! [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 //! § 2's graph copy: one walk, reached by two carriers.
 //!
 //! A recursive, cycle-safe traversal of a value's reachable structure that
@@ -55,7 +55,7 @@
 //! One [`HashMap`] entry per distinct object reached, for the length of one
 //! copy, plus one recursion frame per level of nesting. Both are O(the graph
 //! being copied) and are released when it ends, so nothing here grows with
-//! requests served ([AGENTS.md](../../../AGENTS.md)'s priority 5).
+//! requests served ([AGENTS.md](/AGENTS.md)'s priority 5).
 //!
 //! # Known gaps
 //!
@@ -89,7 +89,7 @@ const VERSION: u8 = 1;
 /// How deep a graph may nest before it is refused.
 ///
 /// [`walk`] and [`Reader::node`] both recurse, so this is what keeps a hostile
-/// payload off the engine's stack — [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// payload off the engine's stack — [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 3's "every depth a request drives is bounded".
 const MAX_DEPTH: u32 = 256;
 

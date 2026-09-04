@@ -1,18 +1,18 @@
-//! `Core\Validate` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Validate` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 12's prose roster, "what survives of `filter`: the genuine validators
 //! only" — all six of it. Four name a *format* a human wrote (`isEmail`,
 //! `isDomain`, `isIp`, `isMac`) and two ask what a `string` is made of
 //! (`isAscii`, `isPrintable`). Every one answers `bool`, takes
 //! the subject first, and **launders nothing** — that is the whole reason the
 //! sanitizing half of `filter_var` is not here, and
-//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! is why: a member that half-escapes produces exactly the false confidence
 //! that ADR exists to prevent, so no member in this module ever returns its
 //! subject.
 //!
 //! # No dependency, and that is the decision rather than the default
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's first
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
 //! question is emphatically **yes** here — a form field is the most
 //! attacker-reachable string a web server holds, and it reaches these members
 //! before anything else looks at it. That would normally argue for binding
@@ -85,7 +85,7 @@
 //!
 //! Omitting `version` accepts either family; `{version: 4}` and
 //! `{version: 6}` accept exactly one. The option is
-//! [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)'s
+//! [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)'s
 //! literal union rather than an `int`, so `{version: 5}` does not compile —
 //! spec § 12 names this as the reason `isIpV4`/`isIpV6` are *gone* rather than
 //! being two more member names. It is the registry's first union-typed option,
@@ -109,7 +109,7 @@
 //! and they part company from it in the one way an Novis `string` forces:
 //! a PHP string is bytes, so `ctype_print` answers about ASCII `0x20`–`0x7E`
 //! and says `false` for `café`. An Novis `string` is UTF-8
-//! ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 1), so a
+//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1), so a
 //! byte-wise reading would leave no member that could ask about text at all.
 //! The two are therefore split by what they actually ask:
 //!

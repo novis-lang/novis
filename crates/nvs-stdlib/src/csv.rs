@@ -1,4 +1,4 @@
-//! `Core\Csv` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Csv` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 12's second table, both members of it: `parse`, replacing PHP's
 //! `str_getcsv` and the parsing half of `fgetcsv`, and `format`, replacing
 //! `fputcsv`'s formatting half. Neither touches a file — a whole CSV document
@@ -8,7 +8,7 @@
 //!
 //! `csv-core` is bound for [`nvs_core_csv_parse`] and nothing is bound for
 //! [`nvs_core_csv_format`]. That asymmetry is
-//! [ground-rules.md](../../../../docs/adr/ground-rules.md)'s "an external
+//! [ground-rules.md](/docs/adr/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser" applied
 //! where it actually bites: reading. RFC 4180's corners — a quoted field
 //! holding the separator, a quoted field holding a bare `CRLF`, a doubled
@@ -20,7 +20,7 @@
 //! paragraphs down, and a writer cannot silently accept a document that means
 //! something else.
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's first
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
 //! question is **yes** — an uploaded spreadsheet is attacker-controlled text
 //! reaching this member directly — so under that ADR a C dependency here would
 //! need question 2's exceptional verification record and would not have one.

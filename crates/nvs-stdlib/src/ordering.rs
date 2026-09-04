@@ -21,7 +21,7 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 /// * `decimal` against anything numeric — exactly, through
 ///   [`Decimal::compare`] and [`Decimal::compare_f64`]. It orders against the
 ///   other numeric rows rather than only against its own, because
-///   [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 4's first row
+///   [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's first row
 ///   makes an `int`/`uint` exact as a `decimal` and its § 3 permits the
 ///   `decimal`/`float` comparison even where their *arithmetic* has no common
 ///   type. Scale does not enter it: `1.10` and `1.1000` are equal.

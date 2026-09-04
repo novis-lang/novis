@@ -1,10 +1,10 @@
-//! `Core\SignedCookie` — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! `Core\SignedCookie` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
 //! § 1's first roster entry: [`crate::crypto`]'s construction with a key ring
 //! over it and a cookie-safe spelling around it, and no second cipher anywhere.
 //!
 //! ADR 0060 places the class and § 2 says why the roster is closed at four;
 //! what belongs here is which end of the ring is the newest key, why `open`
-//! removes `tainted` when [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! removes `tainted` when [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! § 3 refuses that nearly everywhere else, and why two members named `seal`
 //! and `open` are not a second way to reach `Core\Crypto`'s two.
 //!
@@ -31,7 +31,7 @@
 //!
 //! # `open` launders, and it is the only cookie in the language that does
 //!
-//! [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md) § 5
+//! [ADR 0060](/docs/adr/0060-application-security-protocols.md) § 5
 //! is emphatic that a verified signature does not launder — JWT claims come
 //! back `tainted` because a signature proves origin and not safety — and then
 //! names this one exception: a cookie payload the application itself sealed
@@ -52,7 +52,7 @@
 //! # `seal` and `open` here are not `Core\Crypto`'s, and R17 is why they can
 //! share the names
 //!
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R17 refuses an
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R17 refuses an
 //! operation reachable two ways. These rows are not a second route to
 //! `Core\Crypto::seal`: that member takes `bytes` and one key and answers the
 //! raw sealed message, and these take a `string` and a *ring* and answer text a

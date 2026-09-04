@@ -1,6 +1,6 @@
 //! Readiness for one core: `mio` underneath, [`TaskId`] on top.
 //!
-//! [ADR 0115](../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
+//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
 //! is this module's specification — § 1 for why the mechanism is readiness on
 //! all three platforms and why a poller is not the async runtime the goal's
 //! standing decisions forbid, § 2 for the five-rule parking contract this file
@@ -38,7 +38,7 @@
 //! what [`Reactor::retire`] frees when the scheduler hands back a
 //! [`Finished`](crate::Finished). Leaving it would be a per-request entry that
 //! outlives its request — the O(requests served) growth
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) calls a leak
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) calls a leak
 //! rather than a trade-off — which is why [`run_until_idle`] retires on every
 //! turn rather than at the end.
 //!
@@ -91,7 +91,7 @@
 //! Everything above is readiness, and readiness is something the kernel already
 //! knows about. A call with no readiness to wait on — a filesystem call, a name
 //! resolution, a wait on a child process — goes to the blocking pool
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6 requires, and the thread that finishes it has to be able to say so to a
 //! core that is asleep inside `Poll::poll`. [`Reactor::remote_wake`] is that:
 //! it hands out a [`RemoteWake`], the one `Send` thing in this crate, and the
@@ -203,7 +203,7 @@ struct Remote {
 /// rule 1's ordering, and for rule 1's reason: a wake arriving in the gap
 /// between a park and its arrangement would have nothing to be recorded
 /// against. Then it is moved to whatever thread is doing the work, which is the
-/// blocking pool [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// blocking pool [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 6 sends a filesystem call, a name resolution or a wait on a child process
 /// to. This is the only thing in this crate that is `Send`, and it carries no
 /// reference to the scheduler, the reactor or the task's stack — just the id

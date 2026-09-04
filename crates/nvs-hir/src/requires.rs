@@ -1,7 +1,7 @@
 //! `require`'s static resolution (M2 item 4 — see the crate's module docs
 //! for what's left after this).
 //!
-//! [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+//! [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
 //! keeps `require` as the only same-frame inclusion construct: no isolation
 //! at all, so a required file's declarations must be visible to name
 //! resolution exactly as if it had been pasted in at the `require` site.
@@ -33,7 +33,7 @@
 //! force the caller to re-read the graph to find out what was in it.
 //!
 //! The same worklist runs
-//! [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! § 1's autoload resolution, as a fixpoint rather than a second pass. Each
 //! file's walk harvests three things, not one: its `require` targets, its
 //! `autoload` declarations, and every name it uses where a class, interface,
@@ -55,7 +55,7 @@
 //! A literal path whose spelling differs from the on-disk entry's only in
 //! case is `code::E_REQUIRE_PATH_CASE_MISMATCH` — see [`check_path_case`],
 //! which is what stops a `require` from compiling on Windows/macOS and then
-//! failing on Linux ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! failing on Linux ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //! § 3). A literal path that resolves to nothing loadable is
 //! `code::E_REQUIRE_TARGET_NOT_FOUND`. A literal path that leads back to a
 //! file already on the current chain is `code::E_CIRCULAR_REQUIRE` rather
@@ -95,7 +95,7 @@
 //!   never "filter harder".
 //! - ADR 0061 § 5's probe trace is produced ([`crate::autoload::Probe`]) and
 //!   then dropped. Folding it into the artifact cache's key needs
-//!   [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)'s
+//!   [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)'s
 //!   `PathEntry` table, which does not exist yet; that is the cache slice's
 //!   work, not this one's.
 
@@ -438,7 +438,7 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 ///
 /// One function rather than a bare `Path::canonicalize` because a bundled
 /// executable has no filesystem to canonicalize against: its payload *is* the
-/// closed world ([ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)
+/// closed world ([ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
 /// § 4), so `nvs_diagnostics::embedded` answers first and a path it does not
 /// carry is exactly as unloadable as a missing file — which is § 3's rule, and
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
@@ -453,8 +453,8 @@ fn canonicalize(path: &Path) -> Option<PathBuf> {
 
 /// Reports a `require` whose literal path resolved only because the
 /// filesystem folds case —
-/// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-/// § 3, extending [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// § 3, extending [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 /// § 1's exact-name rule from `autoload` to `require`.
 ///
 /// The comparison is free of extra syscalls: `canonicalize` on Windows and
@@ -595,7 +595,7 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 ///
 /// Two classes ask for the same scan. `Core\Program::implementing<T>()` is
 /// § 3's own query; `Core\Router`'s link half needs the compile-time route
-/// table, which [ADR 0077](../../../docs/adr/0077-compile-time-routing.md)
+/// table, which [ADR 0077](/docs/adr/0077-compile-time-routing.md)
 /// § 5 builds by filtering *this* enumeration by a `#[Core\Route]` attribute
 /// rather than by an implemented interface. That is why the second is a
 /// member list here and not a second walk: a program calling either pays

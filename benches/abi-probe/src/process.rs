@@ -1,6 +1,6 @@
 //! The cost of the mechanism Novis's in-process script isolates replace.
 //!
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) argues that a
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) argues that a
 //! script needing to run *another* script under its own heap, its own limits and
 //! its own globals should get an in-process isolate rather than a child process,
 //! which is PHP's only answer. The argument is quantitative: an isolate reuses an

@@ -1,4 +1,4 @@
-//! `Core\Cap` — [ADR 0112](../../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+//! `Core\Cap` — [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
 //! § 6's one member, and the whole class: does the code running here hold a
 //! capability, right now?
 //!

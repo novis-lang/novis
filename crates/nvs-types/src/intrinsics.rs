@@ -1,4 +1,4 @@
-//! [ADR 0057](../../../docs/adr/0057-intrinsic-literal-folding.md) § 1's
+//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md) § 1's
 //! closed list: the `Core` members whose pattern-like argument the compiler
 //! reads while checking, and the hook that consults it.
 //!
@@ -111,12 +111,12 @@ enum Grammar {
     /// ADR 0067 § 5's placeholder spelling, checked against the *params array*
     /// written beside it — the second grammar read against another argument,
     /// and the only one whose other argument is a single array rather than the
-    /// variadic tail. [ADR 0067 § 10](../../../docs/adr/0067-core-db.md) is
+    /// variadic tail. [ADR 0067 § 10](/docs/adr/0067-core-db.md) is
     /// what puts it on § 1's list; the vendors' SQL itself is not read here and
     /// that section says why.
     Sql,
     /// A hostname, read against the compiling machine's `db.open` grant —
-    /// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s second sentence.
+    /// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s second sentence.
     ///
     /// The odd one out, twice over, and both are deliberate. It is the only
     /// variant whose second half is the *machine's configuration* rather than
@@ -144,11 +144,11 @@ struct Intrinsic {
     /// Which field *inside* the argument at [`Self::at`] carries the literal,
     /// or `None` where the argument is itself it.
     ///
-    /// [ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
     /// § 3's merged ABI does not answer this and is not what this addresses:
     /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
     /// already checked. Here the shape is still one written literal, so the
-    /// address is a field *name* — [ADR 0036](../../../docs/adr/0036-object-literals-and-shape-types.md)
+    /// address is a field *name* — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
     /// § 2 makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument
     /// has, and it carries no shorthand, no spread and no computed key for the
     /// match to fall through.
@@ -161,7 +161,7 @@ struct Intrinsic {
     grammar: Grammar,
 }
 
-/// [ADR 0057](../../../docs/adr/0057-intrinsic-literal-folding.md) § 1's
+/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md) § 1's
 /// table, and the whole of it. Nothing outside this constant is an intrinsic,
 /// and nothing adds to it at run time.
 const INTRINSICS: &[Intrinsic] = &[
@@ -376,7 +376,7 @@ pub(crate) fn check_call(
 }
 
 /// A literal query, and the literal params array written beside it —
-/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s refused second
+/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s refused second
 /// statement, placeholder count and positional-vs-named consistency.
 ///
 /// The two halves are two codes because they are two mistakes: a second
@@ -586,7 +586,7 @@ fn report_mismatch(span: nvs_diagnostics::Span, message: &str, label: &str, env:
     );
 }
 
-/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s refusals, which are the
+/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s refusals, which are the
 /// same *kind* as [`report_mismatch`]'s and share its code: the literal is one
 /// the rewriter reads perfectly well, and the mistake is in the pairing.
 fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
@@ -604,7 +604,7 @@ fn report_query(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
     );
 }
 
-/// [ADR 0067 § 10](../../../docs/adr/0067-core-db.md)'s host refusal, which is
+/// [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s host refusal, which is
 /// not [`report_query`]'s kind at all: nothing is wrong with the literal, and
 /// what the message has to carry is the *deployment* it was checked against.
 ///

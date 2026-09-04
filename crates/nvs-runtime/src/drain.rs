@@ -1,4 +1,4 @@
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 5's drain: the one bit a health probe and an application both read.
 //!
 //! The bit lives here rather than beside the accept loop because it has two

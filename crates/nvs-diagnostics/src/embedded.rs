@@ -1,4 +1,4 @@
-//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md) § 4's
+//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) § 4's
 //! byte source: the files a bundled executable resolves against instead of the
 //! filesystem.
 //!
@@ -121,7 +121,7 @@ pub fn text(path: &Path) -> Option<(&'static str, &'static str)> {
 ///
 /// A closed world has no symlinks and no case folding, so normalization *is*
 /// canonicalization here — which is also why `nvs_hir`'s
-/// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// case check can only ever pass inside a bundle: both sides of its comparison
 /// come from this one table, spelled once.
 #[must_use]

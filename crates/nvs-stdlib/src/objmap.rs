@@ -61,7 +61,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// `Core\ObjectMap<K, V>` — docs/spec/01-core-library.md § 9's first row.
 ///
 /// **`get` returns `?V`, not a throwing read**: § 9 says so outright, because
-/// these types have no subscript ([ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md)
+/// these types have no subscript ([ADR 0053](/docs/adr/0053-iteration-and-generators.md)
 /// rejects `ArrayAccess`) and so cannot offer the `$a[$k]` / `$a[$k] ?? $d`
 /// pair that `array<T>` does, while ADR 0063 R5 bans a `getOrNull` twin.
 ///

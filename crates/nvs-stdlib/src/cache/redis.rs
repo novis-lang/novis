@@ -54,7 +54,7 @@
 //! died before the reply — is a throw, and ADR 0075 § 5 is why that is the right
 //! answer rather than a guess in either direction.
 //!
-//! What a command spends, per [ADR 0004](../../../../docs/adr/0004-memory-for-simplicity.md):
+//! What a command spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! the request text and one buffer holding the whole reply, both released with
 //! the call and capped at [`REPLY_CEILING`]; plus one socket per core, which is
 //! O(cores) and deliberately not O(requests served).
@@ -89,7 +89,7 @@ const ELEMENT_CEILING: i64 = 64;
 /// One core's connection to the shared store.
 ///
 /// The address is the one [`super`]'s door pinned and is never re-resolved
-/// here — [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4's
+/// here — [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's
 /// rule that every attempt of one approval reuses the approved address, which is
 /// what closes the window a second DNS answer would open.
 pub(crate) struct Connection {
@@ -153,10 +153,10 @@ impl Connection {
     /// A second method rather than an `Option<u64>` on [`Connection::set`],
     /// because the two callers are two decisions and neither may drift into the
     /// other's: `Core\Cache`'s entries have no expiry at all
-    /// ([ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)
+    /// ([ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)
     /// § 1 gives the tier a cap and not a clock), while every
     /// [`crate::session`] record has one and a record written without one is
-    /// [ADR 0139](../../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
     /// § 5's sweeper coming back. A default argument would let a caller reach
     /// the wrong one by omission; two names cannot be omitted.
     ///
@@ -182,7 +182,7 @@ impl Connection {
     /// `DEL key` — the entry forgotten, whether or not it was ever there.
     ///
     /// The count the store answers with is discarded on purpose:
-    /// [ADR 0139](../../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
     /// § 2's `destroy` is "forget the record under an id", and an id there was
     /// no record under is already forgotten — the same answer `load` gives it.
     /// Reading the count would be a second question about existence, which that

@@ -1,4 +1,4 @@
-//! `Core\Csrf` — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! `Core\Csrf` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
 //! § 1's second roster entry: a token bound to one session, and a comparison
 //! that is the only thing a caller can do with it.
 //!
@@ -47,7 +47,7 @@
 //! `tainted`. The answer's alphabet is base64's, which carries no injection
 //! into any sink, exactly as a hash of a `secret` is not itself `secret` — this
 //! is [`Qual::Neutral`]'s own "a hash of a secret" case rather than a hole in
-//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md).
+//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md).
 //!
 //! # One key, and why no ring
 //!
@@ -79,7 +79,7 @@
 //! four-thirds — for a cross-protocol confusion that is otherwise a real
 //! deployment away.
 //!
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R17 asks
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R17 asks
 //! whether this is `Core\SignedCookie` reached twice, and it is not: that class
 //! answers *the payload* and this one answers a verdict it never lets go of.
 //! A program that wrote `Core\SignedCookie::open($token, [$key]) == $session`

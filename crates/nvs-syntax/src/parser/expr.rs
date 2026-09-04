@@ -36,7 +36,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// that needs "an expression" calls this. A stray `and`/`or`/`xor`
     /// keyword is also caught here — see [`Self::parse_low_or`] — since
     /// `&&`/`||` are the only logical connectives Novis keeps
-    /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
+    /// ([ADR 0045](/docs/adr/0045-and-or-xor-keyword-operators-rejected.md)).
     #[must_use]
     pub fn parse_expr(&mut self) -> Expr {
         // Any nested expression (a call argument, an array item, a
@@ -54,7 +54,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// Parses a `foreach` header's subject. Identical to [`Self::parse_expr`]
     /// except that [`Self::parse_postfix`]'s loop will not consume a bare
     /// `as` — that keyword belongs to `foreach` itself
-    /// ([`docs/spec/00-overview.md` § 3.2](../../../docs/spec/00-overview.md)).
+    /// ([`docs/spec/00-overview.md` § 3.2](/docs/spec/00-overview.md)).
     /// Converting the subject still works, just parenthesized:
     /// `foreach (($m as array<int>) as int $v)` — the parens start a fresh
     /// [`Self::parse_expr`] call, which lifts the suppression for its own
@@ -105,7 +105,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// [`Self::guarded`]. Also where a stray `and`/`or`/`xor` keyword is
     /// caught: Novis never gave them PHP's lower-precedence meaning distinct
     /// from `&&`/`||`, so each occurrence is diagnosed in place
-    /// ([ADR 0045](../../../docs/adr/0045-and-or-xor-keyword-operators-rejected.md))
+    /// ([ADR 0045](/docs/adr/0045-and-or-xor-keyword-operators-rejected.md))
     /// and folded into an `ExprKind::Error`, consuming its right-hand operand
     /// so parsing can continue past it rather than cascading into unrelated
     /// "expected token" errors.
@@ -899,8 +899,8 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// An optional `<T, U>` written between a member name and the `(` of a
     /// call — `<User>` in `Core\Json::decodeAs<User>($body)`, which
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) and
-    /// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) and
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 6 both write. Returns what was written, empty when this is not a
     /// type-argument list at all.
     ///
@@ -994,7 +994,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// marks the binding, not the value. Whether it is *required* here needs
     /// the callee's signature and so belongs to `nvs_types` (E0713/E0714).
     ///
-    /// **A `name` here is any word, keyword or not.** [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+    /// **A `name` here is any word, keyword or not.** [ADR 0063](/docs/adr/0063-core-api-conventions.md)
     /// R2 makes every parameter callable by the `$name` the spec writes, and
     /// seven of those names — `Core\Arr::map`'s `$fn` and its siblings — are
     /// spellings the lexer reserves. The `:` is the whole disambiguation: no
@@ -2072,9 +2072,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `require` — the sole surviving same-frame inclusion keyword
-    /// ([ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)):
+    /// ([ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)):
     /// an expression, not a statement, per
-    /// [`docs/spec/00-overview.md` § 2](../../../docs/spec/00-overview.md):
+    /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
     /// same frame, same globals, same statics as the caller. Precedence
     /// mirrors `print`/`throw` above: it consumes a full expression, not
     /// just a primary.
@@ -2092,7 +2092,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `include`/`include_once`/`require_once` — parsed the same shape as
     /// `require` so the diagnostic can cover the whole construct, then
-    /// discarded: [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md)
+    /// discarded: [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
     /// keeps exactly one same-frame inclusion keyword.
     pub(super) fn parse_rejected_include_family(&mut self, kw: Keyword) -> Expr {
         let start = self.bump().span;

@@ -1,5 +1,5 @@
 //! The cursor `docs/spec/01-core-library.md` § 9's collections hand a
-//! `foreach` — [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md)
+//! `foreach` — [ADR 0053](/docs/adr/0053-iteration-and-generators.md)
 //! § 1's `Iterator<T>` half, over a snapshot list.
 //!
 //! # Decision: a `Core` collection answers a `foreach` through its method table
@@ -33,7 +33,7 @@
 //! **What it spends:** one list allocation plus one reference per element, per
 //! `foreach`, held for the length of the loop and released with the cursor.
 //! That is O(in-flight) and charged to the request that wrote the loop, which
-//! is the trade [AGENTS.md](../../../../AGENTS.md)'s ordering asks for: the
+//! is the trade [AGENTS.md](/AGENTS.md)'s ordering asks for: the
 //! loop sees the collection as it was when the loop began, whatever the body
 //! does to it.
 //!

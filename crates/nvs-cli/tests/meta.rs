@@ -1,5 +1,5 @@
 //! `nvs meta --json`, driven as a consumer drives it —
-//! [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
+//! [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
 //! *Verification* section: a golden of § 2's shape over the first documented
 //! member, through the built binary for the same reason `openapi.rs` goes
 //! through it — the contract is what the *command* prints.

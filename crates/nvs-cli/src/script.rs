@@ -8,7 +8,7 @@
 //! # Decision: a relative path is anchored at the working directory
 //!
 //! Not at the entry file.
-//! [ADR 0104](../../../docs/adr/0104-an-application-is-an-entry-file-path.md)
+//! [ADR 0104](/docs/adr/0104-an-application-is-an-entry-file-path.md)
 //! makes an application an entry-file path and says nothing about a child, so
 //! there was a choice to make, and the working directory is the one a reader of
 //! the program can already predict: it is what every other path a CLI program
@@ -34,7 +34,7 @@
 //! **What it spends:** one compiled unit per distinct `spawn script` path in
 //! the program, held for as long as the run is. O(the program's text), never
 //! O(isolates spawned), per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — and freed with
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — and freed with
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 

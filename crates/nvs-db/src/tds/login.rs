@@ -48,7 +48,7 @@ pub(super) const CLIENT_NAME: &str = "Novis";
 /// `ClientLCID`: US English.
 ///
 /// Not zero, which is not a locale at all. Nothing this driver parses depends
-/// on it — [ADR 0067 § 8](../../../../docs/adr/0067-core-db.md) normalises on the
+/// on it — [ADR 0067 § 8](/docs/adr/0067-core-db.md) normalises on the
 /// error *number* and never on the message text — so all it decides is which
 /// language a server writes a message Novis will only ever log.
 pub(super) const CLIENT_LCID: u32 = 0x0409;
@@ -89,7 +89,7 @@ pub(super) const OPT2_INIT_LANG_FATAL: u8 = 0x01;
 /// The server answers it by setting `ANSI_DEFAULTS` on, `IMPLICIT_TRANSACTIONS`
 /// off, `TEXTSIZE` to its maximum and `ROWCOUNT` to unlimited, and two of those
 /// are load-bearing. Implicit transactions off is what makes [ADR 0067
-/// § 7](../../../../docs/adr/0067-core-db.md)'s closure the only thing that ever
+/// § 7](/docs/adr/0067-core-db.md)'s closure the only thing that ever
 /// opens a transaction on this connection — with them on, a bare `SELECT`
 /// opens one nothing commits, and § 13's reset would be destroying a connection
 /// per request. `ROWCOUNT` unlimited is what stops a server-side default from

@@ -6,7 +6,7 @@
 //! The middle two are § 7's closure claim and § 2's, and neither subsumes the other: the first
 //! catches a member that goes through a door without being declared as doing so, the second a
 //! member that reaches the operating system with no door at all. The last is
-//! [ADR 0052](../../../docs/adr/0052-closed-doors.md) § 2's rather than 0118's, and sits here
+//! [ADR 0052](/docs/adr/0052-closed-doors.md) § 2's rather than 0118's, and sits here
 //! because it is the same question one layer up: a door that asks about the path it was handed is
 //! no protection if the path the caller wrote names somewhere else entirely.
 //!

@@ -1,7 +1,7 @@
 //! The accept loop: one listening socket, one coroutine per connection, and one
 //! `hyper` connection future driven on that coroutine's own stack.
 //!
-//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
 //! is the seam and [`crate::io`] is the adapter; this module is what puts a
 //! socket on either end of them. Its whole shape is three lines: accept, spawn
 //! a child task, and [`nvs_host::block_on()`] the connection on that child.
@@ -15,17 +15,17 @@
 //! its child ([`nvs_host::spawn_child`], ADR 0072 § 1's "each is a child of the
 //! calling task"). That is not a convenience: it is what makes a connection
 //! cancellable with the server, and it is the tree
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 4
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4
 //! reads when it has to prove nothing is still running. A loop that spawned
 //! roots would have to grow its own registry of live connections and its own
 //! shutdown, both of which the task tree already is.
 //!
-//! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! one coroutine stack and one `hyper` connection state per connection being
 //! served, plus the accepting task's own, plus — while a request is actually
 //! running on one of them — that request's isolate, which is one `Ctx` and one
 //! pooled task stack under
-//! [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 //! § 3's accounting. O(in-flight) at both levels: nothing is held per connection
 //! already closed or per request already answered.
 //!
@@ -33,7 +33,7 @@
 //!
 //! - **No routing inside this loop.** The handler is still the caller's
 //!   function; what [`crate::mount`] gives it is
-//!   [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//!   [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //!   § 4's five steps to answer with, and [`Reply`] is the two things this loop
 //!   can do with one. Nothing here reads a path from request bytes — that
 //!   module's docs own the one place a remainder meets a filesystem, and § 2's
@@ -46,16 +46,16 @@
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
-//!   [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//!   [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //!   § 3's rendering of a failure into a development response is the
 //!   configuration slice's, because a mode is what decides it and this loop has
 //!   not been given one.
-//!   [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) is not
+//!   [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) is not
 //!   on that list: § 1's header set is filled into every response this loop
 //!   writes ([`crate::secure`]) and § 2's closed CORS refuses a preflight above
 //!   the handler ([`crate::cors`]), neither of which a mode changes.
 //! - **The accept loop backs off.** ADR 0097 § 5's last process-wide bound, as
-//!   [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//!   [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //!   § 8 states it: descriptor exhaustion is the one `accept` failure the next
 //!   iteration recovers from, so it is the one this loop waits out instead of
 //!   ending on, and the one it logs once per window instead of once per
@@ -106,7 +106,7 @@ use crate::secure::{Scheme, Secure};
 /// A type of ours rather than `http-body-util`'s `Full`, and that is a
 /// dependency not taken rather than a wheel reinvented: what a Novis response
 /// carries is the output an isolate produced
-/// ([ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// ([ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 3's table binds `echo` to the response body), which is a buffer the runtime
 /// hands over whole. A crate whose job is to adapt streams would be carried for
 /// the one case that never streams.
@@ -219,7 +219,7 @@ impl Reply {
     /// A body whose declared length is already over [`crate::body::UPLOAD_TOTAL`]:
     /// `413`, before a mount is asked for a program.
     ///
-    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
     /// § 5 puts this refusal in the server rather than in each consumer, and
     /// before dispatch rather than after it, so that the honest oversized client
     /// never reaches application code and nothing has been allocated to tell it
@@ -356,7 +356,7 @@ impl Draining {
 }
 
 /// What every connection this server hands over is served under: ADR 0097 § 5's
-/// valve and [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+/// valve and [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
 /// § 1's header set.
 ///
 /// One argument rather than two because these are the *shared* half of a
@@ -414,7 +414,7 @@ impl Serving {
 /// task being torn down under it — and a drop that simply released the handle
 /// would leave an isolate running with nothing left that could prove it
 /// finished, which is
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 4
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4
 /// gone rather than kept. So the drop **abandons**: cancel, then wait.
 /// [`nvs_host::Running::abandon`] owns both halves and the one case that may
 /// not wait.
@@ -429,7 +429,7 @@ impl Peer {
     /// Takes the answer, once the request has ended.
     ///
     /// **"Ended" is the request's own frame and not its whole tree.**
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 6's after-response work runs on that tree once the answer here has
     /// been filed, and `nvs_host::isolate` cuts the tree loose from this
     /// connection before it does — so a connection that closes the instant its
@@ -460,7 +460,7 @@ impl Drop for Peer {
 ///
 /// `handler` is asked once per request for the [`Reply`] that request is. Where
 /// that is a program it is an
-/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) [`Isolate`] —
+/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) [`Isolate`] —
 /// the same type `spawn script` runs, and deliberately **not** a second isolation
 /// path, since M7's state-bleed suite is a parameterisation of one mechanism and
 /// would prove nothing about two of them. Where it is already a response
@@ -488,7 +488,7 @@ impl Drop for Peer {
 ///
 /// `ctx` is the connection task's, and that makes it the root of this
 /// connection's request tree
-/// ([ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+/// ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 /// § 1): a request's isolate is a child of the connection, so a client that
 /// goes away takes its request's tasks with it rather than leaving them
 /// behind.
@@ -505,7 +505,7 @@ impl Drop for Peer {
 /// — so a request that ignored its body leaves bytes on the wire and `hyper`
 /// ends the connection rather than framing a second request on it. That is the
 /// fail-closed direction and it costs a keep-alive:
-/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 /// § 5's cap bounds what a program *asks* for, and draining what it did not ask
 /// for would spend the same bytes with nobody having wanted them.
 ///
@@ -743,7 +743,7 @@ where
 
 /// The response one finished request is.
 ///
-/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 3's table in code: inside an HTTP request `echo` writes to the response
 /// body, and an isolate's `echo` reaches its own capture buffer, so
 /// [`Completion::output`] **is** the body and no call site had to name a
@@ -753,19 +753,19 @@ where
 /// whatever it echoed before it failed. That is a decision rather than an
 /// omission: a page rendered half-way is worse than none, and the failure
 /// itself reaches a response only where a mode says it may
-/// ([ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// ([ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 /// § 3's HTML rendering of a `Throwable`, in development), which is the
 /// configuration slice's. Until there is a mode to ask, the fail-closed answer
 /// is the status and nothing else.
 /// What a response carries when nothing declared otherwise —
-/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 4's last bullet, which is what makes ADR 0049's inline-HTML page shape
 /// work with no ceremony.
 const ECHOED: &str = "text/html; charset=utf-8";
 
 /// What a declaration that is not a header value becomes.
 ///
-/// [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 /// § 4 already names this for a static file's unknown extension, and it is the
 /// fail-closed answer for the same reason: `nosniff` renders it inert, so a
 /// program that declared something a header cannot carry gets a body no
@@ -841,7 +841,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
 }
 
 /// `400`, carrying nothing — ADR 0097 § 6's one refusal, joining
-/// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 /// § 2's closed list.
 ///
 /// No body for [`failed`]'s reason and one more of its own: the peer that would
@@ -870,7 +870,7 @@ fn failed() -> Response<Answer> {
 /// process ends answers `ControlFlow::Continue(())` every time, and a test that
 /// wants one connection answers `Break`. It is a callback rather than a flag
 /// because what stops a server is a decision the caller owns
-/// ([ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)'s
+/// ([ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)'s
 /// control socket is one such caller) and this loop has no business polling for
 /// it.
 ///
@@ -1818,7 +1818,7 @@ mod tests {
         })
     }
 
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 3's first row, end to end: inside an HTTP request `echo` writes to the
     /// response body, and what carries those bytes is `Core\Html\Markup`. No
     /// call site on this path says so — the isolate was handed a request, and

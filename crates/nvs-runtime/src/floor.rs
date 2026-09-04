@@ -1,4 +1,4 @@
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) §§ 5-6's
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) §§ 5-6's
 //! **tier 4** — the engine floor: what reports a failure when there is no
 //! script left to run and no second attempt to make.
 //!
@@ -12,7 +12,7 @@
 //! [`nvs_render::json::line`] — the same call `Core\Log::write` makes in
 //! `nvs_stdlib::log`. Neither side owns a serialiser of its own, because two
 //! writers that agree today is the failure
-//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! exists to prevent, and the floor is the worst possible place to discover a
 //! disagreement.
 //!
@@ -37,7 +37,7 @@
 //!
 //! # It cannot fill the disk it writes to
 //!
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 10: the floor writes unconditionally, which is correct, so a request that
 //! faults in a loop writes in a loop. [`report`] therefore holds
 //! § 10's second bound — repeated identical records inside
@@ -49,7 +49,7 @@
 //! to guess at, and a `Ctx` is per request while a fault loop need not be.
 //!
 //! `[log] format` is not read here. ADR 0092 § 3's plaintext rendering of the
-//! same record is what [ADR 0091](../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
+//! same record is what [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
 //! § 3's `development` default selects, and nothing reads that directive at run
 //! time yet; JSON Lines is § 6's default and the honest single answer until the
 //! reader lands.
@@ -67,7 +67,7 @@ use crate::string::NvsStr;
 use crate::throwable::Thrown;
 use crate::value::Value;
 
-/// One uncaught `Throwable` as [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// One uncaught `Throwable` as [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 /// § 6's record, at [`Level::Error`].
 ///
 /// The frames are carried as one `backtrace` field in the `#0`-first form
@@ -92,7 +92,7 @@ pub fn uncaught(thrown: &Thrown) -> Record {
     record
 }
 
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 3's one
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's one
 /// explicit argument to the tier-3 handler, built from the record tier 4 would
 /// otherwise have reported.
 ///
@@ -159,7 +159,7 @@ pub fn text(value: &str) -> Node {
 
 /// Renders `record` as ADR 0092 § 3's JSON Lines line and writes it where
 /// `[log] target` says — `ctx`'s diagnostic channel where it says nothing —
-/// unless [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// unless [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 10's window has already written it.
 ///
 /// [`Ctx::write_log_record`] is the routing and the only reader of that

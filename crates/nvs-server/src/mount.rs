@@ -34,7 +34,7 @@
 //!
 //! # Decision: an unwritten switch is the closed one, not development's
 //!
-//! [ADR 0091](../../../docs/adr/0091-development-and-production-are-the-two-modes.md)
+//! [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
 //! § 3a gives `dispatch` and `static` different defaults per mode — `path` and
 //! on in development, `entry` and off in production. [`Table::new`] takes both
 //! as decided values and [`Table::from_config`] reads only what was *written*,
@@ -50,7 +50,7 @@
 //! A URL path segment is percent-decoded first and then has to *spell a name*:
 //! empty, `.`, `..` and anything holding a separator, a NUL or a `:` are refused
 //! outright rather than repaired, which is
-//! [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 //! direction applied to the one string in this crate that comes from the peer.
 //! Refused means the *step* does not apply, so the request falls through to step
 //! 5 and the mount's entry answers it — a traversal attempt reaches the
@@ -65,7 +65,7 @@
 //! at the mount root, and never for step 4 — that is [`crate::statics`]'s docs
 //! § *Decision*.
 //!
-//! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! nothing per request that outlives it. A selection borrows its mount from the
 //! table and owns one `PathBuf` — the file steps 3-5 chose — and steps 3 and 4
 //! cost one `stat` and one `canonicalize` each, only where their switch is on.
@@ -351,7 +351,7 @@ pub struct Selection<'a> {
     /// request target, which outlives neither the table this borrows from nor
     /// the [`Reply`](crate::Reply) the caller builds out of it, and threading a
     /// second lifetime through the whole table to save it would buy nothing
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) ranks above
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) ranks above
     /// simplicity.
     pub path: Box<str>,
 }

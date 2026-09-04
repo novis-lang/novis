@@ -1,5 +1,5 @@
 //! The compile-time autoload map: which file declares a name
-//! ([ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! §§ 1-2).
 //!
 //! [`crate::requires`] owns the graph walk; this module owns the *map* it
@@ -39,7 +39,7 @@
 //!   here rather than a diagnostic, because nothing in the source spelled a
 //!   path to blame — the file is simply not the one the name asks for, and on
 //!   Linux it would not have been found at all
-//!   ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//!   ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //!   § 3).
 //!
 //! `nvs check --autoload-map` prints the result, which is why the two things
@@ -68,7 +68,7 @@
 //!
 //! Path traversal is structurally impossible with no sanitizer, per § 1: a
 //! probed suffix is built only out of namespace segments, and
-//! [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md) leaves
+//! [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md) leaves
 //! no way to spell `.`, `..` or a separator in one.
 
 use std::fmt::Write as _;
@@ -569,7 +569,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
 }
 
 /// ADR 0029's namespace-segment shape: `PascalCase`, ASCII alphanumeric, and
-/// never a leading `_` ([ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)).
+/// never a leading `_` ([ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)).
 fn is_namespace_segment(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric())

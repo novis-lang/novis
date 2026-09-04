@@ -1,4 +1,4 @@
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 6's
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
 //! after-response work: what `Core\Task::afterResponse` registered, and the one
 //! place it runs.
 //!
@@ -14,7 +14,7 @@
 //!
 //! **A request that did not return ordinarily runs none of it.** An uncaught
 //! throw, a [`crate::EXITED`] and an
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) `FATAL` all
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) `FATAL` all
 //! leave the request's status on the context, and that status is what the host
 //! is about to report; script running over it would either lose the status or
 //! lose its own. § 6's subject is a request that produced a response, and the
@@ -90,7 +90,7 @@
 //! requests that register nothing — plus two words and one closure reference
 //! per registration. It is
 //! O(in-flight trees) rather than O(requests served), per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md), and nothing on
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md), and nothing on
 //! the request path reads any of it: the queue is touched by the member and by
 //! the drain, both of which are already off the hot path.
 
@@ -285,7 +285,7 @@ mod tests {
     use super::*;
     use crate::OutputSink;
 
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 7: a core holds at most `max_concurrent` request trees open for
     /// after-response work, and the tree past the cap is refused at the call
     /// site rather than queued.

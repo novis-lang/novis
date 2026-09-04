@@ -1,7 +1,7 @@
 //! The blocking pool: where a call that has no readiness to wait on runs, so
 //! that it runs somewhere other than on a core.
 //!
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6 is this module's specification and its one home: filesystem calls, name
 //! resolution and waiting on a child process go here, the reactor thread issues
 //! no call that can block on external state, and the pool is **bounded at twice

@@ -1,4 +1,4 @@
-//! `Core\Random` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Random` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 11's first table, which is a CSPRNG **always**.
 //!
 //! That section collapses PHP's `rand`, `mt_rand`, `random_int`, `lcg_value`,
@@ -11,7 +11,7 @@
 //!
 //! # The generator, and why `rand`
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
 //! two questions of a dependency, and this one answers the first: no
 //! attacker-controlled data reaches it at all — a member here takes a count or
 //! a pair of bounds and returns bytes — so it is accepted under ordinary
@@ -57,7 +57,7 @@
 //!    type is what stops a test helper being reached for in production, so it
 //!    is a class of its own here too rather than an option on these members.
 //! 2. **`ThreadRng` is not reseeded on `fork`.** Nothing in Novis forks today —
-//!    [ADR 0093](../../../../docs/adr/0093-nvs-service.md)'s `nvs service` is
+//!    [ADR 0093](/docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)'s `nvs service` is
 //!    unbuilt — but a child process that inherits a parent's ChaCha state would
 //!    reproduce the parent's stream, so whatever lands there owes
 //!    `ThreadRng::reseed` in the child.
@@ -66,7 +66,7 @@
 //!
 //! A `#[Test(seed: …)]` isolate draws from [`SplitMix`] instead, so the test's
 //! sequence reproduces
-//! ([ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+//! ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 //! § 12). Every member reaches its generator through [`draw`], and that is what
 //! makes the seed all-or-nothing: one that fixed `int` but not `shuffle` would
 //! make a test's reproducibility depend on which members it happened to call.
@@ -397,7 +397,7 @@ fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
     Value::array(out)
 }
 
-/// [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 /// § 12's seeded generator: SplitMix64, over the single `u64` of state
 /// `nvs_runtime::Ctx` holds.
 ///

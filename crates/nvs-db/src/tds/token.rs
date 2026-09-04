@@ -4,7 +4,7 @@
 //!
 //! The types here are what a parse produces; [`mod@super::stream`] is what does
 //! the parsing. Keeping the two apart is what lets [`kind_of`]'s table — the
-//! numbers [ADR 0067 § 10](../../../../docs/adr/0067-core-db.md) maps to
+//! numbers [ADR 0067 § 10](/docs/adr/0067-core-db.md) maps to
 //! throwable classes — be read without the parser around it.
 
 use super::*;

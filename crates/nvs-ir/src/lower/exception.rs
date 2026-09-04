@@ -395,7 +395,7 @@ impl<'a> Lowering<'a> {
             self.try_stack.push(frame);
         }
     }
-    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// § 6: `expr catch (T $e) => value` — the block form's lowering with a
     /// value on every edge that reaches the join.
     ///
@@ -416,7 +416,7 @@ impl<'a> Lowering<'a> {
     /// being an expression rather than a block:
     ///
     /// - **No `finally`.** The expression form has no spelling for one
-    ///   ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    ///   ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     ///   § 2), so no frame pushed here carries one and no exit out of this
     ///   region owes one. Every place [`Self::lower_catch_clauses`] lowers a
     ///   copy of a `finally` body is simply absent, which is also why no arm
@@ -575,12 +575,12 @@ impl<'a> Lowering<'a> {
         (result, ty)
     }
     /// The class label a `catch` clause or an
-    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// arm tests against.
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this
     /// crate never depends on `nvs-hir`, and
-    /// [ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) forbids import
+    /// [ADR 0015](/docs/adr/0015-no-name-aliasing.md) forbids import
     /// renaming, so a bare `LogicError` in source is the global `LogicError`
     /// and nothing else. A leading `\\` is stripped, since
     /// `nvs_types::layout` keys a class by its rendered `QName`, which never
@@ -651,7 +651,7 @@ pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 pub(crate) const LOGIC_ERROR: &str = "LogicError";
 
 /// `ParseError`, the one class below the root that declares a property —
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's `issues`.
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's `issues`.
 /// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
 /// on neither `nvs-hir` nor `nvs-types`, so it restates the two names it needs.
 pub(crate) const PARSE_ERROR: &str = "ParseError";
@@ -661,7 +661,7 @@ pub(crate) const ISSUES_FIELD: &str = "issues";
 
 /// `Core\Db\RolledBack`, the second class below the root that declares a
 /// property — spec § 18's `reason`, thrown by
-/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 7's
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's
 /// `Transaction::rollBack`. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 
@@ -669,7 +669,7 @@ pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 pub(crate) const REASON_FIELD: &str = "reason";
 
 /// `Core\Db\DbError`, the third such class — spec § 18's `kind`, written by
-/// every refusal [ADR 0067](../../../../docs/adr/0067-core-db.md) § 8 gives a
+/// every refusal [ADR 0067](/docs/adr/0067-core-db.md) § 8 gives a
 /// normalised kind. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
 
@@ -710,7 +710,7 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// **What each extra slot is initialized to is [`ExtraInit`]'s decision**, and
 /// the three differ: `ParseError::$issues` starts empty, because a `ParseError`
 /// raised by hand has no field list to report and
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decoder fills
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's decoder fills
 /// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
 /// because spec § 18 gives that class nothing else to carry: the one string a
 /// caller passes is the reason, so `new Core\Db\RolledBack("cart is empty")`

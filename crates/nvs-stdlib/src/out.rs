@@ -4,7 +4,7 @@
 //! `capture(callable $fn, {through?: callable}): Core\Cli\Text` runs `$fn` with
 //! this request's sink redirected into a buffer, and answers what it wrote.
 //! Three properties of that sentence are the design, and each is
-//! [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 5's or the spec's rather than this file's:
 //!
 //! * **Scoped to a closure, so it nests by call nesting.** `ob_start` and
@@ -186,7 +186,7 @@ nvs_runtime::nvs_helper! {
 /// How to name what a `through` closure answered, or `None` where it answered
 /// the carrier this member is declared to hand back.
 ///
-/// A `callable` is opaque as to signature ([ADR 0031](../../../../docs/adr/0031-callable-is-the-only-closure-type.md)),
+/// A `callable` is opaque as to signature ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)),
 /// so nothing static stands between `{through:}` and this check — which is why
 /// it asks about the **class** and not merely about objecthood. Answering a
 /// foreign object used to be accepted here, and the member's registered

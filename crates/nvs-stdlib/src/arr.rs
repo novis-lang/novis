@@ -1,4 +1,4 @@
-//! `Core\Arr` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Arr` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 2, over `nvs_runtime`'s insertion-ordered, copy-on-write `array<T>`.
 //!
 //! Every member here is pure (ADR 0063 R3) and borrows its subject rather
@@ -7,7 +7,7 @@
 //!
 //! # `array<T|U>` is written literally, not flattened to `array<mixed>`
 //!
-//! [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+//! [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
 //! § 1 writes all four combination members as `array<T|U>`, and the registry
 //! can state exactly that: a union is legal in either direction
 //! ([`crate::registry::CoreTy::Union`]), so the return type is
@@ -1980,7 +1980,7 @@ const COMBINED: &[CoreTy] = &[CoreTy::Var("T"), CoreTy::Var("U")];
 /// section says it means: **every** key is discarded and the result renumbered
 /// from `"0"`, rather than PHP's renumber-integers-keep-strings, which is the
 /// key-type-dependent behaviour
-/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
 /// § 3 removes.
 const PRESERVE_KEYS: &[CoreOption] = &[CoreOption {
     name: "preserveKeys",
@@ -2263,7 +2263,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs_runtime::call_closure` trims them to what the closure wants, and
     /// is also where the retain/release around the call lives.
     ///
-    /// Truthiness is [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md)'s
+    /// Truthiness is [ADR 0035](/docs/adr/0035-truthy-boolean-context.md)'s
     /// table through `nvs_runtime::value_truthy`, so a predicate returning
     /// `0`, `""` or an empty array behaves here exactly as it would in a
     /// condition.
@@ -2520,7 +2520,7 @@ nvs_runtime::nvs_helper! {
     /// entries side by side renumbers — `flatten`, `appendAll`, `values` — but
     /// each does so because two sources can hold the same key and there is no
     /// rule that keeps both
-    /// ([ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// ([ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3). A partition has no such collision: each entry lands in exactly
     /// one bucket under the key it already had, so preserving it loses
     /// nothing and answers "which entries grouped here" as well as "what". A
@@ -2862,7 +2862,7 @@ nvs_runtime::nvs_helper! {
 /// ADR 0007 § 5's `"0" … "n−1"` test, over a borrowed array.
 ///
 /// Lifted out of [`nvs_core_arr_is_list`] rather than left inline because
-/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
 /// § 1 states `overlayDeep`'s recursion rule in terms of it — two sides of a
 /// key merge only where both hold an array and **neither is a list** — so the
 /// member and the rule now read the same predicate rather than two spellings
@@ -2949,7 +2949,7 @@ nvs_runtime::nvs_helper! {
 /// meets first. An ordered hash has no other reading, and it is what makes
 /// `slice` answer the same entries whatever the keys happen to be — the
 /// key-type independence
-/// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
 /// asks of every § 2 member, here reaching the *positions* rather than the
 /// result's keys.
 fn window(
@@ -3055,7 +3055,7 @@ nvs_runtime::nvs_helper! {
     /// **The result renumbers**, subject and replacement alike: a list from
     /// `"0"`, never a mix of kept and fresh keys. That is `slice`'s own
     /// default answer and
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3's rule rather than this member's opinion — `array_splice`'s
     /// "renumber the integers, keep the strings" is exactly the key-type
     /// dependence that rule refuses. There is no `{preserveKeys?: bool}`
@@ -3184,7 +3184,7 @@ nvs_runtime::nvs_helper! {
     /// counter to the key it removed, which nothing here reproduces. That is
     /// not a
     /// key-type-dependent rule of the kind
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 removes: the key chosen is one counter's next value whatever the
     /// existing keys look like, so it never has to ask what type they were.
     /// It is also why this member takes no `preserveKeys` option — appending
@@ -3256,7 +3256,7 @@ nvs_runtime::nvs_helper! {
     /// entries without renumbering the ones that remain. That is deliberately
     /// not `array_shift`'s behaviour, which renumbers integer keys and keeps
     /// string ones — the key-type-dependent rule
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 removes. A caller who wants `0, 1, …` writes `Core\Arr::values` and
     /// says so; a caller who wanted to keep a map's keys has no way to get them
     /// back once a member has thrown them away, so keeping is the direction
@@ -3366,7 +3366,7 @@ nvs_runtime::nvs_helper! {
     /// subject may already hold. PHP resolves that by renumbering the integer
     /// keys and keeping the string ones, which is exactly the
     /// key-type-dependent rule
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 removes; renumbering *every* key is the same answer applied
     /// uniformly, and it is what spec § 2 says `{preserveKeys: false}` means
     /// wherever the option appears. Neither member declares the option,
@@ -3519,7 +3519,7 @@ nvs_runtime::nvs_helper! {
     /// **A list, always**: every inner array's keys are discarded and the
     /// result renumbers from `"0"`. Two inner arrays can hold the same key,
     /// so there is no key rule that keeps both, and
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 refuses the one PHP would reach for — keep the strings, renumber
     /// the integers. `appendAll` is this member's variadic sibling and answers
     /// the same shape for the same reason.
@@ -3561,7 +3561,7 @@ nvs_runtime::nvs_helper! {
     /// exact — binds `T` to `array<U>` when the argument is three deep, and
     /// the return would then claim one more level of nesting than the answer
     /// has. That is unsound, not merely imprecise, so this member erases
-    /// instead ([ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)
+    /// instead ([ADR 0007](/docs/adr/0007-explicit-type-system.md)
     /// § 3's one unchecked position). A caller that knows the depth is two
     /// uses `flatten` and keeps its `T`; the spec's rows say both.
     ///
@@ -4206,7 +4206,7 @@ nvs_runtime::nvs_helper! {
     /// until the sort finished (leaving a comparator that is no longer a total
     /// order, which those sorts are documented to be allowed to panic on) or
     /// this. It costs one `Vec<usize>` of scratch space, which
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s ordering
     /// buys without discussion.
     ///
     /// # Natural ordering, and where it diverges from PHP
@@ -4215,12 +4215,12 @@ nvs_runtime::nvs_helper! {
     /// **two `string`s always compare bytewise**, never numerically. PHP
     /// compares `"10"` and `"9"` as numbers, which is the same
     /// changes-type-by-itself behaviour
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) rejects
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) rejects
     /// everywhere else; a caller who wants a numeric order over numeric
     /// strings writes `{by: ...}` and says so.
     ///
     /// **Known gap:** an `array<T>` of objects has no natural order, and
-    /// [ADR 0013](../../../docs/adr/0013-comparable-interface.md) says what it
+    /// [ADR 0013](/docs/adr/0013-comparable-interface.md) says what it
     /// should be — `Comparable::compareTo`. Calling an *instance* method from
     /// a helper is not reachable yet, so an object without a `comparator` is a
     /// throw naming the interface rather than a wrong answer.
@@ -4387,7 +4387,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # The natural order is a byte compare
     ///
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 5 makes
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 5 makes
     /// every stored key a `string` — `arr-keys-are-always-strings.nvst` pins
     /// it — so there is no mixed-type case for [`compare_values`] to
     /// arbitrate and the default ordering is `[u8]`'s. That means `"10"`
@@ -5153,7 +5153,7 @@ fn underlay_into(out: &mut NvsArray, layer: &NvsArray) {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::overlay(array<T> $base, array<U> ...$layers): array<T|U>` —
-    /// [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 1's right-wins combination, replacing PHP's `array_replace` exactly
     /// and its `array_merge` over maps.
     ///
@@ -5452,7 +5452,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Strict identity, never a string cast.** PHP's `array_diff` compares
     /// `(string) $x === (string) $y`, so `1` and `"1"` are the same element
-    /// and two arrays are the same element as each other. [ADR 0069](../../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+    /// and two arrays are the same element as each other. [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
     /// § 3 calls that a bug source rather than a decision; this compares the
     /// way `contains` and `unique` already do, which is `nvs_runtime`'s
     /// `value_identical`.

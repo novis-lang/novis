@@ -5,7 +5,7 @@
 //! Every program a case names is run by spawning the `nvs` binary, not by
 //! calling the compiler in-process. It costs a process launch per case, and
 //! buys three things worth more than that: a case that hits a contained
-//! engine failure ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md))
+//! engine failure ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md))
 //! reports as one failure instead of taking the runner down with it; the exit
 //! status and the two output streams are the same ones a user sees; and the
 //! PHP oracle is reached exactly the same way, so the differential leg is not

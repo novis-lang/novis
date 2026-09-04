@@ -87,7 +87,7 @@ pub(crate) use self::{
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
 
-/// Whether `ty` carries [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// Whether `ty` carries [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 /// § 1's `secret` qualifier — the one thing outside this crate a *declared*
 /// type is asked, and asked at the one end that knows.
 ///
@@ -872,7 +872,7 @@ pub(crate) fn infer(
 /// class below the root is a site saying which failure it anticipated. Only
 /// the three together spell *discard every failure, including the ones this
 /// site never anticipated* — which is PHP's `@`, removed by
-/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 7 and regrown
+/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 7 and regrown
 /// as a one-liner. `nvs_diagnostics::code::W_CATCH_ARM_DISCARDS_EVERY_FAILURE`
 /// says why it is a warning and not a refusal.
 fn warn_discarding_throwable_arm(arm: &CatchArm, ty: TypeId, env: &mut Env<'_>) {

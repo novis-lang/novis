@@ -1,4 +1,4 @@
-//! `Core\Issue` — [ADR 0071](../../../../docs/adr/0071-derived-codecs.md)
+//! `Core\Issue` — [ADR 0071](/docs/adr/0071-derived-codecs.md)
 //! § 5's one shape, and the `array<Issue>` a failed decode carries.
 //!
 //! ```php
@@ -9,7 +9,7 @@
 //!
 //! That is what the ADR writes, and it is the cheaper of the two: a shape needs
 //! no registry row, no member table and no name a program has to import, and
-//! [ADR 0036](../../../../docs/adr/0036-anonymous-object-shapes.md) § 3 already
+//! [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 3 already
 //! makes `{path: string, message: string}` a type the checker compares
 //! structurally. So `Core\Issue` exists as a *type* in
 //! `nvs_types::error_lib::issue_shape` and as a *layout* in

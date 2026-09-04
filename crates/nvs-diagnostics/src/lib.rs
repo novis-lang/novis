@@ -76,19 +76,19 @@ pub mod code {
     /// Input that is not valid UTF-8.
     pub const E_INVALID_UTF8: Code = Code::new("E0006");
     /// A duration literal that does not follow
-    /// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 1's grammar —
+    /// [ADR 0070](/docs/adr/0070-duration-literals.md) § 1's grammar —
     /// out of order, a repeated unit, a fractional count, a mis-cased unit, or
     /// longer than `Core\Time\Duration` can hold.
     pub const E_BAD_DURATION_LITERAL: Code = Code::new("E0007");
     /// A bidirectional control that opens a directional scope and never closes
     /// it inside the source span that opened it, per
-    /// [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
     /// § 2 — a comment, a string literal or an inline-HTML run, and each line
     /// of a multi-line one. There is no suppression.
     pub const E_UNBALANCED_BIDI: Code = Code::new("E0008");
     /// An `<?nvs` open tag in a file that opens with `#!` and is therefore
     /// already in code mode, before any `?>` has left it, per
-    /// [ADR 0100](../../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
+    /// [ADR 0100](/docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
     /// § 3. Reported by `nvs_syntax`'s lexer, which consumes the tag and keeps
     /// lexing code rather than leaving `<` `?` `nvs` for the parser.
     pub const E_TAG_IN_SHEBANG_FILE: Code = Code::new("E0009");
@@ -127,7 +127,7 @@ pub mod code {
     pub const E_BAD_METHOD_CASING: Code = Code::new("E0111");
     /// A property, parameter, local variable or closure self-name is not
     /// `camelCase` — ADR 0029's casing table, tightened by
-    /// [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)
+    /// [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)
     /// § 1 to allow no leading underscore at all (ADR 0029's original
     /// one-underscore allowance for these three categories is revoked).
     pub const E_BAD_MEMBER_CASING: Code = Code::new("E0112");
@@ -135,7 +135,7 @@ pub mod code {
     /// casing table.
     pub const E_BAD_CONST_CASING: Code = Code::new("E0113");
     /// A method literally named `__construct` —
-    /// [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md)
+    /// [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)
     /// §§ 2-3: Novis's constructor is spelled `constructor`, an ordinary
     /// `camelCase` method name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114");
@@ -172,7 +172,7 @@ pub mod code {
     /// `class`, `interface` or anonymous-class body — carrying no
     /// `public`/`protected`/`private`, or PHP 8.4's `(set)` form written
     /// without its read visibility. There is no implicit `public`; see
-    /// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md).
+    /// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md).
     /// A class body's PHP `var $x;` reports this too, rather than a message
     /// about the statement grammar it would otherwise fall into (§ 4).
     pub const E_MISSING_VISIBILITY: Code = Code::new("E0122");
@@ -180,14 +180,14 @@ pub mod code {
     /// string literal — an interpolated `"$dir"`, a concatenation, a
     /// variable. Every path resolves at compile time, relative to the file
     /// the declaration appears in, so there is nothing to interpolate from;
-    /// see [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// see [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 1, which carries `require`'s literal-only restriction for the same
     /// reason.
     pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
     /// A `for` init clause holding a declaration *and* an expression, in
     /// either order — `for (int $i = 0, $j = 1; …)` and
     /// `for ($j = 1, int $i = 0; …)` alike. See
-    /// [ADR 0109](../../../docs/adr/0109-a-for-header-declares-its-own-counter.md)
+    /// [ADR 0109](/docs/adr/0109-a-for-header-declares-its-own-counter.md)
     /// § 3, whose § 1 makes the clause one or the other and never both.
     pub const E_FOR_INIT_MIXES_DECL_AND_EXPR: Code = Code::new("E0124");
     /// A `for` init clause holding two declarations, `for (int $i = 0, int
@@ -197,7 +197,7 @@ pub mod code {
     pub const E_FOR_INIT_TWO_DECLARATIONS: Code = Code::new("E0125");
     /// `return`, `break` or `continue` as the body of an expression-level
     /// `catch` arm. See
-    /// [ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// § 3: an arm holds an expression, which admits `throw` — already an
     /// expression — and refuses the three that are statements. Named rather
     /// than left to the generic expected-expression error, because the fix is
@@ -308,7 +308,7 @@ pub mod code {
     /// `<?NVS` rather than `<?nvs`. PHP matches its reserved spellings
     /// case-insensitively; Novis accepts exactly one spelling of each, so a
     /// program's meaning never depends on the case a reserved word was typed
-    /// in. See [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// in. See [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
     /// own — it is simply an ordinary identifier, since ADR 0029 makes
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
@@ -316,7 +316,7 @@ pub mod code {
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
     /// PHP's `===`/`!==` — Novis keeps exactly one equality operator, `==`, and
     /// its negation `!=`. See
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 1. This is the one construct in this band the *lexer* reports rather
     /// than the parser: there is nothing to parse precisely here, so the
     /// three characters are consumed, named, and lexed as the two-character
@@ -363,9 +363,9 @@ pub mod code {
     /// since the operand's type is what decides and a parser sees none.
     pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
     /// `@expr` — PHP's error-suppression prefix. There is nothing for it to
-    /// suppress: [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// suppress: [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// makes every runtime failure a `Throwable` propagated by checked return
-    /// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)), not a
+    /// ([ADR 0002](/docs/adr/0002-error-propagation.md)), not a
     /// diagnostic printed alongside a value, and ADR 0063 § 3 already lists
     /// `@` among the constructs that decision closes. `try`/`catch` is the
     /// replacement, and it is the only one.
@@ -375,7 +375,7 @@ pub mod code {
     /// a destructuring leaf (`[int &$a] = $pair`), a by-reference return
     /// (`function &f()`) or a by-reference property hook (`&get`).
     ///
-    /// [ADR 0107](../../../docs/adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)
+    /// [ADR 0107](/docs/adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)
     /// retires `&` as a by-reference marker: the two binding modes it spelled
     /// are written `inout`, before the type and again at the call site, and
     /// the two *returning* forms have no replacement at all — Novis hands back
@@ -407,13 +407,13 @@ pub mod code {
     /// `namespace \App;`. A name containing a `\` is already read from the
     /// root, so the prefix has no work left to do, and accepting it would be
     /// the second spelling
-    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3
+    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3
     /// exists to remove. PHP rejects the `namespace` spelling too; the other
     /// two it accepts, which is what made the token mean three different
     /// things by position.
     pub const E_LEADING_BACKSLASH_UNSUPPORTED: Code = Code::new("E0240");
     /// `<>` for inequality, PHP's inherited second spelling of `!=`.
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 1 makes
     /// `==` and `!=` the whole set, so this is the same decision
     /// [`E_IDENTITY_OPERATOR_UNSUPPORTED`] reports and not a lexical accident;
@@ -427,7 +427,7 @@ pub mod code {
     /// See `docs/adr/README.md` § *Decisions taken at project start*.
     pub const E_TRY_WITHOUT_CLAUSE: Code = Code::new("E0242");
     /// The braced `namespace X { … }` form, and with it a file holding two
-    /// namespaces. [ADR 0112](../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+    /// namespaces. [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
     /// keys authority on the enclosing namespace, so a file that is two
     /// namespaces is a file whose authority is a function of the line number.
     /// The rewrite is one file per namespace, declared `namespace X;`.
@@ -436,20 +436,20 @@ pub mod code {
     /// expression position, with no name for the static class table to hold —
     /// the same refusal a conditionally declared class gets, for the same
     /// reason. The rewrite is a named class in the same file, or a closure
-    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)).
+    /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)).
     pub const E_ANONYMOUS_CLASS_UNSUPPORTED: Code = Code::new("E0244");
     /// `catch (A | B $e)`, PHP's multi-class clause. The binding carries one
-    /// static type ([ADR 0007](../../../docs/adr/0007-type-system-scope.md)
+    /// static type ([ADR 0007](/docs/adr/0007-explicit-type-system.md)
     /// § 1's `catch` row), so a clause naming two classes has no type to give
     /// it; the rewrite is one clause per class, each with its own variable
     /// name, or one clause naming a class they all extend. The expression form
     /// refuses the same shape with the same words
-    /// ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// § 1).
     pub const E_CATCH_UNION_TYPE_UNSUPPORTED: Code = Code::new("E0245");
     /// `public const LIMIT = 9;`, PHP's untyped class constant. Every other
     /// binding in the language writes its type
-    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 1) and a
+    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 1) and a
     /// constant is no different: the type read off the folded value is a
     /// guess the declaration never made, it is unavailable to an interface
     /// constant at all, and where the value has no constant form there is
@@ -503,13 +503,13 @@ pub mod code {
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
-    /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 3, which extends
-    /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 1's exact-name rule from `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
     /// Two `autoload` declarations in one program claim the same namespace
-    /// prefix — [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// prefix — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 1's "one prefix has one home". An explicit prefix deliberately does
     /// *not* collide with a `discover` glob that would produce the same one:
     /// there the glob skips the name, which is what makes a vendor override
@@ -534,7 +534,7 @@ pub mod code {
     pub const E_AUTOLOAD_GLOB_SHAPE: Code = Code::new("E0318");
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
-    /// [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
     /// § 3 removed that storage row outright: a constant is always a class
     /// constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
@@ -548,14 +548,14 @@ pub mod code {
     /// `self`, `static` or `parent` written where a value is expected, rather
     /// than on the left of a `::`. Each of the three names a *class*, and a
     /// class is not a value in Novis — there is no class-object reflection
-    /// handle ([ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// handle ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
     /// puts every reflective question on `Core\Reflect` instead).
     pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
     /// A qualified name that does not resolve, but which PHP's rule would have
     /// resolved relative to the enclosing namespace — `Models\User` written
     /// inside `namespace App;`, meaning `App\Models\User`. This is the one
     /// construct
-    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 1
+    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 1
     /// changes the meaning of, so it gets a diagnostic naming the absolute
     /// spelling rather than the generic [`E_UNDEFINED_CLASS`] a reader would
     /// otherwise have to work backwards from. A qualified name that resolves
@@ -858,7 +858,7 @@ pub mod code {
     /// is the type for a value beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
-    // [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)'s three
+    // [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)'s three
     // atoms intern as real types now (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
@@ -1480,7 +1480,7 @@ pub mod code {
     ///
     /// Only the written magnitude is this code's: the *effective* ceiling is an
     /// arithmetic against the memory budget
-    /// ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 13) and a configured number the budget cannot afford is clamped and
     /// logged rather than refused, because a server that will not boot because
     /// two directives disagree is the worse outage.
@@ -1511,7 +1511,7 @@ pub mod code {
     /// believes is in force and nothing else does. It is also what lets
     /// `nvs_config::http::Cookies` resolve the key without an
     /// "or something else" arm, and so without ever repairing one
-    /// ([0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+    /// ([0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
     ///
     /// Not `E0612`'s refusal reached from another direction: that one is a
     /// *pair* of individually meaningful values, and this is one value that
@@ -1949,7 +1949,7 @@ pub mod code {
     pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
     /// ADR 0033 § 4's debug-dump sink, as
-    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 5's redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
@@ -1967,7 +1967,7 @@ pub mod code {
     /// author handed over from the value a record redacts for them.
     pub const E_SECRET_DEBUG_ARGUMENT: Code = Code::new("E0724");
     /// An attribute payload's field value is not a compile-time constant —
-    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
     /// § 2. The whole literal is resolved once, at compile time, into the
     /// unit's constant pool, the same storage class an enum case's backing
     /// value already uses; there is no "evaluate this attribute's arguments"
@@ -1977,7 +1977,7 @@ pub mod code {
     pub const E_ATTRIBUTE_VALUE_NOT_CONSTANT: Code = Code::new("E0725");
     /// The named form of an attribute names something that is not a
     /// shape-typed `type` alias —
-    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
     /// § 1. `Name` there is never a class and never a new namespace of
     /// attribute kinds: it is a pre-existing alias whose right-hand side is a
     /// shape, and its whole job is to be the type the attached literal is
@@ -1992,9 +1992,9 @@ pub mod code {
     /// shape.
     pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726");
     /// A `secret`-qualified class constant reaches an attribute payload —
-    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 4's attribute-payload sink, the one that exists *because* of
-    /// [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
     /// § 2: a payload holds only compile-time constants, and a class constant
     /// is one of them, so the qualifier's own storage class is the only way a
     /// `secret` value could get in there at all.
@@ -2331,7 +2331,7 @@ pub mod code {
     /// ADR 0077 § 3's first compile error. A capture's value arrives *as* the
     /// parameter it is named after, so a capture with no parameter is a value
     /// with nowhere to go; the comparison is exact, per
-    /// [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md), so
+    /// [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md), so
     /// `{userId}` and `$userid` are two names. The reverse is not an error: a
     /// parameter the path does not name is simply not the router's.
     pub const E_ROUTE_CAPTURE_UNBOUND: Code = Code::new("E0751");
@@ -2463,7 +2463,7 @@ pub mod code {
 
     /// One method carries two `#[Access]` attributes.
     ///
-    /// ADR 0096 § 1a's last rule. [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+    /// ADR 0096 § 1a's last rule. [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
     /// § 3 makes every attribute repeatable and leaves the ambiguity to
     /// retrieval, which is exactly what cannot happen here: two decisions are
     /// two readings — every one of them, or any one of them — and choosing
@@ -2591,7 +2591,7 @@ pub mod code {
     /// ADR 0072 § 1: "a field whose value is a `callable`-typed variable
     /// rather than a literal is a compile error naming the field, because
     /// there is nothing to bind from". [ADR
-    /// 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md) leaves
+    /// 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) leaves
     /// `callable` without a signature, so the field's own result type exists
     /// only at the literal; ADR 0007 § 3's deferred typed-`callable`
     /// signatures are what would remove this, and that ADR's *Revisiting* is
@@ -2599,9 +2599,9 @@ pub mod code {
     pub const E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL: Code = Code::new("E0774");
 
     /// A `secret`-qualified value reaches
-    /// [ADR 0023](../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    /// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
     /// § 2's graph copy — [ADR
-    /// 0033](../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
     /// states once for *both* carriers rather than distinguishing "crossing to
     /// a live isolate" from "externalizing to bytes".
@@ -2805,7 +2805,7 @@ pub mod code {
     /// ADR 0027 § 1's `(...)` naming a member whose parameter list a
     /// `callable` cannot carry — one declared `inout $x`, or a variadic tail.
     ///
-    /// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 4 gives `callable` no parameter list, so a call *through* one passes
     /// what it was written with and nothing else: there is no site that could
     /// know to stage a by-reference cell, and none that could know to collect
@@ -2931,7 +2931,7 @@ pub mod code {
     // the first of the `callable`-signature refusals, which have not landed,
     // and a number another decision has already named is not reissued here.
     /// `echo` and a `Core\Response` body member writing one response body —
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 4's sixth row.
     ///
     /// The two disagree about the body's type and its `Content-Type`, and
@@ -2966,17 +2966,17 @@ pub mod code {
     pub const W_SECRET_FILE_READABLE: Code = Code::new("W1005");
     /// `catch (Throwable) => value` — an expression-level arm naming the root
     /// of the exception tree, binding nothing, whose body is not a `throw`
-    /// ([ADR 0119](../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// ([ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// § 5). In the block form a `catch (Throwable)` has a body with room to
     /// log or re-raise; in the expression form the body *is* the value, so an
     /// unbound arm over the root is by construction "discard every failure,
     /// including the ones this site never anticipated" — PHP's `@` operator,
-    /// which [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 7
+    /// which [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 7
     /// removed, regrown as a one-liner. The two honest spellings are naming
     /// the class the site expects and binding `$e` to carry the value. A
     /// warning rather than an error because the hazard is a habit and not a
     /// type error, the reason
-    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 6
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 6
     /// gives for its own.
     pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
     /// A credential the configuration puts in force begins or ends with

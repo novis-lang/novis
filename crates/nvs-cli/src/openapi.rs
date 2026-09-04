@@ -1,4 +1,4 @@
-//! `nvs build --openapi` — [ADR 0085](../../../docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
+//! `nvs build --openapi` — [ADR 0085](/docs/adr/0085-openapi-is-generated-from-the-route-table.md)'s
 //! document, built from the finished route table.
 //!
 //! The whole of this module is a *rendering*. Every fact in the document was
@@ -32,7 +32,7 @@
 //! 1. **A response body that is an object.** The declared return type is on the
 //!    row and [`responses`] renders it, but only through [`schema`] — so a
 //!    handler answering with a *class* gets the empty schema, because the fields
-//!    of one are [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s codec
+//!    of one are [ADR 0071](/docs/adr/0071-derived-codecs.md)'s codec
 //!    and the codec is not on the row. It is that roster and not the class's
 //!    declared properties: a property map holds the private ones too, and a
 //!    document that published those would be leaking exactly what
@@ -118,7 +118,7 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
 /// § 1: the id is `#[Route]`'s `name`. A route that declared none falls back to
 /// its handler label, which is unique by construction — a method declares one
 /// route per verb, and `Class::method` names it — and a *shared* name takes
-/// [ADR 0110](../../../docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
+/// [ADR 0110](/docs/adr/0110-one-methods-repeated-routes-share-a-name-when-they-share-a-path.md)
 /// § 3's lowercased-verb suffix, which is what keeps the id unique when one
 /// method's repeated routes deliberately share one name.
 ///
@@ -222,7 +222,7 @@ fn operation(row: &Route, id: &str) -> Value {
 /// rather than an empty schema — the two mean different things to a generated
 /// client. Everything else is JSON, which is § 1's "through the same codec":
 /// the codec a return type reaches this document through is
-/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s, and that codec is
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s, and that codec is
 /// JSON.
 fn responses(row: &Route) -> Value {
     let returns = row.returns.as_deref();
@@ -331,11 +331,11 @@ fn parameter(param: &RouteParam) -> Value {
 /// The empty schema is *any*, and is what a type with no mapping gets. The list
 /// is deliberately short — these are the types a path capture or a `#[Query]`
 /// may be declared at
-/// ([ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// ([ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// §§ 3 and 5) that have an unambiguous JSON Schema, and nothing else is
 /// guessed at. `tainted string` renders as `string` because the qualifier is a
 /// fact about the compiler's tracking, not about the wire
-/// ([ADR 0024](../../../docs/adr/0024-taint-tracking.md)).
+/// ([ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)).
 ///
 /// `allowed` is [`RouteParam::allowed`], and it *joins* the type mapping rather
 /// than replacing it: `enum` constrains a value, it does not describe one. A
@@ -343,7 +343,7 @@ fn parameter(param: &RouteParam) -> Value {
 /// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so today the
 /// set joins the empty schema and is the whole of what the parameter says,
 /// which is exactly
-/// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 5's `enum: [en, de, fr]`.
 ///
 /// **The members are emitted as JSON strings, including an `int` literal's.**

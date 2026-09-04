@@ -33,7 +33,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// of its problems in the same run.
     ///
     /// `help` is the caller's: the block form's fix is another clause and
-    /// [ADR 0119](../../../../docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
+    /// [ADR 0119](/docs/adr/0119-an-expression-level-catch-is-a-typed-arm-on-one-guarded-expression.md)
     /// § 1's is another arm. The message above it is shared, since § 1 makes
     /// an arm a clause of one guard and "a `catch` clause names one class" is
     /// true of both.
@@ -283,7 +283,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `<` at all) and the span covering `name_span` through the closing `>`.
     ///
     /// The parser deliberately accepts this after *any* name and imposes no
-    /// arity: [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md)
+    /// arity: [ADR 0053](/docs/adr/0053-iteration-and-generators.md)
     /// § 2's one narrow door is `Iterable`/`Iterator`, but which names are
     /// generic is `nvs_hir::interfaces`' roster and only the checker reads
     /// it. Parsing `Foo<int>` and refusing it later gets the reader a
@@ -618,7 +618,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// A **leading** separator is refused here rather than folded into the
     /// span, per
-    /// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 3:
+    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3:
     /// a name with a separator in it is already read from the root, so the
     /// prefix has no work left to do. The token is still consumed after the
     /// report, so the rest of the name parses and one mistake yields one
@@ -627,9 +627,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// A segment may be a reserved word's spelling: a `camelCase` segment
     /// such as `list` lexes as a keyword, and `Foo\list` still has to parse
-    /// per [`docs/spec/00-overview.md` § 5](../../../docs/spec/00-overview.md).
+    /// per [`docs/spec/00-overview.md` § 5](/docs/spec/00-overview.md).
     /// `Core\Bytes` no longer needs this tolerance —
-    /// [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2 made keyword matching exact, so `Bytes` is an ordinary
     /// [`TokenKind::Ident`] instead of colliding with the `bytes` type
     /// keyword.

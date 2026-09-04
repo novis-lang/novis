@@ -1,5 +1,5 @@
 //! `Core\Str::format`'s `printf` grammar —
-//! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 1's *Transformation* table, and the one `Core` member that reads a
 //! template rather than an option.
 //!
@@ -15,16 +15,16 @@
 //! No crate implements it. The `printf`-alike crates on crates.io format Rust
 //! values or re-expose C's `vsnprintf`; what is needed here is the grammar
 //! applied to a [`Value`] — a tagged union whose conversion rows are
-//! [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md) § 2's and
-//! [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md) § 4's, not
+//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's and
+//! [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 4's, not
 //! Rust's `Display`. Adapting one would be more code than the grammar, so
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4's first
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4's first
 //! question answers itself: this is Novis's own semantics, not an external
 //! specification someone else maintains.
 //!
 //! # What it refuses, and why each is a throw
 //!
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4 makes
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4 makes
 //! failure a throw, and PHP's `printf` argument-mismatch bug family is exactly
 //! what the spec wants turned into an error:
 //!
@@ -43,7 +43,7 @@
 //! # One parse, two entry points
 //!
 //! The spec makes `format` an
-//! [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+//! [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
 //! intrinsic: a **literal** template has its placeholder count and types
 //! checked while compiling. That ADR's § 4 is why the checker does not get a
 //! parser of its own — [`Pieces`] is the one walk over the grammar, [`format`]
@@ -121,7 +121,7 @@ pub struct Placeholder {
 }
 
 /// Every placeholder in `template`, in written order, or the message the
-/// runtime would have thrown — [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+/// runtime would have thrown — [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
 /// § 1's validation half of this module.
 ///
 /// The count and the argument types are *not* checked here: this answers what
@@ -463,7 +463,7 @@ impl Spec {
     }
 }
 
-/// One `%s` argument's text — [ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)
+/// One `%s` argument's text — [ADR 0007](/docs/adr/0007-explicit-type-system.md)
 /// § 2's rows, reached through the one implementation of them.
 ///
 /// `nvs_runtime::value_to_string` answers a `Tag::Str` carrying exactly one

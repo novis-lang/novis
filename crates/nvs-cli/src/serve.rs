@@ -2,7 +2,7 @@
 //! entry file as [ADR 0006]'s isolate.
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
-//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
 //! is what drives a connection on it; what this module owns is the four things
 //! only the binary can supply — the socket the loop accepts on, the clock it
 //! holds a connection to, the handler that says which isolate a request is, and
@@ -13,7 +13,7 @@
 //!
 //! # Decision: the configuration's mounts are the table, and a bare file is a table of one
 //!
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 2 is the server's governing rule — a request *selects* an entry point from
 //! a set enumerated before it arrived and may never construct one — and § 4's
 //! mount table is that set. A tree that writes `[[server.mount]]` gets **the
@@ -53,7 +53,7 @@
 //! today. That refusal moves the day there is a listener for one; the
 //! classification does not.
 //!
-//! **What it spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! **What it spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! one compiled unit per mounted entry, held for the life of the process and
 //! shared by every request that runs it ([ADR 0006]'s "shares immutable compiled code",
 //! which is [`crate::script`]'s cache and nothing else), plus whatever the accept

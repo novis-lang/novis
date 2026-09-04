@@ -1,14 +1,14 @@
-//! [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
 //! two command-table attributes: what `#[Command]` and `#[Option]` may carry.
 //!
 //! # Why these are recognized names rather than shape aliases
 //!
 //! § 6 builds a *table* from them while compiling — the same
-//! [ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! § 3 scan ADR 0077's route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
-//! [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 1's rule, so both
+//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so both
 //! names sit on [`crate::derive::ATTRIBUTES`] and are matched *nominally* after
 //! [`nvs_hir::resolve_ref`]. [`crate::attributes`]'s ADR 0046 § 1 rule — the
 //! name is a shape-typed `type` alias — is the rule for the userland names,
@@ -323,7 +323,7 @@ pub struct Command {
 /// attached to it, and a map would drop the row that error is reported
 /// against. Order is what makes the pair deterministic — the collision is
 /// always reported at the row that arrives second, and the load order does not
-/// depend on filesystem enumeration ([ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+/// depend on filesystem enumeration ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 /// § 3).
 #[derive(Debug, Default)]
 pub struct CommandTable {

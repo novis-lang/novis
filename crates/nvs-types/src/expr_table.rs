@@ -144,7 +144,7 @@ pub struct ResolvedCall {
     /// records `User`, and every other call records `None`.
     ///
     /// A type argument is erased like every other one
-    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)), so this
+    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md)), so this
     /// is deliberately not "what `T` bound to": it is the one fact a *native*
     /// member needs that erasure removes, namely which class's
     /// `nvs_runtime::ClassDesc` to build an instance of. `nvs-ir` turns it
@@ -245,7 +245,7 @@ pub struct ObserverCalls {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UrlPiece {
     /// A literal segment, `/` included — compared byte for byte at match time
-    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
     /// so it is copied out exactly as declared.
     Literal(String),
     /// `{name}`: `/` and then `$params[name]`, percent-encoded — § 4's launder
@@ -328,7 +328,7 @@ pub enum ExprInfo {
     /// `static::helper(...)` late-bound exactly as `static::helper()` is.
     CallableRef(ResolvedCall),
     /// A bare name in callee position that is
-    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 3's self-name — `fact` inside `fn fact(int $n): int => … fact($n - 1)`.
     ///
     /// Recorded on the **callee's** span, not the call's, because it is the
@@ -360,7 +360,7 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// `new $cls(...)` over a `class<T>` operand —
-    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 4's dynamic form, and a variant of its own precisely because it
     /// cannot answer the question [`ExprInfo::New`] is built around. A `New`
     /// entry names **the class a layout comes from**, and here that is
@@ -632,7 +632,7 @@ pub enum ExprInfo {
     },
     /// `$a == $b` — or `!=` — where at least one operand is statically
     /// `secret`, keyed by the *comparison's* own span.
-    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 5: that pair lowers to a constant-time comparison rather than the
     /// short-circuiting one every other operand pair uses.
     ///
@@ -651,9 +651,9 @@ pub enum ExprInfo {
     SecretEquality,
     /// `$a + $b` over two sink carriers of the same kind, keyed by the `+`
     /// expression's own span —
-    /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 5's `Markup + Markup` and
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
     /// `Text + Text`, which [`crate::expr::operators`] admits as one rule.
     ///
     /// Carries the symbol rather than the class for [`Self::SecretEquality`]'s
@@ -714,7 +714,7 @@ pub enum ExprInfo {
     },
     /// `Core\Class::CONSTANT`, keyed by the whole access's own span.
     ///
-    /// [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+    /// [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
     /// class constant, which `Core\Math::PI` is the first of. It carries the
     /// value for [`ExprInfo::EnumCase`]'s reason exactly: a constant is
     /// inlined at every use site, so there is no storage a consumer could read
@@ -735,13 +735,13 @@ pub enum ExprInfo {
     },
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
     /// written-out string —
-    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
     /// § 2's `string` and `property<U>` rows, with `T`'s public roster already
     /// resolved.
     ///
     /// Recorded because the roster is the one thing the erasure loses. A key's
     /// values are `T`'s public declared property names; `property<T>` erases to
-    /// [`nvs_ir`'s `Ty::Str`](../../../crates/nvs-ir/src/ty.rs) because a key
+    /// [`nvs_ir`'s `Ty::Str`](/crates/nvs-ir/src/ty.rs) because a key
     /// *is* a name, and `nvs-ir` holds no class table to re-derive the set
     /// from. So the set travels here and § 2's two checked rows lower to the
     /// same compile-time-known membership chain ADR 0047 § 3's literal union
@@ -769,7 +769,7 @@ pub enum ExprInfo {
         names: Vec<String>,
     },
     /// `$obj->$key` / `$obj->{$expr}` —
-    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
     /// § 4's keyed access, read or write, whose member name arrives as a
     /// **value** when the statement runs.
     ///
@@ -797,7 +797,7 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// `Core\Program::implementing<T>()`, keyed by the call's own span —
-    /// [ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 3's enumeration, already answered.
     ///
     /// The sibling of [`ExprInfo::CoreConst`] for a fold whose answer is not a
@@ -807,7 +807,7 @@ pub enum ExprInfo {
     /// into one `InstKind::ArrayNew` — exactly the instructions the array
     /// literal a program could have written by hand lowers to, which is what
     /// makes the instances per-request like any other object
-    /// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)).
+    /// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)).
     ///
     /// Recorded *instead of* [`ExprInfo::Call`] for the same span, for
     /// [`crate::retrieval`]'s reason: one span carries one entry, and
@@ -828,7 +828,7 @@ pub enum ExprInfo {
     },
     /// `Core\Router::url`/`urlAbsolute` over a **literal** name that resolved
     /// to a declared route —
-    /// [ADR 0077](../../../docs/adr/0077-compile-time-routing.md) § 4's link,
+    /// [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4's link,
     /// with the lookup already made.
     ///
     /// Recorded *over* the [`ExprInfo::Call`] the same span already carries,
@@ -847,7 +847,7 @@ pub enum ExprInfo {
         /// origin in front of everything `url` builds.
         absolute: bool,
     },
-    /// An [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// An [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// `fn` closure literal, keyed by the literal's own span.
     ///
     /// A closure's *type* is [`crate::ty::Ty::Callable`] and says nothing
@@ -923,7 +923,7 @@ pub struct ExprTypeTable {
 }
 
 /// One synthesized `implements I by $field;` forward —
-/// [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
 /// § 4's "the compiler synthesizes, for every method the interface requires, a
 /// one-line forward", resolved here and emitted in `nvs_ir::lower`.
 ///

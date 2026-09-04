@@ -136,7 +136,7 @@
 //! second `Module` implementation, and a named symbol for every address the JIT bakes in — and it
 //! is in the handoff's backlog, not in this crate.
 //!
-//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md) is not the other half of
+//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
 //! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
 //!

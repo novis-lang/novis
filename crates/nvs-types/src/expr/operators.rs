@@ -207,7 +207,7 @@ fn reject_impossible_class_reference_conversion(
 /// A name outside the set and a name naming a `private` property are one
 /// failure with one message, which is § 2's sentence: visibility is decided at
 /// the conversion, once. Under `as ?property<T>` as well, for
-/// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3's
 /// reason the sibling states — the sugar answers `null` where the checked form
 /// throws, and an operand decided here never had a throw to convert.
 ///
@@ -404,7 +404,7 @@ pub(crate) fn binary_result(
     }
 }
 
-/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 2: a comparison whose two static types are **disjoint** — no single value
 /// inhabits both — is a compile error, because the compiler already knows the
 /// answer and the author did not mean to write it. Reported for `==`/`!=` from
@@ -1049,9 +1049,9 @@ pub(crate) fn arithmetic_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut 
     }
 }
 
-/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 /// § 5's `Markup + Markup` is `Markup` and
-/// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
+/// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 2's
 /// `Text + Text` is `Text` — the only rows of any operator table whose operands
 /// are a class, and the only arithmetic-shaped pairs that are not arithmetic at
 /// all.
@@ -1153,7 +1153,7 @@ pub(crate) fn reject_enum_operand(
     Some(env.interner.mixed())
 }
 
-/// [ADR 0069](../../../docs/adr/0069-array-combination-is-key-type-independent.md)
+/// [ADR 0069](/docs/adr/0069-array-combination-is-key-type-independent.md)
 /// § 2: binary `+` and `+=` with an array operand are a compile error naming
 /// `Core\Arr::underlay`. PHP's array union operator is *removed*, not migrated,
 /// so there is no silent behaviour change to fall into — the operator simply
@@ -1400,7 +1400,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
 /// **An object** takes `E_TYPE_MISMATCH`: Novis has no operator overloading, so
 /// there is no arithmetic an object can take part in — and the first place a
 /// program reaches for one is
-/// [ADR 0070](../../../docs/adr/0070-duration-literals.md) § 4's `-7d`, which
+/// [ADR 0070](/docs/adr/0070-duration-literals.md) § 4's `-7d`, which
 /// that ADR refuses outright in favour of `->minus(7d)`. Left unchecked it
 /// reaches `nvs-codegen`, which panics naming the representation; a
 /// diagnostic naming the operator is what the author needs.
@@ -1514,7 +1514,7 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
     );
 }
 
-/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3's
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3's
 /// class row, which is **absolute**: `as` converts between the types ADR 0007
 /// § 2 tabulates and ADR 0047's literal and enum-case types, and none of those
 /// is a class. `$obj as ?SomeClass` asks class membership, which `instanceof`
@@ -2294,7 +2294,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
     );
 }
 
-/// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md) § 6: a
+/// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md) § 6: a
 /// checked `as` into a closed set of literals or enum cases, whose operand
 /// names one value and that value is not in the set — `"z" as "a"|"b"`,
 /// `Mode::Admin as Mode::Read|Mode::Write`. Nothing about it is conditional at
@@ -2310,7 +2310,7 @@ pub(crate) fn reject_enum_to_enum_conversion(
 /// to compile.
 ///
 /// This is deliberately not [`types_are_disjoint`]'s business.
-/// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+/// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 /// § 2 puts a literal type in its base type's domain, so `$mode == "z"` stays
 /// an ordinary run-time string comparison; what is refused here is a
 /// *conversion* that can only throw, which is a different question reaching a
@@ -2470,7 +2470,7 @@ pub(crate) fn require_stringable(ty: TypeId, span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+/// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
 /// §§ 2 and 3, at the five sites that would turn a `Core\Html\Markup` back
 /// into text *without* the sink being the one asking: `.`, `.=`, an
 /// interpolated piece and `as string`.

@@ -1,4 +1,4 @@
-//! [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s type table: what a
+//! [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type table: what a
 //! column declares itself to be, and what one cell becomes as a value.
 //!
 //! Three drivers arrive with three column types and three date/time shapes and
@@ -107,7 +107,7 @@ pub(super) fn tds_described_columns(rows: &nvs_db::tds::TdsRows<'_>) -> NvsArray
 
 /// A [`nvs_db::ColumnType`] as the [`COLUMN_TYPE`] case a program matches on,
 /// which at runtime is that case's ordinal
-/// ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)).
+/// ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
 ///
 /// **The ordinal is looked up rather than written a second time.** The two
 /// halves of the enum are one enum and [`COLUMN_TYPE`]'s doc says which half is

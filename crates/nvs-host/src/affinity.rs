@@ -1,6 +1,6 @@
 //! Pinning a worker thread to one CPU, and what is allowed to go wrong.
 //!
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6 wants "one single-threaded scheduler of our own pinned per core", and
 //! `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* says why:
 //! a request never migrates, so a refcount is a non-atomic increment and an

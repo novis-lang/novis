@@ -1,4 +1,4 @@
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 3's **tier
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's **tier
 //! 3** — the operator's own `.nvs`, run before the floor reports.
 //!
 //! # Why this is a module of `nvs-host` and not of `nvs-runtime`

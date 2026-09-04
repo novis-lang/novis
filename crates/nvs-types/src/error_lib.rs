@@ -10,14 +10,14 @@
 //!
 //! # Members are properties, not accessors
 //!
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 10
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
 //! is authoritative: `$e->message`, `$e->previous`, `$e->backtrace`,
 //! `$e->location`. There is no `getMessage()`/`getTraceAsString()` to seed,
 //! and nothing here declares one.
 //!
 //! # `ParseError` is the one class with state of its own
 //!
-//! [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's
+//! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's
 //! `issues: array<Core\Issue>`, seeded from
 //! [`nvs_hir::errors::OWN_PROPERTIES`] rather than named here, so that the
 //! slot order and the signature cannot disagree. `Core\Issue` is an ADR 0036
@@ -179,7 +179,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
 const ERROR_KIND: &str = r"Core\Db\ErrorKind";
 
 /// `type Core\Issue = {path: string, message: string}` —
-/// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5's one shape.
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's one shape.
 ///
 /// An ADR 0036 shape rather than a class, which is what that ADR writes and
 /// what lets a decoder build one with no declaration anywhere: the value is an
@@ -226,7 +226,7 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 
 /// `constructor(string $message, {previous?: Throwable|null})` — spec § 10's
 /// one required message and one options shape, which is
-/// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2 applied to a
+/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 applied to a
 /// constructor like any other member.
 ///
 /// The bag is optional by construction rather than by a second rule: its

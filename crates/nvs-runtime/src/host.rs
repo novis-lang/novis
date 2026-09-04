@@ -4,7 +4,7 @@
 //! Plus [`Host::sleep`], which is the one thing a member can want from a core
 //! that is not a group; § 3 below owns why it is the exception.
 //!
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
 //! `Core\Task::all` runs its fields as children of the calling task, and that
 //! task lives on `nvs-host`'s scheduler. A `Core` member is a `nvs-stdlib`
 //! helper. Nothing joined those two before this module, and the three decisions
@@ -83,7 +83,7 @@
 //! ([`crate::HelperFrame`]), so the host resumes the caller and this call
 //! returns [`Outcome::Cancelled`] like anything else. The member's answer is
 //! [`Ctx::cancel`], which is § 5's teardown by
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status: no
+//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status: no
 //! `catch` sees it and no script code runs on the way out.
 //!
 //! # What it spends
@@ -92,7 +92,7 @@
 //! thread-local, `const`-initialized and holding no `Drop` type, which is what
 //! this crate's own allocator module requires of every one in it. It is
 //! O(cores) and does not grow with requests served, per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md). A helper that
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md). A helper that
 //! asks pays one thread-local load and one null test.
 
 use std::cell::Cell;
@@ -123,7 +123,7 @@ use crate::value::Value;
 /// never reached.
 pub type Job = Box<dyn FnOnce(&mut Ctx) -> Value>;
 
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 3's
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 3's
 /// `{limit?: uint, deadline?: Duration}`, decoded.
 ///
 /// `None` is that section's "unbounded" in both fields, which is why neither is
@@ -139,7 +139,7 @@ pub struct Bounds {
     pub deadline: Option<Duration>,
 }
 
-/// How a group ended — [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+/// How a group ended — [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 /// § 4's table, and the module docs own why its last row is a variant here
 /// rather than an unwind.
 ///
@@ -185,7 +185,7 @@ pub enum Outcome {
 /// instead, and this is what the resume says. The member's answer to
 /// [`Woken::Cancelled`] is [`crate::SafepointFlags::CANCEL`] and an ordinary
 /// return: the next safepoint poll is then
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 5's
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
 /// teardown, and because it is a poll rather than a throw, no `catch` sees it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Woken {
@@ -211,7 +211,7 @@ pub enum Woken {
 pub type Waker = Box<dyn FnOnce()>;
 
 /// Where an isolate's `echo` ends up — [ADR
-/// 0006](../../../docs/adr/0006-isolated-script-execution.md) § *Output is
+/// 0006](/docs/adr/0006-isolated-script-execution.md) § *Output is
 /// captured by default*.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Output {
@@ -262,7 +262,7 @@ pub struct Completion {
     /// handed the bytes to the parent's own stream.
     pub output: Vec<u8>,
     /// What the child declared [`Self::output`] to *be* —
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 4's `Content-Type`, or `None` where nothing declared one.
     ///
     /// Beside the output rather than inside it, and on a `Completion` rather
@@ -335,7 +335,7 @@ impl Completion {
 ///
 /// **Dropping one without joining it is legal and is not a leak**: the child is
 /// a task under the caller's own task, so it dies with it
-/// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s "the
+/// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s "the
 /// isolate is a child task"). What it costs is that the child's answer is
 /// discarded rather than crossing, which is exactly what a program that spawned
 /// and never awaited asked for.
@@ -355,7 +355,7 @@ pub trait Running: std::fmt::Debug {
     /// The question a caller that may not suspend has to be able to ask, and
     /// the whole of why it exists: a `Future` polled by somebody else's loop —
     /// the built-in server's service, driven by `hyper` under
-    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
     /// § 1 — answers `Pending` while this is `false` and calls
     /// [`Running::join`] only once it is `true`, at which point that call has
     /// nothing left to wait for and does not park. A caller with no such
@@ -374,7 +374,7 @@ pub trait Running: std::fmt::Debug {
     /// request may be dropped by the loop polling it while its isolate is still
     /// going, and letting that drop return with the child running would leave
     /// work outside anything that can be proven finished — which is exactly
-    /// what [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// what [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 4 refuses. So this cancels and then waits, as `join` does for a
     /// cancelled parent, and discards whatever the child had produced: nobody
     /// is left to read an answer.
@@ -416,7 +416,7 @@ pub trait Host: std::fmt::Debug {
     /// hand over, so it cannot reach a host through
     /// [`Host::run_group`] and would otherwise call
     /// [`std::thread::sleep`] — which stalls every task pinned to the same
-    /// core, [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// core, [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 6's tier-B failure, where the requests that lose are the neighbours.
     /// It is also what a `Core\Task::all` under a `limit` needs in order to be
     /// a shaper at all: with a blocking sleep no two children ever overlap, so
@@ -431,7 +431,7 @@ pub trait Host: std::fmt::Debug {
     /// the whole reason this answers anything at all. A task parked here is
     /// standing on an `extern "C"` helper frame, so its host may not unwind it
     /// ([`crate::HelperFrame`]); it resumes the task instead, and the member
-    /// turns that into [`ADR 0002`](../../../docs/adr/0002-error-propagation.md)'s
+    /// turns that into [`ADR 0002`](/docs/adr/0002-error-propagation.md)'s
     /// return status at the next safepoint. A host with no task beneath the
     /// call still owes the wait, blocking is the right answer there, and it
     /// answers [`Woken::Elapsed`] because nothing could have cancelled it.
@@ -448,7 +448,7 @@ pub trait Host: std::fmt::Debug {
     /// `None` is what a member with nowhere to park refuses on, and it is the
     /// reason this is separate from [`Host::park`] rather than folded into it:
     /// a park with no task under it can only block the core, which
-    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 6 forbids outright, so the member has to learn there is no task
     /// *before* it commits to waiting.
     fn waker(&self) -> Option<Waker>;
@@ -486,7 +486,7 @@ pub trait Host: std::fmt::Debug {
     /// the handle that collects it later.
     ///
     /// This is the half of [ADR
-    /// 0006](../../../docs/adr/0006-isolated-script-execution.md)'s spawn that
+    /// 0006](/docs/adr/0006-isolated-script-execution.md)'s spawn that
     /// only a scheduler can do, and it is deliberately **eager**: the child is
     /// a runnable task before this returns, so a parent that spawns three and
     /// then awaits three overlaps them. Deferring the start to the join would
@@ -497,7 +497,7 @@ pub trait Host: std::fmt::Debug {
     /// this ends — the graph copy takes it on the success path, and the `Err`
     /// path releases it. `ctx` is the parent's, and is borrowed only for the
     /// length of the call: the isolate's own ownership root is built here
-    /// ([ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
     /// § 2) and is nothing the parent can reach.
     ///
     /// # Errors

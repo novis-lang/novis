@@ -1,8 +1,8 @@
 //! The declaration checks that need only the AST: identifier casing
-//! ([ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md),
-//! tightened by [ADR 0030](../../../docs/adr/0030-no-leading-underscores-constructor-spelling.md))
+//! ([ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md),
+//! tightened by [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md))
 //! and the visibility
-//! [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+//! [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
 //! requires at every member declaration. Each is checked directly off the
 //! AST a declaration already produces — no name resolution needed, so this
 //! lives in `nvs-syntax` rather than waiting on `nvs-hir`/`nvs-types`.
@@ -35,7 +35,7 @@
 //! walks. It deliberately does not reach a parameter (§ 2: visibility is
 //! what promotes one to a property, so requiring it everywhere would delete
 //! the distinction) or an `enum` body (§ 3 of
-//! [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) already
+//! [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) already
 //! rejects every non-`case` member there, and two diagnostics for one
 //! mistake is worse than one).
 //!
@@ -94,7 +94,7 @@ fn span_text(src: &SourceFile, span: Span) -> &str {
 // Pattern checks — ADR 0029's table, ADR 0030's zero-exception tightening
 // ============================================================================
 
-/// Exactly [ADR 0029](../../../docs/adr/0029-identifier-casing-is-checked.md)
+/// Exactly [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md)
 /// § 1's rule: only the first character's case is checked, and the rest need
 /// only be alphanumeric — no run-length or acronym check of any kind, so
 /// `HTTPClient` is accepted on equal footing with `HttpClient`.
@@ -540,7 +540,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
     }
 }
 
-/// [ADR 0094](../../../docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+/// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
 /// § 1: a member declaration carrying none of `public`/`protected`/`private`
 /// is [`code::E_MISSING_VISIBILITY`], because there is no default for it to
 /// have meant. § 3 makes PHP 8.4's bare `private(set)` the same error rather

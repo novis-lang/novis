@@ -1,4 +1,4 @@
-//! [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
 //! command table, as a *running* program sees it: the rows the compiler built,
 //! carried on the request's own context.
 //!
@@ -34,7 +34,7 @@
 //! `about:`, spelling and declared default the program wrote — tens of them for
 //! a CLI, and nothing at all for a program with no command. O(in-flight
 //! requests), per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
 //!
 //! # Known gaps
 //!
@@ -125,7 +125,7 @@ pub enum ArgConv {
     Unconverted,
 }
 
-/// One enum case's constant value, in [ADR 0010](../../../docs/adr/0010-enums.md)
+/// One enum case's constant value, in [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)
 /// § 2's own two integer types.
 ///
 /// `nvs_types::enums::EnumValue` as a running program holds it, and **not**

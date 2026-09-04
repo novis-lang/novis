@@ -484,7 +484,7 @@ pub(crate) fn reject_secret_throwable_message(
 }
 
 /// ADR 0033 § 4's debug-dump sink at its *call-site* half, which is how
-/// [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 /// § 5's redaction row states it: a property whose declared type carries
 /// `secret` becomes a Redacted node, and a `secret` value handed straight to
 /// the dump is refused by `nvs check`. The two halves are one rule about one
@@ -783,7 +783,7 @@ pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut
 }
 
 /// ADR 0033 § 4's cross-boundary sink: a `secret`-qualified value handed to
-/// [ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 /// § 2's graph copy.
 ///
 /// **One check for both carriers**, which is how § 4 states the rule: the
@@ -870,7 +870,7 @@ pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: 
 /// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute
 /// payload, reported at the value where it is written.
 ///
-/// The sink exists because of [ADR 0046](../../../../docs/adr/0046-attributes-shape-literal-metadata.md)
+/// The sink exists because of [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md)
 /// § 2 rather than in spite of it. A payload admits only compile-time
 /// constants — no variable, no call, no `new` — and a class constant is one of
 /// the shapes it admits, so the storage class ADR 0033's own values live in is

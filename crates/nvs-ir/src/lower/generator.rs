@@ -316,7 +316,7 @@ pub(crate) const GEN_CURRENT_METHOD: &str = "current";
 /// than theirs: `nvs_runtime::object::dismantle` probes **every** dying
 /// object's class for this name, so a name a source program could declare
 /// would turn a user method into the destructor
-/// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 2 says Novis does not have. `#` is not in an identifier, so no class but
 /// one this transform synthesized can answer. `nvs_runtime` restates the
 /// string as `nvs_runtime::object::GENERATOR_UNWIND_METHOD`, for the reason
@@ -436,7 +436,7 @@ impl GenFrame {
 ///   second copy of the rules.
 ///
 /// **This is not a destructor**, and it re-opens nothing in
-/// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 2: no user code runs that the program did not already suspend inside, no
 /// `__destruct` is recognized on any class, and a generator's state class gains
 /// no lifecycle hook a user class could ever declare. `unwind` resumes a

@@ -1,7 +1,7 @@
 <?nvs
 // A durable background job, from the enqueue to the dead letter.
 //
-// [ADR 0084](../docs/adr/0084-durable-background-jobs.md) is the design, and
+// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) is the design, and
 // its § 3 is the property the whole thing is built around: a job is a row in
 // a `Core\Db` table, so `push` inside a transaction on the queue's own
 // connection **commits with the write that caused it**. There is no window in

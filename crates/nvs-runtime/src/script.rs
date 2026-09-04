@@ -2,7 +2,7 @@
 //! thread-local, one trait, and one operation nothing below the compiler can
 //! perform for itself.
 //!
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s isolate
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate
 //! runs *another file*, and `nvs_host::Isolate` is that boundary in code. What
 //! it deliberately cannot do is turn the written path into something to call:
 //! resolving a path means the front end, `nvs-ir`, `nvs-codegen` and the unit
@@ -39,7 +39,7 @@
 //! thread-local, `const`-initialized and holding no `Drop` type, which is what
 //! this crate's `alloc` module requires of every one in it. It is
 //! O(threads) and does not grow with isolates spawned, per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
 
 use std::cell::Cell;
 
@@ -83,7 +83,7 @@ pub enum ResolveError {
     /// does not compile. Already rendered for a person to read.
     Refused(String),
     /// The configuration does not grant `script.spawn` for this path —
-    /// [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+    /// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
     /// § 5's message, written by `crate::capability` and carried out through
     /// here rather than re-worded, so every denial reads the same whichever
     /// door produced it.
@@ -117,7 +117,7 @@ pub trait Resolver: std::fmt::Debug {
     ///
     /// `path` is exactly what the program wrote. How a relative one is
     /// anchored is the implementor's — nothing about it is decidable here, and
-    /// [ADR 0104](../../../docs/adr/0104-an-application-is-an-entry-file-path.md)
+    /// [ADR 0104](/docs/adr/0104-an-application-is-an-entry-file-path.md)
     /// settles the entry file rather than this.
     ///
     /// # Errors
@@ -176,7 +176,7 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 /// unit struct in a `static` — a resolver cannot, because it holds the unit
 /// cache and a compiled unit is `Rc`-shared, so the whole type is `!Sync`.
 /// Leaking one per process is 56 bytes and well inside
-/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s bound, but it
+/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s bound, but it
 /// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
 /// is worth more than the 56 bytes: a sweep with one known-red fixture is a
 /// sweep nobody reads.
@@ -211,7 +211,7 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
 /// there is exactly one thing anybody does with a resolver, and every way of
 /// not getting a program is a [`ResolveError`] variant.
 ///
-/// **This is [ADR 0118](../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// **This is [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 /// § 2's spawn door**, and it takes a `ctx` for no other reason. The check is
 /// here rather than in the lowered helper that calls it because this function
 /// *is* the effect: a `Program` is the thing a spawn was after, and there is no

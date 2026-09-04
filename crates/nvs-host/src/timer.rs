@@ -2,9 +2,9 @@
 //! two views of it.
 //!
 //! `docs/agent/loop-goal.md` § *Stage 2* item 5 is why this is one thing and
-//! not two: [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! not two: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 //! § 3's `{limit, deadline}` and
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5's "no spelling
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5's "no spelling
 //! for an unbounded wait" both resolve to *this task must be runnable again at
 //! this instant*. A sleep is that with nothing else to wait for; a deadline is
 //! that raced against readiness. Writing them twice would be two clocks to keep
@@ -19,7 +19,7 @@
 //! fire-and-forget entries would keep an entry for a task that has already
 //! finished until its deadline came round, which is a table that grows with
 //! requests *served* under a load of abandoned deadlines rather than with the
-//! ones in flight — what [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
+//! ones in flight — what [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
 //! calls a leak rather than a trade-off. `Reactor::retire` drops a finished
 //! task's timer for the same reason it drops its registrations.
 //!
@@ -51,7 +51,7 @@
 //!
 //! # Reading a core's earliest deadline from another thread
 //!
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 7's watchdog notices a core that has stopped turning at all, and it does
 //! that by *reading the deadline this module already keeps* rather than by a
 //! heartbeat written per request. [`Timers`] therefore publishes its first

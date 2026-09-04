@@ -1,6 +1,6 @@
 //! A task's stack: reserved wide, resident narrow, pooled per worker.
 //!
-//! [ADR 0115](../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
+//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
 //! § 4 is this policy's only home; what follows is how it is spelled here and
 //! the two facts about the platforms that make it true.
 //!
@@ -16,7 +16,7 @@
 //! against a resident cost measured in what the handlers touched.
 //!
 //! What it spends, in the terms
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) asks for: one
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks for: one
 //! reservation per in-flight task, charged to the request that owns it, plus at
 //! most [`MAX_POOLED_STACKS`] reservations per worker held idle between tasks.
 //! Both are O(in-flight) and neither grows with requests served.
@@ -25,7 +25,7 @@
 //!
 //! `nvs_runtime`'s `STACK_RESERVE` is already 256 KiB of unwinding room between
 //! the soft recursion limit and the hard floor
-//! ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1). A stack
+//! ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1). A stack
 //! narrower than several times that would put the soft limit so close to its
 //! own base that a handler would be refused before it had done anything; 1 MiB
 //! leaves 768 KiB of ordinary depth above a reserve that is itself sized for

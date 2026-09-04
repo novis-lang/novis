@@ -1,6 +1,6 @@
 //! One core, one scheduler, one run queue of stackful coroutines.
 //!
-//! This is [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! This is [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 6's "one single-threaded scheduler of our own pinned per core", and the
 //! shape `benches/abi-probe` has been modelling since M0 — its `Ctx` doc calls
 //! itself "deliberately shaped like the real `Ctx` will be", and this module is
@@ -30,7 +30,7 @@
 //! `Core\IO::read` has the same signature whether or not there is a scheduler
 //! beneath it, and Novis's surface never grows a colour.
 //!
-//! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
+//! What it spends, as [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
 //! requires: **one stack per in-flight task**, held for as long as that task is
 //! suspended and handed back to the worker's pool when it completes. That is
 //! O(in-flight) and not O(requests served), which is the test that section
@@ -44,7 +44,7 @@
 //! Every task has a parent and a list of children, and the parent is **taken
 //! from the task that spawned it** rather than passed in: [`spawn_child`] reads
 //! [`current_task`], so
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
 //! "each is a child of the calling task" is a property of the call rather than
 //! of a caller's diligence. A task spawned from the worker itself
 //! ([`Scheduler::spawn`], with nothing running) is a root. No ADR slot is free
@@ -88,7 +88,7 @@
 //! Novis stack is not one it may cross: a `Core` member's entry point is
 //! `extern "C"`, which aborts the process rather than letting one out, and the
 //! compiled frames beneath it carry no unwind tables at all
-//! ([ADR 0002](../../../docs/adr/0002-error-propagation.md)). So a task is only
+//! ([ADR 0002](/docs/adr/0002-error-propagation.md)). So a task is only
 //! ever force-unwound when [`nvs_runtime::HelperFrame`] says its stack is
 //! clear of both, which [`yield_on`] reads at each suspension and [`Task`]
 //! remembers. A task standing on a helper frame is **resumed** with
@@ -216,7 +216,7 @@ struct Suspended {
 /// The scheduler's half of the answer [`nvs_runtime::HelperFrame`] asks for: a
 /// cancelled task whose stack carries script frames is resumed with
 /// [`Resume::Cancelled`] instead of being unwound, and dies by
-/// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s return status at
+/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status at
 /// its next safepoint. The module doc's *task tree* section is the whole
 /// decision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -548,7 +548,7 @@ pub struct Finished {
     pub ctx: Ctx,
     /// `Err` if a panic reached the task's root and was contained there by
     /// [`nvs_runtime::run_task`], which is
-    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 2's outer boundary. [`TaskPanic::retires_worker`] is the only
     /// decision a caller has to make from one.
     pub outcome: Result<(), TaskPanic>,
@@ -654,7 +654,7 @@ impl Drop for Scheduler {
     /// its doc owns the reasoning.
     ///
     /// No script code runs here, which is
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 5's rule: what the unwind runs is native `Drop`, so an arena is
     /// released and a handle is closed, and no `catch` or `finally` is
     /// consulted.
@@ -665,9 +665,9 @@ impl Drop for Scheduler {
     /// resuming the task, and this is a `Drop`: nobody is left to run it. What
     /// it spends is that task's stack mapping and whatever the stack held,
     /// once per task, at the death of the worker that owned it —
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
     /// O(in-flight) rather than O(requests served) — and what it buys is
-    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s
+    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s
     /// rule that no path reaches `abort()`, which is the one this would
     /// otherwise be. The ordinary end of a request never arrives here:
     /// [`Scheduler::run`] returns when its tasks are done, and one still parked
@@ -1170,7 +1170,7 @@ pub fn cancel_task(id: TaskId) -> usize {
 /// cancels it by ending — the module doc's *task tree* section owns why this is
 /// the one shape that gets to do it.
 ///
-/// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 6 is
+/// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6 is
 /// the whole caller list: a request tree that has filed its answer and still has
 /// after-response work to run has to outlive the connection that was waiting for
 /// that answer, and a connection ending is a task returning. It is called from
@@ -1218,7 +1218,7 @@ pub fn detach_current() -> bool {
 ///
 /// Never by itself. The coroutine machinery underneath aborts only on a stack
 /// overflow of the task's own stack, which is
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
 /// territory and is guarded by `Ctx`'s stack limit long before it is reached.
 pub fn suspend(ctx: &Ctx, waiting: Waiting) -> Resumed {
     let raw = ctx.yielder();
@@ -1276,7 +1276,7 @@ pub fn current_task() -> Option<TaskId> {
 /// ADR 0072 § 4's "control does not leave the call with work still running" is
 /// the promise `Core\Task::all` and `::map` keep by construction. This is how
 /// a caller that is *not* one of those members reads the same fact off the
-/// tree — [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// tree — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 /// § 16's runner, which fails a test whose task tree outlived it rather than
 /// letting the teardown cancel it silently. A child that has ended is already
 /// out of the tree ([`Scheduler::orphan`], run the moment its coroutine

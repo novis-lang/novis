@@ -10,7 +10,7 @@
 //! # 1. What a child gets for a `Ctx`
 //!
 //! [`crate::spawn_child`] takes an **owned** context, and
-//! [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md) § 1's
+//! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 1's
 //! children *share the request*. Those two only meet one way:
 //! [`Ctx::child`](nvs_runtime::Ctx::child) builds a fresh context that **aliases
 //! the request's static-property base** and owns everything else itself. The
@@ -82,7 +82,7 @@
 //! number of jobs — plus one answer slot per job and the output each child
 //! buffered. All of it is freed when the call returns, so it is O(in-flight)
 //! and not O(children ever spawned), per
-//! [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md). Per thread: one
+//! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md). Per thread: one
 //! word, the installed pointer [`crate::Scheduler::run`] publishes.
 
 use std::cell::RefCell;

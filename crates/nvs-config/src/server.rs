@@ -9,7 +9,7 @@
 //! expand a glob against — [`validate`] runs the half of it that does not.
 //!
 //! **`max_in_flight` resolves to three numbers rather than to one**, which is
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 13: the written ceiling, the cap one request may hold, and what this machine has. [`Capacity`]
 //! is those three and nothing more — the division is `nvs_server::admit`'s, because the clamp is an
 //! admission decision and the counter that enforces it lives beside it. This module is the half
@@ -23,7 +23,7 @@
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
 //! removes a ceiling ([ADR 0005]), and that spelling is exactly what
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) has no version of: its
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) has no version of: its
 //! headline is that there is no way to say "wait forever", and a `[server]` wait is the inbound
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
 //! operator who wrote it asked for the one thing the ADR does not offer and would be told nothing.
@@ -65,7 +65,7 @@ use crate::value::{Quantity, Unit};
 /// ADR 0097 § 5's four waits, each a number — the whole clock one connection is bounded by.
 ///
 /// Held by value and copied per configuration generation rather than borrowed from the tree, for
-/// [`crate::queue::QueueBounds`]'s reason: [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+/// [`crate::queue::QueueBounds`]'s reason: [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
 /// § 1's reload replaces the tree whole, and these are `Boot`-class anyway — a connection already
 /// being served keeps the waits it was accepted under.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

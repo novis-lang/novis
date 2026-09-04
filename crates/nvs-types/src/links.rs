@@ -1,10 +1,10 @@
-//! [ADR 0077](../../../docs/adr/0077-compile-time-routing.md) § 4's link half:
+//! [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4's link half:
 //! `Core\Router::url` and `::urlAbsolute` over a **literal** route name,
 //! resolved against § 5's finished table while compiling.
 //!
 //! Two of the four refusals here are that ADR's — an unknown name, and a
 //! capture no key supplies. The other two are
-//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)'s,
+//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)'s,
 //! and they are the two halves of one `$params` entry. § 6's is about the
 //! **key**, and it exists because that section gives every *other* key a
 //! meaning: a key covering no capture becomes the link's query string, so a key
@@ -271,7 +271,7 @@ pub(crate) fn resolve(
 /// rule is what makes that turn safe to make at all.
 ///
 /// The comparison is exact and case-sensitive
-/// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
 /// as the capture-to-parameter one in [`crate::routes`] is.
 fn declared(
     pieces: &[UrlPiece],

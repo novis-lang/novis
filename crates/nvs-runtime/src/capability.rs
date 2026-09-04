@@ -79,7 +79,7 @@ pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Op
 /// § 1's question as a `bool`, with no message built for the `false` side.
 ///
 /// [`require`]'s own decision, factored out for the one caller that is not a door: `Core\Cap::has`,
-/// which is [ADR 0112](../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+/// which is [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
 /// § 6's way for a package that declared a capability *optional* to degrade instead of failing a
 /// build. Every door goes on calling `require`, because a door needs the sentence a denial prints
 /// and this answers only the yes or no.
@@ -117,7 +117,7 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
     }
 }
 
-/// [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md)'s outbound door: the one address
+/// [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s outbound door: the one address
 /// `host` is approved to be reached at, once [`Cap::NetConnect`] has been shown to cover the name
 /// and § 3's policy has been shown to cover the address.
 ///
@@ -125,7 +125,7 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 /// would leave a gap between this check and the connection in which a second DNS resolution could
 /// answer differently — the rebinding attack — so the caller is handed the address that was
 /// approved and connects to *that*. Every retry of a call reuses it and only a redirect hop asks
-/// again ([ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 6).
+/// again ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6).
 ///
 /// **Here rather than in `nvs-stdlib`**, for § 5's reason and for this crate's: the policy is one
 /// policy across `Core\Http`, `Core\Net` and `Core\Db::open`, and resolution is an operating-system
@@ -157,7 +157,7 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 ///
 /// **Split out because one member asks the capability question differently and the address
 /// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host a
-/// settings literal named ([ADR 0067 § 3](../../../docs/adr/0067-core-db.md)), so asking
+/// settings literal named ([ADR 0067 § 3](/docs/adr/0067-core-db.md)), so asking
 /// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
 /// an `open` target "stays subject to that policy in full", and *that* policy is this function.
 /// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing

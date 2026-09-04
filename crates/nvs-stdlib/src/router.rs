@@ -1,8 +1,8 @@
 //! `Core\Http\Method` — the closed set of verbs a route is declared under —
 //! `Core\Router`'s link half, which is as much of
-//! [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md)'s router as
+//! [ADR 0077](/docs/adr/0077-compile-time-routing.md)'s router as
 //! exists today, and `Core\Router\Match`, the match
-//! [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 //! § 1 has the door take once and `Core\Request::route()` hand back.
 //!
 //! # Why the enum is here rather than in a module of its own
@@ -16,15 +16,15 @@
 //! `nvs-types` interns a roster row by name.
 //!
 //! Spec § 17's `Core\Http\Client` shares the `Core\Http` prefix and is a
-//! different domain ([ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+//! different domain ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
 //! owns it). When it lands it names *this* enum: a namespace prefix is not a
 //! module boundary, and a second `Core\Http\Method` would be two rosters
 //! disagreeing about what `Post` is worth.
 //!
 //! # What the cases are, and what the order buys
 //!
-//! [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 7
-//! names eight verbs and [ADR 0096](../../../../docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
+//! names eight verbs and [ADR 0096](/docs/adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
 //! § 4 names four of them as the ones CSRF enforcement covers. Those four are
 //! this enum's contiguous *tail*, the same arrangement — and for the same
 //! reason — as `crate::hash`'s private `STRONG`: a rule over a set of cases becomes a
@@ -32,7 +32,7 @@
 //!
 //! `CONNECT` is deliberately not a case. It establishes a proxy tunnel, so it
 //! is neither something a `#[Route]` may be declared under nor something
-//! [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md)'s pinned
+//! [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s pinned
 //! client sends; a case a program can write and pass nowhere is surface with no
 //! meaning behind it, which is [`crate::registry::ENUMS`]' own test for
 //! admitting an entry.
@@ -51,7 +51,7 @@
 //! 2. **The mount prefix is the half of the laundering that has nowhere to come
 //!    from.** [`substitute`] percent-encodes every value it puts in a segment,
 //!    which is § 4's launder and is real; what is not is
-//!    ([ADR 0097](../../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//!    ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //!    § 3)'s prefix in front of it, because a program run off the command line
 //!    is mounted nowhere. `urlAbsolute` is in the same position for the same
 //!    reason and says so where a program can see it: it reads
@@ -86,7 +86,7 @@ use crate::uri::{Form, encode};
 pub(crate) const METHOD_NAME: &str = r"Core\Http\Method";
 
 /// ADR 0077 § 1's `Core\Http\Method` — the eight verbs
-/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 7
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
 /// names, safe ones first so that ADR 0096 § 4's CSRF set is the contiguous
 /// tail from `Post` on.
 ///
@@ -199,7 +199,7 @@ pub(crate) const NAME: &str = r"Core\Router";
 /// own captures rather than about a type.
 const PARAMS: CoreTy = CoreTy::Array(&CoreTy::Mixed);
 
-/// `array<Core\Http\Method>` — [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// `array<Core\Http\Method>` — [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 2's answer, as the enum this module already owns rather than as text.
 ///
 /// A list of cases, so that the `Allow:` header a caller writes out of it is
@@ -352,7 +352,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
     CoreTy::Instance(crate::uuid::NAME),
 ]);
 
-/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 /// § 1's match, as the program answering the request reads it.
 ///
 /// # It is built where the match crosses, and holds no route
@@ -384,7 +384,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// § 1's "matching is not dispatching" as a shape: a member answering the
 /// matched row would put the handler's `Class::method` label, its access
 /// decision and its declared verb in front of a program, which is the surface
-/// [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md) § 4 refuses to
+/// [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4 refuses to
 /// grow. The name and the captures are what the three rules § 1 names actually
 /// read, and they are all that crosses.
 pub(crate) const MATCH: CoreClass = CoreClass {

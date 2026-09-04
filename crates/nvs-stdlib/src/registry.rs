@@ -1,7 +1,7 @@
 //! The `Core` signature registry: what the compiler resolves a
 //! `Core\Class::member(...)` call against.
 //!
-//! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md) is
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) is
 //! authoritative for every signature; this is that file in the one form a
 //! compiler can read. A row here is a *promise* — `nvs-types` seeds its own
 //! signature table from [`CLASSES`], so a `Core` call goes through exactly the
@@ -43,7 +43,7 @@
 //!
 //! # The options bag
 //!
-//! [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R2 makes a
+//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 makes a
 //! trailing options shape (`{step?: int}`) the form of *every* optioned
 //! member. It is [`CoreTy::Options`], and the four properties below are what
 //! it costs and what it buys — recorded here because the fork is the
@@ -74,14 +74,14 @@
 //!
 //! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
 //! `Db\Settings`, the first the spec writes — generalises all four, and is
-//! [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+//! [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
 //! `CoreTy::Shape`: a list of *arms*, flattened by the same rule, one arm for
 //! the ordinary case and two or more for a discriminated union. The bag keeps
 //! its own variant rather than being folded into it, because the two differ in
 //! *call-site rules* and not in checking — both intern to one type, so the
 //! exact-key check, the flatten and `E0453`/`E0454` are written once.
 
-/// [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 2's qualifier classification, declared **per parameter** on the
 /// `string`/`bytes` parameter it describes.
 ///
@@ -89,7 +89,7 @@
 /// `secret` live on `nvs_types::ty::Ty` and describe an argument. This
 /// describes what a member does with one, and on the `tainted` axis there are
 /// exactly four answers
-/// ([the spec's *How to read an entry*](../../../../docs/spec/01-core-library.md)
+/// ([the spec's *How to read an entry*](/docs/spec/01-core-library.md)
 /// renders them as the Q column). [`Self::Reveal`] is a fifth variant and not
 /// a fifth Q value: it is the `secret` axis's only mark, and § *How a `secret`
 /// parameter is spelled* below is why it lives here rather than in a type.
@@ -121,7 +121,7 @@
 /// # How a `secret` parameter is spelled
 ///
 /// **With a mark, not with a type: [`Self::Reveal`]**, and only
-/// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 /// § 3's `Core\Secret` members write it. That ADR spells the member's signature
 /// `reveal(secret string, string $reason): string` and leaves open how a row
 /// says so; this is that decision, and it is recorded here rather than in an
@@ -150,10 +150,10 @@
 /// # How the `tainted` escape hatch is spelled
 ///
 /// **With [`Self::Launder`], and with no sixth variant.**
-/// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 /// § 3's `Core\Taint::assertTrusted(tainted string, string $reason): string` is
 /// the one launderer that names no single sink, and
-/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 3 makes it the only way
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 3 makes it the only way
 /// through `Settings.host`, which has no launderer of its own — so it earns a
 /// row, and it earns one before anything else it unblocks, because
 /// `nvs_types::expr::args`' shape-field diagnostic already advises the call and
@@ -176,7 +176,7 @@
 ///   `tainted` twin of that test being that `Core\Taint` is the only class
 ///   whose `Launder` row names no one sink.
 /// * **It answers a plain `string`, not a carrier**, by
-///   [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+///   [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
 ///   § 1's predicate: the transform is the identity, so it is idempotent, and
 ///   a value the developer has just sworn is trusted re-entering a sink is the
 ///   case that predicate exists to let pass.
@@ -231,7 +231,7 @@ pub enum CoreTy {
     Uint,
     /// `float`
     Float,
-    /// `decimal` — [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
     /// scalar, which the spec writes wherever a member is exact over money:
     /// the `int|float|decimal` unions of `Core\Math` and the subject of
     /// `Core\Arr::sum`/`product`/`average`.
@@ -260,7 +260,7 @@ pub enum CoreTy {
     Text(Qual),
     /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
     Blob(Qual),
-    /// `secret bytes` — [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// `secret bytes` — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 1's qualifier written into a row's own signature, unclassified, and
     /// [`Self::SecretBlob`]'s twin exactly as [`Self::Bytes`] is
     /// [`Self::Blob`]'s.
@@ -291,7 +291,7 @@ pub enum CoreTy {
     /// still owes ADR 0088 § 2's separate answer about where the value came
     /// from.
     SecretBlob(Qual),
-    /// `tainted string` — [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// `tainted string` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
     /// qualifier written into a row's own signature, and
     /// [`Self::SecretBytes`]'s opposite number on the other axis.
     ///
@@ -300,7 +300,7 @@ pub enum CoreTy {
     /// argument*, so the strongest thing it can produce is
     /// [`Qual::Contagious`]'s conditional — a qualified argument yields a
     /// qualified result, and a plain one yields a plain one. That is not what
-    /// [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+    /// [ADR 0060](/docs/adr/0060-application-security-protocols.md)
     /// § 5 asks for. Claims out of a verified JWT are `tainted` *whatever the
     /// token's own type was*, because a signature proves origin and not safety
     /// for any sink, and a token written as a literal in a test is no safer
@@ -328,7 +328,7 @@ pub enum CoreTy {
     /// of it, so a member that answered a plain `bytes` would be a launderer —
     /// `body()` writes [`Self::TaintedStr`] over the same octets, and two
     /// readings of one body that disagree about the mark is the one shape
-    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// cannot survive. Its home in the checker is `nvs_types`' `Ty::TaintedBytes`,
     /// which already existed because the language can write the type.
     TaintedBytes,
@@ -338,12 +338,12 @@ pub enum CoreTy {
     /// [`Self::SecretBytes`] and [`Self::TaintedStr`] are the two axes
     /// separately, and this is neither's generalisation: a password typed at a
     /// prompt is confidential *and* came from outside, so
-    /// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
     /// five sinks refuse it and
-    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
     /// launderers are still what let it reach one. Dropping either half would
     /// be a claim the prompt cannot make —
-    /// [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md)
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
     /// § 4 writes the return type with both words for that reason.
     ///
     /// Return position, exactly as its two halves are: in parameter position
@@ -356,11 +356,11 @@ pub enum CoreTy {
     Mixed,
     /// `array<T>`, whose element type is the wrapped one.
     Array(&'static CoreTy),
-    /// `callable` — [ADR 0031](../../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// `callable` — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 4's one closure type, and opaque: it says nothing about the
     /// parameters or the result of the closure that satisfies it. What a
     /// `Core` member actually hands a callback is stated by
-    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 2 — `($value, $key)`, with fewer parameters allowed — and enforced
     /// at the call by `nvs_runtime::call_closure`, not by this type.
     Callable,
@@ -387,7 +387,7 @@ pub enum CoreTy {
     ///
     /// [`Self::CallableTo`] one level up, and it exists for exactly that
     /// variant's reason at a wider position.
-    /// [ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 1 makes `Task::all`'s answer a shape with the argument's own field
     /// names, each field typed as *that field's* closure returns — which is the
     /// whole reason the member is worth having, since the uniform alternative
@@ -464,7 +464,7 @@ pub enum CoreTy {
     /// one that showed the restriction was about `null` rather than about
     /// literals. `a_union_option_excludes_null` holds it.
     Union(&'static [CoreTy]),
-    /// **One `int` literal** — [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// **One `int` literal** — [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
     /// § 1's integer atom, whose only use is inside a [`Self::Union`] that
     /// spells out a closed set of numbers.
     ///
@@ -481,7 +481,7 @@ pub enum CoreTy {
     /// would be an argument the caller writes and the member could assume.
     /// `a_literal_type_only_appears_inside_a_union` holds that.
     IntLiteral(i64),
-    /// `?T` — [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)'s
+    /// `?T` — [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)'s
     /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
     /// — ADR 0063 R5 makes it the *only* absence spelling).
@@ -512,12 +512,12 @@ pub enum CoreTy {
     /// past `i64::MAX`.
     Enum(&'static str),
     /// **One case** of a `Core`-owned enum, named by that enum and the case —
-    /// [ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
     /// § 3's narrowed type, whose only use is inside a [`Self::Union`] that
     /// spells out a closed subset.
     ///
     /// `Core\Hash::hmac`'s third parameter is the reason it exists.
-    /// [`docs/spec/01-core-library.md`](../../../../docs/spec/01-core-library.md)
+    /// [`docs/spec/01-core-library.md`](/docs/spec/01-core-library.md)
     /// § 11 writes that parameter as `StrongDigest`, "the closed subset that
     /// the HMAC and signature members declare," so that
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
@@ -574,10 +574,10 @@ pub enum CoreTy {
     /// non-generic and the `<T>` a syntax error.
     InstanceAt(&'static str, &'static [CoreTy]),
     /// **Whatever `foreach` accepts**, over the element type wrapped:
-    /// [ADR 0053](../../../../docs/adr/0053-iteration-and-generators.md) § 3's
+    /// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 3's
     /// three shapes at once, interned as the union
     /// `array<T>|Iterable<T>|Iterator<T>`. `Core\Arr::from`'s
-    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 2 row is the first to write one, and § 9's collections are the next.
     ///
     /// **A plain `array<T>` satisfies it, and the spec row is written that
@@ -649,7 +649,7 @@ pub enum CoreTy {
     /// [`OPTIONS_NAME`] for every member that has one.
     /// `an_options_bag_is_last_and_never_empty` holds both.
     Options(&'static [CoreOption]),
-    /// [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
     /// fixed-key shape parameter — `Core\Db::open`'s `Db\Settings`, the first
     /// one the spec writes. The outer slice is the **arms** and is never
     /// empty: one arm is a plain fixed-key shape, two or more a discriminated
@@ -686,7 +686,7 @@ pub enum CoreTy {
 }
 
 /// The one name a trailing [`CoreTy::Options`] bag is callable by, for every
-/// member that has one — [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// member that has one — [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R2's "the trailing bag by the one name `options`".
 ///
 /// It lives beside the type rather than on the row because it is a property of
@@ -719,7 +719,7 @@ pub struct CoreOption {
 }
 
 /// One field of one arm of a [`CoreTy::Shape`]: its name, its type, and
-/// whether a call site may leave it out — [ADR 0135](../../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// whether a call site may leave it out — [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
 /// § 1.
 ///
 /// Modelled on [`CoreOption`] and differing in exactly one field. A bag's
@@ -731,7 +731,7 @@ pub struct CoreOption {
 ///
 /// A qualifier classification lands **here** rather than on the parameter —
 /// `Db\Settings`'s `host` is a [`CoreTy::Text`] at [`Qual::Sink`] because
-/// [ADR 0067](../../../../docs/adr/0067-core-db.md) § 3 makes an address a
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 3 makes an address a
 /// sink, while the shape as a whole classifies nothing.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreField {
@@ -795,7 +795,7 @@ pub enum Const {
     /// A `bytes` default, as the octets themselves.
     ///
     /// Separate from [`Self::Str`] rather than reusing it, because the two
-    /// differ in exactly the way [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// differ in exactly the way [ADR 0009](/docs/adr/0009-string-and-bytes.md)
     /// § 1 says they do: a `bytes` default carries no UTF-8 promise, so it is
     /// written as a byte string (`b"…"`) and materialized under `Tag::Bytes`.
     /// Passing a `Str` default into a `bytes` parameter would be a type lie
@@ -857,7 +857,7 @@ pub enum Const {
 
 /// One member's reference documentation — the card, not the essay.
 ///
-/// [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
+/// [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
 /// § 1's five fields, as plain static data next to the row they describe,
 /// so the one artifact that provably matches the shipped behaviour is also
 /// the one that documents it. Every field is inline markdown, one or two
@@ -923,7 +923,7 @@ pub struct ShapeKeyDoc {
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorDoc {
     /// The thrown class's name as a `catch` writes it —
-    /// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+    /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
     /// § 10's tree, so `RuntimeError`, `ParseError`, and not a namespaced
     /// spelling the language has no such class under.
     pub error: &'static str,
@@ -938,10 +938,10 @@ pub struct CoreMethod {
     pub name: &'static str,
     /// The `$name` each positional parameter is callable by — one per entry of
     /// [`Self::positional`], in the same order, and **the spelling
-    /// [01-core-library.md](../../../docs/spec/01-core-library.md)'s signature
+    /// [01-core-library.md](/docs/spec/01-core-library.md)'s signature
     /// column writes**.
     ///
-    /// [ADR 0063](../../../docs/adr/0063-core-api-conventions.md) R2 is the
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 is the
     /// rule: every `Core` parameter is callable by name under exactly the
     /// rules a user-declared method has, so a name is compatibility surface
     /// and renaming one is a breaking change to the spec. That is what makes
@@ -984,7 +984,7 @@ pub struct CoreMethod {
     pub symbol: &'static str,
     /// The member's reference documentation, or `None` for a row not yet
     /// documented —
-    /// [ADR 0117](../../../docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
+    /// [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
     /// seam. Read by `nvs meta --json` and by nothing on the request path;
     /// the runtime dispatches on [`Self::symbol`] and never looks here.
     pub doc: Option<&'static MethodDoc>,
@@ -1103,7 +1103,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
     }
 }
 
-/// One `Core` class constant — [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// One `Core` class constant — [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
 /// "every constant is a class constant", which is what `Core\Math::PI`
 /// replaces PHP's global `M_PI` with.
 ///
@@ -1301,11 +1301,11 @@ pub const CLASSES: &[CoreClass] = &[
     crate::serialize::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
-    // § 16. [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    // § 16. [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     // § 4's `dump` and `render` only — the coverage, trace and profile members
     // that section also lists are ADR 0018's and land at M10.
     crate::debug::CLASS,
-    // [ADR 0079](../../../../docs/adr/0079-testing-is-a-language-feature.md)
+    // [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     // § 4's assertion surface rather than a spec § of its own: testing is a
     // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
     crate::test::CLASS,
@@ -1641,7 +1641,7 @@ pub const CLASSES: &[CoreClass] = &[
 ];
 
 /// Every member of a capability-bearing class, and which capability it needs —
-/// [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+/// [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 /// § 3, with `None` for a member that needs none.
 ///
 /// One table rather than a field on 346 rows, because "what can this runtime do
@@ -1931,10 +1931,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::storage::NAME, "list", Some(nvs_config::Cap::FsRead)),
 ];
 
-/// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
 /// The `Core` classes that declare a `tryParse` beside their `parse` —
-/// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 3a's
-/// closed exception to [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+/// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md) § 3a's
+/// closed exception to [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R5's `try…` ban.
 ///
 /// A **list, not a roster**: unlike [`CONSTRUCTORS`] this drives nothing at
@@ -1994,7 +1994,7 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
     constructor_of(class).map(|method| method.symbol)
 }
 
-/// One `Core`-owned enum — [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s
+/// One `Core`-owned enum — [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s
 /// closed, named integer type, declared here rather than in Novis source.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreEnum {
@@ -2043,7 +2043,7 @@ pub struct CaseDoc {
 /// Every enum `Core` owns.
 ///
 /// A second roster beside [`CLASSES`] rather than a member of it, because an
-/// enum is not a class: [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md)
+/// enum is not a class: [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
 /// puts every *callable* on a class, and an enum has none. `nvs_types::enums`
 /// seeds its own table from this, so `Core\Order::Desc` resolves to an integer
 /// constant through exactly the machinery a user-declared `enum` already goes
@@ -2112,7 +2112,7 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 }
 
 /// Whether a `Core`-owned class renders as text —
-/// [ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+/// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
 /// § 1's question, asked here because a `Core` class has no other place to
 /// answer it: it declares no interfaces, so there is no `Stringable` for
 /// `nvs_types` to prove against, and its members are the rows above rather
@@ -2121,7 +2121,7 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 /// **Two rows answer yes, and they are two different rules.** A class the spec
 /// gives a `toString` renders through that member, which is ADR 0028 § 1
 /// exactly. A **sink carrier** renders through
-/// [ADR 0088](../../../../docs/adr/0088-output-sinks-and-escaping.md) § 5
+/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 5
 /// instead and has no such member: it is the sink's own value type, holding
 /// bytes that have *already* been through the sink, so `nvs_runtime` renders
 /// it as precisely those bytes and asks for no member at all. That roster is
@@ -2156,7 +2156,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 ///
 /// [`CoreTy::Written`] tells the *checker* what a `<...>` list binds; it says
 /// nothing to the runtime, because a type argument is erased like every other
-/// one ([ADR 0007](../../../../docs/adr/0007-explicit-type-system.md)). A
+/// one ([ADR 0007](/docs/adr/0007-explicit-type-system.md)). A
 /// member like `Core\Json::decodeAs<User>` needs more than the erasure: it has
 /// to build a `User`, which means reaching that class's
 /// `nvs_runtime::ClassDesc` from native Rust.
@@ -2305,7 +2305,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
         .map(|(_, elem)| *elem)
 }
 
-/// Whether `class` satisfies [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
+/// Whether `class` satisfies [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
 /// `Comparable`, so `<`/`<=`/`>`/`>=`/`<=>` order two of its instances.
 ///
 /// **Asked of the member roster, never of a list.** A `Core` class writes no
@@ -2350,7 +2350,7 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
     ENUMS.iter().find(|found| found.name == name)
 }
 
-/// [ADR 0074](../../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 7's
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7's
 /// obligation, as the two option names it is written over: a member whose verb
 /// repeats an *effect* may ask for retries only alongside an idempotency key.
 ///

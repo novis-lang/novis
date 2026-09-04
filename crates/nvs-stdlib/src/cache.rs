@@ -1,4 +1,4 @@
-//! `Core\Cache` — [ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)'s
+//! `Core\Cache` — [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)'s
 //! sanctioned exception to ADR 0052 § 3's closed door on cross-request state,
 //! as two members that hand back a store and the two operations on one.
 //!
@@ -11,7 +11,7 @@
 //! # Decision: an entry is § 3's byte payload, not a live graph
 //!
 //! § 2 fixes the *operation* — the recursive graph copy
-//! [ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 //! already defines, not a third mechanism — and leaves which of its two
 //! carriers open. This tier uses the **byte** carrier
 //! ([`nvs_runtime::encode`]/[`nvs_runtime::decode`]), which is the same walk
@@ -19,7 +19,7 @@
 //!
 //! 1. **A copied object holds a raw `ClassDesc` pointer**, and this store
 //!    outlives the request that filled it — so under
-//!    [ADR 0017](../../../../docs/adr/0017-hot-reload-without-restart.md)'s
+//!    [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)'s
 //!    unit swap a live entry would name a descriptor the old unit owned. A
 //!    payload names its classes by *name*, resolved against the receiving
 //!    program's own table on the way out, exactly as
@@ -37,11 +37,11 @@
 //!
 //! # Decision: the local tier needs no grant, and § 1's open question is closed
 //!
-//! [ADR 0112](../../../../docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
+//! [ADR 0112](/docs/adr/0112-authority-is-keyed-on-the-enclosing-namespace.md)
 //! § 8 listed `Core\Cache::local()` as the one capability-bearing member with no
 //! grant named for it, and left the naming to ADR 0059. The answer written into
 //! that ADR's § 1 is that there is **no grant**, because
-//! [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! § 1 checks a capability at the door to an *effect* and this tier has no
 //! door: nothing leaves the process, no name is resolved and no file is opened.
 //! What is left to bound is footprint, and § 3's `nvs.toml` cap is the
@@ -53,7 +53,7 @@
 //!
 //! [`nvs_core_cache_shared`] is where the grant is asked for and where the
 //! address is pinned; `put` and `get` on the store it answers ask nothing. That
-//! is [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 4's own
+//! is [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's own
 //! shape — `Core\Http::allowUrl` is the launderer and `Core\Http\Client` the
 //! thing that talks — and it is what makes the address a *pin*: a check at the
 //! operation instead would leave a window in which a second resolution answers
@@ -267,7 +267,7 @@ const TIMEOUT: &str = "cache.shared.timeout";
 /// a patience one: a store that has not answered in five seconds is a store the
 /// request should be told about rather than one it should keep waiting for. It
 /// is deliberately not "unbounded unless configured", which
-/// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5
 /// refuses to give any outbound wait a spelling for.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 

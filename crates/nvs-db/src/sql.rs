@@ -1,4 +1,4 @@
-//! [ADR 0067 § 5](../../../docs/adr/0067-core-db.md)'s placeholder rewriter: one
+//! [ADR 0067 § 5](/docs/adr/0067-core-db.md)'s placeholder rewriter: one
 //! spelling in, the driver's own out, and the `inList` expansion that § 1's
 //! statement cache keys on.
 //!
@@ -65,7 +65,7 @@ use crate::conn::Driver;
 /// How one driver spells a bound parameter, and how it quotes and comments.
 ///
 /// Four values for five drivers: MariaDB and MySQL share a syntax exactly, and
-/// [ADR 0067](../../../docs/adr/0067-core-db.md)'s insistence that they are two
+/// [ADR 0067](/docs/adr/0067-core-db.md)'s insistence that they are two
 /// drivers is about auth plugins, error tables and capability flags, none of
 /// which reaches the SQL text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -245,7 +245,7 @@ pub fn statement_cache_for(block: &Database) -> usize {
         })
 }
 
-/// [ADR 0067 § 1](../../../docs/adr/0067-core-db.md)'s per-connection LRU of
+/// [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s per-connection LRU of
 /// server-side prepared statements.
 ///
 /// There is no `prepare` step in the Novis API, so this is what makes "every
@@ -595,7 +595,7 @@ pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<St
 }
 
 /// Whether `sql` holds a second statement — [ADR 0067
-/// § 1](../../../docs/adr/0067-core-db.md)'s "every statement is prepared", as
+/// § 1](/docs/adr/0067-core-db.md)'s "every statement is prepared", as
 /// the one question about statement *count* that can be asked without a
 /// vendor's grammar.
 ///
@@ -856,7 +856,7 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
     Some(bytes.len())
 }
 
-/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s declared zone for one
+/// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s declared zone for one
 /// connection, as whole seconds east of UTC.
 ///
 /// The zone a zone-less `DATETIME`/`TIMESTAMP` column is read in, and the one

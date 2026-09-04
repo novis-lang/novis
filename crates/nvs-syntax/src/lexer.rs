@@ -10,7 +10,7 @@
 //! toggles it **in place**, never by pushing: there is exactly one outer state
 //! at a time, so `modes.len() == 1` is the precise condition for "an unclosed
 //! tag is legal to run to end of file"
-//! ([`docs/spec/00-overview.md` § 1](../../../docs/spec/00-overview.md)).
+//! ([`docs/spec/00-overview.md` § 1](/docs/spec/00-overview.md)).
 //! Everything nested inside that outer state — a double-quoted string, a
 //! heredoc/nowdoc, a `{$…}` interpolation site — is a genuine push/pop frame,
 //! and reaching end of input with any of those still open is
@@ -86,7 +86,7 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     /// Starts lexing `file` from its first byte, in HTML mode — or in code
     /// mode when the file's first two bytes are `#!`
-    /// ([ADR 0100](../../../docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
+    /// ([ADR 0100](/docs/adr/0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md)
     /// § 3).
     ///
     /// **The shebang line is not skipped and is not a token: it is lexed as
@@ -94,7 +94,7 @@ impl<'a> Lexer<'a> {
     /// [`Mode::Code`] with `pos` still at 0 is the whole implementation — code
     /// mode's own trivia rule then consumes line 1 to its `\n`, emits nothing,
     /// and bidi-checks it exactly as it checks any other `#` comment
-    /// ([ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// ([ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
     /// § 2). Skipping the bytes before lexing would have been shorter and
     /// would have opened a hole at the one place in a file where an unbalanced
     /// override reorders everything after it.
@@ -221,7 +221,7 @@ impl<'a> Lexer<'a> {
         Span::new(self.file.id(), start, end)
     }
 
-    /// [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
     /// § 2 at the lexer: a directional control that opens a scope must close it
     /// inside the span that opened it, and the span is **one line** of one
     /// token — so a heredoc, a block comment or an inline-HTML run cannot open
@@ -529,7 +529,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// A reserved word is matched **exactly**, in lower case only
-    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 2). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
     /// mis-cased `if`, and gets no diagnostic here: ADR 0029 makes `IF` a
     /// perfectly legal class name, so nothing lexical distinguishes the two.
@@ -547,7 +547,7 @@ impl<'a> Lexer<'a> {
         self.push(kind, span);
     }
 
-    /// A numeric literal, and — [ADR 0070](../../../docs/adr/0070-duration-literals.md)
+    /// A numeric literal, and — [ADR 0070](/docs/adr/0070-duration-literals.md)
     /// § 1 — the duration literal that shares its opening digits.
     ///
     /// A duration is reached only from a **plain decimal** integer: the

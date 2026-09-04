@@ -1,5 +1,5 @@
 //! The rotating file target: what a log written to a path costs on disk, which
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 10 requires to be a finite number.
 //!
 //! # The bound is a product, and it is the only number that matters
@@ -11,7 +11,7 @@
 //! this module has no opinion about them beyond the defaults below.
 //!
 //! **The bound is enforced before the write, never after.** A record is a line
-//! ([ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! ([ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! § 3's JSON Lines), so rotating mid-record would produce two files each
 //! holding half of one, and a log reader would be right to reject both. A write
 //! that would take the current file past `max_bytes` rotates first and lands
@@ -28,7 +28,7 @@
 //!
 //! # No capability check
 //!
-//! [ADR 0118](../../../docs/adr/0118-every-privileged-operation-answers-one-question.md)'s
+//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)'s
 //! doors stand in front of what a *program* asks for. This path is the engine
 //! writing its own diagnostics to a path an operator configured, with no
 //! program-supplied name anywhere in it, so there is no question for a door to

@@ -1,4 +1,4 @@
-//! [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 4's sixth row: one response has one body writer.
 //!
 //! § 4 replaces `Core\Response::write` with five typed members, each owning one

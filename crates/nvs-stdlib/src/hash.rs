@@ -62,18 +62,19 @@
 //! # `secret`, and the spelling that arrived for it
 //!
 //! § 11 writes `hmac`'s key parameter as `secret bytes $key`
-//! ([ADR 0024](../../../../docs/adr/0024-secret-values.md)), and for a long
-//! time [`crate::registry::CoreTy`] had no qualifier to carry that with — a
-//! row stated an atom, not a qualified type. [`CoreTy::SecretBlob`] is that
-//! spelling, added for [`crate::crypto`]'s key parameters, and the row below
-//! now writes it: the key is a `secret bytes` the checker keeps out of a sink,
-//! and nothing about how it is read or held here changed. A caller handing a
-//! plain `bytes` key is unaffected, because `nvs_types`' assignment relation
-//! widens onto a qualifier bit and never off one.
+//! ([ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)),
+//! and for a long time [`crate::registry::CoreTy`] had no qualifier to carry
+//! that with — a row stated an atom, not a qualified type.
+//! [`CoreTy::SecretBlob`] is that spelling, added for [`crate::crypto`]'s key
+//! parameters, and the row below now writes it: the key is a `secret bytes`
+//! the checker keeps out of a sink, and nothing about how it is read or held
+//! here changed. A caller handing a plain `bytes` key is unaffected, because
+//! `nvs_types`' assignment relation widens onto a qualifier bit and never off
+//! one.
 //!
 //! # Why these dependencies
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
 //! two questions, and both land on "take the audited implementation" here —
 //! the opposite of the answer [`crate::encoding`]'s hex pair got, and worth
 //! reading beside it.
@@ -251,7 +252,7 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
 /// Spec § 11's `StrongDigest` — the closed subset [`nvs_core_hash_hmac`]
 /// declares, so `Hash::hmac($m, $k, Digest::Md5)` does not compile.
 ///
-/// A **union of case types** ([ADR 0047](../../../../docs/adr/0047-literal-and-enum-case-types.md)
+/// A **union of case types** ([ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
 /// § 3) rather than a second enum, which is the whole reason
 /// [`CoreTy::EnumCase`] exists: `Core\StrongDigest::Sha256` would be a
 /// different type from `Core\Digest::Sha256`, so no single value could be
@@ -292,7 +293,7 @@ const STRONG: &[CoreTy] = &[
 /// `bytes|string` — what both hashing members take, and the reason neither has
 /// a text-flavoured twin.
 ///
-/// Total in one direction and free ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md)
+/// Total in one direction and free ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
 /// § 3): a `string` is valid UTF-8 and therefore already a valid byte
 /// sequence, so [`data_of`] reads the same buffer either tag points at without
 /// copying or validating anything.

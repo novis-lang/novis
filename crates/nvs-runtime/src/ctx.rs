@@ -2,7 +2,7 @@
 //! every helper.
 //!
 //! `Ctx` is where everything that is "ambient" to running Novis code lives,
-//! because [ADR 0012](../../../docs/adr/0012-no-superglobals.md) means nothing
+//! because [ADR 0012](/docs/adr/0012-no-superglobals.md) means nothing
 //! is ambient to the *language*: no variable is host-populated, so the host's
 //! state has to travel somewhere, and it travels here.
 //!
@@ -15,18 +15,18 @@
 //!   function entry and loop back edge (`docs/adr/README.md`'s project-start
 //!   decisions). Load, test, predicted-not-taken branch to the
 //!   [`nvs_safepoint`] slow path.
-//! * [`DEBUG_FLAGS_OFFSET`] — [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+//! * [`DEBUG_FLAGS_OFFSET`] — [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's probe check, at every statement boundary and every call site. Same
 //!   shape, same cost class, and present in every compiled unit whether or not
 //!   any request ever sets a bit — that is what makes coverage and tracing
 //!   start/stoppable *mid-request*, which the rejected instrumented-tier
 //!   design could not do.
-//! * [`STACK_LIMIT_OFFSET`] — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! * [`STACK_LIMIT_OFFSET`] — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //!   § 1's call-stack ceiling, compared against the stack pointer at the same
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
 //!   paid for.
-//! * [`DEADLINE_OFFSET`] — [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! * [`DEADLINE_OFFSET`] — [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //!   § 5's deadline flag, polled from *inside* a helper whose runtime scales
 //!   with its input. See *The request's deadline* below.
 //! * [`STATICS_OFFSET`] — the base of this request's static-property storage,
@@ -42,8 +42,8 @@
 //!
 //! Novis compiles natively, so a user call is a real machine frame and
 //! exhausting the stack is a `SIGSEGV` rather than something
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s checked returns
-//! could carry. [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s checked returns
+//! could carry. [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 1's answer is a bounds pair, armed per request and compared at every
 //! non-leaf function entry:
 //!
@@ -75,7 +75,7 @@
 //! between calls. A helper is *one* call, so a helper whose runtime is O(its
 //! input) — a sort, a scan, an encode, a hash over a large value — runs
 //! entirely inside the gap that poll leaves.
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 5's answer is [`Ctx::deadline_expired`]: a flag, in the line the stack
 //! check has already loaded, polled from inside the loop and amortised over a
 //! batch of iterations. Reading a flag rather than a clock is the whole of why
@@ -98,7 +98,7 @@
 //! **One word per request *tree*, not per context.** The field is a shared
 //! handle rather than the word itself, so a `spawn script` child polls the same
 //! word its root does:
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) gives a tree
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a tree
 //! one ceiling to divide and charges a child's CPU to the root, and the timer
 //! that expires a request only ever holds the root to fire at. [`Ctx::isolate`]
 //! owns what the sharing costs.
@@ -172,7 +172,7 @@ bitflags::bitflags! {
 }
 
 bitflags::bitflags! {
-    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's per-request debug-flags word.
     ///
     /// Setting a bit on a request that is already running is the whole
@@ -192,7 +192,7 @@ bitflags::bitflags! {
 }
 
 /// The `Core` class a captured terminal sink hands its bytes back as —
-/// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// § 3's default row, and § 5's carrier.
 ///
 /// Named here rather than in `nvs-stdlib`, where the class itself is declared,
@@ -240,7 +240,7 @@ pub enum OutputSink {
     /// The process's standard error — the *diagnostic* channel's destination,
     /// and never a request's `echo`.
     ///
-    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 4 sends a CLI `Core\Debug::dump` here rather than to stdout, so
     /// `prog | jq` and `prog > out.txt` keep working while a program is being
     /// debugged. `var_dump` writing to stdout is a small thing that makes PHP
@@ -254,7 +254,7 @@ pub enum OutputSink {
     /// back the same way, and the one sink that answers
     /// [`CARRIER_HTML_MARKUP`].
     ///
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 3's first row: inside an HTTP request `echo` writes to the response
     /// body, and what carries those bytes is `Core\Html\Markup`. A variant
     /// rather than a flag on [`Self::Buffer`], because "which sink is attached"
@@ -264,7 +264,7 @@ pub enum OutputSink {
     /// request — and a `spawn script` child inside a request takes it because
     /// § 3's third row gives that child the *parent's* carrier.
     Body(Vec<u8>),
-    /// A file on disk, under [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// A file on disk, under [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 10's rotation and retention bound.
     ///
     /// What `[log] target = "file:…"` selects, built by
@@ -277,7 +277,7 @@ pub enum OutputSink {
 }
 
 /// Where a record goes when `[log] target` names no destination — which is a
-/// different channel for each of [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// different channel for each of [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 /// § 6's two writers, and the same one for both as soon as it does name one.
 ///
 /// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
@@ -317,7 +317,7 @@ enum LogTarget {
 /// itself is a key into a table the request owns
 /// ([`Ctx::hold_open_connection`]); the table has to live in this crate,
 /// because this is the crate that learns when a request ends. And the edge
-/// cannot run the other way: [ADR 0132](../../../docs/adr/0132-database-driver-shape.md)
+/// cannot run the other way: [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 /// § 1 has `nvs-db` depending on this crate, so a field typed
 /// `nvs_db::Connection` would close a cycle.
 ///
@@ -331,7 +331,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
 
     /// The same downcast, owning — what a caller taking a connection out of
     /// [`crate::pool`] needs, because
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's reset consumes the
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 13's reset consumes the
     /// connection so that a failed one cannot be handed back.
     ///
     /// No default body: it would have to coerce `Self` to `dyn Any`, which a
@@ -340,7 +340,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     fn into_any(self: Box<Self>) -> Box<dyn std::any::Any>;
 
     /// Whether this connection may rejoin the core's pool at teardown —
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's release gate, asked
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 13's release gate, asked
     /// of the driver because only the driver knows where its wire is.
     ///
     /// **The default is `false`**, which is § 13's "a driver with no reset
@@ -399,7 +399,7 @@ pub struct Ctx {
     ///
     /// **Shared with every context in the request tree, which is why it is a
     /// handle and not the word.**
-    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) gives a
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a
     /// tree "one ceiling to divide" and charges a child's CPU to the root. A
     /// copied flag satisfied that only in one direction — a child built *after*
     /// the timer fired was born expired, while one built a microsecond before
@@ -456,7 +456,7 @@ pub struct Ctx {
     /// `statics` included.
     output_base: usize,
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// first resource limit.
     ///
     /// **Cached, not re-derived.** The value on disk is a string with a suffix
@@ -471,7 +471,7 @@ pub struct Ctx {
     /// [`Self::memory_limit`]'s reason.
     ///
     /// **No reserved slice, unlike its two siblings.**
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 carves
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 carves
     /// one out of `memory` and one out of `cpu_time` because a tier-1 handler
     /// cannot run without allocating and cannot run without taking time. It can
     /// run without writing, and nothing refuses a write in the first place —
@@ -482,15 +482,15 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     output_limit: usize,
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// tier-1 handler: the closure `Core\Fatal::onLimit` registered, owned, or
     /// `null` for a request that registered none.
     ///
     /// **Here, beside the ceiling, because this is where the breach is asked.**
     /// § 1 makes the registration request-local and puts it next to the pending
     /// slot for the reason this field is a field at all: it dies with the
-    /// request, exactly as [ADR 0008](../../../docs/adr/0008-static-and-global.md)
-    /// and [ADR 0012](../../../docs/adr/0012-no-superglobals.md) require of
+    /// request, exactly as [ADR 0008](/docs/adr/0008-static-and-global.md)
+    /// and [ADR 0012](/docs/adr/0012-no-superglobals.md) require of
     /// everything a request holds, so there is no process-wide table for a
     /// second request to inherit one from.
     ///
@@ -499,9 +499,9 @@ pub struct Ctx {
     ///
     /// **What it spends:** two words per request, and one reference to the
     /// closure for a request that registers one — O(in-flight requests), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     limit_handler: Value,
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// reserved slice, in bytes: what [`Ctx::memory_limit`] was *reduced by* so
     /// that the tier-1 handler has somewhere to run once ordinary execution has
     /// spent everything it may.
@@ -516,7 +516,7 @@ pub struct Ctx {
     /// of the ceiling to the other, so a request's total is unchanged.
     fatal_reserve: usize,
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap —
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// second resource limit, cached for [`Self::memory_limit`]'s reason.
     ///
     /// **What measures it is the request thread's own CPU clock, and never the
@@ -553,7 +553,7 @@ pub struct Ctx {
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
     /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
-    /// — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
     /// tier 2, and the second handler slot beside [`Self::limit_handler`].
     ///
     /// **Nothing is reserved for it, and that is § 2's own decision**: a throw
@@ -568,9 +568,9 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one reference to the
     /// closure for a request that registers one — O(in-flight requests), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     uncaught_handler: Value,
-    /// [ADR 0127](../../../docs/adr/0127-the-end-of-a-script-is-observable.md)
+    /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
     /// § 1's end-of-script queue, in registration order — what
     /// `Core\Script::onExit` appends to and [`Self::run_exit_hooks`] drains
     /// once, as the last user code of the script.
@@ -590,7 +590,7 @@ pub struct Ctx {
     /// **What it spends:** one reference per registration, plus whatever each
     /// hook captured, held from the registration to the end of the script —
     /// per request, O(registrations), which is the spend ADR 0127 § 1 states
-    /// and [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) asks
+    /// and [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) asks
     /// for.
     exit_hooks: Vec<Value>,
     /// Whether [`Self::run_exit_hooks`] has already run — ADR 0127 § 2's "the
@@ -633,7 +633,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request, and one per in-flight isolate.
     script_depth: u32,
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 6's after-response work, in registration order — `None` once the
     /// queue has been drained, which is the encoding of
     /// [`crate::deferred::DeferError::Sealed`].
@@ -666,7 +666,7 @@ pub struct Ctx {
     pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
-    /// Where a **diagnostic** writes — [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// Where a **diagnostic** writes — [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 4's destination for a CLI `Core\Debug::dump`, and later for the log
     /// target's own records.
     ///
@@ -709,7 +709,7 @@ pub struct Ctx {
     /// written record, which is the allocation the caller made when it rendered
     /// for itself.
     log_format: LogFormat,
-    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 6's configured origin: the scheme and authority
     /// `Core\Router::urlAbsolute` puts in front of a link, with no trailing
     /// `/`.
@@ -719,7 +719,7 @@ pub struct Ctx {
     /// request runs and nothing during it can move it — `nvs run` reads
     /// `nvs.toml`'s `[[app]] origin` today, and the mount that accepted the
     /// request will write it once there is a server, since
-    /// [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+    /// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
     /// § 3 makes a mount's own origin win over the application's. `None` is a
     /// unit that resolves neither, and the link helper throws rather than
     /// answering with an empty authority in it.
@@ -728,7 +728,7 @@ pub struct Ctx {
     /// once — tens of them, not thousands — and nothing at all for a program
     /// that configures none.
     origin: Option<Box<str>>,
-    /// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md)
+    /// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md)
     /// § 1's configuration, as this request sees it: the snapshot it cloned at
     /// start and the copy-on-write overlay `Core\Config::set` writes over it.
     ///
@@ -746,11 +746,11 @@ pub struct Ctx {
     ///
     /// **What it spends:** one `Arc` clone per request, plus a `String` pair
     /// per key that request actually set. O(in-flight requests), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) — the tree
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — the tree
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
     /// This request's place in a distributed trace —
-    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2, whose id
+    /// [ADR 0076](/docs/adr/0076-observability-export.md) § 2, whose id
     /// is Novis's only request identifier.
     ///
     /// **Not [`Self::trace`]**, which is ADR 0018's per-call-site event list;
@@ -766,7 +766,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** 25 bytes per request and one CSPRNG draw.
     trace_context: crate::trace_context::TraceContext,
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// command table, or `None` for a program that declared no `#[Command]` —
     /// [`crate::commands`] owns why the rows cross into the runtime at all and
     /// why both absences answer alike.
@@ -779,7 +779,7 @@ pub struct Ctx {
     /// **What it spends:** one `Arc` clone per request; the rows themselves are
     /// shared and charged to whoever compiled them.
     commands: Option<std::sync::Arc<crate::commands::CommandTable>>,
-    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 1's route table, as the compiler built it — what the door matched this
     /// request against, and what `Core\Router`'s own members ask a second
     /// question of.
@@ -797,7 +797,7 @@ pub struct Ctx {
     /// shared and charged to whoever compiled them.
     routes: Option<std::sync::Arc<crate::routes::Routes>>,
     /// The process argument vector past the program itself — what
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// `Core\Command::run` matches against the table above, and what § 13's
     /// `Core\Cli::arguments` will hand back unchanged.
     ///
@@ -809,10 +809,10 @@ pub struct Ctx {
     /// **What it spends:** one `String` per word a `nvs run` was given, and one
     /// empty `Vec` — no allocation — for every context nobody wrote one onto,
     /// which is every served request. O(in-flight requests), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     arguments: Vec<String>,
     /// The name the shell knows this program by — what
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// `Core\Command::completions` registers its script against. See
     /// [`Self::program_name`] for which name that is, which is the whole of
     /// what the member can be wrong about.
@@ -826,9 +826,9 @@ pub struct Ctx {
     /// **What it spends:** one short `String` per `nvs run`, and one empty
     /// `String` — no allocation — for every context nobody wrote one onto.
     /// O(in-flight requests), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     program_name: String,
-    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
     /// reads the host's clock.
@@ -837,7 +837,7 @@ pub struct Ctx {
     /// [`Self::origin`] is — the test runner reads `#[Test(at: …)]` and writes
     /// it onto the isolate's own context, and a context nobody wrote it onto
     /// is every context outside a test. That is why this does not reopen
-    /// [ADR 0008](../../../docs/adr/0008-static-and-global.md)'s "nothing holds
+    /// [ADR 0008](/docs/adr/0008-static-and-global.md)'s "nothing holds
     /// state behind a function's back": the one thing that moves it afterwards
     /// is `Core\Test::advance`, which § 12 declares beside the clock and which
     /// exists nowhere but inside a test.
@@ -850,7 +850,7 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
     fixed_clock: Option<i128>,
-    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 12's seeded generator, as its **live state** rather than as the seed
     /// it started from, or `None` for a context whose draws come from the
     /// operating system.
@@ -874,13 +874,13 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and one predictable
     /// not-taken branch per draw.
     random_state: Option<u64>,
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
     /// scripted answer queue: what the next `Core\Cli` prompts read instead of
     /// a terminal, oldest first, and empty for every context outside a test.
     ///
     /// **Beside [`Self::fixed_clock`] because it is the same idea** — a test
     /// declares the world its subject runs in, and the isolate is what scopes
-    /// the declaration ([ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// the declaration ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 2 gives each test its own context). A queue held in a `thread_local`
     /// would outlive the test that filled it and answer the next one's prompt,
     /// which is the failure a fixed clock avoids the same way.
@@ -894,7 +894,7 @@ pub struct Ctx {
     /// answers themselves only where a test wrote them.
     scripted_answers: std::collections::VecDeque<String>,
     /// `Core\Out::capture`'s buffers, innermost last —
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 5.
     ///
     /// A **stack**, because a capture is scoped to a closure and therefore
@@ -913,7 +913,7 @@ pub struct Ctx {
     /// have to match on.
     captures: Vec<Vec<u8>>,
     /// The media type this request's output has been *declared* to be —
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 4's five body members, each of which owns one body shape and sets its
     /// own `Content-Type`. `None` for a request that only echoed, which § 4's
     /// last bullet reads as `text/html`.
@@ -956,7 +956,7 @@ pub struct Ctx {
     ///
     /// A **list** where the two fields above are words, because a header is a
     /// map rather than a property of the response:
-    /// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4
     /// makes `setHeader` an override of *one* policy-owned header on one
     /// response, so what has to cross is every pair a program set rather than
     /// one of them.
@@ -984,7 +984,7 @@ pub struct Ctx {
     ///
     /// **`None` is an answer, not a missing value.** A CLI program, a scheduled
     /// script and a test all run with no request, and
-    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 7 makes reading
+    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7 makes reading
     /// `Core\Request` there a **throw** rather than an empty string — "there is
     /// no request here" and "the request sent nothing" are different facts, and
     /// an `Option` is what keeps them different this far down.
@@ -1004,7 +1004,7 @@ pub struct Ctx {
     /// allocation holding an [`Inbound`] — itself three short allocations — for
     /// one that does.
     inbound: Option<Box<Inbound>>,
-    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
     /// Written only from [`nvs_probe_stmt`], which compiled code reaches only
@@ -1019,7 +1019,7 @@ pub struct Ctx {
     /// for now is proving the mechanism: the probe fires at exactly the
     /// statements a request executed, and nowhere else.
     stmt_hits: Vec<u64>,
-    /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's call-site trace, in the order the probes fired.
     ///
     /// Written only from [`nvs_probe_call_enter`]/[`nvs_probe_call_exit`],
@@ -1045,7 +1045,7 @@ pub struct Ctx {
     /// reaches the yielder through the context it was already handed rather
     /// than through its own signature, so no caller up the chain is marked
     /// `async` and Novis needs no such marker at all
-    /// ([ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 6, `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*).
     ///
     /// **Opaque on purpose.** It is a `*const ()` rather than a
@@ -1081,11 +1081,11 @@ pub struct Ctx {
     /// Cold, and null for every context that is not an isolate's, which is
     /// every request. It is a field here rather than a slot the program keeps
     /// because it is the isolate's ownership *root*
-    /// ([ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
     /// § 2): what releases it is dropping this context, and nothing else knows
     /// when that happens.
     isolate_argument: Value,
-    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 5's per-test assertion ledger, in the order the assertions ran.
     ///
     /// It lives here, and nowhere a program can name, because that is the
@@ -1118,10 +1118,10 @@ pub struct Ctx {
     /// The session `Core\Session::start` opened, or `None` for a request that
     /// started none — see [`Session`].
     ///
-    /// [ADR 0139](../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
     /// § 1 makes every other member of that class throw while this is `None`,
     /// which is the whole of what
-    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 4 was buying:
+    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 4 was buying:
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,
@@ -1142,11 +1142,11 @@ pub struct Ctx {
 /// and the write-back at its end.
 ///
 /// **Deliberately not a [`Value`].** The record crosses the store boundary as
-/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)'s
+/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)'s
 /// byte carrier in both directions — ADR 0139 § 2 says so, for the same reason
 /// a `Core\Cache` entry does — so holding the bytes means the context has
 /// nothing to release at teardown and holds no object that could name a
-/// `ClassDesc` an [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)
+/// `ClassDesc` an [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)
 /// unit swap has retired. Decoding is [`crate::decode`]'s, once per member that
 /// reads, over bytes this struct already owns.
 ///
@@ -1178,7 +1178,7 @@ pub struct Session {
     /// the other two. The store is `nvs-stdlib`'s — § 2's four operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
-    /// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)), and
+    /// ([ADR 0006](/docs/adr/0006-isolated-script-execution.md)), and
     /// `nvs run`'s root task; neither of those crates depends on `nvs-stdlib`,
     /// and `nvs-stdlib` may not depend on either. This crate is the one all of
     /// them already rest on, so the seam is inverted through it exactly as
@@ -1193,7 +1193,7 @@ pub struct Session {
     pub write_back: fn(&mut Ctx),
 }
 
-/// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+/// One entry of [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
 /// § 5's ledger: an assertion that ran, and how it came out.
 ///
 /// The outcome is the *message*, not a `bool`, because the ledger is what the
@@ -1268,7 +1268,7 @@ impl ErrorClass {
 /// * [`Pending::Message`] is what a runtime helper's [`crate::Fault`] and
 ///   every [`crate::FATAL`] produce. It allocates nothing when the message is
 ///   `'static`, which is the property
-///   [ADR 0002](../../../docs/adr/0002-error-propagation.md) § *Measured cost*
+///   [ADR 0002](/docs/adr/0002-error-propagation.md) § *Measured cost*
 ///   depends on: `benches/abi-probe` measured a throw at 2.8x a normal return
 ///   with an allocating message and *cheaper* than a return without one, and
 ///   PHP code throws on ordinary control-flow paths.
@@ -1286,7 +1286,7 @@ impl ErrorClass {
 ///
 /// A [`crate::FATAL`] never becomes a `Thrown`: compiled code only ever pushes
 /// a frame for a `THROWN` status, and no `catch` is ever entered for a
-/// `FATAL` ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)).
+/// `FATAL` ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)).
 #[derive(Debug)]
 enum Pending {
     /// A message alone, with no exception object behind it yet, plus the
@@ -1367,13 +1367,13 @@ pub enum FaultSite {
 }
 
 /// Which of
-/// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
 /// § 1's four kinds a [`TraceEvent`] is.
 ///
 /// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
 /// a `call` event's shape exactly as ADR 0018 defined it, and the three other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
-/// A `query`'s field set is fixed by [ADR 0067](../../../docs/adr/0067-core-db.md)
+/// A `query`'s field set is fixed by [ADR 0067](/docs/adr/0067-core-db.md)
 /// § 11 and lives in `nvs_db::QuerySpan`, which is where the driver already
 /// holds it; a per-kind payload is what § 4's export needs and what lands with
 /// ADR 0018's sink, alongside the `PROFILE` timing the `trace` field's own doc
@@ -1394,9 +1394,9 @@ pub enum TraceKind {
     Query,
 }
 
-/// One [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// One [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 /// § 1 call-site trace record, tagged with
-/// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
 /// § 1's kind.
 ///
 /// The remaining two fields are the `call` kind's shape, and a `query` reuses
@@ -1525,13 +1525,13 @@ pub const HOT_LINE_BYTES: usize = 64;
 /// module docs' *Static properties are request-scoped* section.
 pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
 /// call-stack ceiling: **8 MiB of reserved address space per request**, of
 /// which only the touched pages are ever resident.
 ///
 /// About 65,000 frames — the same order as what PHP permits, and the default
 /// Linux thread stack. Stated as
-/// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) requires: what
+/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) requires: what
 /// the number buys is how deep a program may recurse and how much one runaway
 /// commits before it is stopped, and at `benches/abi-probe`'s measured 1.32 ns
 /// per call that is ≈86 µs either way.
@@ -1545,7 +1545,7 @@ pub const STACK_CEILING: usize = 8 << 20;
 /// allocates no further calls cannot cross the floor.
 pub const STACK_RESERVE: usize = 256 << 10;
 
-/// Which of [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// Which of [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 /// § 1's resource limits stopped the request, as the tier-1 handler is told it.
 ///
 /// § 1 spells that handler's parameter `LimitReport`, and this is what the
@@ -1877,7 +1877,7 @@ impl Ctx {
     }
 
     /// The name a completion script registers this program against — what
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// `Core\Command::completions` writes into `complete -F … <name>`,
     /// `complete -c <name>` and `-CommandName <name>`.
     ///
@@ -1888,7 +1888,7 @@ impl Ctx {
     ///   `nvs`. The word the shell saw is `nvs`, but a script registered
     ///   against it would answer for the toolchain: every other `nvs run` would
     ///   then complete against this program's command table.
-    /// * [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+    /// * [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
     ///   single-file executable — the **executable's** own stem, because there
     ///   the binary *is* the program, and its entry file is a synthetic path
     ///   inside the payload that no shell has ever seen.
@@ -1973,7 +1973,7 @@ impl Ctx {
     /// This request's share of the thread's count, taken against
     /// [`Self::output_base`] — so a root's reading holds every isolate spawned
     /// beneath it and each isolate's holds only its own, which is
-    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
     /// "child output against the root's `max_output`" and the same arrangement
     /// [`Self::memory_used`] already has.
     #[must_use]
@@ -2009,7 +2009,7 @@ impl Ctx {
     }
 
     /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// tier 1.
     ///
     /// **Last registration wins, and there is no unregister but the request
@@ -2060,7 +2060,7 @@ impl Ctx {
     }
 
     /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
-    /// — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
     /// tier 2.
     ///
     /// [`Self::set_limit_handler`]'s contract exactly, and deliberately: last
@@ -2092,14 +2092,14 @@ impl Ctx {
         self.uncaught_handler.tag() != Some(crate::Tag::Null)
     }
 
-    /// Runs [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
     /// tier 2 over `thrown`, if this request registered one.
     ///
     /// **The handler is handed the real exception object**, not a report built
     /// from it, which is the one way this differs from
     /// [`Self::run_limit_handler`]'s array. § 2 says why: this is the request's
     /// own root rather than an isolate boundary
-    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) has to
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) has to
     /// copy across, so the object the program threw is still the object it
     /// threw, with its own class, message and backtrace reachable by the
     /// ordinary members. A handler declaring no parameter still runs, for
@@ -2161,7 +2161,7 @@ impl Ctx {
     }
 
     /// Appends `hook` to
-    /// [ADR 0127](../../../docs/adr/0127-the-end-of-a-script-is-observable.md)
+    /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
     /// § 1's end-of-script queue — what `Core\Script::onExit` does, which is
     /// register and run nothing.
     ///
@@ -2255,7 +2255,7 @@ impl Ctx {
     /// - **A throw** is written to the same record `Core\Log` writes, through
     ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
     ///   trace id rather than swallowed", which is
-    ///   [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    ///   [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     ///   § 4's rule for a second throw and [`crate::deferred`]'s reading of it
     ///   for after-response work.
     /// - **An `exit`** is § 5's refusal: a hook that could end the script would
@@ -2293,7 +2293,7 @@ impl Ctx {
     }
 
     /// Registers `closure` to run once this request's own frame has returned —
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 6, and [`mod@crate::deferred`] owns when that is on a host with no
     /// response.
     ///
@@ -2428,7 +2428,7 @@ impl Ctx {
         }
     }
 
-    /// Runs [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// § 1's tier-1 handler, if this request registered one — the last thing a
     /// program gets to do about a resource limit, and it happens *before* the
     /// breach is recorded as the `FATAL` the ladder goes on to print.
@@ -2549,7 +2549,7 @@ impl Ctx {
     /// while it is inside it.
     ///
     /// [`crate::Fault::fatal`] and never a throw:
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1 makes
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 makes
     /// every resource-limit breach a `FATAL`, so no `catch` sees this and a
     /// fixture that wraps the loop in one has found the rule rather than a bug.
     /// The message names the ceiling as well as the reading, because the two
@@ -2696,7 +2696,7 @@ impl Ctx {
     }
 
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
-    /// no cap — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// no cap — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// § 1.
     ///
     /// This is the ceiling a timer compares the request thread's CPU clock
@@ -2939,7 +2939,7 @@ impl Ctx {
     ///
     /// A malformed value answers "no cap" rather than refusing here: the
     /// configuration was already parsed and refused once, at the boundary that
-    /// can name the file and the line ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)
+    /// can name the file and the line ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
     /// § 3), and a second refusal from inside a running request could only be
     /// a worse-worded copy of it.
     fn configured_memory_limit(&self) -> usize {
@@ -2961,7 +2961,7 @@ impl Ctx {
     /// Written once rather than per ceiling because a second size directive
     /// growing its own parse is how the two would come to disagree about what
     /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
-    /// is answered ([ADR 0064](../../../docs/adr/0064-configuration-file-format.md)
+    /// is answered ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
     /// § 5).
     fn configured_bytes(&self, key: &str) -> usize {
         let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
@@ -3096,7 +3096,7 @@ impl Ctx {
     /// A context for a **child task of this request** — what `nvs-host` hands
     /// [`crate::host::Job`] when it runs a group.
     ///
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 1's children "share the request", and this is the one place that
     /// sharing is decided: `nvs-host`'s `group` module doc is the home of *why*
     /// each field is on the side of the line it is on, because it is the only
@@ -3134,7 +3134,7 @@ impl Ctx {
     /// ends, plus the origin's own bytes copied once and one `Arc` clone of the
     /// snapshot with one `String` pair per key the parent had set. O(in-flight)
     /// and not O(children ever spawned), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     ///
     /// # Safety
     ///
@@ -3183,7 +3183,7 @@ impl Ctx {
     /// A context for an **isolate** — the other half of the pair
     /// [`Ctx::child`] opens, and the one place the two part.
     ///
-    /// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
     /// § 4: an isolate's arena is an ownership root of its own, so its
     /// static-property base is **its own** rather than an alias of this
     /// request's. That single difference is the whole of ADR 0006's "globals,
@@ -3220,7 +3220,7 @@ impl Ctx {
     ///
     /// **What it spends:** one `Ctx` per in-flight isolate plus its own statics
     /// store once armed, both freed when that isolate ends. O(in-flight), per
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     #[must_use]
     pub fn isolate(&self, output: OutputSink) -> Self {
         let mut isolate = Self::new(output);
@@ -3266,7 +3266,7 @@ impl Ctx {
     /// allowed. The size is what a whole `.nvs` costs rather than what a
     /// message costs — this reserve compiles and runs a program, where § 1's
     /// runs a closure the request already loaded — and 16 MiB is spent here
-    /// under [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s
+    /// under [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
     /// ordering: a handler that cannot report is a failure nobody hears about.
     pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
 
@@ -3280,11 +3280,11 @@ impl Ctx {
     /// script first — and it is a ceiling on a report, not a budget for work.
     pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
 
-    /// A context for [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// A context for [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// § 3's **tier-3 handler** — [`Self::isolate`] with the failing request's
     /// budget left behind.
     ///
-    /// § 3's one deliberate exception to [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md):
+    /// § 3's one deliberate exception to [ADR 0006](/docs/adr/0006-isolated-script-execution.md):
     /// an ordinary isolate spends the tree's budget, which is exactly wrong for
     /// the one isolate whose job is to report that the tree ran out of it.
     /// Everything ADR 0006 calls request-wide still crosses — the sibling above
@@ -3365,7 +3365,7 @@ impl Ctx {
     ///
     /// This is where [`crate::script::Program`]'s "the argument is
     /// transferred" lands. A program is handed one reference and has to put it
-    /// somewhere [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// somewhere [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
     /// § 2's wholesale release will reach; this context *is* that ownership
     /// root, so this is the one place with both the reference and the lifetime
     /// in hand. Calling it twice releases what it replaces, and a context that
@@ -3405,7 +3405,7 @@ impl Ctx {
     /// it is is the whole question. It is the request's, so that the footprint
     /// is O(isolates this request has started and not awaited) and is released
     /// with the request — a process-wide table would be O(spawns served),
-    /// which [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) calls
+    /// which [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) calls
     /// a leak rather than a trade. `crates/nvs-stdlib/src/channel.rs` records
     /// the same reasoning for the queue it keeps in slots instead.
     ///
@@ -3447,7 +3447,7 @@ impl Ctx {
     /// where a recycled key would silently address whatever file the same slot
     /// now holds. A loop opening and closing a million paths spends a few
     /// megabytes for it, which
-    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s ordering
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s ordering
     /// spends without hesitating to keep a descriptor from being confused for
     /// another.
     pub fn hold_open_file(&mut self, file: std::fs::File) -> u64 {
@@ -3478,7 +3478,7 @@ impl Ctx {
     /// The same shape and the same reasoning as [`Ctx::hold_open_file`], and
     /// [`Ctx::hold_started_script`] is the one home of *why* a `Core` handle is
     /// a key into a request-owned table. What this adds is `memo`, which is
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 2's memoization key —
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 2's memoization key —
     /// the block's name for `Core\Db::connect`, and `None` for a
     /// `{shared: false}` call, which is exactly what "bypasses memoization"
     /// means: an entry no [`Ctx::memoized_connection`] lookup can match. The
@@ -3521,7 +3521,7 @@ impl Ctx {
     /// [`Ctx::open_file_mut`]'s shape, and one difference that is
     /// [`HeldConnection`]'s whole reason: what comes back is the trait object
     /// rather than a driver's own type, because
-    /// [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+    /// [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
     /// § 1 has `nvs-db` depending on this crate and naming `nvs_db::Connection`
     /// here would close a cycle. The caller that knows which crate opened it
     /// gets its own type back through
@@ -3550,7 +3550,7 @@ impl Ctx {
             .map(|index| index as u64 + 1)
     }
 
-    /// Arms [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// Arms [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// § 1's two stack addresses from a base address and a ceiling: the hard
     /// floor `ceiling` bytes below `base`, and the soft limit
     /// [`STACK_RESERVE`] above the floor.
@@ -3590,7 +3590,7 @@ impl Ctx {
     }
 
     /// Whether this request's deadline has passed —
-    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 5's poll, and the module docs' *The request's deadline* section owns
     /// what it costs and who may call it.
     ///
@@ -3667,7 +3667,7 @@ impl Ctx {
     /// because a stack standing on an `extern "C"` helper frame is one no
     /// forced unwind may cross — [`crate::HelperFrame`] owns that. What the
     /// member owes then is
-    /// [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 5's teardown: no `catch`, no cleanup, no user code at all.
     ///
     /// That is already exactly what [`SafepointFlags::CANCEL`] means, so this
@@ -3686,7 +3686,7 @@ impl Ctx {
         crate::Fault::Pending(status)
     }
 
-    /// The active [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// The active [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// probes.
     #[must_use]
     pub fn debug_flags(&self) -> DebugFlags {
@@ -3734,13 +3734,13 @@ impl Ctx {
     }
 
     /// Records one statement as
-    /// [ADR 0041](../../../docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+    /// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
     /// § 1's `query` event — `Core\Db`'s statement routines' whole effect under
     /// [`DebugFlags::TRACE`], called once the rows have ended so the span is
     /// complete.
     ///
     /// **The span arrives already rendered, and that is the crate boundary
-    /// rather than laziness.** [ADR 0067](../../../docs/adr/0067-core-db.md)
+    /// rather than laziness.** [ADR 0067](/docs/adr/0067-core-db.md)
     /// § 11's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
     /// this one; a struct here holding the same seven facts would be that field
     /// set's second home, and the one nobody edits when a driver adds to it.
@@ -3889,10 +3889,10 @@ impl Ctx {
     /// by hand, or attach itself to whatever call returns next; both are worse
     /// than losing it, and the first loses the original as well. So the
     /// `finally` **runs** — which is what PHP compatibility asks for
-    /// ([ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 4) —
+    /// ([ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 4) —
     /// and a throw escaping it is where this differs from PHP, which reports
     /// one as uncaught. Surfacing it wants
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s ladder,
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s ladder,
     /// which does not exist yet; until it does, the safe half is the half that
     /// is kept.
     pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {
@@ -4042,7 +4042,7 @@ impl Ctx {
     /// caller that has to decide something about a throw it may still re-raise
     /// unchanged.
     ///
-    /// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's retry loop is why
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 8's retry loop is why
     /// this exists: it has to know whether the closure's own refusal was a
     /// deadlock or a serialization failure before it decides to run the
     /// closure again, and `take_thrown` would clear the very failure it is
@@ -4082,7 +4082,7 @@ impl Ctx {
     }
 
     /// Appends one entry to
-    /// [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 5's ledger — what every `Core\Test` assertion does, whether it held
     /// or not.
     ///
@@ -4238,7 +4238,7 @@ impl Ctx {
     /// `unconfigured` says when the directive names nothing.
     ///
     /// **This is the only reader of that directive**, and both of
-    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 6's writers reach it: `Core\Log::write` with [`LogChannel::Output`]
     /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. § 6's
     /// claim is about *sameness* — one serialiser, two callers — and a
@@ -4429,7 +4429,7 @@ impl Ctx {
     }
 
     /// The `Core` class this request's sink hands captured bytes back as —
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 3's table, read as a class name.
     ///
     /// [`CARRIER_HTML_MARKUP`] for [`OutputSink::Body`], and
@@ -4531,7 +4531,7 @@ impl Ctx {
 
     /// Sets one header on this request's response, replacing any value this
     /// request had already set under that name — spec § 15's `setHeader`, and
-    /// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)
+    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
     /// § 4's override of a policy-owned header.
     ///
     /// **Set, not add**: the member is named for replacement, and a second
@@ -4621,7 +4621,7 @@ impl Ctx {
     /// two neighbours: those are read once by the finish path and are gone, and
     /// this is read as many times as the program asks. `Core\Request`'s members
     /// are the only readers, and each of them turns `None` into
-    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 7's throw.
+    /// [ADR 0012](/docs/adr/0012-no-superglobals.md) § 7's throw.
     #[must_use]
     pub fn inbound(&self) -> Option<&Inbound> {
         self.inbound.as_deref()
@@ -4652,7 +4652,7 @@ impl Ctx {
 /// The scheme a request effectively arrived over.
 ///
 /// **Effective, not observed**: Novis terminates no TLS
-/// ([ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 /// § 1), so `Https` is only ever what a *trusted* proxy asserted through
 /// `X-Forwarded-Proto` — § 6's walk is the one thing that decides it, and this
 /// carrier holds its answer rather than re-deriving one.
@@ -4692,7 +4692,7 @@ pub enum Scheme {
 /// lets it exist in a crate that has never heard of HTTP.
 ///
 /// **Everything on it is `tainted`** in the sense
-/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 /// means: it is what a client sent. The qualifier itself is a *type*, so it is
 /// carried by the registry rows of the members that read this and not by any
 /// field here — there is no representation of a qualifier at runtime.
@@ -4713,7 +4713,7 @@ pub struct Inbound {
     /// no query at all — the two are not distinguished, because a query with no
     /// pairs and no query yield the same empty set of parameters.
     query: Box<str>,
-    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 7's first half: the prefix ADR 0097 § 4 step 2 took off [`Self::path`]
     /// above, which is the one fact about where an application was deployed
     /// that the application itself is allowed to see.
@@ -4771,7 +4771,7 @@ pub struct Inbound {
     /// `None` for a peer that has no address at all: a Unix-domain socket that
     /// forwarded nothing. That is a value `Core\Request::clientIp()` has to be
     /// able to answer, and inventing `"0.0.0.0"` for it would be the repair
-    /// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+    /// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
     /// forbids.
     ///
     /// An [`IpAddr`] and not the text of one, so that a request nobody asks
@@ -4787,7 +4787,7 @@ pub struct Inbound {
     /// answer, and `Http` for every request until a trusted proxy asserts
     /// otherwise. [`Scheme`] owns why it is two named values.
     scheme: Scheme,
-    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
     /// §§ 1-2's parse of that body, once `Core\Request::files()` has named one
     /// — **type-erased**, because the parse is `nvs_stdlib::multipart`'s and
     /// this crate is below it.
@@ -4862,7 +4862,7 @@ pub struct Inbound {
     /// that happened to carry nothing would make the rule depend on what the
     /// peer sent.
     claimed_by: Option<&'static str>,
-    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 1's match: the row this request selected out of the program's table,
     /// and the captures it filled.
     ///
@@ -4882,7 +4882,7 @@ pub struct Inbound {
     /// one — an `Arc` bump on the row and one `String` per capture.
     /// [`crate::routes`] accounts for the rest.
     route: Option<crate::routes::Match>,
-    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2's trace,
+    /// [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace,
     /// as the door read it off the arrived `traceparent` — the trace continued
     /// when the header was one this understands, and the root it drew instead
     /// when it was not.
@@ -5204,7 +5204,7 @@ impl Inbound {
 }
 
 /// The body of a served request, as chunks the program pulls one at a time —
-/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
 /// stream, at the seam where it crosses into a crate that has never heard of
 /// HTTP.
 ///
@@ -5222,7 +5222,7 @@ impl Inbound {
 /// apply the tighter number, so `request_body` would be a check over something
 /// already paid for, which is not a bound. What is left is a per-request
 /// resident cost of `upload_total`, multiplied by `max_in_flight` by
-/// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 13's arithmetic: a 2G ceiling against a memory budget divides the effective
 /// admission ceiling to approximately nothing, so the honest configuration and
 /// the working one stop being the same file.
@@ -5259,7 +5259,7 @@ pub trait RequestBody {
     /// request's own isolate, and that is a task **beside** the connection
     /// rather than a frame inside its poll — `nvs_server::serve_connection`'s
     /// service answers `Pending` while it runs
-    /// ([ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// ([ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
     /// § 1) — so a pull parks that isolate and the connection's next poll is
     /// what delivers the bytes. Stated as the rule an implementation has to
     /// keep: **nothing may pull one from inside the poll of the very
@@ -5287,7 +5287,7 @@ pub trait RequestBody {
 /// A row rather than the pair this used to be, because two members declare
 /// headers and they mean opposite things about a name that is already present.
 /// [`Ctx::declare_header`] is
-/// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4's
+/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4's
 /// override of *one* policy-owned header, so it replaces; [`Ctx::append_header`]
 /// is the `Set-Cookie` path, where a second value under one name is the entire
 /// point. Which of the two a row is cannot be recovered from the pair — a
@@ -5439,7 +5439,7 @@ pub(crate) fn with_current<R>(body: impl FnOnce(&mut Ctx) -> R) -> Option<R> {
 ///
 /// Returns [`crate::FATAL`] for a request that must stop, and [`crate::OK`]
 /// otherwise. A resource-limit stop is deliberately not a `THROWN`:
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) makes it not
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
 /// Two of the four flags act; see the crate docs' known gap 5.
@@ -5532,7 +5532,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
 /// compiled code compared was already below [`Ctx::stack_limit`].
 ///
 /// Compiled code tests the **soft** address alone, so which of
-/// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's two
+/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's two
 /// tiers this is gets decided here: a catchable [`ThrownClass::Recursion`]
 /// between the soft address and the floor, and a [`crate::FATAL`] no `catch`
 /// sees below it. That is what makes two tiers cost the same as one at the
@@ -5579,7 +5579,7 @@ pub unsafe extern "C" fn nvs_stack_check(ctx: *mut Ctx, sp: u64) -> i32 {
     crate::OK
 }
 
-/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 /// § 1's statement-boundary probe — the slow path behind the debug-flags
 /// check, reached only when the word compiled code loaded was non-zero.
 ///
@@ -5646,7 +5646,7 @@ unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
     String::from_utf8_lossy(bytes)
 }
 
-/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 /// § 1's call-site **entry** probe — the slow path behind the debug-flags
 /// check compiled code emits before every call.
 ///
@@ -5681,7 +5681,7 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
     }
 }
 
-/// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 /// § 1's call-site **exit** probe, carrying the checked-return `status` the
 /// call site is about to branch on — which is why a trace shows a thrown or
 /// `FATAL` exit as it happened rather than as a reconstruction.

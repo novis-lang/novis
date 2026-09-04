@@ -1,8 +1,8 @@
-//! The wire half of [ADR 0067](../../../docs/adr/0067-core-db.md)'s `Core\Db`:
+//! The wire half of [ADR 0067](/docs/adr/0067-core-db.md)'s `Core\Db`:
 //! five drivers, each a borrowed sans-IO codec plus a state machine written
 //! here, over [`nvs_host`]'s parking stream.
 //!
-//! [ADR 0132](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! [ADR 0132](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! is this crate's charter and its four decisions are the four things a reader
 //! most needs before writing a connection. **A codec is borrowed, a state
 //! machine is written** (§ 2): message framing, value encoding and
@@ -25,7 +25,7 @@
 //!
 //! # A connection's busy state — ADR 0132 § 4
 //!
-//! [ADR 0067 § 4](../../../docs/adr/0067-core-db.md) requires a second
+//! [ADR 0067 § 4](/docs/adr/0067-core-db.md) requires a second
 //! statement on a streaming connection to throw `LogicError`. That state is
 //! **not** on the stream: `NvsStream`'s readiness registration is one task's and
 //! is deliberately invisible above `Read`/`Write`, a connection is busy whether
@@ -51,7 +51,7 @@
 //! **A poisoned connection is closed, never reset, and never returned to the
 //! pool** — [`Connection::is_poolable`] is that rule and it is the one
 //! security-relevant call in this module. [ADR 0067
-//! § 13](../../../docs/adr/0067-core-db.md) makes the reset a boundary because
+//! § 13](/docs/adr/0067-core-db.md) makes the reset a boundary because
 //! a connection carrying one request's state into another's is a cross-tenant
 //! leak; a `RESET ALL` written into the middle of an unfinished message is not
 //! a reset, it is a fragment of one request's protocol stream that the *next*

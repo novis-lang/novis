@@ -17,7 +17,7 @@
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
 //! ([ADR 0074] § 4). Two reasons the split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
-//! [ADR 0103 § 3](../../../docs/adr/0103-configuration-is-a-tree-of-files.md) resolves *before*
+//! [ADR 0103 § 3](/docs/adr/0103-configuration-is-a-tree-of-files.md) resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
 //!
 //! Which is also why every field is an [`Option`]: unset and set-to-the-shipped-default are

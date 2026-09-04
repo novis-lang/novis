@@ -1,4 +1,4 @@
-//! `Core\Math` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Math` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 3, over `int`, `uint` and `float`.
 //!
 //! `**` is exponentiation and `%` is integer modulo, so neither has a member
@@ -1126,7 +1126,7 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
 /// `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
-/// constants under [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md).
+/// constants under [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md).
 ///
 /// **Every one is written as the value, not as an expression.** `TAU` is
 /// spelled out rather than `2.0 * PI` and `EPSILON` rather than an
@@ -1620,7 +1620,7 @@ unary_float! {
     /// and matching it is what makes the round trip below agree. AGENTS.md's
     /// priority 2 is PHP-compatible *observable* behaviour, and the ulp is
     /// observable: `==` over `float` is exact ([ADR
-    /// 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
+    /// 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)),
     /// so `toDegrees(toRadians(30.0)) == 30.0` answers `true` under PHP's
     /// spelling and `false` under the std one. Nothing here promises an
     /// accuracy the twin does not have; the round trip a ported program

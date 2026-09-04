@@ -1,4 +1,4 @@
-//! What a `[limits]` directive is by the time a request reads it — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! What a `[limits]` directive is by the time a request reads it — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 1's ceilings, resolved once by `Ctx::set_config` and read as bare integers
 //! everywhere after it.
 //!

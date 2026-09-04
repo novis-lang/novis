@@ -1,8 +1,8 @@
-//! `Core\Mail` — [ADR 0082](../../../../docs/adr/0082-the-first-party-framework.md) § 2's transport
+//! `Core\Mail` — [ADR 0082](/docs/adr/0082-the-first-party-framework.md) § 2's transport
 //! half: one member that hands a message to an SMTP endpoint **an operator named**, and no spelling
 //! anywhere for one a program chose.
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 3 places the class — Native by
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 places the class — Native by
 //! test 3, because it waits on the outside world — and the spec's § 16 row gives it one sentence,
 //! "an SMTP client with structured headers, replacing `mail()`". What belongs here is the roster
 //! that sentence does not write, and the five decisions behind it.
@@ -17,12 +17,12 @@
 //! So this class has **no raw header parameter at all**. Every header a program can set is a named
 //! parameter of [`send`](CLASS) with a type, and [`compose`] is the only thing that ever writes a
 //! `\r\n` — an address is parsed and refused if it is not one ([ADR
-//! 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md): ambiguous input is
+//! 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md): ambiguous input is
 //! refused, never repaired), and a subject is RFC 2047 encoded the moment it holds anything a header
 //! line cannot carry, so a control byte becomes *content* rather than structure. That is what the
 //! spec row's "structured headers" buys, and it is why `$subject` and `$text` accept a `tainted`
 //! argument freely: they are data in exactly [ADR
-//! 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7's sense,
+//! 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 7's sense,
 //! and mailing what a user typed is the point.
 //!
 //! # The endpoint is a name, not a host — ADR 0067 § 3's shape
@@ -35,7 +35,7 @@
 //! between deployments — and it is the only qualifier this class refuses.
 //!
 //! ADR 0067 § 3 is where that shape comes from and also why the address is **not** put through
-//! [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 3's denied ranges: an address
+//! [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied ranges: an address
 //! an operator wrote into root-owned configuration carries the same authority as the grant itself,
 //! and a mail relay lives at `127.0.0.1` or on a container network precisely inside the set § 3
 //! denies. `Core\Http`'s launderer pins because *its* host came from the program;
@@ -67,7 +67,7 @@
 //! operator's and has no `nvs.toml` key for yet — stops working with no remedy in the file that
 //! would hold one; or unverified, which that module has no spelling for and will not grow one,
 //! because a handshake nobody checked is exactly the false confidence
-//! [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md) § 3 refuses to sell.
+//! [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md) § 3 refuses to sell.
 //! So TLS here is *asked for*, by configuring the credential that cannot travel without it, and
 //! where it is asked for it is required and verified. Encryption without authentication has no key
 //! today; it belongs beside the anchor bundle that module already names as unlanded, and the two

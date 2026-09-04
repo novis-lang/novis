@@ -21,13 +21,13 @@
 //! implementation detail of the tree.
 //!
 //! **`peek` and `pop` throw on an empty heap.** § 9's row gives the class an
-//! `isEmpty`, which is the question, and [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+//! `isEmpty`, which is the question, and [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 //! R5 bans the `peekOrNull` twin that a `?T` return would otherwise invite.
 //!
 //! # Decision: three orderings, tried in one fixed order
 //!
 //! 1. the `comparator` given at construction, if there is one;
-//! 2. otherwise [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s
+//! 2. otherwise [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
 //!    `Comparable::compareTo`, reached through the receiving object's own class
 //!    descriptor ([`nvs_runtime::dispatch`]);
 //! 3. otherwise the natural order [`crate::ordering::compare_values`] owns,
@@ -78,7 +78,7 @@ pub(crate) const NEW_SYMBOL: &str = "nvs_core_heap_new";
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
 pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_heap_iterate";
 
-/// [ADR 0013](../../../../docs/adr/0013-comparable-interface.md)'s one member,
+/// [ADR 0013](/docs/adr/0013-comparable-interface.md)'s one member,
 /// which a class opts into by implementing the interface. Must agree with
 /// `nvs_types::iter_lib`'s seeded spelling, exactly as
 /// [`nvs_runtime::sequence`]'s three names do.

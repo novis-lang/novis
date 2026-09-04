@@ -22,7 +22,7 @@
 //! answer would be a second place a deployment could be pointed at a different server.
 //!
 //! **The bounds are finite with nothing configured**, per
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md), and § 6 has no unbounded
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md), and § 6 has no unbounded
 //! spelling at all: a job is retried a fixed number of times and then kept, so `max_attempts =
 //! false` is not a bound this module can read. `QueueBounds::DEFAULTS` transcribes § 2's own
 //! example rather than choosing numbers.
@@ -42,7 +42,7 @@ use crate::value::{Quantity, Unit};
 /// ADR 0084 § 2's `[queue]`, resolved: the connection named, and every bound a number.
 ///
 /// Held by value and cloned per configuration generation rather than borrowed from the tree,
-/// because [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload
+/// because [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload
 /// replaces the tree whole and a worker holding a borrow into the old one would be reading a
 /// generation the deployment has moved off.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -72,7 +72,7 @@ impl QueueBounds {
 ///
 /// It runs over the merged tree for [`crate::db::validate`]'s reason, plus one of its own: the
 /// `[db.<name>]` roster this block is checked against accumulates across the file tree
-/// ([ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md) § 4), so the name only
+/// ([ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md) § 4), so the name only
 /// has an answer once the merge is done.
 ///
 /// # Errors

@@ -1,4 +1,4 @@
-//! `Core\RateLimit` — [ADR 0075](../../../../docs/adr/0075-core-ratelimit.md)'s
+//! `Core\RateLimit` — [ADR 0075](/docs/adr/0075-core-ratelimit.md)'s
 //! limiter for what only the application knows, as both halves of it: `consume`
 //! over the shared store, `shed` over this core's own memory, and the
 //! `Core\RateLimit\Decision` each answers with.

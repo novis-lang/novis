@@ -1,7 +1,7 @@
 //! The watchdog: one thread for the process, noticing a core that has stopped
 //! turning at all.
 //!
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 7 is the whole specification, and its first clause decides this module's
 //! shape: the watchdog **reads the in-flight deadline each worker already
 //! maintains**. So there is no heartbeat here. A worker writes nothing for the
@@ -24,7 +24,7 @@
 //!
 //! # Report and shed, never kill
 //!
-//! Firing writes one record to [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! Firing writes one record to [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 4's floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and ADR 0106 § 14 declines the process boundary
@@ -36,7 +36,7 @@
 //!
 //! A stall is reported **once per deadline**, not once per sweep: a wedged core
 //! republishes nothing, so its earliest deadline is a stable identity for the
-//! episode. That is [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! episode. That is [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 10's coalescing rule arriving for free rather than as a second bound on
 //! the sink. A core that recovers and stalls again on a later deadline is a new
 //! episode and reports again.

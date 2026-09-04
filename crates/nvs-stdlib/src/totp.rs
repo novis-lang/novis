@@ -1,4 +1,4 @@
-//! `Core\Totp` — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! `Core\Totp` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
 //! § 1's third roster entry: RFC 6238 one-time codes, with a window that has no
 //! widening argument and a replay refusal the caller can actually enforce.
 //!
@@ -26,7 +26,7 @@
 //! # "No replay" is a counter, because there is no store in this goal
 //!
 //! Refusing a replayed code needs to remember the last code accepted, and
-//! remembering across requests is [ADR 0059](../../../../docs/adr/0059-cross-request-state-is-explicit.md)'s
+//! remembering across requests is [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)'s
 //! `Core\Cache`, which is a later stage. That is not why the design is this
 //! shape, though — it is the right shape regardless. [`check`] answers **the
 //! step the code belonged to**, and takes the last step already accepted as
@@ -74,7 +74,7 @@
 //! that needs base32, which belongs in `Core\Encoding` beside the other
 //! `bytes`↔`string` conversions and is not here. And it does not decide what a
 //! failed code costs — rate limiting a second factor is `Core\RateLimit`'s
-//! ([ADR 0075](../../../../docs/adr/0075-core-ratelimit.md)), because only the
+//! ([ADR 0075](/docs/adr/0075-core-ratelimit.md)), because only the
 //! application knows whether six wrong codes is a typo or an attack.
 //!
 //! # Constant time

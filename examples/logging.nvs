@@ -2,7 +2,7 @@
 // The escalation ladder's reporting half, as a program: two records a
 // program writes for itself, and the rung above an ordinary `catch`.
 //
-// [ADR 0020](../docs/adr/0020-error-escalation-ladder.md) is the design and
+// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) is the design and
 // its load-bearing claim is about *sameness*: `Core\Log`'s JSON-Lines
 // writer is the same native serialiser the engine floor calls directly, so
 // the two can never disagree about log shape. Two writers that agree today

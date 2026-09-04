@@ -330,7 +330,7 @@ pub(crate) struct Ctx<'a> {
     pub generator_elem: Option<crate::ty::TypeId>,
 }
 
-/// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md) § 3's
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 3's
 /// optional self-name, resolved: what a bare call written inside the closure's
 /// own body has to spell to mean *this* closure, and what such a call answers
 /// with.
@@ -388,7 +388,7 @@ pub(crate) struct Env<'a> {
     /// [`crate::retrieval::AttributeTable`].
     pub attributes: &'a crate::retrieval::AttributeTable<'a>,
     /// The `[capabilities]` block of the configuration the *compiling* machine
-    /// read, or `None` where nothing read one — [ADR 0067](../../docs/adr/0067-core-db.md)
+    /// read, or `None` where nothing read one — [ADR 0067](/docs/adr/0067-core-db.md)
     /// § 10's "`nvs.toml` is read at boot on the machine that compiles",
     /// which is the only thing in front of this pass that is not the program.
     ///
@@ -449,7 +449,7 @@ pub(crate) struct Env<'a> {
     /// because a closure nested inside another closure has no enclosing
     /// declaration of its own to be numbered within.
     pub closure_seq: u32,
-    /// [ADR 0031](../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 3's self-name, for the `fn` literal whose body is being checked —
     /// `None` outside one, and `None` again inside a nested literal that
     /// declares no name of its own.

@@ -1,10 +1,10 @@
 //! The two pieces of CLDR Novis carries, which are one module because they
 //! are one body of data:
-//! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 4's date pattern grammar — the one `Core\Time\DateTime::format` emits
 //! from and `Core\Time::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
-//! ones — and [ADR 0082](../../../../docs/adr/0082-the-first-party-framework.md)
+//! ones — and [ADR 0082](/docs/adr/0082-the-first-party-framework.md)
 //! § 2's `Core\Cldr::pluralCategory`, the cardinal plural rules a message
 //! catalog selects a form with.
 //!
@@ -25,7 +25,7 @@
 //!
 //! A month or weekday name renders in CLDR's **root** locale — English — and
 //! nothing selects another. That is the same closed door
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) shuts on
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) shuts on
 //! `setlocale`: a process-wide setting that silently changes what a later
 //! `format` answers is exactly the ambient state § 4 removed the default
 //! timezone for. A program that wants a localized month name has the number,
@@ -70,7 +70,7 @@
 //! **A language whose rules are not carried throws rather than falling back.**
 //! There is an obvious cheaper design — answer English's `one`/`other` for
 //! anything unrecognized — and it is the wrong one twice over: it is
-//! [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 //! repair-instead-of-refuse, and it is silently wrong in the direction that
 //! matters, since a Russian catalog written against `one`/`other` reads
 //! correctly for 1 and wrongly for 2, 5 and 11 alike. The refusal names the
@@ -81,7 +81,7 @@
 //! **The operands come from what the count shows, which is why `decimal` is
 //! the exact one.** CLDR's `v` and `f` are the *visible* fraction digits, so
 //! English puts `1` in `One` and `1.0` in `Other`. A `decimal` carries its
-//! scale ([ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)) and so
+//! scale ([ADR 0054](/docs/adr/0054-decimal-scalar-type.md)) and so
 //! answers that distinction exactly; an `int` has no fraction; a `float` has no
 //! scale, so its digits are read off the shortest representation that
 //! round-trips — which is what `echo` writes for the same value, and therefore
@@ -94,7 +94,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A pattern is compiled per call.** [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)
+//! 1. **A pattern is compiled per call.** [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
 //!    makes `format`/`parse` intrinsics whose *literal* pattern is validated
 //!    and prepared while compiling, which is the same work [`compile`] does
 //!    and would move it off the request path; the reported diagnostic would
@@ -344,7 +344,7 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 
 /// Whether `pattern` is one [`compile`] can read, for a caller that wants the
 /// refusal and not the pieces —
-/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
 /// which reads a *literal* pattern while checking and reports § 3's diagnostic
 /// instead of the throw the runtime would have made.
 ///
@@ -883,7 +883,7 @@ pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr\PluralCategory";
 /// It declares no capability for the reason [`crate::storage`] declares none
 /// and a stronger one: nothing here reaches outside the process at all. The
 /// answer is a function of two arguments and a table compiled into the binary,
-/// so [ADR 0118](../../../../docs/adr/0118-capabilities-are-checked-at-one-door.md)
+/// so [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 /// § 1 has no door to put a check at.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,

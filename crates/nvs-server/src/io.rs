@@ -1,6 +1,6 @@
 //! `hyper`'s two IO traits over the parking stream.
 //!
-//! [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+//! [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
 //! is this module's specification. The whole of the adapter is one sentence:
 //! **try the syscall, and on `WouldBlock` arm the reactor and answer
 //! `Pending`** — never suspend, because a suspend inside a `poll` is that
@@ -42,7 +42,7 @@
 //!
 //! # The clock, and why it lives here
 //!
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 5's four waits are the stream's own deadline — `hyper` knows nothing about
 //! them — and they are **idle** waits rather than totals, so a slow 2 GB upload
 //! completes while a stalled socket does not. That is one rule and two
@@ -78,7 +78,7 @@
 //! owed no status, and one that has stopped reading is by definition not
 //! reading a `408` either.
 //!
-//! **What that spends**, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! **What that spends**, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! [`SCRATCH`] bytes of the accepting coroutine's own stack while a read is in
 //! flight, and one `memcpy` of at most that much per readable poll. Per
 //! connection and only while it is polling, so O(in-flight) and nothing held
@@ -220,7 +220,7 @@ impl ConnectionIo {
     /// closing: [`Write::poll_shutdown`] below says the writing is done, and
     /// the FIN goes out when this is dropped. Handing the stream back is how a
     /// caller keeps it past that — an upgrade to a WebSocket, which
-    /// [ADR 0083](../../../docs/adr/0083-persistent-connections-are-isolates.md)
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
     /// makes an isolate over the same descriptor.
     ///
     /// The deadline goes with it: what bounds a WebSocket is that isolate's own

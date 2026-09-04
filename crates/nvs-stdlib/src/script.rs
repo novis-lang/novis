@@ -1,7 +1,7 @@
 //! `Core\Script\Handle` — what `spawn script` hands back, and the one `Core`
 //! class registered so that a program can name a value it may not touch.
 //!
-//! [ADR 0006](../../../../docs/adr/0006-isolated-script-execution.md)'s spawn
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s spawn
 //! is an expression, so its answer needs a type, and `await` is the only thing
 //! a program may do with that answer. `crates/nvs-types/src/expr/isolate.rs`'s
 //! module doc is the one home of *why* this is a `Core` class rather than a
@@ -14,7 +14,7 @@
 //! registers no members at all, which is a different thing and a stronger one.
 //! There is no `$job->cancel()`, no `$job->isDone()` and no `$job->id()`:
 //! cancellation is the parent's own teardown reaching its children
-//! ([ADR 0072](../../../../docs/adr/0072-core-task-structured-concurrency.md)
+//! ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 //! § 5), and every "is it finished yet" answer is stale before the caller reads
 //! it — the same reasoning [`crate::channel`] records for `count`/`isFull`.
 //! `await` is the whole surface, and it is a keyword rather than a member
@@ -51,7 +51,7 @@
 //!
 //! # The end of a script, and the two halves it is written in
 //!
-//! [ADR 0127](../../../../docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+//! [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
 //! `onExit` queue is split across this crate and `nvs_runtime` along the seam
 //! [`crate::fatal`] already uses: **registration and routing** are here, and
 //! the queue itself is [`Ctx`](nvs_runtime::Ctx)'s, because the queue is
@@ -73,13 +73,13 @@
 //!
 //! `Core\Script` itself lands in this module beside its handle, the way
 //! `Core\Task` and `Core\Task\Channel<T>` already sit together under
-//! [ADR 0011](../../../../docs/adr/0011-functions-and-constants-are-class-members.md).
+//! [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md).
 //! [`CLASS`] is that class; `args()` is its one row so far, and the
 //! `valueOrThrow($result)` that a shape cannot carry as a method is still owed.
 //!
 //! # `args()` answers `mixed`, and `null` for a script nobody spawned
 //!
-//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 6 is what
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 6 is what
 //! replaced ADR 0006's `$_ARGS` with a method call, and its body states the
 //! return type this module implements: **`mixed`**, not an array of anything.
 //! `spawn script`'s `args:` is checked against no expected type at all —
@@ -410,7 +410,7 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> V
     )
 }
 
-/// Runs [ADR 0127](../../../../docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+/// Runs [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
 /// end-of-script queue for the ending `outcome` names — the **one** door
 /// between an ending and a hook.
 ///

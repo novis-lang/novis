@@ -1,4 +1,4 @@
-//! `Core\Html` — [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! `Core\Html` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! § 3's narrow, sink-named launderer, over the sink § 5 makes out of HTML
 //! text.
 //!
@@ -12,7 +12,7 @@
 //!
 //! # Why the answer is a carrier and not a `string`
 //!
-//! [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+//! [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
 //! § 1 asks two questions of every launderer and this is the one member on the
 //! roster that answers yes to both: the HTML sink launders on its own, so a
 //! second application is one the source does not show, and escaping is not
@@ -25,9 +25,9 @@
 //!
 //! # Known gaps
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 3 gives
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 gives
 //! this class two more things than it has: `sanitize` and
-//! [ADR 0122](../../../../docs/adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s
+//! [ADR 0122](/docs/adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s
 //! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
 //! existing at all.
 //!
@@ -60,15 +60,15 @@
 //! spells the same operation as `htmlspecialchars($s, $flags, $encoding,
 //! $double)` — four arguments, of which the first is a bitmask whose default
 //! left `'` unescaped until PHP 8.1 and produced a decade of attribute-context
-//! XSS. [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R6
+//! XSS. [ADR 0063](/docs/adr/0063-core-api-conventions.md) R6
 //! forbids the bitmask outright, and the safe member of every pair the flags
 //! chose between is the only one worth having: escaping both quote characters
 //! makes the answer safe in an unquoted-attribute position as well as in text,
 //! and escaping one fewer character has never been the reason a page was fast.
 //! `$encoding` has no analogue because a `string` is UTF-8 by
-//! [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md), and `$double`
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md), and `$double`
 //! has none because "do not escape what already looks escaped" is exactly the
-//! repair [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! repair [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 //! refuses: `&amp;` in the input is text that said `&amp;`, and it comes back
 //! as `&amp;amp;`.
 //!
@@ -82,7 +82,7 @@
 //! this member: escaping the five characters says nothing about *display
 //! order*, so a payload that reverses the rendering of the text after it
 //! survives the escape untouched.
-//! [ADR 0087](../../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+//! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
 //! owns the predicate, and this is its third caller — the lexer refuses a
 //! source span, the terminal sink substitutes, and this sink substitutes too.
 //! What it is *not* is [`nvs_render::text::substitute`]: that function is
@@ -302,7 +302,7 @@ nvs_runtime::nvs_helper! {
     /// reads is [`Qual::Launder`] on the parameter and `CoreTy::Instance` on
     /// the answer. What runs here is the transformation that makes that
     /// judgement true, plus the lift into [`MARKUP`] that
-    /// [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+    /// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
     /// § 1 requires of it: the HTML sink launders on its own and its transform
     /// is not idempotent, so an answer the sink could not tell from unescaped
     /// text is one it would escape a second time.
@@ -454,7 +454,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Html::toSource(Core\Html\Markup $markup, string $reason): string`
-    /// — [ADR 0133](../../../../docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+    /// — [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
     /// § 3's one way back out of the carrier.
     ///
     /// **There is no `Markup as string` conversion, and this is why there is a

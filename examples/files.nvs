@@ -3,7 +3,7 @@
 // the two things `Core\IO` does that no string algebra can.
 //
 // The split this fixture exists to show is the one
-// [spec § 8](../docs/spec/01-core-library.md) states twice: `Core\Path` is
+// [spec § 8](/docs/spec/01-core-library.md) states twice: `Core\Path` is
 // pure algebra and touches no disk, `Core\IO` is every member that does and
 // so every member that needs an `fs.read` or `fs.write` grant. `join` below
 // is `Core\Path`; everything else is `Core\IO`.

@@ -7,8 +7,8 @@
 //! * **It is not NaN-boxed.** PHP semantics need the full `i64` range, which
 //!   does not fit alongside a tag in 64 bits. Sixteen bytes instead of eight
 //!   is memory spent to buy correct semantics — priority 5 spent on priority 2
-//!   in [AGENTS.md](../../../AGENTS.md)'s ordering, not an oversight.
-//! * **`uint` is a tag, not a wider slot.** [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+//!   in [AGENTS.md](/AGENTS.md)'s ordering, not an oversight.
+//! * **`uint` is a tag, not a wider slot.** [ADR 0007](/docs/adr/0007-explicit-type-system.md)
 //!   § 4's separate unsigned type therefore costs nothing here.
 //!
 //! # Where a `Value` actually appears
@@ -44,7 +44,7 @@ pub enum Tag {
     Bool = 1,
     /// `int`; the payload is an `i64`'s bit pattern.
     Int = 2,
-    /// `uint`; the payload is a `u64` ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4).
+    /// `uint`; the payload is a `u64` ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4).
     Uint = 3,
     /// `float`; the payload is an `f64`'s bit pattern.
     Float = 4,
@@ -59,7 +59,7 @@ pub enum Tag {
     /// owns one reference to it.
     Object = 7,
     /// Reserved, and unused: an
-    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// closure is an ordinary object — one field per capture, one `invoke`
     /// method — so it carries [`Self::Object`]. `nvs_ir::lower::lower_closure`
     /// owns that decision and says why it reuses the object machinery rather
@@ -68,14 +68,14 @@ pub enum Tag {
     Closure = 8,
     /// An engine-owned resource handle; no representation exists yet.
     Resource = 9,
-    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)'s
+    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)'s
     /// scalar, and the one tag whose value does **not** fit in the payload
     /// alone: its 96-bit mantissa spans the padding bytes too, so a `decimal`
     /// is the whole sixteen bytes rather than a tag plus eight. See
     /// [`crate::decimal`]'s own module docs for the bit positions and why one
     /// `Value` shape carries it rather than a representation of its own.
     Decimal = 10,
-    /// `bytes` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s
+    /// `bytes` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s
     /// binary scalar. The payload is a [`StrHeader`] pointer and the value
     /// owns one reference to it, exactly as [`Self::Str`] does: the two types
     /// differ only in the UTF-8 promise, which is a checker property rather
@@ -84,7 +84,7 @@ pub enum Tag {
     /// heap shape* is the one home for that decision and for what it spends.
     Bytes = 11,
     /// **Not a value**: the "never written" storage state
-    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
     /// § 3 requires of a property slot, distinct from every legal value
     /// including [`Self::Null`]. The payload is zero.
     ///
@@ -302,7 +302,7 @@ impl Value {
     /// The handle is an [`NvsStr`] because a `bytes` *is* one, minus the UTF-8
     /// promise — see [`Tag::Bytes`]. `string as bytes` is therefore this
     /// constructor over a retained payload rather than a copy, which is what
-    /// makes [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 3's
+    /// makes [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's
     /// "total, free" row literally free.
     #[must_use]
     pub fn bytes(value: NvsStr) -> Self {

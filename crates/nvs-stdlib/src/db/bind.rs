@@ -5,7 +5,7 @@
 //! parameter is a [`Bound`] whatever the wire will make of it, and a failure is
 //! a [`nvs_db::DbErrorKind`] before it is a class name. That second ordering is
 //! what lets five drivers disagree about error codes and still agree about
-//! [ADR 0067 § 10](../../../../docs/adr/0067-core-db.md)'s kinds.
+//! [ADR 0067 § 10](/docs/adr/0067-core-db.md)'s kinds.
 
 use super::*;
 
@@ -153,7 +153,7 @@ pub(super) fn bound_of(value: Value) -> Bound {
 /// fixes by writing the call differently. `Other` is the server's own refusal,
 /// carrying its `SQLSTATE` and message. Everything left is the wire.
 ///
-/// The middle one is `Core\Db\DbError` — [ADR 0067](../../../../docs/adr/0067-core-db.md)
+/// The middle one is `Core\Db\DbError` — [ADR 0067](/docs/adr/0067-core-db.md)
 /// § 8's single class for every refusal the server made, sitting beside
 /// `Core\Db\RolledBack` in spec § 10's tree so that a `catch` can tell a
 /// refusal the program did not choose from one it did. Nothing about the
@@ -260,7 +260,7 @@ pub(super) fn statement_failure(
 
 /// A [`nvs_db::DbErrorKind`] as the [`ERROR_KIND`] case a program matches on,
 /// which at runtime is that case's ordinal
-/// ([ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)) — so a
+/// ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)) — so a
 /// `match ($e->kind) { Core\Db\ErrorKind::Deadlock => … }` reads what the
 /// server itself said.
 ///

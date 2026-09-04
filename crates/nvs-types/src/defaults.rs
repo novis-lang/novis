@@ -33,7 +33,7 @@
 //!
 //! [`eval_property_default`] evaluates `public int $n = 4;` with exactly the
 //! same literal grammar, plus `= []` and plus the two *named* constants
-//! [ADR 0046](../../../docs/adr/0046-attributes-shape-literal-metadata.md) § 2
+//! [ADR 0046](/docs/adr/0046-attributes-shape-literal-metadata.md) § 2
 //! puts in the compile-time constant set beside a literal — another class's
 //! `const` and an enum case ([`const_reference_default`]) — and reports
 //! `E_PROPERTY_DEFAULT_NOT_LITERAL` instead. Where it *goes* is the whole
@@ -122,7 +122,7 @@ pub enum ConstArg {
     ///
     /// Produced only by [`crate::core_lib`], from
     /// `nvs_stdlib::registry::Const::Bytes`: there is no `bytes` literal in
-    /// the language ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// the language ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
     /// § 1), so no *written* default can reach this variant, and
     /// [`literal_default`] does not produce it. It is kept apart from
     /// [`Self::Str`] because the two materialize under different runtime tags,
@@ -151,7 +151,7 @@ pub enum ConstArg {
     /// [`eval_param_default`]: user code cannot declare a bag, so this only
     /// ever comes from [`crate::core_lib`].
     Options(Vec<(String, ConstArg)>),
-    /// [ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
     /// § 3's fill list for a **required** shape parameter: one entry per field
     /// of the merged arm list, in the order that list flattens, holding what
     /// the call site passes for a key the written literal does not carry — the
@@ -194,7 +194,7 @@ pub enum ConstArg {
         /// Its arguments, positional.
         args: Vec<ConstArg>,
     },
-    /// An [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// An [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
     /// shape value, its fields in the order they were written.
     ///
     /// Produced only by [`crate::attributes`], for ADR 0046 § 5's fold: a
@@ -204,7 +204,7 @@ pub enum ConstArg {
     /// lowering of its own, so nothing else needs a constant form of one.
     Shape(Vec<(String, ConstArg)>),
     /// An `array<T>` value, each entry as its own already-resolved `string`
-    /// key ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 5:
+    /// key ([ADR 0007](/docs/adr/0007-explicit-type-system.md) § 5:
     /// every key is a `string`) and its constant value.
     ///
     /// Produced only by [`crate::attributes`], beside [`Self::Shape`] and for
@@ -318,7 +318,7 @@ pub(crate) fn eval_property_default(
 /// The declared type still decides, as it does for a literal: a case is
 /// accepted where the property declares that enum, an `int` constant widens
 /// into a `float` property under ADR 0007 § 2's one implicit conversion, and
-/// nothing else crosses. A `secret` constant ([ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+/// nothing else crosses. A `secret` constant ([ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 /// § 1) is refused into a non-`secret` slot with its own `E_TYPE_MISMATCH`,
 /// which is what the qualifier would otherwise be laundered by: the declared
 /// type is the only thing carrying it, and a folded value has already lost it.

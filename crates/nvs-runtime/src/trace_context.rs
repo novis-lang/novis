@@ -1,8 +1,8 @@
 //! The distributed-trace identity of one request —
-//! [ADR 0076](../../../docs/adr/0076-observability-export.md) § 2's trace id, the span an outbound
+//! [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace id, the span an outbound
 //! call names as its parent, and the sampled flag, read from and rendered as a W3C `traceparent`.
 //!
-//! **This is not [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+//! **This is not [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
 //! trace, which [`Ctx::trace`](crate::Ctx::trace) holds**, and the two share nothing but the word.
 //! That one records an event per compiled call site and is a debugging surface; this one is three
 //! identifiers a whole request carries. ADR 0076 § 2 opens by separating them, because conflating
@@ -14,12 +14,12 @@
 //! Novis's only request identifier: `Core\Server::traceId()` reads this same id, every `[log]`
 //! record and every error rendering carries it, and it is emitted on the response so a proxy can log
 //! it with one `log_format` line. There is deliberately no second identifier and no inbound
-//! `X-Request-ID` ([ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md) § 9).
+//! `X-Request-ID` ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 9).
 //! So the id is generated where a request's state lives — in [`Ctx::new`](crate::Ctx::new), eagerly
 //! — rather than by whichever subsystem asks for it first, which is what would let two of them
 //! disagree.
 //!
-//! **What is not here yet.** Nothing exports a span ([§ 1](../../../docs/adr/0076-observability-export.md)'s
+//! **What is not here yet.** Nothing exports a span ([§ 1](/docs/adr/0076-observability-export.md)'s
 //! exporter is unbuilt) and nothing creates one, so a root's [`sampled`](TraceContext::sampled) flag
 //! is always `false` — head-based `[trace] sample` is the only thing that will ever set it — and
 //! [`TraceContext::span_id`] is a bare drawn id rather than a span's. A continued trace's flag and

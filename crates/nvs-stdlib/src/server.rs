@@ -1,14 +1,14 @@
 //! `Core\Server` — the class an application asks about the server it is running
 //! under, replacing `$_SERVER`
-//! ([ADR 0012](../../../docs/adr/0012-no-superglobals.md)).
+//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
 //!
 //! # What is here, and what is not
 //!
 //! One member: `isDraining()`, which is
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 5's last sentence — the same fact `[server] health_path` answers a proxy
 //! with, given to an application for an endpoint of its own. The rest of
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 15's
 //! `Core\Server` — the request's own environment and `traceId()` — is a known
 //! gap of this module and not of the spec: both read per-request state that a
 //! served request's context does not carry yet.

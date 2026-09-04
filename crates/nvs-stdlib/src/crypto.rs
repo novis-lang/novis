@@ -1,4 +1,4 @@
-//! `Core\Crypto` — [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md)
+//! `Core\Crypto` — [ADR 0051](/docs/adr/0051-standard-library-tiers.md)
 //! § 3's "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string",
 //! as three members that take a key and a message and nothing else.
 //!
@@ -46,7 +46,7 @@
 //! plaintext had, then [`TAG_LEN`]. The overhead is [`OVERHEAD`] octets flat,
 //! and the layout is not a format anything else parses: nothing outside this
 //! module reads a field of it, and a program that wants an interchange format
-//! wants a protocol from [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)'s
+//! wants a protocol from [ADR 0060](/docs/adr/0060-application-security-protocols.md)'s
 //! roster rather than this member's output. Stating it here is so that the
 //! *size* is predictable, not so that it is depended on.
 //!
@@ -60,7 +60,7 @@
 //! # A forgery throws, and every way of not being authentic throws the same
 //!
 //! `open` answers the plaintext or it throws; there is no `false` and no
-//! `?bytes`, which is [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)'s
+//! `?bytes`, which is [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s
 //! rule and, here, the whole point of the class — an unauthenticated mode
 //! would have handed back plausible rubbish for `examples/crypto.nvs`'s
 //! one-byte truncation, and the last line of that fixture is what an AEAD is
@@ -104,7 +104,7 @@
 //! # This construction has one home, and two classes are on the near side of it
 //!
 //! [`cipher`], [`seal_under`] and [`open_under`] are `pub(crate)`, and
-//! [`crate::signed_cookie`] — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! [`crate::signed_cookie`] — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
 //! § 1's first roster entry — is their second caller. That is what makes a
 //! signed cookie *this* AEAD with a key ring over it rather than a second
 //! construction with its own nonce policy and its own opinion about tags: there

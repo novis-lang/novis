@@ -1,4 +1,4 @@
-//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)'s
+//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)'s
 //! one record model, and the renderings of it.
 //!
 //! Every developer-facing output in Novis is a [`Record`]: an [`Envelope`]
@@ -19,7 +19,7 @@
 //! the producers that exist, and both live in `nvs-stdlib` for the reason
 //! § *Where this sits* gives.
 //!
-//! **[ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 6's
+//! **[ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 6's
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
 //! escalation ladder. § 6 asks that ordinary application code and the tier-4
 //! floor write one shape through one implementation, and ADR 0092 § 1 has
@@ -63,11 +63,11 @@
 //! has to run the other way.
 //!
 //! **This crate is a leaf, and that is what the second producer cost.** Its
-//! dependents are `nvs-runtime` — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! dependents are `nvs-runtime` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 6's tier-4 floor, which renders an uncaught `Throwable` through
 //! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
 //! render reached from the other caller. Its only dependency is `serde_json`.
-//! It used to depend on `nvs-syntax` for [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! It used to depend on `nvs-syntax` for [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
 //! bidi predicate, and `nvs-syntax` depends on `nvs-diagnostics`, so the floor
 //! becoming a dependent would have closed a cycle. The predicate **moved** down
 //! into [`bidi`] instead and `nvs-syntax` reads it from below — a move, not a
@@ -88,10 +88,10 @@ pub mod json;
 pub mod plain;
 pub mod text;
 
-/// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 /// § 2's five levels, with the fixed syslog mapping that section's table gives.
 ///
-/// The mapping is fixed because [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+/// The mapping is fixed because [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 /// § 4 names `syslog` as a target and a severity is not optional there.
 ///
 /// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
@@ -105,12 +105,12 @@ pub enum Level {
     Debug,
     /// Ordinary progress.
     Info,
-    /// [ADR 0091](../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
+    /// [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
     /// § 6's public-bind record.
     Warn,
     /// An uncaught `Throwable`.
     Error,
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s tier-3
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s tier-3
     /// and tier-4 floor. It exists so the escalation ladder has a level of its
     /// own rather than a parallel channel.
     Critical,
@@ -191,7 +191,7 @@ impl Level {
     ///
     /// **Two spellings, and both of them the documentation's own.** § 2 writes
     /// the roster as `Log\Level::Debug`, and so does
-    /// [ADR 0091](../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
+    /// [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
     /// § 3's per-mode default column for `[log] level`; a record renders the
     /// same level as [`Self::name`]'s `debug`. An operator has read one of the
     /// two and writes back what they read, so both resolve. Neither is a fold
@@ -254,11 +254,11 @@ pub enum Scalar {
     Bool(bool),
     /// `int`.
     Int(i64),
-    /// `uint` — [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4.
+    /// `uint` — [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4.
     Uint(u64),
     /// `float`.
     Float(f64),
-    /// `decimal` — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md),
+    /// `decimal` — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md),
     /// carried as the exact text the value renders as rather than as an `f64`,
     /// which is the whole reason that type exists.
     Decimal(String),
@@ -271,7 +271,7 @@ pub enum Scalar {
         /// The value's own length in bytes, before substitution changed it.
         bytes: usize,
     },
-    /// `bytes` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)'s
+    /// `bytes` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s
     /// binary scalar, held raw. A rendering decides how to show them; the
     /// model does not, because they are not text and § 5's substitution is
     /// about text.
@@ -316,7 +316,7 @@ pub enum Node {
     /// An `array` read by key — the map shape.
     Map(Vec<(Rendered, Node)>),
     /// A class instance: the class name and its **declared** properties, per
-    /// [ADR 0028](../../../docs/adr/0028-closing-the-remaining-magic-methods.md)
+    /// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
     /// § 4. Never a `toString` result, and never a customization hook — ADR
     /// 0092 § 7.
     Object {
@@ -336,7 +336,7 @@ pub enum Node {
         properties: Vec<(String, Node)>,
     },
     /// An enum case: the enum's name and the case's, never its underlying
-    /// integer ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)).
+    /// integer ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
     EnumCase {
         /// The enum's rendered name.
         enum_name: String,
@@ -344,13 +344,13 @@ pub enum Node {
         case: String,
     },
     /// A closure, by the signature it declares — never a body, and never
-    /// captured state ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)).
+    /// captured state ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)).
     Closure {
         /// How many parameters it declares.
         parameters: usize,
     },
     /// Stands where a `secret`-typed value would have been — ADR 0092 § 5,
-    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md) § 4.
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md) § 4.
     Redacted,
     /// Stands where content was cut, naming what and how much.
     Elided(Elision),
@@ -431,17 +431,17 @@ pub struct Source {
 /// § 1's table.
 ///
 /// Every field but [`Self::level`] is optional, and an absent one is **omitted**
-/// by a rendering rather than rendered empty — [ADR 0076](../../../docs/adr/0076-observability-export.md)
+/// by a rendering rather than rendered empty — [ADR 0076](/docs/adr/0076-observability-export.md)
 /// § 6's rule for `trace_id`/`span_id`, applied to the whole envelope because a
 /// producer that has no request to name should not have to invent one.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Envelope {
-    /// RFC 3339, as [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+    /// RFC 3339, as [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
     /// § 6 already fixes.
     pub ts: Option<String>,
     /// § 2's level.
     pub level: Level,
-    /// A plain `string`, never a qualified one — [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// A plain `string`, never a qualified one — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 4's `Throwable`-message rule, on the same argument.
     pub message: Option<Rendered>,
     /// The request this record belongs to.
@@ -453,7 +453,7 @@ pub struct Envelope {
     /// Where the record was produced.
     pub source: Option<Source>,
     /// How many identical records this one stands for —
-    /// [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 10's coalescing counter, absent for the ordinary record that stands
     /// only for itself.
     ///

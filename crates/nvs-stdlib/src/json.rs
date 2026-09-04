@@ -1,4 +1,4 @@
-//! `Core\Json` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Json` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 6, over `serde_json`.
 //!
 //! That section is authoritative for every signature; what belongs here is the
@@ -7,7 +7,7 @@
 //!
 //! # The crate, and why this one
 //!
-//! RFC 8259 is an external specification, so [AGENTS.md](../../../../AGENTS.md)
+//! RFC 8259 is an external specification, so [AGENTS.md](/AGENTS.md)
 //! § *Implementation invariants* makes it a dependency rather than a
 //! hand-written parser. `serde_json` is the pick, for two properties no other
 //! Rust JSON crate has both of:
@@ -15,7 +15,7 @@
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps [`ADR 0004`](../../../../docs/adr/0004-memory-for-simplicity.md)'s
+//!   keeps [`ADR 0004`](/docs/adr/0004-memory-for-simplicity.md)'s
 //!   priority 3 honest on a member every request path uses.
 //! * **The serializer's escaping and number formatting are the crate's.** Novis
 //!   writes no JSON grammar of its own at all: [`Encodable`] answers
@@ -41,7 +41,7 @@
 //!
 //! # The three refusals
 //!
-//! Each is [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4
+//! Each is [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4
 //! ("failure throws") applied where PHP's `json_encode`/`json_decode` returned
 //! a degraded value instead:
 //!
@@ -370,7 +370,7 @@ pub const DEFAULT_MAX_DEPTH: u64 = 512;
 ///
 /// The parse recurses — one Rust frame per JSON nesting level — so `maxDepth`
 /// is a bound on *stack*, and a `uint` option is user input
-/// ([AGENTS.md](../../../../AGENTS.md)'s priority 1). A request past this
+/// ([AGENTS.md](/AGENTS.md)'s priority 1). A request past this
 /// throws rather than being silently clamped, because a clamp would make a
 /// document's acceptance depend on a number the call site never sees.
 ///
@@ -523,7 +523,7 @@ impl Encodable {
     }
 
     /// An object, as the document its class's
-    /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) derived codec
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) derived codec
     /// declares: one entry per field, in declaration order, under the field's
     /// own wire key.
     ///
@@ -531,13 +531,13 @@ impl Encodable {
     /// by `nvs-codegen` from what `nvs_types::derive` read off the declaration
     /// — so nothing here asks the program a question at run time. An empty
     /// list means the class carries no `#[Json\Derive]`, which is the refusal
-    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) § 4 asks
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) § 4 asks
     /// for: participation in a wire format is written, never inferred.
     ///
     /// The one instance that is not a declared class is an
-    /// [ADR 0036](../../../../docs/adr/0036-anonymous-object-shapes.md) § 2
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2
     /// shape, which encodes as a JSON object keyed by its own field names —
-    /// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 7 owns why
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 7 owns why
     /// that is not an exception to the rule above, and the arm below says what
     /// it walks.
     fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
@@ -947,7 +947,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 2's decode: the
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 2's decode: the
 /// class's codec checked once, the document read once, and then one instance —
 /// or, for `list`, one per element of a JSON array.
 ///
@@ -1088,7 +1088,7 @@ unsafe fn decode_each(
     Ok(Value::array(decoded))
 }
 
-/// [ADR 0071](../../../../docs/adr/0071-derived-codecs.md) § 5's decode of one
+/// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 5's decode of one
 /// object: every field read into a local, **every** failure accumulated, and
 /// the constructor run only if none was.
 ///

@@ -1,4 +1,4 @@
-//! `Core\Taint` — [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! `Core\Taint` — [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! § 3's one narrow escape hatch, and nothing else.
 //!
 //! The `tainted` twin of `crate::secret`, and deliberately the same shape: one
@@ -15,7 +15,7 @@
 //! member is the case that rule cannot cover: the developer has validated the
 //! value themselves and needs to say so. It is modeled on this project's own
 //! `unsafe` policy — forbidden by default, rare, greppable, and never a silent
-//! cast. [ADR 0067](../../../../docs/adr/0067-core-db.md) § 3 is where it is
+//! cast. [ADR 0067](/docs/adr/0067-core-db.md) § 3 is where it is
 //! load-bearing rather than a fallback: `Settings.host` refuses `tainted` and
 //! **has no launderer**, because no string check can establish that a hostname
 //! is safe to send credentials to, and a malicious server answers any query

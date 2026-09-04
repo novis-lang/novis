@@ -3,7 +3,7 @@
 //! after this).
 //!
 //! There is no trait-use flattening or `insteadof` collision resolution here
-//! any more — [ADR 0043](../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+//! any more — [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
 //! removes `trait` from the language entirely, replacing it with an
 //! interface default/private method (shared behavior) and `implements
 //! Interface by $field;` delegation (shared state). This module's own
@@ -314,7 +314,7 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 }
 
 /// Resolves a written reference to the name it means, per
-/// [ADR 0113](../../../docs/adr/0113-a-qualified-name-is-absolute.md) § 1:
+/// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 1:
 /// **a name with a separator in it is absolute** and is returned as written,
 /// consulting neither `namespace` nor `imports`; a name without one is a
 /// short name, looked up in `imports` and failing that joined onto

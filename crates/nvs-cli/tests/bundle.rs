@@ -1,5 +1,5 @@
 //! `nvs build --compile` and the executable it writes —
-//! [ADR 0048](../../../docs/adr/0048-portable-single-file-executables.md)'s
+//! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)'s
 //! *Verification* list, for the two claims that do not need three platforms to
 //! ask.
 //!

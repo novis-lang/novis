@@ -2,7 +2,7 @@
 //! `Core\Db::open`'s twelve settings, and the two members that need no
 //! connection at all.
 //!
-//! [ADR 0067 § 3](../../../../docs/adr/0067-core-db.md) splits the first two on
+//! [ADR 0067 § 3](/docs/adr/0067-core-db.md) splits the first two on
 //! who wrote the endpoint. A block is the operator's word and is taken as one;
 //! arguments are the program's, so `open` re-checks the address they resolve to
 //! against the policy in front of it. `inList` and `quoteIdentifier` are here
@@ -22,7 +22,7 @@ pub(super) const OPEN: &str = r"Core\Db::open";
 pub(super) const QUERY: &str = r"Core\Db\Connection::query";
 
 /// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
-/// [`ADR 0043`](../../../../docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// [`ADR 0043`](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
 /// delegation, a call through a `Core\Db\Transaction` names the connection's
 /// member here exactly as [`QUERY`] does.
 pub(super) const QUERY_AS: &str = r"Core\Db\Connection::queryAs";
@@ -91,7 +91,7 @@ pub(super) fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, 
 /// **Pinned here and asked nothing else**, which is ADR 0067 § 3: the endpoint
 /// was written into root-owned configuration by the same authority that granted
 /// `db.connect`, so it is pre-approved and is *not* additionally checked against
-/// [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 3's denied
+/// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's denied
 /// ranges — where every database on a container network or a `10/8` estate
 /// lives. `Core\Db::open`'s host is program-supplied and stays subject to that
 /// policy in full, which is the whole difference between the two members.
@@ -569,7 +569,7 @@ nvs_runtime::nvs_helper! {
     /// one does not. `db.open` is asked about the host rather than a block
     /// name, because a host is what a settings literal chooses; and the
     /// address it resolves to is then put through
-    /// [ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md) § 3's
+    /// [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 3's
     /// denied ranges in full, which is the check a `connect`-named endpoint is
     /// deliberately exempt from — [`address_of`]'s doc owns that asymmetry from
     /// the other side.

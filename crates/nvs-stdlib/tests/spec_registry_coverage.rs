@@ -1,6 +1,6 @@
 //! The gate `docs/agent/loop-goal.md` names as this loop's own definition of
 //! done: every member
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) §§ 1-12
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) §§ 1-12
 //! writes as a **table row** is a member some class in [`registry::CLASSES`]
 //! declares.
 //!
@@ -562,7 +562,7 @@ struct PartTwoMember {
     key: String,
 }
 
-/// Every member [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// Every member [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// §§ 14-19 names, in the order the file writes them.
 ///
 /// Part II is the capability-bearing half, and it is written in two shapes
@@ -704,7 +704,7 @@ fn part_two_members() -> Vec<PartTwoMember> {
 }
 
 /// [`every_part_one_spec_member_is_registered`]'s other half: every member
-/// [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// §§ 14-19 names is a member some class in [`registry::CLASSES`] declares.
 ///
 /// [`part_two_members`] owns the walk and what it can and cannot read. This
@@ -753,7 +753,7 @@ fn every_part_two_spec_member_is_registered() {
     );
 }
 
-/// Every class [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// Every class [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// §§ 16-17 name in the `Class` column of their tables, keyed by section.
 ///
 /// These are the two sections [`part_two_members`] excludes, and its doc owns

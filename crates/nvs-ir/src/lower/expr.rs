@@ -2456,7 +2456,7 @@ impl<'a> Lowering<'a> {
         (obj, Ty::Object)
     }
 
-    /// [ADR 0027](../../../docs/adr/0027-first-class-callable-syntax.md)
+    /// [ADR 0027](/docs/adr/0027-callable-is-closures-only.md)
     /// § 1's `Class::method(...)` / `$obj->method(...)`, which *names* the
     /// resolved member rather than calling it and whose value is a closure
     /// over it.
@@ -2709,7 +2709,7 @@ impl<'a> Lowering<'a> {
         built
     }
 
-    /// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 4's `new $cls(...)` — [`Self::lower_new`]'s dynamic half.
     ///
     /// The same [`InstKind::NewDynamic`] `new static()` lowers to, reached with
@@ -2792,7 +2792,7 @@ impl<'a> Lowering<'a> {
         built
     }
 
-    /// `Core\Program::implementing<T>()` — [ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+    /// `Core\Program::implementing<T>()` — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
     /// § 3's expansion, emitted as the array literal it is specified to be.
     ///
     /// One `InstKind::New` per implementor with no arguments, gathered into
@@ -2833,7 +2833,7 @@ impl<'a> Lowering<'a> {
     }
 
     /// `Core\Router::url(...)`/`::urlAbsolute(...)` over a route name
-    /// `nvs_types::links` resolved — [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md)
+    /// `nvs_types::links` resolved — [ADR 0077](/docs/adr/0077-compile-time-routing.md)
     /// § 4's link.
     ///
     /// Two arguments in and two out, and only the first is different: the
@@ -3454,7 +3454,7 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 4's `$cls::f(...)` — [`Self::lower_static_call`]'s class-reference
     /// half.
     ///
@@ -3824,7 +3824,7 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
     /// § 3's never-written storage state, on the compiled read: `value` is
     /// the object `class`'s slot for `$field` just handed back, and this
     /// leaves `cur` on the block where it is a real instance.
@@ -3911,7 +3911,7 @@ impl<'a> Lowering<'a> {
         *cur = written;
     }
 
-    /// `{x: 1, y: 2}` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+    /// `{x: 1, y: 2}` — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
     /// § 2's anonymous object literal, which is an ordinary instance of a
     /// class this function invents: one [`InstKind::New`] with no constructor,
     /// then one [`InstKind::FieldSet`] per field.

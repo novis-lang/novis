@@ -1,5 +1,5 @@
-//! [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target` and
-//! [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md) §§ 2-3's
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target` and
+//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md) §§ 2-3's
 //! `[log] level` and `[log] format`: what each names, and the boot-time refusal of everything else.
 //!
 //! **The grammar is here and not at the sink, because two readers need it.** [`Target::of`] is the

@@ -1,4 +1,4 @@
-//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
 //! § 1's match, taken at the door: the compiled unit's route table against the
 //! request that arrived, once, before any application code runs.
 //!

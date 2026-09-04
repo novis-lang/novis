@@ -678,7 +678,7 @@ fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, 
     );
 }
 
-/// [ADR 0125](../../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+/// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
 /// § 5, at `new $cls(...)` over a `class<T>`: the site checks its arguments
 /// against **`T`**'s constructor, and the value may hold any implementor of
 /// `T`, so an implementor whose constructor is not compatible with `T`'s makes
@@ -1099,7 +1099,7 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
 /// are one.
 #[derive(Clone, Copy)]
 pub(crate) enum NoParameterList {
-    /// `$fn(...)` — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// `$fn(...)` — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1's opaque `callable`.
     Callable,
     /// `$m->method(...)` on a `mixed` receiver — ADR 0036 § 4's deferral, whose
@@ -1267,7 +1267,7 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
 
 /// `$e->getMessage()` — a PHP accessor on the exception tree, which has none.
 ///
-/// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 10 gives that tree **properties**, and [`crate::error_lib`] seeds exactly
 /// those plus the synthesized constructor, so every PHP accessor resolves to
 /// nothing here. Until this existed the tree was exempt from the unknown-member
@@ -1457,7 +1457,7 @@ pub(crate) fn check_new_target(
     }
 }
 
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
 /// `fn` closure literal.
 ///
 /// Three things happen here, and only the first is ordinary type-checking:

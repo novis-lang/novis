@@ -1,4 +1,4 @@
-//! What a resource limit does to a request in flight — [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)
+//! What a resource limit does to a request in flight — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 1's ladder, asked at the safepoint poll that is the only place a program
 //! allocating without calling anything can be stopped — and, for the one
 //! ceiling that bounds a *tree* rather than a request, at the `spawn script`

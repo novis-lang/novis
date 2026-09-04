@@ -1,4 +1,4 @@
-//! `Core\Secret` — [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+//! `Core\Secret` — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 //! § 3's one narrow escape hatch, and nothing else.
 //!
 //! Every refusal ADR 0033 § 4 states already tells the author to call

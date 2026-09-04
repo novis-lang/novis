@@ -31,7 +31,7 @@
 //! therefore costs 16 bytes rather than 8, and writing one stores a tag byte
 //! nothing reads back.
 //!
-//! That is [AGENTS.md](../../../AGENTS.md)'s priority 5 spent on its priorities
+//! That is [AGENTS.md](/AGENTS.md)'s priority 5 spent on its priorities
 //! 2 and 4, which is the direction the ordering permits:
 //!
 //! * **Releasing an object needs no per-field type table.** The sweep in
@@ -44,7 +44,7 @@
 //!   tagged value; a uniform slot is the only representation that holds one
 //!   without a second, boxed layout beside the first.
 //! * **The read side pays nothing.** A field's static type is known
-//!   ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)), so codegen
+//!   ([ADR 0007](/docs/adr/0007-explicit-type-system.md)), so codegen
 //!   loads the payload half directly and never checks the tag on a read. Only
 //!   a write pays, and it pays one extra store.
 //!
@@ -74,7 +74,7 @@
 //! # Decision: the called class travels in the receiver slot, and a descriptor
 //! carries a method table
 //!
-//! Late static binding ([`docs/implementation-plan.md`](../../../docs/implementation-plan.md)'s
+//! Late static binding ([`docs/implementation-plan.md`](/docs/implementation-plan.md)'s
 //! M4: `new static()` through two levels of inheritance returns the *called*
 //! class) needs two things compiled code did not have: the called class at the
 //! callee, and a way to find that class's own method from it.
@@ -108,7 +108,7 @@
 //! rather than a name — a separate decision, on a table this one already
 //! builds.
 //!
-//! Cost, as [AGENTS.md](../../../AGENTS.md) requires: one `(String, *const u8)`
+//! Cost, as [AGENTS.md](/AGENTS.md) requires: one `(String, *const u8)`
 //! pair per method *reachable* on each class — so a deep hierarchy holds its
 //! ancestors' entries once per descendant — charged to the compiled unit, not
 //! to a request, and freed with it.
@@ -147,7 +147,7 @@
 //!
 //! # What a shape write checks
 //!
-//! [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4 requires a
+//! [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4 requires a
 //! write through an erased or widened view to check the incoming value against
 //! the field's *real, concrete declared type*, because § 3 compares a shape's
 //! field types by ordinary assignability — so `{n: int}` satisfies a
@@ -166,7 +166,7 @@
 //!   by one instruction.
 //! * A tag closes the failure that matters most: representation confusion,
 //!   where a slot's payload is loaded as the wrong machine type. That is a
-//!   priority 1 and 2 question ([AGENTS.md](../../../AGENTS.md)); what is left
+//!   priority 1 and 2 question ([AGENTS.md](/AGENTS.md)); what is left
 //!   below is a priority 2 one with no memory-safety edge to it.
 //!
 //! **What a tag therefore does not catch**, and these are known gaps rather
@@ -200,10 +200,10 @@
 //! and whatever the root drain leaves on that list at teardown is exactly the
 //! cyclic garbage. [`sweep`] dismantles it through the same worklist, so
 //! native teardown runs there too rather than the memory being abandoned.
-//! [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 //! § 2 is the decision; this module is the mechanism.
 //!
-//! What it spends, as [AGENTS.md](../../../AGENTS.md) requires: **two pointers
+//! What it spends, as [AGENTS.md](/AGENTS.md) requires: **two pointers
 //! per live object** — 16 bytes, charged to the request that allocated it —
 //! plus a thread-local read and three non-atomic stores at each object's
 //! birth, and two more at its death. Nothing on the read path pays, and no
@@ -218,7 +218,7 @@
 //! no call site, because then there is no call site to get it wrong. An object
 //! left on the source list is one the source's teardown sweep may take apart
 //! while the destination still holds it, which is a use-after-free at
-//! [AGENTS.md](../../../AGENTS.md)'s priority 1. The destination is the context
+//! [AGENTS.md](/AGENTS.md)'s priority 1. The destination is the context
 //! *running* at the crossing, which is the receiving one on the way out of an
 //! isolate — `nvs_host`'s `finish` copies on the child's stack while the parent
 //! is current. On the way **in** there is no destination context yet, so an
@@ -269,7 +269,7 @@ pub struct ClassDesc {
     /// Compiled code never reaches these: a `$obj->prop` on a named class is
     /// resolved to a fixed offset at compile time and loads inline. What
     /// needs them is a read through an *erased* view —
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
     /// name-keyed fetch, [`ClassDesc::field_slot`] — where the receiver's
     /// static shape is not the concrete value's own layout. **Cost:** one
     /// `String` per field per class, once per process, not per instance.
@@ -287,7 +287,7 @@ pub struct ClassDesc {
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
     methods: Vec<MethodRow>,
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived JSON
     /// field list, in declaration order — empty for every class not carrying
     /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
     /// descriptor.
@@ -308,7 +308,7 @@ pub struct ClassDesc {
     /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
     /// terms.
     codec_classes: Vec<*const ClassDesc>,
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived **row**
     /// field list — [`Self::codec`]'s twin for `#[Db\Derive]`, and empty for
     /// every class not carrying it.
     ///
@@ -327,7 +327,7 @@ pub struct ClassDesc {
     /// every class with no codec.
     ///
     /// Carried beside [`Self::codec`] rather than derived from it because a
-    /// skipped field ([ADR 0071](../../../docs/adr/0071-derived-codecs.md)
+    /// skipped field ([ADR 0071](/docs/adr/0071-derived-codecs.md)
     /// § 3) leaves a parameter no field names, and a decoder that silently
     /// shortened its argument list would call the constructor with the wrong
     /// arity.
@@ -352,7 +352,7 @@ pub struct ClassDesc {
     /// one the compiler synthesized rather than laid out from a declaration,
     /// a closure's environment or a generator's state; an empty list means
     /// "unknown", never "no field admits anything". Every class an
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4
     /// write can name from source carries one entry per slot.
     ///
     /// This is the whole of § 4's *"a write's incoming value is checked
@@ -370,7 +370,7 @@ pub struct ClassDesc {
     /// [`ClassDesc::field_is_secret`] for why that direction is the safe one.
     ///
     /// This is the property half of
-    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 5's redaction row, and it is carried rather than computed for the
     /// reason nothing below the checker could compute it: `secret` is a
     /// qualifier on a declared type, and a `secret string` is byte-identical
@@ -386,7 +386,7 @@ pub struct ClassDesc {
     /// [`ClassDesc::field_is_public`] for why that direction is the safe one.
     ///
     /// This is the property half of
-    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
     /// § 2 — a reflective read faces the check ordinary code at that site
     /// faces — and it is carried rather than computed for the reason nothing
     /// below the checker could compute it: visibility is a keyword on a
@@ -532,7 +532,7 @@ pub enum FieldDefault {
     /// (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
     /// **Not a default at all**: the "never written" marker
-    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
     /// § 3 owes a slot no constructor is obliged to fill — today a `lateinit`
     /// property's (ADR 0038), which is the one declaration ADR 0022 § 2
     /// exempts.
@@ -563,7 +563,7 @@ impl FieldDefault {
 }
 
 /// What one [`CodecField`] decodes to: the closed set of runtime
-/// representations [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 2's
+/// representations [ADR 0071](/docs/adr/0071-derived-codecs.md) § 2's
 /// codec-reachable types collapse to once the checker's qualifiers and
 /// nominal identity are erased.
 ///
@@ -588,7 +588,7 @@ pub enum CodecTy {
     /// `string`.
     Str,
     /// `mixed` — whatever the document held, unchecked
-    /// ([ADR 0007](../../../docs/adr/0007-explicit-type-system.md)).
+    /// ([ADR 0007](/docs/adr/0007-explicit-type-system.md)).
     Mixed,
     /// Another class that carries a codec of its own — ADR 0071 § 2's "another
     /// class that itself has a codec", decoded by running that class's own
@@ -703,7 +703,7 @@ impl ClassDesc {
     }
 
     /// Whether this class is the one an
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 2 shape
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2 shape
     /// literal constructs, rather than one a `class` declaration named.
     ///
     /// Read off the label `nvs_ir::lower::shape_class_label` mints —
@@ -711,7 +711,7 @@ impl ClassDesc {
     /// carries. Every structural test that would answer the same question
     /// ("no methods, no codec, no constructor") is also true of an ordinary
     /// class a program wrote and did not opt into a wire format, and
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 7 requires
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md) § 7 requires
     /// those to stay refused. `$` cannot start an Novis identifier, so no
     /// declared class collides with the prefix — the guarantee the label
     /// itself already relies on.
@@ -734,7 +734,7 @@ impl ClassDesc {
 
     /// The slot `name` occupies on an instance of this class, or `None` if
     /// this class has no such field —
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
     /// name-keyed fetch, which is what a read through an erased or widened
     /// view resolves through.
     ///
@@ -1386,7 +1386,7 @@ pub struct ObjHeader {
 
 /// Every object one [`Ctx`] has allocated and not yet dismantled, as the
 /// intrusive doubly-linked list
-/// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+/// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 /// § 2's teardown sweep walks.
 ///
 /// **Its own allocation, held by the context through an `Rc`**, rather than a
@@ -1604,7 +1604,7 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 }
 
 /// Dismantles what the root drain left on `list` and could not free —
-/// [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+/// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 /// § 2's cyclic garbage.
 ///
 /// # Why this is not simply "everything still on the list"
@@ -1614,7 +1614,7 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 /// `call` answers one to its Rust caller, and a `Core` member that builds an
 /// instance answers one to the helper that asked for it. Neither has released
 /// it by the time the context goes down. Freeing those would be a
-/// use-after-free at [AGENTS.md](../../../AGENTS.md)'s priority 1, which is
+/// use-after-free at [AGENTS.md](/AGENTS.md)'s priority 1, which is
 /// never traded, so the sweep frees only what it can *show* is unreachable and
 /// leaves anything it cannot.
 ///
@@ -1892,7 +1892,7 @@ impl NvsObj {
     /// The slots start `null` rather than uninitialized so that an object
     /// released *before* its constructor finished — a `throw` partway through
     /// one — sweeps well-formed values.
-    /// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
     /// makes that state unobservable to Novis code; this only makes it safe to
     /// free.
     ///
@@ -2481,7 +2481,7 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
     }
 }
 
-/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 /// § 1's `clone`: a fresh instance of the *same* class whose every slot holds
 /// what the original's held, with a reference count of one.
 ///
@@ -2711,7 +2711,7 @@ pub const CONSTRUCTOR: &str = "constructor";
 /// throws, so the exception it recorded in `ctx` reaches the request
 /// unchanged. [`Fault::Fatal`] when `class` declares no [`CONSTRUCTOR`], or
 /// when the argument count is not its declared arity — both engine faults:
-/// [ADR 0022](../../../docs/adr/0022-definite-property-initialization.md)
+/// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
 /// gives every class exactly one nameable constructor, and the caller reads
 /// its arity off the same descriptor.
 ///
@@ -2863,7 +2863,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 }
 
 /// Reads the field *named* `name` off the object at `ptr`, writing what the
-/// slot holds to `out` — [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md)
+/// slot holds to `out` — [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md)
 /// § 4's name-keyed fetch, and `nvs_ir::InstKind::SlotGet`'s whole emission.
 ///
 /// The name arrives as static bytes `nvs-codegen` put in the unit's data
@@ -2946,7 +2946,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
 }
 
 /// `$issue->path = "x";` — [`nvs_object_slot_get`]'s write half, and
-/// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's whole
+/// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's whole
 /// write rule: the slot is found by **name** on the receiver's own descriptor,
 /// the incoming value is checked against what that class declares the field to
 /// hold, and **no field is ever created** — a name the concrete class does not
@@ -3024,7 +3024,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 }
 
 /// `$obj->$key` —
-/// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+/// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
 /// § 4's keyed read, which is [`nvs_object_slot_get`] with the field name
 /// arriving as a **value** rather than as a static byte range.
 ///
@@ -3039,7 +3039,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 ///
 /// **The one thing it inherits that is not free is the erased path's own known
 /// gap**: this reads the slot, so a property declaring a `get` hook
-/// ([ADR 0014](../../../docs/adr/0014-property-observer.md) § 1) is read past
+/// ([ADR 0014](/docs/adr/0014-property-observer.md) § 1) is read past
 /// its hook, and [`write_erased_property`] does the same on the write side.
 /// That is owned there and closes for every caller at once — the reason § 5
 /// routes a key through this rather than answering it a fourth way.
@@ -3207,7 +3207,7 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
 }
 
 /// ADR 0036 § 4's erased write and
-/// [ADR 0014](../../../docs/adr/0014-property-observer.md) § 3's observer step
+/// [ADR 0014](/docs/adr/0014-property-observer.md) § 3's observer step
 /// over it — the whole of what [`nvs_object_slot_set`] does, written here so
 /// that a *reflective* write reaches the same code rather than a second copy of
 /// its rules. `nvs_stdlib::reflect`'s `Core\Reflect\ClassInfo::set` is the

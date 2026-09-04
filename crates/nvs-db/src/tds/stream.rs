@@ -125,7 +125,7 @@ impl<'a> Tokens<'a> {
     /// `characters` UCS-2LE characters, as a `String`.
     ///
     /// Lossy on an unpaired surrogate, which is the one thing a UCS-2 field can
-    /// hold that Novis's own strings cannot ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md)
+    /// hold that Novis's own strings cannot ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
     /// makes a `string` valid UTF-8). Refusing a message because the server's
     /// *prose* was ill-formed would turn a reportable error into an
     /// unreportable one.

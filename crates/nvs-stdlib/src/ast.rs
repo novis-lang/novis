@@ -1,4 +1,4 @@
-//! `Core\Ast` — [ADR 0019](../../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+//! `Core\Ast` — [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
 //! § 3's door onto the compiler's own parser, and the inert tree it answers
 //! with.
 //!
@@ -11,7 +11,7 @@
 //! refuses is refused identically in both places. § 3 states that as a rule
 //! and this module is the whole of keeping it: there is no second grammar
 //! here, no tolerant re-lexing, and no arm that repairs input the compiler
-//! would reject ([ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+//! would reject ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
 //!
 //! That is also why source with an error is a `ParseError` rather than a tree
 //! carrying an `Error` node. The compiler keeps error nodes because it has
@@ -27,7 +27,7 @@
 //! borrow of the source. So there is no handle for a later member to accept
 //! and no descriptor for one to look up: `eval` stays absent by having nothing
 //! to be spelled with, which is the same argument
-//! [ADR 0052](../../../../docs/adr/0052-closed-doors.md) makes for the other
+//! [ADR 0052](/docs/adr/0052-closed-doors.md) makes for the other
 //! three doors.
 //!
 //! The cost is that a node cannot answer its own source text, which a
@@ -57,7 +57,7 @@
 //!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
 //!    row).
 //! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
-//!    capability-bearing member ([ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+//!    capability-bearing member ([ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //!    § 3's `fs.read`) rather than a second spelling of this one, and the
 //!    `Core\IO` door it goes through is where that check already lives.
 

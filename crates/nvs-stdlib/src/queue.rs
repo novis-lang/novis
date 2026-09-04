@@ -1,4 +1,4 @@
-//! `Core\Queue` — [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md)'s durable background
+//! `Core\Queue` — [ADR 0084](/docs/adr/0084-durable-background-jobs.md)'s durable background
 //! job, over the `[db.<name>]` block a `[queue] connection` names.
 //!
 //! **A job is a row, and that is the whole design.** § 3 states the property everything else is
@@ -29,7 +29,7 @@
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of ADR 0067's backends and five timestamp dialects is exactly the cost a
 //! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
-//! runtime ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)), so the enum and the column
+//! runtime ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)), so the enum and the column
 //! are one representation and not two.
 //!
 //! **What it spends:** one statement per member call, on a connection the request either already
@@ -186,7 +186,7 @@ pub struct Migration {
 ///   doc owns why, and it is the dialect argument above applied to the type map.
 /// - **`claimed_at` is when the claim was taken, not when it expires.** § 4's visibility timeout is
 ///   `[queue] visibility` measured from it, so the bound stays in configuration where
-///   [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move
+///   [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move
 ///   it; a stored deadline would freeze the superseded bound onto every job already claimed.
 /// - **The dead-letter row is the job's own columns plus `failed_at` and `errors`**, where `errors`
 ///   is the JSON array § 6 asks for — an entry carrying when an attempt ran and what it threw.
@@ -286,7 +286,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// the four ways below, each of which is a decision this doc owes a sentence.
 ///
 /// **MariaDB shares it rather than earning a third list.** It is its own driver for the reasons
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) gives — its own authentication roster, its own § 8
+/// [ADR 0067](/docs/adr/0067-core-db.md) gives — its own authentication roster, its own § 8
 /// error table — and none of those reach DDL: every construct here is one MariaDB spells exactly as
 /// MySQL does, stored generated columns included (10.2 and later). A separate list would be two
 /// copies of one text with no line differing, which is the drift this module's one-home rule exists
@@ -320,7 +320,7 @@ pub fn migration(driver: nvs_db::Driver) -> Option<&'static [Migration]> {
 /// `utf8mb4`'s four bytes a character with room for the rest of the `jobs.due` key, and the table
 /// declares that charset itself: ADR 0067 § 3 forces the *connection's* charset, which says nothing
 /// about the columns a `create table` builds, and a server still defaulting to `latin1` would
-/// otherwise store text [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) guarantees is UTF-8
+/// otherwise store text [ADR 0009](/docs/adr/0009-string-and-bytes.md) guarantees is UTF-8
 /// in a column that cannot hold it. `engine=innodb` is named for § 4's sake rather than for
 /// storage's: `for update skip locked` is a row lock, and it is the engine that has them.
 ///
@@ -417,7 +417,7 @@ pub const INSERT_POSTGRES: &str = "with existing as (\
 /// `[queue] visibility` of the claim. `$3` is that cutoff — the instant `visibility` before now,
 /// computed by the caller — rather than a bound written into this text, because [`MIGRATION_POSTGRES`]'s
 /// `claimed_at` records when the claim was *taken* precisely so that
-/// [ADR 0078](../../../docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move the
+/// [ADR 0078](/docs/adr/0078-config-reload-and-control-socket.md) § 1's reload can move the
 /// bound under jobs that are already claimed.
 ///
 /// **`attempts` is incremented by the claim and not by the failure that follows it.** § 6's bound
@@ -713,7 +713,7 @@ pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, claime
 /// which is the lease the move is keyed on, so the row says how long the last attempt ran for
 /// against `failed_at` beside it, and `class` and `message` are what the isolate answered with —
 /// data rather than an exception object, per
-/// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md).
+/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md).
 ///
 /// Built through `serde_json` rather than formatted, because a thrown message is arbitrary text and
 /// a hand-rolled array is one unescaped quote away from a column no reader can parse.
@@ -1477,7 +1477,7 @@ fn run_at_of(args: &[Value]) -> Result<Option<i64>, Fault> {
 
 /// The base delay a `push` that wrote no `{backoff: …}` agreed to, in milliseconds.
 ///
-/// [ADR 0084](../../../docs/adr/0084-durable-background-jobs.md) § 6 asks for exponential backoff
+/// [ADR 0084](/docs/adr/0084-durable-background-jobs.md) § 6 asks for exponential backoff
 /// with jitter and a cap and names no number, and § 2's `[queue]` block has no key for one — the
 /// base is a property of the *job*, which is why § 1 puts it on `push`'s options shape beside
 /// `maxAttempts` and not in the deployment's block. So the default lives here, and it is not

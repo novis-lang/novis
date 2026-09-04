@@ -1,5 +1,5 @@
 //! Novis's baseline Cranelift backend: [`nvs_ir`]'s CFG/SSA form in, native
-//! code behind [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
+//! code behind [ADR 0002](/docs/adr/0002-error-propagation.md)'s
 //! calling convention out.
 //!
 //! This crate is the one place that knows *both* [`nvs_ir`] and
@@ -59,7 +59,7 @@
 //!
 //! ## Values are native, not tagged, wherever the type is known
 //!
-//! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) settles every
+//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) settles every
 //! operand type before lowering, so an `int` local lives in an `i64` register
 //! and a `string` in a bare `StrHeader` pointer. A 16-byte
 //! [`nvs_runtime::Value`] is *materialized* only where the ABI demands one —
@@ -74,14 +74,14 @@
 //! * the **safepoint poll** at every [`nvs_ir::ir::InstKind::Safepoint`] —
 //!   function entry and loop back edges, the project-start decision's two
 //!   fixed sites;
-//! * [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+//! * [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
 //!   **call-stack compare**, riding the *first* of those polls so that it
 //!   lands at function entry and nowhere else — one load, one compare against
 //!   Cranelift's `get_stack_pointer`, branching to
 //!   [`nvs_runtime::nvs_stack_check`]. It is the one of the three that is
 //!   *elided*: `emit::is_leaf` answers which functions cannot grow the stack
 //!   past the reserve their caller already checked with, and those carry none;
-//! * [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+//! * [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
 //!   § 1's **debug-flags check**, at every
 //!   [`nvs_ir::ir::InstKind::StmtMarker`] (branching to
 //!   [`nvs_runtime::nvs_probe_stmt`]) and twice at every call site, before and
@@ -152,7 +152,7 @@
 //!    literal's bytes beside `emit::Emitter::define_literal`'s counter.
 //! 5. **Integer `/` compiles, and it is the one operator that picks its
 //!    result representation at run time.**
-//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 types
+//!    [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 types
 //!    `int / int` as `int|float` — PHP-exact, so `6/3` is an integer and `7/2`
 //!    is not — and that union's representation is [`nvs_ir::Ty::Tagged`], so
 //!    `emit_binop` hands the row to its own `emit_int_div`: a zero-divisor
@@ -175,12 +175,12 @@
 //! 7. **Executable memory is never freed.** [`Unit`] holds its `JITModule` for
 //!    the process's lifetime; `cranelift_jit::JITModule::free_memory` is
 //!    `unsafe` and needs the "no compiled frame is still live" proof that
-//!    [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)'s
+//!    [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)'s
 //!    pointer-swap reclamation is the real home for. A one-shot `nvs run`
 //!    exits before it matters.
 //! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
 //!    wrapping**, which
-//!    [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 calls the
+//!    [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 calls the
 //!    divergence from PHP it is least willing to trade. `emit_binop` hands all
 //!    three binary rows to `emit_checked_int_arith` and `emit_unop` takes the
 //!    fourth, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
@@ -339,7 +339,7 @@ impl Unit {
     }
 
     /// Constructs the class labelled `class` and calls its `method` on the
-    /// fresh instance — [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// fresh instance — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 20's one test, run from outside compiled code.
     ///
     /// `None` when this unit declares no such class, which is an internal
@@ -750,7 +750,7 @@ impl Classes {
 
     /// Every class this unit declares that **is a** `base`, as
     /// `(label, descriptor)` — `base` itself included, since
-    /// [ADR 0125](../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 2's rows admit `T` as readily as a class that is a `T`.
     ///
     /// This is the closed set `nvs_ir::ir::InstKind::ClassDescIn` is compiled
@@ -760,7 +760,7 @@ impl Classes {
     ///
     /// **Sorted by label**, because the result is baked into machine code and
     /// two builds of one unit have to emit the same instructions for
-    /// [ADR 0042](../../docs/adr/0042-on-disk-artifact-cache-format.md) § 3's
+    /// [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md) § 3's
     /// checksum to mean what it claims.
     fn conforming_to(&self, base: &str) -> Vec<(&str, *const nvs_runtime::ClassDesc)> {
         let mut out: Vec<(&str, *const nvs_runtime::ClassDesc)> = self
@@ -813,7 +813,7 @@ struct Signatures {
     /// `nvs_safepoint(ctx) -> status`.
     safepoint: Signature,
     /// `nvs_stack_check(ctx, sp) -> status` —
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
     /// parameter here is: this JIT compiles for 64-bit targets only.
     stack_check: Signature,

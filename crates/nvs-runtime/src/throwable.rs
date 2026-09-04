@@ -3,7 +3,7 @@
 //!
 //! # An exception is an ordinary object
 //!
-//! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 10
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
 //! makes `Throwable` the root of a small class tree whose members are
 //! *readonly properties* — `message`, `previous`, `backtrace`, `location` —
 //! not `getX()` accessors, and makes user classes extend it directly. So an
@@ -34,7 +34,7 @@
 //! A frame label is pushed by [`nvs_trace_push`] from the *error* path of each
 //! compiled frame the throw travels out of — never from a push/pop record kept
 //! on the way in. That is the whole reason
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md) can claim a call
+//! [ADR 0002](/docs/adr/0002-error-propagation.md) can claim a call
 //! costs a compare-and-branch: a frame-record scheme would move the cost onto
 //! the success path, which is the path that runs. The consequence is visible
 //! and deliberate: the trace holds exactly the frames the exception *unwound
@@ -62,7 +62,7 @@ pub const SLOT_COUNT: usize = 4;
 
 /// The slot `ParseError::$issues` occupies — the one property any class in the
 /// tree declares beyond the root's four
-/// ([ADR 0071](../../../docs/adr/0071-derived-codecs.md) § 5).
+/// ([ADR 0071](/docs/adr/0071-derived-codecs.md) § 5).
 ///
 /// `ParseError` inherits exactly [`SLOT_COUNT`] slots and adds this one, so a
 /// descriptor with more than [`SLOT_COUNT`] fields is the only shape it can
@@ -72,7 +72,7 @@ pub const SLOT_COUNT: usize = 4;
 pub const ISSUES_SLOT: usize = SLOT_COUNT;
 
 /// The slot `Core\Db\DbError::$kind` occupies —
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 8's normalised condition,
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 8's normalised condition,
 /// which `nvs_stdlib::db`'s `statement_failure` fills through
 /// [`Ctx::raise_with_slots`].
 ///
@@ -86,7 +86,7 @@ pub const KIND_SLOT: usize = SLOT_COUNT;
 
 /// The slot `Core\Db\DbError::$sqlState` occupies — the five-character code the
 /// server sent, beside the [`KIND_SLOT`] normalised from it
-/// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+/// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
 ///
 /// Derived from [`KIND_SLOT`] where that constant is deliberately *not* derived
 /// from [`ISSUES_SLOT`]: these two are properties of one class in declaration
@@ -109,7 +109,7 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 
 /// The slot `Core\Db\DbError::$constraint` occupies — the constraint the
 /// server's condition names, where it names one
-/// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+/// ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
 ///
 /// `nvs_db::ServerError::constraint` is where PostgreSQL's comes from, and it
 /// is `Option` there for the same reason this is `?string` here: a unique
@@ -122,11 +122,11 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
 /// The slot `Core\Db\DbError::$sql` occupies — the statement that was refused,
-/// as the program wrote it ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8).
+/// as the program wrote it ([ADR 0067](/docs/adr/0067-core-db.md) § 8).
 ///
 /// § 8 lets the text ride the throw where it lets no bound value ride it: the
 /// SQL is developer-authored and the values are the request's, which is
-/// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+/// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
 /// line and not a judgement made here. It is `?string` because a refusal is not
 /// always *of* a statement a caller spelled — § 7's `BEGIN`, `COMMIT` and
 /// `SAVEPOINT` are this runtime's own text — and an unwritten slot already
@@ -136,7 +136,7 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
 /// The slot `Core\Db\RolledBack::$reason` occupies —
-/// [ADR 0067](../../../docs/adr/0067-core-db.md) § 7's abandoned transaction,
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 7's abandoned transaction,
 /// worded by the program that abandoned it.
 ///
 /// Equal to [`ISSUES_SLOT`] and [`KIND_SLOT`], and derived the same way rather
@@ -152,7 +152,7 @@ pub const SQL_SLOT: usize = KIND_SLOT + 4;
 /// thrower pass the same text twice.
 pub const REASON_SLOT: usize = SLOT_COUNT;
 
-/// Which of [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md)
+/// Which of [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 10's classes a runtime helper's failure lands in.
 ///
 /// A closed enum rather than a `&'static str` a helper writes, for
@@ -188,14 +188,14 @@ pub enum ThrownClass {
     /// `TimeoutError` — a deadline passed.
     Timeout,
     /// `RecursionError` — the call stack passed
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
     /// *soft* depth. The hard limit beneath it is a `FATAL` and is not in
     /// this roster at all, because no `catch` ever sees one.
     Recursion,
     /// `ArithmeticError` — overflow (ADR 0007), division by zero.
     Arithmetic,
     /// `Core\Test\Failure` — a failed assertion
-    /// ([ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
+    /// ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
     /// § 5), which that section makes an ordinary `Throwable` precisely so a
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
@@ -208,14 +208,14 @@ pub enum ThrownClass {
     TestFailure,
     /// `Core\Cli\NotInteractive` — a prompt with no controlling terminal to
     /// read and no default to fall back on
-    /// ([ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4).
+    /// ([ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4).
     ///
     /// A throw rather than a block is the whole of that section's second rule,
-    /// and it is [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md)'s
+    /// and it is [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s
     /// "no spelling for an unbounded wait" on a second surface.
     CliNotInteractive,
     /// `Core\Db\DbError` — the database refused a statement, a connection or a
-    /// commit ([ADR 0067](../../../docs/adr/0067-core-db.md) § 8): every
+    /// commit ([ADR 0067](/docs/adr/0067-core-db.md) § 8): every
     /// failure `Core\Db` reports that the program did not itself choose.
     ///
     /// One class rather than ten, because § 8 normalises the condition into a
@@ -226,7 +226,7 @@ pub enum ThrownClass {
     /// requires to carry no bound value.
     DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
-    /// ([ADR 0067](../../../docs/adr/0067-core-db.md) § 7), propagated out of
+    /// ([ADR 0067](/docs/adr/0067-core-db.md) § 7), propagated out of
     /// the closure that owned it.
     ///
     /// It is not a driver failure and deliberately not the same class as one:
@@ -463,7 +463,7 @@ impl Thrown {
     /// hands none over: what keeps the object alive across the borrower's use
     /// of it is the reference this `Thrown` is still holding. Its one caller is
     /// [`crate::Ctx::run_uncaught_handler`], which is
-    /// [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
     /// "the **real `Throwable` object**, not copied data" — so this is
     /// deliberately not a constructor that copies anything.
     #[must_use]
@@ -500,7 +500,7 @@ impl Thrown {
         self.borrow().map_or(std::ptr::null(), |obj| obj.class())
     }
 
-    /// The rendered name of that class, or [ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)'s
+    /// The rendered name of that class, or [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s
     /// generic `Error` where there is no descriptor to read.
     ///
     /// Here rather than beside either caller: `nvs_host::isolate` names the
@@ -769,7 +769,7 @@ pub unsafe extern "C" fn nvs_raise_new(
 ///
 /// A non-`THROWN` `status` is ignored: a resource-limit or internal failure is
 /// not a `Throwable` at all
-/// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)), so it has
+/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)), so it has
 /// no backtrace to grow.
 ///
 /// # Safety

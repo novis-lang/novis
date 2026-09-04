@@ -1,4 +1,4 @@
-//! `Core\Uri` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Uri` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 12's first table, which has two halves. The **percent-encoding half** is
 //! `encodeComponent`/`decodeComponent` and
 //! `encodeFormValue`/`decodeFormValue`, which replace PHP's
@@ -60,7 +60,7 @@
 //! Neither decoder is a *validator*. `decodeComponent` will happily decode text
 //! that could never have appeared in a URI; asking whether something is a URI
 //! is `Uri::tryParse($text)`, which is `parse` with `null` where it throws
-//! ([ADR 0066 § 3a](../../../../docs/adr/0066-nullable-conversion-operator.md)).
+//! ([ADR 0066 § 3a](/docs/adr/0066-nullable-conversion-operator.md)).
 //! **There is no `Uri::isValid`** — it and `Uri::tryParse($text) != null` are
 //! one predicate, and R17 keeps one of them. Which one is not arbitrary: a
 //! validator that is a *separate implementation* from the parser is how
@@ -108,7 +108,7 @@
 //! carried a table of them would answer differently as the table grew — while
 //! a caller who wants that reading can write it in one `with` call.
 //!
-//! **`==` is still identity.** [ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! **`==` is still identity.** [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 //! § 4 makes `$a == $b` on two objects ask whether they are the same object
 //! and closes the door on a per-class equality hook, so `compareTo` is the
 //! named spelling that ADR itself points at for content equality — the same
@@ -172,7 +172,7 @@
 //! # What is not here: no dependency
 //!
 //! This half binds no outside crate, which is a deliberate exception to
-//! [ground-rules.md](../../../../docs/adr/ground-rules.md)'s "an external
+//! [ground-rules.md](/docs/adr/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser". The rule
 //! is about *grammars* — RFC 8259's, RFC 3986's — where a hand-written reader
 //! accumulates divergences no test finds. There is no grammar here: the whole
@@ -185,7 +185,7 @@
 //!
 //! The percent-encoding half above is the exception; the grammar half is the
 //! rule. RFC 3986 is a grammar with an external specification, so
-//! [ground-rules.md](../../../../docs/adr/ground-rules.md) decides that `parse`
+//! [ground-rules.md](/docs/adr/ground-rules.md) decides that `parse`
 //! binds a crate rather than growing a hand-written scanner. What that rule
 //! does *not* decide is **which** specification, because there are two and
 //! they are not a strict and a lax reading of one thing.
@@ -251,7 +251,7 @@
 //! path and this refuses it, PHP refuses a URI whose host is empty and this
 //! accepts `file:///tmp`. And it **launders nothing** — whether a URL may be
 //! *fetched* is `Core\Http::allowUrl` at § 16
-//! ([ADR 0058](../../../../docs/adr/0058-outbound-request-policy.md)); a
+//! ([ADR 0058](/docs/adr/0058-outbound-request-policy.md)); a
 //! `true` here says only that the text is a URI.
 //!
 //! An **empty authority is not a missing one.** `parse("file:///tmp")` answers
@@ -284,7 +284,7 @@
 //! was written, each a borrowed substring of the text at parse time and each
 //! allocated exactly once. The text is kept **as well as** the components
 //! rather than instead of them, which is
-//! [AGENTS.md](../../../../AGENTS.md)'s memory rule spent on purpose: a `Uri`
+//! [AGENTS.md](/AGENTS.md)'s memory rule spent on purpose: a `Uri`
 //! holding only its text would re-parse on every accessor call, one holding
 //! only its components would recompose on every `toString`, and this pays
 //! about twice a URI's length, once, to make both O(1) on the request path.
@@ -305,7 +305,7 @@
 //!    UTF-8** — `decodeComponent("%FF")` throws rather than answering. The
 //!    honest signature is `: bytes`, since percent-decoding is defined over
 //!    octets and a client can send any of them; the throw is exactly what
-//!    [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3's checked
+//!    [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's checked
 //!    `bytes as string` row would do one line later, so no program is denied
 //!    an answer it could have used. `parseQuery` throws on the same octets for
 //!    the same reason, for a name as well as for a value. The runtime half of
@@ -1178,7 +1178,7 @@ fn port_out_of_range(member: &str) -> Fault {
 
 /// Whether `text` is a URI reference `Core\Uri::parse` would answer for, for
 /// a caller that wants the refusal and not the object —
-/// [ADR 0057](../../../../docs/adr/0057-intrinsic-literal-folding.md)'s fold,
+/// [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)'s fold,
 /// which reads a **literal** URI while checking and reports § 3's diagnostic
 /// instead of the throw [`nvs_core_uri_parse`] would have made.
 ///
@@ -1865,7 +1865,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Uri::tryParse(string $uri): ?Uri` —
-    /// [ADR 0066](../../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
     /// § 3a: [`nvs_core_uri_parse`] exactly, with `null` where it throws.
     ///
     /// It is `parse` and not a second reader, which is the whole reason R17
@@ -1876,7 +1876,7 @@ nvs_runtime::nvs_helper! {
     /// `isValid` for that reason, and the narrower question that one asked —
     /// "is this an **absolute** URI" — is `tryParse($s)?->scheme() != null`.
     ///
-    /// The name is the one `try…` [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+    /// The name is the one `try…` [ADR 0063](/docs/adr/0063-core-api-conventions.md)
     /// R5 admits, because R4's "failure throws, absence is `?T`" leaves a
     /// class no other non-throwing spelling: `as ?T` never targets one.
     ///
@@ -2137,11 +2137,11 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$uri->compareTo(Uri $other): int` — `Comparable`'s member
-    /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)), over
+    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)), over
     /// the two references' RFC 3986 § 6.2.2 normal forms.
     ///
     /// This is the member that answers "are these the same URI", because
-    /// [ADR 0090](../../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 4 keeps `==` on two objects meaning *the same object* and names
     /// `compareTo($other) == 0` as the spelling for the other question. What
     /// normalizing does and where it stops is the module docs' own section;

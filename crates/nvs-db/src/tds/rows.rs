@@ -1,7 +1,7 @@
 //! [`TdsRows`] — one result set, read a row packet at a time.
 //!
 //! The stream owns the connection until it ends, which is [ADR 0067
-//! § 4](../../../../docs/adr/0067-core-db.md)'s single-statement rule made
+//! § 4](/docs/adr/0067-core-db.md)'s single-statement rule made
 //! structural: the `State` returns to `Idle` when the `DONE` token arrives and
 //! not before. Every token between the rows goes to [`Tokens`] rather than
 //! being read a second time here.
@@ -13,7 +13,7 @@ use super::*;
 /// [`crate::MySqlRows`]' shape, and it is the same borrow for the same reason:
 /// the handle holds the wire and the busy state, so the connection is unusable
 /// for anything else until the stream ends — [ADR 0067
-/// § 4](../../../../docs/adr/0067-core-db.md)'s one-statement-at-a-time rule
+/// § 4](/docs/adr/0067-core-db.md)'s one-statement-at-a-time rule
 /// enforced by the type system rather than by a check every caller has to
 /// remember. A statement with no result set answers one of these too, already
 /// ended: [`TdsRows::columns`] is empty and [`TdsRows::next_row`] is `None` on
@@ -68,14 +68,14 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// the stream, after the rows, so a caller reads it once
     /// [`TdsRows::next_row`] has answered `None` — see [`TdsRows::returned`].
     returned: Option<ReturnValue>,
-    /// [ADR 0067 § 1](../../../../docs/adr/0067-core-db.md)'s cache and the key
+    /// [ADR 0067 § 1](/docs/adr/0067-core-db.md)'s cache and the key
     /// this answer's handle belongs under, for a `sp_prepexec` whose plan is to
     /// be kept; `None` for every other answer, which is most of them.
     ///
     /// The stream borrows the cache rather than the caller filing it afterwards
     /// — [`Filing`] owns why.
     filing: Option<Filing<'a>>,
-    /// [ADR 0067 § 11](../../../../docs/adr/0067-core-db.md)'s trace event for this
+    /// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s trace event for this
     /// statement, opened when the request went out and ended by whatever ends
     /// the stream — [`crate::MySqlRows`]' field, for [`crate::span`]'s reasons.
     span: QuerySpan,
@@ -105,7 +105,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
         self.columns.get(index).map(TdsColumn::column_type)
     }
 
-    /// [ADR 0067 § 11](../../../../docs/adr/0067-core-db.md)'s trace event for this
+    /// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s trace event for this
     /// statement.
     ///
     /// Borrowed rather than taken, for [`crate::PgRows::span`]'s reason.
@@ -120,7 +120,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
         self.span.name(connection);
     }
 
-    /// [ADR 0067 § 4](../../../../docs/adr/0067-core-db.md)'s affected-row count,
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s affected-row count,
     /// once the stream has ended.
     ///
     /// [`crate::MySqlRows::affected`]'s two numbers under one name — the rows
@@ -391,7 +391,7 @@ impl<S: Read + Write> TdsRows<'_, S> {
     ///
     /// [`Length`] is the whole of the type knowledge here: this reads what the
     /// column said its values are measured by and never what they mean, which
-    /// is [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md)'s decode and belongs
+    /// is [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s decode and belongs
     /// to the crate that can allocate a `Core\Time\DateTime`.
     fn value(&mut self, index: usize, info: TypeInfo, bytes: &mut Vec<u8>) -> io::Result<bool> {
         // A `NULLTYPE` column carries no value and has no value to carry: the
@@ -661,7 +661,7 @@ pub fn read_rows<'a, S: Read + Write>(
 }
 
 /// The cache entry an answer is about to complete: [ADR 0067
-/// § 1](../../../../docs/adr/0067-core-db.md)'s key, and the cache to file the
+/// § 1](/docs/adr/0067-core-db.md)'s key, and the cache to file the
 /// handle in once the token carrying it arrives.
 ///
 /// **The stream holds this rather than the caller** because `sp_prepexec`'s

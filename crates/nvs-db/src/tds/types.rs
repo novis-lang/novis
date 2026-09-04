@@ -1,5 +1,5 @@
 //! `TYPE_INFO`: what a column declares itself to be, how wide its values are,
-//! and which [ADR 0067 § 9](../../../../docs/adr/0067-core-db.md) row it maps
+//! and which [ADR 0067 § 9](/docs/adr/0067-core-db.md) row it maps
 //! to.
 //!
 //! A TDS value carries no width of its own — the width comes from the column,
@@ -166,7 +166,7 @@ pub enum Length {
 ///
 /// Deliberately not a Novis type — [`TdsColumn::column_type`] is the only thing
 /// here that has an opinion about that, and [ADR 0067
-/// § 9](../../../../docs/adr/0067-core-db.md)'s decode into a value belongs to
+/// § 9](/docs/adr/0067-core-db.md)'s decode into a value belongs to
 /// `nvs-stdlib`, which is the crate that can allocate a `Core\Time\DateTime`.
 /// The fields are all four things a `TYPE_INFO` can carry, and a type that
 /// carries none of them leaves them at their zero.
@@ -233,7 +233,7 @@ impl TdsColumn {
     /// It reads the type byte and nothing else, which is the whole difference
     /// from [`crate::PgColumn::column_type`]: PostgreSQL has one OID for `bit`
     /// and `bit varying` and needs the modifier to find [ADR 0067
-    /// § 9](../../../../docs/adr/0067-core-db.md)'s `BIT(1)` row, while SQL
+    /// § 9](/docs/adr/0067-core-db.md)'s `BIT(1)` row, while SQL
     /// Server's `bit` *is* one bit — `BIT(n>1)` is not a type it has — so the
     /// byte is the answer and the width is never consulted.
     ///

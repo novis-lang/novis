@@ -15,10 +15,10 @@ pub enum SymbolKind {
     Class,
     /// An `interface` declaration.
     Interface,
-    /// An `enum` declaration ([ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md)).
+    /// An `enum` declaration ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)).
     Enum,
     /// A `type Name = TypeExpr;` declaration
-    /// ([ADR 0015](../../../docs/adr/0015-no-name-aliasing.md) § 5).
+    /// ([ADR 0015](/docs/adr/0015-no-name-aliasing.md) § 5).
     TypeAlias,
 }
 
@@ -51,7 +51,7 @@ pub struct Symbol {
 /// fully-qualified name.
 ///
 /// Keying is case-sensitive, matching [`QName`]'s own decided behaviour
-/// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// § 1) — see its
 /// docs.
 #[derive(Debug, Default)]

@@ -2,7 +2,7 @@
 //! instead of blocking it, over TCP or over a Unix-domain socket — and
 //! [`NvsListener`], the accepting half that parks on the same four functions.
 //!
-//! [ADR 0115](../../../docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
+//! [ADR 0115](/docs/adr/0115-the-reactor-reports-readiness-and-a-stream-that-would-block-parks.md)
 //! § 3 is this module's specification, and its one sentence is the whole shape:
 //! **issue the syscall; on success return; on `WouldBlock` register, suspend,
 //! and loop.** Optimistic and not pessimistic, because the first read of an
@@ -25,7 +25,7 @@
 //! poller is level-triggered and the registration is still filed under this
 //! task, so it already reports what the new wait needs. Changing interest —
 //! a `read` after a `write` — costs one `reregister`, never a fresh `register`.
-//! What that spends, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! What that spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! one kernel registration per *stream a task is holding*, released by
 //! [`Drop`] and swept by `Reactor::retire` when the task ends. O(in-flight).
 //!
@@ -73,7 +73,7 @@
 //! `nvs_server::io`'s § *The clock* is the caller it was found by.
 //!
 //! A *deadline* and not a per-call duration, deliberately:
-//! [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5
 //! bounds an operation, and a duration re-read on each wait would push the
 //! bound out again every time the peer sent one more byte — an unbounded wait
 //! wearing a timeout's spelling. What it spends is nothing per stream that has
@@ -105,7 +105,7 @@
 //! dyn Source`: a vtable on the parking path, buying nothing the generic does
 //! not already give. Per stream the footprint is identical; what is spent is
 //! code size, two instantiations of four small functions
-//! ([ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)).
+//! ([ADR 0004](/docs/adr/0004-memory-for-simplicity.md)).
 //!
 //! [`NvsListener`] is that decision reached from the other side. An accepting
 //! socket waits on `READABLE` for a connection exactly as a stream waits on it
@@ -700,7 +700,7 @@ impl<S: Source> NvsStream<S> {
     /// `WouldBlock` arm the reactor and answer `Pending` rather than suspend.
     ///
     /// This is the half a `poll` may call, and the difference is the whole of
-    /// [ADR 0138](../../../docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
+    /// [ADR 0138](/docs/adr/0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)
     /// § 4's rejected alternative. Suspending *inside* a poll parks the
     /// coroutine with the future's borrow still held and the drive that owns
     /// the waker never reached, so the readiness that ends the park resumes a

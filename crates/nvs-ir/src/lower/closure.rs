@@ -106,7 +106,7 @@ pub(crate) fn drain_closures(
 }
 
 /// Lowers one `fn` literal's body to the `invoke` method of its own
-/// captured-environment class — [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// captured-environment class — [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
 /// § 1/§ 2.
 ///
 /// # The representation
@@ -443,7 +443,7 @@ fn check_param_class(
 /// The reserved field an **instance** first-class callable's object holds its
 /// target's receiver under — `$obj->method(...)` and the `self::method(...)`
 /// spelling of a non-`static` member alike
-/// ([ADR 0027](../../../docs/adr/0027-first-class-callable-syntax.md) § 1).
+/// ([ADR 0027](/docs/adr/0027-callable-is-closures-only.md) § 1).
 ///
 /// Absent from a static target's class, which has nothing to remember: its
 /// called class is a compile-time constant the thunk materializes for itself.

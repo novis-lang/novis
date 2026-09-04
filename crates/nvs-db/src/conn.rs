@@ -1,6 +1,6 @@
 //! The five drivers as an enum, and the busy state each one carries.
 //!
-//! [ADR 0132 § 5](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
+//! [ADR 0132 § 5](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
 //! in this project's priority order: the set is **closed** (ADR 0067 § 12 makes
 //! a new backend an ADR rather than a plugin, and wasm extensions cannot host
@@ -41,7 +41,7 @@ use crate::pg::{CancelKey, Wire};
 use crate::sql::StatementCache;
 use crate::tds::Wire as TdsWire;
 
-/// The five backends [ADR 0067 § 12](../../../docs/adr/0067-core-db.md) closes
+/// The five backends [ADR 0067 § 12](/docs/adr/0067-core-db.md) closes
 /// the set at.
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
@@ -307,7 +307,7 @@ pub(crate) fn written_value<'a>(
 }
 
 /// Where a connection's wire is, between commands —
-/// [ADR 0132 § 4](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md).
+/// [ADR 0132 § 4](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md).
 ///
 /// This is not on the stream and cannot be: `NvsStream`'s readiness
 /// registration is one task's and is invisible above `Read`/`Write`, a
@@ -363,7 +363,7 @@ impl State {
     }
 }
 
-/// The isolation levels [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s
+/// The isolation levels [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s
 /// `transaction()` takes, as a caller asks for them rather than as any one
 /// server spells them.
 ///
@@ -406,7 +406,7 @@ pub enum Isolation {
 ///
 /// **This is not a summary of what a read of the column produces**, and the two
 /// questions are deliberately different. [ADR 0067
-/// § 9](../../../docs/adr/0067-core-db.md)'s type map decodes a `JSON` column to
+/// § 9](/docs/adr/0067-core-db.md)'s type map decodes a `JSON` column to
 /// a `tainted string` exactly as it decodes a `TEXT` one — it has to, since
 /// MariaDB's `JSON` is `LONGTEXT` with a check constraint and is not detectable
 /// at all — while a *description* of the column can tell them apart wherever the
@@ -464,7 +464,7 @@ pub enum ColumnType {
     Other,
 }
 
-/// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalised `ErrorKind`,
+/// [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s normalised `ErrorKind`,
 /// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
 /// that spells both in one function.
 ///
@@ -507,7 +507,7 @@ pub enum DbErrorKind {
 }
 
 impl DbErrorKind {
-    /// Whether [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s
+    /// Whether [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s
     /// `{retries: n}` re-runs the closure over this.
     ///
     /// **These two, and nothing else.** A retry is sound only where the server
@@ -854,7 +854,7 @@ pub struct SqliteConn {
 
 /// One open connection to one database, whichever backend it is.
 ///
-/// [ADR 0132 § 5](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md):
+/// [ADR 0132 § 5](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md):
 /// each variant owns its own state machine, its own error-code table and its
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
 ///
@@ -1142,7 +1142,7 @@ mod tests {
         assert!(!State::Poisoned.may_start_statement());
     }
 
-    /// [ADR 0067 § 8](../../../docs/adr/0067-core-db.md)'s normalisation read
+    /// [ADR 0067 § 8](/docs/adr/0067-core-db.md)'s normalisation read
     /// **across** the drivers instead of down one: one condition, spelled the
     /// way each server spells it, answering one [`DbErrorKind`] on all of them.
     ///

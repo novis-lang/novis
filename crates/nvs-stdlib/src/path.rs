@@ -1,4 +1,4 @@
-//! `Core\Path` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Path` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 8, pure string algebra over paths.
 //!
 //! That section is authoritative for every signature. **No member touches the

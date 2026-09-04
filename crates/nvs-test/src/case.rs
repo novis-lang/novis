@@ -36,7 +36,7 @@ pub enum Oracle {
 ///
 /// `--RUN--` names it, and the default is [`Subcommand::Run`] — a case is a
 /// program whose output is the expectation. [`Subcommand::Test`] is the other
-/// half of [ADR 0079](../../../docs/adr/0079-testing-and-assertions.md) § 23:
+/// half of [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 23:
 /// the program declares `#[Test]` classes and what the case pins is the
 /// runner's own report of running them.
 ///
@@ -46,7 +46,7 @@ pub enum Oracle {
 ///
 /// [`Subcommand::ConfigDumpOrigin`] is the one spelling that runs no program:
 /// what it observes is the *tree* the case wrote with `--FILE <path>--`, which
-/// is the only place [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+/// is the only place [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
 /// § 3's obligation — every override recorded with both origins — is visible
 /// end to end. Such a case still carries a `--FILE--`, and the runner still
 /// writes it: it is the program the tree governs, and dropping the section for
@@ -68,7 +68,7 @@ pub enum Subcommand {
     /// `nvs test --format=junit case.nvs` — § 22's JUnit XML is the case.
     TestJunit,
     /// `nvs config dump --origin` — the configuration tree the case wrote into
-    /// its working directory is the case, and [ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// its working directory is the case, and [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
     /// § 9's listing is the expectation.
     ConfigDumpOrigin,
 }
@@ -105,7 +105,7 @@ impl Subcommand {
 /// Written by `--FILE <relative/path>--`, which may appear any number of
 /// times. This is what lets one case cover something that is only observable
 /// across files — a `require` target, an autoload root, a shadowing vendor
-/// copy ([ADR 0061](../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
+/// copy ([ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuxFile {
     /// Where to write it, relative to the case's working directory, always
@@ -133,7 +133,7 @@ pub struct Case {
     ///
     /// A line is an argument whatever it contains, so a space, a quote or a
     /// backslash in one needs no escaping and gets none: this format has no
-    /// shell, exactly as [ADR 0044](../../../docs/adr/0044-core-process-argv-only-no-shell.md)
+    /// shell, exactly as [ADR 0044](/docs/adr/0044-core-process-argv-only-no-shell.md)
     /// gives `Core\Process` none. Empty lines are dropped, which is what makes a
     /// section written with a blank line under the header the same as an absent
     /// one — and so an *empty* argument is the one thing this section cannot

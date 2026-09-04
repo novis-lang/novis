@@ -1,4 +1,4 @@
-//! Novis's array: [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+//! Novis's array: [ADR 0007](/docs/adr/0007-explicit-type-system.md)
 //! § 5's insertion-ordered, string-keyed hash, refcounted and copy-on-write.
 //!
 //! This is what `nvs_ir::ty::Ty::Array` lowers to, and the other half of M4's
@@ -17,7 +17,7 @@
 //! hand-rolled open-addressed table over a flexible-array-member allocation.
 //! An entry lookup already costs a hash and a probe, so the call is not on the
 //! margin the way an object field load is; buying the whole table's
-//! memory-safety for it is [AGENTS.md](../../../AGENTS.md)'s priority 1 and 4
+//! memory-safety for it is [AGENTS.md](/AGENTS.md)'s priority 1 and 4
 //! bought with a few instructions of priority 3, which the ordering permits.
 //! The cost, stated as AGENTS.md requires: **three allocations per array**
 //! (the header, the entry vector, the index map) rather than one, and one call
@@ -44,7 +44,7 @@
 //! decimal on demand, so `foreach ($a as $v)`, which never asks for a key,
 //! never pays for one.
 //!
-//! **[ADR 0007 § 5](../../../docs/adr/0007-explicit-type-system.md) is
+//! **[ADR 0007 § 5](/docs/adr/0007-explicit-type-system.md) is
 //! unchanged by this.** Every key is still a `string`, `"08"` is still a
 //! distinct key from `"8"` (it is what forces the degrade), insertion order is
 //! still the iteration order, and `Core\Arr::keys` still answers
@@ -80,7 +80,7 @@
 //! — the key-taking pair is unchanged and still the only path for a `string`
 //! subscript — which is why this had to land while nothing depends on the
 //! current set, rather than as a versioned break once
-//! [ADR 0042](../../../docs/adr/0042-on-disk-artifact-cache-format.md)
+//! [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
 //! artifacts and M9's WIT signatures do.
 //!
 //! **What still calls the key-taking pair for an integer subscript is
@@ -92,7 +92,7 @@
 //! letting those two instructions carry a `Ty::Int`/`Ty::Uint` key and
 //! dispatching on it in `nvs_codegen::emit` — not a codegen-local one.
 //!
-//! What it spends, as [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)
+//! What it spends, as [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)
 //! requires: **nothing — it saves.** A list drops two of its three allocations
 //! and every key string. It also takes list data out of the SipHash path the
 //! decision above exists to justify, which leaves that decision protecting the
@@ -117,7 +117,7 @@
 //! singleton cannot be written through, by the ordinary copy-on-write path
 //! rather than by a special case. `nvs_array_eq` compares by content, so
 //! sharing is unobservable to
-//! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)'s
+//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)'s
 //! identity row. And an array is neither `Send` nor `Sync`, so per-thread is
 //! per-owner and the count stays non-atomic.
 //!
@@ -161,7 +161,7 @@
 //! back: it consumes one reference to its `array` argument and returns one
 //! reference to the array that now holds the change. When the refcount was
 //! already `1` that is the same pointer and the same reference, mutated in
-//! place with no copy at all — the fast path [ADR 0063](../../../docs/adr/0063-core-api-conventions.md)
+//! place with no copy at all — the fast path [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 //! R3's "nothing mutates" API shape rests on, measured by
 //! `a_refcount_one_array_member_mutates_in_place` in `benches/abi-probe`.
 //! When it was higher, the entry storage is copied, every key and value in it
@@ -182,7 +182,7 @@
 //! pointer-in, pointer-out shape every other primitive here has does not have
 //! one.
 //!
-//! It therefore takes [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s
+//! It therefore takes [ADR 0002](/docs/adr/0002-error-propagation.md)'s
 //! shape instead — `(ctx, array, value, out) -> status`, the array it yields
 //! travelling through a caller-owned pointer-wide slot the way
 //! `nvs_object_slot_set`'s result does — and it is the **only** array
@@ -263,7 +263,7 @@ pub(crate) struct Table {
 ///
 /// Every operation on a [`Table`] either answers from the packed form directly
 /// or converts to the hash form first, so nothing outside this module can tell
-/// which one it is holding: [ADR 0007 § 5](../../../docs/adr/0007-explicit-type-system.md)
+/// which one it is holding: [ADR 0007 § 5](/docs/adr/0007-explicit-type-system.md)
 /// is a statement about keys, not about storage.
 enum Shape {
     /// The packed form: the keys are exactly `"0"`…`"n−1"` in order, so they
@@ -725,7 +725,7 @@ pub struct ArrayHeader {
     /// The ordered hash. Behind a [`RefCell`] rather than reached through
     /// `&mut *ptr`, so the "only a uniquely owned array is mutated" rule is
     /// checked at runtime instead of remembered — the direction
-    /// [AGENTS.md](../../../AGENTS.md)'s memory section asks for. Every
+    /// [AGENTS.md](/AGENTS.md)'s memory section asks for. Every
     /// mutator below drops the borrow before releasing anything, so no
     /// release can re-enter one.
     table: RefCell<Table>,
@@ -1602,7 +1602,7 @@ pub unsafe extern "C" fn nvs_array_append(
 /// value copied is **retained** before it is stored, because the entry is now
 /// held by two arrays; the caller emits no retain of its own beside this.
 ///
-/// **Which key survives is [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+/// **Which key survives is [ADR 0007](/docs/adr/0007-explicit-type-system.md)
 /// § 5's rule, not a representation question.** A key that reads as a
 /// canonical decimal integer is *renumbered* — appended under this array's own
 /// counter — and every other key is preserved, overwriting an entry already

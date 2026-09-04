@@ -1,4 +1,4 @@
-//! [ADR 0051](../../../docs/adr/0051-standard-library-tiers.md) § 5 as a gate:
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 5 as a gate:
 //! nothing outside Tier 0 registers a class under the `Core` namespace.
 //!
 //! § 1's table is what makes this checkable. Tier 0 is "compiled into every

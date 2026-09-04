@@ -1,6 +1,6 @@
 //! `Core\Encoding` — docs/spec/01-core-library.md § 7, the members that sit
 //! exactly on the `bytes`↔`string` boundary
-//! ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md)).
+//! ([ADR 0009](/docs/adr/0009-string-and-bytes.md)).
 //!
 //! Everything this class does is a *representation* change: the same
 //! information, spelled as text a person or a protocol can carry, or spelled
@@ -33,7 +33,7 @@
 //!   differ over `0x80`-`0x9f`, where windows-1252 has typographic characters
 //!   and ISO-8859-1 has the C1 controls. Reading `Charset::Latin1` as
 //!   windows-1252 would answer a *different* string, which is the substitution
-//!   [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3 removes
+//!   [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3 removes
 //!   from the language. `Ascii` has a second reason: § 7's own table gives
 //!   `isValidText` as the replacement for `mb_check_encoding`, and
 //!   `mb_check_encoding($s, "ASCII")` is the commonest call of it — folded
@@ -94,7 +94,7 @@
 //!
 //! `toBase32` writes RFC 4648 § 6's alphabet **upper case and unpadded**,
 //! which is how an `otpauth:` secret is written — TOTP
-//! ([ADR 0060](../../../../docs/adr/0060-application-security-protocols.md))
+//! ([ADR 0060](/docs/adr/0060-application-security-protocols.md))
 //! being the consumer § 7's row names, since PHP has nothing here to replace.
 //!
 //! `fromBase32` then reads **either case, and padding that is either canonical
@@ -123,7 +123,7 @@
 //! know. base64 has four such rules, `fromBase64` is a member request bodies
 //! reach, and every one of those rules is a documented CVE somewhere. The
 //! `base64` crate is the pick under
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4 —
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 —
 //! pure Rust, no build script, no C, and already in this tree's lock file
 //! under `wasmtime-internal-cache`, so it adds no crate at all.
 //! `Cargo.toml`'s `[workspace.dependencies]` comment states the pick; this
@@ -131,7 +131,7 @@
 //!
 //! # Why hex takes no dependency
 //!
-//! [ADR 0051](../../../../docs/adr/0051-standard-library-tiers.md) § 4 asks
+//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 4 asks
 //! two questions of an outside crate, and base-16 answers both the wrong way:
 //! the whole algorithm is a nibble table, there is no specification drift to
 //! track and no security-relevant parsing to get wrong, so a dependency would
@@ -145,7 +145,7 @@
 //! # Encoding is total, decoding throws
 //!
 //! `toHex` cannot fail: every octet has a spelling. `fromHex` is the checked
-//! direction ([ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)
+//! direction ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
 //! R4) — it throws on an odd length or a non-hexadecimal character rather than
 //! substituting, dropping or truncating, which is the same reason ADR 0009 § 3
 //! refuses `iconv`'s `//IGNORE`. A caller who wants the question without the
@@ -253,7 +253,7 @@ const CHARSET_DOC: EnumDoc = EnumDoc {
 #[derive(Clone, Copy, Debug)]
 enum Scheme {
     /// UTF-8 both ways, which is a validation one way and free the other:
-    /// a `string` is already the octets ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md)
+    /// a `string` is already the octets ([ADR 0009](/docs/adr/0009-string-and-bytes.md)
     /// § 3).
     Utf8,
     /// UTF-16 in the stated byte order. Encoding is written here because the
@@ -928,7 +928,7 @@ const fn nibble(digit: u8) -> Option<u8> {
 /// The operand of a failed `fromHex` is text that arrived from somewhere, so
 /// it is the one value here whose size a caller chooses. A message reaches a
 /// log, and quoting it whole would let a request pick how many bytes that log
-/// gains — [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+/// gains — [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 /// is the wider rule.
 const SHOWN_CHARS: usize = 32;
 
@@ -1011,7 +1011,7 @@ nvs_runtime::nvs_helper! {
     /// Throws naming the first character the charset cannot spell, rather
     /// than writing `?`, `&#NNNN;` or a transliteration for it. `iconv`'s
     /// `//IGNORE` and `//TRANSLIT` have no equivalent here and that is the
-    /// point ([ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) § 3):
+    /// point ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3):
     /// a caller who genuinely wants a lossy spelling writes the replacement
     /// they want, in their own text, where a reader can see it.
     fn nvs_core_encoding_encode_text(_ctx, args: [2]) {
@@ -1140,7 +1140,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Encoding::toBase32(bytes $b): string` — replacing nothing in PHP,
     /// and needed by TOTP
-    /// ([ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)).
+    /// ([ADR 0060](/docs/adr/0060-application-security-protocols.md)).
     ///
     /// RFC 4648 § 6's alphabet, **upper case and unpadded** — the form an
     /// `otpauth:` secret is written in. Total: every octet sequence has a

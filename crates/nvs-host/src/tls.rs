@@ -25,7 +25,7 @@
 //! wraps handshake records in TDS `PRELOGIN` packets — and the adapter that
 //! reconciles the two is an ordinary `Read`/`Write` in `nvs-db` rather than a
 //! second TLS client
-//! ([ADR 0132 § 3](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
+//! ([ADR 0132 § 3](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
 //! That is the whole reason to generalise rather than to let a driver build its
 //! own session: the anchors below, the protocol versions and the verifier are
 //! decided once, here, and a driver cannot widen any of them by construction.
@@ -66,14 +66,14 @@
 //!    shape Novis is built for, with a diagnostic about a missing file.
 //! 3. **Reading the platform store is a filesystem and registry reach** on a
 //!    path with no request behind it, which
-//!    [ADR 0118](../../../docs/adr/0118-capabilities-are-checked-at-one-door-per-resource.md)
+//!    [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //!    § 1 would then owe a door and an answer for. A constant in the binary
 //!    owes neither.
 //!
 //! What this gives up is the private CA — an internal PKI, or a corporate
 //! inspection proxy — and that is deliberately left to the **operator**, whose
 //! decision it is, in the file that already holds every other one
-//! ([ADR 0103](../../../docs/adr/0103-configuration-is-a-tree-of-files.md)),
+//! ([ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)),
 //! who names a PEM bundle in `nvs.toml` and gets [`NvsTls::over_bundle`]
 //! against exactly it. The bundle **replaces** the compiled-in set for the
 //! endpoint that names it rather than adding to it — [`anchors_from`] argues
@@ -83,7 +83,7 @@
 //! of ADR 0058's pinned outbound door is that a script does not get to widen a
 //! decision the deployment made.
 //!
-//! What that spends, per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md):
+//! What that spends, per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md):
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
 //! once on first use and shared by every session after it — roughly 150 trust
 //! anchors, a few hundred kilobytes, O(1) in requests served. Per session it is
@@ -128,7 +128,7 @@ use crate::net::NvsTcp;
 /// and every wait underneath it hands the core back.
 ///
 /// Built by [`NvsTls::over`] from a stream that is already connected, because
-/// where to connect is [ADR 0058](../../../docs/adr/0058-outbound-request-policy.md)'s
+/// where to connect is [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s
 /// pinned address and not a name this layer would re-resolve. The name passed
 /// in is what the certificate is checked against, and it is the name the caller
 /// was granted — never the address it was pinned to.
@@ -168,7 +168,7 @@ impl<T: Read + Write> NvsTls<T> {
     /// keeps one TLS client and one answer to "whose certificates do you
     /// believe"; a second `rustls` session built inside a driver would be a
     /// second answer to a question this module has already decided at length
-    /// ([ADR 0132 § 3](../../../docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
+    /// ([ADR 0132 § 3](/docs/adr/0132-a-driver-is-a-sans-io-codec-over-the-parking-stream.md)).
     ///
     /// # Errors
     ///

@@ -1,6 +1,6 @@
-//! `Core\Env` — [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! `Core\Env` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 15's environment half, which is
-//! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 1's replacement
+//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 1's replacement
 //! for `$_ENV` and `getenv()`.
 //!
 //! All three members — `get`, `all` and `mode` — and all three of § 15's
@@ -9,7 +9,7 @@
 //!
 //! # It is not a capability door, and that is decided rather than skipped
 //!
-//! [ADR 0118](../../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
+//! [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! § 2 puts a check at the door to an effect, and reading the environment is
 //! not one: ADR 0012 § 7 says outright that `Core\Env` and `Core\Cli` are
 //! "process-wide facts already governed by the existing capability/config-overlay
@@ -20,7 +20,7 @@
 //! conclusion from the other side, for the four variables `Core\Cli` reads and
 //! never hands back.
 //!
-//! What does the protecting is [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+//! What does the protecting is [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
 //! § 1's qualifier: every value here is `tainted`, because the environment is
 //! outside the program's own text, so a variable holding a URL still has to
 //! reach `Core\Http::allowUrl` and one holding a table name still has to reach
@@ -51,15 +51,15 @@
 //!
 //! # A value that is not text throws, and `all` skips it instead
 //!
-//! [ADR 0009](../../../../docs/adr/0009-string-and-bytes.md) makes a `string`
+//! [ADR 0009](/docs/adr/0009-string-and-bytes.md) makes a `string`
 //! UTF-8, and an environment variable is bytes on every platform this runs on,
 //! so the two do not always meet. The split:
 //!
 //! * `get` **throws**. The caller named one variable, so the honest answer to
 //!   "what is `X`" is not `null` — that would report an unreadable value as an
-//!   absent one, and [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md)'s
+//!   absent one, and [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s
 //!   `?T` means absence and nothing else. Repairing it lossily is
-//!   [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//!   [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
 //!   refusal.
 //! * `all` **omits** it. That member enumerates, and one variable set by
 //!   something else on the machine must not be able to make a program's own
@@ -77,7 +77,7 @@
 //!
 //! # `mode` is the one member here that reads no environment at all
 //!
-//! [ADR 0091](../../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
+//! [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
 //! run mode is set through `Core\Config` like every other directive, and spec
 //! § 15 says outright that no environment variable is consulted for it. So the
 //! member sits on this class for the reason a program asks the question —
@@ -151,7 +151,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// about to run, and `Core\Path::SEPARATOR` — the platform-dependent constant
 /// that landed first — already rests on exactly this reading. Whether a cached
 /// artifact may ever be replayed on another machine is
-/// [ADR 0042](../../../../docs/adr/0042-on-disk-artifact-cache-format.md)'s
+/// [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)'s
 /// question about that cache's identity and not this module's, and the day it
 /// is answered these constants and `SEPARATOR` are answered together.
 const CONSTANTS: &[CoreConst] = &[

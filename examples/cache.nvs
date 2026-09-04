@@ -2,7 +2,7 @@
 // The two stores, as a program: the tier that may forget, the tier that may
 // not, and the limit built on the second one.
 //
-// [ADR 0059](../docs/adr/0059-cross-request-state-is-explicit.md) § 1 makes
+// [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 1 makes
 // these **two methods rather than one API with a flag**, so which
 // guarantee a program relies on is visible in review rather than hidden in
 // an argument. `local()` is per-core and in-process, and its contract says
@@ -17,7 +17,7 @@
 // request heap, `get` copies back into it, because the request heap is
 // dropped wholesale at the end of the request.
 //
-// [ADR 0075](../docs/adr/0075-core-ratelimit.md) is the last two lines.
+// [ADR 0075](/docs/adr/0075-core-ratelimit.md) is the last two lines.
 // `Core\RateLimit` takes **no configuration at all** — the limit is an
 // argument because only the application knows whether this is a quota or a
 // lock — and an unreachable store **throws** rather than deciding

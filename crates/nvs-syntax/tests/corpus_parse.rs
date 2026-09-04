@@ -11,12 +11,12 @@
 //! **What this test no longer measures, and why.** It used to report how many
 //! corpus files parsed with *zero* diagnostics. That number is meaningless
 //! now and is not tracked: every corpus file opens with `<?php`, which
-//! [ADR 0049](../../../docs/adr/0049-single-open-tag-and-single-exit-keyword.md)
+//! [ADR 0049](/docs/adr/0049-single-open-tag-and-single-exit-keyword.md)
 //! rejects in favour of `<?nvs`, so every one of them trips `E0229`;
-//! [ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`
 //! now lex as ordinary identifiers; and
-//! [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+//! [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
 //! § 1 makes every `===`/`!==` in the corpus an `E0232`. All three widenings
 //! are deliberate — the bar
 //! this test holds is "the parser does not panic," which is what M1's plan

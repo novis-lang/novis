@@ -1,10 +1,10 @@
 //! ADR 0006's isolate, as one type: a child task with a heap boundary.
 //!
-//! [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md) fixes what an
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) fixes what an
 //! isolate *is* — it shares immutable compiled code and its parent's budget and
 //! nothing else, values cross by copy or by move at refcount 1, and a child's
 //! failure arrives as data rather than as an unwind.
-//! [ADR 0116](../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
 //! decides how, and this module is that decision in code: an arena is an
 //! ownership root, so building one is [`Ctx::isolate`] and releasing one
 //! wholesale is dropping that context.
@@ -27,7 +27,7 @@
 //! # Decision: a refused argument is the parent's fault, a refused answer is the child's
 //!
 //! One walk refuses at both crossings
-//! ([ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+//! ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 //! § 2), and the two refusals mean different things:
 //!
 //! * An **argument** that cannot cross was built by the parent, before any child
@@ -147,7 +147,7 @@ impl Isolate {
     ///
     /// That is also why a `spawn script` child answers no request — nothing calls
     /// this for one, and
-    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s isolate
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s isolate
     /// shares nothing but compiled code, so `Core\Request::method()` inside one
     /// throws exactly as it does in a CLI program. Passing the request down
     /// automatically would be ambient authority crossing the boundary that exists
@@ -181,7 +181,7 @@ impl Isolate {
     /// isolate's own ownership root, run it as a child task, copy the answer out
     /// **before** that root is released, and release it. Control does not return
     /// while the child is still running, exactly as it does not for a group
-    /// ([ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+    /// ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
     /// § 4).
     ///
     /// # Errors
@@ -871,7 +871,7 @@ mod tests {
         assert_eq!(ctx.statics_len(), 1, "the parent still has its one slot");
     }
 
-    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 3's third row: a `spawn script` isolate's `echo` reaches a buffer of
     /// its own, and what carries those bytes is the **parent's** carrier — so a
     /// child spawned by a CLI program, a scheduled script, a job worker or a

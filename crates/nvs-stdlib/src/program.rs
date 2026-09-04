@@ -1,4 +1,4 @@
-//! `Core\Program` — [ADR 0061](../../../../docs/adr/0061-compile-time-autoload-and-program-discovery.md)
+//! `Core\Program` — [ADR 0061](/docs/adr/0061-compile-time-autoload-and-program-discovery.md)
 //! § 3's program enumeration, and the second `Core` class whose members never
 //! run.
 //!

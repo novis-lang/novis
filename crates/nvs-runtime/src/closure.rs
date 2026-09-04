@@ -1,4 +1,4 @@
-//! Calling an [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+//! Calling an [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
 //! closure value from native code.
 //!
 //! A closure is an ordinary Novis object whose class declares exactly one
@@ -7,7 +7,7 @@
 //! reuses the object machinery rather than adding a second heap shape. So
 //! everything here is already available: [`crate::nvs_class_method`] finds
 //! the compiled address, and [`crate::call`] reaches it under exactly the
-//! [ADR 0002](../../../docs/adr/0002-error-propagation.md) signature every
+//! [ADR 0002](/docs/adr/0002-error-propagation.md) signature every
 //! other compiled function has.
 //!
 //! # Why this exists at all
@@ -24,7 +24,7 @@
 //!
 //! # Why the parameter types are checked here, of all places
 //!
-//! [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+//! [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 //! gives `callable` no parameter list, so **no checker can compare a call site
 //! against the body it will reach**, and the compiled `invoke` reads argument
 //! slot *i* at its own declared representation. Hand it a mismatch and the
@@ -103,7 +103,7 @@ const CLOSURE_PARAM_TAGS_CAPACITY: usize = 16;
 ///
 /// The trailing arguments a shorter closure does not want are dropped rather
 /// than passed, which is
-/// [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 /// § 2's "every callback receives `($value, $key)` and may declare fewer
 /// parameters" — the rule that removes PHP's `ARRAY_FILTER_USE_KEY`/
 /// `ARRAY_FILTER_USE_BOTH` flags. A caller therefore passes every argument it
@@ -194,9 +194,9 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
 /// the catchable `LogicError` below rather than the engine fault
 /// [`call_closure`] answers a native caller with: a `callable` carries no
 /// parameter list for the checker to count against
-/// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+/// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
 /// § 1), so a program can reach it, and a program-reachable failure is a
-/// throw ([ADR 0002](../../../docs/adr/0002-error-propagation.md)).
+/// throw ([ADR 0002](/docs/adr/0002-error-propagation.md)).
 ///
 /// # Safety
 ///
@@ -284,10 +284,10 @@ crate::nvs_helper! {
 /// A native caller has no arity mistake to make — a `Core` member offers every
 /// argument the spec says it does, so [`call_closure`] answers it with an
 /// engine fault. An Novis call site's list is whatever was written there, and
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives the checker no parameter list to count it against, so too few is
 /// program-reachable and therefore a throw
-/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)).
+/// ([ADR 0002](/docs/adr/0002-error-propagation.md)).
 ///
 /// # Errors
 ///
@@ -386,7 +386,7 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
 /// checker can make — over the nibble `word` that callee recorded, naming it
 /// `callee` in whatever it has to report.
 ///
-/// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md) § 1
+/// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives `callable` no parameter list, so a call site has nothing to compare
 /// against and the compiled `invoke` reads argument slot *i* at its own
 /// declared representation — an `int` handed to a `string` parameter is
@@ -412,7 +412,7 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
 /// # The one conversion, rather than a refusal
 ///
 /// The comparison is exact everywhere except the single position
-/// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2 admits an
+/// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2 admits an
 /// implicit conversion: an `int` or `uint` arriving at a `float` parameter is
 /// *widened in place* rather than refused, through
 /// [`crate::helpers::widen_to_float`] and therefore through the same row a
@@ -432,7 +432,7 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
 /// argument, and for a closure declaring more parameters than
 /// [`CLOSURE_PARAM_TAGS_CAPACITY`] can record — a program can reach both and a
 /// program-reachable failure is a throw
-/// ([ADR 0002](../../../docs/adr/0002-error-propagation.md)). Refusing the
+/// ([ADR 0002](/docs/adr/0002-error-propagation.md)). Refusing the
 /// call in the second case is deliberate: passing an argument whose declared
 /// tag was never written down is exactly the read this function exists to
 /// prevent, and no spec callback comes close to sixteen parameters.

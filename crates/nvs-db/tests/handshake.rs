@@ -1,10 +1,10 @@
-//! [ADR 0067](../../../docs/adr/0067-core-db.md) § 3's open against a real
+//! [ADR 0067](/docs/adr/0067-core-db.md) § 3's open against a real
 //! server, one driver per process: the whole sequence — a socket, the in-band
 //! upgrade, the TLS session and the authentication exchange — completes, and
 //! the reads it is made of hand the core back rather than holding it.
 //!
 //! An integration test rather than a `mod tests` beside the driver, for the
-//! reason [`pool_reuse`](./pool_reuse.rs)'s module doc gives and this crate's
+//! reason [`pool_reuse`](/crates/nvs-db/tests/pool_reuse.rs)'s module doc gives and this crate's
 //! own [`nvs_db::matrix`] exists for: a `PgConn`'s wire is `Wire<NvsTls<NvsTcp>>`
 //! at the default type parameter, so nothing reachable only through one of its
 //! inherent methods can be built without a socket and a certificate. `pg.rs`'s
@@ -918,7 +918,7 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
 /// The refusal is asserted as § 8's *kind* and not only as the raw pair, because
 /// the kind is the half a shared table would get wrong: MariaDB's `1045` and
 /// MySQL's happen to agree, and
-/// [`mariadb_uses_its_own_code_table_and_not_mysqls`](../src/maria.rs) is where
+/// [`mariadb_uses_its_own_code_table_and_not_mysqls`](/crates/nvs-db/src/maria.rs) is where
 /// the codes that do not are held.
 #[test]
 fn a_mariadb_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream() {

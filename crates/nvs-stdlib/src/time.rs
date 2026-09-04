@@ -1,7 +1,7 @@
-//! [docs/spec/01-core-library.md](../../../../docs/spec/01-core-library.md)
+//! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 4 — `Core\Time` and the types it answers with, one module because they
 //! are one domain: `Duration` (the type
-//! [ADR 0070](../../../../docs/adr/0070-duration-literals.md)'s `30s`/`1h30m`
+//! [ADR 0070](/docs/adr/0070-duration-literals.md)'s `30s`/`1h30m`
 //! literal is), `Instant`, `Zone` and `DateTime`. The pattern grammar
 //! `DateTime::format` and `Time::parse` share is [`crate::cldr`], which is a
 //! grammar of its own and so a module of its own.
@@ -829,7 +829,7 @@ nvs_runtime::nvs_helper! {
     /// `Duration::parse("1h30m")` and the literal `1h30m` are one value.
     ///
     /// Throws on anything it does not accept, which is what makes it an
-    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// launderer for a `tainted` config string — the qualifier half of that is
     /// still owed, and `crate::regex`'s gap 2 owns why nothing in
     /// [`crate::registry`] can state it yet.
@@ -931,7 +931,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$d->compareTo(Duration $other): int` — `Comparable`'s member
-    /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)),
+    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)),
     /// answering the sign of `$d - $other` without the subtraction's overflow.
     fn nvs_core_time_duration_compare_to(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "compareTo")?;
@@ -946,7 +946,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
-    /// ([ADR 0028](../../../../docs/adr/0028-closing-the-remaining-magic-methods.md)),
+    /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)),
     /// emitting ADR 0070 § 1's grammar so that a value round-trips through
     /// `parse` — over the durations that grammar can spell, which is the
     /// non-negative ones. This member is total and a negative duration is
@@ -2440,7 +2440,7 @@ const DATE_WITH_OPTIONS: &[CoreOption] = &[
 /// **What it spends:** 48 bytes of slots per value, charged to the request
 /// that produced it, against the 16 a single day-count slot would take. The
 /// three fields are what every member reads, so a count would be a conversion
-/// on each side of every call to save two words — [AGENTS.md](../../../../AGENTS.md)'s
+/// on each side of every call to save two words — [AGENTS.md](/AGENTS.md)'s
 /// priority ordering spends memory on simplicity, not the reverse.
 pub const DATE: CoreClass = CoreClass {
     name: DATE_NAME,
@@ -3651,7 +3651,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$i->compareTo(Instant $other): int` — `Comparable`'s member
-    /// ([ADR 0013](../../../../docs/adr/0013-comparable-interface.md)).
+    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)).
     fn nvs_core_time_instant_compare_to(_ctx, args: [2]) {
         let left = instant_of(args, 0, "compareTo")?;
         let right = instant_of(args, 1, "compareTo")?;

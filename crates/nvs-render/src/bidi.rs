@@ -1,4 +1,4 @@
-//! [ADR 0087](../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
+//! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
 //! predicate: a bidirectional control that opens a directional scope and never
 //! closes it inside the span that opened it.
 //!
@@ -9,7 +9,7 @@
 //! lives in one module rather than beside the lexer's string handling.
 //!
 //! **It lives in this crate rather than in `nvs-syntax` because this crate is
-//! the leaf.** [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! the leaf.** [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! § 1 puts the record model below both the runtime and the compiler front end,
 //! and § 5 routes the bidi transformation through this predicate — so with
 //! `nvs-runtime` a dependent, `nvs-render` → `nvs-syntax` → `nvs-diagnostics`

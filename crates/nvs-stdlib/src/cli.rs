@@ -1,10 +1,10 @@
 //! `Core\Cli` — the terminal facts a program is allowed to ask for, and
 //! `Core\Cli\Text`, the carrier of the terminal sink.
 //!
-//! [ADR 0086](../../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3 is
+//! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3 is
 //! this module's half of that ADR: which of the three standard streams is a
 //! terminal, how wide and how tall it is, and how much colour it can show.
-//! [ADR 0088](../../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+//! [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
 //! § 3's table pairs every context with a sink and every sink with a *carrier*:
 //! `Core\Html\Markup` under an HTTP request, `Core\Cli\Text` everywhere else,
 //! and § 5 makes that carrier the return of `Core\Out::capture`. So the carrier
@@ -17,7 +17,7 @@
 //! per call**, so two reads of `Core\Cli::width()` are the same number by
 //! construction rather than by luck. That resolution is
 //! [`nvs_runtime::terminal`] and not this module: it reaches the operating
-//! system, and [ADR 0118](../../../../docs/adr/0118-capabilities-are-configured-not-requested.md)
+//! system, and [ADR 0118](/docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md)
 //! § 2 says a `Core` member may not — `tests/capability.rs`'s
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds that shut by name.
 //! That module's own docs own the caching, what it spends, and why no
@@ -1261,7 +1261,7 @@ nvs_runtime::nvs_helper! {
     /// *ordinary output does not need this member*. What needs it is a program
     /// that wants the neutralized text **as a value** — to interpolate into a
     /// `Core\Str::format` template, to measure, or to compare — and, under
-    /// [ADR 0024](../../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+    /// [ADR 0024](/docs/adr/0024-taint-tracking-for-injection-sinks.md)
     /// § 3, to hand a `tainted string` to something else that refuses one. That
     /// is the whole of its job, which is why it could land before `write` did:
     /// the sink is `echo`, `write` is a second spelling of it, and neither is
@@ -1274,7 +1274,7 @@ nvs_runtime::nvs_helper! {
     /// the property that would otherwise fail silently, since a launderer that
     /// neutralizes *less* than its sink is exactly the false confidence ADR 0024
     /// § 3 refuses a generic `sanitize()` over. That module owns the table and
-    /// its rows' reasoning; [ADR 0087](../../../../docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
+    /// its rows' reasoning; [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)
     /// owns the bidi row's predicate.
     ///
     /// # Why the qualifier comes off
@@ -1652,7 +1652,7 @@ nvs_runtime::nvs_helper! {
     /// — § 4's third prompt.
     ///
     /// **It answers the value, not the index**, which is
-    /// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R4 and R5
+    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4 and R5
     /// and is what earns the generic: the compiler knows the result's type
     /// from the options array, so no call site casts and none indexes back
     /// into the list it just passed.
@@ -1820,7 +1820,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::secret(string $question): secret tainted string` — § 4's
     /// fifth prompt, and the clearest demonstration of why
-    /// [ADR 0033](../../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
     /// qualifier was worth having: a password typed here structurally cannot
     /// be echoed, logged, dumped, put in a `Throwable` message or serialized,
     /// and it cost one row's return type to say so.
@@ -2151,7 +2151,7 @@ const INK_RGB: i64 = 1;
 
 /// ADR 0086 § 2's `Cli\Color` — **a value type, not an enum**.
 ///
-/// [ADR 0010](../../../../docs/adr/0010-enums-are-a-value-type.md)'s closed
+/// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)'s closed
 /// named integer type does not fit a set with sixteen million members, so the
 /// sixteen the terminal names are class constants and the rest is constructed.
 /// Two slots rather than one packed integer because the two colour spaces are
@@ -2814,7 +2814,7 @@ thread_local! {
 /// ADR 0086 § 8 makes restoration an obligation on **every** exit path, and
 /// [`nvs_core_cli_live`] cannot discharge that with a statement after the call:
 /// a throw from `$body` skips it, and an internal panic
-/// ([ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md) § 5) skips
+/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 5) skips
 /// every statement there is. So the end of a region is a `Drop`, here and in
 /// [`nvs_runtime::terminal::Region`] both — this one ends the *scope*, that one
 /// puts the *terminal* back.

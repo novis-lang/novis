@@ -1,4 +1,4 @@
-//! `Core\Reflect` — [ADR 0019](../../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)'s
+//! `Core\Reflect` — [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)'s
 //! read-only structural introspection, as the member that describes a value and
 //! the description it answers with.
 //!
@@ -27,7 +27,7 @@
 //! [`crate::instance`]'s first decision is that a `Core` instance is an ordinary
 //! Novis object, so every slot must be a value Novis already holds, and a raw
 //! descriptor pointer is neither that nor something a hot-reload swap
-//! ([ADR 0017](../../../../docs/adr/0017-hot-reload-without-restart.md)) leaves
+//! ([ADR 0017](/docs/adr/0017-hot-reload-without-restart.md)) leaves
 //! valid. Holding the answers instead makes the description exactly as inert as
 //! § 1 says it is: nothing it carries can be dereferenced back into the program.
 //!

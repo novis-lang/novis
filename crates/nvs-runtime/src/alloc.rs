@@ -3,14 +3,14 @@
 //!
 //! Every allocation Novis makes used to reach the platform heap directly, and on
 //! this tree one 32-byte `alloc`/`dealloc` round trip costs 28.7 ns —
-//! [`docs/perf/userland-gap.md`](../../../docs/perf/userland-gap.md) § A holds
+//! [`docs/perf/userland-gap.md`](/docs/perf/userland-gap.md) § A holds
 //! that measurement and the case-by-case attribution behind it. A string, an
 //! array header and a small object are all in that size range, so the platform
 //! heap is on the request path several times per statement. Fronting it with a
 //! free list moved the userland suite's median from 0.31× PHP to 0.54×, which
 //! is the largest single move measured on this tree.
 //!
-//! This is not a new decision. [`docs/plan/design.md`](../../../docs/plan/design.md)
+//! This is not a new decision. [`docs/plan/design.md`](/docs/plan/design.md)
 //! § *Per-request isolation* already settled that a request allocates from an
 //! arena of its own; this is that decision landing early, in the half that
 //! needs no per-request accounting and no [`Ctx`](crate::Ctx). The
@@ -19,7 +19,7 @@
 //!
 //! # What it spends
 //!
-//! Per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s *Say what
+//! Per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s *Say what
 //! you spend*: a bounded per-**thread** cache of freed blocks — 16 classes of
 //! 16 bytes up to 256, each holding at most 512 blocks, so at most ~2 MB on a
 //! thread that has touched every class. It is never per request and never

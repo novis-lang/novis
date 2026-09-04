@@ -1,6 +1,6 @@
-//! `Core\Log` — [ADR 0020](../../../../docs/adr/0020-error-escalation-ladder.md)
+//! `Core\Log` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
 //! § 6's reporting half: one member a program writes a record with, and
-//! [ADR 0092](../../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
 //! § 2's `Core\Log\Level` beside it because that member is the only thing that
 //! takes one.
 //!

@@ -1,4 +1,4 @@
-//! Draining [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md)
+//! Draining [ADR 0053](/docs/adr/0053-iteration-and-generators.md)
 //! § 3's three iterable shapes from native code.
 //!
 //! `Core\Arr::from` is the first member whose parameter is *whatever `foreach`

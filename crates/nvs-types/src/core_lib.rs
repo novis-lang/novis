@@ -175,7 +175,7 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
 /// `qname` names no registered class or `name` no constant on it.
 ///
 /// The counterpart of [`symbol_of`] for the one member kind that is not a
-/// call: a constant is [ADR 0011](../../../docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// call: a constant is [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
 /// "every constant is a class constant", and ADR 0010 § 3's inlining rule for
 /// an enum case is the one it follows — so what a consumer gets back is the
 /// *value*, materialized at the use site, with no storage anywhere.
@@ -664,7 +664,7 @@ fn merged_arm_fields(
 /// by the literal and never reaches here, and the same key is a key some other
 /// arm's call site does not write at all. So "no default" is `null` rather than
 /// an absence — which is also why a shape field is never nullable
-/// ([ADR 0135](../../../docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
+/// ([ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
 /// § 3), so that `null` cannot be mistaken for a written one.
 fn shape_fills(arms: &[&'static [nvs_stdlib::registry::CoreField]]) -> Vec<(String, ConstArg)> {
     merged_arm_fields(arms)
@@ -1127,7 +1127,7 @@ mod tests {
     /// out of it is untrusted however the operator wrote it, and a variable
     /// holding a URL still has to reach `Core\Http::allowUrl`. `Core\Cli::ask`
     /// and `Core\Cli::secret` are the last two and the same reading again —
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
     /// prompts answer what a person typed at a terminal, which is outside the
     /// program exactly as a request body is, and `secret`'s answer carries the
     /// other axis as well because a password is confidential *and* untrusted.
@@ -1157,7 +1157,7 @@ mod tests {
     /// fourteenth, fifteenth and sixteenth are `Core\Request\Part`'s three
     /// readers, and they are the same sentence read once more over a
     /// `multipart/form-data` body:
-    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
     /// § 2 marks `filename` and `contentType`, and `name` is marked with them
     /// because a peer chooses the field name it sends back as freely as it
     /// chooses the other two — `nvs_stdlib::request`'s `PART` doc owns why the
@@ -1169,7 +1169,7 @@ mod tests {
     /// readers, and they are the only rows here whose answer is a *union*: a
     /// capture is the segment text where the route declared `string` and the
     /// number the match already converted where it declared `int` or `uint`
-    /// ([ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// ([ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 5), so the mark sits on the one arm that can carry an injection.
     /// `name()` is deliberately not among them, which is the same test read the
     /// other way — a route's declared name is the unit's own literal. The
@@ -1337,7 +1337,7 @@ mod tests {
     /// two rows are swept here — the marked `captures()` and the sixth plain
     /// row, `prefix()`, which is plain because a mount row was expanded against
     /// the disk at boot rather than derived from the URL
-    /// ([ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+    /// ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
     /// § 2).
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {

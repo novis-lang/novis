@@ -1,6 +1,6 @@
-//! [ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
 //! § 5's in-flight ceiling, as
-//! [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 13 amended it: the arithmetic that turns a written `max_in_flight` into an
 //! effective one, and the one relaxed counter that refuses a request over it.
 //!
@@ -40,7 +40,7 @@
 //! which is a ceiling that binds the wrong thing. Relaxed is enough because
 //! nothing is published through this counter: it orders no memory and guards no
 //! data, it only answers how many requests are in flight, and it is not on the
-//! value path [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md)'s
+//! value path [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
 //! non-atomic refcount decision protects.
 //!
 //! **What it spends**, per that ADR: one `usize` for the whole process, one
@@ -172,7 +172,7 @@ impl Admission {
     /// racers take to give their increments back, and something has to be true
     /// about a number named "in flight" for [`in_flight`](Self::in_flight) to
     /// be worth exporting under
-    /// [ADR 0076](../../../docs/adr/0076-observability-export.md).
+    /// [ADR 0076](/docs/adr/0076-observability-export.md).
     #[must_use]
     pub fn admit(&self) -> Option<InFlight<'_>> {
         self.in_flight
@@ -201,7 +201,7 @@ impl Admission {
 /// ended.
 ///
 /// A guard rather than a decrement after the answer, for `serve::Served`'s
-/// reason: [ADR 0072](../../../docs/adr/0072-core-task-structured-concurrency.md)
+/// reason: [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
 /// § 5's cancellation tears a coroutine down where it parked, so the line after
 /// the answer is exactly the one a cancelled request never reaches — and a
 /// ceiling that leaks a place per cancelled client is a server that refuses

@@ -1,5 +1,5 @@
 //! Every declared class's **class constants**, folded to the compile-time
-//! values [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
+//! values [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
 //! § 2 needs — the fourth thing this crate resolves once and publishes,
 //! alongside [`crate::enums`], `crate::expr_table` and `crate::layout`.
 //!
@@ -28,7 +28,7 @@
 //! exactly what they were when they were [`ConstValue::Ineligible`].
 //!
 //! The one exception is a single **bit**, and that gap is why it is here.
-//! [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+//! [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
 //! § 4's attribute-payload sink has to know whether a constant's declared type
 //! carries `secret`, and that sink runs over the written payload expression,
 //! where the class name has no resolved `QName` to ask

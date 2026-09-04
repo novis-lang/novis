@@ -236,7 +236,7 @@ pub fn validate(
 /// Whether the tree configures the shared store § 3's `fleet` lease lives in.
 ///
 /// **`[cache.shared] url` is that store, and it is the only one.**
-/// [ADR 0059](../../../docs/adr/0059-cross-request-state-is-explicit.md) § 1's coherent tier is what
+/// [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) § 1's coherent tier is what
 /// every core and every host sees, `Core\Cache::shared()` opens it from this same key
 /// (`nvs_stdlib::cache`), and a lease no other host can read is not a lease — so what is asked here
 /// is whether that URL is written, not whether the tree configures a store of some kind. A block

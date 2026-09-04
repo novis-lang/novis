@@ -1,7 +1,7 @@
 //! The arithmetic rows compiled code cannot spell as a machine instruction.
 //!
 //! Every other operator in
-//! [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's table is
+//! [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's table is
 //! one or two Cranelift instructions, so `nvs-codegen` emits it inline and
 //! this module does not exist for it. `**` over two `float`s is the exception:
 //! there is no `fpow` instruction on any target Cranelift supports and no

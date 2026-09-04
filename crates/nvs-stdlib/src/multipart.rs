@@ -1,4 +1,4 @@
-//! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+//! [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
 //! §§ 1-2's multipart body: the parse that turns what arrived on the wire into
 //! the parts `Core\Request::files()` yields and the form fields
 //! `Core\Request::post()` reads.
@@ -18,7 +18,7 @@
 //!
 //! # Three bounds, and the one that is not here
 //!
-//! - [`MAX_PARTS`] — [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! - [`MAX_PARTS`] — [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 //!   § 4's part count, which bounds *bookkeeping*: a body far inside every byte
 //!   cap can still hold a million parts.
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
@@ -51,7 +51,7 @@ use nvs_runtime::RequestBody;
 
 use crate::request::REQUEST_BODY;
 
-/// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 /// § 4's `[limits] max_multipart_parts` default, as a constant until that row
 /// exists.
 ///

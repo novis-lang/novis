@@ -98,7 +98,7 @@ pub struct Class {
     /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,
     /// which means "nothing told this class", never "no slot is `secret`".
     ///
-    /// [ADR 0092](../../../docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
     /// § 5's redaction row states one rule about one record, and its property
     /// half cannot be decided anywhere below the checker: `secret` is a
     /// qualifier on a *declared* type, and every representation under it — the
@@ -119,7 +119,7 @@ pub struct Class {
     ///
     /// A straight copy of `nvs_types::layout::ClassLayout::public_fields`,
     /// which owns why the bit is carried rather than recomputed:
-    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
     /// § 2 makes a reflective read face the check ordinary code faces, and the
     /// keyword that decides it exists nowhere below the front end.
     /// `nvs-codegen` hands it to
@@ -143,7 +143,7 @@ pub struct Class {
     /// which exists until a function has been compiled, which is why only the
     /// bit that has no source below the front end travels here.
     pub methods: Vec<(String, String, bool)>,
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived JSON
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived JSON
     /// codec, in declaration order — empty for a class carrying no
     /// `#[Json\Derive]`, which is every class in a program that never writes
     /// the attribute.
@@ -156,7 +156,7 @@ pub struct Class {
     /// encoder and decoder can work an instance without asking the program
     /// anything.
     pub codec: Vec<nvs_types::CodecField>,
-    /// [ADR 0071](../../../docs/adr/0071-derived-codecs.md)'s derived **row**
+    /// [ADR 0071](/docs/adr/0071-derived-codecs.md)'s derived **row**
     /// codec — [`Self::codec`]'s twin for `#[Db\Derive]`, joined to the same
     /// slot order in the same place and carried through to
     /// `nvs_runtime::ClassDesc::db_codec`, which owns why the two lists are
@@ -243,7 +243,7 @@ impl BasicBlock {
     ///
     /// Both kinds of edge, because a consumer walking the CFG needs both:
     /// the terminator's own targets, and every
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md) error edge
+    /// [ADR 0002](/docs/adr/0002-error-propagation.md) error edge
     /// ([`Inst::on_error`]) an instruction in the body carries. Leaving the
     /// second kind out is how a landing block ends up looking unreachable
     /// from a block that plainly branches into it.
@@ -291,7 +291,7 @@ pub struct Inst {
     pub ty: Option<Ty>,
     /// What the instruction does.
     pub kind: InstKind,
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md)'s error edge:
+    /// [ADR 0002](/docs/adr/0002-error-propagation.md)'s error edge:
     /// the landing block a non-`OK` status returned by this instruction
     /// branches to.
     ///
@@ -307,7 +307,7 @@ pub struct Inst {
     /// [`InstKind::BinOp`], and unary `-` over the same two as an
     /// [`InstKind::UnOp`] — and **`/` over
     /// [`crate::ty::Ty::Float`]**. All of those throw
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
     /// `ArithmeticError`: the divisions on a zero divisor, and the other
     /// four on overflow, which that section makes a throw rather than a wrap
     /// or a promotion to `float`. The float `/` is on the list because § 4
@@ -360,7 +360,7 @@ pub enum InstKind {
     /// A reserved safepoint poll site — function entry (recursion) or a
     /// loop's back edge, the two sites the project-start "safepoints emitted
     /// from the first backend commit" decision names
-    /// ([`docs/adr/README.md`](../../../docs/adr/README.md)'s "Decisions
+    /// ([`docs/adr/README.md`](/docs/adr/README.md)'s "Decisions
     /// taken at project start" section) and that ADR 0018 § *Negative*
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
@@ -380,7 +380,7 @@ pub enum InstKind {
     ConstUint(u64),
     /// A `float` constant.
     ConstFloat(f64),
-    /// A `decimal` constant — [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md)
+    /// A `decimal` constant — [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
     /// § 2's untyped-until-placed literal, once a target type has placed it.
     ///
     /// Carried as the three parts rather than as the sixteen-byte image
@@ -415,7 +415,7 @@ pub enum InstKind {
     /// [`crate::ty::Ty::Bytes`], and the same one heap allocation with one
     /// implicit owner, since the two types share a representation and differ
     /// only in the tag a boxed value carries
-    /// ([ADR 0009](../../../docs/adr/0009-string-and-bytes.md) § 1).
+    /// ([ADR 0009](/docs/adr/0009-string-and-bytes.md) § 1).
     ///
     /// **No expression produces one**: there is no `bytes` literal in the
     /// language, so this exists for a `Core` signature's optional `bytes`
@@ -530,7 +530,7 @@ pub enum InstKind {
     /// `lsb`, falling back to `fallback` (the label `nvs_types` statically
     /// resolved, which a class the unit compiled no method table for still
     /// needs), then an indirect call through the ordinary
-    /// [ADR 0002](../../../docs/adr/0002-error-propagation.md) signature — so
+    /// [ADR 0002](/docs/adr/0002-error-propagation.md) signature — so
     /// every probe, status check and landing block is identical to
     /// [`InstKind::Call`]'s. Ownership is identical too: `receiver` and each
     /// argument are transferred, and the callee releases them.
@@ -579,7 +579,7 @@ pub enum InstKind {
         /// `None`.
         args: Vec<ValueId>,
     },
-    /// [ADR 0125](../../../docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+    /// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
     /// § 2's checked way *into* a `class<T>`: the [`Ty::ClassDesc`] of the
     /// class `subject` denotes, or a null one when it denotes no class that is
     /// a `base`. Both of § 2's rows are this one instruction, told apart by
@@ -794,7 +794,7 @@ pub enum InstKind {
         value: ValueId,
     },
     /// `$obj->$key` —
-    /// [ADR 0126](../../../docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
+    /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)
     /// § 4's keyed read, and [`InstKind::SlotGet`] with the name arriving as a
     /// **value** instead of as a `String` this instruction carries.
     ///
@@ -1059,7 +1059,7 @@ pub enum InstKind {
         value: ValueId,
     },
     /// `clone $obj` —
-    /// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    /// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
     /// § 1's shallow, same-heap, single-level copy. Defines a fresh
     /// [`crate::ty::Ty::Object`] with exactly one natural owner, exactly like
     /// [`InstKind::New`], whose every slot holds what the original's held with
@@ -1075,7 +1075,7 @@ pub enum InstKind {
     },
     /// Defines a value with the *same machine bits* as `operand` under a
     /// different [`crate::ty::Ty`] — the whole of a conversion that
-    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 calls
+    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5 calls
     /// "total, free ... same representation, reinterpreted": an enum to its
     /// backing `int`/`uint`, ADR 0009 § 3's `string as bytes`, and one shape
     /// that is not a language-level conversion at all — a
@@ -1455,7 +1455,7 @@ pub enum InstKind {
     /// Written like [`InstKind::Call`] in the source and resolved through the
     /// same `nvs_types::expr_table::ResolvedCall`, but lowered separately for
     /// one reason: there is no compiled Novis function to name. A `Core` member
-    /// is native Rust behind an [ADR 0002](../../../docs/adr/0002-error-propagation.md)
+    /// is native Rust behind an [ADR 0002](/docs/adr/0002-error-propagation.md)
     /// *helper* entry point, so this carries the linker symbol
     /// `nvs_stdlib::registry` registered rather than a `Class::method` label,
     /// and `nvs-codegen` emits it through the same path
@@ -1585,17 +1585,17 @@ pub enum Helper {
     /// [`Self::StrTruthy`]'s row. The one place the two differ is the
     /// one-octet buffer `"0"`, which is falsy for a `string` because that is
     /// PHP's numeric-string rule; a
-    /// [ADR 0009](../../../docs/adr/0009-string-and-bytes.md) `bytes` never
+    /// [ADR 0009](/docs/adr/0009-string-and-bytes.md) `bytes` never
     /// converts to a number, so carrying the quirk over would make a buffer
     /// falsy for a reason that does not apply to it.
-    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's
+    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's
     /// table states the row; `nvs_runtime::value_truthy`'s `Tag::Bytes` arm is
     /// the same rule reached through a `mixed`.
     BytesTruthy,
     /// `array<T>` truthiness: falsy iff empty, for any `T`.
     ArrayTruthy,
     /// Truthiness of a [`crate::ty::Ty::Tagged`] value —
-    /// [ADR 0035](../../../docs/adr/0035-truthy-boolean-context.md) § 2's last
+    /// [ADR 0035](/docs/adr/0035-truthy-boolean-context.md) § 2's last
     /// table row, where a `mixed` or a union "resolved dynamically per this
     /// table, dispatching on the value's runtime type".
     ///
@@ -1632,7 +1632,7 @@ pub enum Helper {
     /// `decimal` truthiness: falsy iff zero, at any scale.
     DecimalTruthy,
     /// `a + b` over [`crate::ty::Ty::Decimal`] —
-    /// [ADR 0054](../../../docs/adr/0054-decimal-scalar-type.md) § 3, which
+    /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3, which
     /// **throws** on either overflow kind rather than wrapping or promoting,
     /// so this and the four below carry ADR 0002's error edge like any call.
     ///
@@ -1709,7 +1709,7 @@ pub enum Helper {
     StrToUint,
     /// `$s as float` — the whole string must be an exact numeric literal.
     StrToFloat,
-    /// `$b as string` — [ADR 0009](../../../docs/adr/0009-string-and-bytes.md)
+    /// `$b as string` — [ADR 0009](/docs/adr/0009-string-and-bytes.md)
     /// § 3's checked row: the buffer is well-formed UTF-8 and becomes the
     /// `string` over the *same* allocation, or this throws. It never replaces,
     /// drops or truncates a bad sequence, so it is fallible and carries
@@ -1722,7 +1722,7 @@ pub enum Helper {
     /// checked half needs a helper, because only the checked half runs
     /// anything.
     BytesToString,
-    /// `$x as ?int` — [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// `$x as ?int` — [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
     /// § 1's non-throwing form of every row above that lands on `int`: the
     /// value `as int` would produce, or `null` where it would throw. Cannot
     /// fail, so unlike the nine throwing rows it carries no error edge, and
@@ -1803,7 +1803,7 @@ pub enum Helper {
     /// **An object operand is a `toString` call, not a tag row.** Both
     /// spellings above also land here for an object whose *static* type named
     /// no class to resolve against — an erased `object`
-    /// ([ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4), a
+    /// ([ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4), a
     /// union, a `Core`-owned class — and `nvs_runtime::stringify` answers it
     /// by asking the receiver's runtime class for ADR 0028 § 1's `toString`.
     /// The static path is unchanged and cheaper: where `nvs_types` did resolve
@@ -1847,7 +1847,7 @@ pub enum Helper {
     /// throws, which is ADR 0007 § 6's answer for `mixed` and a compile error
     /// (`E0708`) for anything the checker can name.
     TaggedToBytes,
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 2's
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 2's
     /// `array<T> as array<U>` row: the one row of that table whose check is
     /// per *element* rather than per value, so the only one that is a walk.
     ///
@@ -1872,7 +1872,7 @@ pub enum Helper {
     /// names throws, and so does an operand that is not an array.
     ToArrayOf,
     /// `$x as ?array<U>` —
-    /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md)
+    /// [ADR 0066](/docs/adr/0066-nullable-conversion-operator.md)
     /// § 1's non-throwing form of [`Self::ToArrayOf`], over that helper's one
     /// implementation of the walk rather than a second copy of it. Answers
     /// `null` exactly where the checked spelling throws, and cannot fault at
@@ -1896,7 +1896,7 @@ pub enum Helper {
     /// [`crate::ty::Ty::Object`] or [`crate::ty::Ty::Tagged`] operand, which are
     /// the two static types ADR 0088 § 5's sink carrier can arrive under.
     ///
-    /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
+    /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 1
     /// puts exactly one raw path in the language and § 2 makes it a *type*,
     /// `Core\Cli\Text`. A type can only be recognised while the operand still
     /// has one, so the conversion [`crate::lower::Lowering::concat_operand`]
@@ -1928,7 +1928,7 @@ pub enum Helper {
     /// error edge.
     Exit,
     /// The throw at the end of
-    /// [ADR 0047](../../../docs/adr/0047-literal-and-enum-case-types.md)
+    /// [ADR 0047](/docs/adr/0047-literal-and-enum-case-types.md)
     /// § 5's membership test: the operand reached none of the literals its
     /// target names, so the checked `as` § 4 describes fails.
     ///
@@ -1954,7 +1954,7 @@ pub enum Helper {
     /// The operand keeps the ordinary convention and is the caller's.
     LiteralMismatch,
     /// `a == b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 5's `mixed`-or-union case, the one pairing whose § 3 row is a runtime
     /// tag rather than a static type. **`!=` is this helper under
     /// [`UnOp::Not`]**, the arrangement [`Self::DecimalEq`] already uses.
@@ -1972,7 +1972,7 @@ pub enum Helper {
     Identical,
     /// `a == b` over two operands whose *representations* differ but whose
     /// types are one domain —
-    /// [ADR 0090](../../../docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
+    /// [ADR 0090](/docs/adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md)
     /// § 2's numeric row, which makes `int`, `uint` and `float` mutually
     /// comparable, and § 3's "mathematically equal across the whole domain".
     /// **`!=` is this helper under [`UnOp::Not`]**, the arrangement
@@ -1995,7 +1995,7 @@ pub enum Helper {
     /// `a < b` over that same pair of representations — the ordering half of
     /// [`Self::NumericEq`], and exact for the same reason.
     ///
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4 closes
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4 closes
     /// its own table with the rule this exists to keep: "a comparison has an
     /// exact answer in the mathematical integers and can be lowered as one".
     /// It says that about `int` against `uint`, and the `int`/`uint` against
@@ -2022,7 +2022,7 @@ pub enum Helper {
     /// [`BinOp::Cmp`] follows for a matched one.
     NumericCmp,
     /// `a < b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
     /// ordering row chosen from the operands' runtime **tags**, because a
     /// `mixed` or a union no longer names one.
     ///
@@ -2063,7 +2063,7 @@ pub enum Helper {
     /// four ordering operators.
     ValueCmp,
     /// `a + b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
-    /// [ADR 0007](../../../docs/adr/0007-explicit-type-system.md) § 4's
+    /// [ADR 0007](/docs/adr/0007-explicit-type-system.md) § 4's
     /// **arithmetic** rows chosen from the operands' runtime tags, exactly as
     /// [`Self::ValueLt`] chooses its ordering ones, and the last shape that
     /// used to reach `nvs_codegen::emit`'s representation catch-all.
@@ -2149,9 +2149,9 @@ pub enum Helper {
     /// looked up.
     ///
     /// This is
-    /// [ADR 0036](../../../docs/adr/0036-anonymous-object-shapes.md) § 4's
+    /// [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 4's
     /// deferral applied to a subscript rather than to a member access: a
-    /// `mixed` is [ADR 0007](../../../docs/adr/0007-explicit-type-system.md)
+    /// `mixed` is [ADR 0007](/docs/adr/0007-explicit-type-system.md)
     /// § 2's one unchecked position, so the read is the tag's question and not
     /// the site's, and every base whose *declared* type already answers it —
     /// a scalar, an untested `?array<T>`, a union naming no array — is
@@ -2181,7 +2181,7 @@ pub enum Helper {
     ValueIndexOptionalGet,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
-    /// [ADR 0033](../../../docs/adr/0033-secret-qualifier-for-confidential-values.md)
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 5. The comparison is **constant-time in the contents**: it reads
     /// every byte of two equal-length operands whatever they hold, so an
     /// attacker holding one side cannot recover the other a byte at a time by
@@ -2206,14 +2206,14 @@ pub enum Helper {
     /// which is the ordering AGENTS.md states.
     SecretEq,
     /// `$fn(...)` —
-    /// [ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)'s
+    /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)'s
     /// closure, called through the variable holding it. `args[0]` is the
     /// closure object and `args[1..]` its arguments in written order.
     ///
     /// **The one variadic [`Helper`]**, and the reason the row exists at all
     /// rather than this being an [`InstKind::Call`]: there is no resolved
     /// target to name. `callable` carries no parameter list
-    /// ([ADR 0031](../../../docs/adr/0031-callable-is-the-only-closure-type.md)
+    /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
     /// § 1), so the checker types the call `mixed` and cannot say which
     /// function a variable holds; what answers both questions is the closure
     /// object itself, whose class declares the one `invoke`
@@ -2440,7 +2440,7 @@ pub enum Terminator {
     /// probes; there is no second position table.
     ///
     /// A `FATAL` pushes nothing: it is not a `Throwable` at all
-    /// ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md)), which
+    /// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)), which
     /// is why the status travels to `nvs_trace_push` rather than being decided
     /// here.
     Propagate {
@@ -2461,7 +2461,7 @@ pub enum Terminator {
     /// name them; leaving the frame instead has to drop every one, exactly as
     /// [`Terminator::Propagate`] does at a site with no `catch` above it. A
     /// `FATAL` and an `EXITED` are the statuses that take this edge — no
-    /// `catch` admits either ([ADR 0020](../../../docs/adr/0020-error-escalation-ladder.md))
+    /// `catch` admits either ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md))
     /// — so before it existed a `try` region turned every one of them into a
     /// leak of the whole frame.
     Catch {

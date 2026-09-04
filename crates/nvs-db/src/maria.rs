@@ -9,7 +9,7 @@
 //! format that would then have two places to go wrong. What it does not borrow
 //! is the part a program can observe: which plugins a server may authenticate
 //! this driver with, what a vendor error code means
-//! ([ADR 0067 § 8](../../../docs/adr/0067-core-db.md): "MariaDB needs its own
+//! ([ADR 0067 § 8](/docs/adr/0067-core-db.md): "MariaDB needs its own
 //! code table, not MySQL's"), and — the slice after this one — `RETURNING`,
 //! which MySQL does not have. ADR 0067 argues at
 //! length that treating those as flags on a MySQL connection is a design error;
@@ -28,7 +28,7 @@
 //! `client_ed25519` and `parsec` are answered by `mysql_common`'s own
 //! implementations, behind its `client_ed25519` and `client_parsec` features —
 //! pure Rust, which is
-//! [ADR 0051 § 4](../../../docs/adr/0051-standard-library-tiers.md)'s answer
+//! [ADR 0051 § 4](/docs/adr/0051-standard-library-tiers.md)'s answer
 //! for exactly this case. That section names these two plugins in advance and
 //! allows two outcomes, a Rust implementation or a documented refusal; this is
 //! the first. Both send a signature over the server's nonce, so what leaves
@@ -96,7 +96,7 @@ pub const PARSEC: &str = "parsec";
 /// Claiming it costs a connection nothing and obliges it to nothing: it widens
 /// what this client *may* send and changes no packet the server sends back, so
 /// it is claimed at the handshake and spent later or not at all. **It is not
-/// spent**: [ADR 0067 § 4](../../../docs/adr/0067-core-db.md) runs `executeMany`
+/// spent**: [ADR 0067 § 4](/docs/adr/0067-core-db.md) runs `executeMany`
 /// as N executions on every driver, because a bulk command ends at a refusal
 /// where the loop carries on and cannot take a set that answers with rows. The
 /// bit stays claimed because that is the word the *server* answers in too, and
@@ -108,7 +108,7 @@ pub const PARSEC: &str = "parsec";
 /// into a result stream, which is a second packet shape on the row path for a
 /// report nothing in `Core\Db` surfaces. `MARIADB_CLIENT_EXTENDED_METADATA` and
 /// `MARIADB_CLIENT_CACHE_METADATA` are decisions about column metadata, and
-/// [ADR 0067 § 9](../../../docs/adr/0067-core-db.md)'s type map is read off the
+/// [ADR 0067 § 9](/docs/adr/0067-core-db.md)'s type map is read off the
 /// metadata MySQL's own framing already carries — a driver that asked for a
 /// wider or a suppressed form would be decoding two layouts to answer one
 /// table. `MARIADB_CLIENT_BULK_UNIT_RESULTS` changes what a bulk command
@@ -124,7 +124,7 @@ pub(crate) const MARIADB: Backend = Backend {
     extended: EXTENDED_CAPABILITIES,
 };
 
-/// The [ADR 0067 § 8](../../../docs/adr/0067-core-db.md) kind a MariaDB error
+/// The [ADR 0067 § 8](/docs/adr/0067-core-db.md) kind a MariaDB error
 /// code means.
 ///
 /// **Not [`crate::mysql`]'s table, and the divergence is not decorative.** The
@@ -414,7 +414,7 @@ impl MariaConn {
     /// of them is one rule. Where the two drivers will part is MariaDB's own
     /// `RETURNING`, which MySQL does not have and which is not here yet —
     /// `COM_STMT_BULK_EXECUTE` is not a second such place, because
-    /// [§ 4](../../../docs/adr/0067-core-db.md) runs `executeMany` as N
+    /// [§ 4](/docs/adr/0067-core-db.md) runs `executeMany` as N
     /// executions on every driver.
     ///
     /// # Errors
@@ -435,7 +435,7 @@ impl MariaConn {
         )
     }
 
-    /// [ADR 0067 § 4](../../../docs/adr/0067-core-db.md)'s `executeMany`: one
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// # Errors
@@ -452,7 +452,7 @@ impl MariaConn {
         )
     }
 
-    /// [ADR 0067 § 7](../../../docs/adr/0067-core-db.md)'s `START TRANSACTION`,
+    /// [ADR 0067 § 7](/docs/adr/0067-core-db.md)'s `START TRANSACTION`,
     /// or the `SAVEPOINT` a nested `transaction()` is.
     ///
     /// # Errors
@@ -498,7 +498,7 @@ impl MariaConn {
         crate::mysql::roll_back(&mut self.wire, &self.state, self.capabilities, &self.depth)
     }
 
-    /// [ADR 0067 § 13](../../../docs/adr/0067-core-db.md)'s reset, before this
+    /// [ADR 0067 § 13](/docs/adr/0067-core-db.md)'s reset, before this
     /// connection may be handed to another request.
     ///
     /// `COM_RESET_CONNECTION` on this server too, and it takes `self` by value
@@ -587,7 +587,7 @@ mod tests {
     /// delivered to an operator whose MariaDB is merely configured the way
     /// MariaDB documents. Asserting that no accepted plugin answers
     /// [`PluginError::FeatureRequired`] is what holds
-    /// [`Cargo.toml`](../../../Cargo.toml)'s two feature names in place.
+    /// [`Cargo.toml`](/Cargo.toml)'s two feature names in place.
     #[test]
     fn the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name() {
         for named in [MYSQL_NATIVE_PASSWORD, CLIENT_ED25519, PARSEC] {

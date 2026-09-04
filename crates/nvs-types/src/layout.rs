@@ -68,7 +68,7 @@ pub struct ClassLayout {
     ///
     /// Carried for [`Self::methods`]' reason exactly: visibility is a keyword
     /// on a declaration and nothing below the front end can see one, while
-    /// [ADR 0019](../../../docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
+    /// [ADR 0019](/docs/adr/0019-reflection-and-ast-parsing-are-core-features.md)
     /// § 2's rule — a reflective read faces the check ordinary code at that
     /// site faces — has to be answered at run time, of a value whose class the
     /// checker never saw. `nvs_ir::ir::Class::public_fields` carries it down and

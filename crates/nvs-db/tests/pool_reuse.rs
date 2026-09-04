@@ -1,4 +1,4 @@
-//! [ADR 0067](../../../docs/adr/0067-core-db.md) § 13's pool against a real
+//! [ADR 0067](/docs/adr/0067-core-db.md) § 13's pool against a real
 //! server: two requests on one core share one connection, and it is the *same*
 //! connection rather than a second one that answers as well; with
 //! `pool = false` they share nothing, which is the same question asked of the
@@ -36,7 +36,7 @@
 //! reset is asked to have removed a **session variable** on MySQL rather than a
 //! temporary table, because there the variable is the one whose absence has a
 //! single spelling — a missing temporary table is an error rather than a value,
-//! and [`handshake`](./handshake.rs) is where that half is asserted.
+//! and [`handshake`](/crates/nvs-db/tests/handshake.rs) is where that half is asserted.
 //!
 //! **MariaDB is a third telling of the reuse case and not of the two bounds.**
 //! `lifetime` and `idle` are decided by `nvs_runtime::pool` before any driver is

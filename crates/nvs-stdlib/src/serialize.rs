@@ -1,4 +1,4 @@
-//! `Core\Serialize` — [ADR 0023](../../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+//! `Core\Serialize` — [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 //! § 2's externalizing carrier, and nothing else.
 //!
 //! There is no walk in this file. The graph copy is
@@ -40,7 +40,7 @@ use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// ADR 0023 § 2's `encode`/`decode` pair, taking
-/// [ADR 0063](../../../../docs/adr/0063-core-api-conventions.md) R6's naming.
+/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R6's naming.
 /// PHP's bare `serialize`/`unserialize` spellings do not exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Serialize",

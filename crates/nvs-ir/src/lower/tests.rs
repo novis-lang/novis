@@ -446,7 +446,7 @@ fn a_compound_assignment_evaluates_its_target_once() {
 }
 
 /// ADR 0007 § 4 gives `**` a row for every numeric representation but the
-/// `decimal` [ADR 0054](../../../../docs/adr/0054-decimal-scalar-type.md)
+/// `decimal` [ADR 0054](/docs/adr/0054-decimal-scalar-type.md)
 /// § 3 refuses, and lists it beside `+`, `-` and `*` — so the two integer
 /// rows throw and the `float` one, being `f64::powf`, cannot.
 ///
@@ -3843,7 +3843,7 @@ fn a_resolved_route_link_releases_its_params_array() {
 /// A file that runs out of statements seals with `1` when a `require` site
 /// entered it and with `null` when it is the program's entry frame — ADR
 /// 0006 § *Decision*'s "deliberately not `require`'s `1`", against
-/// [ADR 0021](../../../docs/adr/0021-single-file-inclusion-construct.md) § 3.
+/// [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md) § 3.
 ///
 /// Both sides in one test, over the *same* source, because they are one
 /// decision with two halves: a lowering that moved both would still read

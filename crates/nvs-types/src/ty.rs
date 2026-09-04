@@ -152,7 +152,7 @@ pub enum Ty {
     /// Deliberately **not** [`Self::IntLiteral`] of the case's backing value,
     /// which is the whole of § 3: folding it that way would let a bare `int`
     /// satisfy an enum-typed parameter, reopening the hole
-    /// [ADR 0010](../../../docs/adr/0010-enums-are-a-value-type.md) § 5 closed
+    /// [ADR 0010](/docs/adr/0010-enums-are-a-value-type.md) § 5 closed
     /// by making `int → Mode` a checked conversion. An enum-case type and an
     /// int literal type that happen to share a value are never unified by
     /// canonicalisation, because they are not the same `Ty`.
@@ -213,7 +213,7 @@ pub enum Ty {
     /// [`nvs_hir::SymbolTable`], not this representation.
     ///
     /// The argument list is empty for all but two names.
-    /// [ADR 0053](../../../docs/adr/0053-iteration-and-generators.md) § 2
+    /// [ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 2
     /// lets a *compiler-owned* generic interface be written at a concrete
     /// type — `Iterator<int>` — and `nvs_hir::interfaces::RESERVED` is the
     /// closed roster of what may be. Anything else written with arguments is

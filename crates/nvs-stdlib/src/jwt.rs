@@ -1,4 +1,4 @@
-//! `Core\Jwt` — [ADR 0060](../../../../docs/adr/0060-application-security-protocols.md)
+//! `Core\Jwt` — [ADR 0060](/docs/adr/0060-application-security-protocols.md)
 //! § 1's fourth roster entry, and the one whose historical failures are all
 //! failures of *choice*: an algorithm chosen by the token, an expiry chosen by
 //! a flag, a verdict chosen by a falsy return.
@@ -52,7 +52,7 @@
 //! verification's only useful continuation is *with the claims*, and a member
 //! answering `?array` would put the entire failure surface behind a `??` that
 //! a loose comparison can flatten. § 4's third bullet says so directly, and it
-//! is the same reasoning [ADR 0056](../../../../docs/adr/0056-regex-engine-policy.md)
+//! is the same reasoning [ADR 0056](/docs/adr/0056-regex-engine-policy.md)
 //! § 2 applies to a budget exhaustion.
 //!
 //! Every way of not being a token this key signed is **one sentence**: three
@@ -80,7 +80,7 @@
 //! laundered. So every claim comes back as text: a JSON string as itself, a
 //! number in its own spelling, `true`/`false` as those words. **A claim whose
 //! value is `null`, an object or an array is refused**, per
-//! [ADR 0095](../../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
 //! — rendering a nested object as its JSON text would invent a spelling
 //! nothing else in this crate reads back, and `null` and `""` have no honest
 //! distinction once both are text.
