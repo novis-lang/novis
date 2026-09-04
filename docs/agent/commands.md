@@ -345,11 +345,11 @@ adding to a list when a feature lands.
 `--emit-goals` writes a whole `loop.py --chain` under `docs/agent/goals/dossier/` and prints the command
 that starts it. **Deciding to run it is the user's**, like `doc-cleanup.md` and `dependency-update.md`,
 for the same reason: it decides what several hundred sessions will do next. The user made that decision
-on 2026-09-04, and `--append-chain` is what it turned into — [goal 20](goals/20-dossier.md) is one
+on 2026-09-04, and `--append-chain` is what it turned into — [goal 50](goals/50-dossier.md) is one
 session whose whole job is to fire the emitter at `docs/agent/goals/chain.toml`, so the roster's own
 goals land on the end of the chain the driver is already walking and the run continues into them without
 a restart. `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by
-`md` path, so goal 20's check re-runs it under `--dry-run` and passes only on *nothing appended*.
+`md` path, so goal 50's check re-runs it under `--dry-run` and passes only on *nothing appended*.
 
 Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
 writes the chain that is left rather than the one that was. With `--append-chain` the generated files

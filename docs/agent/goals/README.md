@@ -56,7 +56,14 @@ proposal arrived in, and the operator half was rejected — `mixed as Foo` is al
 `as` is a closed laundering set, and `X as ?Foo` would need two inputs to decide its legality. ADR 0066
 § 3's *the class row is absolute* survives intact; only the sites that already convert implicitly change.
 
-**Then the chain turns around.** [20 dossier](20-dossier.md) is the last hand-written entry and it writes
+**Then one more, added after goal 19 was written**: [20 unix-sockets](20-unix-sockets.md) is
+[ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md) — the grant over a
+store an operator configured stops naming a host (`cache.shared`, unscoped, on `mail.send`'s precedent),
+which removes the loopback double-grant *and* the obstacle to a Unix socket, since `pin_host` needed an
+address and a socket path has none. Its stage 4 puts an `AF_UNIX` connect under three of goal 5's
+drivers. It goes in front of the dossier because that entry stops adding surface and this one adds some.
+
+**Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals --append-chain
 docs/agent/goals/chain.toml`, which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
 whole roster — one goal per group of shipped features owing their four proofs — onto the end of *this*
@@ -66,7 +73,7 @@ so the shape they share is cheapest to fix there. The sweep on 2026-09-04 said 7
 complete, which emits as 93 goals over 794 owed. That pass is why
 [optimization-prompt.md](../optimization-prompt.md) now carries menu item 8 — a defect in a generated
 goal is fixed in the emitter and re-emitted, never by hand — which is also what the *automatic* pass
-reaches for once the loop is walking goals a tool wrote. Everything from goal 21 on is therefore generated, and the run continues into it without a
+reaches for once the loop is walking goals a tool wrote. Everything from goal 51 on is therefore generated, and the run continues into it without a
 restart: `Chain.refresh()` re-reads this file when a goal goes green, adopting growth and refusing a
 rewrite, because `.loop/chain.json` is an index into the list and every switch has already folded one
 entry's checks into the next. Goal 20 is last for the reason a proof is written at all — it pins
@@ -108,8 +115,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [17 test-request](17-test-request.md) | M8, ADR 0079 § 18 | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + ADR 0013/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
-| [20 dossier](20-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
-| 21 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
+| [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
+| 21–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [50 dossier](50-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| 51 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
 
 ## The chain contract
 
@@ -164,7 +173,7 @@ TOML for a doubled floor before restarting.
 
 ## What stops the run
 
-- **The last goal goes green** — which, since goal 20, means the last *generated* one: every group on
+- **The last goal goes green** — which, since goal 50, means the last *generated* one: every group on
   ADR 0134's roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
   The parity program's own gate is still goal 6's final check —
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151

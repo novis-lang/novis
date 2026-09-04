@@ -1,4 +1,4 @@
-# Loop goal 20 — queue the dossier
+# Loop goal 50 — queue the dossier
 
 **One session, one command, and the chain is a hundred goals longer.**
 [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md) settled that every shipped feature
@@ -18,7 +18,9 @@ times.** Emission is stage 2 and takes minutes; stage 3 is the goal.
 
 One goal per group of features sharing an implementing file set, each with its own `[context]` manifest,
 each gated by `dossier.py --verify --group <G>`. As of the emission that motivated this goal that is
-**93 goals over 794 owed features**, appended as goals 21 onward. The number is not frozen here: whatever
+**93 goals over 794 owed features**, appended as goals 51 onward — the emitter numbers what it appends
+from the highest number already in the chain, so hand-written entries landing in front of this one never
+move them. The number is not frozen here: whatever
 the roster owes on the day this runs is what gets written, and a group that owes nothing is left out.
 
 ## Stage 2 — the item list
@@ -103,7 +105,7 @@ is recorded in `docs/agent/commands.md` § the dossier: the emitter may now be f
 `--append-chain` and `Chain.refresh()` are what turn "then somebody restarts the driver" into "the run
 continues". Nothing else here is new design.
 
-**Do not start the proofs.** The first `Core` class is goal 21's, with goal 21's manifest and goal 21's
+**Do not start the proofs.** The first `Core` class is goal 51's, with goal 51's manifest and goal 51's
 floor. A session that writes a few examples here spends the session's fixed cost twice for them. Stage 3
 is the exception that proves it: writing *one* example and *one* attack to feel the shape is a
 measurement, and it belongs in the report rather than in a commit under `docs/examples/`.

@@ -21,7 +21,7 @@ stage 2 with headroom left.
       `python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml`. It prints what
       it wrote and the goal range it appended.
 - [ ] **Read three or four of the generated `.toml`s** — one `Core` class, one `lang:` chapter, one
-      `tools:` chapter. The three things to check are in `20-dossier.md`'s item list: the `[context]`
+      `tools:` chapter. The three things to check are in `50-dossier.md`'s item list: the `[context]`
       manifest matches real modules, the `--group` argument spells the group the way `dossier.py` does,
       and the batch is a file set rather than an alphabetical run.
 - [ ] **Any fix goes in `goal_toml()` / `goal_prose()` in `tools/dossier.py`**, then re-emit. A hand-edit
@@ -35,10 +35,10 @@ stage 2 with headroom left.
 
 ## Backlog
 
-- When this goal's checks go green the driver refreshes the chain and walks into goal 21 — the first
+- When this goal's checks go green the driver refreshes the chain and walks into goal 51 — the first
   emitted dossier goal — without a restart. `Chain.refresh()` in `tools/loop.py` is that half; if the
   console does not print `chain: docs/agent/goals/chain.toml grew by N goal(s)` after `GOAL REACHED`,
   that is the thing to look at, not the emitter.
-- The proofs themselves start at goal 21 and belong to no session of this one. The one exception is
+- The proofs themselves start at goal 51 and belong to no session of this one. The one exception is
   stage 3: writing a single example and a single attack to feel the shape is a measurement, and it
   belongs in the report rather than in a commit.

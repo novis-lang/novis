@@ -30,4 +30,4 @@ the id cannot be a compile-time-folded constant.
   the ADR amendment, which is prose and cheap.
 - When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`.
   `docs/agent/goals/chain.toml` is the schedule and this does not restate it: the hand-written entries
-  end at goal 20, whose emitter writes everything from 21 on.
+  end at goal 50, whose emitter writes everything from 51 on.

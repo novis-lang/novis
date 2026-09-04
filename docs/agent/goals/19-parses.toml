@@ -4,8 +4,8 @@
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# This is the chain's last entry. When its list goes green there is no goal 20 to switch to, and the
-# driver stops with the chain exhausted rather than with a failure.
+# When this list goes green the driver switches to goal 20 -- ADR 0142's Unix sockets -- and then to
+# goal 50, the dossier, whose emitter writes everything after it.
 
 files = [
   "examples/parses.nvs",

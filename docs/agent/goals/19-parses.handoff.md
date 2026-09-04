@@ -55,5 +55,6 @@ changes** — its rows at `:139` and `:148` already are the contract.
   a `tainted string` parameter. If it does not, `parse`'s parameter takes ADR 0088 § 2's
   `Qual::Contagious` admission instead, which is what every `Core` member in this position already uses.
   Decided-and-recorded in ADR 0024's body, never `BLOCKED`.
-- **When this goal's last check goes green the chain is exhausted.** There is no goal 20: the driver
-  stops with the chain finished rather than with a failure, and what happens next is the user's call.
+- **When this goal's last check goes green the driver takes goal 20** — ADR 0142's Unix sockets — and
+  then goal 50, the dossier, which appends everything after it. `docs/agent/goals/chain.toml` is the
+  schedule and this does not restate it.

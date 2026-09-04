@@ -227,17 +227,35 @@ handoff = "docs/agent/goals/19-parses.handoff.md"
 milestone = "M7"
 preflight = "docker"
 
+# ADR 0142's two halves: the grant over a store an operator configured stops naming a host, and once it
+# does, a store with no address -- a Unix socket -- is reachable. Before the dossier because that entry
+# turns the chain around and stops adding surface, and after 19 because its stage 4 adds a transport
+# under the drivers goal 5 built and its stage 2 edits the door goal 4 wrote.
+[[goal]]
+name = "20 unix-sockets"
+md = "docs/agent/goals/20-unix-sockets.md"
+toml = "docs/agent/goals/20-unix-sockets.toml"
+handoff = "docs/agent/goals/20-unix-sockets.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. Goal 20 writes no proof: it
 # fires `dossier.py --emit-goals --append-chain` at this file, so ADR 0134's roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
-# `Chain.refresh()` in loop.py walks into it without a restart. Everything after goal 20 is generated;
+# `Chain.refresh()` in loop.py walks into it without a restart. Everything after goal 50 is generated;
 # nothing after it is hand-written, and it is last because a proof is only worth writing over a feature
 # that has stopped moving.
+#
+# **Numbered 50 rather than 21 on purpose**, leaving 21-49 free: a goal's number is its identity in
+# every file that cites it, and `dossier.py`'s emitter numbers what it appends from `max(number) + 1`
+# (`append_to_chain`), so the generated goals are 51 onward however many hand-written entries land in
+# front of them. Inserting a new goal before this one therefore costs one `[[goal]]` block and nothing
+# else -- which is not what it cost when this entry was 20 and every insert renumbered it.
 [[goal]]
-name = "20 dossier"
-md = "docs/agent/goals/20-dossier.md"
-toml = "docs/agent/goals/20-dossier.toml"
-handoff = "docs/agent/goals/20-dossier.handoff.md"
+name = "50 dossier"
+md = "docs/agent/goals/50-dossier.md"
+toml = "docs/agent/goals/50-dossier.toml"
+handoff = "docs/agent/goals/50-dossier.handoff.md"
 milestone = "dossier"
 # Its own check is one Python command. Its floor is goals 4-19, which is where the containers are.
 preflight = "docker"

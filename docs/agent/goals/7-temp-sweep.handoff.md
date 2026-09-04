@@ -35,5 +35,5 @@ liveness, never age, and every ambiguity resolves toward *skip*.
   prose.
 - When this goal's last check goes green the driver takes goal 8 — `Core\Program::id()`,
   `docs/agent/goals/8-program-id.md`. `docs/agent/goals/chain.toml` is the schedule and this does not
-  restate it: M4B is entries 12–15, the hand-written entries end at goal 20, and everything from 21 on is
-  what goal 20's emitter writes.
+  restate it: M4B is entries 12–15, the hand-written entries end at goal 50, and everything from 51 on is
+  what goal 50's emitter writes.

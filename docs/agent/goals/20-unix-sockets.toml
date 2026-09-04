@@ -1,0 +1,153 @@
+# Goal 20 -- a configured store is authorized by its configuring, and may be a Unix socket.
+# The acceptance test, as data.
+#
+# `20-unix-sockets.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/cache-shared-socket.nvs",
+]
+
+[context]
+
+modules = [
+  # The roster `cache.shared` joins, and `Scope`/`denied_by_default` beside it.
+  "crates/nvs-config/src/capability.rs",
+  # `[cache.shared]` and `[db.<name>]`'s typed blocks -- where the two spellings are accepted.
+  "crates/nvs-config/src/tree.rs",
+  # The door: `open_configured`, `endpoint`, `open_shared`, and the tier the local half holds.
+  "crates/nvs-stdlib/src/cache.rs",
+  # The wire -- three commands over the parking stream, handed a transport rather than choosing one.
+  "crates/nvs-stdlib/src/cache/redis.rs",
+  # The door's second caller; its refusal sentence is its own.
+  "crates/nvs-stdlib/src/ratelimit.rs",
+  # `pin_host`/`pinned_address` -- what stage 2 stops calling, and why it could not answer a path.
+  "crates/nvs-runtime/src/capability.rs",
+  # `NvsUnix`, already carried: connect, connect_timeout, and why there is no Windows fallback.
+  "crates/nvs-host/src/net.rs",
+  # Where the two transports meet for a driver.
+  "crates/nvs-db/src/conn.rs",
+  # The three drivers that gain an AF_UNIX connect, and the one that refuses a path.
+  "crates/nvs-db/src/pg.rs",
+  "crates/nvs-db/src/mysql.rs",
+  "crates/nvs-db/src/tds.rs",
+  # `is_relative_file` -- the neighbouring predicate, and deliberately not the answer.
+  "crates/nvs-config/src/db.rs",
+]
+
+rules = ["0142", "0058", "0059", "0075", "0067", "0132", "0118", "0097", "0005", "0004"]
+
+# 0142 whole: it is this goal's design, already written, and every question the goal meets is in it.
+adrs = ["0142", "0058", "0059"]
+
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+  'Running things > a leak whose',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries the whole parity program, so every container it needs is already here. The socket
+# legs of stage 4 run against the same services over a mounted socket rather than a published port.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the grant names the store, not a host. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grant"
+name = "nvs-stdlib (the configured store's grant)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_configured_store_needs_no_address_grant",
+  "a_configured_store_is_refused_without_its_own_grant",
+  "a_loopback_store_needs_no_net_internal_exception",
+  "the_limiter_and_the_tier_ask_one_grant_at_one_door",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grant"
+name = "nvs-config (the roster)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_configured_url_without_its_grant_is_a_boot_warning",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the transport for the cache tier. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the cache transport"
+name = "nvs-stdlib (a store over a socket)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_record_written_through_a_socket_is_read_back_through_it",
+  "a_unix_url_is_refused_where_the_platform_has_no_transport",
+  "a_program_supplied_socket_path_is_never_a_target",
+]
+
+[[check]]
+kind = "exact"
+stage = "3 the cache transport"
+file = "examples/cache-shared-socket.nvs"
+want = [
+  "put and get agree across the socket",
+  "the limiter and the tier share one connection",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the transport for the drivers. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the driver transport"
+name = "nvs-db (a driver over a socket)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_postgres_socket_directory_becomes_the_engines_own_name",
+  "a_mysql_socket_path_is_opened_as_written",
+  "a_tds_target_refuses_a_socket_path",
+  "a_driver_answers_the_same_over_either_transport",
+]
