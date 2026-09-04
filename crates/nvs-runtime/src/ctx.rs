@@ -4341,13 +4341,15 @@ impl Ctx {
 ///
 /// **It interprets nothing.** The verb is the bytes the peer wrote, the path is
 /// what is left of the target after ADR 0097 § 4 step 2 stripped the matched
-/// mount's prefix, and the query is the raw string after the `?` with no
-/// percent-decoding and no bracket convention applied. Every reading of those
-/// three — which of `Core\Http\Method`'s eight cases a verb is, what a query
-/// parameter's name means — belongs to `nvs_stdlib::request`, because the
-/// rosters and the conventions are that crate's and a second copy of either
-/// here would be a second answer. This type is the carrier and nothing else,
-/// which is also what lets it exist in a crate that has never heard of HTTP.
+/// mount's prefix, the query is the raw string after the `?` with no
+/// percent-decoding and no bracket convention applied, and a header is one
+/// entry per field line in the spelling and the order the peer sent it. Every
+/// reading of those — which of `Core\Http\Method`'s eight cases a verb is, what
+/// a query parameter's name means, that a field name matches without regard to
+/// case — belongs to `nvs_stdlib::request`, because the rosters and the
+/// conventions are that crate's and a second copy of either here would be a
+/// second answer. This type is the carrier and nothing else, which is also what
+/// lets it exist in a crate that has never heard of HTTP.
 ///
 /// **Everything on it is `tainted`** in the sense
 /// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
@@ -4355,8 +4357,9 @@ impl Ctx {
 /// carried by the registry rows of the members that read this and not by any
 /// field here — there is no representation of a qualifier at runtime.
 ///
-/// **What it spends:** three short allocations per served request, and nothing
-/// at all for a process serving none.
+/// **What it spends:** three short allocations per served request, plus two per
+/// header field line and one growing vector to hold them, and nothing at all
+/// for a process serving none.
 #[derive(Debug, Clone)]
 pub struct Inbound {
     /// The method token the peer wrote, verbatim and un-uppercased.
@@ -4368,17 +4371,34 @@ pub struct Inbound {
     /// no query at all — the two are not distinguished, because a query with no
     /// pairs and no query yield the same empty set of parameters.
     query: Box<str>,
+    /// One entry per header field line, in arrival order, name first.
+    ///
+    /// **A list rather than a map, for [`DeclaredHeader`]'s reason read the
+    /// other way round.** A request may carry a field name more than once and
+    /// the values are not interchangeable — `X-Forwarded-For` and `Via` are
+    /// ordered, `Accept` is a set — so a map would answer with the last line
+    /// and lose the rest, which is the silent-wrong-answer shape rather than a
+    /// storage choice. Nothing here folds two lines together: whether one name
+    /// standing twice is read as one combined value or as two is
+    /// `nvs_stdlib::request`'s, and it answers both.
+    ///
+    /// A name is a token and so is text; a **value is bytes**, because RFC 9110
+    /// § 5.5 still admits `obs-text` and refusing one is the door's decision to
+    /// make rather than this carrier's. A Novis `string` is bytes either way,
+    /// so nothing downstream pays for it.
+    headers: Vec<(Box<str>, Box<[u8]>)>,
 }
 
 impl Inbound {
     /// The three facts a request arrives with, as whoever accepted it read
-    /// them.
+    /// them, and no headers yet — [`Self::push_header`] adds those.
     #[must_use]
     pub fn new(method: &str, path: &str, query: &str) -> Self {
         Self {
             method: method.into(),
             path: path.into(),
             query: query.into(),
+            headers: Vec::new(),
         }
     }
     /// The verb, verbatim.
@@ -4395,6 +4415,26 @@ impl Inbound {
     #[must_use]
     pub fn query(&self) -> &str {
         &self.query
+    }
+    /// Adds one header field line, which joins whatever is already here rather
+    /// than replacing a line of the same name — the inbound half of
+    /// [`Ctx::append_header`], and never of [`Ctx::declare_header`].
+    ///
+    /// Called once per field line by whoever accepted the request, in the order
+    /// the lines arrived, before the program runs. Order is part of the value:
+    /// RFC 9110 § 5.3 makes two lines of one name equivalent to one comma-joined
+    /// value *in the order received*, so a writer that sorted them would have
+    /// changed what the peer said.
+    pub fn push_header(&mut self, name: &str, value: &[u8]) {
+        self.headers.push((name.into(), value.into()));
+    }
+    /// Every header field line, in arrival order, as `(name, value)`.
+    ///
+    /// One entry per line and not per name: a reader that wants the two folded
+    /// together does the folding, and one that wants them apart cannot get them
+    /// back from a fold.
+    pub fn headers(&self) -> impl ExactSizeIterator<Item = (&str, &[u8])> {
+        self.headers.iter().map(|(name, value)| (&**name, &**value))
     }
 }
 
