@@ -41,6 +41,12 @@ Both report; neither deletes, and neither exits non-zero over a size (docs/agent
 different traps, and a path a bullet quotes may be gone precisely because the trap was closed --
 only a reader can tell either way.
 
+Once a reader has told, `DELIBERATE_STALE` below records it, keyed by the exact `(selector, path)`
+pair. Those bullets still print, under their own heading, but out of the list `loop-supervisor.py`
+reads -- because a bullet whose whole subject is a path that is gone keeps that signal raised
+forever, and a signal that cannot clear schedules an optimization pass whether or not anything
+drifted.
+
 **One finding does gate, and `--check` exits 1 on it: a selector that does not resolve to exactly
 one bullet.** That is not a judgement call. `orient.py` fetches a trap by selector and a goal's
 `[context] playbook` names bullets that way, so a lead-in two bullets share, or one no selector
@@ -79,6 +85,28 @@ TREE_DIRS = ("crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "f
 #: `docs/agent/loop-goal.toml:re:a_named_connection_is_memoized` as a missing path for as long as
 #: it only knew about `:\d+`, and an optimization pass paid to re-derive that it was not.
 PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
+
+#: Bullets whose missing path is the whole point of the trap -- they quote a path that is gone, or
+#: that was never right, *because that is what the bullet is about*. Keyed by the exact
+#: `(selector, path)` pair, so any other path in the same bullet, and this path in any other
+#: bullet, still reports normally.
+#:
+#: This exists because `loop-supervisor.py` fires an optimization pass unless the list below says
+#: `none`, and these two can never leave it: the trap they describe is the stale path. Three passes
+#: in a row read them and wrote down that they were deliberate, and the fourth was scheduled on
+#: their account alone -- a signal that cannot clear is a constant, and it spends a pass whether or
+#: not anything drifted. They are still printed, under their own heading, so the next reader sees
+#: them without the loop paying to schedule that reader.
+#:
+#: Add an entry only after reading the bullet and recording the finding in `.loop/optimization/`.
+#: An entry naming a bullet that no longer exists is reported rather than ignored.
+DELIBERATE_STALE = {
+    ("Tooling > instaforceupdate=1 rewrites", "crates/nvs-ir/src/lower.rs"):
+        "the `source:` header the snapshots still carry from before the split -- the stale header "
+        "IS the trap",
+    ("Writing a test case > a live-server", "crates/nvs-db/tests/queue.rs"):
+        "the wrong home a stage 8 item named; the case belongs at crates/nvs-stdlib/tests/queue.rs",
+}
 
 
 def nbytes(text: str) -> int:
@@ -427,6 +455,7 @@ def run_check(text: str, every: list[dict]) -> int:
     print("== PATHS A BULLET NAMES THAT ARE NOT IN THE TREE")
     stale = 0
     splits = 0
+    deliberate: list[tuple[str, str, str]] = []
     for b in every:
         gone = []
         for raw in re.findall(r"`([^`]+)`", b["body"]):
@@ -437,7 +466,11 @@ def run_check(text: str, every: list[dict]) -> int:
             if not cand.startswith(TREE_DIRS) or any(m in cand for m in ("*", "<", "…", "...")):
                 continue
             if not (ROOT / cand).exists():
-                gone.append(cand)
+                why = DELIBERATE_STALE.get((b["selector"], cand))
+                if why is not None:
+                    deliberate.append((b["selector"], cand, why))
+                else:
+                    gone.append(cand)
         if gone:
             stale += 1
             print(f"  {b['selector']}")
@@ -452,13 +485,33 @@ def run_check(text: str, every: list[dict]) -> int:
                 else:
                     print(f"      {g}")
     if not stale:
-        print("  none -- every path any bullet names still exists")
+        # `loop-supervisor.py` reads this sentence to decide whether the stale-path signal fired,
+        # so the first clause of it is a contract. What follows it is not.
+        tail = f", or is quoted on purpose ({len(deliberate)} below)" if deliberate else ""
+        print(f"  none -- every path any bullet names still exists{tail}")
     else:
         print(f"\n  {stale} bullet(s). A trap describing a file that is gone is usually a trap")
         print("  someone closed. Read it before deleting it; this reports, it never prunes.")
         if splits:
             print(f"  {splits} of the paths above are marked `split into` -- those are the weakest")
             print("  signal of the lot, because the code moved rather than went away.")
+
+    if deliberate:
+        print("\n== PATHS A BULLET QUOTES ON PURPOSE  (already read; not a signal)")
+        for selector, path, why in deliberate:
+            print(f"  {selector}")
+            print(f"      {path}  -- {why}")
+        print(f"\n  {len(deliberate)} bullet(s), held in `DELIBERATE_STALE` in this script. They are")
+        print("  kept out of the list above so the supervisor's signal can reach `none`; the trap")
+        print("  each one describes IS its missing path, so no pass can ever prune them.")
+
+    unseen = set(DELIBERATE_STALE) - {(s, p) for s, p, _ in deliberate}
+    if unseen:
+        print("\n== DELIBERATE_STALE ENTRIES THAT NO LONGER APPLY")
+        for selector, path in sorted(unseen):
+            print(f"  {selector}  ->  {path}")
+        print(f"\n  {len(unseen)} entry(s) matched no bullet: either the bullet was reworded or")
+        print("  deleted, or the path is back in the tree. Drop the entry from this script.")
 
     print("\n== SELECTORS THAT DO NOT RESOLVE TO EXACTLY ONE BULLET")
     bad = 0
