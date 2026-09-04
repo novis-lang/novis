@@ -7497,6 +7497,16 @@ sibling in the same namespace unqualified.
   `crates/nvs-server/src/serve.rs:1021` is the worked one and ADR 0072 § 4 is why. Copy the tail in
   the same edit as the spawn — it is three lines written with the loop and half an hour found
   afterwards.
+- **`nvs_host::sleep` re-arms past a wake on purpose, so a loop that has to return when a *peer*
+  changes state needs `nvs_host::timer::wait_until` — which is not in the crate's re-export list and
+  therefore does not turn up beside `sleep` where you look for it.** ADR 0073 § 6's `queue` holds one
+  fire until the run before it ends, and the tick was sleeping to the next interval: the `Ran` guard's
+  `parent.wake()` was delivered and swallowed, because `park_until` loops until its deadline for the
+  caller that asked for an instant. `crates/nvs-host/src/timer.rs`'s own docs state the split in one
+  paragraph — a deadline the caller asked for, versus a deadline that is only the bound on a wait —
+  and the repair is one line at the wait rather than a second timer. `nvs_host::` alone will not show
+  you `wait_until`: `grep -n "pub fn" crates/nvs-host/src/timer.rs` is the list, and the same is true
+  of every other `pub mod` in that crate whose `pub use` line is a subset.
 
 ## Divergences and refusals already pinned
 

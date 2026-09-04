@@ -150,14 +150,15 @@ adrs = [
   # enforces CSRF" and "the dispatcher enforces access" is stated, 0096 § 4 is the CSRF check itself, and
   # § 4 is the capture grammar the remaining `nvs_runtime::routes` gap is measured against. The routing
   # group's two open items are specified in these three and nothing else prints them.
-  # Added when the session group opened: § 1 is the roster of seven and the rule that a member called
-  # before `start` throws, § 2 is the four operations a backend answers and why `load` answering absent
-  # is the whole strict-id rule, and § 4 is what `clear`, `regenerate` and `destroy` do over a store
-  # with no multi-key atomic step. The group's three implementation items are specified in these and
-  # nothing else prints them -- session 0006 sliced §§ 1-2 by hand to scope one item.
-  "0139 §1",
-  "0139 §2",
-  "0139 §4",
+  # Taken out 2026-09-04 with the session group closed: 0139 §§ 1, 2 and 4 went in for it and every one
+  # of its items is landed — the roster of seven carries a record its store issued, and § 4's write-back
+  # sends it. Put one back on the session that names it again.
+  # Added 2026-09-04 with the deferred group: § 6 is what `afterResponse` is — the connection ends and
+  # the request tree does not — and § 7 is the bound the queue is kept under. This stage's two open test
+  # names are specified in the pair and nowhere else, including the rule that a registration past the
+  # cap throws at the call site rather than queueing.
+  "0072 §6",
+  "0072 §7",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is

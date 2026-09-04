@@ -60,8 +60,8 @@
 > union of literals and an enum by its case; § 7's mount answers a class and `E0801` refuses `echo`
 > beside one. **ADR 0139's session is whole**: `[session]` is shared or db, `E0626` refuses local, §
 > 1's seven carry it, § 4 sends it. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and
-> flag. **ADR 0073's ticker fires** an entry as a root isolate; `fleet` is unarmed. Conformance
-> 1515, differential 256, migration 100%; valgrind green.
+> flag. **ADR 0073's ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed.
+> Conformance 1515, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
