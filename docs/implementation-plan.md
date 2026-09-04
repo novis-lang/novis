@@ -60,7 +60,7 @@
 > computation not a status it sends; a `decimal` and a `Core\Uuid` convert as a capture and as a
 > command argument, as does a union of literals and an enum by its case; § 7's mount answers a class
 > and `E0801` refuses `echo` beside one. **ADR 0139's session is whole**: `[session]` is shared or
-> db, `E0626` refuses local, and § 1's seven members carry it. **Stage 10's corpus opened**: §§
+> db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **Stage 10's corpus opened**: §§
 > 5-7's bindings, naming and flag. Conformance 1515, differential 256, migration 100%; valgrind
 > green.
 >

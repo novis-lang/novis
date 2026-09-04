@@ -7442,6 +7442,19 @@ sibling in the same namespace unqualified.
   a session reads it as a gate it broke rather than as the ledger it is. Whole-class work strikes a
   run of lines: `Core\Session` is seven, of which one is gone. `grep -n '<Class>::'` that file
   before writing the row, and the strike goes in the same commit.
+- **A request's per-request state is not on the context the *door* holds, and the filing that says
+  otherwise reads perfectly.** ADR 0139 § 4's write-back arrived filed against
+  `crates/nvs-server/src/serve.rs:709` — the line where a request ends with "its `Ctx` still live" —
+  and that `ctx.borrow_mut()` is the **connection's** context. The request is a root isolate, so
+  `Core\Session::start` opened the record on the *isolate's* `Ctx`, which `nvs-host` builds and drops
+  inside `isolate::finish` (ADR 0116 § 2) and which the door never sees. Adding the missing
+  `nvs-stdlib` dependency to `nvs-server` would not have repaired it: it would have bought the wrong
+  context with a new edge. The neighbouring bullets ask which crate *can* host a thing; this asks
+  which `Ctx` is the one being talked about, and the one-call test is `peek.py
+  crates/nvs-host/src/isolate.rs:@finish` — whatever a request's end owes a context happens there and
+  in `nvs run`'s root task, not at the socket. When the two ends reach `nvs-stdlib` differently — the
+  CLI names it, `nvs-host` may not — what the second one needs travels as a `fn` pointer on the state
+  itself rather than as a trait method or a second thread-local.
 
 ## Divergences and refusals already pinned
 

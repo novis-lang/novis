@@ -102,6 +102,21 @@ modules = [
   "crates/nvs-stdlib/src/cache.rs",
   # Item 9's compile error, and item 3's `tainted` returns.
   "crates/nvs-types/src/expr/quals.rs",
+  # Added when § 4's write-back landed, and asked for by the session before that one: this list named
+  # no `nvs-runtime` pattern at all, so the crate every other one here rests on -- the `Ctx` a request
+  # IS, the `NvsArray`/`Value` API every member that touches a map is written against, the seam a
+  # member reaches its host through, and the floor a failure with nobody left to throw to reports on
+  # -- was invisible on the map. Named files rather than `src/*.rs`: that crate is 40-odd modules and
+  # the map line is a sentence each.
+  "crates/nvs-runtime/src/ctx.rs",
+  "crates/nvs-runtime/src/host.rs",
+  "crates/nvs-runtime/src/floor.rs",
+  "crates/nvs-runtime/src/array.rs",
+  "crates/nvs-runtime/src/value.rs",
+  # And the binary that installs all of it: `nvs serve` binds the socket and `nvs run`'s root task is
+  # the second place a program ends, so both halves of a request-end rule are written here.
+  "crates/nvs-cli/src/main.rs",
+  "crates/nvs-cli/src/serve.rs",
 ]
 
 rules = ["0097", "0012", "0024", "0074", "0088", "0102", "0105", "0073", "0076", "0078", "0093", "0017", "0072", "0079", "0083", "0006"]
