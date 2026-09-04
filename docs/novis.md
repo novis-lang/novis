@@ -15757,7 +15757,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes, setStatus
+Keywords: json, text, bytes, setStatus, setHeader
 
 | Member | Signature |
 |---|---|
@@ -15765,6 +15765,7 @@ Keywords: json, text, bytes, setStatus
 | [`Core\Response::text`](#core-core-response-text) | `text(string $body): void` |
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
+| [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
@@ -15832,6 +15833,24 @@ Answers with `$code` as the response's status, replacing `http_response_code` �
 **Returns** `void` — Nothing. The last call on one response is the one that answers, and a request that failed answers `500` whatever it had set.
 
 **Throws** `LogicError` — `$code` is outside 100 to 599, which is not a status any peer can classify.
+
+<a id="core-core-response-setheader"></a>
+#### `Core\Response::setHeader`
+
+```nvs skip
+Core\Response::setHeader(string $name, string $value): void
+```
+
+Sets `$name` to `$value` on this response, replacing whatever the server's own policy wrote for that header — spec § 15's override, replacing `header`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The field name: a non-empty token, so letters, digits and the marks RFC 9110 admits. A sink, and `Content-Type` is refused whatever its case — the body member that wrote the body is what declares that one. |
+| `$value` | `string` (sink) | The field value: printable ASCII, so a newline cannot smuggle a second header and a control character cannot end the line early. A sink; empty is admitted, an empty header being a header. |
+
+**Returns** `void` — Nothing. Setting one name twice keeps the last value, at the first call's position, and a request that failed answers `500` carrying none of them.
+
+**Throws** `LogicError` — `$name` is empty, holds a byte a token cannot, or is `Content-Type`; or `$value` holds a byte outside printable ASCII.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
