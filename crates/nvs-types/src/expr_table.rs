@@ -88,6 +88,18 @@ pub struct ResolvedCall {
     pub method: String,
     /// Each parameter's declared type, positional — [`crate::signatures::MethodSig::params`].
     pub param_tys: Vec<TypeId>,
+    /// Each parameter's own name without the `$`, positional and one entry per
+    /// [`Self::param_tys`] entry — [`crate::signatures::MethodSig::param_names`].
+    ///
+    /// Recorded here for the same reason [`Self::param_tys`] is: the names are
+    /// a property of the *declaration* this call resolved to, and a consumer
+    /// downstream of checking holds the call site rather than the signature
+    /// table. ADR 0006 § *Decision*'s `args:` binding is the consumer — a
+    /// method entry's child calls its target with the map's entries bound by
+    /// name, and `nvs_ir::lower`'s `spawn_method_label` reads the names off
+    /// this entry to emit them beside the label. `nvs_runtime::MethodRow` is
+    /// not a second source: it carries arity and parameter tags, never names.
+    pub param_names: Vec<String>,
     /// Which parameters are declared `inout $x`, positional —
     /// [`crate::signatures::MethodSig::inout`]. ADR 0107 § 2 puts the word at
     /// the call site too, so `Adder::bump(inout $n)` does say which arguments

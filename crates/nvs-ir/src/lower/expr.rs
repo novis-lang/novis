@@ -2884,7 +2884,11 @@ impl<'a> Lowering<'a> {
     /// expression, since what the child runs is a method of *this* unit and
     /// there is nothing for a resolver to compile. `nvs_stdlib::script`'s
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
-    /// fourth argument, and [`Self::spawn_method_label`] is the fork itself.
+    /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
+    /// The method symbol does take a **fourth** argument the path form has no
+    /// use for — the entry's parameter names, for ADR 0006 § *Decision*'s
+    /// `args:` binding — and that one is a value the child needs rather than a
+    /// branch this module already took.
     fn lower_spawn_script(
         &mut self,
         path: &Expr,
@@ -2898,13 +2902,13 @@ impl<'a> Lowering<'a> {
         // and lowered to two symbols, because what differs is what the first
         // argument *means*: a path the child's resolver compiles, or a label
         // naming a method of the unit this frame is already running.
-        let method = self.spawn_method_label(path);
+        let method = self.spawn_method_entry(path);
         let (path_v, path_ty) = match &method {
             // A constant, not the operand: a first-class-callable reference
             // lowered as an expression would build a `callable` value, which is
             // the one thing ADR 0006 refuses to let cross a boundary. The label
             // is `nvs_runtime::call_static`'s own spelling.
-            Some(label) => self.emit(*cur, Ty::Str, InstKind::ConstStr(label.clone())),
+            Some((label, _)) => self.emit(*cur, Ty::Str, InstKind::ConstStr(label.clone())),
             None => self.lower_expr(path, Some(Ty::Str), env, cur),
         };
         let aliasing = method.is_none() && self.aliasing_read(path);
@@ -2948,6 +2952,21 @@ impl<'a> Lowering<'a> {
             }
         };
 
+        // ADR 0006 § *Decision* binds `args:`'s entries to the entry's own
+        // parameters **by name**, which is a question only the declaration
+        // answers — so the names travel with the label, as a fourth argument
+        // the method symbol alone takes. Comma-separated in declaration order,
+        // empty for an entry that declares none: a `ConstStr` costs the child
+        // no parse of the unit it is about to call into, and
+        // `nvs_runtime::MethodRow` cannot answer this at all (it has arity and
+        // parameter tags, never names).
+        let mut call_args = vec![path_v, args_v, output_v];
+        if let Some((_, names)) = &method {
+            let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names.join(",")));
+            self.account_for_arg(names_v, Ty::Str, ArgOwnership::Borrowed, false, *cur);
+            call_args.push(names_v);
+        }
+
         let result = self.emit_fallible(
             *cur,
             Ty::Object,
@@ -2957,7 +2976,7 @@ impl<'a> Lowering<'a> {
                 } else {
                     nvs_types::CORE_SCRIPT_SPAWN
                 },
-                args: vec![path_v, args_v, output_v],
+                args: call_args,
             },
             env,
         );
@@ -2965,8 +2984,9 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// `Class::method` for a `spawn script` operand written as a first-class
-    /// callable reference, and `None` for every other operand.
+    /// `Class::method` and the entry's parameter names, for a `spawn script`
+    /// operand written as a first-class callable reference — and `None` for
+    /// every other operand.
     ///
     /// The label is the *declaring* class and the method's own name — the
     /// spelling `nvs_runtime::call_static` looks a descriptor up by, and the one
@@ -2977,7 +2997,10 @@ impl<'a> Lowering<'a> {
     /// than re-derived from the syntax: a bare `Reports` in the operand resolves
     /// against the active namespace and imports, which is context only
     /// `nvs_types` and `nvs-hir` have (`nvs_types::expr_table`'s module docs).
-    fn spawn_method_label(&self, path: &Expr) -> Option<String> {
+    /// The **names** ride out of the same entry for the same reason: they are
+    /// the resolved declaration's, and this frame holds a call site rather
+    /// than a signature table.
+    fn spawn_method_entry(&self, path: &Expr) -> Option<(String, Vec<String>)> {
         if !matches!(
             &path.kind,
             ExprKind::StaticCall {
@@ -2996,7 +3019,10 @@ impl<'a> Lowering<'a> {
                 path.span
             );
         };
-        Some(format!("{}::{}", call.class, call.method))
+        Some((
+            format!("{}::{}", call.class, call.method),
+            call.param_names.clone(),
+        ))
     }
 
     /// `await <handle>` — the other half, as the second of the two symbols.

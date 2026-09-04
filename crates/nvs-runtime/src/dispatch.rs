@@ -143,6 +143,77 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
     call_at(ctx, Value::class_desc(desc), target, args).map(Some)
 }
 
+/// [`call_static`], for arguments that came out of a **program's own map** —
+/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision*'s
+/// method entry, called with `args:`'s entries already bound to its parameters
+/// positionally by `nvs_stdlib::script`.
+///
+/// The target is the same and the route is the same; what differs is who wrote
+/// the argument list. [`call_static`]'s own caller builds one from a table the
+/// compiler filled, so arity and each parameter's representation are settled
+/// before the call exists. Here the list is as long as the map the program
+/// passed and holds whatever that map held, and a compiled callee reads its
+/// slots without asking — so both questions are asked *here*, through
+/// [`crate::closure`]'s `check_param_tags`, which is the one implementation
+/// ADR 0007 § 2's `int`-into-`float` widening lives in and which `callable`
+/// and an erased method call already share. A third copy of that comparison is
+/// exactly what the shared helper exists to prevent.
+///
+/// A **native** row is refused rather than called: a `Core`-owned member
+/// borrows argument 0 where a compiled method owns its parameters
+/// ([`crate::MethodRow::native`]), and no signature for one ever reached this
+/// crate. `nvs_types` resolves the entry against the program's own classes, so
+/// this is a shape only a mismatched class table can produce.
+///
+/// # Errors
+///
+/// [`Fault::Thrown`] carrying [`crate::ThrownClass::Logic`] for an argument
+/// count the entry does not declare, for a native row, and for an argument
+/// whose tag the parameter does not admit — every one of them the ordinary
+/// named-argument error ADR 0006 says a bad `args:` map is, raised at the
+/// spawn. [`Fault::Pending`] when the entry itself throws.
+pub fn call_static_bound(
+    ctx: &mut Ctx,
+    label: &str,
+    args: &mut [Value],
+) -> Result<Option<Value>, Fault> {
+    let Some((class, method)) = label.rsplit_once("::") else {
+        return Ok(None);
+    };
+    let Some(desc) = ctx.class_desc(class) else {
+        return Ok(None);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "`Ctx::class_desc` answers out of the compiled unit's own class \
+                  table, which the context shares ownership of for its whole life"
+    )]
+    let Some(row) = (unsafe { &*desc }).method_row(method) else {
+        return Ok(None);
+    };
+    // Copied out rather than held: the row lives in the class table and the
+    // call below takes the context mutably.
+    let (code, arity, param_tags, native) =
+        (row.code, row.arity as usize, row.param_tags, row.native);
+    if native {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!("`{label}` is a `Core`-owned member and cannot be an isolate's entry"),
+        ));
+    }
+    if args.len() != arity {
+        return Err(Fault::thrown_as(
+            crate::ThrownClass::Logic,
+            format!(
+                "`{label}` declares {arity} parameter(s) and was called with {}",
+                args.len()
+            ),
+        ));
+    }
+    crate::closure::check_param_tags(label, param_tags, args)?;
+    call_at(ctx, Value::class_desc(desc), code, args).map(Some)
+}
+
 /// `$m->name(...)` on a **`mixed`** receiver — `nvs_ir::Helper::CallErasedMethod`'s
 /// whole answer, and the one dispatch here that a *program* reaches.
 ///

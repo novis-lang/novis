@@ -609,13 +609,81 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// ADR 0006 § *Decision*'s named-argument agreement between a method entry's
+/// parameters and the `args:` map it was spawned with: every parameter the
+/// entry declares is a key of the map, and the map holds no key the entry does
+/// not declare. `Err` carries the message the throw is worded with.
+///
+/// Judged on the **parent's** map rather than on the child's copy, because the
+/// two hold the same keys — ADR 0023's graph copy preserves them — and only
+/// this side still has a frame for the ADR's "reported … at the spawn" to
+/// happen in. The other half of that sentence, reporting a *literal* map's
+/// mismatch at compile time, is `nvs_types::expr::isolate`'s one known gap.
+///
+/// A value that is not an array at all names no parameter, so it reads here as
+/// a map with no keys: `null` is what a spawn with no `args:` passes, and
+/// anything else is a value only `Core\Script::args()` could have wanted.
+fn entry_names_agree(label: &str, names: &[String], map: Value) -> Result<(), String> {
+    let keys = match map.array_ptr() {
+        Some(ptr) => crate::arr::borrowed(ptr).keys(),
+        None => Vec::new(),
+    };
+    let missing: Vec<&str> = names
+        .iter()
+        .map(String::as_str)
+        .filter(|name| !keys.iter().any(|key| key.as_slice() == name.as_bytes()))
+        .collect();
+    if !missing.is_empty() {
+        return Err(format!(
+            "`spawn script {label}`: `args:` has no entry for parameter(s) `{}`",
+            missing.join("`, `")
+        ));
+    }
+    let unknown: Vec<String> = keys
+        .iter()
+        .filter(|key| !names.iter().any(|name| name.as_bytes() == key.as_slice()))
+        .map(|key| String::from_utf8_lossy(key).into_owned())
+        .collect();
+    if !unknown.is_empty() {
+        return Err(format!(
+            "`spawn script {label}`: `args:` holds `{}`, which the entry does not declare",
+            unknown.join("`, `")
+        ));
+    }
+    Ok(())
+}
+
+/// The `args:` map's entries in the entry's own parameter order — ADR 0006
+/// § *Decision*'s binding, which is a positional list by the time a compiled
+/// callee sees it.
+///
+/// Every value is **borrowed** out of the map, which the isolate's ownership
+/// root holds for the length of the call;
+/// [`nvs_runtime::call_static_bound`] retains each argument on the way in
+/// exactly as every compiled call site does, so nothing here owns anything.
+///
+/// A name with no entry cannot arrive — [`entry_names_agree`] refused the spawn
+/// at the parent — and reads as `null`, which the parameter's own tag then
+/// refuses rather than a slot nobody filled.
+fn bound_arguments(names: &[String], map: Value) -> Vec<Value> {
+    let Some(ptr) = map.array_ptr() else {
+        return Vec::new();
+    };
+    let map = crate::arr::borrowed(ptr);
+    names
+        .iter()
+        .map(|name| map.get(name.as_bytes()).unwrap_or_else(Value::null))
+        .collect()
+}
+
 nvs_runtime::nvs_helper! {
     /// `spawn script Class::method with(output: …)` — ADR 0006 § *Decision*'s
     /// **method entry**, started as a fresh isolate over the unit this context
     /// is already running.
     ///
     /// [`nvs_core_script_spawn`]'s three arguments in its order, with its
-    /// ownership rules, and one difference: argument 0 is a **constant label**
+    /// ownership rules, plus a fourth this form alone takes; and one
+    /// difference: argument 0 is a **constant label**
     /// the lowering wrote — `Class::method`, resolved by `nvs_types` at the
     /// spawn site — rather than a path the program computed. Nothing is
     /// resolved and no unit is compiled, because the class is in the unit
@@ -630,15 +698,25 @@ nvs_runtime::nvs_helper! {
     /// unit's entry does *after* that: take the argument into the isolate's
     /// ownership root, and call.
     ///
-    /// **`args:` binds nothing yet.** ADR 0006 has the entry called with the
-    /// map's entries as named arguments, which needs the parameter names at the
-    /// point the child calls; `nvs_types::expr::isolate` refuses an entry that
-    /// declares any parameter (`E0804`) until that lands, so the call below is
-    /// argument-less by construction rather than by hope — `nvs_runtime::abi`
-    /// requires exactly the callee's arity. The map still crosses and
-    /// `Core\Script::args()` still answers it, which is ADR 0006's accessor
-    /// rule for both forms.
-    fn nvs_core_script_spawn_method(ctx, args: [3]) {
+    /// **Argument 3 is the entry's parameter names**, comma-separated in
+    /// declaration order and empty for an entry that declares none — another
+    /// constant the lowering wrote, off the resolved call `nvs_types` recorded
+    /// (`nvs_ir::lower`'s `spawn_method_entry` is the one home of the
+    /// encoding). It is what ADR 0006 § *Decision*'s `args:` binding needs and
+    /// the one thing the child cannot ask the runtime for: a
+    /// `nvs_runtime::MethodRow` carries arity and parameter tags, never names.
+    ///
+    /// **`args:` binds by name**, which is that binding in two halves and two
+    /// places. [`entry_names_agree`] judges the names *here*, before anything
+    /// crosses, because a map naming a parameter the entry does not declare —
+    /// or omitting one it does — is the ordinary named-argument error the ADR
+    /// says it is, and this frame is the spawn it names as where to report it.
+    /// [`bound_arguments`] then reads the values out in declaration order
+    /// inside the child, where the copy is, and `nvs_runtime::call_static_bound`
+    /// judges each against the slot it is about to fill. The map still crosses
+    /// whole and `Core\Script::args()` still answers it, which is ADR 0006's
+    /// accessor rule for both forms.
+    fn nvs_core_script_spawn_method(ctx, args: [4]) {
         // Unreachable from source: the lowering emits this as a `ConstStr`, so
         // a non-string here is a compiler bug rather than a program's.
         let label = args[0]
@@ -650,7 +728,31 @@ nvs_runtime::nvs_helper! {
                 ))
             })?
             .to_owned();
+        // Unreachable from source for the same reason argument 0 is: the
+        // lowering emits this as a `ConstStr` too, so a non-string here is a
+        // compiler bug rather than a program's.
+        let names: Vec<String> = args[3]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "`spawn script Class::method` expected constant parameter names, got tag {}",
+                    args[3].tag_byte()
+                ))
+            })?
+            .split(',')
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .collect();
         let output = output_of(&args[2])?;
+        // Nothing is released here for the transferred argument 1, and that is
+        // the spawn's own ownership rule rather than an omission: a
+        // `TemporaryKind::Transferred` value is still on the lowering's
+        // temporaries stack when `emit_fallible` builds this call's fault edge
+        // (`nvs_ir::lower`'s `forget_transferred_since`), so the frame releases
+        // it on every edge this helper returns `Err` through.
+        if let Err(message) = entry_names_agree(&label, &names, args[1]) {
+            return Err(Fault::thrown_as(ThrownClass::Logic, message));
+        }
         // ADR 0118 § 2's door for this form. The path form's is inside
         // `resolve`, which is the effect there; here the effect is the call
         // below and there is no intermediate to hang it on.
@@ -659,9 +761,12 @@ nvs_runtime::nvs_helper! {
         let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
             // Ownership discharged into the isolate's own root, exactly as a
             // path entry's program does it — the seam's type doc owns why this
-            // and not a release.
+            // and not a release. It happens **before** the binding below, which
+            // is what makes every value that binding reads live for the length
+            // of the call: the root owns the map, and the map owns them.
             child.set_isolate_argument(argument);
-            match nvs_runtime::call_static(child, &target, &[]) {
+            let mut bound = bound_arguments(&names, child.isolate_argument());
+            match nvs_runtime::call_static_bound(child, &target, &mut bound) {
                 Ok(Some(value)) => value,
                 // The class table crossed with the context, so a miss here is
                 // the child's unit disagreeing with what `nvs_types` resolved.
@@ -673,8 +778,18 @@ nvs_runtime::nvs_helper! {
                     ));
                     Value::null()
                 }
-                // `call_static`'s only `Err` is `Fault::Pending`, which means
-                // the throw is already on this context — where
+                // The judgement `call_static_bound` makes on this frame's
+                // behalf — an argument whose tag the parameter does not admit,
+                // ADR 0006's "typed at the boundary". There is no frame above
+                // it inside the child, so it is recorded as the isolate's
+                // pending throw and reaches the parent as § *Failure is a
+                // value*'s `ok = false` rather than as a status nothing wrote.
+                Err(Fault::Thrown(class, message)) => {
+                    child.set_pending_as(class, message);
+                    Value::null()
+                }
+                // `call_static_bound`'s remaining `Err` is `Fault::Pending`,
+                // which means the throw is already on this context — where
                 // `nvs_host::Isolate`'s `finish` reads it from.
                 Err(_) => Value::null(),
             }

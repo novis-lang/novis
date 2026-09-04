@@ -995,6 +995,7 @@ pub(crate) fn resolved_call(
         overridden,
         arg_slots,
         param_tys: sig.params.clone(),
+        param_names: sig.param_names.clone(),
         inout: sig.inout.clone(),
         variadic: sig.variadic,
         defaults: sig.defaults.clone(),
