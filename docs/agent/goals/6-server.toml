@@ -3378,7 +3378,13 @@ tests = [
 kind = "exact"
 stage = "5 routing and uploads"
 file = "examples/upload.nvs"
-want = ["parts=2", "field=title", "file=report.pdf", "saved 4096 bytes", "no temp file"]
+# A program leg answers no request, so a body's own facts -- how many parts, what a field was
+# called, what a file claimed to be named -- cannot be among these: `Core\Request::files()` refuses
+# where nothing is inbound (ADR 0012 § 7), and that refusal is the first line here. The end-to-end
+# half is the `nvs-server (ADR 0105, whole)` check above, which is where a real multipart body has
+# somewhere to arrive from. What this leg pins is the surface a handler writes -- the walk, the
+# launderer, `saveTo` -- plus § 4's `writeStream`, which a program *can* run.
+want = ["no request", "streamed 10240 bytes", "escape refused", "removed"]
 
 [[check]]
 kind = "exact"

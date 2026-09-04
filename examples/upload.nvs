@@ -2,20 +2,19 @@
 // The receiving end of an upload, as a program.
 //
 // [ADR 0105](../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-// states one rule, and this fixture is the half of it that already runs:
-// **there is no temp file, because the destination is the application's own
-// call.** `Core\Request::files()` yields the parts lazily and arrives with the
-// request; what it hands each part to is the code below, unchanged. The host
-// never picks a path, never writes one behind the program's back, and never
-// leaves one behind for a later request to find — which is also why the last
-// line of this program is the one that proves the directory is gone.
+// states one rule, and this fixture is the shape of it: **there is no temp
+// file, because the destination is the application's own call.** The host never
+// picks a path, never writes one behind the program's back, and never leaves
+// one behind for a later request to find -- which is also why the last line of
+// this program is the one that proves the directory is gone.
 //
-// A part is received in exactly one of two ways, and both are here: read into a
-// **bounded buffer**, or written **straight to its destination** and never held.
-// m7.md's load-bearing case is a multipart body far larger than any in-memory
-// bound received at bounded resident memory, asserted against a high-water mark
-// rather than against the request merely succeeding — and that property belongs
-// to this shape rather than to the parser in front of it.
+// What a *program* can show of that is the shape and the members, not a body:
+// nothing is inbound here, so the walk refuses rather than yielding parts. The
+// end-to-end half -- a real multipart body, its two parts, and a large one
+// received at bounded resident memory against a high-water mark -- is
+// `crates/nvs-server`'s own suite, which m7.md names as ADR 0105's fixture
+// list. This leg is the surface a handler writes, run to the point where the
+// absence of a request stops it.
 //
 // The grant this needs is in `nvs.toml`, keyed on this entry, for the reason
 // `examples/files.nvs`'s block gives: `Core\IO::temporaryDir()` answers with the
@@ -24,41 +23,46 @@
 // A directory this program owns, so the fixture leaves nothing behind.
 string $dir = Core\IO::temporaryDir();
 
-// The small part: it fits inside the bound this program set, so it is held —
-// and what is asserted is the bound, not the value, because the bound is the
-// thing a body twice the size has to fail against.
-int $bound = 4096;
-string $note = Core\Path::join($dir, "note.txt");
-Core\IO::write($note, "a short part\n");
-if (Core\IO::size($note) <= $bound) {
-    echo "buffered ", Core\IO::size($note), " bytes\n";
-} else {
-    echo "part exceeded the buffer\n";
+// The whole receiving end, written exactly as a request handler writes it: the
+// walk, the launderer, and one of § 3's two consumers. A part is received once
+// and in one of two ways -- into a bounded buffer with `readAll({max})`, or
+// straight to its destination with `saveTo`, which is § 4's delegation to
+// `Core\IO::writeStream` and never holds more than a chunk.
+//
+// It refuses here, and the refusal is this leg's assertion. `Core\Request` has
+// nothing to read because nothing arrived (ADR 0012 § 7), and a program that
+// found an upload anyway would have found it in exactly the place ADR 0105
+// removed: ambient state the host left lying about.
+try {
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        string $dest = Core\IO::within($dir, "upload.bin");
+        $part->saveTo($dest, {max: 4096, overwrite: true});
+        echo "saved ", Core\IO::size($dest), " bytes\n";
+    }
+    echo "a program answered a request\n";
+} catch (LogicError $none) {
+    echo "no request", "\n";
 }
 
-// The large part: written to the destination and never held whole. What comes
-// back is its size, which is the only thing this end of the transfer learns
-// without spending memory proportional to the body.
-string $chunk = "0123456789";
-string $payload = "";
+// And the member `saveTo` delegates to, which a program *can* run: the chunks
+// reach disk one at a time, so what the writer holds is the largest single
+// chunk rather than the length of the stream. That is the property m7 asserts
+// under a real body; here it is the same call with the source in hand.
+array<bytes> $chunks = [];
 int $i = 0;
 while ($i < 1024) {
-    $payload = $payload . $chunk;
+    $chunks[] = "0123456789" as bytes;
     $i = $i + 1;
 }
 string $blob = Core\Path::join($dir, "payload.bin");
-Core\IO::write($blob, $payload);
-if (Core\IO::size($blob) > $bound) {
-    echo "streamed ", Core\IO::size($blob), " bytes\n";
-} else {
-    echo "the large part was not larger than the bound\n";
-}
+Core\IO::writeStream($blob, $chunks, {overwrite: true});
+echo "streamed ", Core\IO::size($blob), " bytes\n";
 
 // The destination is a name this program built with `Core\Path::join` from a
-// directory it owns — never one derived from what arrived. ADR 0105 leaves the
+// directory it owns -- never one derived from what arrived. ADR 0105 leaves the
 // filename a part *claims* as `tainted` text, so `Core\IO::within` is the
 // launderer standing between it and a path, exactly as `examples/files.nvs`
-// shows it.
+// shows it and exactly as the walk above spells it.
 try {
     string $escape = Core\IO::within($dir, "../../etc/passwd");
     echo "a claimed filename escaped the destination\n";
@@ -68,7 +72,6 @@ try {
 
 // And back to nothing. No temp file outlives the program, because none was ever
 // made on its behalf.
-Core\IO::remove($note);
 Core\IO::remove($blob);
 Core\IO::removeDir($dir);
 echo "removed", "\n";
