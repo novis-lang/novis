@@ -534,13 +534,24 @@ fn answer(mut done: Completion) -> Response<Answer> {
     // outside printable ASCII at the member, so nothing a program can write
     // arrives here — this is [`UNSPELLABLE`]'s arrangement again, kept as a
     // layer below rather than reduced to a comment about one.
-    for (name, value) in done.headers {
-        let name = HeaderName::try_from(&*name);
-        let value = HeaderValue::from_str(&value);
+    //
+    // `insert` and `append` are the two halves of the row's own
+    // `DeclaredHeader::append`, and this is the layer that would otherwise
+    // collapse a repeated name: `insert` replaces every value already under it,
+    // which is what an override is and what a second `Set-Cookie` must not
+    // meet. Applying the rows in order is safe because `Ctx::declare_header`
+    // holds a replacing row ahead of every appending one for its name.
+    for declared in done.headers {
+        let name = HeaderName::try_from(&*declared.name);
+        let value = HeaderValue::from_str(&declared.value);
         let (Ok(name), Ok(value)) = (name, value) else {
             continue;
         };
-        response.headers_mut().insert(name, value);
+        if declared.append {
+            response.headers_mut().append(name, value);
+        } else {
+            response.headers_mut().insert(name, value);
+        }
     }
     response
 }
@@ -979,8 +990,8 @@ mod tests {
     fn a_declared_header_reaches_the_response_and_a_failure_drops_it() {
         let mut declared = completed("{}", Some("application/json"));
         declared.headers = vec![
-            ("X-Request-Id".into(), "9f2".into()),
-            ("Cache-Control".into(), "no-store".into()),
+            nvs_runtime::DeclaredHeader::set("X-Request-Id", "9f2"),
+            nvs_runtime::DeclaredHeader::set("Cache-Control", "no-store"),
         ];
         let answered = answer(declared);
         assert_eq!(
@@ -999,12 +1010,48 @@ mod tests {
             "a declared header displaced the body member's media type"
         );
         let mut threw = completed("half a body", None);
-        threw.headers = vec![("X-Request-Id".into(), "9f2".into())];
+        threw.headers = vec![nvs_runtime::DeclaredHeader::set("X-Request-Id", "9f2")];
         threw.ok = false;
         assert_eq!(
             answer(threw).headers().get("x-request-id"),
             None,
             "a failed request answered with a header it had declared"
+        );
+    }
+
+    /// A name declared twice survives this layer, which is the half of the
+    /// `Set-Cookie` path that lives here: `insert` and `append` differ *only*
+    /// for a repeated name, so nothing above can tell whether this crate kept
+    /// the pair, and a dropped cookie reads as a session that lost a value
+    /// rather than as a header that went missing.
+    ///
+    /// The replacing row beside them is the invariant `Ctx::declare_header`
+    /// maintains, asserted from the far side: an override still overrides while
+    /// two appending rows both survive.
+    #[test]
+    fn an_appending_row_joins_a_name_the_response_already_carries() {
+        let mut declared = completed("ok", Some("text/plain"));
+        declared.headers = vec![
+            nvs_runtime::DeclaredHeader::add("Set-Cookie", "sid=1; HttpOnly"),
+            nvs_runtime::DeclaredHeader::add("Set-Cookie", "theme=dark"),
+            nvs_runtime::DeclaredHeader::set("Cache-Control", "no-store"),
+        ];
+        let answered = answer(declared);
+        let cookies: Vec<&str> = answered
+            .headers()
+            .get_all("set-cookie")
+            .iter()
+            .map(|value| value.to_str().expect("a value this test wrote is ASCII"))
+            .collect();
+        assert_eq!(
+            cookies,
+            vec!["sid=1; HttpOnly", "theme=dark"],
+            "two declarations of one name did not both reach the peer, in order"
+        );
+        assert_eq!(
+            answered.headers().get(header::CACHE_CONTROL).unwrap(),
+            "no-store",
+            "a replacing row beside two appending ones did not reach the response"
         );
     }
 

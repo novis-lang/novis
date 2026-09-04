@@ -98,7 +98,7 @@
 use std::cell::Cell;
 use std::time::{Duration, Instant};
 
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, DeclaredHeader};
 use crate::graph::GraphError;
 use crate::script::Program;
 use crate::throwable::Thrown;
@@ -281,13 +281,16 @@ pub struct Completion {
     /// carries it and nobody reads it.
     pub status: Option<u16>,
     /// What else the child said this response carries — spec § 15's
-    /// `setHeader`, in the order it set them, and empty where it set none.
+    /// `setHeader` and `addCookie`, in the order it declared them, and empty
+    /// where it declared none.
     ///
     /// The two fields above own the reasoning for all three; this is the one
     /// of them that is a list, because a header is a map and a status is a
     /// word. Whoever answers applies these **after** the headers it wrote for
-    /// itself, which is the whole of what ADR 0074 § 4 means by an override.
-    pub headers: Vec<(Box<str>, Box<str>)>,
+    /// itself, which is the whole of what ADR 0074 § 4 means by an override,
+    /// and applies each row the way [`DeclaredHeader::append`] says — a name
+    /// this list carries twice is a peer that sees it twice.
+    pub headers: Vec<DeclaredHeader>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
 }

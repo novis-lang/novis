@@ -1037,7 +1037,10 @@ mod tests {
     /// The second `declare_header` is the case-insensitive replace, asserted
     /// here because this is the first place a declared header is observable:
     /// two calls under one name are one header, it keeps the position and the
-    /// spelling of the first, and it carries the value of the last.
+    /// spelling of the first, and it carries the value of the last. A name the
+    /// child *appended* crosses once per call instead — the two members mean
+    /// opposite things about a name already present, and this boundary is where
+    /// a collapsed `Set-Cookie` would become impossible to recover.
     #[test]
     fn a_declared_status_and_header_cross_even_when_the_child_threw() {
         let mut ctx = parent();
@@ -1045,6 +1048,8 @@ mod tests {
             child.declare_status(201);
             child.declare_header("X-Request-Id", "9f2");
             child.declare_header("x-request-id", "3b7");
+            child.append_header("Set-Cookie", "sid=1");
+            child.append_header("Set-Cookie", "theme=dark");
             child.set_pending("the child gave up after saying what it meant");
             Value::null()
         });
@@ -1061,10 +1066,14 @@ mod tests {
             Some(201),
             "a status declared before a throw did not cross"
         );
-        let carried: Vec<(Box<str>, Box<str>)> = vec![("X-Request-Id".into(), "3b7".into())];
+        let carried = vec![
+            nvs_runtime::DeclaredHeader::set("X-Request-Id", "3b7"),
+            nvs_runtime::DeclaredHeader::add("Set-Cookie", "sid=1"),
+            nvs_runtime::DeclaredHeader::add("Set-Cookie", "theme=dark"),
+        ];
         assert_eq!(
             done.headers, carried,
-            "one name set twice crossed as two headers, or under the wrong spelling or value"
+            "one name set twice crossed as two headers, or one appended twice crossed as one"
         );
     }
 

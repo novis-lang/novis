@@ -906,8 +906,8 @@ pub struct Ctx {
     /// **What it spends:** one half-word per request, and never an allocation.
     status: Option<u16>,
     /// The headers this request's response carries beyond the ones whoever is
-    /// answering wrote for itself — spec § 15's `setHeader`, in the order they
-    /// were first set.
+    /// answering wrote for itself — spec § 15's `setHeader` and `addCookie`, in
+    /// the order they were first declared.
     ///
     /// A **list** where the two fields above are words, because a header is a
     /// map rather than a property of the response:
@@ -918,14 +918,17 @@ pub struct Ctx {
     ///
     /// A `Vec` and not a map: a response carries a handful of these, the order
     /// a program set them in is the order the peer sees them in, and a hash
-    /// over three entries costs more than the scan that replaces one.
-    /// [`Self::declare_header`] owns the comparison.
+    /// over three entries costs more than the scan that replaces one — and a
+    /// map keyed by name could not hold a second `Set-Cookie` at all, which is
+    /// why a name declared twice stays two rows here and each row says for
+    /// itself how it joins. [`Self::declare_header`] owns the comparison and
+    /// [`DeclaredHeader::append`] the distinction.
     ///
     /// **What it spends:** nothing for a request that sets none — an empty
-    /// `Vec` does not allocate — and two short allocations per distinct header
+    /// `Vec` does not allocate — and two short allocations per declared header
     /// for one that does, charged to that request's own budget like every
     /// other allocation it makes.
-    headers: Vec<(Box<str>, Box<str>)>,
+    headers: Vec<DeclaredHeader>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
@@ -4207,31 +4210,65 @@ impl Ctx {
     /// § 4's override of a policy-owned header.
     ///
     /// **Set, not add**: the member is named for replacement, and a second
-    /// value under one name is `addCookie`'s question rather than this one's.
-    /// A replaced entry keeps the position it was first set at, so a program
-    /// that overwrote one header did not thereby reorder the rest. The
-    /// comparison is ASCII-case-insensitive because RFC 9110's field name is.
+    /// value under one name is [`Self::append_header`]'s question rather than
+    /// this one's. A replaced entry keeps the position it was first set at, so
+    /// a program that overwrote one header did not thereby reorder the rest,
+    /// and every *further* value already declared under that name is dropped —
+    /// after this call the name has exactly one value, which is what "set"
+    /// means and is not something a scan stopping at the first match would
+    /// leave true. The comparison is ASCII-case-insensitive because RFC 9110's
+    /// field name is.
+    ///
+    /// **The invariant whoever answers reads off this list:** a replacing row
+    /// for a name always precedes every appending row for it. So the answer can
+    /// be written a row at a time in this order — replacing the map's entry for
+    /// one, joining it for the other — without a later replacement wiping a
+    /// value that was meant to survive.
     ///
     /// What a name and a value may be is the member's to enforce, on
     /// [`Self::declare_status`]'s reasoning: `setHeader` refuses anything a
     /// header line cannot carry before it calls here, so a second check would
     /// be a second answer to a question that has one.
     pub fn declare_header(&mut self, name: &str, value: &str) {
-        if let Some(set) = self
-            .headers
-            .iter_mut()
-            .find(|(already, _)| already.eq_ignore_ascii_case(name))
-        {
-            set.1 = value.into();
-            return;
+        let mut replaced = false;
+        self.headers.retain_mut(|already| {
+            if !already.name.eq_ignore_ascii_case(name) {
+                return true;
+            }
+            if replaced {
+                return false;
+            }
+            replaced = true;
+            already.value = value.into();
+            already.append = false;
+            true
+        });
+        if !replaced {
+            self.headers.push(DeclaredHeader::set(name, value));
         }
-        self.headers.push((name.into(), value.into()));
+    }
+
+    /// A second value under a name that may already carry one — spec § 15's
+    /// `addCookie`, and the half of the header path [`Self::declare_header`]
+    /// deliberately is not.
+    ///
+    /// **Pushes without searching**, which is the whole difference. A
+    /// `Set-Cookie` is meaningful exactly as many times as it was written, so
+    /// the scan that makes `setHeader` an override of one policy-owned header
+    /// is exactly what would collapse two cookies into the last one — and a
+    /// response that silently carries one of the two cookies a program set is
+    /// a session bug rather than a formatting one.
+    ///
+    /// What a name and a value may be is the calling member's to enforce, for
+    /// the reason [`Self::declare_header`] gives.
+    pub fn append_header(&mut self, name: &str, value: &str) {
+        self.headers.push(DeclaredHeader::add(name, value));
     }
 
     /// Takes the declared headers away, leaving the context with none — the
     /// finish path's third call, made once beside [`Self::take_status`].
     #[must_use]
-    pub fn take_headers(&mut self) -> Vec<(Box<str>, Box<str>)> {
+    pub fn take_headers(&mut self) -> Vec<DeclaredHeader> {
         std::mem::take(&mut self.headers)
     }
 
@@ -4243,6 +4280,56 @@ impl Ctx {
             OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
                 None
             }
+        }
+    }
+}
+
+/// One header a program declared for its response, and how it joins the ones
+/// whoever answers wrote for itself.
+///
+/// A row rather than the pair this used to be, because two members declare
+/// headers and they mean opposite things about a name that is already present.
+/// [`Ctx::declare_header`] is
+/// [ADR 0074](../../../docs/adr/0074-http-defaults-safe-and-finite.md) § 4's
+/// override of *one* policy-owned header, so it replaces; [`Ctx::append_header`]
+/// is the `Set-Cookie` path, where a second value under one name is the entire
+/// point. Which of the two a row is cannot be recovered from the pair — a
+/// repeated name looks identical either way — so the row carries it, and no
+/// layer below has to guess.
+///
+/// **What it spends:** two short allocations and one byte, per declared header.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredHeader {
+    /// The field name, in the spelling the program wrote it in: the peer sees
+    /// that spelling, and the case-insensitive comparison is
+    /// [`Ctx::declare_header`]'s alone.
+    pub name: Box<str>,
+    /// The field value, checked by the member that declared it rather than
+    /// here.
+    pub value: Box<str>,
+    /// Whether this value joins whatever the answer already carries under
+    /// [`Self::name`] instead of replacing it.
+    pub append: bool,
+}
+
+impl DeclaredHeader {
+    /// A row that replaces what the answer carries under `name`.
+    #[must_use]
+    pub fn set(name: &str, value: &str) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            append: false,
+        }
+    }
+
+    /// A row that joins it instead.
+    #[must_use]
+    pub fn add(name: &str, value: &str) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            append: true,
         }
     }
 }
@@ -4637,6 +4724,31 @@ pub unsafe extern "C" fn nvs_probe_call_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The invariant `nvs-server` writes this list back out under: a set is
+    /// total, so a name that already carried appended values has exactly one
+    /// afterwards, and the row that survives is the replacing one at the
+    /// position the name was first declared.
+    ///
+    /// Asserted here rather than at the layer that sends it, because the
+    /// collapse is [`Ctx::declare_header`]'s: a server applying every row
+    /// faithfully would still send the value this dropped.
+    #[test]
+    fn a_set_is_total_over_the_values_already_declared_under_one_name() {
+        let mut ctx = Ctx::buffered();
+        ctx.append_header("Set-Cookie", "sid=1");
+        ctx.declare_header("X-Trace", "a");
+        ctx.append_header("set-cookie", "theme=dark");
+        ctx.declare_header("Set-Cookie", "sid=2");
+        assert_eq!(
+            ctx.take_headers(),
+            vec![
+                DeclaredHeader::set("Set-Cookie", "sid=2"),
+                DeclaredHeader::set("X-Trace", "a"),
+            ],
+            "a set left a second value under its own name, or moved a name it did not set"
+        );
+    }
 
     /// ADR 0067 § 8's retry loop reads a refusal's `kind` off a failure it has
     /// not decided about yet, so the read leaves the pending exactly as it
