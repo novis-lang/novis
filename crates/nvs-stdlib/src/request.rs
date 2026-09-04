@@ -3112,6 +3112,120 @@ mod tests {
         );
     }
 
+    /// ADR 0105 § 1's other half: **there is no temp file**, so nothing hands a
+    /// program a path the host chose and there is nothing left over to move.
+    ///
+    /// Asked of the rosters rather than of a body — the way the walk's own half
+    /// above asks its question — and by **counting** rather than by naming the
+    /// row that must not be there: a filesystem path crosses this surface
+    /// exactly once, as `saveTo`'s *parameter*, which is the destination the
+    /// application chose and § 1's whole argument. A `tmpName` added later
+    /// fails this without anyone having to remember the rule.
+    ///
+    /// The sweep is over spellings rather than over types because no
+    /// [`CoreTy`] says "path": what separates a host-stored path from any other
+    /// text is what it is called. `path` alone is deliberately not one of them
+    /// — `Core\Request::path` is the URL's, which is the peer speaking and not
+    /// the disk.
+    ///
+    /// `move_uploaded_file` is swept for over the whole registry instead of
+    /// these two classes: Novis has no global functions, so the only place
+    /// PHP's name could come back is as some class's member, and `CLASSES` is
+    /// where the members are. The second `Core` roster,
+    /// `nvs_hir::errors::TREE`, is exception classes with no members at all,
+    /// so a name cannot hide there.
+    #[test]
+    fn there_is_no_temp_path_and_no_move_uploaded_file() {
+        /// The spellings a host-stored upload arrives under: PHP's own
+        /// `tmp_name`, and the ports of it a port would reach for.
+        const HOST_PATHS: &[&str] = &[
+            "tmpname",
+            "tmpfile",
+            "tmppath",
+            "tempname",
+            "tempfile",
+            "temppath",
+            "temporaryname",
+            "temporaryfile",
+            "temporarypath",
+            "localpath",
+            "diskpath",
+            "storedpath",
+            "savedpath",
+            "filepath",
+            "realpath",
+            "pathname",
+        ];
+
+        /// A name with its case and its underscores taken out, so that
+        /// `tmp_name` and `tmpName` are one claim rather than two.
+        fn flattened(name: &str) -> String {
+            name.chars()
+                .filter(|character| *character != '_')
+                .collect::<String>()
+                .to_ascii_lowercase()
+        }
+
+        let surface: Vec<_> = [&super::CLASS, &super::PART]
+            .into_iter()
+            .flat_map(|class| {
+                class
+                    .methods
+                    .iter()
+                    .chain(class.instance)
+                    .map(|member| (class.name, member))
+            })
+            .collect();
+
+        let answering_a_path = surface
+            .iter()
+            .filter(|(_, member)| HOST_PATHS.contains(&flattened(member.name).as_str()))
+            .map(|(class, member)| format!("{class}::{}", member.name))
+            .collect::<Vec<_>>();
+        assert!(
+            answering_a_path.is_empty(),
+            "an upload is a stream, so nothing may answer where the host put it: {answering_a_path:?}"
+        );
+
+        let taking_a_path = surface
+            .iter()
+            .filter(|(_, member)| {
+                member
+                    .names
+                    .iter()
+                    .any(|name| flattened(name).contains("path"))
+            })
+            .map(|(class, member)| format!("{class}::{}", member.name))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            taking_a_path,
+            vec![format!("{PART_NAME}::saveTo")],
+            "a path crosses this surface once and inward, into the one member the application \
+             names its own destination through"
+        );
+
+        let moving = crate::registry::CLASSES
+            .iter()
+            .flat_map(|class| {
+                class
+                    .methods
+                    .iter()
+                    .chain(class.instance)
+                    .map(move |member| format!("{}::{}", class.name, member.name))
+            })
+            .chain(
+                crate::registry::CLASSES
+                    .iter()
+                    .map(|class| class.name.to_owned()),
+            )
+            .filter(|name| flattened(name).contains("moveuploaded"))
+            .collect::<Vec<_>>();
+        assert!(
+            moving.is_empty(),
+            "there is no temp file left behind, so there is nothing for a move to be about: {moving:?}"
+        );
+    }
+
     /// Whether `ty` is the instance type called `name`, through a `?` where the
     /// member's answer is nullable.
     fn answers(ty: &CoreTy, name: &str) -> bool {
