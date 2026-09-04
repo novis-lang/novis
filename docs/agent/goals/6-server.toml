@@ -121,6 +121,14 @@ adrs = [
   # Beside it, the rule that item is under: a session read on one core and written on another must see one
   # value, so the local tier is not one of its backends.
   "0059 §4",
+  # Added after two sessions in a row sliced these by hand and said so in the handoff. Stage 5's upload
+  # items are worked one § at a time: § 2 is the parse that tells a file part from a form field, which is
+  # what `Core\Request::post()` is written against; § 3 is the three consumers and the ordinal rule under
+  # them; § 4 is `saveTo`'s delegation to `Core\IO::writeStream`, where its options bag and its two rules
+  # live rather than in a copy on the request side.
+  "0105 §2",
+  "0105 §3",
+  "0105 §4",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
@@ -3264,12 +3272,29 @@ kind = "cargo-named"
 stage = "2 one request"
 name = "nvs-types (everything from outside is tainted)"
 args = ["test", "-p", "nvs-types"]
-tests = [
-  "every_request_member_returning_outside_data_returns_it_tainted",
-  # Item 4 -- the shapes that are rules rather than fields.
-  "method_reports_get_for_a_head_request_and_is_head_carries_the_truth",
-  "client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted",
-]
+tests = ["every_request_member_returning_outside_data_returns_it_tainted"]
+
+# Item 4 -- the shapes that are rules rather than fields. Neither of these is a *type* question and
+# neither ever could be: `method()` folding `HEAD` into `Get` is what a helper answers off an `Inbound`,
+# and which host a request came from is decided before a program runs. Split rather than moved wholesale,
+# because the name above really is `nvs-types`' -- it is a property of the registry's return types.
+[[check]]
+kind = "cargo-named"
+stage = "2 one request"
+name = "nvs-stdlib (a request line reports what a route table can match)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = ["method_reports_get_for_a_head_request_and_is_head_carries_the_truth"]
+
+# ADR 0097 § 6's forwarded walk, which `crates/nvs-server/src/serve.rs:538` names as unlanded: the
+# effective scheme is `Scheme::Http` for every request until it lands, and `trusted_proxies` is what
+# decides whether a header may say otherwise. The walk is this crate's, so the claim about its outcome is
+# too -- an open item rather than a misfiling.
+[[check]]
+kind = "cargo-named"
+stage = "2 one request"
+name = "nvs-server (the peer, and who may speak for it)"
+args = ["test", "-p", "nvs-server"]
+tests = ["client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted"]
 
 # The manifest policy that has held since M0 and must survive hyper's arrival. `hyper` is not `tokio`;
 # this is the check that keeps the distinction honest rather than assumed.
