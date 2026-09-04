@@ -1777,6 +1777,16 @@ is why" — is this file.
   an error: the fixture compiles and runs, it just answers the question the stage that wrote it
   could answer. Check whether the surface the `want` names exists before reading "CLOSE THIS FIRST"
   as this session's work.
+- **`splice.py` refuses an anchor that matches more than once, and a run of identical test call
+  sites is exactly that.** Adding one argument to `nvs_server::serve_on_this_core` meant editing
+  seven call sites in `crates/nvs-server/src/serve.rs`'s test module whose argument lists are
+  byte-identical for a dozen lines either side — no unique anchor exists short of reading out to
+  each enclosing `#[test]` name, and that is four extra lines of anchor per block to get one line
+  inserted. Bundling the two shared `Arc`s into a single `Serving` argument left every call site's
+  *text* unchanged and turned seven edits into two: the helper that builds one, and the one case
+  that built its own. When an edit's anchor is not unique, the cheap fix is usually a change of
+  shape that removes the edit rather than a bigger anchor — and here it also kept the function off
+  `clippy::too_many_arguments`, which an eighth parameter would have tripped.
 
 ## Running things
 

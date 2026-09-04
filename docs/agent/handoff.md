@@ -2,75 +2,71 @@
 
 ## State
 
-**Goal 6, Stage 4's headers landed: `Core\Response::setHeader` sets one, and the list crosses to
-the peer.** `crates/nvs-stdlib/src/response.rs`'s module doc has a new section — *A header is a
-list on that same channel, and `Content-Type` is not one* — and it is the home for every decision
-below.
+**Goal 6, Stage 4: ADR 0074 § 1's secure header set is on every response this server writes.**
+`crates/nvs-server/src/secure.rs` is the new module and the home for every decision below; nothing
+else restates them.
 
-**Same channel as the status, a third time, but a list.** `Ctx::declare_header`
-(`crates/nvs-runtime/src/ctx.rs:4219`) holds `Vec<(Box<str>, Box<str>)>`, `take_headers` runs on the
-finish path beside `take_status`, `Completion::headers` carries it, and `nvs_server`'s `answer`
-applies each pair **last**, after everything the server wrote for itself — which is the whole of
-what ADR 0074 § 4 means by an override. Set, not add: one name written twice is one header, keeping
-the first call's position and spelling and the last call's value, compared case-insensitively.
+**It fills, it does not overwrite, and that is what makes `setHeader` an override with no ordering
+rule.** `Secure::fill` writes a name the response does not already carry and leaves one it does, so
+the set is applied at a *single* point — `serve_connection`'s tail — covering a program's response,
+a mount table's `404`, a static file's and § 5's `503` alike. `Content-Type` is never in the set:
+a body member owns its own media type (ADR 0088 § 4).
 
-**Three decided-and-recorded calls.** `Content-Type` is **refused** whatever its case — ADR 0088
-§ 4's argument is that a body member owns one shape *and* its media type, so admitting it here would
-let a handler answer `json` and relabel it `text/html`; `bytes` is the member that takes a media
-type. **Both parameters are sinks**, a header line being two instructions. **The byte rules are
-narrower than RFC 9110**: a name is a non-empty token, a value is printable ASCII, so a tab and an
-`obs-text` byte are refused — `nameable` and `carriable` in `response.rs`, the second now also
-`spellable`'s body.
+**`Serving` is why the two signatures changed.** `serve_on_this_core` and `serve_connection` take
+one `Serving` — an `Arc<Admission>` and an `Arc<Secure>` — where they took an `Admission`: those two
+are the shared half of a connection's context, `waits` stays a `Copy` value beside them, and the
+argument count did not grow.
 
-**What is not asserted, and why.** `answer`'s ordering is not yet observable: the only header the
-server writes for itself is `Content-Type`, which the member refuses, so the override becomes
-testable when ADR 0074 § 1's policy set lands. A `.nvst` case cannot see a header line at all, so
-the crossing is pinned by `crates/nvs-server/src/serve.rs`'s
-`a_declared_header_reaches_the_response_and_a_failure_drops_it` and by `nvs-host`'s
-`a_declared_status_and_header_cross_even_when_the_child_threw`, which is the group's third item:
-`finish` carries both out on the throwing path and `answer` is where they stop.
+**HSTS is a `Scheme` parameter, and every request is `Scheme::Http` today.** ADR 0097 § 6's
+forwarded walk has not landed and answers `http` while `trusted_proxies` is empty anyway, so § 1's
+rule is implemented and asserted on both schemes while nothing yet passes `Https`.
+`crates/nvs-server/src/serve.rs`'s `let scheme = Scheme::Http;` is the one line § 6's slice changes.
 
-**The acceptance check that fails is Stage 5's, not a regression.** `native examples/upload.nvs`
-wants ADR 0105's whole surface and `crates/nvs-stdlib` has no `request.rs`; it has been the reported
-failure for sixteen sessions and holds the run to 55 of ~137 checks. The playbook's new *Tooling*
-bullet owns it. Nothing in Stage 4 can close it and the frozen `want` is correct as written.
+**A written value the wire cannot carry is read as if it had not been written** — one rule, every
+field, so a `\r\n` in a `referrer_policy` answers with the shipped default rather than silently
+removing the header. A boot refusal naming the line is better and is a backlog item: it belongs in
+`nvs-config`, which has the `nvs-diagnostics` dependency `nvs-server` deliberately does not.
 
-**`[context]` gaps, reported again.** `adrs` prints `0074 § 5` but not **`§§ 1 and 4`**, which are
-the two this item is written against; **`0105 §§ 1-4`** is not printed either and is what the failing
-check needs. `spec` still has no selector, so § 15 — prose, not a `| Member |` table — costs two
-reads a session. `modules` still names no `nvs-cli` pattern.
+**The failing acceptance check is Stage 5's, not a regression.** `native examples/upload.nvs` wants
+ADR 0105's whole surface and `crates/nvs-stdlib` has no `request.rs`; seventeen sessions now, and
+nothing in Stage 4 can close it. The playbook's *Tooling* bullet owns it.
+
+**`[context]` gaps, reported again.** `adrs` prints `0074 § 5` but not **`§§ 1 and 4`** — § 1 is the
+section this entire slice implements, and slicing it by hand was the session's first call. `0105
+§§ 1-4` is not printed either and is what the failing check needs. `spec` still has no selector, so
+§ 15 costs two reads a session. `modules` still names no `nvs-cli` pattern, and
+`crates/nvs-cli/src/serve.rs` is the boot every server slice has to edit.
 
 ## Next group
 
-**What a response says beside its body** — spec § 15 and ADR 0074 §§ 1-4. One file set, this
-session's plus one config file: `crates/nvs-stdlib/src/response.rs`,
-`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-server/src/serve.rs`, `crates/nvs-config/src/tree.rs`.
+**What a response says beside its body, continued** — spec § 15, ADR 0074 §§ 1 and 3. One file set:
+`crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/ctx.rs`, `crates/nvs-config/src/tree.rs`.
 
-- [ ] **ADR 0074 § 1's secure-header set, applied by `answer` with nothing configured** — the half
-      that makes `setHeader` an override rather than an addition. `crates/nvs-server/src/serve.rs:489`
-      is the loop that must run *after* it, `crates/nvs-server/src/serve.rs:445` is `answer` itself,
-      and `crates/nvs-config/src/tree.rs:393` is the `[http.headers]` block that already
-      deserializes — `content_type_options`, `frame_ancestors`, `referrer_policy`, `hsts`. § 1's
-      three decisions are HSTS only on an `https` effective scheme, `hsts_subdomains` false, and no
-      `default-src`.
-- [ ] **`redirect`, which is a status and a `Location` in one member** — spec § 15, and it rides
-      both channels already built, so it opens no third one. `crates/nvs-stdlib/src/response.rs:238`
-      is the `setHeader` row to put it beside and `crates/nvs-stdlib/src/response.rs:501` is the
-      helper to model; the decisions are which 3xx it defaults to and whether the target is a sink
-      (it is a header value, so `carriable` at `crates/nvs-stdlib/src/response.rs:405` is the check
-      it owes).
-- [ ] **`addCookie`, whose options shape defaults every field from `[http.cookies]`** — spec § 15,
-      ADR 0074 § 3. A cookie is a `Set-Cookie` header, so it rides `Ctx::declare_header`
-      (`crates/nvs-runtime/src/ctx.rs:4219`) — except that `Set-Cookie` is the one header a response
-      may carry twice, which the replace-by-name store above does not admit, and that is the slice's
-      real question. `SameSite` is an enum and never a string:
-      `crates/nvs-stdlib/src/io.rs:1232` is the `EnumDoc` shape to copy and
-      `crates/nvs-config/src/tree.rs:435` is the `String` in the config that pairs with it.
+- [ ] **`redirect`, which is a status and a `Location` in one member** — spec § 15. The five edits
+      ride `setHeader`'s: `crates/nvs-stdlib/src/response.rs:246` is the row,
+      `crates/nvs-stdlib/src/response.rs:335` the card, `crates/nvs-stdlib/src/response.rs:365` the
+      `address()` arm and `crates/nvs-stdlib/src/response.rs:501` the body;
+      `crates/nvs-runtime/src/ctx.rs:4193` and `crates/nvs-runtime/src/ctx.rs:4219` are the two
+      declarations it makes at once. The URL is a sink (ADR 0088), and the status is a closed set
+      rather than any `3xx`.
+- [ ] **`addCookie`, whose options shape defaults every field from `[http.cookies]`** — spec § 15
+      and ADR 0074 § 3, whose `secure`/`same_site` pair `crates/nvs-config/src/http.rs:105` already
+      refuses. `crates/nvs-config/src/tree.rs:426` is the block,
+      `crates/nvs-stdlib/src/response.rs:246` the row it joins and
+      `crates/nvs-runtime/src/ctx.rs:4219` the channel it crosses on — where `Set-Cookie` is the one
+      header that legitimately repeats, so `declare_header`'s set-not-add rule is what to decide
+      first.
+- [ ] **A boot refusal for an `[http.headers]` value the wire cannot carry** — the fallback above,
+      made loud. `crates/nvs-config/src/http.rs:188` is the pass that already refuses §§ 2-3's pairs
+      and is where this belongs; `crates/nvs-server/src/secure.rs:177` is `spell`, which stays as
+      the layer below rather than being replaced by it.
 
 ## Backlog
-
-- `html` and `sendFile`, ADR 0088 § 4's other two body members — `response.rs`'s known gaps.
-- Stage 5 whole: `Core\Router::match`, `Core\Session`, and ADR 0105's uploads, which is what
-  `examples/upload.nvs`'s frozen output is waiting for — `docs/agent/loop-goal.md` items 12-16.
-- ADR 0074 § 2's closed CORS, unread by anything today — that ADR's own *Verification*.
-- A `[context] spec` selector so § 15's prose reaches the pack — `docs/agent/loop-goal.toml`.
+- ADR 0105's upload surface — `Core\Request::files()` — is what the one failing acceptance check
+  needs; `docs/plan/m7.md`'s *Verify* owns its bounded-memory case.
+- ADR 0097 § 6's forwarded-header walk: the trusted-proxy scheme, and the only thing that can make
+  `Secure::fill` emit HSTS.
+- `[http.headers]` is `Runtime`-class in ADR 0074's table and `Secure` is boot-fixed; a reload that
+  moves it needs `serve_on_this_core` to hold a snapshot rather than a value.
+- ADR 0074 § 2's CORS response headers — refused at boot today, never emitted.
+- ADR 0092 § 3's HTML rendering of a `Throwable`, which is what `failed()`'s empty body waits on.
