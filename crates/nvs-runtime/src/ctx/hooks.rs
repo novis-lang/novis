@@ -1,0 +1,553 @@
+//! The user code a limit, an uncaught throw or the request's end runs.
+//!
+//! Four callables, each held by the context for the length of one request:
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's limit handler,
+//! its uncaught handler, the exit hooks a program registers, and
+//! [ADR 0044](/docs/adr/0044-deferred-work.md)'s deferred work.
+//!
+//! They share a shape, which is why they share a file: each runs *after*
+//! something has already gone wrong or already finished, so each runs under a
+//! reserve carved out ahead of time — and each has to answer what happens when
+//! the handler itself breaches. [`Ctx::run_limit_handler`] and
+//! [`Ctx::abandon_exit_hook`] are the two places that answer it.
+
+use super::*;
+
+impl Ctx {
+    /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// tier 1.
+    ///
+    /// **Last registration wins, and there is no unregister but the request
+    /// ending.** § 1 gives the tier one handler, not a chain: a ladder whose
+    /// first rung ran an unbounded list of handlers out of one reserved slice
+    /// would have to decide what a second handler sees after the first
+    /// exhausted it, and "zero retries" is that section's answer to every such
+    /// question. So a second call releases the first closure here, which is
+    /// also what makes this the one place with both the reference and the
+    /// request's lifetime in hand.
+    ///
+    /// The caller passes an **owned** reference; every `Core` helper's
+    /// arguments are borrowed from the call frame, so the one in
+    /// `nvs_stdlib::fatal` retains before it calls this.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_limit_handler(&mut self, handler: Value) {
+        let previous = std::mem::replace(&mut self.limit_handler, handler);
+        // SAFETY: `limit_handler` holds one owned reference or null, and
+        // nothing else points at it — the field is private and handed out only
+        // by the borrowing accessor below.
+        unsafe { previous.release() };
+    }
+
+    /// The registered handler, **borrowed** — `null` when nothing registered
+    /// one, which is every request that never called `Core\Fatal::onLimit`.
+    ///
+    /// No reference is handed over, exactly as [`Self::isolate_argument`] hands
+    /// none over. The ladder calls through this rather than taking the value,
+    /// because a breach does not end the registration: it is the request ending
+    /// that does.
+    #[must_use]
+    pub fn limit_handler(&self) -> Value {
+        self.limit_handler
+    }
+
+    /// Whether this request registered a tier-1 handler at all.
+    ///
+    /// The question the ladder asks first, and the reason it is a method rather
+    /// than a comparison at each call site: a `null` slot is the encoding of
+    /// "none", and nothing outside this file should know that.
+    #[must_use]
+    pub fn has_limit_handler(&self) -> bool {
+        self.limit_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
+    /// — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// tier 2.
+    ///
+    /// [`Self::set_limit_handler`]'s contract exactly, and deliberately: last
+    /// registration wins, there is no unregister but the request ending, and
+    /// the caller passes an **owned** reference because a `Core` helper's
+    /// arguments are borrowed from a call frame this one outlives. The two
+    /// tiers differ in what fires them and in what the handler is handed, never
+    /// in how a registration is held.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_uncaught_handler(&mut self, handler: Value) {
+        let previous = std::mem::replace(&mut self.uncaught_handler, handler);
+        // SAFETY: `uncaught_handler` holds one owned reference or null, and
+        // nothing else points at it — the field is private and never handed
+        // out, since the only reader is `Self::run_uncaught_handler`.
+        unsafe { previous.release() };
+    }
+
+    /// Whether this request registered a tier-2 handler at all.
+    ///
+    /// [`Self::has_limit_handler`]'s reason for being a method rather than a
+    /// comparison: a `null` slot is the encoding of "none", and nothing outside
+    /// this file should know that.
+    #[must_use]
+    pub fn has_uncaught_handler(&self) -> bool {
+        self.uncaught_handler.tag() != Some(crate::Tag::Null)
+    }
+
+    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// tier 2 over `thrown`, if this request registered one.
+    ///
+    /// **The handler is handed the real exception object**, not a report built
+    /// from it, which is the one way this differs from
+    /// [`Self::run_limit_handler`]'s array. § 2 says why: this is the request's
+    /// own root rather than an isolate boundary
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) has to
+    /// copy across, so the object the program threw is still the object it
+    /// threw, with its own class, message and backtrace reachable by the
+    /// ordinary members. A handler declaring no parameter still runs, for
+    /// [`Self::run_limit_handler`]'s reason.
+    ///
+    /// **No ceiling moves.** § 2 has no reserved slice — see
+    /// [`Self::uncaught_handler`] — so a request that reached the root with its
+    /// budget nearly spent runs this handler out of what is left, and a handler
+    /// that exhausts it breaches like any other code.
+    ///
+    /// **The registration is taken out of the slot on the way in**, exactly as
+    /// [`Self::run_limit_handler`] takes tier 1's: that is the whole of "zero
+    /// retries" here too, since a handler that throws reaches an isolate root
+    /// of its own inside [`crate::script`] and would otherwise find itself.
+    ///
+    /// Whatever the handler leaves behind is dropped, and a throw or a fault of
+    /// its own is abandoned where it stands — § 3's "handler faulted" drops to
+    /// tier 3, and what tier 3 is handed is still the throw that got here. The
+    /// pending status is cleared for that reason: the request reports the
+    /// failure that reached the root, never the one its reporter had.
+    ///
+    /// **Running does not suppress the tiers below.** § 3 is the shared
+    /// catch-all and the floor beneath it is § 6's record of a request that
+    /// died, so an operator's pipeline does not lose one because the
+    /// application registered a handler — which is also how tier 1 already
+    /// behaves, since every caller of [`Self::run_limit_handler`] records its
+    /// breach afterwards regardless.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it just took out of the \
+                  slot, and owns the answer the call produced"
+    )]
+    pub fn run_uncaught_handler(&mut self, thrown: &Thrown) {
+        if !self.has_uncaught_handler() {
+            return;
+        }
+        // `Value::default()` is the null this leaves behind, which is the
+        // encoding of "nothing registered" `Self::has_uncaught_handler` reads.
+        let handler = std::mem::take(&mut self.uncaught_handler);
+        // Borrowed: the reference keeping the object alive across the call is
+        // the caller's `Thrown`, and `crate::call_closure` takes one of its own
+        // for the callee to release.
+        let answer = crate::call_closure(self, handler, &[thrown.as_value()]);
+        // Zero retries, and the failure the request reports is the one that
+        // reached the root — so a handler's own throw ends here rather than
+        // travelling on as this request's status.
+        drop(self.take_pending());
+        // SAFETY: the slot held one owned reference, which this frame now
+        // holds. An `Ok` answer is a fresh value this frame owns, and releasing
+        // a `null` — which is what a `void` closure returns — is a no-op. The
+        // exception itself is not released here: this frame never owned a
+        // reference to it.
+        unsafe {
+            if let Ok(answer) = answer {
+                answer.release();
+            }
+            handler.release();
+        }
+    }
+
+    /// Appends `hook` to
+    /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
+    /// § 1's end-of-script queue — what `Core\Script::onExit` does, which is
+    /// register and run nothing.
+    ///
+    /// The caller passes an **owned** reference, exactly as
+    /// [`Self::set_limit_handler`] takes one and for the same reason: a `Core`
+    /// helper's arguments are borrowed from a call frame this registration
+    /// outlives. Nothing is replaced and nothing is refused — see
+    /// [`Self::exit_hooks`] for why a queue rather than a slot, and
+    /// [`Self::run_exit_hooks`] for what a registration made *during* the drain
+    /// joins.
+    pub fn push_exit_hook(&mut self, hook: Value) {
+        self.exit_hooks.push(hook);
+    }
+
+    /// How many hooks the end-of-script queue holds — what a test asserts a
+    /// registration against, and the reason [`Self::exit_hooks`] is private.
+    #[must_use]
+    pub fn exit_hook_count(&self) -> usize {
+        self.exit_hooks.len()
+    }
+
+    /// Whether the queue has already had its one drain — ADR 0127 § 2.
+    #[must_use]
+    pub fn exit_hooks_drained(&self) -> bool {
+        self.exit_hooks_drained
+    }
+
+    /// Runs the end-of-script queue FIFO, handing each hook `report` — ADR 0127
+    /// §§ 2 and 5.
+    ///
+    /// **Which endings reach here is not this method's question.** § 3's `FATAL`
+    /// and cancellation never fire the queue, and the one place that decides is
+    /// `nvs_stdlib::script::run_exit_hooks`, which is also where the report is
+    /// built — a `Core` instance is that crate's to lay out. This end owns the
+    /// queue and its ordering rules, and nothing else.
+    ///
+    /// **Once.** A second call runs nothing, however it is reached: § 2 says the
+    /// queue runs at most once per script, and a drain that reached an ending
+    /// twice would be a second ending the report was never fixed for.
+    ///
+    /// **A hook registered by a hook joins the tail of the same drain**, which
+    /// is why this walks by index instead of taking the vec: § 5 names that
+    /// case, and a queue drained into a local would silently drop it.
+    ///
+    /// `report` is **borrowed** — the caller keeps the only reference and every
+    /// hook is handed the same object, so all of them observe one report rather
+    /// than one each.
+    ///
+    /// Whatever a hook answers is dropped, and a hook that fails is abandoned
+    /// where it stands with the queue continuing — [`Self::abandon_exit_hook`]
+    /// is the home of § 5's three failure readings.
+    #[expect(
+        unsafe_code,
+        reason = "the queue owns one reference per registration and this is the \
+                  frame that gives every one of them back, plus whatever each \
+                  hook answered"
+    )]
+    pub fn run_exit_hooks(&mut self, report: Value) {
+        if self.exit_hooks_drained {
+            return;
+        }
+        self.exit_hooks_drained = true;
+        let mut index = 0;
+        while index < self.exit_hooks.len() {
+            let hook = self.exit_hooks[index];
+            index += 1;
+            match crate::call_closure(self, hook, &[report]) {
+                // SAFETY: an `Ok` answer is a fresh value this frame owns, and
+                // releasing the `null` a `void` closure answers is a no-op.
+                Ok(answer) => unsafe { answer.release() },
+                Err(fault) => {
+                    if !self.abandon_exit_hook(&fault) {
+                        break;
+                    }
+                }
+            }
+        }
+        // SAFETY: the queue holds exactly one reference per registration and
+        // nothing else points at it — the hooks are the caller's only through
+        // `Self::push_exit_hook`, which hands its reference over.
+        for hook in std::mem::take(&mut self.exit_hooks) {
+            unsafe { hook.release() };
+        }
+    }
+
+    /// Reports one failed exit hook and answers whether the drain continues —
+    /// ADR 0127 § 5.
+    ///
+    /// Three readings, and only the last stops the queue:
+    ///
+    /// - **A throw** is written to the same record `Core\Log` writes, through
+    ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
+    ///   trace id rather than swallowed", which is
+    ///   [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+    ///   § 4's rule for a second throw and [`crate::deferred`]'s reading of it
+    ///   for after-response work.
+    /// - **An `exit`** is § 5's refusal: a hook that could end the script would
+    ///   suppress every hook behind it, so the status it named is dropped and
+    ///   the `RuntimeError` that section names is reported in its place.
+    /// - **A `FATAL`** is the one that stops the drain. § 5's last sentence: a
+    ///   limit breach inside a hook is a `FATAL` like any other, the ladder
+    ///   takes over and the rest of the queue never runs — so the pending state
+    ///   is left exactly as the breach recorded it.
+    fn abandon_exit_hook(&mut self, fault: &crate::Fault) -> bool {
+        match fault {
+            crate::Fault::Pending(status) if *status == crate::FATAL => return false,
+            crate::Fault::Pending(status) if *status == crate::EXITED => self.set_pending(
+                "`exit` inside a `Core\\Script::onExit` hook: a hook observes the ending it was \
+                 given and cannot choose another",
+            ),
+            // The callee already recorded what failed; that is the whole of what
+            // this variant means.
+            crate::Fault::Pending(_) => {}
+            crate::Fault::Thrown(class, message) => self.set_pending_as(*class, message.clone()),
+            // `Fault` is `#[non_exhaustive]`, and the remaining variants reach
+            // a closure call only as `crate::call_closure`'s own two engine
+            // faults — a value that is not a closure, or one declaring more
+            // parameters than the one report there is to offer.
+            other => self.set_pending(format!("a `Core\\Script::onExit` hook failed: {other:?}")),
+        }
+        let thrown = self.take_thrown();
+        let mut record = crate::floor::uncaught(&thrown);
+        record
+            .envelope
+            .fields
+            .push(("origin".to_owned(), crate::floor::text("exit-hook")));
+        crate::floor::report(self, &record);
+        true
+    }
+
+    /// Registers `closure` to run once this request's own frame has returned —
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 6, and [`mod@crate::deferred`] owns when that is on a host with no
+    /// response.
+    ///
+    /// The caller passes an **owned** reference, exactly as
+    /// [`Self::set_limit_handler`] takes one and for the same reason: a
+    /// helper's arguments are borrowed from the call frame and this one
+    /// outlives it. A refused registration hands the reference back by leaving
+    /// it with the caller, which is then what releases it.
+    ///
+    /// `deadline_nanos` is § 7's `deadline` already resolved — the option the
+    /// call named, or [`Self::deferred_deadline`] — and `0` is no deadline.
+    ///
+    /// **Two refusals, and the caller keeps the reference on both.**
+    /// [`crate::deferred::DeferError::Sealed`] is § 6's last bullet — this
+    /// context is a child, and deferred work may not defer more.
+    /// [`crate::deferred::DeferError::AtCapacity`] is § 7's cap, asked here
+    /// because this is where a *tree* first becomes one of the ones a core is
+    /// holding open. Both become a `RuntimeError` at the call site, while there
+    /// is still a request to decide what to do about it.
+    ///
+    /// # Errors
+    ///
+    /// The two above, and nothing else: a registration that gets past them is
+    /// queued.
+    pub fn defer(
+        &mut self,
+        closure: Value,
+        deadline_nanos: u64,
+    ) -> Result<(), crate::deferred::DeferError> {
+        if self.deferred.is_none() {
+            return Err(crate::deferred::DeferError::Sealed);
+        }
+        // Only the first registration takes a slot: what the cap counts is
+        // trees, so a request that defers twenty closures is one tree held open
+        // exactly as a request that defers one is.
+        if !self.holds_deferred_slot {
+            let cap = self.deferred_max_concurrent();
+            if !crate::deferred::take_tree_slot(cap) {
+                return Err(crate::deferred::DeferError::AtCapacity { cap });
+            }
+            self.holds_deferred_slot = true;
+        }
+        self.deferred
+            .as_mut()
+            .expect("the queue was there a line ago")
+            .push(crate::deferred::Deferred {
+                closure,
+                deadline_nanos,
+            });
+        Ok(())
+    }
+
+    /// Gives back the slot this tree holds against § 7's cap, if it has one.
+    ///
+    /// Called at the end of the drain ([`crate::deferred::run_deferred`]) and
+    /// once more as the context goes down, for the tree that never drained at
+    /// all. Idempotent, because those two are not exclusive: a request that ran
+    /// its work still reaches its own teardown afterwards.
+    pub(crate) fn release_deferred_slot(&mut self) {
+        if self.holds_deferred_slot {
+            self.holds_deferred_slot = false;
+            crate::deferred::give_back_tree_slot();
+        }
+    }
+
+    /// Whether this request registered any after-response work.
+    #[must_use]
+    pub fn has_deferred(&self) -> bool {
+        self.deferred
+            .as_ref()
+            .is_some_and(|queue| !queue.is_empty())
+    }
+
+    /// Takes the whole queue and **seals** it, so nothing registered afterwards
+    /// extends the drain — [`mod@crate::deferred`]'s *the queue is a leaf*.
+    ///
+    /// Each entry carries one reference the caller then owes; both callers are
+    /// in this crate, which is why this hands the values out at all rather than
+    /// running them here.
+    pub(crate) fn take_deferred(&mut self) -> Vec<crate::deferred::Deferred> {
+        self.deferred.take().unwrap_or_default()
+    }
+
+    /// § 7's printed default for [`Self::deferred_max_concurrent`], for a tree
+    /// that writes no `[deferred] max_concurrent` of its own.
+    const DEFAULT_DEFERRED_MAX_CONCURRENT: u64 = 256;
+
+    /// `[deferred] max_concurrent` — how many request trees this core may hold
+    /// open for after-response work at once (§ 7).
+    ///
+    /// 256 where nothing is written, which is the number ADR 0072 § 7 prints
+    /// beside the directive. A written `0` is honoured rather than corrected:
+    /// it says this deployment does not want after-response work at all, and
+    /// the refusal a call then gets names the directive it would have to
+    /// change.
+    #[must_use]
+    pub fn deferred_max_concurrent(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("deferred.max_concurrent"))
+        else {
+            return Self::DEFAULT_DEFERRED_MAX_CONCURRENT;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "deferred.max_concurrent",
+            nvs_config::Unit::Count,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Count(count)) => count,
+            _ => Self::DEFAULT_DEFERRED_MAX_CONCURRENT,
+        }
+    }
+
+    /// `[deferred] deadline` in nanoseconds, or `0` when the tree names none —
+    /// the default a call that names no `deadline` of its own inherits (§ 7).
+    #[must_use]
+    pub fn deferred_deadline(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("deferred.deadline"))
+        else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("deferred.deadline", nvs_config::Unit::Duration, &setting)
+        {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+            _ => 0,
+        }
+    }
+
+    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// § 1's tier-1 handler, if this request registered one — the last thing a
+    /// program gets to do about a resource limit, and it happens *before* the
+    /// breach is recorded as the `FATAL` the ladder goes on to print.
+    ///
+    /// **The slot is cleared before the call and not after, and that is the
+    /// whole of "zero retries".** A handler runs with the limit still breached,
+    /// so it reaches this ladder again from inside itself at its first helper
+    /// call ([`crate::run_helper`]) or its first safepoint poll
+    /// ([`nvs_safepoint`]); both ask [`Self::has_limit_handler`] first, so
+    /// taking the registration out of the slot on the way in is what makes that
+    /// second breach find nothing and fall straight through to the next tier.
+    /// Expressing the rule as an ownership move rather than as a flag is what
+    /// stops it from depending on any path remembering to unset one.
+    ///
+    /// Whatever the handler leaves behind is dropped here. It answers nothing
+    /// by its signature, and a throw or a fault of its own is abandoned where
+    /// it stands: the breach that got here is what the request reports, so the
+    /// caller records *its* fault after this returns, over any pending status
+    /// the handler set.
+    ///
+    /// It is handed § 1's `LimitReport`: one array, whose `limit` key names the
+    /// limit that stopped the request in the spelling [`Limit::name`] owns. A
+    /// handler declaring no parameter still runs — [`crate::call_closure`] trims
+    /// the call to the arity the closure recorded — so the report costs nothing
+    /// to a program that does not read it beyond the two allocations building it.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it just took out of the \
+                  slot, owns the report it built, and owns the answer the call \
+                  produced"
+    )]
+    pub fn run_limit_handler(&mut self, limit: Limit) {
+        if !self.has_limit_handler() {
+            return;
+        }
+        // `Value::default()` is the null this leaves behind, which is the
+        // encoding of "nothing registered" [`Self::has_limit_handler`] reads.
+        let handler = std::mem::take(&mut self.limit_handler);
+        // § 1's reserved slice, added back for exactly the length of the call,
+        // and both halves of it are added back whichever limit got here: a
+        // handler stopped by the CPU-time flag still allocates to say so, and
+        // one stopped by the memory cap still takes time to write it.
+        // The handler is entered with the ceiling already breached, so without
+        // this it could not allocate a byte or reach a single `Core` member —
+        // every one of them asks [`crate::run_helper`]'s question first — and a
+        // tier that can say nothing is not a tier. Restored afterwards because
+        // the reserve is the handler's and not the request's: what the ladder
+        // records next is the breach ordinary execution reached.
+        let ordinary = self.memory_limit;
+        let reserve = self.fatal_reserve;
+        if ordinary != 0 {
+            self.memory_limit = ordinary.saturating_add(reserve);
+            // Spent, not merely lent: a handler that breaches *again* is one
+            // that exhausted the whole budget, and the message it fails with
+            // should say so rather than name a slice still being held for it.
+            self.fatal_reserve = 0;
+        }
+        // The CPU half, and the reason it is a *flag* edit as well as a ceiling
+        // edit. A handler entered under [`SafepointFlags::CPU_LIMIT`] would be
+        // stopped again by the very flag it was entered under, at its own first
+        // back edge, before anything raised it a second time — so the slice a
+        // ceiling on its own buys is zero wide however many nanoseconds it
+        // names. Lowering the flag for the length of the call is what makes the
+        // slice `fatal_reserve_time` wide instead: the timer watching this
+        // request re-raises it when the thread's clock passes the widened
+        // ceiling, which is exactly the handler overrunning its slice, and § 1's
+        // zero-retry rule already says what happens to one that does.
+        //
+        // Only what was lowered is raised again. A handler reached by the memory
+        // branch never had the flag set, and setting it on the way out would
+        // stop the *next* poll of a request that never went near its CPU
+        // ceiling.
+        let cpu_ordinary = self.cpu_limit;
+        let cpu_reserve = self.fatal_reserve_time;
+        let stopped_for_cpu = self.safepoint.contains(SafepointFlags::CPU_LIMIT);
+        if cpu_ordinary != 0 {
+            self.cpu_limit = cpu_ordinary.saturating_add(cpu_reserve);
+            // Spent, not merely lent, for [`Self::fatal_reserve`]'s reason.
+            self.fatal_reserve_time = 0;
+        }
+        if stopped_for_cpu {
+            self.safepoint.remove(SafepointFlags::CPU_LIMIT);
+        }
+        // Built here rather than by either caller, and *after* the reserve is
+        // in force: it allocates, and a report the ladder could not afford to
+        // build would be a tier that says nothing for the same reason a handler
+        // that cannot allocate is.
+        let mut report = crate::NvsArray::new();
+        report.set(
+            crate::NvsStr::new(b"limit"),
+            Value::str(crate::NvsStr::new(limit.name().as_bytes())),
+        );
+        let report = Value::array(report);
+        let answer = crate::call_closure(self, handler, &[report]);
+        self.memory_limit = ordinary;
+        self.fatal_reserve = reserve;
+        self.cpu_limit = cpu_ordinary;
+        self.fatal_reserve_time = cpu_reserve;
+        if stopped_for_cpu {
+            self.safepoint.insert(SafepointFlags::CPU_LIMIT);
+        }
+        // SAFETY: the slot held one owned reference, which this frame now
+        // holds; `call_closure` took its own of every slot for the callee to
+        // release, so the report's reference here is still this frame's however
+        // the call went. An `Ok` answer is a fresh value this frame owns, and
+        // releasing a `null` — which is what a `void` closure returns — is a
+        // no-op.
+        unsafe {
+            if let Ok(answer) = answer {
+                answer.release();
+            }
+            report.release();
+            handler.release();
+        }
+    }
+}

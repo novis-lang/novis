@@ -19,9 +19,9 @@ since the module was written: `nvs_server::forwarded` already answers both facts
 ## Next group
 
 **Stage 2: the builder, and goal 16's sections re-pointed at it** — one file set:
-`crates/nvs-runtime/src/ctx.rs`, `crates/nvs-test/src/case.rs`, `crates/nvs-cli/src/main.rs`.
+`crates/nvs-runtime/src/ctx/inbound.rs`, `crates/nvs-test/src/case.rs`, `crates/nvs-cli/src/main.rs`.
 
-- [ ] **`InboundSpec` beside `Inbound`** — `crates/nvs-runtime/src/ctx.rs:4504`. Fields are
+- [ ] **`InboundSpec` beside `Inbound`** — `crates/nvs-runtime/src/ctx/inbound.rs:113`. Fields are
       `Core\Test::request`'s bag exactly: `query`, `headers`, `cookies`, `body`, `form`, `json`, `files`,
       `clientIp`, `scheme`, `host`. `form`/`json`/`files` encode and set their own `Content-Type`; two
       body spellings in one spec is a refusal naming both, never a merge (ADR 0095). The multipart

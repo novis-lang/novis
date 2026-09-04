@@ -35,14 +35,14 @@ what the ledger names.
       `--POST--` with `--POST_RAW--` is a parse error.
 - [ ] **Stage 2b: the carrier** — a case spawns `nvs run` (`crates/nvs-cli/src/main.rs:1163`), so the
       sections cross a process boundary as `nvs run --request <file>`. The `Ctx` is built at
-      `crates/nvs-cli/src/main.rs:923`; `Ctx::set_inbound` is `crates/nvs-runtime/src/ctx.rs:4312`; the
+      `crates/nvs-cli/src/main.rs:923`; `Ctx::set_inbound` is `crates/nvs-runtime/src/ctx/inbound.rs:23`; the
       build itself is three calls — `Inbound::new` (`:4508`), `push_header` (`:4544`), `set_body`
       (`:4565`) — and `crates/nvs-cli/src/serve.rs:323` is the worked example to copy.
 
 ## Backlog
 
 - Stage 3 (ADR 0139, `hold_body`, `claim_body` rewritten, `body()` idempotent) shares
-  `crates/nvs-runtime/src/ctx.rs` with stage 2b but nothing else; it is the natural second group and it is
+  `crates/nvs-runtime/src/ctx/inbound.rs` with stage 2b but nothing else; it is the natural second group and it is
   where the one new ADR number gets spent.
 - Stage 4 (the two members, the five edits each, the spec § 15 bullet, six `.nvst` cases) needs stage 2
   and stage 3 both landed. Stage 5 is one example and the reference page.

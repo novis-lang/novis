@@ -51,7 +51,7 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
    the artifact cache already computed.
 2. **The threading.** `resolve_program` (`crates/nvs-hir/src/requires.rs:182`) is where the unit set
    becomes final; the caller that already holds the `env_hash` owns the combine, and the result is stored
-   in the per-program state the runtime reads (`crates/nvs-runtime/src/ctx.rs` is the neighborhood — the
+   in the per-program state the runtime reads (`crates/nvs-runtime/src/ctx/wiring.rs` is the neighborhood — the
    session picks the exact seam). The hot-reload swap recomputes it with the units it swaps in.
 
 ## Stage 3 — the member, its card, its proofs

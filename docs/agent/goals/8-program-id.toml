@@ -16,7 +16,7 @@ modules = [
   # `resolve_program` -- where the unit set becomes final.
   "crates/nvs-hir/src/requires.rs",
   # The per-program state the runtime reads; the id is stored beside it.
-  "crates/nvs-runtime/src/ctx.rs",
+  "crates/nvs-runtime/src/ctx/wiring.rs",
   # The registry card, and the member's own new module beside it.
   "crates/nvs-stdlib/src/registry.rs",
 ]

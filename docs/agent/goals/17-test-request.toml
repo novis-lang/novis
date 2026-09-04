@@ -15,7 +15,7 @@ files = [
 
 modules = [
   # `Inbound` and the new `InboundSpec` beside it -- the one home for a request as data.
-  "crates/nvs-runtime/src/ctx.rs",
+  "crates/nvs-runtime/src/ctx/inbound.rs",
   # The three members off the known-gap list, and where their rows go.
   "crates/nvs-stdlib/src/request.rs",
   # ADR 0097 § 6's walk: it already answers the client address and the effective scheme.

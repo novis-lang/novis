@@ -1818,8 +1818,9 @@ is why" — is this file.
   file's citations at once; do it before writing a doc comment that cites two or more sections of
   one ADR.
 - **An anchor window — `orient.py`'s inlined code, or a `peek.py` line range — carries no `impl`
-  header, so the receiver type in it is a guess.** The handoff named "the reader is `Ctx::body` at
-  `crates/nvs-runtime/src/ctx.rs:4498`" and the pack inlined that window; both `set_body` and `body`
+  header, so the receiver type in it is a guess.** The handoff named "the reader is `Ctx::body`" with
+  one anchor into what is now `crates/nvs-runtime/src/ctx/inbound.rs`, and the pack inlined that
+  window; both `set_body` and `body`
   read as `Ctx` methods, the helper was written against `ctx.body()`, and the tell was
   `error[E0599]: no method named 'body' found for '&mut nvs_runtime::Ctx'` after a full rebuild —
   they are `Inbound`'s, whose `impl` opens 58 lines above the window. `peek.py --locate` answers the
@@ -5042,7 +5043,7 @@ is why" — is this file.
   that a multi-clause `try` is otherwise fine.
 - **A `Core\Task` child cannot do anything a capability gates, so a fixture that reaches for
   `Core\Task::all` to get two concurrent requests does not work.** `Ctx::child`
-  (`crates/nvs-runtime/src/ctx.rs:2734`) copies the statics, the debug flags, the origin, the error
+  (`crates/nvs-runtime/src/ctx/isolate.rs:116`) copies the statics, the debug flags, the origin, the error
   class table and the deadline word, and **not `config`** — so `ctx.config()` is `None` in the child,
   and `nvs_runtime::capability::granted` reads exactly that, so every door refuses with
   "needs the capability `x` for `y`, which is not granted" however the app block is written. The tell
@@ -5458,6 +5459,24 @@ is why" — is this file.
   at depth 1 for the rest of the file, so the last eight items looked like nothing at all. A splitter
   needs a stateful scan over the whole file — string, raw string, char, block comment — not a regex
   per line, and the reconstruction assertion is what turns that into a loud failure.
+- **An item scanner keyed on blank lines merges the methods a file wrote with none between them.**
+  `ctx.rs`'s last four `Ctx` methods run `}` straight into the next `///`, so a blank-line-only rule
+  found no start after the first and filed all four into one slice — silently, because the partition
+  still reconstructs. The second condition is *the previous line was the `}` that closed an item*,
+  and it has to be `}` specifically: a multi-line `#[expect(…)]` also returns the depth to zero, at
+  the `)]` one line above the item it is attached to.
+- **A 3,000-line `impl` block is not a seam problem, and splitting one widens nothing.** An inherent
+  `impl` may sit in any module of the type's own crate, and a private item is visible in its defining
+  module *and every descendant* — so `Ctx`'s 773 lines of private fields stayed in `ctx/mod.rs` and
+  not one of them changed. What widens is only what a **sibling** reads: a private method or a private
+  type moved away from its caller, eight of them here, each `pub(super)` — the reach it already had.
+  Write each fragment back inside a generated `impl Ctx { … }` and the move is mechanical.
+- **A relative reference in a doc comment is the split's own test.** `grep -n "above\|below\|neighbour"`
+  over the moved halves finds the sentences that stopped being true, and one of the four hits in
+  `ctx.rs` was not stale prose but a **mis-seam**: `set_inbound`'s "the inbound half of the channel the
+  three methods above are the outbound half of" was the file saying it did not belong in `output.rs`.
+  `DeclaredHeader` was the same finding from the other direction. A comment that describes its own
+  neighbours is the only place a wrong cut announces itself, because the compiler never will.
 
 ## Writing Novis itself
 

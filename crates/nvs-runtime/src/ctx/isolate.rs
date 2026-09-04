@@ -1,0 +1,435 @@
+//! Static-property storage, and the three ways a context makes another one.
+//!
+//! `docs/adr/README.md` § *Decisions taken at project start* makes a static
+//! property's slot request-scoped: [`Ctx::install_statics`] materializes one
+//! per declared default when the request is armed and [`Ctx`]'s `Drop` releases
+//! them, so nothing outlives the request that wrote it.
+//!
+//! The three constructors are here because they are the same question asked of
+//! a *tree* of contexts.
+//! [ADR 0006](/docs/adr/0006-isolated-script-execution.md) gives a tree one
+//! ceiling to divide, so [`Ctx::child`], [`Ctx::isolate`] and
+//! [`Ctx::handler_isolate`] each decide what the new context shares with its
+//! root and what it starts fresh — and the statics are the largest thing it
+//! does *not* share.
+
+use super::*;
+
+impl Ctx {
+    /// Arms this request's static-property storage: one slot per entry in
+    /// `defaults`, in that order, each materialized from its declared
+    /// initializer.
+    ///
+    /// **Every embedder calls this before running any of a unit's code**, and
+    /// the call is `nvs_codegen::Unit::install_in`'s job rather than an
+    /// embedder's own — a unit's slot *numbering* is what the compiled code
+    /// baked in, so the vector handed here has to be the one that unit
+    /// produced. Calling it twice re-runs the initializers and releases the
+    /// previous slots, which is what makes a `Ctx` reusable across requests.
+    ///
+    /// The initializers are constants (`nvs_types::defaults::ConstArg`), so
+    /// arming a request runs no user code and cannot fail or throw — the whole
+    /// reason a static's initializer is restricted to one. A `None` entry is a
+    /// static ADR 0022 § 2 required no default of (a nullable or `lateinit`
+    /// one) and starts the request at `null`.
+    pub fn install_statics(&mut self, defaults: &[Option<FieldDefault>]) {
+        self.release_statics();
+        let mut store: Box<[Value]> = defaults
+            .iter()
+            .map(|default| {
+                default
+                    .as_ref()
+                    .map_or_else(Value::null, FieldDefault::materialize)
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        // The pointer is taken before the move, and stays valid across it:
+        // moving a `Box` moves the three words, never the heap buffer.
+        self.statics = store.as_mut_ptr();
+        self.statics_store = store;
+    }
+
+    /// How many static-property slots this request holds — the length
+    /// [`Ctx::install_statics`] was last armed with.
+    #[must_use]
+    pub fn statics_len(&self) -> usize {
+        self.statics_store.len()
+    }
+
+    /// A context for a **child task of this request** — what `nvs-host` hands
+    /// [`crate::host::Job`] when it runs a group.
+    ///
+    /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md)
+    /// § 1's children "share the request", and this is the one place that
+    /// sharing is decided: `nvs-host`'s `group` module doc is the home of *why*
+    /// each field is on the side of the line it is on, because it is the only
+    /// code that builds one.
+    ///
+    /// **The static-property base is shared by aliasing it**, which is the
+    /// whole point. Compiled code loads a static through [`Self::statics`]
+    /// inline, so a child with its own store would give the request two copies
+    /// of every static and `Gauge::$live += 1` inside a child would be
+    /// invisible outside it. The child's own `statics_store` stays empty, so
+    /// its [`Drop`] releases nothing the parent owns — there is exactly one
+    /// owner of those slots and it is still the parent.
+    ///
+    /// Everything a *task* owns rather than a request starts fresh: the output
+    /// buffer, the capture stack, the assertion ledger, the pending failure,
+    /// the yielder and the stack bounds — the last two because the child will
+    /// run on a stack of its own that this context has never seen. So does the
+    /// diagnostic sink, which starts at [`OutputSink::Stderr`] like any fresh
+    /// context's: an [`OutputSink`] is not `Clone`, and a redirected one is a
+    /// test reading its own dumps back rather than a property of the request.
+    ///
+    /// **The configuration crosses including the parent's overlay**, exactly as
+    /// it does for [`Self::isolate`] and for that constructor's reason: ADR 0006's
+    /// table calls the overlay "derived, never shared: a copy of the parent's
+    /// *effective* config, which the spawn may narrow", so a child starts from
+    /// the values in force where it was spawned rather than from the file. The
+    /// direction is what matters and it is a security one — `[capabilities]` is
+    /// a `RuntimeTighten` directive, [`crate::capability::granted`] reads this
+    /// field, and a child re-reading the snapshot alone would hand back a
+    /// capability its parent had dropped. A `Core\Config::set` the *child* makes
+    /// is the child's own, because the copy is a copy: nothing in
+    /// [`nvs_config::Request`] is shared but the snapshot underneath it.
+    ///
+    /// **What it spends:** one `Ctx` per in-flight child, freed when that child
+    /// ends, plus the origin's own bytes copied once and one `Arc` clone of the
+    /// snapshot with one `String` pair per key the parent had set. O(in-flight)
+    /// and not O(children ever spawned), per
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    ///
+    /// # Safety
+    ///
+    /// `self` must outlive the returned context, and no code may run on the
+    /// child after `self` is gone: the child holds a bare pointer into this
+    /// context's static-property storage and nothing in the type expresses
+    /// that. `nvs-host`'s group runner discharges it structurally — the call
+    /// does not return until no child is still running (§ 4), and a parent torn
+    /// down first cancels every child, which the scheduler tears down without
+    /// resuming it.
+    #[must_use]
+    #[expect(
+        unsafe_code,
+        reason = "the parent-outlives-child obligation is a fact about the                   caller's control flow and cannot be expressed in the signature"
+    )]
+    pub unsafe fn child(&self) -> Self {
+        // A fresh buffer, but not necessarily a fresh *sink*: ADR 0072's task
+        // is part of this request rather than a context of its own, so it is
+        // still answering whatever this one is answering and ADR 0088 § 3's
+        // first row still applies to it. An isolate reaches the same conclusion
+        // by the third row, and `nvs_host::Isolate` is where that is read.
+        let mut child = Self::new(if matches!(self.output, OutputSink::Body(_)) {
+            OutputSink::Body(Vec::new())
+        } else {
+            OutputSink::Buffer(Vec::new())
+        });
+        // Request-wide, and therefore shared or copied.
+        child.statics = self.statics;
+        child.debug = self.debug;
+        child.origin = self.origin.clone();
+        // The effective configuration, overlay included — see the doc above for
+        // why the copy goes this way round and not through the snapshot alone.
+        child.config = self.config.clone();
+        child.runtime_error_class = self.runtime_error_class.clone();
+        // The word, not its value: a task of this request is bounded by this
+        // request's wall time and by no clock of its own. See the field doc.
+        child.deadline = std::sync::Arc::clone(&self.deadline);
+        // Sealed rather than empty: ADR 0072 § 6's queue is the *request's*, and
+        // one on a child would be drained by nobody and released when the child
+        // ended. `crate::deferred` is the one home for that rule and for why a
+        // refusal is the only honest answer to a registration nothing would run.
+        child.deferred = None;
+        child
+    }
+
+    /// A context for an **isolate** — the other half of the pair
+    /// [`Ctx::child`] opens, and the one place the two part.
+    ///
+    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 4: an isolate's arena is an ownership root of its own, so its
+    /// static-property base is **its own** rather than an alias of this
+    /// request's. That single difference is the whole of ADR 0006's "globals,
+    /// class statics and runtime-defined constants are fresh", and it is why
+    /// this constructor is safe where [`Ctx::child`] is `unsafe`: nothing in
+    /// the returned context points into this one, so there is no
+    /// parent-outlives-child obligation for a caller to discharge.
+    ///
+    /// The store starts **empty**, not merely fresh. Slot numbering is the
+    /// child unit's, baked into the code that will run here, so the caller arms
+    /// it with that unit's own defaults through
+    /// [`install_statics`](Ctx::install_statics) — which is
+    /// `nvs_codegen::Unit::install_in`'s job, exactly as it is for a request.
+    ///
+    /// What crosses is what ADR 0006's table calls request-wide and immutable:
+    /// the debug flags, the origin, the runtime error class table (compiled
+    /// code, shared by design) and the deadline word, since a budget is
+    /// accounted at the root of the request tree and never per isolate. The
+    /// deadline crosses as the *word* and not as its value — one store expires
+    /// the whole tree, whenever in the child's life the timer fires — and
+    /// [`Self::deadline`]'s field doc owns why a copy was the wrong half of
+    /// that. The output sink is the caller's, because `output: 'capture'` and
+    /// `output: 'inherit'` differ in nothing else.
+    ///
+    /// **No ceiling crosses, and that is what makes the budget the tree's.**
+    /// ADR 0006's table charges a child's memory and a child's output to the
+    /// root, and both counters are the thread's ([`crate::budget`]) with the
+    /// child's own zero point taken here by [`Self::new`]: a child reads back
+    /// its own share, the root's base predates every child so its reading holds
+    /// all of them at once, and the ceiling that stops the tree is the root's.
+    /// A child handed a ceiling of its own — [`Self::set_memory_limit`],
+    /// [`Self::set_output_limit`] — narrows itself further and can never widen
+    /// the tree.
+    ///
+    /// **What it spends:** one `Ctx` per in-flight isolate plus its own statics
+    /// store once armed, both freed when that isolate ends. O(in-flight), per
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
+    #[must_use]
+    pub fn isolate(&self, output: OutputSink) -> Self {
+        let mut isolate = Self::new(output);
+        // Request-wide, and therefore copied. `statics` is deliberately absent:
+        // it stays null until this context is armed with the child unit's own
+        // defaults, which is the difference this constructor exists for.
+        isolate.debug = self.debug;
+        isolate.origin = self.origin.clone();
+        // The configuration **including the parent's overlay**, so a child
+        // starts from the values in force where it was spawned rather than from
+        // the file. That is the direction ADR 0006's table wants: a parent that
+        // narrowed a limit for itself has narrowed it for the tree beneath it,
+        // and a child re-reading the snapshot would silently widen it back.
+        isolate.config = self.config.clone();
+        // One deeper than whatever spawned it, and carrying the same ceiling.
+        // The ceiling is *copied* rather than re-read out of the configuration
+        // this constructor just cloned, for the reason the overlay crosses at
+        // all: a parent that narrowed its own recursion ceiling has narrowed it
+        // for the tree beneath it, and a child re-reading the file would widen
+        // it back. Saturating because a depth that reached `u32::MAX` is past
+        // every ceiling anyone could write, so the arithmetic has no answer the
+        // refusal above it would treat differently.
+        isolate.script_depth = self.script_depth.saturating_add(1);
+        isolate.max_script_depth = self.max_script_depth;
+        isolate.runtime_error_class = self.runtime_error_class.clone();
+        isolate.deadline = std::sync::Arc::clone(&self.deadline);
+        // **Not** sealed, unlike [`Self::child`], and the difference is the one
+        // ADR 0072 § 6 draws: an isolate runs a whole program, so the frame
+        // that produced its answer returning is a trigger it has, where a
+        // `Core\Task` child's returning is not the end of anything a response
+        // could be. `Self::new` above already gave this context its queue and
+        // `nvs_host::isolate`'s completion path is what drains it.
+        isolate
+    }
+
+    /// The memory ceiling [`Self::handler_isolate`] runs under where
+    /// `[log] handler_reserve_memory` states none.
+    ///
+    /// 16 MiB, and a flat number rather than [`Self::reserve_within`]'s
+    /// proportion, because there is no ceiling to take a proportion *of*: ADR
+    /// 0020 § 1's slice is carved out of the request's own `[limits] memory`,
+    /// while § 3's is the engine's and is the same whatever the request was
+    /// allowed. The size is what a whole `.nvs` costs rather than what a
+    /// message costs — this reserve compiles and runs a program, where § 1's
+    /// runs a closure the request already loaded — and 16 MiB is spent here
+    /// under [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s
+    /// ordering: a handler that cannot report is a failure nobody hears about.
+    pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
+
+    /// The CPU ceiling [`Self::handler_isolate`] runs under where
+    /// `[log] handler_reserve_time` states none.
+    ///
+    /// Five seconds, on [`Self::reserve_time_within`]'s reasoning and not its
+    /// number: a handler's time is bounded by what writing its report blocks
+    /// on, which is a log target or a socket. The number is larger than § 1's
+    /// 50 ms for the reason the memory half is larger — this one compiles a
+    /// script first — and it is a ceiling on a report, not a budget for work.
+    pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
+
+    /// A context for [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// § 3's **tier-3 handler** — [`Self::isolate`] with the failing request's
+    /// budget left behind.
+    ///
+    /// § 3's one deliberate exception to [ADR 0006](/docs/adr/0006-isolated-script-execution.md):
+    /// an ordinary isolate spends the tree's budget, which is exactly wrong for
+    /// the one isolate whose job is to report that the tree ran out of it.
+    /// Everything ADR 0006 calls request-wide still crosses — the sibling above
+    /// is the one home of that list — and three things part from it:
+    ///
+    /// - **Its own deadline word**, not the tree's. The parent's word is set
+    ///   the moment its wall clock runs out, so a handler sharing it would be
+    ///   cancelled before its first statement, for precisely the failure it was
+    ///   configured to report.
+    /// - **Its own ceilings** — [`Self::DEFAULT_HANDLER_RESERVE_MEMORY`] and
+    ///   [`Self::DEFAULT_HANDLER_RESERVE_TIME`], or what the two directives
+    ///   state — where an ordinary isolate carries none and is bounded by the
+    ///   root's reading once control returns there. Exceeding one is § 3's
+    ///   "zero retries" and nothing else: the handler fails, `nvs-host`'s
+    ///   `ladder::escalate` answers `false`, and tier 4 writes the record.
+    /// - **A fresh script depth**, because a chain that reached
+    ///   `[limits] max_script_depth` is itself one of the failures this handler
+    ///   reports, and inheriting the depth would refuse the report on the
+    ///   grounds of the thing being reported. What that ceiling guards against
+    ///   is guarded here by `nvs_host::ladder`'s thread-local instead, since
+    ///   this is the only spawn on the path.
+    ///
+    /// **What it spends:** nothing between failures. The reserve is a ceiling,
+    /// not an allocation, exactly as `[limits] fatal_reserve_memory` is —
+    /// § 3's "sized once per worker/core" is the value's *shape*, a number that
+    /// does not vary with the request, and not a pre-allocation. In flight it
+    /// is one more `Ctx`, which is [`Self::isolate`]'s accounting.
+    #[must_use]
+    pub fn handler_isolate(&self, output: OutputSink) -> Self {
+        let mut handler = self.isolate(output);
+        handler.deadline = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        handler.script_depth = 0;
+        handler.memory_limit = self
+            .configured_handler_reserve()
+            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_MEMORY);
+        handler.cpu_limit = self
+            .configured_handler_reserve_time()
+            .unwrap_or(Self::DEFAULT_HANDLER_RESERVE_TIME);
+        handler
+    }
+
+    /// The base of the static-property storage compiled code loads inline —
+    /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
+    ///
+    /// Null before [`Ctx::install_statics`] has run, which is safe because a
+    /// unit declaring no static emits no instruction that reads it. Two callers
+    /// want it and neither can reach the field: `nvs-host`'s group runner,
+    /// which gives a child the *same* base so a request has one copy of every
+    /// static rather than one per task ([`Ctx::child`]), and a test asserting
+    /// that it did.
+    #[must_use]
+    pub fn statics_base(&self) -> *mut Value {
+        self.statics
+    }
+
+    /// Releases every armed slot and disarms the pointer beside them.
+    ///
+    /// Each slot owns exactly one reference — [`FieldDefault::materialize`]
+    /// hands one over and a static write releases what it overwrote — so this
+    /// is one release per slot, never a scan of what compiled code did with
+    /// them.
+    #[expect(
+        unsafe_code,
+        reason = "a slot's owned reference is released exactly once here; the \
+                  slots were materialized by `install_statics` and no other \
+                  owner of them exists"
+    )]
+    pub(super) fn release_statics(&mut self) {
+        let store = std::mem::replace(&mut self.statics_store, Vec::new().into_boxed_slice());
+        self.statics = std::ptr::null_mut();
+        for value in store.into_vec() {
+            unsafe { value.release() };
+        }
+    }
+
+    /// Takes ownership of the value that crossed into this isolate, so that
+    /// releasing the isolate releases it too.
+    ///
+    /// This is where [`crate::script::Program`]'s "the argument is
+    /// transferred" lands. A program is handed one reference and has to put it
+    /// somewhere [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2's wholesale release will reach; this context *is* that ownership
+    /// root, so this is the one place with both the reference and the lifetime
+    /// in hand. Calling it twice releases what it replaces, and a context that
+    /// is never handed one holds `null` and releases nothing.
+    ///
+    /// The child's own surface for *reading* it is `Core\Script::args()`, and
+    /// `nvs_stdlib::script`'s module doc is the one home of what that answers.
+    /// It reads through [`Self::isolate_argument`] and retains, so this slot
+    /// stays the only owner however often the child asks.
+    #[expect(
+        unsafe_code,
+        reason = "this context owned the reference it is replacing, having \
+                  been handed it by exactly one earlier call"
+    )]
+    pub fn set_isolate_argument(&mut self, value: Value) {
+        let previous = std::mem::replace(&mut self.isolate_argument, value);
+        // SAFETY: `isolate_argument` holds one owned reference or null, and
+        // nothing else points at it — the field is private and handed out only
+        // by the borrowing accessor below.
+        unsafe { previous.release() };
+    }
+
+    /// The value that crossed into this isolate, **borrowed**.
+    ///
+    /// No reference is handed over, exactly as reading any other slot hands
+    /// none over: a caller that keeps the value retains it first.
+    #[must_use]
+    pub fn isolate_argument(&self) -> Value {
+        self.isolate_argument
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ADR 0006's "child output against the root's `max_output`", as the two
+    /// readings that sentence implies: a child re-bases at `Ctx::new` and so
+    /// reads back only its own bytes, while the root's base predates the child
+    /// and its reading holds both. The ceiling that stops the tree is the
+    /// root's, and no child was given one.
+    #[test]
+    fn an_isolates_output_is_charged_to_it_and_to_the_root_at_once() {
+        let mut root = Ctx::buffered();
+        root.set_output_limit(16);
+        root.write_output(b"1234").expect("a buffer");
+        assert_eq!(root.output_used(), 4);
+        assert!(!root.over_output_limit());
+
+        let mut child = root.isolate(OutputSink::Buffer(Vec::new()));
+        child.write_output(b"567890").expect("a buffer");
+        assert_eq!(child.output_used(), 6, "its own share, and only that");
+        assert_eq!(root.output_used(), 10, "the child's bytes are the root's");
+        assert!(!root.over_output_limit());
+
+        child.write_output(b"1234567").expect("a buffer");
+        assert_eq!(child.output_limit(), 0, "no ceiling crossed to the child");
+        assert!(!child.over_output_limit());
+        assert!(
+            root.over_output_limit(),
+            "17 bytes written beneath a ceiling of 16"
+        );
+        assert!(root.output_breach().is_some());
+    }
+
+    #[test]
+    fn installing_statics_materializes_one_slot_per_declared_default() {
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        assert_eq!(ctx.statics_len(), 0);
+        ctx.install_statics(&[
+            Some(FieldDefault::Int(3)),
+            Some(FieldDefault::Str("hi".to_owned())),
+            None,
+        ]);
+        assert_eq!(ctx.statics_len(), 3);
+        // Re-arming is what a second request on a reused context does: the
+        // previous slots are released, never leaked, and the initializers run
+        // again rather than the writes of the request before carrying over.
+        ctx.install_statics(&[
+            Some(FieldDefault::Int(3)),
+            Some(FieldDefault::Str("hi".to_owned())),
+            None,
+        ]);
+        assert_eq!(ctx.statics_len(), 3);
+    }
+
+    /// ADR 0006's "one ceiling to divide": the flag is the tree's own word, so
+    /// the store reaches a child built before the timer fired. A copy answered
+    /// the other order correctly and this one not at all, which is why the
+    /// child here is spawned first.
+    #[test]
+    fn expiring_a_deadline_reaches_a_child_spawned_before_the_timer_fired() {
+        let root = Ctx::buffered();
+        let early = root.isolate(OutputSink::Sink);
+        assert!(!early.deadline_expired());
+
+        root.expire_deadline();
+        assert!(early.deadline_expired(), "the child stops with the tree");
+        assert!(
+            root.isolate(OutputSink::Sink).deadline_expired(),
+            "and so does one spawned afterwards",
+        );
+    }
+}

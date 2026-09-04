@@ -59,8 +59,8 @@ honestly without it.
 2. **The carrier.** A case is run by spawning `nvs run` (`crates/nvs-cli/src/main.rs:1163`), so the
    sections have to cross a process boundary: `nvs run --request <file>` reads a frozen description and
    builds the `Inbound` before the program runs (`crates/nvs-cli/src/main.rs:923`, where `nvs run`'s `Ctx`
-   is made; `Ctx::set_inbound` is `crates/nvs-runtime/src/ctx.rs:4312`). The build itself is the dev
-   server's, three calls deep: `Inbound::new` (`:4508`), `push_header` (`:4544`), `set_body` (`:4565`) —
+   is made; `Ctx::set_inbound` is `crates/nvs-runtime/src/ctx/inbound.rs:23`). The build itself is the
+   dev server's, three calls deep: `Inbound::new` (`:339`), `push_header` (`:490`), `set_body` (`:511`) —
    `crates/nvs-cli/src/serve.rs:323` is the worked example.
 3. **The section that says so.** `crates/nvs-test`'s module doc owns the format; its *What is parsed but
    not yet honoured* list is where these five are recorded as honoured, beside `--ENV--` and `--ARGS--`.
@@ -72,8 +72,8 @@ honestly without it.
    `jsonAs` — keeps what it read, so any buffering reader may follow another.* `post()` joining `files`
    stops being an exception and becomes a consequence: `files` buffers the non-file parts on its way past,
    so it leaves something behind.
-2. **`hold_body`**, generalizing `Inbound::hold_form` (`crates/nvs-runtime/src/ctx.rs:4656`), and
-   `claim_body` (`:4605`) rewritten to answer the *class* of the holder rather than its name.
+2. **`hold_body`**, generalizing `Inbound::hold_form` (`crates/nvs-runtime/src/ctx/inbound.rs:602`),
+   and `claim_body` (`:551`) rewritten to answer the *class* of the holder rather than its name.
    `nvs_stdlib::request`'s `claim_body`/`claim_form` pair (`crates/nvs-stdlib/src/request.rs:1032`,
    `:1081`) collapses into one call against it.
 3. **`body()` becomes idempotent** (`crates/nvs-stdlib/src/request.rs:1696`) — the same octets on every
@@ -87,7 +87,7 @@ Two `Core` members, the five edits each, in `crates/nvs-stdlib/src/request.rs` b
 1. **The decode** reuses `crate::json::read` (`crates/nvs-stdlib/src/json.rs:864`) and
    `DECODE_OPTIONS`/`DEFAULT_MAX_DEPTH` (`:339`, `:367`) — no second JSON reader and no second default.
 2. **`json()` caches its decoded value on the request**; `jsonAs<T>()` never does. `Inbound::hold_parts`'s
-   `Box<dyn Any>` (`crates/nvs-runtime/src/ctx.rs:4625`) is the precedent for the slot, and the value is
+   `Box<dyn Any>` (`crates/nvs-runtime/src/ctx/inbound.rs:571`) is the precedent for the slot, and the value is
    dropped with the request.
 3. **The spec** — § 15's `Core\Request` bullet gains both members and loses the three-way exclusivity
    sentence to ADR 0139's rule. `spec_registry_coverage.rs` reads that bullet as the roster, so this edit

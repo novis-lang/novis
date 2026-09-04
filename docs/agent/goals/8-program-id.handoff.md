@@ -12,7 +12,7 @@ the id cannot be a compile-time-folded constant.
 ## Next group
 
 **Stage 2: the combine and its threading** — one file set: `crates/nvs-config/src/cache.rs`,
-`crates/nvs-hir/src/requires.rs`, `crates/nvs-runtime/src/ctx.rs`.
+`crates/nvs-hir/src/requires.rs`, `crates/nvs-runtime/src/ctx/wiring.rs`.
 
 - [ ] **`program_id` beside its two inputs** — `crates/nvs-config/src/cache.rs:120` (`content_hash`) and
       `:105` (`env_hash`): BLAKE3 over the unit content hashes in program order, then the env hash,

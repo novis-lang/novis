@@ -818,7 +818,7 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
 /// ceiling. What bounds the tree anyway is that the parent's base was taken before any of them
 /// existed and the counter is one per thread, so every byte a child holds is still on the parent's
 /// reading — `Ctx::isolate`'s own "a budget is accounted at the root of the request tree and never
-/// per isolate" (`crates/nvs-runtime/src/ctx.rs:1781`), asserted rather than stated.
+/// per isolate" (`crates/nvs-runtime/src/ctx/isolate.rs:188`), asserted rather than stated.
 ///
 /// Each child's reading is taken **before the next one exists**, which is the only order that can
 /// tell the two apart: read at the end, every context in the tree answers the same number and a
@@ -978,7 +978,7 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
 /// whole of what a child has, and this case asks the two ways a child could have got more.
 ///
 /// **By inheriting a default.** The grant crosses in the cloned snapshot (`Ctx::isolate`,
-/// `crates/nvs-runtime/src/ctx.rs:1802`), so both answers are asserted rather than the refusal
+/// `crates/nvs-runtime/src/ctx/isolate.rs:188`), so both answers are asserted rather than the refusal
 /// alone: a child that had crossed with no configuration at all would be refused `script.spawn`
 /// too — `nvs_runtime::capability::refusal` denies by default — and would look right here while
 /// having inherited nothing.

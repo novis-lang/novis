@@ -24,7 +24,7 @@ not re-litigate whether the spike works.
 amends ADR 0002: containment moves outward from the helper to the worker task. It goes first because a
 scheduler written against the old boundary has its panic path wrong in the place hardest to find later.
 
-One file set: `crates/nvs-runtime/src/abi.rs`, `crates/nvs-runtime/src/ctx.rs`,
+One file set: `crates/nvs-runtime/src/abi.rs`, `crates/nvs-runtime/src/ctx/isolate.rs`,
 `benches/abi-probe/tests/invariants.rs`.
 
 - [ ] **The worker task is the containment boundary.** ADR 0106 §§ 1–3. `catch_unwind` wraps the worker

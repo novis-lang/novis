@@ -144,8 +144,8 @@ This file is read in full by every future session, so it is a **bounded state fi
      the ADR section that specifies it **and the `file.rs:NN` anchors it touches**, under one line naming
      **the file set they share**. Related means *same files*, not same topic. The anchors are not optional:
      you can resolve them now for nothing, and a session without them spends ten `grep`s re-deriving what
-     you already knew. They go **in the item, repo-rooted** — `crates/nvs-runtime/src/ctx.rs:2285`, never
-     `ctx.rs:2285` and never up in `## State` — because that is the only place and form `orient.py` reads
+     you already knew. They go **in the item, repo-rooted** — `crates/nvs-runtime/src/ctx/isolate.rs:116`,
+     never `isolate.rs:116` and never up in `## State` — because that is the only place and form `orient.py` reads
      them from to inline the code into the next pack, and `session.py --wrap` refuses an open item without
      one.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc. Trim the ones that went stale.

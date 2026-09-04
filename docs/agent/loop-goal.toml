@@ -107,8 +107,11 @@ modules = [
   # IS, the `NvsArray`/`Value` API every member that touches a map is written against, the seam a
   # member reaches its host through, and the floor a failure with nobody left to throw to reports on
   # -- was invisible on the map. Named files rather than `src/*.rs`: that crate is 40-odd modules and
-  # the map line is a sentence each.
-  "crates/nvs-runtime/src/ctx.rs",
+  # the map line is a sentence each. `ctx.rs` came apart into `ctx/`: `mod.rs` is the struct and the
+  # module doc that routes to the other eleven, and a request's two ends are named beside it.
+  "crates/nvs-runtime/src/ctx/mod.rs",
+  "crates/nvs-runtime/src/ctx/inbound.rs",
+  "crates/nvs-runtime/src/ctx/output.rs",
   "crates/nvs-runtime/src/host.rs",
   "crates/nvs-runtime/src/floor.rs",
   "crates/nvs-runtime/src/array.rs",
@@ -3578,7 +3581,7 @@ tests = [
   # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller.
   "a_non_file_part_is_buffered_into_post",
   # §§ 3, 6-8 -- exclusive with body and with files on one request, which `claim_body` decides
-  # (`crates/nvs-runtime/src/ctx.rs:4577`, wrapped at `crates/nvs-stdlib/src/request.rs:980`).
+  # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:980`).
   "body_stream_is_exclusive_with_body_and_with_files",
 ]
 

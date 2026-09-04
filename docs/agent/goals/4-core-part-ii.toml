@@ -88,7 +88,8 @@ modules = [
   "crates/nvs-runtime/src/object.rs",
   # Stage 11 -- the teardown sweep: the drain the sweep follows, and the `Ctx` that owns the live list.
   "crates/nvs-runtime/src/release.rs",
-  "crates/nvs-runtime/src/ctx.rs",
+  "crates/nvs-runtime/src/ctx/mod.rs",
+  "crates/nvs-runtime/src/ctx/current.rs",
   # Stage 12 -- the exit hook: the class that registers it, and the ladder neighbour it orders against.
   "crates/nvs-stdlib/src/script.rs",
   "crates/nvs-stdlib/src/fatal.rs",

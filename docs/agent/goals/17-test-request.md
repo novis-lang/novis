@@ -32,7 +32,7 @@ Goal 16's whole acceptance list, never traded.
 
 ## Stage 2 — the keystone: one builder, one home
 
-1. **`InboundSpec` beside `Inbound`** in `crates/nvs-runtime/src/ctx.rs:4504` — the description of a
+1. **`InboundSpec` beside `Inbound`** in `crates/nvs-runtime/src/ctx/inbound.rs:113` — the description of a
    request as data, and the one place it becomes an `Inbound`. Its fields are `Core\Test::request`'s bag
    exactly: `query`, `headers`, `cookies`, `body`, `form`, `json`, `files`, `clientIp`, `scheme`, `host`.
    `nvs-runtime` is the home because all four crates that need it — `nvs-test`, `nvs-cli`, `nvs-stdlib`,

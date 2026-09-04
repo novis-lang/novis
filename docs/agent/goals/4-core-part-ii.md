@@ -250,7 +250,7 @@ observe-only. Nothing here reopens ADR 0028 — a flat per-request queue is not 
     declare no parameter, as `Core\Fatal`'s handlers may). The queue lives on `Ctx` — what it spends,
     said in the module doc as ADR 0004 requires: one vec of closures per request, hooks and captures
     held to the end of the script, O(registrations). `crates/nvs-stdlib/src/script.rs`,
-    `crates/nvs-runtime/src/ctx.rs`.
+    `crates/nvs-runtime/src/ctx/hooks.rs`.
 39. **The three endings drain it; the two terminations do not.** FIFO, once, as the last user code:
     after the last statement, after `exit`, and on the throw path after `onUncaughtThrow` — never on a
     `FATAL` (only `Core\Fatal::onLimit` sees one) and never on a cancellation. A hook's own throw is

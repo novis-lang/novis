@@ -19,7 +19,7 @@ modules = [
   # `crate::json::read` and the `{maxDepth?}` bag both members reuse; no second JSON reader.
   "crates/nvs-stdlib/src/json.rs",
   # `Inbound` -- the claim, `hold_form`/`hold_parts`, and the three calls that build one.
-  "crates/nvs-runtime/src/ctx.rs",
+  "crates/nvs-runtime/src/ctx/inbound.rs",
   # The `.nvst` format's own home: the section table in the module doc, and the parse.
   "crates/nvs-test/src/lib.rs",
   "crates/nvs-test/src/case.rs",

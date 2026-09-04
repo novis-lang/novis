@@ -1,0 +1,487 @@
+//! [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+//! probes, and what a request records for them.
+//!
+//! The probe sites are emitted unconditionally and cost a load and a
+//! predicted-not-taken branch while [`DebugFlags`] is empty, which is the whole
+//! of why coverage and tracing can be turned on *mid-request*. This file holds
+//! both ends: [`nvs_probe_stmt`], [`nvs_probe_call_enter`] and
+//! [`nvs_probe_call_exit`], and the [`Ctx`] methods they call into.
+//!
+//! [`FaultSite`] rides along because it is the same shape — a site compiled in,
+//! armed by a test, and fired at most once.
+
+use super::*;
+
+/// A failure a run can be *asked* to produce, for a mode that by definition
+/// has no user-facing trigger.
+///
+/// The set is closed on purpose, and reachable only through `nvs run
+/// --fault-inject=<site>`: it must never be reachable from a served request
+/// (`nvs serve`, M7), and nothing in Novis source can arm one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FaultSite {
+    /// The request's **second** runtime helper call panics, which
+    /// [`crate::run_helper`]'s `catch_unwind` contains into a `FATAL`.
+    ///
+    /// Deliberately not the *first*: `echo` is itself a helper, so faulting
+    /// the very first call would give a run that produced no output at all —
+    /// and half of what containing an engine panic means is that what the
+    /// request already produced survives it. Two is the smallest count that
+    /// leaves room for a byte to have been written.
+    ///
+    /// It is a fixed count rather than a condition on the output for one
+    /// reason: an injected fault that can silently never fire is worse than
+    /// one whose site reads slightly arbitrarily. A request that enters fewer
+    /// than two helpers does nothing observable at all, so there is no
+    /// program this leaves un-faulted that anyone would want to fault.
+    HelperPanic,
+}
+
+/// Which of
+/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// § 1's four kinds a [`TraceEvent`] is.
+///
+/// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
+/// a `call` event's shape exactly as ADR 0018 defined it, and the three other
+/// kinds carry facts of their own that this stand-in vector has nowhere to put.
+/// A `query`'s field set is fixed by [ADR 0067](/docs/adr/0067-core-db.md)
+/// § 11 and lives in `nvs_db::QuerySpan`, which is where the driver already
+/// holds it; a per-kind payload is what § 4's export needs and what lands with
+/// ADR 0018's sink, alongside the `PROFILE` timing the `trace` field's own doc
+/// comment defers for the same reason.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TraceKind {
+    /// A call site's entry or exit — ADR 0018 § 1's probe pair, and the only
+    /// kind anything in the tree records today.
+    Call,
+    /// A cycle-collector pause — ADR 0041 § 2. The collector's run routine
+    /// does not record one yet.
+    Gc,
+    /// An isolate spawn or join — ADR 0041 § 3, and unrecorded for the same
+    /// reason as [`TraceKind::Gc`].
+    Spawn,
+    /// One statement, filed from inside a driver's own statement routine —
+    /// ADR 0041 § 1 and ADR 0067 § 11.
+    Query,
+}
+
+/// One [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1 call-site trace record, tagged with
+/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+/// § 1's kind.
+///
+/// The remaining two fields are the `call` kind's shape, and a `query` reuses
+/// the first of them rather than adding a field per kind — [`Ctx::record_query`]
+/// owns that reasoning, and [`TraceKind`]'s doc comment owns what a per-kind
+/// payload waits on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraceEvent {
+    /// Which of ADR 0041 § 1's four kinds this is.
+    pub kind: TraceKind,
+    /// What the event is *of*: a [`TraceKind::Call`]'s callee as a
+    /// `Class::method` label, and a [`TraceKind::Query`]'s span as the driver
+    /// rendered it — see [`Ctx::record_query`] for why one field carries both.
+    pub callee: String,
+    /// `None` on entry; on exit, the status the call site is about to branch
+    /// on — so a trace records a thrown or `FATAL` exit exactly as it
+    /// happened rather than as a reconstruction.
+    pub status: Option<i32>,
+}
+
+impl Ctx {
+    /// Counts one hit for the statement `stmt` names — [`nvs_probe_stmt`]'s
+    /// whole effect under [`DebugFlags::COVERAGE`].
+    pub fn record_stmt_hit(&mut self, stmt: u32) {
+        let index = stmt as usize;
+        if self.stmt_hits.len() <= index {
+            self.stmt_hits.resize(index + 1, 0);
+        }
+        self.stmt_hits[index] += 1;
+    }
+
+    /// The per-statement hit counters gathered so far, indexed by
+    /// `nvs_ir::StmtId` — empty for a request that ran with
+    /// [`DebugFlags::COVERAGE`] off throughout. See the field's own doc
+    /// comment for why this is a stand-in for ADR 0018's path → line → count
+    /// shape rather than that shape itself.
+    #[must_use]
+    pub fn stmt_hits(&self) -> &[u64] {
+        &self.stmt_hits
+    }
+
+    /// Records one call-site trace event — [`nvs_probe_call_enter`]/
+    /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
+    ///
+    /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
+    /// only thing that reaches this method, and the three other kinds are
+    /// emitted from routines that carry facts this record has no field for
+    /// (ADR 0041 § 1).
+    pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Call,
+            callee: callee.to_owned(),
+            status,
+        });
+    }
+
+    /// Records one statement as
+    /// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
+    /// § 1's `query` event — `Core\Db`'s statement routines' whole effect under
+    /// [`DebugFlags::TRACE`], called once the rows have ended so the span is
+    /// complete.
+    ///
+    /// **The span arrives already rendered, and that is the crate boundary
+    /// rather than laziness.** [ADR 0067](/docs/adr/0067-core-db.md)
+    /// § 11's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
+    /// this one; a struct here holding the same seven facts would be that field
+    /// set's second home, and the one nobody edits when a driver adds to it.
+    /// What it costs is that a consumer reads text where it will later read
+    /// fields — which is what the `trace` field's own doc comment already says
+    /// this vector is, a stand-in until ADR 0018's sink gives every kind its
+    /// payload.
+    ///
+    /// The rendering is `QuerySpan`'s `Display`, so § 11's "never parameters"
+    /// is held where the span is built and
+    /// `a_query_span_contains_no_parameter_value_anywhere` asserts it over that
+    /// same rendering; nothing here can put a bound value back.
+    pub fn record_query(&mut self, span: &str) {
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Query,
+            callee: span.to_owned(),
+            status: None,
+        });
+    }
+
+    /// The call-site trace gathered so far, in the order the probes fired —
+    /// empty for a request that ran with [`DebugFlags::TRACE`] off
+    /// throughout. See the field's own doc comment for why this accumulates
+    /// in memory today and will not once ADR 0018's sink exists.
+    #[must_use]
+    pub fn trace(&self) -> &[TraceEvent] {
+        &self.trace
+    }
+
+    /// Arms a fault-injection site for this request — see [`FaultSite`] for
+    /// what each one does and why the set is closed.
+    pub fn inject_fault(&mut self, site: FaultSite) {
+        self.fault = Some(site);
+    }
+
+    /// Whether [`FaultSite::HelperPanic`] is armed *and* this is the helper
+    /// call it names, disarming it if so. Called once per helper entry from
+    /// [`crate::run_helper`]; a request with nothing armed pays one
+    /// already-loaded `Option` test and nothing else.
+    pub(crate) fn take_armed_helper_panic(&mut self) -> bool {
+        if self.fault != Some(FaultSite::HelperPanic) {
+            return false;
+        }
+        self.helper_calls += 1;
+        if self.helper_calls < 2 {
+            return false;
+        }
+        self.fault = None;
+        true
+    }
+}
+
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's statement-boundary probe — the slow path behind the debug-flags
+/// check, reached only when the word compiled code loaded was non-zero.
+///
+/// Deliberately the same *shape* as [`nvs_safepoint`]: one cached load and one
+/// predicted-not-taken branch at the site, everything else out of line. It
+/// differs in returning nothing — coverage bookkeeping cannot fail, and ADR
+/// 0018 puts a debugger break at a safepoint, not at a probe — so a compiled
+/// probe site has no status to check and no error edge to emit.
+///
+/// Only [`DebugFlags::COVERAGE`] acts here. `BRANCH` needs the per-edge probe
+/// site that lands with `nvs_ir::Terminator::Branch`'s lowering; `TRACE` and
+/// `PROFILE` are the call-site pair below.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned, and valid for the duration of the call.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer; the contract cannot be \
+              expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let ctx = unsafe { &mut *ctx };
+
+    if ctx.debug.contains(DebugFlags::COVERAGE) {
+        ctx.record_stmt_hit(stmt);
+    }
+}
+
+/// Reads a callee label a compiled call site passed as a pointer/length pair
+/// into the unit's own data section.
+///
+/// Lossy rather than fallible: the bytes come from an Novis identifier the
+/// compiler wrote there, so they are already valid UTF-8, and a trace record
+/// is not a place to fail a request from if that assumption were ever wrong.
+///
+/// # Safety
+///
+/// `name`/`len` must describe a live, readable byte range, or `len` must be
+/// zero.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes a pointer and a length; the contract cannot \
+              be expressed in the signature"
+)]
+unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
+    if len == 0 {
+        return Cow::Borrowed("");
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees the range is readable; the zero-length \
+                  case is split out because `from_raw_parts` rejects a null \
+                  pointer even for an empty slice"
+    )]
+    let bytes = unsafe { std::slice::from_raw_parts(name, len) };
+    String::from_utf8_lossy(bytes)
+}
+
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's call-site **entry** probe — the slow path behind the debug-flags
+/// check compiled code emits before every call.
+///
+/// The callee is passed as a pointer and length into the compiled unit's own
+/// data section rather than as an index into a side table: the name is
+/// already a static constant of the unit, so there is nothing for a table to
+/// add and nothing to keep in sync.
+///
+/// Like [`nvs_probe_stmt`], it returns nothing — a trace record cannot fail —
+/// so the site has no status to check.
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the call, and `name`/`len`
+/// must describe a readable byte range.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and a static byte \
+              range; neither contract can be expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, len: usize) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both are valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
+    if ctx.debug.contains(DebugFlags::TRACE) {
+        ctx.record_trace(&label, None);
+    }
+}
+
+/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+/// § 1's call-site **exit** probe, carrying the checked-return `status` the
+/// call site is about to branch on — which is why a trace shows a thrown or
+/// `FATAL` exit as it happened rather than as a reconstruction.
+///
+/// See [`nvs_probe_call_enter`] for the rest, including why the flags word is
+/// re-read here rather than the entry probe's answer being reused: a request
+/// may turn tracing on or off *during* the call, and an exit whose flag state
+/// differs from its entry's is the honest record of that.
+///
+/// # Safety
+///
+/// The same contract as [`nvs_probe_call_enter`].
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes the context pointer and a static byte \
+              range; neither contract can be expressed in the signature"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_probe_call_exit(
+    ctx: *mut Ctx,
+    name: *const u8,
+    len: usize,
+    status: i32,
+) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees both are valid for this call; the only \
+                  thing that can panic here is the allocator, which aborts \
+                  rather than unwinding into the JIT frame above"
+    )]
+    let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
+    if ctx.debug.contains(DebugFlags::TRACE) {
+        ctx.record_trace(&label, Some(status));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_probe_with_coverage_off_records_nothing() {
+        let mut ctx = Ctx::buffered();
+        for stmt in 0..4 {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                nvs_probe_stmt(&raw mut ctx, stmt);
+            }
+        }
+        assert!(ctx.stmt_hits().is_empty());
+    }
+
+    #[test]
+    fn a_probe_counts_a_hit_per_statement_once_coverage_is_on() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        for stmt in [2_u32, 0, 2] {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                nvs_probe_stmt(&raw mut ctx, stmt);
+            }
+        }
+        // Statement 1 never ran; 2 ran twice. The table is dense, so an
+        // unexecuted statement between two executed ones reads back as zero
+        // rather than as absent.
+        assert_eq!(ctx.stmt_hits(), [1, 0, 2]);
+    }
+
+    #[test]
+    fn nothing_is_armed_by_default_and_the_site_fires_exactly_once() {
+        let mut ctx = Ctx::buffered();
+        for _ in 0..4 {
+            assert!(!ctx.take_armed_helper_panic());
+        }
+
+        ctx.inject_fault(FaultSite::HelperPanic);
+        // The first call is let through; the second is the site. Nothing
+        // after it fires again — one injected fault, not a poisoned request.
+        assert!(!ctx.take_armed_helper_panic());
+        assert!(ctx.take_armed_helper_panic());
+        assert!(!ctx.take_armed_helper_panic());
+        assert!(!ctx.take_armed_helper_panic());
+    }
+
+    #[test]
+    fn a_call_probe_with_tracing_off_records_nothing() {
+        let mut ctx = Ctx::buffered();
+        let name = b"Math::double";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+        }
+        // Coverage on, tracing still off: the two flags are independent, and
+        // the call probe reads its own bit rather than "any bit set".
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+        }
+        assert!(ctx.trace().is_empty());
+    }
+
+    #[test]
+    fn a_call_probe_records_the_callee_and_the_status_it_is_handed() {
+        // The exit probe carries the checked-return status the call site is
+        // about to branch on, so a thrown or `FATAL` exit is recorded as it
+        // happened rather than reconstructed — ADR 0018 § 1.
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        let name = b"Boom::inner";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::THROWN);
+        }
+        assert_eq!(
+            ctx.trace(),
+            [
+                TraceEvent {
+                    kind: TraceKind::Call,
+                    callee: "Boom::inner".to_owned(),
+                    status: None,
+                },
+                TraceEvent {
+                    kind: TraceKind::Call,
+                    callee: "Boom::inner".to_owned(),
+                    status: Some(crate::THROWN),
+                },
+            ]
+        );
+    }
+
+    /// ADR 0041 § 1's kind, over the two kinds anything in the tree records: a
+    /// probe files a `call` and `Core\Db`'s statement routine files a `query`,
+    /// and one vector keeps them apart. Asserted as the whole trace rather than
+    /// on the second event, because the tag only earns its place if the first
+    /// event still reads as a `call` beside it.
+    #[test]
+    fn a_query_event_is_filed_under_its_own_kind_beside_a_call() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        ctx.record_trace("People::all", Some(crate::OK));
+        // What `nvs_db::QuerySpan`'s `Display` hands over, which is the whole
+        // of what a `query` event carries — no bound value among it, per
+        // ADR 0067 § 11.
+        ctx.record_query("driver=postgres connection=main rows=2 sql=select 1");
+        assert_eq!(
+            ctx.trace(),
+            [
+                TraceEvent {
+                    kind: TraceKind::Call,
+                    callee: "People::all".to_owned(),
+                    status: Some(crate::OK),
+                },
+                TraceEvent {
+                    kind: TraceKind::Query,
+                    callee: "driver=postgres connection=main rows=2 sql=select 1".to_owned(),
+                    status: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_call_probe_accepts_an_empty_label_without_reading_the_pointer() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, std::ptr::null(), 0);
+        }
+        assert_eq!(ctx.trace().len(), 1);
+        assert_eq!(ctx.trace()[0].callee, "");
+    }
+
+    #[test]
+    fn coverage_can_be_turned_on_and_off_mid_request() {
+        // ADR 0018's whole argument for a runtime-checked flag over a second
+        // compiled tier: a harness brackets one test inside a running request.
+        let mut ctx = Ctx::buffered();
+        let probe = |ctx: &mut Ctx, stmt: u32| {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+            unsafe {
+                nvs_probe_stmt(&raw mut *ctx, stmt);
+            }
+        };
+
+        probe(&mut ctx, 0);
+        ctx.set_debug_flags(DebugFlags::COVERAGE);
+        probe(&mut ctx, 1);
+        ctx.set_debug_flags(DebugFlags::empty());
+        probe(&mut ctx, 2);
+
+        assert_eq!(ctx.stmt_hits(), [0, 1]);
+    }
+}

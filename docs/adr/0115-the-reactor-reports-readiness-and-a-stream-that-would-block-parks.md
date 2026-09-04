@@ -130,7 +130,7 @@ stack. The decision, in the terms [ADR 0004](0004-memory-for-simplicity.md) asks
   worker's pool and is handed to the next task. The pool is O(in-flight) by construction — it can never
   hold more stacks than the worker has admitted tasks — which is the property ADR 0004 asks for, and the
   same shape the blocking pool in ADR 0106 § 6 already has.
-- **The host arms the recursion limit from the stack it just handed out.** `crates/nvs-runtime/src/ctx.rs`'s
+- **The host arms the recursion limit from the stack it just handed out.** `crates/nvs-runtime/src/ctx/mod.rs`'s
   module doc records a known gap — the call-stack ceiling is asserted from `STACK_CEILING` rather than
   discovered, because that crate has no way to learn a thread's true bounds. A task on a stack this
   crate allocated has no such gap: `nvs-host` knows the base and the length exactly and calls

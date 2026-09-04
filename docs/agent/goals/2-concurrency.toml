@@ -59,7 +59,10 @@ modules = [
   "crates/nvs-host/src/*.rs",
   # The containment boundary Stage 0 moves outward, and the ABI it wraps.
   "crates/nvs-runtime/src/abi.rs",
-  "crates/nvs-runtime/src/ctx.rs",
+  # A tree's contexts and the words every one of them polls. `ctx.rs` came apart into `ctx/`;
+  # `ctx/mod.rs` holds the struct and the module doc that routes to the other eleven.
+  "crates/nvs-runtime/src/ctx/isolate.rs",
+  "crates/nvs-runtime/src/ctx/safepoint.rs",
   # The graph copy's two carriers reach these: the value representation and the release path.
   "crates/nvs-runtime/src/value.rs",
   "crates/nvs-runtime/src/release.rs",

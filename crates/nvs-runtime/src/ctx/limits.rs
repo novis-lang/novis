@@ -1,0 +1,580 @@
+//! The ceilings a request runs inside, and how it reports crossing one.
+//!
+//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s resource limits:
+//! memory, output, CPU time and script depth, each with the accessor pair that
+//! arms it and the `*_breach` that turns a crossing into a [`crate::Fault`].
+//! [`Ctx::refresh_limits`] is where a configuration snapshot becomes armed
+//! numbers, and the `configured_*` readers below it are the one place a key's
+//! default is written down.
+//!
+//! A breach is *reported*, not raised. What runs on it is
+//! [`super::hooks`]'s handler, which is a separate question and a separate
+//! file: the ceiling is arithmetic over fields, the response is user code.
+
+use super::*;
+
+impl Ctx {
+    /// How many bytes this request has allocated and not yet freed.
+    ///
+    /// The difference between the thread's balance now and what it was when
+    /// this context was made, floored at zero: a request that frees more than
+    /// it allocated — because it released what it inherited — has used none of
+    /// its own budget rather than a negative amount of it. [`crate::budget`]
+    /// says why the underlying counter is per thread.
+    #[must_use]
+    pub fn memory_used(&self) -> usize {
+        usize::try_from(crate::budget::live_bytes().saturating_sub(self.memory_base)).unwrap_or(0)
+    }
+
+    /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
+    ///
+    /// `[limits] memory` less [`Self::fatal_reserve`], because ADR 0020 § 1's
+    /// slice is carved out of the request's own budget rather than added to it
+    /// — so this is the number that moves, once, while the tier-1 handler runs
+    /// ([`Self::run_limit_handler`]).
+    #[must_use]
+    pub fn memory_limit(&self) -> usize {
+        self.memory_limit
+    }
+
+    /// Sets the ceiling directly, for a caller holding no configuration —
+    /// `nvs-host`'s isolates and this crate's own tests.
+    ///
+    /// A request with a configuration gets its ceiling from
+    /// [`Self::set_config`] instead, so this is never the way `[limits] memory`
+    /// arrives.
+    pub fn set_memory_limit(&mut self, bytes: usize) {
+        self.memory_limit = bytes;
+    }
+
+    /// This request's reserved slice in bytes — the bytes ordinary execution's
+    /// ceiling was reduced by, and the room
+    /// [`Self::run_limit_handler`] adds back for the length of the handler.
+    #[must_use]
+    pub fn fatal_reserve(&self) -> usize {
+        self.fatal_reserve
+    }
+
+    /// Sets the reserved slice directly, for the same callers
+    /// [`Self::set_memory_limit`] exists for and with the same division of
+    /// labour: this is the slice *on top of* the ceiling stated there, where a
+    /// request with a configuration has it carved out of `[limits] memory`
+    /// instead.
+    pub fn set_fatal_reserve(&mut self, bytes: usize) {
+        self.fatal_reserve = bytes;
+    }
+
+    /// Whether this request has allocated past its ceiling.
+    ///
+    /// Two loads and a compare, and the second load is the thread-local
+    /// [`crate::budget::live_bytes`] reads. An uncapped request answers `false`
+    /// on the first compare without reading the counter at all.
+    #[must_use]
+    pub fn over_memory_limit(&self) -> bool {
+        self.memory_limit != 0 && self.memory_used() > self.memory_limit
+    }
+
+    /// How many bytes this request has written to its response, in the sense
+    /// `[limits] max_output` means.
+    ///
+    /// This request's share of the thread's count, taken against
+    /// [`Self::output_base`] — so a root's reading holds every isolate spawned
+    /// beneath it and each isolate's holds only its own, which is
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// "child output against the root's `max_output`" and the same arrangement
+    /// [`Self::memory_used`] already has.
+    #[must_use]
+    pub fn output_used(&self) -> usize {
+        crate::budget::written_bytes().saturating_sub(self.output_base)
+    }
+
+    /// The response-size ceiling this request is held to, in bytes, `0` for no
+    /// cap.
+    ///
+    /// `[limits] max_output` as written, with nothing carved out of it — see
+    /// the field doc for why this ceiling has no reserved slice where the
+    /// memory one does.
+    #[must_use]
+    pub fn output_limit(&self) -> usize {
+        self.output_limit
+    }
+
+    /// Sets the response ceiling directly, for a caller holding no
+    /// configuration — [`Self::set_memory_limit`] exists for the same callers
+    /// and with the same division of labour.
+    pub fn set_output_limit(&mut self, bytes: usize) {
+        self.output_limit = bytes;
+    }
+
+    /// Whether this request has written past its response ceiling.
+    ///
+    /// [`Self::over_memory_limit`]'s shape exactly: an uncapped request answers
+    /// `false` on the first compare without reading the counter at all.
+    #[must_use]
+    pub fn over_output_limit(&self) -> bool {
+        self.output_limit != 0 && self.output_used() > self.output_limit
+    }
+
+    /// The [`crate::Fault`] a request past its memory ceiling owes, or `None`
+    /// while it is inside it.
+    ///
+    /// [`crate::Fault::fatal`] and never a throw:
+    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 makes
+    /// every resource-limit breach a `FATAL`, so no `catch` sees this and a
+    /// fixture that wraps the loop in one has found the rule rather than a bug.
+    /// The message names the ceiling as well as the reading, because the two
+    /// together are what tells an operator whether to raise the limit or to fix
+    /// the program.
+    #[must_use]
+    pub fn memory_breach(&self) -> Option<crate::Fault> {
+        if !self.over_memory_limit() {
+            return None;
+        }
+        // The ceiling named is the request's **whole** budget, not the reduced
+        // one it was measured against: `[limits] memory` is the number the
+        // operator wrote and the only one they can recognise. Where a slice of
+        // it is ADR 0020 § 1's reserve, saying so is what keeps the sentence
+        // from reading as a reading below its own ceiling.
+        let reserved = match self.fatal_reserve {
+            0 => String::new(),
+            bytes => format!(", of which {bytes} is reserved for the limit handler"),
+        };
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its memory limit — {} bytes held against a ceiling of {}{reserved}",
+            self.memory_used(),
+            self.memory_limit.saturating_add(self.fatal_reserve),
+        )))
+    }
+
+    /// The [`crate::Fault`] a request past its response ceiling owes, or `None`
+    /// while it is inside it.
+    ///
+    /// A `FATAL` for [`Self::memory_breach`]'s reason, and it names both
+    /// numbers for that method's reason too — except that there is no reserve
+    /// to subtract here, so the ceiling named is the one the operator wrote
+    /// with nothing to explain about it.
+    ///
+    /// **What it reports is the tree's reading, not this context's writing.**
+    /// A root stopped here may have written nothing itself and be over because
+    /// its isolates were: that is what the directive bounds, so the message
+    /// says "the request and everything it spawned" rather than implying a
+    /// single `echo` went too far.
+    #[must_use]
+    pub fn output_breach(&self) -> Option<crate::Fault> {
+        if !self.over_output_limit() {
+            return None;
+        }
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its output limit — {} bytes written by the request and everything it spawned, against a ceiling of {}",
+            self.output_used(),
+            self.output_limit,
+        )))
+    }
+
+    /// The `FATAL` a `spawn script` from this context owes, or `None` where the
+    /// child it is about to build is still under the ceiling.
+    ///
+    /// Asked of the *child's* depth rather than this one's, and asked before
+    /// the child exists: a context is never itself over `max_script_depth`,
+    /// because whatever built it asked this question first. That is what makes
+    /// this a refusal rather than a stop — there is no task to interrupt and no
+    /// safepoint to interrupt it at, so unlike [`Self::memory_breach`] the
+    /// answer is not polled but taken once, at the one call that could widen
+    /// the tree. [`Limit::ScriptDepth`] is the report it becomes.
+    ///
+    /// A ceiling of `0` is [ADR 0005]'s no-ceiling-at-all and answers `None`
+    /// however deep the chain already is — see [`Self::max_script_depth`]'s
+    /// field doc, which owns why only an explicit `false` reads that way here.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    #[must_use]
+    pub fn script_depth_breach(&self) -> Option<crate::Fault> {
+        let ceiling = self.max_script_depth;
+        if ceiling == 0 {
+            return None;
+        }
+        let child = self.script_depth.saturating_add(1);
+        if child <= ceiling {
+            return None;
+        }
+        // Both numbers, for the reason `memory_breach` names both of its own:
+        // the ceiling is the number the operator wrote and the only one they
+        // can recognise, and the depth beside it is what says whether the
+        // program recursed or the ceiling is simply low.
+        Some(crate::Fault::fatal(format!(
+            "the request exceeded its `spawn script` nesting limit — a script spawned at depth {child} against a ceiling of {ceiling}",
+        )))
+    }
+
+    /// Re-reads the resource ceilings this request's configuration states.
+    ///
+    /// Called by [`Self::set_config`], and owed by anything that moves the
+    /// request's own overlay afterwards — `Core\Config::set` and `::restore`,
+    /// which is why [`Self::memory_limit`]'s field doc calls the value cached
+    /// rather than derived.
+    pub fn refresh_limits(&mut self) {
+        let ceiling = self.configured_memory_limit();
+        self.fatal_reserve = Self::reserve_within(ceiling, self.configured_fatal_reserve());
+        // ADR 0020 § 1: the slice is *carved out of* the request's own budget
+        // and unavailable to ordinary execution, so the ceiling everything but
+        // the handler is measured against is what is left after it. An
+        // uncapped request has nothing to carve and reserves nothing: there is
+        // no ceiling for a handler to be given room past.
+        self.memory_limit = ceiling.saturating_sub(self.fatal_reserve);
+        // The CPU half of the same slice, by the same arithmetic and in the same
+        // pass. One pass rather than two because a ceiling and the reserve
+        // carved out of it are one reading of one configuration: set apart, they
+        // could be left disagreeing about which snapshot they came from by any
+        // caller that remembered one of them.
+        let cpu_ceiling = self.configured_cpu_time();
+        self.fatal_reserve_time =
+            Self::reserve_time_within(cpu_ceiling, self.configured_fatal_reserve_time());
+        self.cpu_limit = cpu_ceiling.saturating_sub(self.fatal_reserve_time);
+        // Read in the same pass and for the same reason, though there is nothing
+        // to carve out of it: a request's ceilings are one reading of one
+        // configuration.
+        self.max_script_depth = self.configured_max_script_depth();
+        // The response ceiling, in the same pass and for the same reason.
+        // Nothing is carved out of it — [`Self::output_limit`]'s field doc owns
+        // why a ceiling on writing needs no slice reserved from it.
+        self.output_limit = self.configured_output_limit();
+    }
+
+    /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
+    ///
+    /// See [`Self::cpu_limit`]'s field doc for what the number measures. A
+    /// malformed value answers "no cap" for the reason
+    /// [`Self::configured_memory_limit`] does, and `false` — [ADR 0005]'s
+    /// spelling of no ceiling at all — answers the same `0`, because a request
+    /// that may burn any amount of CPU and one whose ceiling nothing states are
+    /// the same request to everything downstream.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    fn configured_cpu_time(&self) -> u64 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("cpu_time"))
+        else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("cpu_time", nvs_config::Unit::Duration, &setting) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => nanos,
+            _ => 0,
+        }
+    }
+
+    /// The CPU time this request may burn, in nanoseconds, or `0` for one under
+    /// no cap — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// § 1.
+    ///
+    /// This is the ceiling a timer compares the request thread's CPU clock
+    /// against before it raises [`SafepointFlags::CPU_LIMIT`]; the field doc
+    /// says why the reading is not taken here.
+    #[must_use]
+    pub fn cpu_limit(&self) -> u64 {
+        self.cpu_limit
+    }
+
+    /// This request's reserved slice of CPU time in nanoseconds — the time
+    /// [`Self::cpu_limit`] was reduced by, and the room the tier-1 handler is
+    /// meant to run in.
+    ///
+    /// [`Self::fatal_reserve`] is the sibling that has a *spender*: the memory
+    /// half is added back for the length of the call in
+    /// [`Self::run_limit_handler`], because a handler that cannot allocate is a
+    /// tier that says nothing. Nothing hands this half back yet, because nothing
+    /// samples a clock against `cpu_limit` in the first place — the gap
+    /// [`nvs_safepoint`]'s CPU branch describes, and the reason a handler
+    /// entered under [`SafepointFlags::CPU_LIMIT`] still stops at its own first
+    /// back edge.
+    #[must_use]
+    pub fn fatal_reserve_time(&self) -> u64 {
+        self.fatal_reserve_time
+    }
+
+    /// Sets the CPU ceiling directly, for the callers
+    /// [`Self::set_memory_limit`] exists for and with the same division of
+    /// labour: a request holding a configuration gets it from
+    /// [`Self::set_config`] instead.
+    pub fn set_cpu_limit(&mut self, nanos: u64) {
+        self.cpu_limit = nanos;
+    }
+
+    /// Sets the reserved slice of CPU time directly, the way
+    /// [`Self::set_fatal_reserve`] sets the memory half — *on top of* the
+    /// ceiling stated beside it, where a request with a configuration has it
+    /// carved out of `[limits] cpu_time`.
+    pub fn set_fatal_reserve_time(&mut self, nanos: u64) {
+        self.fatal_reserve_time = nanos;
+    }
+
+    /// The nesting a `spawn script` chain is allowed where `[limits]` states no
+    /// `max_script_depth` — **the only home of this number.**
+    ///
+    /// Sixty-four because every level is a whole isolate with its own heap
+    /// rather than a stack frame, so the depth at which a legitimate program
+    /// still works is far below the depth at which recursion is the diagnosis:
+    /// a generator spawning a worker that spawns a helper is three, and nothing
+    /// written on purpose is sixty-four. Chosen well under where the heap would
+    /// notice, so that the refusal that arrives says what is actually wrong —
+    /// [`Self::max_script_depth`]'s field doc owns why that ordering is the
+    /// whole reason the default exists.
+    pub const DEFAULT_MAX_SCRIPT_DEPTH: u32 = 64;
+
+    /// How deep a chain of `spawn script` may nest, or `0` for a tree under no
+    /// ceiling — see [`Self::max_script_depth`]'s field doc, which owns why an
+    /// unstated value is a default here and a `0` everywhere else.
+    #[must_use]
+    pub fn max_script_depth(&self) -> u32 {
+        self.max_script_depth
+    }
+
+    /// Sets the nesting ceiling directly, for the callers
+    /// [`Self::set_cpu_limit`] exists for and with the same division of labour.
+    pub fn set_max_script_depth(&mut self, depth: u32) {
+        self.max_script_depth = depth;
+    }
+
+    /// How deep in a `spawn script` chain this context already is — `0` for the
+    /// request that started the tree, and see [`Self::script_depth`]'s field doc
+    /// for why the number lives on a context rather than on an isolate.
+    #[must_use]
+    pub fn script_depth(&self) -> u32 {
+        self.script_depth
+    }
+
+    /// `[limits] max_script_depth` as a count, or
+    /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where the configuration does not state
+    /// one.
+    ///
+    /// `false` — [ADR 0005]'s spelling of no ceiling at all — is the one value
+    /// that answers `0` and turns the net off. A malformed one takes the default
+    /// instead, which is where this reader parts company with
+    /// [`Self::configured_cpu_time`]; the field doc owns why. Either way the
+    /// file was already parsed and refused at the boundary that could name the
+    /// line, so this is not a second place to refuse it.
+    ///
+    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    fn configured_max_script_depth(&self) -> u32 {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("max_script_depth"))
+        else {
+            return Self::DEFAULT_MAX_SCRIPT_DEPTH;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("max_script_depth", nvs_config::Unit::Count, &setting) {
+            Ok(nvs_config::Quantity::Count(depth)) => u32::try_from(depth).unwrap_or(u32::MAX),
+            Ok(nvs_config::Quantity::Unbounded) => 0,
+            _ => Self::DEFAULT_MAX_SCRIPT_DEPTH,
+        }
+    }
+
+    /// `[limits] fatal_reserve_memory` as bytes, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// A malformed value is `None` and takes the default below, for the reason
+    /// [`Self::configured_memory_limit`] answers "no cap": the file was already
+    /// parsed and refused at the boundary that can name the line.
+    fn configured_fatal_reserve(&self) -> Option<usize> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("fatal_reserve_memory"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse("fatal_reserve_memory", nvs_config::Unit::Bytes, &setting)
+        {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
+            _ => None,
+        }
+    }
+
+    /// `[limits] fatal_reserve_time` as nanoseconds, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes the default below, for
+    /// [`Self::configured_fatal_reserve`]'s reason.
+    fn configured_fatal_reserve_time(&self) -> Option<u64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("fatal_reserve_time"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "fatal_reserve_time",
+            nvs_config::Unit::Duration,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+            _ => None,
+        }
+    }
+
+    /// `[log] handler_reserve_memory` as bytes, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes [`Self::DEFAULT_HANDLER_RESERVE_MEMORY`],
+    /// for [`Self::configured_fatal_reserve`]'s reason.
+    pub(super) fn configured_handler_reserve(&self) -> Option<usize> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("log.handler_reserve_memory"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "log.handler_reserve_memory",
+            nvs_config::Unit::Bytes,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => Some(usize::try_from(bytes).unwrap_or(0)),
+            _ => None,
+        }
+    }
+
+    /// `[log] handler_reserve_time` as nanoseconds, or `None` where the
+    /// configuration does not state it.
+    ///
+    /// Malformed is `None` and takes [`Self::DEFAULT_HANDLER_RESERVE_TIME`], for
+    /// the reader above's reason.
+    pub(super) fn configured_handler_reserve_time(&self) -> Option<u64> {
+        let written = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("log.handler_reserve_time"))?;
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(
+            "log.handler_reserve_time",
+            nvs_config::Unit::Duration,
+            &setting,
+        ) {
+            Ok(nvs_config::Quantity::Nanos(nanos)) => Some(nanos),
+            _ => None,
+        }
+    }
+
+    /// The reserved slice of CPU time a request with this `ceiling` gets, given
+    /// what its configuration asked for.
+    ///
+    /// **The default is 50 ms, and a quarter of the ceiling where a quarter is
+    /// less** — the same shape as [`Self::reserve_within`] and for the same two
+    /// reasons: enough for a handler to format a message and write it, and the
+    /// clamp is what keeps a short ceiling from being mostly reserve rather than
+    /// mostly program. ADR 0020 § 1 names `fatal_reserve_time` and states no
+    /// number; this is the number.
+    ///
+    /// 50 ms rather than the memory half's proportion of a typical ceiling,
+    /// because the two slices are not sized by the same question. A handler's
+    /// memory is bounded by what the message it builds costs, which is small and
+    /// known; its *time* is bounded by what writing that message blocks on,
+    /// which is a log target or a socket and is neither. So this is a wall-clock
+    /// intuition about a slow write, floored well under the shortest ceiling
+    /// anyone would set and clamped for the ones shorter still.
+    ///
+    /// An **asked-for** reserve is clamped the same way rather than refused, for
+    /// [`Self::reserve_within`]'s reason: a reserve larger than the ceiling
+    /// leaves ordinary execution nothing at all.
+    fn reserve_time_within(ceiling: u64, asked: Option<u64>) -> u64 {
+        if ceiling == 0 {
+            return 0;
+        }
+        asked.unwrap_or(50_000_000).min(ceiling / 4)
+    }
+
+    /// The reserved slice a request with this `ceiling` gets, given what its
+    /// configuration asked for.
+    ///
+    /// **The default is 1 MiB, and a quarter of the ceiling where a quarter is
+    /// less** — enough for a handler to format a message and write it, and the
+    /// clamp is what keeps a small ceiling from being mostly reserve rather
+    /// than mostly program. ADR 0020 § 1 states that the slice exists and that
+    /// it is `System`-class, and states no number; this is the number, and an
+    /// operator who wants another writes it.
+    ///
+    /// An **asked-for** reserve is clamped the same way for the same reason,
+    /// and not refused: a reserve larger than the ceiling would leave ordinary
+    /// execution nothing at all, which is a configuration that cannot run a
+    /// program rather than one that runs it carefully.
+    fn reserve_within(ceiling: usize, asked: Option<usize>) -> usize {
+        if ceiling == 0 {
+            return 0;
+        }
+        asked.unwrap_or(1 << 20).min(ceiling / 4)
+    }
+
+    /// `[limits] memory` as bytes, or `0` when there is no configuration, no
+    /// such directive, or a value that is not a size.
+    ///
+    /// A malformed value answers "no cap" rather than refusing here: the
+    /// configuration was already parsed and refused once, at the boundary that
+    /// can name the file and the line ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
+    /// § 3), and a second refusal from inside a running request could only be
+    /// a worse-worded copy of it.
+    fn configured_memory_limit(&self) -> usize {
+        self.configured_bytes("memory")
+    }
+
+    /// `[limits] max_output` as bytes, or `0` when there is no configuration,
+    /// no such directive, or a value that is not a size.
+    ///
+    /// Read the same way and answering "no cap" on a malformed value for the
+    /// same reason its sibling above does.
+    fn configured_output_limit(&self) -> usize {
+        self.configured_bytes("max_output")
+    }
+
+    /// One `[limits]` directive read as a byte count — the arithmetic the two
+    /// readers above share.
+    ///
+    /// Written once rather than per ceiling because a second size directive
+    /// growing its own parse is how the two would come to disagree about what
+    /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
+    /// is answered ([ADR 0064](/docs/adr/0064-configuration-file-format.md)
+    /// § 5).
+    fn configured_bytes(&self, key: &str) -> usize {
+        let Some(written) = self.config.as_ref().and_then(|config| config.get(key)) else {
+            return 0;
+        };
+        let setting = nvs_config::Setting::Text(written);
+        match nvs_config::Quantity::parse(key, nvs_config::Unit::Bytes, &setting) {
+            Ok(nvs_config::Quantity::Bytes(bytes)) => usize::try_from(bytes).unwrap_or(usize::MAX),
+            _ => 0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// ADR 0020 § 1's first resource limit, as far as this slice goes: the
+    /// counter follows what the request holds *now*, so a breach that is
+    /// released stops being one. What a breach then becomes is
+    /// [`nvs_safepoint`]'s, not this test's.
+    #[test]
+    fn a_request_is_over_its_ceiling_only_while_it_still_holds_the_bytes() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_memory_limit(1 << 20);
+        assert!(!ctx.over_memory_limit());
+
+        let held = vec![0_u8; 4 << 20];
+        assert!(ctx.memory_used() >= 4 << 20);
+        assert!(ctx.over_memory_limit());
+
+        drop(held);
+        assert!(!ctx.over_memory_limit());
+    }
+
+    /// A context nobody configured is uncapped, which is why every other test
+    /// in this file allocates freely without arranging anything.
+    #[test]
+    fn a_context_with_no_configuration_has_no_ceiling() {
+        let ctx = Ctx::buffered();
+        assert_eq!(ctx.memory_limit(), 0);
+        assert!(!ctx.over_memory_limit());
+        assert_eq!(ctx.output_limit(), 0);
+        assert!(!ctx.over_output_limit());
+    }
+}
