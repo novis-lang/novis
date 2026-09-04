@@ -320,7 +320,11 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         // ADR 0006's two constructs, which are syntax rather than members and
         // so have no row to be found through — `script`'s own module doc owns
         // why a `spawn script`/`await` symbol may not be callable by name.
-        .chain([script::SPAWN_SYMBOL, script::AWAIT_SYMBOL])
+        .chain([
+            script::SPAWN_SYMBOL,
+            script::SPAWN_METHOD_SYMBOL,
+            script::AWAIT_SYMBOL,
+        ])
         // The sink carriers' three row-less symbols, which are constructs
         // rather than members for the same reason those two are: ADR 0024 § 5's
         // lift is `as` on a source literal, and § 5's `Markup + Markup` and ADR
@@ -452,12 +456,13 @@ mod tests {
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.
                 + router::link::SYMBOLS.len()
-                // ADR 0006's `spawn script` and `await`, ADR 0024 § 5's
-                // `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
-                // `Text + Text`: five constructs, each syntax rather than a
-                // call, so none of them has a row either — see `script`'s,
-                // `html`'s and `cli`'s module docs.
-                + 5
+                // ADR 0006's `spawn script` — in its two entry forms, which
+                // are two symbols and one construct — and `await`, ADR 0024
+                // § 5's `as Markup` and `Markup + Markup`, and ADR 0086 § 2's
+                // `Text + Text`: six symbols behind five constructs, each
+                // syntax rather than a call, so none of them has a row
+                // either — see `script`'s, `html`'s and `cli`'s module docs.
+                + 6
         );
         assert!(symbols.iter().all(|(_, address)| !address.is_null()));
     }

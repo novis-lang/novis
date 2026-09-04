@@ -227,6 +227,28 @@ pub enum Output {
     Inherit,
 }
 
+/// Which of [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+/// § *Decision*'s two entry forms a spawn named.
+///
+/// It reaches the seam because it decides one thing on the *other* side of it
+/// that nothing else can decide: which constructor builds the child's context.
+/// A path entry has a unit of its own, whose `install_in` arms the child's
+/// statics from inside the program; a method entry has none — its code is the
+/// parent's unit's — so its context has to be armed at construction, which is
+/// [`Ctx::method_isolate`]. Everything else about the two is identical, which
+/// is why this is a parameter of the start rather than a second operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Entry {
+    /// A `.nvs` file the resolver compiled — [`crate::script::resolve`]'s
+    /// answer, and the form that has been here since ADR 0006 landed.
+    #[default]
+    Path,
+    /// A `static` method of the unit the parent is already running, reached
+    /// through [`crate::call_static`]. `crate::script`'s module doc is the one
+    /// home of why that needs no resolver and no second unit.
+    Method,
+}
+
 /// What a child's failure looks like on the parent's side: data, never an
 /// exception object (ADR 0006 § *Failure is a value*).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -498,7 +520,9 @@ pub trait Host: std::fmt::Debug {
     /// path releases it. `ctx` is the parent's, and is borrowed only for the
     /// length of the call: the isolate's own ownership root is built here
     /// ([ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
-    /// § 2) and is nothing the parent can reach.
+    /// § 2) and is nothing the parent can reach. `entry` says which of ADR
+    /// 0006's two forms the spawn named, which is the one fact about the child
+    /// only this side holds — see [`Entry`].
     ///
     /// # Errors
     ///
@@ -513,6 +537,7 @@ pub trait Host: std::fmt::Debug {
         program: Program,
         args: Value,
         output: Output,
+        entry: Entry,
     ) -> Result<Box<dyn Running>, GraphError>;
 }
 
@@ -622,6 +647,7 @@ mod tests {
             program: super::Program,
             args: crate::value::Value,
             _output: super::Output,
+            _entry: super::Entry,
         ) -> Result<Box<dyn super::Running>, crate::graph::GraphError> {
             // No scheduler here, so "started" is "already finished": the route
             // is what this proves, and a boundary needs a task tree that a unit

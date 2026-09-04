@@ -2994,18 +2994,19 @@ pub mod code {
     /// sends the reader to fix the wrong half.
     pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802");
 
-    /// `spawn script Class::method(...)` — ADR 0006 § *Decision*'s second entry
-    /// form, which this compiler checks and does not yet lower.
+    /// `spawn script Class::method(...)` on an entry that **declares a
+    /// parameter** — ADR 0006 § *Decision* binds `args:`'s entries to them as
+    /// named arguments, and that half is not compiled yet.
     ///
     /// [`E_SPAWN_OPTION_UNSUPPORTED`]'s reading, applied to the operand rather
     /// than to an option: a form that is accepted and then does something else
-    /// is worse than one that is refused where it is written. Separate from
-    /// [`E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] because this operand is the one
-    /// the ADR specifies and the other two are the ones it forbids — a reader
-    /// who conflated them would go looking for a different spelling instead of
-    /// waiting for a release. It is removed when the lowering lands, exactly as
-    /// `E0703` was.
-    pub const E_SPAWN_METHOD_ENTRY_UNSUPPORTED: Code = Code::new("E0803");
+    /// is worse than one that is refused where it is written. The entry form
+    /// itself now lowers — this is the narrower successor to the retired
+    /// `E0803`, which refused it whole — and what is left is that the child
+    /// calls the method with no arguments, so a callee expecting one would read
+    /// a slot nobody filled (`nvs_runtime::abi`'s arity rule). It is removed
+    /// when the binding lands, exactly as `E0703` and `E0803` were.
+    pub const E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED: Code = Code::new("E0804");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

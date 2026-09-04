@@ -2877,6 +2877,14 @@ impl<'a> Lowering<'a> {
     /// is the one the isolate keeps: it crosses the boundary into the child's
     /// ownership root and this frame may not release it afterwards. The path
     /// and the output spelling are borrowed like every other `Core` argument.
+    ///
+    /// **Two symbols, one argument list.** ADR 0006 § *Decision*'s method entry
+    /// takes `nvs_types::CORE_SCRIPT_SPAWN_METHOD` and differs in argument 0
+    /// alone: a constant `Class::method` label instead of a lowered path
+    /// expression, since what the child runs is a method of *this* unit and
+    /// there is nothing for a resolver to compile. `nvs_stdlib::script`'s
+    /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
+    /// fourth argument, and [`Self::spawn_method_label`] is the fork itself.
     fn lower_spawn_script(
         &mut self,
         path: &Expr,
@@ -2885,8 +2893,21 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        let (path_v, path_ty) = self.lower_expr(path, Some(Ty::Str), env, cur);
-        let aliasing = self.aliasing_read(path);
+        // ADR 0006 § *Decision*'s two entry forms, told apart by the operand's
+        // own shape exactly as `nvs_types`' `check_entry` tells them apart —
+        // and lowered to two symbols, because what differs is what the first
+        // argument *means*: a path the child's resolver compiles, or a label
+        // naming a method of the unit this frame is already running.
+        let method = self.spawn_method_label(path);
+        let (path_v, path_ty) = match &method {
+            // A constant, not the operand: a first-class-callable reference
+            // lowered as an expression would build a `callable` value, which is
+            // the one thing ADR 0006 refuses to let cross a boundary. The label
+            // is `nvs_runtime::call_static`'s own spelling.
+            Some(label) => self.emit(*cur, Ty::Str, InstKind::ConstStr(label.clone())),
+            None => self.lower_expr(path, Some(Ty::Str), env, cur),
+        };
+        let aliasing = method.is_none() && self.aliasing_read(path);
         self.account_for_arg(path_v, path_ty, ArgOwnership::Borrowed, aliasing, *cur);
 
         let written = |key: SpawnOptionKey| options.iter().find(|opt| opt.key == key);
@@ -2931,13 +2952,51 @@ impl<'a> Lowering<'a> {
             *cur,
             Ty::Object,
             InstKind::CoreCall {
-                symbol: nvs_types::CORE_SCRIPT_SPAWN,
+                symbol: if method.is_some() {
+                    nvs_types::CORE_SCRIPT_SPAWN_METHOD
+                } else {
+                    nvs_types::CORE_SCRIPT_SPAWN
+                },
                 args: vec![path_v, args_v, output_v],
             },
             env,
         );
         self.release_temporaries_since(mark, *cur);
         result
+    }
+
+    /// `Class::method` for a `spawn script` operand written as a first-class
+    /// callable reference, and `None` for every other operand.
+    ///
+    /// The label is the *declaring* class and the method's own name — the
+    /// spelling `nvs_runtime::call_static` looks a descriptor up by, and the one
+    /// [`Self::lower_static_call`] builds for a direct call to the same target,
+    /// so a method entry and an ordinary call reach one address by one route.
+    ///
+    /// The resolved call is read back out of the typed-expression table rather
+    /// than re-derived from the syntax: a bare `Reports` in the operand resolves
+    /// against the active namespace and imports, which is context only
+    /// `nvs_types` and `nvs-hir` have (`nvs_types::expr_table`'s module docs).
+    fn spawn_method_label(&self, path: &Expr) -> Option<String> {
+        if !matches!(
+            &path.kind,
+            ExprKind::StaticCall {
+                args: CallArgs::FirstClassCallable,
+                ..
+            }
+        ) {
+            return None;
+        }
+        let Some(ExprInfo::CallableRef(call)) = self.exprs.lookup(path.span) else {
+            panic!(
+                "nvs-ir: a `spawn script` operand at {:?} is written as a static-method \
+                 reference and has no resolved target recorded in the typed-expression table \
+                 — did this program pass nvs_types::check_program with the same table? \
+                 `nvs_types::expr::isolate`'s `check_entry` is what records one",
+                path.span
+            );
+        };
+        Some(format!("{}::{}", call.class, call.method))
     }
 
     /// `await <handle>` — the other half, as the second of the two symbols.

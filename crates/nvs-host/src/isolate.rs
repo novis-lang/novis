@@ -83,7 +83,7 @@ pub use nvs_runtime::script::Program;
 // them from and a name written out in two crates is a name that can drift. They
 // are re-exported here because this module is where they *mean* something: the
 // seam fixes the shape, and everything below decides the behaviour.
-pub use nvs_runtime::host::{Completion, Failure, Output, Running};
+pub use nvs_runtime::host::{Completion, Entry, Failure, Output, Running};
 
 /// One isolate: a program, the argument crossing into it, and where its output
 /// goes.
@@ -92,6 +92,7 @@ pub struct Isolate {
     args: Value,
     output: Output,
     charge: Charge,
+    entry: Entry,
     inbound: Option<Inbound>,
 }
 
@@ -132,8 +133,24 @@ impl Isolate {
             args,
             output,
             charge: Charge::Tree,
+            entry: Entry::Path,
             inbound: None,
         }
+    }
+
+    /// Says the program is a `static` method of the *parent's* unit rather than
+    /// a file of its own — [`Entry`], and ADR 0006 § *Decision*'s second form.
+    ///
+    /// A builder rather than a parameter of [`Isolate::new`] for [`Charge`]'s
+    /// reason inverted: every other caller of this type is a path, so the one
+    /// that is not says so at its own call site and no existing one is rewritten
+    /// to pass a default. It changes exactly one thing — which constructor
+    /// builds the child's context below — and [`Ctx::method_isolate`] owns what
+    /// that difference is.
+    #[must_use]
+    pub fn running_a_method_of_the_parents_unit(mut self) -> Self {
+        self.entry = Entry::Method;
+        self
     }
 
     /// Gives it the request it is answering, which the child's own context then
@@ -217,6 +234,7 @@ impl Isolate {
             args,
             output,
             charge,
+            entry,
             inbound,
         } = self;
         // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
@@ -283,9 +301,16 @@ impl Isolate {
         } else {
             OutputSink::Buffer(Vec::new())
         };
-        let mut isolate_ctx = match charge {
-            Charge::Tree => ctx.isolate(sink),
-            Charge::EngineReserve => ctx.handler_isolate(sink),
+        // ADR 0006's method entry arms the child from the recipes *this* context
+        // is holding, there being no second unit to install and so no
+        // `install_in` to run inside the program — `Ctx::method_isolate` owns
+        // that reading. The handler's reserve is asked first because it is a
+        // question about the budget rather than about the entry, and § 3's
+        // handler is a path by construction (`crate::ladder` compiles one).
+        let mut isolate_ctx = match (charge, entry) {
+            (Charge::Tree, Entry::Path) => ctx.isolate(sink),
+            (Charge::Tree, Entry::Method) => ctx.method_isolate(sink),
+            (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
         };
         // The request this child answers, on the context that will run it and
         // before it can run — [`Isolate::answering`] owns why it arrives here

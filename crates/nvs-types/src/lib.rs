@@ -253,7 +253,8 @@ pub use nvs_stdlib::router::link::{
     ABSOLUTE_SYMBOL as CORE_ROUTE_LINK_ABSOLUTE, SYMBOL as CORE_ROUTE_LINK,
 };
 pub use nvs_stdlib::script::{
-    AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
+    AWAIT_SYMBOL as CORE_SCRIPT_AWAIT, SPAWN_METHOD_SYMBOL as CORE_SCRIPT_SPAWN_METHOD,
+    SPAWN_SYMBOL as CORE_SCRIPT_SPAWN,
 };
 pub use nvs_stdlib::time::FROM_NANOS_SYMBOL as CORE_DURATION_FROM_NANOS;
 pub use nvs_stdlib::{CodecField, CodecTy, EnumCases, FieldDefault};

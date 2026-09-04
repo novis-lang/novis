@@ -4,8 +4,9 @@
 //! Both arms compile: `nvs_ir::lower`'s `lower_spawn_script` and `lower_await`
 //! are the two `CoreCall`s they become. What still refuses here is narrower and
 //! is named where it is reported — three of ADR 0006's five options
-//! (`E0777`), and the *second* of its two entry forms (`E0803`), which
-//! [`check_entry`] owns along with the rule that admits the first.
+//! (`E0777`), and a method entry that declares a parameter (`E0804`), whose
+//! `args:` binding is the half of the second entry form still unlowered.
+//! [`check_entry`] owns that along with the operand rule itself.
 //!
 //! `spawn script` answers with the handle class and `await` answers with the
 //! shape below, which is what lets a program hear about the *rest* of a line it
@@ -191,10 +192,12 @@ pub(crate) fn check_spawn_script(
 /// - **An `fn` literal or a `callable` value**, refused under
 ///   [`code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD`] with the way out the ADR
 ///   names.
-/// - **A method reference**, which is the specified form and is refused for now
-///   under [`code::E_SPAWN_METHOD_ENTRY_UNSUPPORTED`] — `nvs-ir` has no
-///   lowering arm for it, and that code's own doc owns why an unlowered form is
-///   refused rather than accepted.
+/// - **A method reference**, which is the specified form and lowers to its own
+///   `Core` symbol (`nvs_ir::lower`'s `lower_spawn_script`). One half of it is
+///   still refused here — an entry declaring a parameter, under
+///   [`code::E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED`], because the child calls it
+///   with no arguments until `args:` binds by name; that code's own doc owns why
+///   a half-lowered form is refused rather than accepted.
 fn check_entry(
     path: &Expr,
     live: &mut FxHashSet<String>,
@@ -208,18 +211,35 @@ fn check_entry(
     let ty = check_expr(path, None, live, scope, ctx, env);
 
     if is_method_reference(path) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_SPAWN_METHOD_ENTRY_UNSUPPORTED,
-                "`spawn script`'s static-method entry is not compiled yet",
-            )
-            .with_primary(path.span, "this entry form is checked and not yet lowered")
-            .with_help(
-                "ADR 0006 specifies both entry forms and this compiler runs the path form. \
-                 Write the entry as a `.nvs` file and read its argument map with \
-                 `Core\\Script::args()`",
-            ),
-        );
+        // The reference resolved above, so the table holds the callee this
+        // operand names and with it the one thing left to refuse. A miss is
+        // another diagnostic already reported at the same span — a class or a
+        // member that does not exist — and this rule has nothing to add to it.
+        let declared = match env.exprs.lookup(path.span) {
+            Some(crate::expr_table::ExprInfo::CallableRef(call)) => call.param_tys.len(),
+            _ => 0,
+        };
+        if declared > 0 {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_SPAWN_METHOD_ENTRY_ARGS_UNSUPPORTED,
+                    "`spawn script`'s method entry does not bind `args:` to its parameters yet",
+                )
+                .with_primary(
+                    path.span,
+                    format!(
+                        "this entry declares {declared} parameter(s), and the isolate calls it \
+                         with none"
+                    ),
+                )
+                .with_help(
+                    "ADR 0006 binds `args:`'s entries to the entry's parameters as named \
+                     arguments, and that half is not compiled yet. Declare the entry with no \
+                     parameters and read the map with `Core\\Script::args()`, or write it as a \
+                     `.nvs` file",
+                ),
+            );
+        }
         return;
     }
 

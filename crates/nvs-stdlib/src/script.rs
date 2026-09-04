@@ -102,7 +102,8 @@
 //! own doc owns the accounting. So a read is a retain and nothing else — no
 //! second crossing, and no copy per call, however often the child asks.
 
-use nvs_runtime::host::{Completion, Output};
+use nvs_config::capability::{Cap, Scope};
+use nvs_runtime::host::{Completion, Entry, Output};
 use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
@@ -346,6 +347,18 @@ const ERROR_SLOT: usize = 2;
 /// The symbol `spawn script <path> with(…)` lowers to.
 pub const SPAWN_SYMBOL: &str = "nvs_core_script_spawn";
 
+/// The symbol `spawn script Class::method with(…)` lowers to — ADR 0006
+/// § *Decision*'s second entry form.
+///
+/// A symbol of its own rather than a fourth argument to [`SPAWN_SYMBOL`]'s:
+/// the two forms differ in what the first argument *means* and in nothing a
+/// caller writes, so a flag argument would be read by this module and by
+/// nobody else, and every dump of the IR would carry a constant whose only
+/// job is to pick a branch. `nvs_ir::lower`'s `lower_spawn_script` decides
+/// between them syntactically, exactly as `nvs_types` decided the operand
+/// rule.
+pub const SPAWN_METHOD_SYMBOL: &str = "nvs_core_script_spawn_method";
+
 /// The symbol `await <handle>` lowers to.
 pub const AWAIT_SYMBOL: &str = "nvs_core_script_await";
 
@@ -367,6 +380,7 @@ pub(crate) const FAILURE_FIELDS: &[&str] = &["class", "message"];
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         SPAWN_SYMBOL => (nvs_core_script_spawn as *const ()).cast(),
+        SPAWN_METHOD_SYMBOL => (nvs_core_script_spawn_method as *const ()).cast(),
         AWAIT_SYMBOL => (nvs_core_script_await as *const ()).cast(),
         ARGS_SYMBOL => (nvs_core_script_args as *const ()).cast(),
         ON_EXIT_SYMBOL => (nvs_core_script_on_exit as *const ()).cast(),
@@ -562,7 +576,7 @@ nvs_runtime::nvs_helper! {
         // and the lowering emitted no release for it.
         let crossing = args[1];
         let started = nvs_runtime::host::with_current(|host| {
-            host.start_isolate(ctx, program, crossing, output)
+            host.start_isolate(ctx, program, crossing, output, Entry::Path)
         });
         let running = match started {
             // A spawn past `[limits] max_script_depth` is refused by
@@ -586,6 +600,109 @@ nvs_runtime::nvs_helper! {
             None => {
                 return Err(Fault::fatal(format!(
                     "`spawn script '{path}'` needs a scheduler on this thread and there is none"
+                )));
+            }
+        };
+        let key = ctx.hold_started_script(running);
+        let key = i64::try_from(key).unwrap_or(i64::MAX);
+        Ok(crate::instance::build(&HANDLE, [Value::int(key)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `spawn script Class::method with(output: …)` — ADR 0006 § *Decision*'s
+    /// **method entry**, started as a fresh isolate over the unit this context
+    /// is already running.
+    ///
+    /// [`nvs_core_script_spawn`]'s three arguments in its order, with its
+    /// ownership rules, and one difference: argument 0 is a **constant label**
+    /// the lowering wrote — `Class::method`, resolved by `nvs_types` at the
+    /// spawn site — rather than a path the program computed. Nothing is
+    /// resolved and no unit is compiled, because the class is in the unit
+    /// already running: `nvs_runtime::script`'s module doc is the one home of
+    /// why this form never reaches the `Resolver` seam, and of why the
+    /// capability is asked here with `Scope::Unscoped` where the path form asks
+    /// `resolve` to ask it with the path.
+    ///
+    /// The child's statics are armed by `Ctx::method_isolate` at construction
+    /// rather than by the program's own prologue — there is no second unit to
+    /// run an `install_in` from — so the closure below does what a compiled
+    /// unit's entry does *after* that: take the argument into the isolate's
+    /// ownership root, and call.
+    ///
+    /// **`args:` binds nothing yet.** ADR 0006 has the entry called with the
+    /// map's entries as named arguments, which needs the parameter names at the
+    /// point the child calls; `nvs_types::expr::isolate` refuses an entry that
+    /// declares any parameter (`E0804`) until that lands, so the call below is
+    /// argument-less by construction rather than by hope — `nvs_runtime::abi`
+    /// requires exactly the callee's arity. The map still crosses and
+    /// `Core\Script::args()` still answers it, which is ADR 0006's accessor
+    /// rule for both forms.
+    fn nvs_core_script_spawn_method(ctx, args: [3]) {
+        // Unreachable from source: the lowering emits this as a `ConstStr`, so
+        // a non-string here is a compiler bug rather than a program's.
+        let label = args[0]
+            .as_text()
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "`spawn script Class::method` expected a constant label, got tag {}",
+                    args[0].tag_byte()
+                ))
+            })?
+            .to_owned();
+        let output = output_of(&args[2])?;
+        // ADR 0118 § 2's door for this form. The path form's is inside
+        // `resolve`, which is the effect there; here the effect is the call
+        // below and there is no intermediate to hang it on.
+        nvs_runtime::capability::require(ctx, Cap::ScriptSpawn, Scope::Unscoped, "`spawn script`")?;
+        let target = label.clone();
+        let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
+            // Ownership discharged into the isolate's own root, exactly as a
+            // path entry's program does it — the seam's type doc owns why this
+            // and not a release.
+            child.set_isolate_argument(argument);
+            match nvs_runtime::call_static(child, &target, &[]) {
+                Ok(Some(value)) => value,
+                // The class table crossed with the context, so a miss here is
+                // the child's unit disagreeing with what `nvs_types` resolved.
+                // A failure value rather than a panic, because a child may not
+                // end its parent.
+                Ok(None) => {
+                    child.set_pending(format!(
+                        "`spawn script {target}`: this program declares no such static method"
+                    ));
+                    Value::null()
+                }
+                // `call_static`'s only `Err` is `Fault::Pending`, which means
+                // the throw is already on this context — where
+                // `nvs_host::Isolate`'s `finish` reads it from.
+                Err(_) => Value::null(),
+            }
+        });
+        // Handed over here: one reference goes to the isolate and the lowering
+        // emitted no release for it.
+        let crossing = args[1];
+        let started = nvs_runtime::host::with_current(|host| {
+            host.start_isolate(ctx, program, crossing, output, Entry::Method)
+        });
+        let running = match started {
+            // Every arm is `nvs_core_script_spawn`'s, for its reasons — the
+            // depth ceiling, the argument that could not cross and the missing
+            // scheduler are all facts about the boundary rather than about
+            // which form named the entry.
+            Some(Ok(_)) if ctx.pending().is_some() => {
+                return Err(Fault::Pending(nvs_runtime::FATAL));
+            }
+            Some(Ok(running)) => running,
+            Some(Err(error)) => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!("`spawn script {label}`: {error}"),
+                ));
+            }
+            None => {
+                return Err(Fault::fatal(format!(
+                    "`spawn script {label}` needs a scheduler on this thread and there is none"
                 )));
             }
         };

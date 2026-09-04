@@ -91,7 +91,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use nvs_runtime::graph::GraphError;
-use nvs_runtime::host::{Bounds, Host, Job, Outcome, Output, Running, Woken};
+use nvs_runtime::host::{Bounds, Entry, Host, Job, Outcome, Output, Running, Woken};
 use nvs_runtime::script::Program;
 use nvs_runtime::{AssertionOutcome, Ctx, TaskRoot, Thrown, Value};
 
@@ -185,6 +185,7 @@ impl Host for SchedulerHost {
         program: Program,
         args: Value,
         output: Output,
+        entry: Entry,
     ) -> Result<Box<dyn Running>, GraphError> {
         // The whole implementation: `crate::isolate` is ADR 0006's boundary and
         // decides everything about it, and what this seam adds is only that a
@@ -192,7 +193,12 @@ impl Host for SchedulerHost {
         // group here and no `Bounds` — an isolate is one child, and what bounds
         // it is the tree's budget rather than a per-call limit (ADR 0006
         // § *Budgets are accounted at the root of the request tree*).
-        Isolate::new(program, args, output).start(ctx)
+        let isolate = Isolate::new(program, args, output);
+        match entry {
+            Entry::Path => isolate,
+            Entry::Method => isolate.running_a_method_of_the_parents_unit(),
+        }
+        .start(ctx)
     }
 }
 
