@@ -7378,6 +7378,18 @@ sibling in the same namespace unqualified.
   Uint, Decimal, Instance]` prints as `uint|int|decimal|tainted string|Core\Uuid`, and a nullable one
   puts `null` third rather than first or last — so the new expectation is worth *running* for rather
   than reasoning about: `python tools/try.py <case>` prints the real one in one call.
+- **A new `Core` member is five edits in its own crate and two closed sets in `nvs-types`, and the
+  second pair fails one crate away from anything you touched.** `Core\Request::mount()` and its
+  `Core\Request\Mount` passed `-p nvs-stdlib` whole — the row, the card, the body, the `address()`
+  arm, the conformance floor, the spec ratchet — and then `-p nvs-types --lib` failed on
+  `a_verified_signature_does_not_launder_its_claims` and
+  `every_request_member_returning_outside_data_returns_it_tainted`, which assert the *exact set* of
+  registry rows answering something `tainted` and the exact set of unqualified rows under the
+  `Core\Request` prefix. Both are deliberate ratchets, so the repair is the set **and** the sentence
+  counting it ("closed at nineteen", "closed at six"), and the second one wants a stated reason why
+  a new plain row is plain. Any member answering a marked value anywhere, or any member at all under
+  `Core\Request`, owes both: `grep -n 'closed at' crates/nvs-types/src/core_lib.rs` finds them for
+  the price of one call, where the full verify finds them for the price of a whole run.
 
 ## Divergences and refusals already pinned
 

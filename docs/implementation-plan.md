@@ -54,13 +54,13 @@
 > policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is
 > arithmetic against the memory budget, `503` before an isolate exists; § 6's walk decides the peer,
 > `400` on a bad token; § 8's accept backs off, § 10's mount holds no policy, § 5's drain answers
-> the probe and `isDraining()`; `Core\Response` has seven, `Core\Request` twelve, an upload walks as
-> parts; the door writes the carrier and pulls the body; every response carries ADR 0074 § 1's set,
-> § 2 is whole; a request is matched once, `route()` and `methodsFor` answer, the door reads it for
-> CSRF and the label, and § 2's two answers are the table's computation not a status it sends; a
+> the probe and `isDraining()`; `Core\Response` has seven, `Core\Request` thirteen, an upload walks
+> as parts; the door writes the carrier and pulls the body; every response carries ADR 0074 § 1's
+> set, § 2 is whole; a request is matched once, `route()` and `methodsFor` answer, the door reads it
+> for CSRF and the label, and § 2's two answers are the table's computation not a status it sends; a
 > `decimal` and a `Core\Uuid` convert as a capture and as a command argument, as does a union of
-> literals and an enum by its case name, and § 7's mount crosses at the door; `E0801` refuses `echo`
-> beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1505,
+> literals and an enum by its case name, and § 7's mount answers a class; `E0801` refuses `echo`
+> beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1507,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
