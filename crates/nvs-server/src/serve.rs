@@ -1617,6 +1617,409 @@ mod tests {
         );
     }
 
+    /// ADR 0138 § 1's second property, over the wire: **a future is polled only
+    /// on the stack that owns it**, and the stack that owns it is the
+    /// connection's own coroutine — so a drive that parked on the parking
+    /// stream comes back on the *same* task rather than wherever an executor's
+    /// next free worker happened to pick it up.
+    ///
+    /// Asserted as an **identity across a park**, which is what separates this
+    /// from [`a_second_request_on_one_connection_is_answered_after_a_park`]:
+    /// that case pins that the drive resumes at all, this one pins where. Both
+    /// ids are read inside the handler, which `hyper` calls from inside the
+    /// connection future's own `poll`, so what they name is the stack that poll
+    /// ran on — and the third assertion is § 1's first property from the other
+    /// end, that the stack is not the accept loop's.
+    #[test]
+    fn a_connection_future_is_driven_by_block_on_over_the_parking_stream() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            let mut seen = String::new();
+            socket
+                .write_all(b"GET /first HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .expect("the write failed");
+            read_until(&mut socket, "hello /first", &mut seen);
+            // The drive is parked on the keep-alive read at this point, with
+            // nothing on this core to poll it: what ends the park is this head
+            // arriving on the parking stream and nothing else.
+            socket
+                .write_all(b"GET /second HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            socket
+                .read_to_string(&mut seen)
+                .expect("the response could not be read");
+            seen
+        });
+
+        // One entry per request `hyper` asked the handler for, in order.
+        let polled_on: Rc<RefCell<Vec<nvs_host::TaskId>>> = Rc::new(RefCell::new(Vec::new()));
+        let handler = Rc::new({
+            let polled_on = Rc::clone(&polled_on);
+            move |request: Request<Incoming>| {
+                polled_on.borrow_mut().push(
+                    nvs_host::current_task().expect("the connection future was polled off a task"),
+                );
+                let path = request.uri().path().to_owned();
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    child
+                        .write_output(format!("hello {path}").as_bytes())
+                        .expect("a buffer");
+                    Value::null()
+                });
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+            }
+        });
+
+        let accepting: Rc<Cell<Option<nvs_host::TaskId>>> = Rc::new(Cell::new(None));
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let accepting = Rc::clone(&accepting);
+            move |_ctx| {
+                accepting.set(nvs_host::current_task());
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &wide_open(),
+                    &Draining::detached(),
+                    |_note| {},
+                    || ControlFlow::Break(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        let polled_on = polled_on.borrow();
+        assert_eq!(
+            polled_on.len(),
+            2,
+            "the handler was not asked once per request: {polled_on:?}"
+        );
+        assert_eq!(
+            polled_on[0], polled_on[1],
+            "the drive came back on a different stack than the one it parked on: {polled_on:?}"
+        );
+        assert_ne!(
+            Some(polled_on[0]),
+            accepting.get(),
+            "the connection was polled on the accept loop's own task"
+        );
+        assert!(
+            answer.ends_with("hello /second"),
+            "the drive did not answer the request that ended its park: {answer}"
+        );
+    }
+
+    /// ADR 0138 § 1's third property: **`Pending` suspends the task and not the
+    /// thread**, which is [ADR 0106] § 6's rule stated about this seam. One
+    /// core, two connections, and the second is answered in full while the
+    /// first's drive is parked half-way through a request head.
+    ///
+    /// One client thread, so the ordering is the case's rather than a race: the
+    /// half-sent head is on the wire before the second socket opens, and its
+    /// remainder goes out only once the second has been answered. The read
+    /// timeout is what makes a blocked core *fail* here instead of hanging the
+    /// suite — an assertion nobody reaches is worth nothing.
+    ///
+    /// [ADR 0106]: ../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md
+    #[test]
+    fn a_connection_never_blocks_the_core_it_runs_on() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut parked = TcpStream::connect(addr).expect("the loopback refused a connection");
+            parked
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            // A head with no blank line after it: the drive reads what arrived,
+            // answers `Pending`, and parks this connection's coroutine.
+            parked
+                .write_all(b"GET /parked HTTP/1.1\r\nHost: localhost\r\n")
+                .expect("the write failed");
+
+            let mut served = TcpStream::connect(addr).expect("the loopback refused a connection");
+            served
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            served
+                .write_all(b"GET /served HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut second = String::new();
+            served
+                .read_to_string(&mut second)
+                .expect("a core holding a parked connection never answered the second one");
+
+            parked
+                .write_all(b"Connection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut first = String::new();
+            parked
+                .read_to_string(&mut first)
+                .expect("the parked connection was never answered");
+            (first, second)
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let accepted = Cell::new(0_usize);
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_path(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || {
+                    accepted.set(accepted.get() + 1);
+                    if accepted.get() < 2 {
+                        ControlFlow::Continue(())
+                    } else {
+                        ControlFlow::Break(())
+                    }
+                },
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let (first, second) = client.join().expect("the client thread panicked");
+        assert!(
+            second.ends_with("hello /served"),
+            "the core did not serve its other connection while one was parked: {second}"
+        );
+        assert!(
+            first.ends_with("hello /parked"),
+            "the parked connection did not answer once its head arrived: {first}"
+        );
+    }
+
+    /// Runs `connections` sequential requests through one accept loop and
+    /// answers how many tasks the whole run finished.
+    ///
+    /// Sequential on purpose: each socket is answered before the next opens, so
+    /// the loop's own `keep_serving` counter is what decides when it stops
+    /// accepting rather than the order the OS hands connections over in.
+    fn tasks_finished<H>(connections: usize, handler: &Rc<H>) -> usize
+    where
+        H: Fn(Request<Incoming>) -> Reply + 'static,
+    {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            for _ in 0..connections {
+                let mut socket =
+                    TcpStream::connect(addr).expect("the loopback refused a connection");
+                socket
+                    .set_read_timeout(Some(CLIENT_PATIENCE))
+                    .expect("the socket refused a read timeout");
+                socket
+                    .write_all(
+                        b"GET /counted HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n",
+                    )
+                    .expect("the write failed");
+                let mut answer = String::new();
+                socket
+                    .read_to_string(&mut answer)
+                    .expect("the response could not be read");
+                assert!(
+                    answer.starts_with("HTTP/1.1 "),
+                    "a counted connection was not answered: {answer}"
+                );
+            }
+        });
+
+        let handler = Rc::clone(handler);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let accepted = Cell::new(0_usize);
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || {
+                    accepted.set(accepted.get() + 1);
+                    if accepted.get() < connections {
+                        ControlFlow::Continue(())
+                    } else {
+                        ControlFlow::Break(())
+                    }
+                },
+            )
+            .expect("the accept loop failed");
+        });
+        let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked");
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "the run left a task behind: ADR 0072 § 4"
+        );
+        report.finished
+    }
+
+    /// ADR 0138 § 1's first property, counted rather than read off a line:
+    /// **there is no queue of futures and no spawn.** Serving a connection
+    /// costs exactly one task — the coroutine that drives its future — so a
+    /// second connection costs exactly one more, and `hyper` contributed none
+    /// of them.
+    ///
+    /// The third measurement is the other side of the same bound, and it is the
+    /// distinction § 1 draws: a *request* does cost a second task, because an
+    /// [`Isolate`] asks the **scheduler** for one exactly as `Core\Task` does.
+    /// What the seam may not do is hand one out itself, and a count that only
+    /// ever went up by one per connection could not tell the two apart.
+    #[test]
+    fn no_task_is_spawned_to_serve_a_connection() {
+        let a_status = Rc::new(|_request: Request<Incoming>| Reply::not_found());
+        let one = tasks_finished(1, &a_status);
+        let two = tasks_finished(2, &a_status);
+        assert_eq!(
+            one, 2,
+            "one connection cost more than the accept loop and its own coroutine"
+        );
+        assert_eq!(
+            two - one,
+            1,
+            "a second connection cost more than one more task: {one} then {two}"
+        );
+        assert_eq!(
+            tasks_finished(1, &echo_the_path()),
+            one + 1,
+            "a request's isolate is the one task a connection may add, and it was not"
+        );
+    }
+
+    /// Stage 2's item 2, and the reason it is an item rather than an
+    /// assumption: a request runs as [`Isolate`] — the type `spawn script`
+    /// runs under [ADR 0006] — on a task of its own, so M7's state-bleed suite
+    /// parameterises one isolation mechanism instead of proving something about
+    /// two.
+    ///
+    /// Three ids, all different, which is the *tree* rather than a nesting of
+    /// calls: the accept loop's, the connection's, and the one the program ran
+    /// on. A request run inside the connection future's own `poll` would report
+    /// the second twice — and it is precisely what [`Peer`] exists not to do,
+    /// since a connection that cannot go round its dispatcher's loop cannot
+    /// read the body its own request is waiting for.
+    ///
+    /// [ADR 0006]: ../../../docs/adr/0006-isolated-script-execution.md
+    #[test]
+    fn a_request_is_the_root_isolate_of_a_request_tree() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(b"GET /rooted HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let connection: Rc<Cell<Option<nvs_host::TaskId>>> = Rc::new(Cell::new(None));
+        let request: Rc<Cell<Option<nvs_host::TaskId>>> = Rc::new(Cell::new(None));
+        let handler = Rc::new({
+            let connection = Rc::clone(&connection);
+            let request = Rc::clone(&request);
+            move |_request: Request<Incoming>| {
+                connection.set(nvs_host::current_task());
+                let ran_on = Rc::clone(&request);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    ran_on.set(nvs_host::current_task());
+                    child.write_output(b"rooted").expect("a buffer");
+                    Value::null()
+                });
+                Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+            }
+        });
+
+        let accepting: Rc<Cell<Option<nvs_host::TaskId>>> = Rc::new(Cell::new(None));
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let accepting = Rc::clone(&accepting);
+            move |_ctx| {
+                accepting.set(nvs_host::current_task());
+                serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    Waits::default(),
+                    &wide_open(),
+                    &Draining::detached(),
+                    |_note| {},
+                    || ControlFlow::Break(()),
+                )
+                .expect("the accept loop failed");
+            }
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        let accepting = accepting.get().expect("the accept loop ran off a task");
+        let connection = connection.get().expect("the handler ran off a task");
+        let request = request.get().expect("the request's program never ran");
+        assert_ne!(
+            connection, accepting,
+            "the connection was served on the accept loop's own task"
+        );
+        assert_ne!(
+            request, connection,
+            "the request ran inside the connection future's poll rather than beside it"
+        );
+        assert_ne!(
+            request, accepting,
+            "the request ran on the accept loop's own task"
+        );
+        assert!(
+            answer.ends_with("rooted"),
+            "the isolate's own output did not come back as the body: {answer}"
+        );
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "the request tree outlived the request it belonged to: ADR 0072 § 4"
+        );
+    }
+
     /// ADR 0074 § 1 over the wire: a server nobody configured answers with the
     /// secure set, on a response a program wrote and never asked for them.
     ///
