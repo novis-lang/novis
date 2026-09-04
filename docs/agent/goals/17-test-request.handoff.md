@@ -3,7 +3,7 @@
 ## State
 
 **Goal 17 — the request a test builds, and the peer facts it carries — has just started; nothing of it has
-landed yet.** Goal 16's whole list is this goal's Stage 1 floor. This is the chain's last entry.
+landed yet.** Goal 16's whole list is this goal's Stage 1 floor.
 
 The scope line matters more here than in most goals: **ADR 0079 § 18's dispatch half is M8's and is out of
 scope.** This goal builds the request and freezes its shape; it does not run one through a route table. A
@@ -40,5 +40,6 @@ since the module was written: `nvs_server::forwarded` already answers both facts
   (including `json()`/`jsonAs<T>()`), and spec § 13's `Core\Test` row rewritten in § 15's bullet shape.
   It closes no gate — §§ 13/16/17 are excluded from the coverage walk on purpose
   (`crates/nvs-stdlib/tests/spec_registry_coverage.rs:583`) and this goal does not change that.
-- **When this goal's last check goes green the chain is exhausted.** There is no goal 18: the driver stops
-  with the chain finished rather than with a failure, and what happens next is the user's call.
+- **Goal 18 follows this one** — ADR 0140's one converter from `array<mixed>` to a declared shape, and the
+  two `Core\Request` members over it. Its stages 4-5 are proven over the builder this goal freezes, so
+  this list going green is what makes them writable.

@@ -32,7 +32,15 @@ all. [17 test-request](17-test-request.md) freezes `Core\Test::request`'s shape 
 example and no signature), builds it as one shared `InboundSpec`, and lands the peer fields that
 `Core\Request::clientIp`/`scheme`/`host` have been waiting on. They are last rather than beside goal 6
 because they were decided after it, and goal 16's stage 0 is what pays off the fixtures goal 6 wrote
-against the rule it replaces. Goal 17 is the last entry on the chain.
+against the rule it replaces.
+
+**Then a third, from the same conversation**: [18 input-shapes](18-input-shapes.md) is what stops a
+request reader's answer being `mixed`. ADR 0140 gives `Core\Arr` one converter from `array<mixed>` to a
+declared shape and `Core\Request` the two members over it, so untrusted data is checked once, where it
+arrives and where a `400` is still the right answer. Its stage 2 is type-surface work the other two need
+nothing of and everything before it would have had to write twice — ADR 0036 § 3's shape gains an
+optional field, and ADR 0024 § 1's qualifier learns to sit in front of one — which is why it is last.
+Goal 18 is the last entry on the chain.
 
 [loop-authoring.md](../loop-authoring.md) owns how a goal is *written* and [coordinator.md](../coordinator.md)
 owns how one is *driven*. This file owns only what is specific to running six of them back to back, and it
@@ -68,6 +76,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, ADR 0079 § 18 | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
+| [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 
 ## The chain contract
 

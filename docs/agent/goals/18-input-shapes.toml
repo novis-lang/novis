@@ -1,0 +1,233 @@
+# Goal 18 -- untrusted input becomes a declared shape, at one converter. The acceptance test, as data.
+#
+# `18-input-shapes.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# This is the chain's last entry. When its list goes green there is no goal 19 to switch to, and the
+# driver stops with the chain exhausted rather than with a failure.
+
+files = [
+  "examples/input-shapes.nvs",
+]
+
+[context]
+
+modules = [
+  # The type grammar: `{name?: T}`'s marker, and `tainted` in front of a shape.
+  "crates/nvs-syntax/src/parser/ty.rs",
+  # `Ty::Shape` gains the required bit `CoreShapeField` has had since ADR 0135; the tainted variants
+  # the desugaring rewrites into are the same file.
+  "crates/nvs-types/src/ty.rs",
+  # `is_assignable` -- width subtyping learns that a missing optional field still satisfies.
+  "crates/nvs-types/src/expr/assign.rs",
+  # The qualifier checks: where `tainted {...}` must not become a launderer.
+  "crates/nvs-types/src/expr/quals.rs",
+  # `check_generic_args` -- the call-site half of the third written type argument.
+  "crates/nvs-types/src/expr/args.rs",
+  # `CoreTy` -> `Ty` lowering for the new member's signature.
+  "crates/nvs-types/src/core_lib.rs",
+  # The converter itself, and `Core\Arr`'s rows.
+  "crates/nvs-stdlib/src/arr.rs",
+  # `decodeAs<T>` over an inline shape calls the one walk rather than keeping its own.
+  "crates/nvs-stdlib/src/json.rs",
+  # `postAs`/`queryAs` beside `post`, and the buffering-reader claim they take.
+  "crates/nvs-stdlib/src/request.rs",
+  # `parse_query` already answers the whole array the whole-form spelling hands over.
+  "crates/nvs-stdlib/src/uri.rs",
+  # The registry cards for the three members.
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+rules = ["0036", "0024", "0007", "0066", "0071", "0063", "0139", "0095", "0117", "0004"]
+
+# 0036 whole: it is this goal's type surface and the only ADR a session should need in full. 0024 s1 is
+# the grammar being widened; 0007 s2 the conversion table that is the whole coercion rule and s5 the
+# type-argument door; 0071 the collected-failure shape being reused.
+adrs = ["0036", "0024 §1", "0007 §2", "0007 §5", "0071"]
+
+shapes = [
+  "A `Core` member — the five edits",
+  "A diagnostic",
+  "A `.nvst` test case",
+  "An ADR",
+  "A commit message",
+]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Writing Novis itself > a new core member owes',
+  'Tooling > a core class',
+  'Tooling > a docs/reference/core/<class>.md',
+  "Tooling > nvs-stdlib's gates",
+  'Writing a test case > a new core member owes three conformance cases, not one, and the',
+  'Writing a test case > registering a core member',
+  'Writing a test case > the coverage gate matches',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals 4-17's container-backed checks. Same compose file, same memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the two things a shape cannot say yet. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grammar"
+name = "nvs-syntax (the optional marker, and a qualifier in front of a shape)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_shape_field_can_be_marked_optional",
+  "an_optional_field_and_a_nullable_field_parse_to_different_types",
+  "a_shape_type_can_carry_the_tainted_qualifier",
+  "a_tainted_shape_rewrites_every_text_field_including_nested_ones",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the grammar"
+name = "nvs-types (the required bit, and what it does to assignability)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_source_missing_an_optional_field_satisfies_the_shape",
+  "a_source_missing_a_required_field_does_not",
+  "a_source_with_extra_fields_still_satisfies_the_shape",
+  # ADR 0024: the qualifier is never quietly a no-op, and never a launderer.
+  "a_tainted_shape_naming_no_text_field_is_refused",
+  "a_tainted_shape_is_not_assignable_to_the_same_shape_unqualified",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the converter. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the converter"
+name = "nvs-stdlib (Core\\Arr::shapeAs)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "an_array_hydrates_into_every_field_the_shape_names",
+  "a_numeric_string_reaches_an_int_field_by_the_same_rule_as_would",
+  "a_value_as_refuses_is_a_failure_naming_its_field",
+  "an_absent_required_key_is_a_failure_and_an_absent_optional_one_is_not",
+  "a_key_the_shape_does_not_name_is_left_behind",
+  "every_failure_of_one_call_arrives_in_one_error_with_its_paths",
+  # One walk, one home: `decodeAs<T>` over an inline shape goes through this member.
+  "decode_as_over_an_inline_shape_uses_the_one_hydration_walk",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the converter"
+name = "conformance (three cases, over a declared shape)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/an-array-becomes-the-shape-it-was-asked-for.nvst",
+  "tests/conformance/core/a-shape-conversion-names-every-field-that-did-not-fit.nvst",
+  "tests/conformance/core/an-optional-field-is-absent-and-a-nullable-one-is-null.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two members at the boundary. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the boundary"
+name = "nvs-stdlib (postAs and queryAs)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "post_as_hydrates_the_whole_form_into_the_shape_it_was_given",
+  "post_as_with_a_name_hydrates_one_bracket_subtree",
+  "query_as_reads_the_query_string_the_same_way",
+  # ADR 0139, unchanged: this is a buffering reader, and it takes the claim as one.
+  "post_as_may_follow_another_buffering_reader",
+  "post_as_refuses_after_a_streaming_reader_has_consumed_the_body",
+  # ADR 0024's return, at the site that pays for it.
+  "an_unqualified_shape_at_a_request_call_site_is_diagnosed_naming_the_shape",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the boundary"
+name = "conformance (three cases each, over a built request)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-request-hydrates-its-form-into-a-declared-shape.nvst",
+  "tests/conformance/core/a-request-shape-names-every-field-the-peer-got-wrong.nvst",
+  "tests/conformance/core/a-request-shape-ignores-a-field-it-did-not-name.nvst",
+  "tests/conformance/core/a-query-string-hydrates-into-a-declared-shape.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the proofs. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "5 the proofs"
+file = "examples/input-shapes.nvs"
+# Run under `nvs run --request` (goal 16 stage 2, goal 17's builder), so the whole path is exercised:
+# a real form, a declared shape, one collected error, and a field the shape never named.
+want = [
+  "email is ada@example.test",
+  "age is 36",
+  "nickname is absent",
+  "city is Vienna",
+  "an unnamed field was left behind",
+  "two fields did not fit: age, city",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the proofs"
+name = "nvs-stdlib (the spec, the cards and the three-case floor)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_member_is_registered",
+  "every_part_two_member_has_a_conformance_case",
+  "every_core_class_has_a_conformance_floor_of_three",
+  "every_registry_row_carries_a_reference_card",
+  "every_registry_rows_names_are_the_specs_signature_column",
+]
+
+[[check]]
+kind = "command"
+stage = "5 the proofs"
+name = "the one-file reference still regenerates from the binary"
+argv = ["python", "tools/reference.py", "--check"]

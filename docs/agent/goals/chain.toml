@@ -189,11 +189,25 @@ preflight = "docker"
 # `Core\Test::request`'s shape, frozen, and the peer fields that fall out of its options bag -- which are
 # what `Core\Request::clientIp`/`scheme`/`host` have been waiting on. After goal 16 because it re-points
 # that goal's `.nvst` sections at one shared builder, so the sections have to exist first. The dispatch
-# half of ADR 0079 § 18 stays M8's. This is the last entry on the chain.
+# half of ADR 0079 § 18 stays M8's.
 [[goal]]
 name = "17 test-request"
 md = "docs/agent/goals/17-test-request.md"
 toml = "docs/agent/goals/17-test-request.toml"
 handoff = "docs/agent/goals/17-test-request.handoff.md"
 milestone = "M8"
+preflight = "docker"
+
+# ADR 0140's one converter from `array<mixed>` to a declared shape, and the two `Core\Request` members
+# over it -- which is what stops a request reader's answer being `mixed`. Last because its stage 2 is
+# type-surface work (ADR 0036's optional field, ADR 0024's qualifier over a shape) and every goal before
+# it writes shapes whose spelling this one widens; running it earlier would mean writing them twice. Its
+# stages 4-5 are proven over goal 16's `.nvst` request sections and goal 17's builder, so both have to
+# exist first. This is the last entry on the chain.
+[[goal]]
+name = "18 input-shapes"
+md = "docs/agent/goals/18-input-shapes.md"
+toml = "docs/agent/goals/18-input-shapes.toml"
+handoff = "docs/agent/goals/18-input-shapes.handoff.md"
+milestone = "M7"
 preflight = "docker"

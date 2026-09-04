@@ -4,8 +4,8 @@
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# This is the chain's last entry. When its list goes green there is no goal 18 to switch to, and the
-# driver stops with the chain exhausted rather than with a failure.
+# Goal 18 follows this one: its stages 4-5 are proven over the builder this goal freezes, so this list
+# going green is what makes them writable.
 
 files = [
   "examples/request-fields.nvs",
