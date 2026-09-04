@@ -2,76 +2,66 @@
 
 ## State
 
-**Goal 6, Stage 5: both readings of a request body are on disk, and the request records which
-one took it.** `Core\Request::bodyStream(): Iterable<tainted bytes>` is spec § 15's streaming
-reader — nine of § 15's fifteen members now. It answers `Core\Request\BodyStream`, the one
-`Iterable` in `Core` that is **its own iterator** rather than a `crate::cursor` snapshot:
-`iterate()` hands the receiver back and `advance()` pulls one chunk off
-`nvs_runtime::RequestBody`, so nothing accumulates and no `REQUEST_BODY` bound applies. The
-class's own doc comment at `crates/nvs-stdlib/src/request.rs:445` is the whole argument.
+**Goal 6, Stage 5: ADR 0105 §§ 1-2's multipart parse is on disk, and nothing calls it yet.**
+`crates/nvs-stdlib/src/multipart.rs` reads the same `nvs_runtime::RequestBody` `bodyStream`
+walks: `Multipart::next_part` answers the next **file** part and drains an unconsumed one
+(§ 1), `next_chunk` hands a part's body out as spans of a buffer holding one wire chunk plus
+one delimiter's tail, and a part with no `filename` is buffered into `Multipart::fields` for
+`post()` (§ 2). The module's own doc comment is the whole argument; ten `#[test]`s hold it,
+including the sweep over chunk sizes and the body that quotes its own boundary.
 
-**The element is `tainted bytes`, which needed a new `CoreTy` spelling.** `registry::CoreTy`
-had no return-position `bytes` twin of `TaintedStr`, and a plain `bytes` element would have
-made `bodyStream` a launderer for the same octets `body()` marks. `CoreTy::TaintedBytes` is
-four sites — the variant, `nvs_types::core_lib`'s lowering, `nvs_stdlib::ast`'s leaf list,
-`nvs_cli::meta`'s rendering — and the mark reaches a `foreach` binding through
-`registry::ITERABLES`. **Spec § 15's own signature was amended** to `Iterable<tainted bytes>`;
-it had written plain `bytes`.
+**It takes the body per call rather than borrowing it once**, so it can be stored beside the
+thing it reads — `crate::request`'s `body_stream_step` is that shape one layer up.
 
-**Spec § 15's exclusivity is enforced, not recorded as a gap.** `nvs_runtime::Inbound`'s new
-`claimed_by` field and `Inbound::claim_body` are the rule's only home; `nvs_stdlib::request`'s
-`claim_body` is only the wording. The claim is taken where a reading is **named** — so
-`bodyStream()` claims once and its `advance()` never does — and it is taken on a request that
-carried no body too, because what § 15 makes exclusive is the reading. `files` joins the same
-call when it lands.
+**Three bounds are here and one deliberately is not.** `MAX_PARTS` (ADR 0095 § 4),
+`PART_HEADERS`, and `crate::request::REQUEST_BODY` — now `pub(crate)` — for § 2's buffered
+fields. `upload_total` stays `nvs_server::body::UPLOAD_TOTAL`, enforced on the wire, because
+the parts this module drains are still the server's to count.
 
-**Neither slice could take a `.nvst` case for its throws**: a case answers no request, so both
-new `Fault::` sites carry `conformance_coverage.rs`'s `no case can reach this` declaration
-naming the `#[test]` that asserts them instead.
+**The `#![allow(dead_code)]` at the top of the module is a one-slice loan.** The parse has no
+non-test caller until `files()` lands; delete the attribute with that member's first call.
 
-**`examples/upload.nvs` — the failing acceptance check — stays failing** until `files()` lands;
-it wants parts, and nothing yields one yet. The example itself is still the IO-only placeholder
-and needs rewriting around `files()` in the same slice.
-
-**`[context]` gaps:** `adrs` still selects no § 3 and no § 5 of ADR 0105; spec § 15 has no
-`spec` selector and it is `docs/spec/01-core-library.md:1048-1072`.
+**`examples/upload.nvs` — the failing acceptance check — stays failing**, and the next group's
+third item is now a question rather than a rewrite: see it below before touching the example.
 
 ## Next group
 
-**`files()`, the parts it yields, and the example that proves there is no temp file.** One file
-set: `crates/nvs-stdlib/src/request.rs`, `crates/nvs-server/src/body.rs`, `examples/upload.nvs`,
-`tests/conformance/core/`.
+**`files()`, the part it yields, and the example that proves there is no temp file.** One file
+set: `crates/nvs-stdlib/src/request.rs`, `crates/nvs-stdlib/src/multipart.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `examples/upload.nvs`.
 
-- [ ] **The multipart parse, as a `RequestBody` reader** — ADR 0105 §§ 1-2. It pulls the same
-      `nvs_runtime::RequestBody` `bodyStream` walks, so the shape to copy is
-      `crates/nvs-stdlib/src/request.rs:1032`'s `body_stream_step`, and the boundary comes off
-      `Content-Type`, read with `crates/nvs-stdlib/src/request.rs:@joined_field`. The total
-      bound is `crates/nvs-server/src/body.rs`'s `UPLOAD_TOTAL`, not
-      `crates/nvs-stdlib/src/request.rs:@REQUEST_BODY`.
-- [ ] **`Core\Request::files(): Iterable<Part>` and `Core\Request\Part`** — ADR 0105 §§ 3-4 and
-      spec § 15 (`docs/spec/01-core-library.md:1063`). Five edits beside `bodyStream`'s: row at
-      `crates/nvs-stdlib/src/request.rs:250`, card at `crates/nvs-stdlib/src/request.rs:410`,
-      `address` arm at `crates/nvs-stdlib/src/request.rs:490`, class beside
-      `crates/nvs-stdlib/src/request.rs:445`. It owes `crates/nvs-stdlib/src/request.rs:@claim_body`
-      a call with `"files"`, which is the third member that rule was written for. A part's
-      `filename` and `contentType` are `CoreTy::TaintedStr`; `readAll` is `CoreTy::TaintedBytes`.
-- [ ] **`examples/upload.nvs` runs, and the acceptance check passes** — the check wants
-      `parts=2 / field=title / file=report.pdf / saved 4096 bytes / no temp file`. The file is
-      today an IO-only placeholder that never mentions `files()` — `examples/upload.nvs:25` is
-      where it starts inventing a directory instead — so rewrite it around the member, keeping
-      `examples/upload.nvs:63`'s `Core\IO::within` as the launderer between a claimed filename
-      and a path.
+- [ ] **`Core\Request::files(): Iterable<Part>` and `Core\Request\Part`** — ADR 0105 §§ 1-3.
+      Two classes on `crates/nvs-stdlib/src/request.rs:489`'s `BODY_STREAM` shape, whose
+      iterate/advance/current are its own; the rows go in
+      `crates/nvs-stdlib/src/request.rs:182`, the arms in
+      `crates/nvs-stdlib/src/request.rs:499`, the element type in
+      `crates/nvs-stdlib/src/registry.rs:2229`, and `claim_body(ctx, "files")` at
+      `crates/nvs-stdlib/src/request.rs:533` is § 15's exclusivity in one line. **Decide first
+      where the `Multipart` lives across calls**: `crates/nvs-stdlib/src/io.rs:2187`'s
+      `handle_of` keys a per-request table off a slot, and
+      `crates/nvs-stdlib/src/request.rs:455` is the other shape — a slot, with
+      `ctx.inbound_mut()` re-fetched every call.
+- [ ] **`Part::readAll`, `Part::content` and `Part::saveTo`** — ADR 0105 §§ 3-4. `saveTo`
+      delegates to `Core\IO::writeStream`, which already landed: its row is
+      `crates/nvs-stdlib/src/io.rs:124` and its body `crates/nvs-stdlib/src/io.rs:2724`.
+      `filename` and `contentType` are `tainted` — the spelling is beside `bodyStream`'s at
+      `crates/nvs-stdlib/src/request.rs:425`.
+- [ ] **`examples/upload.nvs` runs and the acceptance check passes** — the check at
+      `docs/agent/loop-goal.toml:3382` wants `parts=2 / field=title / file=report.pdf / saved
+      4096 bytes / no temp file` from a **program** leg, but a program answers no request, so
+      `files()` throws inside one. Settle that before rewriting `examples/upload.nvs:1`: the
+      block the root `nvs.toml` carries for it is an `[[app]]` grant and not a mount, so
+      either the example has to reach a real request or the check has to become a server
+      check. `examples/session.nvs` is the same shape with the same unanswered question.
 
 ## Backlog
 
-- Raw/unparsed body access for an arbitrary content-type — `docs/plan/m7.md`, narrowed to what
-  `body()`/`bodyStream()` do not answer; the goal's standing decisions pre-authorize the call.
-- `clientIp`, `scheme`, `host` — `crates/nvs-stdlib/src/request.rs`'s module doc; they wait on
-  `[server] trusted_proxies` and the forwarded-header walk.
-- `route`/`mount` — the same module doc; they wait on ADR 0102's match, made once by
-  `nvs_server` before the handler.
-- `Core\Request::post()` for a multipart form's non-file parts — spec § 15, line 1068; it falls
-  out of the parse the next group writes.
-- The `Core\Request\BodyStream` anchor in `docs/novis.md` collides with `Core\Request::bodyStream`'s,
-  as `Core\IO\Lines`' already does with `Core\IO::lines`' — `tools/reference.py`, and
-  `check-links.py` is green either way.
+- The stage-5 check at `docs/agent/loop-goal.toml:3365` files all seven ADR 0105 tests under
+  `-p nvs-server`; only `an_upload_total_over_the_cap_is_refused_before_dispatch` is that
+  crate's, and `a_part_is_a_file_part_iff_content_disposition_carries_a_filename` already runs
+  in `-p nvs-stdlib`. Split it, and fix `docs/agent/goals/` alongside the live copy.
+- `[context] adrs` printed ADR 0105 §§ 1-2 only; §§ 3, 4 and 5 and ADR 0095 § 4 were all needed
+  and cost four slices of the ADRs to fetch.
+- Spec § 15 still has no `spec` selector: `docs/spec/01-core-library.md:1048-1072`.
+- `Core\Request::post()` has no registry row; `Multipart::fields()` is what it will read.
+- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, m7.md.

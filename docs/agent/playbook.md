@@ -1816,6 +1816,10 @@ is why" — is this file.
   they are `Inbound`'s, whose `impl` opens 58 lines above the window. `peek.py --locate` answers the
   symbol, not its owner, so it does not close this either. One `grep -n '^impl ' <file>` filtered to
   the lines around the anchor costs nothing and says which type you are actually adding a call to.
+- **`python tools/peek.py --locate` and window targets in one call: only the locate prints.** A
+  call carrying both `A.rs:120-160` windows and `--locate sym …` answered the five symbols and
+  dropped the two windows without saying so, so the two questions cost two calls instead of the
+  one the tool exists to save. Ask for anchors or for code, never both in the same call.
 
 ## Running things
 
