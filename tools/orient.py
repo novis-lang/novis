@@ -11,6 +11,7 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
 `docs/agent/loop-goal.toml`:
 
     the run marker and the next free numbers        always
+    the failing acceptance check, in full           always -- when the ledger names one
     the handoff's state and the current item        always
     the code at every `path:line` the item names    always -- see `run_anchors`
     the goal's standing decisions                   always -- this is what keeps a run off BLOCKED
@@ -369,8 +370,112 @@ def doc_gate_failure() -> tuple[str, str] | None:
     return str(state.get("session") or "").strip() or "an earlier session", failed
 
 
+CHECK_FIELD = re.compile(r'^(name|file|stage) = "(.*)"\s*$')
+# One block over 60 lines out of 243 on 2026-09-05, and the median is 13 -- so this truncates almost
+# nothing while capping what a pathological comment can spend.
+CHECK_BLOCK_LINES = 60
+
+
+def check_blocks(text: str) -> list[dict]:
+    """Every `[[check]]` in an acceptance list, with the comment header written above it.
+
+    A block runs from its `[[check]]` line to the last line before the next table that is not part
+    of that table's header, and the header is the unbroken run of comment lines directly above it.
+    The header is worth carrying because the stage banners live there: a check printed on its own
+    loses the paragraph saying what its whole stage is for."""
+    lines = text.split("\n")
+    blocks: list[dict] = []
+    for i, ln in enumerate(lines):
+        if ln.strip() != "[[check]]":
+            continue
+        stop = next((j for j in range(i + 1, len(lines)) if lines[j].startswith("[")), len(lines))
+        last = stop - 1
+        while last > i and (not lines[last].strip() or lines[last].lstrip().startswith("#")):
+            last -= 1
+        top, h = i, i - 1
+        while h >= 0 and not lines[h].strip():
+            h -= 1
+        while h >= 0 and lines[h].lstrip().startswith("#"):
+            top, h = h, h - 1
+        fields: dict[str, str] = {}
+        for body in lines[i : last + 1]:
+            f = CHECK_FIELD.match(body)
+            if f and f.group(1) not in fields:
+                fields[f.group(1)] = f.group(2)
+        blocks.append({"fields": fields, "top": top, "last": last, "lines": lines[top : last + 1]})
+    return blocks
+
+
+def locate_check(fail: str) -> list[dict]:
+    """The block(s) the driver wrote a `goal check:` line from, found by exact string match.
+
+    The ledger line is `f"{label}: {why}"` and `tools/loop.py` builds that label two ways only --
+    `f"{c['name']} [{stage}]"` for a cargo check and `f"{leg.name} {c['file']} [{stage}]"` for a
+    program one. So the match here is the reverse: reconstruct each block's label from its own
+    `name`/`file`/`stage` and ask whether the ledger line starts with it. Nothing guesses at where a
+    stage ends or matches a name loosely, which matters because this list is the run's stop path and
+    printing a *neighbouring* check as the failing one is worse than printing none.
+
+    Ambiguity is real -- three labels in the list are carried by two checks each -- so this returns
+    every hit and the caller reports rather than resolves it. The live goal is the right file even
+    under `--goal`: the verdict came out of the ledger, which is the live run's."""
+    if not fail or not GOAL_TOML.is_file():
+        return []
+    hits = []
+    for b in check_blocks(read(GOAL_TOML)):
+        f = b["fields"]
+        stage = f.get("stage", "?")
+        if "name" in f:
+            found = fail.startswith(f"{f['name']} [{stage}]: ")
+        elif "file" in f:
+            head = rf"^\S+ {re.escape(f['file'])} \[{re.escape(stage)}\]: "
+            found = re.match(head, fail) is not None
+        else:
+            found = False
+        if found:
+            hits.append(b)
+    return hits
+
+
+def emit_check_block(fail: str) -> None:
+    """Print the failing check itself, under the verdict, so no session goes and finds it.
+
+    Measured at roughly 24 head calls across 15 sessions before this existed, all one shape: a
+    session greps its own failing test name under `docs/agent/`, then walks 40-line windows of a
+    3,955-line TOML, two to four times, to reach the block the verdict above already named."""
+    hits = locate_check(fail)
+    if not hits:
+        return
+    if len(hits) > 1:
+        shown = hits[:4]
+        where = " ".join(
+            f"'{rel(GOAL_TOML)}:{b['top'] + 1}-{b['last'] + 1}'" for b in shown
+        )
+        more = "" if len(hits) == len(shown) else f" (of {len(hits)}; the rest carry it too)"
+        emit()
+        emit(f"{len(hits)} checks carry that exact label, so which of them failed does not follow")
+        emit(f"from the ledger line. `python tools/peek.py {where}`{more}")
+        emit("prints them in one call -- the one naming what failed above is yours.")
+        return
+    b = hits[0]
+    anchor = f"{rel(GOAL_TOML)}:{b['top'] + 1}-{b['last'] + 1}"
+    emit()
+    emit(f"That check is {anchor}, and it is printed here in full -- it is what this")
+    emit("session exists to turn green, so do not go and find it. Any comment above the")
+    emit("`[[check]]` line is the stage's own header, and says what the whole stage is for:")
+    emit()
+    for line in b["lines"][:CHECK_BLOCK_LINES]:
+        emit(f"  {line}" if line.strip() else "")
+    if len(b["lines"]) > CHECK_BLOCK_LINES:
+        rest = len(b["lines"]) - CHECK_BLOCK_LINES
+        emit(f"  ... {rest} more line(s) -- `python tools/peek.py '{anchor}'` for the whole block.")
+
+
 def run_marker() -> None:
-    section("RUN", "git, .loop/running, .loop/interrupted.json and .loop/log.md")
+    section(
+        "RUN",
+        "git, .loop/running, .loop/interrupted.json, .loop/log.md and the failing check itself",
+    )
     if RUNNING.exists():
         emit("A LOOP DRIVER HOLDS THIS TREE. Its sessions edit these files on nearly every")
         emit("iteration; do not start a by-hand pass over shared files while this says so.")
@@ -416,6 +521,7 @@ def run_marker() -> None:
             emit("next group, and the handoff you write says what you found. A check that names a")
             emit("test that 'did not run' is an item still open and is the ordinary state of this")
             emit("goal; any other failure is a regression and outranks new work outright.")
+            emit_check_block(fail)
     # Below the acceptance verdict on purpose: a red check is a regression and outranks this.
     gate = doc_gate_failure()
     if gate is None:
