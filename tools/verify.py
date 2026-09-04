@@ -125,7 +125,9 @@ the cache.
 The one docs check that *is* a step here is `reference.py`, and it is not an exception: it reads
 the binary `build` produced, so its input is hashed already, and `docs/novis.md` is written
 rather than read. The session-side gate for the rest is `session.py --wrap`, which refuses at the
-moment a wrap would write the breakage -- see its `playbook_collisions`.
+moment a wrap would write the breakage -- see its `playbook_collisions` and its `link_findings`. The
+second of those is `check-links.py` over the tree, diffed against HEAD: a link *this* session broke
+refuses the wrap, and one it inherited does not, so the gate never charges a session for another's.
 """
 
 from __future__ import annotations

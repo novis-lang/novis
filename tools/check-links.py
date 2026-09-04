@@ -5,7 +5,10 @@ the one on disk, or that are written in the wrong form for the file they sit in.
     python tools/check-links.py            # every tracked .md, .rs, .nvs and .nvst file
     python tools/check-links.py docs/adr   # only under these paths
 
-**A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `adr.py --check`.** It
+**A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `adr.py --check`.**
+`tools/session.py --wrap` runs the same checker in-process, against the tree and against the bodies it
+is about to write, so a session is refused at the moment it would commit a link it broke rather than
+told about it by CI after the push. It
 exists because a doc restructure moves dozens of relative links at once and a broken one is invisible
 until someone follows it — that is a real defect with a ten-second fix, unlike a doc that runs a few
 bytes long, which nothing here measures at all (docs/agent/doc-style.md § *Length targets*).
@@ -160,6 +163,15 @@ def is_generated(md_file):
     return any(GENERATED_MARKER in line for line in text.split("\n")[:GENERATED_HEAD_LINES])
 
 
+def resolve_on_disk(base, target):
+    """The default resolver: the working tree answers whether a link's target is there."""
+    if not (base / target).exists():
+        return "missing"
+    if not case_exact(base, target):
+        return "case"
+    return None
+
+
 def check(path):
     """Yields (line number, target, kind) for each finding in one file.
 
@@ -169,7 +181,23 @@ def check(path):
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return
-    source = path.suffix in SOURCE_EXTS
+    yield from findings_in(text, path.suffix in SOURCE_EXTS, path.parent)
+
+
+def findings_in(text, source, base, resolve=resolve_on_disk):
+    """The same, for text rather than a file on disk, against a tree named by `resolve`.
+
+    Two callers want to ask this gate's question about something that is not a file in the working
+    tree, and both are `tools/session.py`'s wrap-time gate:
+
+    *text that is not on disk yet* -- a wrap file's handoff, playbook or plan body, checked before
+        `--wrap` writes it, because that tool writes and commits in one call and a link it wrote
+        would otherwise reach CI unread. `base` is the directory of the file the body lands in.
+
+    *a tree that is not this one* -- `resolve` backed by `git ls-tree HEAD`, which is how that gate
+        tells a link the session in front of it broke from one it inherited. It takes
+        `(base, target)` and answers "missing", "case" or None.
+    """
     fenced = False
     for lineno, line in enumerate(text.split("\n"), start=1):
         # A fenced block in a doc comment opens with `//! ```, which this deliberately does not
@@ -196,16 +224,15 @@ def check(path):
                 if not target.startswith("/"):
                     yield lineno, raw, "relative"
                     continue
-                base, target = ROOT, target.lstrip("/")
+                here, target = ROOT, target.lstrip("/")
             else:
                 if target.startswith("/"):
                     yield lineno, raw, "absolute"
                     continue
-                base = path.parent
-            if not (base / target).exists():
-                yield lineno, raw, "missing"
-            elif not case_exact(base, target):
-                yield lineno, raw, "case"
+                here = base
+            kind = resolve(here, target)
+            if kind:
+                yield lineno, raw, kind
 
 
 def main():

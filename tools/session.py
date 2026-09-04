@@ -90,7 +90,16 @@ commit is made, and the count is reported. conventions.md § *A commit message* 
 `tools/git-hooks/commit-msg` catches the same thing arriving by any other route.
 
 `--check` is the one to run *before* writing the wrap file: it says which plan fields have gone
-stale against the tree, whether the handoff still matches its contract, and what is uncommitted.
+stale against the tree, whether the handoff still matches its contract, what is uncommitted, and
+which links this session broke.
+
+That last one is a refusal too. A wrap will not write a **dead link** -- one in a body it is about
+to write, or one anywhere in the tree that resolved at HEAD and does not resolve now. Both are
+`check-links.py`, which is CI's `docs` job and which `verify.py` deliberately does not run (its own
+docstring says why), so a green verification says nothing at all about links and this is the last
+moment before the push. A link that was **already** dead at HEAD is printed and refuses nothing:
+that one is CI's to report and a human's to schedule, and holding this session for it would leave
+verified work uncommitted over a link nobody here touched.
 
 This tool judges no content. It refuses malformed input and it refuses to invent a plan field --
 everything else it writes is what you handed it.
@@ -100,7 +109,9 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
+import importlib.util
 import json
+import posixpath
 import re
 import subprocess
 import sys
@@ -137,6 +148,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import plan as planmod  # noqa: E402  -- the status block's one home; never reimplemented here
 import orient  # noqa: E402  -- its ANCHOR_RE is what the next pack expands, so it is what we gate on
 import playbook as playbookmod  # noqa: E402  -- bullet parsing has one home and it is not here
+
+#: `check-links.py` cannot be imported by name -- a hyphen is not an identifier -- and renaming it
+#: would change a command that CI, `verify.py`'s docstring and the playbook all already spell. So
+#: it is loaded by path. Every rule about what a link is and where it resolves lives there.
+_LINKS = importlib.util.spec_from_file_location(
+    "check_links", Path(__file__).resolve().parent / "check-links.py")
+checklinks = importlib.util.module_from_spec(_LINKS)
+_LINKS.loader.exec_module(checklinks)
 
 
 def say(line: str = "") -> None:
@@ -502,6 +521,20 @@ def validate(sections: list[Section]) -> list[str]:
             f"would end with {'them' if len(writes) > 1 else 'it'} dirty. Add "
             f"`## commit: {' '.join(writes)}` -- every doc section is applied before any commit "
             f"is staged, so one wrap does both.")
+
+    errors += body_links(sections)
+    broke, _found = link_findings()
+    if broke:
+        shown = "; ".join(broke[:8])
+        more = (f"; and {len(broke) - 8} more -- `python tools/check-links.py` lists them all"
+                if len(broke) > 8 else "")
+        errors.append(
+            f"{len(broke)} link(s) resolved at HEAD and do not resolve now, so they are this "
+            f"session's: {shown}{more}. Most often that is a file renamed under the citations of "
+            f"it, which is how the four this gate was added for got there. Nothing else catches it "
+            f"before the push -- `check-links.py` is CI's `docs` job, and `verify.py` deliberately "
+            f"does not run it (its own docstring says why), so a green verify says nothing here. "
+            f"A link already dead at HEAD is not counted: that one is not yours.")
     return errors
 
 
@@ -604,6 +637,141 @@ def heading_index(text: str, wanted: str) -> tuple[int, int] | None:
                     break
             return idx, end
     return None
+
+
+# -------------------------------------------------------------------------- the link gate
+
+#: What each `check-links.py` finding means, so a refusal says it rather than naming a kind. That
+#: gate's own docstring is the home of all four; these are the one-line readings of them.
+LINK_WHY = {
+    "missing": "nothing is there",
+    "case": "the entry on disk is spelled with different case, which resolves on this machine "
+            "and 404s on every Linux checkout",
+    "absolute": "a markdown file's links are relative to itself, and `/docs/...` is the site root",
+    "relative": "a source file's links are absolute from the repository root (`/docs/...`)",
+}
+
+#: Where a wrap section's body lands, for the links inside it: a body's links resolve from the file
+#: it is written INTO, not from anywhere this tool runs. `milestone` is absent because its
+#: destination is one lookup per id, and `commit`/`status` because neither is a rendered file.
+BODY_HOME = {"handoff": HANDOFF, "playbook": PLAYBOOK, "plan": PLAN, "plan-edit": PLAN}
+
+
+def head_paths() -> set[str]:
+    """Every path HEAD holds, spelled as git spells it -- the baseline the link gate compares to.
+
+    Empty when there is no HEAD to read, which the caller then reads as "every finding is new"."""
+    done = git("ls-tree", "-r", "--name-only", "HEAD", check=False)
+    if done.returncode != 0:
+        return set()
+    return {line for line in done.stdout.split("\n") if line}
+
+
+def in_tree(paths: set[str]):
+    """A `check-links` resolver answering from a set of repo-relative paths instead of from disk.
+
+    Membership is an exact string compare, so this is case-exact for free: git records the spelling
+    a file was added with, which is the thing `Path.exists()` cannot tell you on Windows or macOS.
+    """
+    def resolve(base: Path, target: str) -> str | None:
+        prefix = base.as_posix()[len(ROOT.as_posix()):].strip("/")
+        rel = posixpath.normpath(posixpath.join(prefix, target))
+        if rel == ".." or rel.startswith("../"):
+            return None  # walked out of the repository: not ours to judge, as on disk
+        if rel in paths or any(p.startswith(rel + "/") for p in paths):
+            return None
+        return "missing"
+    return resolve
+
+
+def scanned_files() -> list[Path]:
+    """Every file the gate reads: the tracked ones, plus what this session has created.
+
+    `check-links.py` walks `git ls-files` because CI runs it on a clean checkout, where that is
+    everything there is. A wrap is the other case -- a file the session wrote is untracked right up
+    until the `## commit:` that stages it -- so a gate reading only tracked files would miss exactly
+    the citations that have never been read by anything."""
+    files = checklinks.tracked_files([])
+    done = git("ls-files", "--others", "--exclude-standard", check=False)
+    if done.returncode == 0:
+        exts = checklinks.DOC_EXTS + checklinks.SOURCE_EXTS
+        files += [ROOT / ln for ln in done.stdout.split("\n") if ln and Path(ln).suffix in exts]
+    return files
+
+
+def inherited_links(rel: str, paths: set[str]) -> set[str]:
+    """The link targets already dead in `rel` at HEAD, which are not this session's to answer."""
+    done = git("show", f"HEAD:{rel}", check=False)
+    if done.returncode != 0:
+        return set()  # the file is new in this session, so every finding in it is new too
+    source = Path(rel).suffix in checklinks.SOURCE_EXTS
+    return {target for _line, target, _kind in checklinks.findings_in(
+        done.stdout, source, (ROOT / rel).parent, in_tree(paths))}
+
+
+def link_findings() -> tuple[list[str], list[str]]:
+    """Dead links in the working tree, split into the ones this session broke and the ones it found.
+
+    **Whole-tree, not the session's diff**, because the way the four findings that put this gate
+    here arrived was a *rename*: an ADR moved, and every citation of it went dead in files that
+    session never opened. A diff-scoped gate would have missed all four.
+
+    **Only what the session broke refuses**, on the rule `playbook_collisions` already follows: a
+    finding that is already in HEAD is CI's to report and a human's to schedule, and refusing a wrap
+    over one charges this session for another's -- which in an unattended run means finished,
+    verified work left uncommitted behind a link nobody here touched. Those are printed instead.
+
+    The baseline is HEAD rather than the session's starting commit, which is the conservative way
+    round: a session that committed a slice by hand before wrapping has its own earlier breakage
+    read as inherited. It under-refuses and never over-refuses, and AGENTS.md § *Session workflow*
+    puts every commit in the wrap anyway, so the case is the rare one.
+
+    Reading HEAD costs nothing in the ordinary case: a file with no finding is never asked about.
+    """
+    broke: list[str] = []
+    found: list[str] = []
+    paths: set[str] | None = None
+    for path in sorted(scanned_files()):
+        if checklinks.is_generated(path):
+            continue
+        hits = list(checklinks.check(path))
+        if not hits:
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        if paths is None:
+            paths = head_paths()
+        old = inherited_links(rel, paths)
+        for lineno, target, kind in hits:
+            (found if target in old else broke).append(f"{rel}:{lineno} -> {target} ({kind})")
+    return broke, found
+
+
+def body_links(sections: list[Section]) -> list[str]:
+    """Dead links in the bodies this wrap is about to write -- caught before it writes them.
+
+    One call writes the handoff, the playbook and the plan *and commits them*, so a link written
+    into one of those bodies is in `git log` by the time anything reads it. This is the last moment
+    it is cheap, and it is the one path the tree gate above cannot see: at this point the body is
+    still only in the wrap file."""
+    out: list[str] = []
+    for s in sections:
+        home = BODY_HOME.get(s.kind)
+        if s.kind == "milestone":
+            entry = planmod.resolve(s.arg)
+            home = entry["path"] if entry else None  # validate() reports an unknown id itself
+        if home is None:
+            continue
+        # A `plan-edit` quotes the field as it reads in its `--- old` half. Only `--- new` is text
+        # this wrap puts there, and a dead link that an edit *deletes* is not a finding.
+        body = "\n".join(new for _old, new in parse_edits(s.body)[0]) \
+            if s.kind == "plan-edit" else s.body
+        for _line, target, kind in checklinks.findings_in(body, False, home.parent):
+            named = f"`## {s.kind}: {s.arg}`" if s.arg else f"`## {s.kind}`"
+            out.append(
+                f"{named} cites {target!r}, and {LINK_WHY[kind]}. A link in a wrap body resolves "
+                f"from {rel_path(home)}, which is where the body lands -- and this wrap writes and "
+                f"commits in one call, so nothing reads it before CI's `docs` job does.")
+    return out
 
 
 # ---------------------------------------------------------------------------- apply
@@ -1074,6 +1242,22 @@ def check() -> int:
             say("  shape OK: State / Next group / Backlog, every open item with a repo-rooted file:NN anchor")
 
     say()
+    say("== LINKS  (python tools/check-links.py -- CI's `docs` job, which verify.py does not run)")
+    broke, found = link_findings()
+    for ln in broke:
+        say(f"  YOURS  {ln}")
+    for ln in found[:8]:
+        say(f"  at HEAD already  {ln}")
+    if len(found) > 8:
+        say(f"  ... and {len(found) - 8} more that were already dead at HEAD")
+    if not broke and not found:
+        say("  every link resolves, with matching case and form")
+    elif not broke:
+        say(f"  none of the {len(found)} is this session's, so `--wrap` will not refuse over them")
+    else:
+        say("  `--wrap` refuses while a YOURS line stands: fix the link, not the citation's line")
+
+    say()
     say("== TREE")
     st = _checked(["git", "status", "--short"]).stdout.strip()
     if not st:
@@ -1087,7 +1271,7 @@ def check() -> int:
     say()
     say("Write one wrap file and apply it with `python tools/session.py --wrap <file>`;")
     say("its format is this tool's --help.")
-    return 1 if stale else 0
+    return 1 if stale or broke else 0
 
 
 # ---------------------------------------------------------------------------- main
