@@ -385,7 +385,7 @@ pub struct HttpErrors {
     pub detail: Option<String>,
 }
 
-/// `[http.headers]` — ADR 0074 § 2's shipped defaults, applied with no configuration present.
+/// `[http.headers]` — ADR 0074 § 1's shipped defaults, applied with no configuration present.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpHeaders {
@@ -405,7 +405,7 @@ pub struct HttpHeaders {
     pub permissions_policy: Option<String>,
 }
 
-/// `[http.cors]` — ADR 0074 § 3, closed until origins are named.
+/// `[http.cors]` — ADR 0074 § 2, closed until origins are named.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCors {
@@ -423,7 +423,7 @@ pub struct HttpCors {
     pub max_age: Option<String>,
 }
 
-/// `[http.cookies]` — ADR 0074 § 4, the defaults every `Core\Response::addCookie` inherits.
+/// `[http.cookies]` — ADR 0074 § 3, the defaults every `Core\Response::addCookie` inherits.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCookies {

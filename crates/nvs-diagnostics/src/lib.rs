@@ -1500,6 +1500,44 @@ pub mod code {
     /// whole request target that reaches no filesystem at all.
     pub const E_BAD_HEALTH_PATH: Code = Code::new("E0623");
 
+    /// An `[http.cookies] same_site` that is none of ADR 0074 § 3's three
+    /// spellings — `Strictly`, `lax=true`, or a value left over from another
+    /// framework's own key.
+    ///
+    /// Refused rather than defaulted because this block's whole job is to
+    /// state what a cookie written with no options is: a browser drops an
+    /// attribute it cannot parse and falls back to *its* default, so a tree
+    /// with a fourth spelling has written a policy that the deployment
+    /// believes is in force and nothing else does. It is also what lets
+    /// `nvs_config::http::Cookies` resolve the key without an
+    /// "or something else" arm, and so without ever repairing one
+    /// ([0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+    ///
+    /// Not `E0612`'s refusal reached from another direction: that one is a
+    /// *pair* of individually meaningful values, and this is one value that
+    /// has no meaning by itself — which is why it is asked first, the pair
+    /// question being undecidable over a `same_site` nobody can read.
+    pub const E_BAD_SAME_SITE: Code = Code::new("E0624");
+
+    /// An `[http.headers]` policy value a header line cannot carry: a `\r\n`
+    /// in a `referrer_policy`, a `content_security_policy` or a
+    /// `permissions_policy`, or any other byte outside printable ASCII.
+    ///
+    /// These three are written onto every response verbatim, so a control
+    /// character in one is a response-splitting attempt against every request
+    /// the server will answer. `nvs_server::secure` already refuses to spell
+    /// one and falls back to the shipped default, which is the right answer
+    /// for a running server and the wrong one for a boot: the deployment
+    /// believes the policy it wrote is in force, the shipped default is what
+    /// is actually emitted, and nothing anywhere says so. Refusing at boot is
+    /// what makes that fallback unreachable from a server that started, which
+    /// is why both exist.
+    ///
+    /// Not `E0612`'s or `E0624`'s refusal reached from another direction:
+    /// both of those are about a value's *meaning* under ADR 0074 §§ 2-3, and
+    /// this is about whether the bytes can be transmitted at all.
+    pub const E_UNCARRIABLE_HEADER: Code = Code::new("E0625");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

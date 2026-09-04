@@ -1,5 +1,6 @@
 //! [ADR 0074] §§ 2-3's two meaningless combinations, in the one implementation the boot and
-//! `Core\Config::set` both ask.
+//! `Core\Config::set` both ask — and, beside them, the values under `[http.*]` that are refused
+//! before either question is worth asking.
 //!
 //! **The rule is written once and read from two places, and that asymmetry is the module.** § 2
 //! refuses `origins = ["*"]` with `credentials = true` and § 3 refuses `same_site = "None"` with
@@ -22,8 +23,27 @@
 //! Reading an absent boolean as `false` would refuse that tree, which is the one direction a
 //! security check must not fail in: it would teach operators to write the pair out to get a boot.
 //!
+//! **[`Cookies`] is the other half of § 3, and it is a resolver rather than a refusal.** The pair
+//! above says which trees are wrong; this says what a `Core\Response::addCookie` inherits for an
+//! option its call site left out — `Secure; HttpOnly; SameSite=Lax; Path=/` with nothing written.
+//! Both read the same block, and `secure` is the one value both need, read once here so § 3's
+//! default for it is stated in one place. [`validate`] additionally refuses a `same_site` that is
+//! none of the three spellings, as `E0624`: that is what lets [`Cookies::of`] resolve the key with
+//! no fourth arm, and so without ever repairing one.
+//!
+//! **[`validate`] additionally refuses what the wire cannot carry, which is a different question
+//! from what a policy means.** § 1's three free-text values — `referrer_policy`,
+//! `content_security_policy` and `permissions_policy` — go onto every response verbatim, so a
+//! `\r\n` in one is a response split against every request the server will answer. `nvs_server`'s
+//! `secure` already declines to spell such a value and emits the shipped default instead, which is
+//! the right answer for a request in flight and the wrong one for a boot: the deployment believes
+//! its policy is in force and nothing says otherwise. `E0625` at boot is what makes that fallback
+//! unreachable from a server that started, and both are kept.
+//!
 //! Cost: four `bool`s built at boot, at reload, and once per `Core\Config::set` naming a key under
 //! `[http.cors]` or `[http.cookies]`. Every other `set` returns before this module is reached.
+//! [`Cookies::of`] is a fifth read plus one `String` clone, once per `addCookie` call; the three
+//! byte scans are boot and reload only, over values an operator wrote by hand.
 //!
 //! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 
@@ -165,12 +185,118 @@ impl Meaningless {
     }
 }
 
-/// Whether a `same_site` value is § 3's `None`.
+/// § 3's `same_site`, as the closed set the attribute actually has.
 ///
-/// Case-insensitive, because the attribute a browser parses is, so a tree writing `none` has
-/// configured the same cookie and must reach the same refusal.
+/// A `String` in the tree and an enum from here on, because everything downstream of the parse asks
+/// which of three this is rather than what it was spelled as — [`validate`] refuses a fourth
+/// spelling at boot, so no later reader has to carry an "or something else" arm.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SameSite {
+    /// Sent with a top-level navigation and not with a cross-site subrequest — § 3's default.
+    Lax,
+    /// Never sent cross-site at all.
+    Strict,
+    /// Sent cross-site, which is why § 3 pairs it with `Secure`.
+    None,
+}
+
+impl SameSite {
+    /// The three spellings, case-insensitively; [`None`] for anything else.
+    ///
+    /// Case-insensitive because the attribute a browser parses is, so a tree writing `none` has
+    /// configured the same cookie and must reach § 3's refusal rather than a fourth-spelling one.
+    #[must_use]
+    pub fn parse(value: &str) -> Option<Self> {
+        let value = value.trim();
+        for (name, case) in [
+            ("Lax", Self::Lax),
+            ("Strict", Self::Strict),
+            ("None", Self::None),
+        ] {
+            if value.eq_ignore_ascii_case(name) {
+                return Some(case);
+            }
+        }
+        Option::None
+    }
+
+    /// The attribute as it is written on the wire.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Lax => "Lax",
+            Self::Strict => "Strict",
+            Self::None => "None",
+        }
+    }
+}
+
+/// § 3's four defaults, resolved to what is in force — what every `Core\Response::addCookie`
+/// inherits for an option its call site left out.
+///
+/// Beside [`Inbound`] rather than folded into it, because the two answer different questions off
+/// the same block: `Inbound` holds the four booleans *two refusals* are decided from, and this
+/// holds the four values *a cookie is written with*. They overlap in `secure` alone, and that one
+/// value is read here through the same `unwrap_or(true)` on purpose — § 3 states one default for
+/// it, so a second statement of it would be the drift this module exists to prevent.
+///
+/// Cost: one `String` clone per `addCookie` call, for `path`. The alternative is borrowing the
+/// snapshot across the member's own writes, which `crates/nvs-stdlib`'s queue path already declined
+/// for the same reason: the tree, the values read out of it and the `ctx` being written are live at
+/// once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Cookies {
+    /// The `Secure` attribute; § 3's default is `true`.
+    pub secure: bool,
+    /// The `HttpOnly` attribute; § 3's default is `true`.
+    pub http_only: bool,
+    /// The `SameSite` attribute; § 3's default is [`SameSite::Lax`].
+    pub same_site: SameSite,
+    /// The `Path` attribute; § 3's default is `/`.
+    pub path: String,
+}
+
+impl Cookies {
+    /// What is in force for a tree, with every absent key at § 3's shipped default.
+    ///
+    /// An unparseable `same_site` resolves to the default rather than throwing, and that is not a
+    /// repair: [`validate`] has already refused such a tree at boot, so this arm is reachable only
+    /// from a snapshot that never started a server.
+    #[must_use]
+    pub fn of(http: Option<&Http>) -> Self {
+        let cookies = http.and_then(|http| http.cookies.as_ref());
+        Self {
+            secure: cookies.and_then(|cookies| cookies.secure).unwrap_or(true),
+            http_only: cookies
+                .and_then(|cookies| cookies.http_only)
+                .unwrap_or(true),
+            same_site: cookies
+                .and_then(|cookies| cookies.same_site.as_deref())
+                .and_then(SameSite::parse)
+                .unwrap_or(SameSite::Lax),
+            path: cookies
+                .and_then(|cookies| cookies.path.as_deref())
+                .unwrap_or("/")
+                .to_owned(),
+        }
+    }
+}
+
+/// Whether a `same_site` value is § 3's `None`.
 fn is_none_same_site(value: &str) -> bool {
-    value.trim().eq_ignore_ascii_case("none")
+    SameSite::parse(value) == Some(SameSite::None)
+}
+
+/// Whether a value is bytes a header field value can carry — RFC 9110's rule, which
+/// `Core\Response::setHeader` applies to a value a *program* wrote and this applies to one the
+/// *configuration* did.
+///
+/// Written twice on purpose, in the two crates that each own one of those two moments:
+/// `nvs-stdlib` has no business in a `nvs.toml` and this crate has none in a member's arguments.
+/// What they share is four lines of byte range, and a dependency between them to save it would be
+/// the more expensive of the two.
+fn carriable(value: &str) -> bool {
+    value.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
 }
 
 /// A boolean as `Core\Config::set` crosses it: ADR 0064 § 5 sends values as text, and a directive
@@ -184,8 +310,67 @@ fn is_true(value: &str) -> bool {
 /// # Errors
 ///
 /// One [`Diagnostic`], `E0612`, for the first pair with no correct meaning: `origins = ["*"]` with
-/// `credentials = true`, or `same_site = "None"` with `secure = false`.
+/// `credentials = true`, or `same_site = "None"` with `secure = false`. `E0624` first, for a
+/// `same_site` that is none of the three spellings — a value neither pair can be decided from.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
+    // § 1's three free-text policies, before anything about meaning: a value the wire cannot carry
+    // is not a policy that is wrong, it is a policy that never reaches a peer at all.
+    let headers = config.http.as_ref().and_then(|http| http.headers.as_ref());
+    if let Some(headers) = headers {
+        for (key, written) in [
+            ("referrer_policy", headers.referrer_policy.as_deref()),
+            (
+                "content_security_policy",
+                headers.content_security_policy.as_deref(),
+            ),
+            ("permissions_policy", headers.permissions_policy.as_deref()),
+        ] {
+            let Some(value) = written else { continue };
+            if carriable(value) {
+                continue;
+            }
+            return Err(Diagnostic::error(
+                code::E_UNCARRIABLE_HEADER,
+                format!("`[http.headers] {key}` holds a byte a header line cannot carry"),
+            )
+            .with_note(format!(
+                "§ 1 writes this value onto every response verbatim, so a field value is printable \
+                 ASCII and nothing else — a carriage return or a newline in it would end the \
+                 header and begin one nobody wrote{}",
+                origin_note(origins.get(&format!("http.headers.{key}")))
+            ))
+            .with_help(
+                "write the policy on one line, or leave the key out for § 1's shipped default"
+                    .to_string(),
+            ));
+        }
+    }
+    // Before the pairs, because an unreadable `same_site` leaves § 3's question unanswerable: a
+    // fourth spelling is not `None`, so the pair check would pass it and `Cookies::of` would then
+    // have to choose between repairing it and failing inside a request. Refusing here is the only
+    // arrangement where neither happens.
+    let written = config
+        .http
+        .as_ref()
+        .and_then(|http| http.cookies.as_ref())
+        .and_then(|cookies| cookies.same_site.as_deref());
+    if let Some(value) = written
+        && SameSite::parse(value).is_none()
+    {
+        return Err(Diagnostic::error(
+            code::E_BAD_SAME_SITE,
+            format!("`[http.cookies] same_site` is `{value}`, which is not a `SameSite` attribute"),
+        )
+        .with_note(format!(
+            "§ 3 names three and a browser parses three: `Lax`, `Strict` and `None`. A fourth \
+             spelling is dropped by the browser, which leaves the cookie at that browser's own \
+             default rather than at the one this block was written to state{}",
+            origin_note(origins.get("http.cookies.same_site"))
+        ))
+        .with_help(
+            "write `Lax`, `Strict` or `None` — or leave the key out, which is `Lax`".to_string(),
+        ));
+    }
     let Some(found) = Inbound::of(config.http.as_ref()).meaningless() else {
         return Ok(());
     };

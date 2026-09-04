@@ -1013,3 +1013,97 @@ fn same_site_none_without_secure_is_refused() {
         "the pair is refused, and neither key is refused on its own or by being absent",
     );
 }
+
+/// ADR 0074 § 3: `same_site` is one of three, and a fourth spelling is refused rather than read as
+/// the default. The pair above cannot decide a value nobody can parse — a browser drops the
+/// attribute and falls back to *its* default — and `nvs_config::http::Cookies` would otherwise have
+/// to choose between repairing it and failing inside a request.
+#[test]
+fn a_same_site_that_is_none_of_the_three_is_refused() {
+    let diagnostic = refusal(
+        &http("[http.cookies]\nsame_site = \"Strictly\"\n"),
+        "etc/nvs.toml",
+    );
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SAME_SITE));
+    assert!(
+        diagnostic.message.contains("Strictly"),
+        "the refusal names what was written, that being the thing to change: {}",
+        diagnostic.message,
+    );
+
+    // The three, in a spelling the tree did not use, because the attribute a browser parses is
+    // case-insensitive and refusing `lax` would make the block's own casing load-bearing.
+    let allowed = [
+        "[http.cookies]\nsame_site = \"Lax\"\n",
+        "[http.cookies]\nsame_site = \"strict\"\n",
+        "[http.cookies]\nsame_site = \"NONE\"\n",
+        // And the key absent, which is `Lax` and not a fourth spelling.
+        "[http.cookies]\nsecure = true\n",
+    ];
+    let accepted = allowed
+        .iter()
+        .filter(|block| tree_of(&http(block), "etc/nvs.toml").config.http.is_some())
+        .count();
+    assert_eq!(
+        accepted,
+        allowed.len(),
+        "all three spellings are admitted whatever their case, and so is the absent key",
+    );
+}
+
+/// ADR 0074 § 1: the three free-text policies go onto every response verbatim, so a byte a header
+/// line cannot carry is refused at boot. `nvs_server::secure` declines to spell such a value and
+/// emits the shipped default instead, which is right for a request in flight and is exactly what
+/// makes the boot refusal necessary — otherwise the deployment's policy is silently not the one in
+/// force.
+#[test]
+fn an_http_headers_value_the_wire_cannot_carry_is_refused() {
+    let split = "no-referrer\\r\\nX-Injected: yes";
+    let diagnostic = refusal(
+        &http(&format!("[http.headers]\nreferrer_policy = \"{split}\"\n")),
+        "etc/nvs.toml",
+    );
+
+    assert_eq!(diagnostic.code, Some(code::E_UNCARRIABLE_HEADER));
+    assert!(
+        diagnostic.message.contains("referrer_policy"),
+        "the refusal names the key, there being three that could hold one: {}",
+        diagnostic.message,
+    );
+
+    // All three, because a check written over one key would leave two response splits open — and
+    // the policies are the values most likely to be assembled from somewhere else.
+    for key in [
+        "referrer_policy",
+        "content_security_policy",
+        "permissions_policy",
+    ] {
+        assert_eq!(
+            refusal(
+                &http(&format!("[http.headers]\n{key} = \"a\\nb\"\n")),
+                "etc/nvs.toml",
+            )
+            .code,
+            Some(code::E_UNCARRIABLE_HEADER),
+            "{key} reaches a header line verbatim",
+        );
+    }
+
+    let allowed = [
+        "[http.headers]\nreferrer_policy = \"no-referrer\"\n",
+        "[http.headers]\ncontent_security_policy = \"default-src 'self'; frame-ancestors 'none'\"\n",
+        "[http.headers]\npermissions_policy = \"geolocation=(), camera=()\"\n",
+        // Empty is § 1's "emit nothing", which is a decision and not an unspellable value.
+        "[http.headers]\nreferrer_policy = \"\"\n",
+    ];
+    let accepted = allowed
+        .iter()
+        .filter(|block| tree_of(&http(block), "etc/nvs.toml").config.http.is_some())
+        .count();
+    assert_eq!(
+        accepted,
+        allowed.len(),
+        "an ordinary policy carries semicolons, quotes and parentheses, and empty turns it off",
+    );
+}
