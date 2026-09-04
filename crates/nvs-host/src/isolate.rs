@@ -471,6 +471,10 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // and whether that reaches a peer is the collector's call rather than
     // this one's.
     let content_type = isolate_ctx.take_content_type();
+    // Spec § 15's status, taken on the same paths and for the same reason: a
+    // child that threw still said what it said, and a child that set a status
+    // and then failed is exactly the case where the declaration matters most.
+    let status = isolate_ctx.take_status();
 
     if let Some(thrown) = thrown {
         // ADR 0006's second row: the class name and the message as copied data.
@@ -482,6 +486,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value: Value::null(),
             output,
             content_type,
+            status,
             error: Some(Failure {
                 class,
                 message: thrown.message(),
@@ -495,6 +500,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         let mut completion = cancelled_completion();
         completion.output = output;
         completion.content_type = content_type;
+        completion.status = status;
         return completion;
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
@@ -510,6 +516,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value,
             output,
             content_type,
+            status,
             error: None,
         },
         Err(refused) => Completion {
@@ -517,6 +524,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
             value: Value::null(),
             output,
             content_type,
+            status,
             error: Some(Failure {
                 class: "Error".to_owned(),
                 message: refused.to_string(),
@@ -539,6 +547,7 @@ fn refused_completion(message: &str) -> Completion {
         value: Value::null(),
         output: Vec::new(),
         content_type: None,
+        status: None,
         error: Some(Failure {
             class: "Error".to_owned(),
             message: message.to_string(),
@@ -554,6 +563,7 @@ fn cancelled_completion() -> Completion {
         value: Value::null(),
         output: Vec::new(),
         content_type: None,
+        status: None,
         error: Some(Failure {
             class: "Error".to_owned(),
             message: "the isolate was cancelled".to_owned(),

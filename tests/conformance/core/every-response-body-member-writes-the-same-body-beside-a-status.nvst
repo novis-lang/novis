@@ -1,0 +1,60 @@
+--TEST--
+Every way a response body is produced agrees that a status set in front of it changes nothing, `echo` included -- spec § 15 and ADR 0088 §§ 3-4
+--FILE--
+<?nvs
+// Agreement, asked of the whole roster at once: the question is not what each
+// writer produced but that a `setStatus` before it left that answer alone. A
+// member that folded the status it was given into its own bytes would fail
+// here while still looking entirely right on its own line.
+var $echoed = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(201);
+    echo "body";
+});
+var $texted = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(202);
+    Core\Response::text("body");
+});
+var $octets = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(203);
+    Core\Response::bytes("body" as bytes, "application/octet-stream");
+});
+
+// Counted rather than read off a line, so three writers that each answered
+// plausibly but differently still fail. Interpolated into a `string` first:
+// `Core\Out::capture` answers a `Core\Cli\Text` carrier, and ADR 0090 § 4
+// makes `==` between two objects identity -- comparing the carriers directly
+// answers "differ" for two captures holding the same bytes.
+string $echoedText = "{$echoed}";
+string $textedText = "{$texted}";
+string $octetsText = "{$octets}";
+uint $agreed = 0;
+if ($echoedText == $textedText) {
+    $agreed = $agreed + 1;
+}
+if ($textedText == $octetsText) {
+    $agreed = $agreed + 1;
+}
+echo "agreed ", $agreed, " of 2 on [", $echoedText, "]\n";
+
+// `json` is the one that may not agree, and that is § 4 rather than the
+// status: it frames the value, so a string comes back as a JSON string. The
+// status in front of it is invisible here too.
+var $encoded = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(200);
+    Core\Response::json("body");
+});
+echo "json wrote ", $encoded, "\n";
+
+// The status of the last call is what the response would carry, and a `.nvst`
+// case cannot see a status line -- `nvs_server::serve`'s own tests pin that
+// half, which is where the two declarations become what the peer sees.
+var $lastWins = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(500);
+    Core\Response::setStatus(200);
+    echo "body";
+});
+echo "two statuses wrote [", $lastWins, "]\n";
+--EXPECT--
+agreed 2 of 2 on [body]
+json wrote "body"
+two statuses wrote [body]

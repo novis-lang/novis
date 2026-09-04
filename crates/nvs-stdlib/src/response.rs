@@ -9,9 +9,12 @@
 //! § 4's five body members: `text`, `json` and `bytes`. The other two — `html`,
 //! whose parameter is a carrier this class cannot take until `Core\Html\Markup`
 //! is spellable in a registry row, and `sendFile`, whose path is § 1's sink
-//! over a file the server resolves — and `setStatus`, `setHeader`, `addCookie`
-//! and `redirect` are known gaps of this module rather than of
+//! over a file the server resolves — and `setHeader`, `addCookie` and
+//! `redirect` are known gaps of this module rather than of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15.
+//!
+//! Beside them, § 15's `setStatus`: the first member here that shapes a
+//! response without writing one.
 //!
 //! # Why five members and not one `write`
 //!
@@ -40,6 +43,28 @@
 //! the accept loop never holds its context — the completion is the one thing
 //! that crosses.
 //!
+//! # A status crosses that same channel, and is not a body
+//!
+//! `setStatus` reuses all of it: `Ctx::declare_status` records one word, the
+//! finish path takes it beside the media type, `Completion::status` carries it,
+//! and `nvs_server`'s `answer` turns it into the status line. Two fields rather
+//! than one struct on the context, because a media type is set by every body
+//! member and a status by exactly one member, and a single declaration holding
+//! both would let a body member reach a status it has no business setting.
+//!
+//! **A status is not a body, so § 4's sixth row does not reach it.** `E0801`
+//! refuses an `echo` beside one of the five body members and `setStatus` is not
+//! one of them — `nvs_types::response`'s roster is the five names — so a
+//! handler that sets a status and then `echo`es is the ordinary spelling rather
+//! than a mixture of two writers. Two body members would still be a question
+//! that ADR is owed; a status beside either is not.
+//!
+//! **A request that failed answers `500` whatever it declared**, because
+//! `nvs_server`'s `answer` reaches its failure path before it reads the field.
+//! That direction is the fail-closed one: a handler that set `201` and then
+//! threw has not created anything, and telling the peer otherwise is worse than
+//! losing the declaration.
+//!
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
 //! § 4's table says the body is **contagious**, and
@@ -67,10 +92,14 @@
 //!    "no rendering, the media type says so" are the same gap seen from two
 //!    sides. So a program that calls this member outside a request — where it
 //!    means nothing, and where the compile-time rule below cannot yet refuse
-//!    it — puts its argument on the terminal unsubstituted.
-//! 2. **Nothing refuses `echo` and a body member on one response yet.** § 4's
-//!    sixth row makes that a compile error, which is why nothing here
-//!    adjudicates between two declarations: the last one wins by construction.
+//!    it — puts its argument on the terminal unsubstituted. `setStatus` off a
+//!    request is the quiet half of the same gap: it declares a status onto a
+//!    context nobody will ask, so the call means nothing and says nothing.
+//! 2. **Nothing here adjudicates between two declarations**, and the last one
+//!    wins by construction. § 4's sixth row is enforced by `E0801`, in
+//!    `nvs_types::response`, whose module doc owns what that rule reaches and
+//!    what it does not — including the two typed body members in one handler
+//!    that it still admits.
 
 use nvs_runtime::{Fault, Value};
 
@@ -88,6 +117,20 @@ const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 /// media type's own registration fixes the encoding at UTF-8, so a parameter
 /// saying so again is one more thing two members could disagree about.
 const JSON_MEDIA_TYPE: &str = "application/json";
+
+/// The lowest status `setStatus` admits — RFC 9110 § 15's first class, and the
+/// floor rather than `0` because a code below it names no class at all.
+const STATUS_MIN: u16 = 100;
+
+/// The highest status `setStatus` admits.
+///
+/// `599` and not `999`, which is what the wire format and `hyper` both allow:
+/// § 15 gives a status code a **class**, taken from its first digit, and the
+/// five classes stop at `5`. A `6xx` is three digits a peer has no rule for, so
+/// admitting it would be admitting a status whose only defined meaning is that
+/// nothing downstream knows what it means — the same fail-closed direction
+/// [`spellable`] takes for a media type, at the same layer.
+const STATUS_MAX: u16 = 599;
 
 /// `Core\Response`'s registry rows — § 15's body members, in § 4's own table
 /// order for the three that exist.
@@ -125,6 +168,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_response_bytes",
             doc: Some(&BYTES_DOC),
+        },
+        // § 4's body table ends above; § 15's other members follow it in that
+        // section's own order, `setStatus` first. Two orders rather than one
+        // because the two lists answer different questions — which shape a
+        // body is, and what else a response says — and interleaving them
+        // would leave a reader unable to check either against its source.
+        CoreMethod {
+            name: "setStatus",
+            names: &["code"],
+            // `Uint`, not `Int`: ADR 0007 § 4's type refuses a negative
+            // literal at compile time, and there is no status code below 100
+            // for a signed parameter to have been useful about. Not a `Sink`
+            // either — the doc below owns why a number cannot be one.
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_response_set_status",
+            doc: Some(&SET_STATUS_DOC),
         },
     ],
     instance: &[],
@@ -192,6 +253,25 @@ const TEXT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Response::setStatus`'s reference card — ADR 0117.
+const SET_STATUS_DOC: MethodDoc = MethodDoc {
+    short: "Answers with `$code` as the response's status, replacing \
+            `http_response_code` — the one member here that says nothing about the body.",
+    params: &[ParamDoc {
+        name: "code",
+        desc: "The status to answer with, from 100 to 599. Not a sink, unlike `bytes`' content \
+               type: a status line carries a number and never a string, so there is nothing here \
+               a `tainted` value could become.",
+        shape: &[],
+    }],
+    ret: "Nothing. The last call on one response is the one that answers, and a request that \
+          failed answers `500` whatever it had set.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$code` is outside 100 to 599, which is not a status any peer can classify.",
+    }],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -199,6 +279,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_response_json" => (nvs_core_response_json as *const ()).cast(),
         "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
         "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
+        "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
         _ => return None,
     })
 }
@@ -245,6 +326,54 @@ nvs_runtime::nvs_helper! {
         // language closes a descriptor the host handed the process.
         ctx.write_output(body.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::text could not write: {error}")))?;
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Response::setStatus(uint $code): void` — spec § 15's status,
+    /// replacing `http_response_code`.
+    ///
+    /// One effect and no second: the code is declared on this request's
+    /// context, and nothing is written. That is the whole difference between
+    /// this member and the four above it, and it is why ADR 0088 § 4's sixth
+    /// row does not reach here — `nvs_types::response`'s roster of five body
+    /// members is what `E0801` refuses beside an `echo`, and a status is not a
+    /// body. A handler that `echo`es and sets a status is ordinary.
+    ///
+    /// The code is checked before it is declared, on `bytes`' reasoning: this
+    /// member has nothing written to be too late for, but a status the peer
+    /// cannot classify is the same kind of instruction a media type it cannot
+    /// read is, and the program learns which of the two layers refused it from
+    /// which of the two answers it gets.
+    fn nvs_core_response_set_status(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is a `CoreTy::Uint`, so
+        // `E0401` refuses anything that is not one — a negative literal
+        // included — before this runs.
+        let code = args[0].as_uint().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Response::setStatus expected a `uint`, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        // `try_from` and not an `as`: everything this member admits fits a
+        // `u16`, and a truncating cast would turn `65636` into `100`.
+        let Some(declared) = u16::try_from(code)
+            .ok()
+            .filter(|code| (STATUS_MIN..=STATUS_MAX).contains(code))
+        else {
+            // A literal stem before the first hole, which is
+            // `conformance_coverage`'s error-path gate matching a site.
+            return Err(Fault::thrown_as(
+                nvs_runtime::ThrownClass::Logic,
+                format!(
+                    "Core\\Response::setStatus(): `{code}` is not an HTTP status — a status \
+                     is three digits naming one of five classes, so it is between \
+                     {STATUS_MIN} and {STATUS_MAX}"
+                ),
+            ));
+        };
+        ctx.declare_status(declared);
         Ok(Value::null())
     }
 }

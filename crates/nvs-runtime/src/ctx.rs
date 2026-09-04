@@ -887,6 +887,24 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and one short allocation per
     /// request that declares — never per write.
     content_type: Option<Box<str>>,
+    /// What this request's response says it *is* — spec § 15's `setStatus`,
+    /// or `None` where nothing set one and the answer is whatever the server's
+    /// own default is.
+    ///
+    /// Beside [`Self::content_type`] and not folded into it: a status and a
+    /// media type are declared by different members — every body member sets
+    /// the second and only `setStatus` sets the first — so one field holding
+    /// both would make a body member that did not mean to touch the status
+    /// able to.
+    ///
+    /// The last declaration wins here too, and for a weaker reason than
+    /// `content_type`'s: § 4's sixth row does not reach `setStatus` at all,
+    /// since setting a status twice writes no body twice. Two calls are a
+    /// program saying two things about one response, and the later one is the
+    /// one it meant.
+    ///
+    /// **What it spends:** one half-word per request, and never an allocation.
+    status: Option<u16>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
@@ -1472,6 +1490,7 @@ impl Ctx {
             scripted_answers: std::collections::VecDeque::new(),
             captures: Vec::new(),
             content_type: None,
+            status: None,
             stmt_hits: Vec::new(),
             trace: Vec::new(),
             yielder: std::ptr::null(),
@@ -4135,6 +4154,29 @@ impl Ctx {
     #[must_use]
     pub fn take_content_type(&mut self) -> Option<Box<str>> {
         self.content_type.take()
+    }
+
+    /// Declares what this request's response *means* — spec § 15's status,
+    /// set by `Core\Response::setStatus`.
+    ///
+    /// The neighbour above is the model: one word recorded on the context, put
+    /// back on the completion, and turned into what the peer sees by whoever is
+    /// answering. [`Self::status`] owns why it is a second field rather than a
+    /// second half of the first, and why the last caller wins.
+    ///
+    /// The range is the member's to enforce, not this method's: `setStatus`
+    /// refuses a code no peer can classify before calling here, so what arrives
+    /// is already a status, and a second check would be a second answer to a
+    /// question that has one.
+    pub fn declare_status(&mut self, code: u16) {
+        self.status = Some(code);
+    }
+
+    /// Takes the declaration away, leaving the context with none — the finish
+    /// path's other half, called once beside [`Self::take_content_type`].
+    #[must_use]
+    pub fn take_status(&mut self) -> Option<u16> {
+        self.status.take()
     }
 
     /// Takes everything written so far, if this context buffers its output.

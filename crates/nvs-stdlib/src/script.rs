@@ -713,6 +713,10 @@ fn result_of(completion: Completion) -> Value {
         // what that output was declared to be is read by the connection that
         // is answering a peer or by nobody at all.
         content_type: _,
+        // Spec § 15's status, ignored on the same reasoning: a `ScriptResult`
+        // is not a response, so a child that set one said it to whoever is
+        // answering a peer, which a `spawn script`'s collector is not.
+        status: _,
         error,
     } = completion;
     let error = error.map_or_else(Value::null, |failure| {

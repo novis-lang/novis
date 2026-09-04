@@ -450,6 +450,9 @@ fn answer(mut done: Completion) -> Response<Answer> {
     // forbids `unsafe_code`.
     done.discard_value();
     if !done.ok {
+        // Ahead of the status below, and deliberately: a request that failed
+        // answers `500` whatever it had declared before it failed, because the
+        // declaration was about the answer it did not manage to give.
         return failed();
     }
     // ADR 0088 § 4: the request's own body member said what these bytes are,
@@ -458,6 +461,16 @@ fn answer(mut done: Completion) -> Response<Answer> {
     let content_type =
         HeaderValue::from_str(declared).unwrap_or(HeaderValue::from_static(UNSPELLABLE));
     let mut response = Response::new(Answer::new(done.output));
+    // Spec § 15's status, on the same channel and read the same way: the
+    // request said what its answer means, and a request that said nothing
+    // means `200`, which is what `Response::new` already built. `from_u16`
+    // cannot refuse what `Core\Response::setStatus` admits — it accepts
+    // `100..=999` and the member accepts `100..=599` — so the fallback here is
+    // the same layer-below arrangement [`UNSPELLABLE`] is, kept rather than
+    // reduced to a comment about one.
+    if let Some(code) = done.status {
+        *response.status_mut() = StatusCode::from_u16(code).unwrap_or(StatusCode::OK);
+    }
     response
         .headers_mut()
         .insert(header::CONTENT_TYPE, content_type);
@@ -793,6 +806,7 @@ mod tests {
             value: Value::null(),
             output: output.as_bytes().to_vec(),
             content_type: content_type.map(Into::into),
+            status: None,
             error: None,
         }
     }
@@ -841,6 +855,39 @@ mod tests {
             smuggled.headers().get("x-injected"),
             None,
             "a header value carried a second header into the response"
+        );
+    }
+
+    /// Spec § 15's status crosses the way the media type does, and a request
+    /// that declared none is `200` — pinned here for [`answer`]'s own reason:
+    /// a `.nvst` case can assert a body and never a status line.
+    ///
+    /// The third assertion is the one with a direction to get wrong. A request
+    /// that failed answers `500` whatever it declared, because a declaration
+    /// describes the answer the program meant to give and a failed one did not
+    /// give it; the opposite would let a handler that threw halfway through
+    /// still tell the peer it had succeeded.
+    #[test]
+    fn a_declared_status_is_the_responses_status_and_a_failure_outranks_it() {
+        let mut declared = completed("gone", None);
+        declared.status = Some(410);
+        assert_eq!(
+            answer(declared).status(),
+            StatusCode::GONE,
+            "a `setStatus` did not reach the response"
+        );
+        assert_eq!(
+            answer(completed("hi", None)).status(),
+            StatusCode::OK,
+            "a request that declared no status did not answer `200`"
+        );
+        let mut threw = completed("half a body", None);
+        threw.status = Some(201);
+        threw.ok = false;
+        assert_eq!(
+            answer(threw).status(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "a failed request answered with the status it had declared"
         );
     }
 

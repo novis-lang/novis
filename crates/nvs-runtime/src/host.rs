@@ -272,6 +272,14 @@ pub struct Completion {
     /// nobody reads it, which is the same shape `Core\Server::isDraining`
     /// takes off a server.
     pub content_type: Option<Box<str>>,
+    /// What the child declared this response *means* — spec § 15's status code,
+    /// or `None` where nothing set one.
+    ///
+    /// The field above owns the reasoning for both: this is the same one
+    /// channel out of a finished isolate, carrying the second of the two words
+    /// a response is declared with. A child that is not answering a request
+    /// carries it and nobody reads it.
+    pub status: Option<u16>,
     /// Present exactly when `ok` is false.
     pub error: Option<Failure>,
 }
@@ -589,6 +597,7 @@ mod tests {
                 value: self.0.take().unwrap_or_else(crate::value::Value::null),
                 output: Vec::new(),
                 content_type: None,
+                status: None,
                 error: None,
             }
         }

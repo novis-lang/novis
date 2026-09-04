@@ -1,0 +1,40 @@
+--TEST--
+`Core\Response::setStatus` puts no byte in the body, accepted or refused, which is what makes it not one of ADR 0088 § 4's five body members -- spec § 15
+--FILE--
+<?nvs
+// § 4's five members each write a body and declare a media type. This one
+// declares a status and writes nothing, and that difference is the whole
+// reason `E0801` does not reach it: a status set beside an `echo` is not two
+// writers disagreeing about what the body is.
+//
+// Three accepted calls, and the output they share is empty.
+var $quiet = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(204);
+    Core\Response::setStatus(404);
+    Core\Response::setStatus(503);
+});
+echo "three calls wrote [", $quiet, "]\n";
+
+// A refused one is quiet for a stronger reason: the code is checked before it
+// is declared, so a refusal leaves neither a byte nor a declaration behind.
+// The `catch` inside the closure binds its own name -- repeating an enclosing
+// frame's is an ICE in the lowerer today, which the playbook owns.
+var $onRefusal = Core\Out::capture(fn (): void => {
+    try {
+        Core\Response::setStatus(600);
+    } catch (LogicError $tooHigh) {
+    }
+});
+echo "a refusal wrote [", $onRefusal, "]\n";
+
+// And a status before a body leaves the body alone: the bytes below are the
+// member's, byte for byte, with a status set in front of each.
+var $withStatus = Core\Out::capture(fn (): void => {
+    Core\Response::setStatus(201);
+    Core\Response::text("created");
+});
+echo "a body after a status is [", $withStatus, "]\n";
+--EXPECT--
+three calls wrote []
+a refusal wrote []
+a body after a status is [created]

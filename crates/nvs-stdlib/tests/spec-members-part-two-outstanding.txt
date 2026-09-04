@@ -42,7 +42,6 @@
 §15 Response::redirect
 §15 Response::sendFile
 §15 Response::setHeader
-§15 Response::setStatus
 §15 Session::clear
 §15 Session::destroy
 §15 Session::get
