@@ -3530,7 +3530,7 @@ tests = [
 # nothing here dispatches"), and a door refusing a miss would refuse every request of a program that
 # declares no `#[Route]` at all -- ADR 0077 § 5's opt-in rule inverted. The `404`/`405` decision is
 # therefore a computation the *table* performs and the program sends, so the test asserts it where the
-# walk is (`crates/nvs-runtime/src/routes.rs:506`) and names the statuses as what a sender does with the
+# walk is (`crates/nvs-runtime/src/routes.rs:573`) and names the statuses as what a sender does with the
 # answer. `crates/nvs-server/src/route.rs` keeps § 1's half of the ADR and nothing of § 2.
 [[check]]
 kind = "cargo-named"
@@ -3564,11 +3564,11 @@ args = ["test", "-p", "nvs-stdlib"]
 # filing.
 tests = [
   # § 2 -- `filename` is the whole distinction between a file part and a form field, and the parse that
-  # decides it is `nvs_stdlib::multipart` (`crates/nvs-stdlib/src/multipart.rs:847`).
+  # decides it is `nvs_stdlib::multipart` (`crates/nvs-stdlib/src/multipart.rs:635`).
   "a_part_is_a_file_part_iff_content_disposition_carries_a_filename",
   # § 1 -- lazy, and the one door: a part yielded from what arrived before the rest of the body failed,
   # and a count over the registry saying no second member answers a walk or a part
-  # (`crates/nvs-stdlib/src/request.rs:3028`).
+  # (`crates/nvs-stdlib/src/request.rs:3849`).
   "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
 ]
 
@@ -3590,7 +3590,7 @@ tests = [
   # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller.
   "a_non_file_part_is_buffered_into_post",
   # §§ 3, 6-8 -- exclusive with body and with files on one request, which `claim_body` decides
-  # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:980`).
+  # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:1194`).
   "body_stream_is_exclusive_with_body_and_with_files",
 ]
 
