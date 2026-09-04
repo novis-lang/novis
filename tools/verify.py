@@ -7,7 +7,7 @@ that extension's headless suites, in that order, stopping at the first failure. 
 line per step; a failure prints that step's output and nothing else.
 
 `cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
-list. It is `--doc`, run alone, and `tools/loop.py` runs it every tenth session rather than every
+list. It is `--doc`, run alone, and `tools/loop.py` runs it periodically rather than every
 verification -- see *Why `doc` is a periodic gate* below.
 
 The `conformance` and `differential` steps run `target/debug/nvs test tests/<tree>`, which is
@@ -99,12 +99,12 @@ script never touch: a re-run after fixing a clippy lint paid the 42 seconds agai
 that could not have changed. And `.github/workflows/ci.yml` runs the identical command with the
 identical `RUSTDOCFLAGS`, so a push was never going to carry a broken link either way.
 
-So it is `--doc`, alone, and `tools/loop.py` calls it after every tenth session -- between
+So it is `--doc`, alone, and `tools/loop.py` calls it every `DOC_GATE_EVERY` sessions -- between
 sessions, where the seconds are the driver's rather than a session's -- and keeps calling it every
-session until it is green again (`DOC_GATE_EVERY` there is the one home for the interval). What
-that trades away is in-session detection: a broken link can now surface up to ten sessions after
-the comment that broke it, named by file and line in the ledger and in the next pack. Ten sessions
-of 42 seconds buys that back nineteen times over.
+session until it is green again (that constant is the one home for the interval). What
+that trades away is in-session detection: a broken link can now surface up to `DOC_GATE_EVERY`
+sessions after the comment that broke it, named by file and line in the ledger and in the next
+pack. Those sessions at 42 seconds each buy that back many times over.
 
 ## Why the documentation gates are not steps here
 
@@ -598,7 +598,7 @@ def main():
     ap.add_argument("-p", "--package", help="scope build/test/clippy to one package")
     ap.add_argument("--fast", action="store_true", help="build and test only")
     ap.add_argument("--doc", action="store_true",
-                    help="the rustdoc gate alone; tools/loop.py runs it every tenth session")
+                    help="the rustdoc gate alone; tools/loop.py runs it periodically")
     ap.add_argument("--full", action="store_true", help="do not truncate the failing step")
     ap.add_argument("--no-cache", action="store_true",
                     help="re-run the steps even if the tree is provably unchanged")
