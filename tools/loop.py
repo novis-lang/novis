@@ -141,14 +141,20 @@ class StatusLine:
         detail   the current item       `wsl fixtures/closures.nvs`, `Edit tools/loop.py`
         elapsed  how long this phase has been going
 
-    Above them, on its own row, **what the work is for**, widest first: the loop goal the run is
-    driving toward -- the title of `docs/agent/loop-goal.md`, behind `goal 2/6` when a chain is
-    driving (`goal_title`) -- and then the goal of the running session, the checklist item
-    `orient.py` handed it, `item 1/3 · Item 29 — read the names.` (`session_goal`). Neither is
-    something the scrolling output says: the tool calls name files, the pack scrolled off
-    minutes ago, and these two titles are the only lines that say what all of it is *for*. The
-    session half is set the moment the pack is built and stands through the acceptance check
-    that judges the session, since that is still the same item.
+    Above them, on its own row, **what the work is for** -- the moving half first: what the
+    running session has landed so far (`SliceWatch` -- `2 commits · <the last one's subject>`,
+    and until the first one lands, the item `orient.py` handed it), and then the loop goal the
+    run is driving toward -- the title of `docs/agent/loop-goal.md`, behind `goal 2/6` when a
+    chain is driving (`goal_title`). Neither is something the scrolling output says: the tool
+    calls name files, the pack scrolled off minutes ago, and these two are the only lines that
+    say what all of it is *for*.
+
+    The session half leads because it is the only half that changes. The loop goal's title is one
+    string for a whole run, and while it was in front it was also all a glance ever saw: the row
+    overflows a terminal, and the window below takes some thirteen seconds to slide far enough to
+    reach what came after it.
+
+    The **window title** carries the same three fields, for the same reason -- see `title()`.
 
     The row is usually longer than a terminal, so it **scrolls**: the ticker slides a window over
     it a character at a time, holds at each end, and comes back -- a bounce rather than a wrap,
@@ -175,7 +181,7 @@ class StatusLine:
         self.bar = "-"
         self.dash = " -- "
         self.loop_goal = ""  # the run's goal, from `goal_title`
-        self.goal = ""  # the running session's item, from `session_goal`
+        self.goal = ""  # what the running session has landed, from `SliceWatch`
         self.scope = ""
         self.phase = ""
         self.detail = ""
@@ -186,6 +192,7 @@ class StatusLine:
         self.since = time.monotonic()
         self._frame = 0
         self._rows = 0  # rows the live block owns right now; 0 when it is not on screen
+        self._title = ""  # the last window title written; see `title_seq`
         self._stop = threading.Event()
         self._thread = None
 
@@ -202,15 +209,23 @@ class StatusLine:
             self.frames, self.sep, self.cut, self.bar = self.BRAILLE, " · ", "…", "─"
             self.dash = " — "
         self.enabled = True
+        self._title = ""  # whatever the window says now, this run did not put it there
         self.since = time.monotonic()
         self._thread = threading.Thread(target=self._tick, daemon=True)
         self._thread.start()
 
     def stop(self):
-        """Erase the line and leave the cursor where the next print expects it."""
+        """Erase the line and leave the cursor where the next print expects it -- and give the
+        window title back, since the run it described is over."""
         self._stop.set()
         with self.lock:
             self.erase()
+            if self.enabled:
+                # An empty title is not a blank one: a terminal falls back to whatever it would
+                # have shown had nothing ever set it -- the shell's own title, or the profile's.
+                sys.stdout.write("\033]0;\007")
+                sys.stdout.flush()
+                self._title = ""
             self.enabled = False
 
     def _tick(self):
@@ -317,14 +332,15 @@ class StatusLine:
     SCROLL_HOLD = 16
 
     def goal_row(self):
-        """The row between the rule and the status line: the loop goal, then the session's item.
+        """The row between the rule and the status line: what the session has landed, then the
+        loop goal it is landing it for.
 
         Grey and indented like the key row, so the one white line in the block is still the
         status. Never truncated: a row longer than the terminal is shown through a window that
         the ticker slides along it, `scroll_offset` says how far. Cut short the way `compose()`
-        cuts, the loop goal's title would eat the whole width and the session's item -- the half
-        that changes -- would never be seen at all."""
-        parts = [self.loop_goal, self.goal or "(no session has been oriented yet)"]
+        cuts, the loop goal's title would eat the whole width and the session half -- the one
+        that changes -- would never be seen at all, which is also why it is no longer second."""
+        parts = [self.goal or "(no session has been oriented yet)", self.loop_goal]
         body = self.sep.join(p for p in parts if p).replace("\n", " ")
         room = max(18, self.width() - 3)
         if len(body) > room:
@@ -376,6 +392,52 @@ class StatusLine:
             body = body[: room - len(self.cut)] + self.cut
         return "  " + C.paint(body, C.YELLOW if CONTROL.stop else C.GRAY)
 
+    # -- the terminal's own title bar --------------------------------------------------
+
+    #: How much of a title a taskbar button or a tab will actually show is anyone's guess, so the
+    #: fields are ordered widest-context-first and the tail is what gets cut.
+    TITLE_ROOM = 120
+
+    def title(self):
+        """The status line, squeezed into the window title: where the run is, what it is doing,
+        and what the session has landed so far.
+
+        A terminal running a five-hour loop is usually not the window in front, and a title is
+        what a taskbar button, a tab and an alt-tab preview all show -- the only place this run
+        reports anything at all when it is behind something else.
+
+        It takes the three fields that will still be true in a minute and leaves out the two that
+        will not: the per-tool `detail`, and the elapsed clock. Both change several times a
+        second, and a title that flickers that fast is read as noise by a person and as a new
+        window by some taskbars -- while saying nothing a look at the terminal would not say
+        better."""
+        head = self.phase
+        if self.total > 0:
+            done = min(self.done, self.total)
+            head = f"{head} {done}/{self.total} {done * 100 // self.total}%".lstrip()
+        body = self.sep.join(p for p in (self.scope, head, self.goal) if p)
+        # A title is a control sequence's payload, and it ends at the first BEL or ESC: a commit
+        # subject with a control character in it would otherwise leave the rest of this line
+        # being interpreted by the terminal rather than shown by it.
+        body = re.sub(r"[\x00-\x1f\x7f]", " ", body)
+        if len(body) > self.TITLE_ROOM:
+            body = body[: self.TITLE_ROOM - len(self.cut)] + self.cut
+        return f"nvs loop{self.sep}{body}" if body else "nvs loop"
+
+    def title_seq(self):
+        """The escape sequence `draw` prepends to a repaint, and "" whenever the title already
+        says this. Rewriting it on every frame would put eight identical sequences a second into
+        the console log and into any recording of this terminal, to no effect on screen.
+
+        OSC 0 rather than 2: it sets the icon name and the window title together, which is what
+        conhost, Windows Terminal and every xterm-alike agree on, and it is BEL-terminated
+        because conhost takes only that form."""
+        text = self.title()
+        if text == self._title:
+            return ""
+        self._title = text
+        return f"\033]0;{text}\007"
+
     def rows(self):
         """How tall the live block is: the rule, the goal row and the status line always, the key
         row only when there is a console to type at. Both `draw` and `erase` read this, and a
@@ -405,7 +467,8 @@ class StatusLine:
         want = self.rows()
         if self._rows and self._rows != want:
             self.erase()  # the block changed height; hand the old one back before claiming this
-        out = "\n" * (want - 1) if not self._rows else ""  # claim the rows under this one, once
+        out = self.title_seq()  # invisible, and only when it changed
+        out += "\n" * (want - 1) if not self._rows else ""  # claim the rows under this one, once
         out += f"\033[{want - 1}A\r\033[2K" + self.divider()  # up to the rule
         for line in [self.goal_row(), self.compose()] + ([self.keys()] if want > 3 else []):
             out += "\033[B\r\033[2K" + line  # and back down, one row at a time
@@ -937,6 +1000,9 @@ class Renderer:
                         self.tool_names[str(b["id"])] = str(b.get("name"))
                     say(f"   > {b.get('name')}", C.CYAN)
                     TICKER.tool(self.call_target(b))
+                    # Two small file reads, on the one thread that already knows the session did
+                    # something. A slice committed since the last call moves the goal row.
+                    SLICES.poll()
                     self.tool_input(b.get("input"))
 
         elif kind == "user":
@@ -2221,29 +2287,154 @@ def goal_title(chain=None):
 
 
 def session_goal(pack):
-    """What the status line's goal row says for the session about to run: the checklist item
-    `orient.py` picked for it, read back out of the pack rather than out of the handoff.
+    """The checklist item `orient.py` picked for the session about to run, read back out of the
+    pack rather than out of the handoff. What the goal row opens on, until `SliceWatch` has a
+    commit to show instead.
 
     The pack is the one place the pick is authoritative -- `--item`, a ticked-out group and a
     handoff with no group at all are all decided in there -- so parsing the handoff again here
     would be a second implementation of `orient.py`'s rule that drifts the first time that rule
     moves. The marker is `-- YOUR ITEM (n of m), in full:` and the item's first line follows it;
     the row keeps the bold title when the line has one, the line itself when it does not.
-    An empty pack means orient.py failed and the session picks for itself, and the row says so."""
+    An empty pack means orient.py failed and the session picks for itself, and the row says so.
+
+    The marker's `n of m` is deliberately **dropped** rather than shown. It reads like progress
+    and cannot move: `orient.py` picks the group's first unticked item, the driver never passes
+    `--item`, and every session overwrites the handoff with a fresh group whose items are all
+    unticked -- so it was `item 1/3` in every session of every run on record. The item's own
+    title says which one it is; what the session then does with it is `SliceWatch`'s to say."""
     if not pack:
         return "orient.py failed -- the session picks its own item"
     lines = pack.splitlines()
     for i, line in enumerate(lines):
-        m = re.match(r"^-- YOUR ITEM \((\d+) of (\d+)\), in full:\s*$", line)
-        if not m:
+        if not re.match(r"^-- YOUR ITEM \(\d+ of \d+\), in full:\s*$", line):
             continue
         first = next((ln.strip() for ln in lines[i + 1:] if ln.strip()), "")
         first = re.sub(r"^- \[[ xX]\]\s*", "", first)
         bold = re.match(r"^\*\*(.+?)\*\*", first)
-        return f"item {m.group(1)}/{m.group(2)}{TICKER.sep}{bold.group(1) if bold else first}"
+        return (bold.group(1) if bold else first) or "the pack's item has no text"
     if "Every item in the group is ticked" in pack:
         return "every item in the group is ticked -- the session picks from the handoff"
     return "the pack names no item -- see the handoff's `## Next group`"
+
+
+class SliceWatch:
+    """What the goal row's session half says: what the running session has landed **so far**,
+    rather than what it was handed when it started.
+
+    The row used to name one thing -- the checklist item the pack picked -- set once when the
+    pack was built and never touched again. Two facts made that a line a run could not be read
+    off. The pick never varies, for the reasons `session_goal` records. And AGENTS.md's step 2
+    tells a session to keep taking slices from its group while the file set and the context
+    ceiling hold, so sessions land two to seven commits: the item a session opened on stops
+    describing it within minutes, and sometimes never described it -- session 0004 of the
+    2026-09-04 run opened on the group's first item, then committed its second one and a fix the
+    group did not name, while the row spent the whole session naming the first.
+
+    So the row follows the one thing that moves and is not a session's opinion of itself: HEAD. A
+    commit is a slice finished, its subject is the sentence the session wrote about what it just
+    did, and the count is `git rev-list` over the range the ledger reports -- one computation,
+    polled live here and read back by `drive()` rather than worked out a second time at the end.
+
+    Polled off the session's own tool calls, never off a timer: the check is two small file reads
+    and git is spawned only on the calls where the sha actually moved, which is a handful a
+    session. A packed ref, or a `.git` that is a worktree's file, leaves no loose ref to read;
+    that falls back to asking git, and no more often than `SLOW_EVERY` seconds."""
+
+    SLOW_EVERY = 15.0
+
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.base = ""  # HEAD when the session started -- the ledger counts from here too
+        self.item = ""  # what the pack handed it, shown until the first slice lands
+        self.head = ""  # the newest sha this watch has seen
+        self.commits = 0
+        self.subject = ""
+        self._next_slow = 0.0
+
+    # -- what the driver tells it ------------------------------------------------------
+
+    def start(self, base):
+        """A session is about to be oriented. Everything the last one landed is now history, and
+        the row must stop asserting its item: `orient.py` is a minute of work away, and for that
+        minute the row used to name a slice that had already been committed and handed off."""
+        with self.lock:
+            self.base = self.head = base or ""
+            self.item = "orienting -- no item picked yet"
+            self.commits = 0
+            self.subject = ""
+            self._next_slow = 0.0
+        TICKER.set(goal=self.row())
+
+    def pick(self, item):
+        """The pack is built and it named an item. Shown until the first commit replaces it."""
+        with self.lock:
+            self.item = item
+        TICKER.set(goal=self.row())
+
+    def poll(self):
+        """Look for a slice that landed since the last look, and move the row if one did."""
+        sha = self.sha()
+        with self.lock:
+            if not sha or sha == self.head:
+                return
+            self.head = sha
+            base = self.base
+        # Both spawns are outside the lock: the ticker thread paints this row eight times a
+        # second and must never be found waiting on a subprocess.
+        count = git("rev-list", "--count", f"{base}..{sha}") if base else ""
+        subject = git("log", "-1", "--format=%s", sha)
+        with self.lock:
+            self.commits = int(count) if count.isdigit() else self.commits + 1
+            self.subject = subject
+        TICKER.set(goal=self.row())
+
+    def finish(self):
+        """The session is over. One last look -- its final slice is usually committed by its last
+        tool call, with nothing after it to trigger a poll -- and then the count `drive()` puts in
+        the ledger, from the same range and the same command the row has been showing all along."""
+        with self.lock:
+            self._next_slow = 0.0  # the answer is wanted now, not at the next cheap opportunity
+        self.poll()
+        with self.lock:
+            return self.commits
+
+    # -- what it says, and how it looks ------------------------------------------------
+
+    def row(self):
+        """The session half of the goal row: the slices landed and the last one's subject, or the
+        item the session opened on while that is still all there is to say."""
+        with self.lock:
+            if not self.commits:
+                return self.item
+            landed = f"{self.commits} commit{'' if self.commits == 1 else 's'}"
+            return f"{landed}{TICKER.sep}{self.subject}" if self.subject else landed
+
+    def sha(self):
+        """HEAD's sha without spawning anything, where the repository allows it: `.git/HEAD` names
+        a ref, and the loose ref file under it holds the sha. Anything else -- a detached HEAD is
+        the sha itself, a packed ref or a worktree `.git` file has no loose ref to read -- falls
+        back to asking git, throttled, because this runs on every tool call a session makes."""
+        gitdir = ROOT / ".git"
+        try:
+            if gitdir.is_dir():
+                head = (gitdir / "HEAD").read_text(encoding="utf-8").strip()
+                if not head.startswith("ref:"):
+                    return head
+                ref = gitdir / head[4:].strip()
+                if ref.is_file():
+                    return ref.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+        now = time.monotonic()
+        with self.lock:
+            if now < self._next_slow:
+                return ""
+            self._next_slow = now + self.SLOW_EVERY
+        return git("rev-parse", "HEAD")
+
+
+SLICES = SliceWatch()
 
 
 # --------------------------------------------------------------------------------- chain
@@ -2887,7 +3078,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
     else:
         step(f"orientation pack: orient.py failed after {spent} -- "
              "the session will run it itself", C.YELLOW)
-    TICKER.set(goal=session_goal(pack))
+    SLICES.pick(session_goal(pack))
     session_id = ""
     limit = None  # the last `rate_limit_event` this session reported; see `RateLimit`
     said_limit = False  # the text fallback, read only off a non-zero exit's `result` event
@@ -3486,7 +3677,7 @@ def drive(opts, goal, chain=None):
             wall = None
 
         index += 1
-        head_before = git("rev-parse", "HEAD")
+        SLICES.start(git("rev-parse", "HEAD"))
         STATUS.unlink(missing_ok=True)
         TICKER.set(scope=f"session {served + 1}/{opts.max_sessions}", phase="starting")
         say(f"== session {served + 1}/{opts.max_sessions}  {datetime.now():%H:%M:%S}", C.CYAN)
@@ -3578,10 +3769,10 @@ def drive(opts, goal, chain=None):
         PROGRESS["served"] = served
 
         line = STATUS.read_text(encoding="utf-8").strip() if STATUS.exists() else ""
-        head_after = git("rev-parse", "HEAD")
-        commits = 0
-        if head_after and head_after != head_before:
-            commits = int(git("rev-list", "--count", f"{head_before}..{head_after}") or 0)
+        # The count the goal row has been showing all session, from the same range: the watch
+        # takes one last look here, because the final slice is committed by the session's last
+        # tool call and nothing after it would have polled.
+        commits = SLICES.finish()
         # A session that finished and left nothing behind closes any earlier interruption.
         if not git("status", "--porcelain").strip():
             INTERRUPTED.unlink(missing_ok=True)

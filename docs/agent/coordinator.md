@@ -282,7 +282,12 @@ uses the model's own default, which is `high` on opus-5 — the run's setting go
 
 A status line holds the bottom row for as long as the driver is up, under everything that scrolls past
 it: the spinner, where the run is (`session 3/12`), what it is doing (`orienting`, `working`,
-`acceptance check`), the current item, and how long this phase has been going. The acceptance sweep is
+`acceptance check`), the tool call it is on, and how long this phase has been going. Above it, one grey
+row says what the work is *for*, the moving half first — what the session has landed so far
+(`2 commits · <the last one's subject>`, and until the first one lands, the item `orient.py` handed it),
+then the loop goal the run is driving toward. Longer than a terminal, it scrolls rather than truncates.
+**The window title carries the same fields**, so a run behind another window still says where it is from
+a taskbar button or a tab. The acceptance sweep is
 the one phase that also carries `31/94 33%`, because it is the only one whose size is known before it
 starts — `loop-goal.toml` is a fixed list, the legs are known, and the two memos say up front what will
 be skipped. A session shows a running tool-call count and no percentage rather than a number that
