@@ -891,9 +891,12 @@ fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
 
 /// § 3: `fleet` fires once across the deployment under a lease in the shared store, and a tree with
 /// no store configured refuses rather than degrading to one run per host — which is the exact
-/// failure the key exists to prevent. **No block spells a shared store yet**, so today every
-/// `fleet` entry refuses; `nvs_config::schedule::configures_a_shared_store` is where that stops
-/// being true, and this case is what will hold it when it does.
+/// failure the key exists to prevent. The store is `[cache.shared] url`, ADR 0059 § 1's coherent
+/// tier and the one `Core\Cache::shared()` opens, so the two sides are asserted together: a tree
+/// that writes it accepts the same entry the tree without it refused. Asserted on both sides
+/// because a check that only refused would pass just as well if `fleet` were refused
+/// unconditionally, which is what `nvs_config::schedule::configures_a_shared_store` answered while
+/// no block spelled the store.
 #[test]
 fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
     let fs = scheduling(&entry("scope = \"fleet\"\n"));
@@ -912,6 +915,31 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
         tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
         1,
         "the store is `fleet`'s dependency and nothing else's",
+    );
+
+    let with_store = format!(
+        "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n\n{}",
+        entry("scope = \"fleet\"\n")
+    );
+    assert_eq!(
+        tree_of(&scheduling(&with_store), "etc/nvs.toml")
+            .config
+            .schedule
+            .len(),
+        1,
+        "`[cache.shared] url` is the store § 3's lease lives in, so a `fleet` entry beside one boots",
+    );
+
+    let empty_url = format!(
+        "[cache.shared]\nurl = \"\"\n\n{}",
+        entry("scope = \"fleet\"\n")
+    );
+    assert!(
+        refusal(&scheduling(&empty_url), "etc/nvs.toml")
+            .message
+            .contains("shared store"),
+        "a block written with an empty `url` has named no store, and saying nothing is not \
+         configuring one",
     );
 }
 

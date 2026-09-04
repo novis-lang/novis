@@ -168,13 +168,25 @@ pub fn validate(
 
 /// Whether the tree configures the shared store § 3's `fleet` lease lives in.
 ///
-/// **There is no spelling for one yet.** ADR 0073's *Scope* excludes the store's own configuration
-/// and no block in [`tree`](crate::tree) holds it, so the honest answer for every tree today is
-/// `false` and every `fleet` entry refuses. That is § 3's rule applied rather than a stand-in for
-/// it — the alternative it rejects is degrading to one run per host, not accepting the entry — and
-/// when the store gains its block this function reads it and nothing else in the module moves.
-fn configures_a_shared_store(_config: &Config) -> bool {
-    false
+/// **`[cache.shared] url` is that store, and it is the only one.**
+/// [ADR 0059](../../../docs/adr/0059-cross-request-state-is-explicit.md) § 1's coherent tier is what
+/// every core and every host sees, `Core\Cache::shared()` opens it from this same key
+/// (`nvs_stdlib::cache`), and a lease no other host can read is not a lease — so what is asked here
+/// is whether that URL is written, not whether the tree configures a store of some kind. A block
+/// present with an empty `url` has said nothing, which is how [`required`] reads an empty required
+/// key and is the same rule for the same reason.
+///
+/// **This does not connect, on purpose.** A store that is configured and unreachable is an interval
+/// that does not run and is logged, which is § 3's stated at-most-once; a boot that dialled the
+/// store to decide whether to start would turn an unreachable Redis into a refusal to serve requests
+/// that have nothing to do with the schedule.
+fn configures_a_shared_store(config: &Config) -> bool {
+    config
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.shared.as_ref())
+        .and_then(|shared| shared.url.as_deref())
+        .is_some_and(|url| !url.trim().is_empty())
 }
 
 /// A field § 1 requires, or the refusal naming it. An empty string is absent: a key set to `""` has
