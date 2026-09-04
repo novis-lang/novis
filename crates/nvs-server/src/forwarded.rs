@@ -25,6 +25,27 @@
 //! refused, which § 6 calls load-bearing: any client can set that header, so
 //! refusing on its mere presence would let anyone deny service by sending one.
 //!
+//! # Decision: a port is not part of the address, and a withheld hop is not a defect
+//!
+//! Two spellings a *conforming* proxy writes are read rather than refused, and
+//! neither is a repair. A token may carry the **port** the hop connected from —
+//! `203.0.113.9:54321`, and `[2001:db8::1]:443` for the one form in which a v6
+//! address may, its own colons being the separator otherwise — which Azure's
+//! front ends and IIS emit by default. Stripping it is § 6's `Host` rule
+//! applied to the same kind of value: a port names no different address, so
+//! this is [ADR 0095]'s *accept verbatim* branch. A port that is not a number
+//! is **not** accepted, because then the token means nothing definite and
+//! reading past it would be inventing the answer.
+//!
+//! And a hop may say it is **withholding** the address — RFC 7239 § 6.3's
+//! `unknown`, which Squid emits with `forwarded_for` off, and its obfuscated
+//! `_hidden` identifiers. Landing on one answers `None`: the same answer a
+//! Unix-domain peer that forwarded nothing gives, because it is the same fact,
+//! and refusing would take down every deployment behind such a proxy over a
+//! value it wrote on purpose. Only a *trusted* hop can put one where the walk
+//! lands — a client's own `unknown` sits to the left of the address its proxy
+//! appended, and is never reached.
+//!
 //! # Decision: an entry `trusted_proxies` cannot parse is dropped here, and the boot refusal is a backlog slice
 //!
 //! [`Trusted::of`] hands back the entries it could not read rather than
@@ -42,6 +63,7 @@
 //! allocation at all. A request from an unproxied deployment reads no header
 //! and touches neither.
 //!
+//! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::net::IpAddr;
@@ -59,8 +81,24 @@ const X_FORWARDED_FOR: HeaderName = HeaderName::from_static("x-forwarded-for");
 /// § 6's scheme assertion, read from a trusted peer and from nobody else.
 const X_FORWARDED_PROTO: HeaderName = HeaderName::from_static("x-forwarded-proto");
 
-/// The header § 6 answers with a `Warn` rather than a parse.
-const FORWARDED: HeaderName = HeaderName::from_static("forwarded");
+/// The client-address headers § 6 answers with a `Warn` rather than a parse:
+/// RFC 7239's `Forwarded`, nginx's `X-Real-IP`, and the vendor spellings a CDN
+/// puts in front of a deployment.
+///
+/// Reading any of them would make what a proxy may assert depend on which
+/// header it happened to write, which is the ambiguity `X-Forwarded-For` being
+/// the only one avoids. **Reporting them is the point.** `X-Real-IP` is the
+/// common one — `proxy_set_header X-Real-IP $remote_addr;` with no
+/// `X-Forwarded-For` beside it is one of the most-copied nginx recipes there
+/// is, and under it every client is logged as the proxy with nothing said.
+const OTHER_ADDRESS_HEADERS: [HeaderName; 6] = [
+    HeaderName::from_static("forwarded"),
+    HeaderName::from_static("x-real-ip"),
+    HeaderName::from_static("cf-connecting-ip"),
+    HeaderName::from_static("true-client-ip"),
+    HeaderName::from_static("fastly-client-ip"),
+    HeaderName::from_static("x-client-ip"),
+];
 
 /// Stands in for a field line whose bytes are not text, so that such a line is
 /// one ordinary token that does not parse rather than a second code path. It
@@ -238,12 +276,13 @@ impl Trusted {
 pub struct Origin {
     client: Option<IpAddr>,
     scheme: Scheme,
-    ignored_forwarded: bool,
+    ignored_address_header: bool,
 }
 
 impl Origin {
-    /// The client address, and `None` only for a peer that has no address —
-    /// a Unix-domain socket that forwarded nothing.
+    /// The client address, and `None` for the two ways a request can have none:
+    /// a Unix-domain peer that forwarded nothing, and a trusted hop that
+    /// withheld it.
     #[must_use]
     pub fn client(self) -> Option<IpAddr> {
         self.client
@@ -258,14 +297,22 @@ impl Origin {
         self.scheme
     }
 
-    /// A trusted peer sent `Forwarded` and no `X-Forwarded-For`: § 6's one
-    /// `Warn`, reported by the caller because this module has no log.
+    /// A trusted peer sent one of [`OTHER_ADDRESS_HEADERS`] and no
+    /// `X-Forwarded-For`: § 6's one `Warn`, reported by the caller because this
+    /// module has no log.
     ///
-    /// The request is served either way. Refusing would take a site down over a
-    /// header Novis chose not to support.
+    /// The request is served either way, with the peer as the client. Refusing
+    /// would take a site down over a header Novis chose not to support — and
+    /// staying *quiet* is the failure this answer exists to close, because a
+    /// deployment whose proxy writes only `X-Real-IP` is otherwise wrong about
+    /// every client and told nothing.
+    ///
+    /// An untrusted peer's headers are not read at all, so they are never
+    /// reported: any client can send these, and a `Warn` per request would be a
+    /// log flood anyone could turn on.
     #[must_use]
-    pub fn ignored_forwarded(self) -> bool {
-        self.ignored_forwarded
+    pub fn ignored_address_header(self) -> bool {
+        self.ignored_address_header
     }
 }
 
@@ -291,20 +338,27 @@ pub fn walk(arrival: Arrival, trusted: &Trusted, headers: &HeaderMap) -> Result<
         return Ok(Origin {
             client: peer,
             scheme: Scheme::Http,
-            ignored_forwarded: false,
+            ignored_address_header: false,
         });
     }
     let chain = chain(headers);
     let client = if chain.is_empty() {
         peer
     } else {
-        Some(untrusted_in(&chain, trusted)?)
+        untrusted_in(&chain, trusted)?
     };
     Ok(Origin {
         client,
         scheme: asserted(headers),
-        ignored_forwarded: chain.is_empty() && headers.contains_key(FORWARDED),
+        ignored_address_header: chain.is_empty() && named_elsewhere(headers),
     })
+}
+
+/// Whether a header this module does not read carries a client address.
+fn named_elsewhere(headers: &HeaderMap) -> bool {
+    OTHER_ADDRESS_HEADERS
+        .iter()
+        .any(|name| headers.contains_key(name))
 }
 
 /// Every `X-Forwarded-For` token, in the order the peer wrote them.
@@ -322,23 +376,83 @@ fn chain(headers: &HeaderMap) -> Vec<&str> {
     tokens
 }
 
-/// The rightmost entry that is not itself trusted, walking left from the peer.
+/// The rightmost entry that is not itself trusted, walking left from the peer,
+/// and `None` where that walk lands on a hop that withheld the address.
 ///
 /// A chain whose every entry is trusted answers with its **leftmost** one:
 /// there is no untrusted hop to find, and the address the chain says the
 /// request started at is the honest remaining answer. Falling back to the peer
 /// instead would report the nearest proxy as the client, which is the failure
 /// § 6's `Warn` exists to catch elsewhere.
-fn untrusted_in(chain: &[&str], trusted: &Trusted) -> Result<IpAddr, Unusable> {
+fn untrusted_in(chain: &[&str], trusted: &Trusted) -> Result<Option<IpAddr>, Unusable> {
     let mut leftmost = None;
-    for hop in chain.iter().rev() {
-        let ip = canonical(hop.parse::<IpAddr>().map_err(|_| Unusable)?);
-        if !trusted.holds(ip) {
-            return Ok(ip);
+    for token in chain.iter().rev() {
+        match hop(token) {
+            Hop::At(ip) if trusted.holds(ip) => leftmost = Some(ip),
+            Hop::At(ip) => return Ok(Some(ip)),
+            Hop::Withheld => return Ok(None),
+            Hop::Unreadable => return Err(Unusable),
         }
-        leftmost = Some(ip);
     }
-    leftmost.ok_or(Unusable)
+    // Unreachable with a non-empty chain, which is the only thing `walk` calls
+    // this with: the first token either answered or set this.
+    Ok(leftmost)
+}
+
+/// What one `X-Forwarded-For` token names.
+enum Hop {
+    /// An address, canonical and with any port already off it.
+    At(IpAddr),
+    /// A hop that says it is naming none.
+    Withheld,
+    /// Text that is neither, and so a `400` where the walk lands on it.
+    Unreadable,
+}
+
+/// One token, read. The module doc owns why the middle case is not a refusal.
+fn hop(token: &str) -> Hop {
+    // RFC 7239 § 6.3's two ways of saying "not disclosed". An obfuscated
+    // identifier is `_` and then a name only the proxy that wrote it can
+    // resolve, so there is nothing here to compare against either way.
+    if token.eq_ignore_ascii_case("unknown") || token.starts_with('_') {
+        return Hop::Withheld;
+    }
+    match address(token) {
+        Some(ip) => Hop::At(canonical(ip)),
+        None => Hop::Unreadable,
+    }
+}
+
+/// A token's address, with the port and the brackets that carry one removed.
+fn address(token: &str) -> Option<IpAddr> {
+    // `[v6]` or `[v6]:port` — RFC 3986's spelling, and the only one in which a
+    // v6 address can carry a port at all.
+    if let Some(rest) = token.strip_prefix('[') {
+        let (inside, after) = rest.split_once(']')?;
+        if !(after.is_empty() || after.strip_prefix(':').is_some_and(is_port)) {
+            return None;
+        }
+        return inside.parse().ok();
+    }
+    // A bare address is itself, and this is asked *before* a port is looked
+    // for: a v6 address is mostly colons, and `::1:80` is one address rather
+    // than a port on `::1`. Reading the whole token first is the conforming
+    // way round, and it is also the one that cannot silently truncate.
+    if let Ok(ip) = token.parse::<IpAddr>() {
+        return Some(ip);
+    }
+    // What is left can only be `v4:port`.
+    let (addr, port) = token.split_once(':')?;
+    if !is_port(port) {
+        return None;
+    }
+    addr.parse().ok()
+}
+
+/// Whether this is a port number — what separates an address carrying one from
+/// a token that means nothing definite.
+fn is_port(text: &str) -> bool {
+    text.parse::<u16>().is_ok()
 }
 
 /// The scheme a trusted peer asserted, defaulting to `http`.
@@ -419,7 +533,7 @@ mod tests {
                 Origin {
                     client: Some(ip(peer)),
                     scheme: Scheme::Http,
-                    ignored_forwarded: false,
+                    ignored_address_header: false,
                 },
                 "an empty trusted_proxies read a header from {peer}"
             );
@@ -435,7 +549,7 @@ mod tests {
             Origin {
                 client: Some(ip("198.51.100.4")),
                 scheme: Scheme::Http,
-                ignored_forwarded: false,
+                ignored_address_header: false,
             }
         );
 
@@ -454,7 +568,7 @@ mod tests {
                 Origin {
                     client: Some(ip("203.0.113.9")),
                     scheme: Scheme::Https,
-                    ignored_forwarded: false,
+                    ignored_address_header: false,
                 },
                 "a trusted {peer} was not believed"
             );
@@ -468,7 +582,7 @@ mod tests {
             Origin {
                 client: Some(ip("10.0.0.7")),
                 scheme: Scheme::Http,
-                ignored_forwarded: false,
+                ignored_address_header: false,
             }
         );
 
@@ -480,7 +594,7 @@ mod tests {
             Origin {
                 client: Some(ip("203.0.113.9")),
                 scheme: Scheme::Https,
-                ignored_forwarded: false,
+                ignored_address_header: false,
             }
         );
         let quiet = walk(Arrival::Unix, &trusted, &HeaderMap::new()).expect("no refusal");
@@ -505,7 +619,7 @@ mod tests {
         let rfc7239 = head(&[("Forwarded", "for=203.0.113.9;proto=https")]);
         let served = walk(from("10.0.0.7"), &trusted, &rfc7239).expect("never a refusal");
         assert_eq!(served.client(), Some(ip("10.0.0.7")));
-        assert!(served.ignored_forwarded(), "the Warn was not reported");
+        assert!(served.ignored_address_header(), "the Warn was not reported");
 
         // The token the walk lands on does not parse: 400.
         let junk = head(&[("X-Forwarded-For", "not-an-address, 10.0.0.7")]);
@@ -588,5 +702,94 @@ mod tests {
             let answered = walk(from("10.0.0.7"), &trusted, &head(&written)).expect("no refusal");
             assert_eq!(answered.scheme(), expected, "for {lines:?}");
         }
+    }
+
+    /// § 6's two conforming spellings that are not defects: a port on the
+    /// token, and a hop that withheld the address.
+    #[test]
+    fn a_port_is_not_part_of_the_address_and_a_withheld_hop_answers_none() {
+        let trusted = proxies(&["10.0.0.0/8"]);
+
+        // The port comes off in both families, and off the *trusted* hop too —
+        // it is read before the trust test, or a proxy that writes its own port
+        // would stop being recognised as itself.
+        for (written, expected) in [
+            ("203.0.113.9:54321, 10.0.0.7:443", "203.0.113.9"),
+            ("[2001:db8::9]:443, 10.0.0.7", "2001:db8::9"),
+            ("[2001:db8::9], 10.0.0.7", "2001:db8::9"),
+            ("::ffff:203.0.113.9, 10.0.0.7", "203.0.113.9"),
+        ] {
+            let carried = head(&[("X-Forwarded-For", written)]);
+            let answered = walk(from("10.0.0.7"), &trusted, &carried).expect("no refusal");
+            assert_eq!(answered.client(), Some(ip(expected)), "for {written:?}");
+        }
+
+        // What is not a port is not read past: the token means nothing
+        // definite, and the walk had landed on it.
+        for written in [
+            "203.0.113.9:notaport, 10.0.0.7",
+            "203.0.113.9:99999, 10.0.0.7",
+            "203.0.113.9:, 10.0.0.7",
+            "[2001:db8::9, 10.0.0.7",
+        ] {
+            let carried = head(&[("X-Forwarded-For", written)]);
+            assert_eq!(
+                walk(from("10.0.0.7"), &trusted, &carried),
+                Err(Unusable),
+                "for {written:?}"
+            );
+        }
+
+        // A hop that withheld the address answers `None` rather than refusing.
+        for written in ["unknown, 10.0.0.7", "UNKNOWN", "_hidden, 10.0.0.7"] {
+            let carried = head(&[("X-Forwarded-For", written)]);
+            let withheld = walk(from("10.0.0.7"), &trusted, &carried).expect("never a refusal");
+            assert_eq!(withheld.client(), None, "for {written:?}");
+        }
+
+        // And a client's own `unknown` is never reached, because its proxy
+        // appended the address it actually came from to the right of it.
+        let spoofed = head(&[("X-Forwarded-For", "unknown, 203.0.113.9, 10.0.0.7")]);
+        let walked = walk(from("10.0.0.7"), &trusted, &spoofed).expect("no refusal");
+        assert_eq!(walked.client(), Some(ip("203.0.113.9")));
+    }
+
+    /// A client-address header Novis does not read is reported rather than
+    /// parsed — and reported only where it could have been believed.
+    #[test]
+    fn a_client_address_header_this_module_does_not_read_is_reported() {
+        let trusted = proxies(&["10.0.0.0/8"]);
+
+        // None of these is parsed, so the value's shape never matters.
+        for name in [
+            "Forwarded",
+            "X-Real-IP",
+            "CF-Connecting-IP",
+            "True-Client-IP",
+            "Fastly-Client-IP",
+            "X-Client-IP",
+        ] {
+            let alone = head(&[(name, "203.0.113.9")]);
+            let served = walk(from("10.0.0.7"), &trusted, &alone).expect("never a refusal");
+            assert_eq!(served.client(), Some(ip("10.0.0.7")), "{name} was parsed");
+            assert!(
+                served.ignored_address_header(),
+                "{name} was ignored quietly"
+            );
+        }
+
+        // An untrusted peer's are not read at all, so there is nothing to
+        // report: anyone can send one, and a Warn per request would be a log
+        // flood a stranger could turn on.
+        let hostile = head(&[("X-Real-IP", "203.0.113.9")]);
+        let ignored = walk(from("198.51.100.4"), &trusted, &hostile).expect("never a refusal");
+        assert!(!ignored.ignored_address_header());
+
+        // And an `X-Forwarded-For` beside one has answered the question, so
+        // nothing was ignored.
+        let both = head(&[("X-Real-IP", "9.9.9.9"), ("X-Forwarded-For", "203.0.113.9")]);
+        let answered = walk(from("10.0.0.7"), &trusted, &both).expect("no refusal");
+        assert_eq!(answered.client(), Some(ip("203.0.113.9")));
+        assert!(!answered.ignored_address_header());
     }
 }

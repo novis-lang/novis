@@ -586,7 +586,7 @@ where
         // read again for ADR 0074 § 1's header set at the end of this closure:
         // an `Origin` is `Copy`, so the two readings are one decision.
         //
-        // `origin.ignored_forwarded()` is § 6's one `Warn` and still has
+        // `origin.ignored_address_header()` is § 6's one `Warn` and still has
         // nowhere to go: it goes wherever this loop's other reports go once it
         // has been given a log, and it changes nothing about what is served.
         let scheme = origin.scheme();
