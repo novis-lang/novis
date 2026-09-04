@@ -58,8 +58,9 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
 
 2. **Dead `[context]` selectors.** *Signal:* `orient.py` warns that a selector in `docs/agent/loop-goal.toml`
    names a module, ADR section, shape, playbook heading or milestone that no longer exists. *Action:*
-   delete that entry. *Gate:* the warning names it. It was printing nothing but the warning, so removing it
-   removes no context a session had.
+   delete that entry — unless § *The live goal* says a tool wrote that file, in which case this is item 8
+   and the entry is deleted in the emitter. *Gate:* the warning names it. It was printing nothing but the
+   warning, so removing it removes no context a session had.
 
 3. **Dead item anchors.** *Signal:* a checklist item's `file.rs:NN` anchor no longer resolves, or resolves
    to something unrelated because the file moved under it. *Action:* `python tools/peek.py --locate <symbol>`
@@ -91,6 +92,17 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    and buys quality; raising either buys throughput with a risk no measurement in your hands can price, so
    raising is a proposal. This is the one menu item that changes how a session behaves, and the one-way
    valve is what makes it safe to leave to you.
+
+8. **A defect in a *generated* goal.** *Signal:* the evidence pack's § *The live goal* names the command
+   that wrote `docs/agent/loop-goal.toml`, and one of the findings above lands in a file that command
+   produced. *Action:* fix the emitter, re-run its command, commit the regenerated tree. *Gate:* the
+   emitter's own check passes — `python tools/dossier.py --check-goals` is the dossier's — and re-running
+   the emission changes nothing (`--emit-goals --append-chain … --dry-run` appends nothing).
+   **Never hand-edit a generated goal.** The next emission discards the edit, and the defect is in every
+   goal that command wrote rather than the one the warning fired on, so a hand-edit is both lost and
+   incomplete. This is the one item where the fix is further away than the file the signal named, and it is
+   worth the extra distance precisely because of the multiplier: `dossier.py --emit-goals` writes ~93 goals,
+   so one wrong line in `goal_toml()` is 93 warnings a run and one commit to remove them all.
 
 ## What stays a proposal
 

@@ -1410,11 +1410,74 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
 #: milestone's `Carried by` cell the moment an entry is inserted.
 CHAIN_NUM_RE = re.compile(r"^\s*(\d+)\b")
 
+#: What `orient.py` can turn into a map line: `groups` there is `brief.crate_modules()` merged with
+#: `brief.editor_modules()`, so a `[context] modules` entry naming anything else prints nothing and
+#: warns. A reference chapter is the case that hits -- it is where a `lang:` feature is *documented*,
+#: never where it is implemented.
+MAPPABLE = ("crates/", "editors/")
+
+
+def check_goals(out_dir: Path) -> int:
+    """Every generated goal is one the driver can actually walk. Exit 1 naming what is not.
+
+    A defect here is multiplied by however many goals the emission wrote, and the two that bite are
+    both silent: a `[context]` selector `orient.py` cannot resolve costs a warning in every session
+    of that goal and prints nothing, and a missing `[valgrind] skip` makes `goal-switch.py` refuse
+    the switch outright -- which stops the run rather than degrading it.
+
+    This is deliberately a *file* check and executes nothing, so it stays cheap enough to be the
+    acceptance check of the goal that writes these.
+    """
+    tomls = sorted(p for p in out_dir.glob("*.toml") if p.name != "chain.toml")
+    if not tomls:
+        print(f"dossier: no generated goal under {rel(out_dir)} -- nothing to check.")
+        return 1
+    findings: list[str] = []
+    for path in tomls:
+        def bad(what: str) -> None:
+            findings.append(f"  {rel(path)}: {what}")
+        text = path.read_text(encoding="utf-8")
+        try:
+            spec = tomllib.loads(text)
+        except tomllib.TOMLDecodeError as e:
+            bad(f"does not parse -- {e}")
+            continue
+        if GOAL_SWITCH_MARKER not in text:
+            bad("has no goal-switch marker line, so the floor cannot be spliced into it")
+        if "files" not in spec:
+            bad("has no `files = [...]` for the previous goal's fixtures to be carried into")
+        if "skip" not in (spec.get("valgrind") or {}):
+            bad("has no `[valgrind] skip = [...]`, which goal-switch.py refuses outright")
+        for pattern in (spec.get("context") or {}).get("modules", []):
+            if not str(pattern).startswith(MAPPABLE):
+                bad(f"[context] modules names {pattern!r}, which orient.py cannot map "
+                    f"(it maps {' and '.join(MAPPABLE)} only) -- it warns once a session and "
+                    f"prints nothing")
+        for suffix in (".md", ".handoff.md"):
+            if not (path.parent / (path.stem + suffix)).is_file():
+                bad(f"names no sibling {suffix}, which the chain entry points at")
+
+    if findings:
+        print(f"dossier: {len(findings)} finding(s) across {len(tomls)} generated goal(s). Each is "
+              f"a defect in the emitter, not in the file -- fix `goal_toml` and re-emit:")
+        for f in findings[:40]:
+            print(f)
+        if len(findings) > 40:
+            print(f"  ... and {len(findings) - 40} more")
+        return 1
+    print(f"dossier: {len(tomls)} generated goal(s) checked -- every manifest resolves, every one "
+          f"carries the keys goal-switch.py needs.")
+    return 0
+
+
 #: The tables a goal carries about the *environment* its checks run in rather than about its own
 #: work. `goal-switch.py` unions `[valgrind] skip` and leaves the rest exactly as written, so a
 #: generated goal that omits them does not inherit them -- it silently drops the containers the
 #: floor's checks need and refuses the switch outright for want of a `skip` key.
 ENV_TABLES = ("valgrind", "wsl", "docker")
+
+#: `goal-switch.py`'s own marker, restated here because a generated goal that lacks it stops the run.
+GOAL_SWITCH_MARKER = "# <<< goal-switch: floor checks are inserted below this line >>>"
 
 #: What a standalone chain gets: the key `goal-switch.py` insists on, and nothing invented.
 DEFAULT_ENV = "[valgrind]\nskip = []\n"
@@ -1883,11 +1946,19 @@ def main() -> int:
                          "them. Idempotent -- an entry already on the chain is left alone")
     ap.add_argument("--dry-run", action="store_true",
                     help="with --emit-goals: write nothing, and say what the emission would change")
+    ap.add_argument("--check-goals", action="store_true",
+                    help="every goal under --out is one the driver can walk: the manifest resolves, "
+                         "the marker is there, the keys goal-switch.py needs are there")
     ap.add_argument("--per-goal", type=int, default=18, help="features per emitted goal")
     ap.add_argument("--all-groups", action="store_true",
                     help="with --emit-goals: include groups that owe nothing")
     ap.add_argument("--nvs", help="the binary to use (default: target/release, then target/debug)")
     args = ap.parse_args()
+
+    # Before the binary is resolved, because this one reads files and executes nothing -- a tree
+    # with no build still owes an answer about whether its generated goals are walkable.
+    if args.check_goals:
+        return check_goals(Path(args.out).resolve())
 
     nvs = binary(args.nvs)
     if nvs is None:
