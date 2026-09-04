@@ -780,7 +780,7 @@ fn runtime_commands(
                         spellings: arg.spellings.clone(),
                         about: arg.about.clone(),
                         default: arg.default.clone(),
-                        conv: match arg.conv {
+                        conv: match &arg.conv {
                             nvs_types::commands::ArgConv::Text => {
                                 nvs_runtime::commands::ArgConv::Text
                             }
@@ -798,6 +798,12 @@ fn runtime_commands(
                             }
                             nvs_types::commands::ArgConv::Uuid => {
                                 nvs_runtime::commands::ArgConv::Uuid
+                            }
+                            // The set itself crosses, because it is the answer
+                            // and not a key: the compiler resolved the union
+                            // once and a matcher has nothing left to look up.
+                            nvs_types::commands::ArgConv::OneOf(admitted) => {
+                                nvs_runtime::commands::ArgConv::OneOf(admitted.clone())
                             }
                             nvs_types::commands::ArgConv::Unconverted => {
                                 nvs_runtime::commands::ArgConv::Unconverted
@@ -833,7 +839,7 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
             .rows()
             .iter()
             .map(|row| {
-                nvs_runtime::routes::Route::new(
+                let route = nvs_runtime::routes::Route::new(
                     row.verb.clone(),
                     row.path.clone(),
                     row.name.as_ref().map(|(name, _)| name.clone()),
@@ -850,7 +856,16 @@ pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::rout
                             conv: capture_conv(param),
                         })
                         .collect(),
-                )
+                );
+                // ADR 0096 § 1a's opt-out, carried across rather than derived a
+                // second time: the verb's half of § 4 is `Route::new`'s and the
+                // declaration's half is the compiler's, so this is the one
+                // place the two meet.
+                if row.csrf {
+                    route
+                } else {
+                    route.without_csrf()
+                }
             })
             .collect(),
     )

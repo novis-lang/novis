@@ -498,7 +498,7 @@ fn fill(row: &Command, words: &[String], slots: &mut [Option<Value>]) -> Result<
 /// matched value's type comes from the parameter", read off the conversion the
 /// checker recorded on the row.
 fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
-    match arg.conv {
+    match &arg.conv {
         ArgConv::Text => Ok(Value::str(NvsStr::new(text.as_bytes()))),
         // A *positional* `bool`, which has no spelling to be written and so
         // reads the words instead — an option never reaches here.
@@ -535,6 +535,26 @@ fn convert(arg: &CommandArg, text: &str) -> Result<Value, String> {
         ArgConv::Uuid => nvs_runtime::uuid::read(text)
             .map(crate::uuid::of_octets)
             .ok_or_else(|| format!("`{}` takes a UUID, and `{text}` is not one", arg.param)),
+        // § 3's closed set, and the one conversion whose refusal can name every
+        // value it would have accepted — a command line is a person typing, so
+        // the set is worth more in the message than the type's own spelling.
+        // The word itself is the value, which is `nvs_runtime::commands::
+        // ArgConv::OneOf`'s own doc to justify.
+        ArgConv::OneOf(admitted) => {
+            if admitted.iter().any(|value| value == text) {
+                Ok(Value::str(NvsStr::new(text.as_bytes())))
+            } else {
+                Err(format!(
+                    "`{}` is one of {}, and `{text}` is none of them",
+                    arg.param,
+                    admitted
+                        .iter()
+                        .map(|value| format!("`{value}`"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                ))
+            }
+        }
         // Unreachable: the helper refuses a row carrying one before it reads a
         // word, so that the gap answers as a `LogicError` rather than as a
         // usage error about the argument that happened to arrive.
@@ -1117,6 +1137,41 @@ mod tests {
             matched(&row, &[]).unwrap_err(),
             "`--retries` needs a value and was not written",
             "an argument with no declared default is one the command line owes"
+        );
+    }
+
+    /// § 3's union of literal types, as the closed set a word is narrowed to:
+    /// every member converts to its own word, and anything else is a **usage**
+    /// error naming every value that would have been accepted — a command line
+    /// is input, so a word outside the set is never a throw.
+    ///
+    /// Asserted over the whole set rather than over one member, because a
+    /// matcher that admitted the first entry and stopped answers the first line
+    /// correctly. The refused word is the half that says this is a narrowing at
+    /// all: `ArgConv::Text`, which is what this parameter's type answered
+    /// before the set crossed, accepts it.
+    #[test]
+    fn a_union_of_literal_types_admits_its_own_words_and_refuses_every_other() {
+        let row = Command {
+            name: "report".to_owned(),
+            about: None,
+            handler: "Reports::run".to_owned(),
+            args: vec![CommandArg {
+                param: "format".to_owned(),
+                spellings: Vec::new(),
+                about: None,
+                conv: ArgConv::OneOf(vec!["json".to_owned(), "table".to_owned()]),
+                default: None,
+            }],
+        };
+        for admitted in ["json", "table"] {
+            let values = matched(&row, &[admitted.to_owned()]).expect("a word the union declares");
+            assert_eq!(values[0].as_text(), Some(admitted));
+            release(values);
+        }
+        assert_eq!(
+            matched(&row, &["csv".to_owned()]).unwrap_err(),
+            "`format` is one of `json`, `table`, and `csv` is none of them"
         );
     }
 

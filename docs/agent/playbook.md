@@ -1895,6 +1895,14 @@ is why" — is this file.
   out as a closure the crate does not otherwise contain. The check moves to the crate that owns the
   computation, and a comment on the moved block records why the wire-level spelling in its name is
   not a claim about who sends it.
+- **`cargo fmt --all` mid-session re-prints every file you had already read.** The harness sees each
+  file the formatter rewrote as "changed on disk since you last read it" and pastes its current
+  content back into the context: one run after four edits reformatted two files and cost about 8k for
+  a pass whose own output was two path names. `python tools/verify.py` runs `cargo fmt --check` as
+  step 2 and prints the one diff it found, which is the same answer for a few hundred tokens — so let
+  the gate find the formatting and fix that diff with `Edit`, rather than formatting the tree by hand
+  first. The same trap applies to any tool that rewrites a file you have open: `session.py --wrap` is
+  safe only because the session ends there.
 
 ## Running things
 

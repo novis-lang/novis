@@ -157,7 +157,10 @@ pub struct CommandArg {
 /// here, and everything else is refused where it is written.
 ///
 /// `nvs_runtime::commands::ArgConv` is this set as a running program holds it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Not `Copy` since [`Self::OneOf`] carries its set: a conversion is read once
+/// per argument of a command line, and the set is the answer itself rather than
+/// a lookup key, so there is nothing for a copy to save.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgConv {
     /// `string` — the argument's own text, which arrives `tainted` (§ 6).
     Text,
@@ -171,6 +174,14 @@ pub enum ArgConv {
     Decimal,
     /// `Core\Uuid` — RFC 9562 § 4's canonical form, the one class § 6 admits.
     Uuid,
+    /// § 3's union of literal types: the word each member admits, in the order
+    /// the union declares them, and a usage error for anything else.
+    ///
+    /// The same set [`crate::routes::CaptureConv::OneOf`] narrows a segment to,
+    /// computed by the same [`crate::routes::closed_set`] — a word a command
+    /// line supplies and a segment a route matches are admitted by one grammar,
+    /// which is the arrangement `decimal` and `Core\Uuid` already have.
+    OneOf(Vec<String>),
     /// A type § 6 admits whose conversion is not written yet —
     /// `nvs_runtime::commands`'s own gap 1, which is where it is refused.
     Unconverted,
@@ -195,6 +206,14 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // [`converts_from_string`] admits — two readings of one class, so they
         // cannot come to disagree about which one § 6 means.
         Ty::Class(name, _) if *name == QName::parse(r"Core\Uuid") => ArgConv::Uuid,
+        // § 3's union, narrowed to the words its members admit by the same
+        // computation the route table's captures use. `None` is a union of
+        // *enum cases*, which that function refuses for a reason it owns: a
+        // case's written spelling is undecided, so half a set would refuse
+        // command lines that are correct.
+        Ty::Union(_) => {
+            crate::routes::closed_set(ty, env).map_or(ArgConv::Unconverted, ArgConv::OneOf)
+        }
         _ => ArgConv::Unconverted,
     }
 }

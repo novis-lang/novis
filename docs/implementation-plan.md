@@ -47,21 +47,21 @@
 > `quoteIdentifier` and § 4's `query`, `execute`, `executeMany` and `open`. **`queryAs<T>`
 > hydrates** over `ClassDesc::db_codec`, and § 6's *request* converts. **§ 13's pool is complete**,
 > **§ 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's schema in
-> either dialect, §§ 1, 4 and 6 run on both, a worker on all three, and real servers hold every
-> statement**.   **ADR 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`, `.`,
-> `.=`, interpolation and `as string` refuse one. **Goals 1-5 and M4 closed**. **`crates/nvs-server`
-> runs an h1 request as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on`
-> (ADR 0138), `echo` is the body; `nvs serve` boots the whole mount table on one core and § 4's
-> static policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is
-> arithmetic against the memory budget, `503` before an isolate exists; § 6's walk decides the peer,
-> `400` on a bad token; § 8's accept backs off, § 10's mount holds no policy, § 5's drain answers
-> the probe and `isDraining()`; `Core\Response` has seven, `Core\Request` twelve, an upload walks as
-> parts; the door writes the carrier, a request is a peer task, and pulls its body; every response
-> carries ADR 0074 § 1's set, § 2 is whole; a request is matched once, `route()` and `methodsFor`
-> answer, and § 2's two answers are the table's computation rather than a status the door sends; a
-> `decimal` and a `Core\Uuid` convert as a capture and as a command argument; `E0801` refuses `echo`
-> beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1503,
-> differential 256, migration 100%; valgrind green.
+> either dialect, §§ 1, 4 and 6 run on both, and a worker on all three**.   **ADR 0133's carrier
+> landed**: `Core\Html::escape` answers `Core\Html\Markup`, `.`, `.=`, interpolation and `as string`
+> refuse one. **Goals 1-5 and M4 closed**. **`crates/nvs-server` runs an h1 request as goal 2's
+> `Isolate`**: a coroutine per connection, `hyper` under `block_on` (ADR 0138), `echo` is the body;
+> `nvs serve` boots the whole mount table on one core and § 4's static policy sends a file;
+> `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic against the memory
+> budget, `503` before an isolate exists; § 6's walk decides the peer, `400` on a bad token; § 8's
+> accept backs off, § 10's mount holds no policy, § 5's drain answers the probe and `isDraining()`;
+> `Core\Response` has seven, `Core\Request` twelve, an upload walks as parts; the door writes the
+> carrier and pulls the body; every response carries ADR 0074 § 1's set, § 2 is whole; a request is
+> matched once, `route()` and `methodsFor` answer, the door reads it for CSRF and the label, and §
+> 2's two answers are the table's computation not a status it sends; a `decimal` and a `Core\Uuid`
+> convert as a capture and as a command argument, as does a union of literals; `E0801` refuses
+> `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance
+> 1503, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
@@ -84,43 +84,56 @@ are [docs/plan/design.md](plan/design.md) § *Architecture*.
 Each milestone ends with something runnable and its own tests. Do not start the next until the current
 one's verification passes.
 
-**A milestone's number is its identity, not its position.** The **Order** column is the schedule and it is
-the only thing that says what comes next; M15 has carried that distinction since it was written, and as of
-2026-08-28 it applies to the whole table. Nothing is renumbered when the order changes, because a number
-that moves invalidates ~650 cross-references in `docs/adr/` and every one of them is a link somebody has
-already followed.
+**A milestone's number is its identity, and the schedule is not in this table.** The schedule is
+[docs/agent/goals/chain.toml](agent/goals/chain.toml) — one entry per goal, in the order the driver walks
+them — and the **Carried by** cell names the goals that do a milestone's work. That cell is *derived*:
+`python tools/plan.py --sync` writes it from the chain and `--check` fails CI when the two disagree, so
+this table cannot drift away from what is actually being run. A milestone no goal carries says where it
+stands on its own — `done`, `ongoing`, or `backlog N` for its place in the queue behind the chain — and
+those four words are the whole vocabulary of the column. Rows are in **identity order**, because a table
+that is not the schedule has no business being sorted like one. Nothing is ever renumbered, because a
+number that moves invalidates ~1300 cross-references across `docs/` and every one of them is a link
+somebody has already followed.
 
-| Order | Milestone | What it builds | Loop-days |
+| Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
 | done | [M0](plan/m0.md) | Project setup (~3 days) | 0.3 |
-| done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
+| goal 13 | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
 | done\* | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
-| **1** | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
-| **2** | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
-| **3** | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
-| **4** | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
-| **5** | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| **6** | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
-| **7** | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
-| **8** | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
-| **9** | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
-| **10** | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
-| **11** | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
+| goal 1 | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
+| goals 12, 14, 15 | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
+| goal 2 | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
+| goal 3 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
+| goals 6, 16, 18, 19 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| goals 4, 5, 17 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
+| backlog 2 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
+| backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |
+| backlog 4 | [M15](plan/m15.md) | Packages, the registry and the supply chain (~8 weeks) | ~3 + a calendar floor |
+| backlog 5 | [M16](plan/m16.md) | `nvs/web`, `nvs new`, and the framework (~12 weeks) | ~4 |
+
+**One milestone is not one block of schedule, which is why the cell holds a list.** M8's work sits at goals
+4, 5 and 17, M7's at 6, 16, 18 and 19, and M1's one open item — [ADR 0098](adr/0098-pipeline-operator-is-a-hole-substituted-at-parse-time.md)'s
+pipeline operator — at 13; five goals (7–11) land in no milestone at all and are tagged `post-parity` in
+the chain. A single number per milestone could say none of that, and for a while it said things that had
+stopped being true. **So the goal is the unit of schedule and the milestone the unit of identity: say
+"goal 19", never "in M7".** A cell naming a goal means that milestone still has work scheduled — `done` is
+the only thing that means finished.
 
 \* **M4 reached its loop goal on 2026-08-28** — every check in that goal's acceptance list passes, which is
 what closes the language holes. What it has not reached is its own milestone acceptance's **1000 `.nvst`
-cases**; that count was deliberately left as a corpus figure to be met as the suite grows through orders
-1–4, and [m4.md](plan/m4.md) still carries it unchanged.
+cases**; that count was deliberately left as a corpus figure to be met as the suite grows through goals
+1–5, and [m4.md](plan/m4.md) still carries it unchanged.
 
-**Orders 1–5 are one program, not five independent milestones: PHP core feature parity.** Everything a
+**Goals 1–6 are one program, not five independent milestones: PHP core feature parity.** Everything a
 program written in PHP reaches for without loading an extension, plus every planned SQL driver, plus the
 concurrency, governance and server the capability-bearing half of `Core` cannot exist without. It is
 scheduled as one continuous unattended run — see *The parity program* below, and
-[docs/agent/goals/README.md](agent/goals/README.md) for the six loop goals it is cut into. PHP's optional
-extensions (`gd`, `intl`, `imap`, and the rest of the list in
+[docs/agent/goals/README.md](agent/goals/README.md) for how those six sit in the chain's nineteen. PHP's
+optional extensions (`gd`, `intl`, `imap`, and the rest of the list in
 [02-php-migration.md](spec/02-php-migration.md)) are explicitly not part of it and stay with M9.
 
 Each row is a file under [docs/plan/](plan/). `python tools/plan.py --show M8` prints one
@@ -130,7 +143,7 @@ The decisions those milestones sit inside, the architecture and the verification
 
 ## The parity program
 
-Orders 1–5, in that order, are the run that takes Novis from "a usable CLI language" to "everything PHP
+Goals 1–6, in that order, are the run that takes Novis from "a usable CLI language" to "everything PHP
 does out of the box, and the four databases it does it against". The order inside the program is a
 dependency chain rather than a preference: `Core`'s pure half is what everything else is written against;
 the reactor is what a socket, a driver and a listener all need; capabilities are what every

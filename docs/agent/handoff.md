@@ -2,71 +2,62 @@
 
 ## State
 
-**Goal 6, M7. ADR 0086 § 6's argument matcher converts every type on its roster but two.** A
-`decimal` and a `Core\Uuid` command argument convert, and a word that is not one is a *usage*
-error — a command line is input, so it is never a throw. Both read the runtime's own parse rather
-than a second one written beside the matcher: `nvs_runtime::decimal` and `nvs_runtime::uuid`, the
-same homes `nvs_runtime::routes::convert` reads one table along, so a word a command line supplies
-and a segment a route matches are admitted by one grammar.
+**Goal 6, M7. The door reads its own match for two of ADR 0102 § 1's three rules.**
+`nvs_server::route::csrf_required` is ADR 0096 § 4's coverage question and `::label` is
+ADR 0076 § 1's `route` label; each is a field of the row `take` already found, and the test
+drops the table before asking, so an answer that survives cannot have been re-derived. § 8's
+access decision has no reader there on purpose — it is the dispatcher's. **The driver's
+failing acceptance check named exactly that test and it now runs.**
 
-**`nvs_runtime::commands`' gap 1 is now two, not four: an enum and a union of literal types.** Both
-need the same thing and it is not the algorithm — a **closed set carried on the row**, which
-`CommandArg` has no field for. That set already exists one table along as
-`nvs_runtime::routes::CaptureConv::OneOf`, computed by `nvs_types::routes::closed_set`; that
-module doc is the home of the gap's statement.
+**§ 1a's `csrf: false` crosses on the row to get there.** `nvs_types::routes::Route::csrf` is
+the declaration's half and `nvs_runtime::routes::Route::new` derives § 4's verb half, which is
+what makes a table built by hand fail closed; `without_csrf` is the rare case.
 
-**A `decimal` or `Core\Uuid` argument still cannot carry a default, and that is `crate::defaults`'
-gap rather than this one's** — a non-literal default is refused before it folds, so an argument at
-either type stays required. `nvs_types::commands::default_text`'s doc is the home of that reading.
+**What the door still does not do is refuse, and that is a seam rather than an omission.** § 4's
+refusal needs the token verified, and `nvs-server` reaches neither half of ADR 0060's
+verification: `Core\Csrf::verify` is `nvs-stdlib`'s, a crate above it, and no `[http]` directive
+names a key. `crates/nvs-server/src/route.rs`'s module doc is the home of that gap and of the
+label's — nothing exports a metric yet.
 
-**The driver's failed acceptance check is unchanged and still an open item, not a regression**:
-neither half of `the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again`
-exists — `nvs-server` neither enforces ADR 0096 § 4's CSRF check nor emits ADR 0076 § 1's `route`
-label off the match ADR 0102 § 1 already makes at the door. It is Backlog below, not this group.
+**`nvs_runtime::commands`' gap 1 is now one, not two: the enum.** A union of literal types
+converts as `ArgConv::OneOf`, off the same `nvs_types::routes::closed_set` the route table's
+captures use, and a word outside the set is a *usage* error naming every value that would have
+been accepted. The value is the word, as `routes` answers the same set with `Param::Text`.
 
-**`orient.py` did not print ADR 0086 § 6 itself.** Every anchor cited it and the pack had 0102's
-sections instead; the work was done off the code's own citations. `[context] adrs` wants
-`0086:6`.
+**The group's order was swapped, and the reason is in the code:** `closed_set` answers `None` for
+an enum, so the union half needed only the `OneOf` row both halves want, where the enum half
+needs two things nothing has decided — a case's written spelling, and the class named on the row
+to build a value from. That is the next item, and the gap case still has the enum to use.
 
 ## Next group
 
-**The rest of `crate::commands`' gap 1 — the two conversions that need a closed set on the row.**
-The file set is the one this session already had open: `crates/nvs-types/src/commands.rs`,
-`crates/nvs-runtime/src/commands.rs`, `crates/nvs-cli/src/main.rs` and
-`crates/nvs-stdlib/src/command.rs`, plus the two route-side files that hold the shape to copy.
+**The enum command argument, then the corpus over both conversions.** The file set is the one
+this session had open: `crates/nvs-types/src/commands.rs`, `crates/nvs-runtime/src/commands.rs`,
+`crates/nvs-cli/src/main.rs` and `crates/nvs-stdlib/src/command.rs`.
 
-- [ ] **`CommandArg` carries a closed set, and an enum argument converts** (ADR 0086 § 6) — the
-      variant to add is beside `crates/nvs-runtime/src/commands.rs:57`'s `Decimal`, the shape to
-      copy is `crates/nvs-runtime/src/routes.rs:106`'s `OneOf(Vec<String>)`, the computation to
-      reuse is `crates/nvs-types/src/routes.rs:1738`'s `closed_set`, the choice is
-      `crates/nvs-types/src/commands.rs:185`, the crossing is `crates/nvs-cli/src/main.rs:784`,
-      and the arm that turns text into a value is `crates/nvs-stdlib/src/command.rs:513`. The
-      value an enum case becomes is the question `nvs_runtime::routes` answers with
-      `Param::Text`, and a command argument declared at an enum wants the *case*, so this slice
-      decides that and records it in `crates/nvs-runtime/src/commands.rs:57`'s own doc.
-- [ ] **A union of literal types converts** (ADR 0086 § 6) — the same six anchors and no second
-      variant: `closed_set` already answers a union at
-      `crates/nvs-types/src/routes.rs:1738`, and § 3 admits exactly the members
-      `crates/nvs-types/src/commands.rs:699` lists.
-- [ ] **The corpus follows, and the gap case has no type left to use**
-      (`crates/nvs-stdlib/src/command.rs:281`) — with both conversions landed, no *compiling*
-      program can reach `ArgConv::Unconverted`, so
-      `tests/conformance/core/command-run-throws-for-a-parameter-no-argument-converts-into.nvst:1`
-      is deleted rather than rewritten a second time, and the variant stays only because
-      `conversion_of` is total. Two `.nvst` cases replace it, one per conversion, each naming the
-      value a good word becomes and each with a sibling pinning the usage status for a word
-      outside the set — the shape
-      `tests/conformance/core/command-run-converts-a-decimal-argument-to-the-exact-number-written.nvst:1`
-      already has.
+- [ ] **`ArgConv` carries an enum's class and cases, and an enum argument converts**
+      (ADR 0086 § 6) — the variant to add is beside `crates/nvs-runtime/src/commands.rs:72`'s
+      `OneOf`, and it needs a *class* as well as a set, which `OneOf` deliberately does not
+      carry. Two decisions this slice makes and records in that variant's own doc: the word a
+      case is written as on a command line (the case name, or ADR 0010 § 3's backing value —
+      `crates/nvs-types/src/routes.rs:1779`'s `closed_set` returns `None` rather than guess it),
+      and the value it becomes, which wants the case and so wants
+      `crates/nvs-runtime/src/object.rs:637`'s `EnumCases` off the class descriptor. The choice
+      is `crates/nvs-types/src/commands.rs:196`, its admission is
+      `crates/nvs-types/src/commands.rs:710`, the crossing is `crates/nvs-cli/src/main.rs:805`
+      and the arm that turns text into a value is `crates/nvs-stdlib/src/command.rs:543`.
+- [ ] **The corpus follows both conversions** (ADR 0086 § 6) — a `.nvst` case for a union
+      argument admitted and refused, over `crates/nvs-stdlib/src/command.rs:543`'s arm and the
+      usage text it produces; and the gap case, which still has the enum as a type no matcher
+      converts. `crates/nvs-runtime/src/commands.rs:41`'s known gap 1 is what it pins.
 
 ## Backlog
 
-- `the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again` — neither half
-  exists; ADR 0096 § 4 and ADR 0076 § 1 over ADR 0102 § 1's match, in `crates/nvs-server`.
-- `docs/agent/goals/19-parses.md:116` and `:122` still say `decimal` and `Core\Uuid` are
-  `Unconverted` as a capture and as an argument; both went stale this session and the last. That
-  goal has not run — its own doc owns the repair.
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, narrowed by
-  `docs/plan/m7.md`.
-- `nvs_runtime::routes`' three known gaps: the linear scan, the row that does not cross, and
-  percent-decoding — that module's doc owns them.
+- The CSRF *refusal*: needs a key at the door and a session to bind to — a configuration
+  decision. `crates/nvs-server/src/route.rs` known gap 1.
+- ADR 0076's exporter: nothing in the tree emits a series, so `route::label` has no caller.
+  Same file, known gap 2.
+- An `int` literal union binds its digits rather than the number, in both tables.
+  `nvs_runtime::commands::ArgConv::OneOf`'s doc.
+- `orient.py` did not print ADR 0086 § 6, and the previous handoff said so too; `[context] adrs`
+  still wants `0086:6`. It did print 0096 § 4 and 0102 §§ 1/8, which is what this session needed.

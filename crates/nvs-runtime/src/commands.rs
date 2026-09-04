@@ -38,16 +38,26 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Two of § 6's conversions are [`ArgConv::Unconverted`].** An enum and a
-//!    union of literal types are types
-//!    `nvs_types::commands::converts_from_string` admits and no matcher turns
-//!    text into yet, so a command declaring one compiles and refuses at the
-//!    moment it is *run* rather than at the moment it is written. Both are a
-//!    narrowing to a **closed set the compiler holds and this row does not** —
-//!    the enum's cases, or the union's members — so closing them needs a field
-//!    on [`CommandArg`] to carry that set as well as the matcher's arm. That is
-//!    what made them the two left after `decimal` and `Core\Uuid`, whose
-//!    grammars needed nothing new to cross.
+//! 1. **One of § 6's conversions is [`ArgConv::Unconverted`]: an enum.** It is
+//!    a type `nvs_types::commands::converts_from_string` admits and no matcher
+//!    turns text into yet, so a command declaring one compiles and refuses at
+//!    the moment it is *run* rather than at the moment it is written.
+//!
+//!    Its sibling — a union of literal types — closed with
+//!    [`ArgConv::OneOf`], and what is left of the gap is the half that variant
+//!    deliberately does **not** answer. Both are a narrowing to a closed set
+//!    the compiler holds, and carrying the set was the whole of the union's
+//!    problem; an enum's is the other one. `nvs_types::routes::closed_set`
+//!    answers `None` for it because a case's *written spelling* is undecided —
+//!    the case name, or ADR 0010 § 3's backing value — and a set half of whose
+//!    members had no spelling would refuse command lines that are correct. The
+//!    value is the second half: a union of literal types binds the word it
+//!    matched, which is what its declared type is, where a parameter declared
+//!    at an enum wants the **case** and nothing here can build one — an enum
+//!    case is [`crate::object::EnumCases`] on the class's own descriptor, which
+//!    this row does not reach. Closing it therefore needs both a spelling
+//!    decided and a class named on the row, and neither is
+//!    [`ArgConv::OneOf`]'s to have decided.
 
 /// What an argument's text becomes before the handler is called.
 ///
@@ -56,7 +66,9 @@
 /// already picked for it. `nvs_types::commands::ArgConv` is where the choice is
 /// made and is the home of the rule; this is the same closed set with the
 /// compiler's types taken off it.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// Not `Copy` since [`Self::OneOf`] carries its set; `nvs_types::commands::
+/// ArgConv`'s own note is the home of why that costs nothing.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgConv {
     /// `string` — the argument's own text, unconverted and `tainted`.
     Text,
@@ -78,6 +90,18 @@ pub enum ArgConv {
     /// command line supplies and a segment a route matches are admitted by one
     /// grammar rather than by two that agree today.
     Uuid,
+    /// § 3's closed set: the word each member of a union of literal types
+    /// admits, in the order the union declares them, and a usage error for
+    /// anything else — a command line is input, so a word outside the set is
+    /// never a throw.
+    ///
+    /// **The value a matched word becomes is the word**, as
+    /// [`crate::routes::CaptureConv::OneOf`] answers the same set with
+    /// [`crate::routes::Param::Text`]. A union of `int` literals therefore
+    /// binds the digits rather than the number, which is one wrinkle shared by
+    /// the two tables rather than two answers that could come to disagree; ADR
+    /// 0086 § 6 and ADR 0102 § 5 are the one home of the rule both read.
+    OneOf(Vec<String>),
     /// A type § 6 admits and [`crate::commands`]'s gap 1 does not convert yet.
     Unconverted,
 }
