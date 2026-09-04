@@ -291,6 +291,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_post",
             doc: Some(&POST_DOC),
         },
+        CoreMethod {
+            name: "route",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::router::MATCH_NAME)),
+            symbol: "nvs_core_request_route",
+            doc: Some(&ROUTE_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -534,6 +543,24 @@ const POST_DOC: MethodDoc = MethodDoc {
                    length it declared.",
         },
     ],
+};
+
+/// `Core\Request::route`'s reference card — ADR 0117.
+const ROUTE_DOC: MethodDoc = MethodDoc {
+    short: "The route this request matched, which the server took once at the door before any of \
+            this program ran — the same match the CSRF check and the `route` metric label read, \
+            so a handler never matches its own path a second time.",
+    params: &[],
+    ret: "A `Core\\Router\\Match` answering the declared name and the path's captures, or `null` \
+          where nothing in the table claimed this method and path — which is a served request \
+          like any other, since matching dispatches nothing. A program declaring no `#[Route]` \
+          builds no table and reads `null` here for the same reason.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request, as a CLI program, a scheduled script, a \
+               job worker and a test are not — refused rather than answered `null`, because \
+               \"no request arrived\" and \"nothing matched\" are different facts.",
+    }],
 };
 
 /// `Core\Request::bodyStream`'s answer, as [`CoreTy::Instance`] spells it.
@@ -985,6 +1012,7 @@ pub(crate) const PART_CONTENT: CoreClass = CoreClass {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_request_method" => (nvs_core_request_method as *const ()).cast(),
+        "nvs_core_request_route" => (nvs_core_request_route as *const ()).cast(),
         "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
@@ -1442,6 +1470,36 @@ nvs_runtime::nvs_helper! {
             ));
         };
         Ok(Value::int(ordinal))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::route(): ?Core\Router\Match` — ADR 0102 § 1's match, read
+    /// where the section says a program reads it.
+    ///
+    /// **Nothing here matches.** The row was chosen by `nvs_server::route`
+    /// before this program started and travels on the [`Inbound`]; this member
+    /// hands it over. A second match here is precisely what § 1 exists to
+    /// remove, and it would also be a *different* match — the door held the
+    /// unit's own table and the mount-stripped path, and neither is a fact this
+    /// call can re-derive.
+    ///
+    /// **`null` is one answer for three absences**, which is
+    /// [`Ctx::route`](nvs_runtime::Ctx::route)'s own reading: the program
+    /// declared no `#[Route]`, or the table claimed nothing for this method and
+    /// path, or the request reached this program by a door that takes no match.
+    /// A program cannot act differently on those three — in all of them there
+    /// is no route, and § 1's rule is that having none is a served request like
+    /// any other — so splitting them would be surface with no decision behind
+    /// it. **No request at all is the fourth case and is not one of them**: it
+    /// refuses through [`inbound_of`], on the terms every other reader of this
+    /// class refuses.
+    fn nvs_core_request_route(ctx, _args: [0]) {
+        let inbound = inbound_of(ctx, "route")?;
+        Ok(match inbound.route() {
+            Some(matched) => crate::router::match_value(matched),
+            None => Value::null(),
+        })
     }
 }
 

@@ -1,7 +1,9 @@
 //! `Core\Http\Method` — the closed set of verbs a route is declared under —
-//! and `Core\Router`'s link half, which is as much of
+//! `Core\Router`'s link half, which is as much of
 //! [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md)'s router as
-//! exists today.
+//! exists today, and `Core\Router\Match`, the match
+//! [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! § 1 has the door take once and `Core\Request::route()` hand back.
 //!
 //! # Why the enum is here rather than in a module of its own
 //!
@@ -57,8 +59,11 @@
 //!    resolved none, rather than answering an empty authority.
 //! 3. **`match` and `methodsFor` are absent.** § 4's other two members answer a
 //!    *request*, which lands with the server; `docs/agent/loop-goal.md`
-//!    § *Standing decisions* keeps `::match` out of scope on purpose, and
-//!    `Core\Router\Match` — the type both answer with — does not exist either.
+//!    § *Standing decisions* keeps `::match` out of scope on purpose. The type
+//!    both answer with is here — [`MATCH`], reached through
+//!    `Core\Request::route()` — so what those two would still owe is a table to
+//!    match a *second*, program-chosen path against, and ADR 0102 § 2's
+//!    `methodsFor` walk behind it.
 //! 4. **The parse of a verb into one of these cases is [`crate::request`]'s**,
 //!    not this module's — `Core\Request::method` is the one reader that turns a
 //!    method token into a case, and its module doc owns the two decisions in
@@ -69,10 +74,10 @@
 //!    it lands, the refusal is a throw inside the program rather than a status
 //!    outside it.
 
-use nvs_runtime::{Fault, HelperResult, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc,
+    CaseDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 use crate::uri::{Form, encode};
 
@@ -274,6 +279,135 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Router\Match`'s fully-qualified name, written once so the registry row
+/// and every message quoting it cannot drift apart.
+pub(crate) const MATCH_NAME: &str = r"Core\Router\Match";
+
+/// [`MATCH`]'s slots, in the order [`match_value`] fills them.
+const MATCH_ROUTE_NAME: usize = 0;
+const MATCH_PARAMS: usize = 1;
+
+/// ADR 0102 § 5's capture as a program reaches it, and the one place the three
+/// forms of [`nvs_runtime::routes::Param`] are spelled as a type.
+///
+/// A union rather than a `string`, because § 1 says the server computes "typed
+/// parameters" and answering the segment text for a `{id: uint}` route would
+/// make the program parse a second time what the matcher already parsed — the
+/// two-readings-that-can-disagree shape this crate refuses everywhere else. A
+/// union rather than [`CoreTy::Mixed`] because the text arm is `tainted`: a
+/// capture is a piece of the request path the peer wrote, and `mixed` is a type
+/// a program can cast the mark off. `int` and `uint` are both members and
+/// neither subsumes the other — `nvs_types`' assignment relation widens each
+/// only to `float` — so a `uint` capture past `i64::MAX` still has a type.
+const CAPTURE: &CoreTy = &CoreTy::Union(&[CoreTy::TaintedStr, CoreTy::Int, CoreTy::Uint]);
+
+/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 1's match, as the program answering the request reads it.
+///
+/// # It is built where the match crosses, and holds no route
+///
+/// [`nvs_runtime::routes::Match`] holds an `Arc<Route>` and travels from the
+/// door on [`nvs_runtime::Inbound`]; this class holds the two answers a program
+/// asked for and nothing else, built by [`match_value`] each time
+/// `Core\Request::route()` is read. So the row stays where § 1 put it — on the
+/// request, taken once — and nothing about the compiled table is reachable
+/// through an object a program is holding. What it spends is one instance and
+/// one array of the path's own captures per *read*, which is a handful of
+/// values against a route's two or three captures and O(in-flight) either way.
+///
+/// # The name is the program's, the captures are the peer's
+///
+/// [`MATCH_NAME_DOC`]'s `?string` comes out of the unit's own
+/// `#[Route(name: …)]` literal, so it is plain text and a sink takes it. Every
+/// capture is a segment of the path the request arrived with, so its text arm
+/// is `tainted` — [`CAPTURE`] owns that reasoning. A program that mixed the two
+/// up would be laundering the request through the route table, which is the one
+/// direction `AGENTS.md`'s priority 1 does not trade.
+///
+/// A capture's text is still **percent-encoded**, which is
+/// [`nvs_runtime::routes`]' own gap 4: decoding belongs to [`crate::uri`] and a
+/// second decoder below it would be two launderers that agree today.
+///
+/// # Why there is no `route()` reader here
+///
+/// § 1's "matching is not dispatching" as a shape: a member answering the
+/// matched row would put the handler's `Class::method` label, its access
+/// decision and its declared verb in front of a program, which is the surface
+/// [ADR 0077](../../../../docs/adr/0077-compile-time-routing.md) § 4 refuses to
+/// grow. The name and the captures are what the three rules § 1 names actually
+/// read, and they are all that crosses.
+pub(crate) const MATCH: CoreClass = CoreClass {
+    name: MATCH_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_router_match_name",
+            doc: Some(&MATCH_NAME_DOC),
+        },
+        CoreMethod {
+            name: "params",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(CAPTURE),
+            symbol: "nvs_core_router_match_params",
+            doc: Some(&MATCH_PARAMS_DOC),
+        },
+        CoreMethod {
+            name: "param",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(CAPTURE),
+            symbol: "nvs_core_router_match_param",
+            doc: Some(&MATCH_PARAM_DOC),
+        },
+    ],
+    slots: &["name", "params"],
+    constants: &[],
+};
+
+/// `Core\Router\Match::name`'s reference card — ADR 0117.
+const MATCH_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The declared name of the route this request matched, as its `#[Route(name: …)]` wrote \
+            it — the same string `Core\\Router::url` resolves and the `route` metric label \
+            carries.",
+    params: &[],
+    ret: "The name, or `null` where the matched route declares none. Not `tainted`: it is the \
+          unit's own literal and not anything the request carried.",
+    errors: &[],
+};
+
+/// `Core\Router\Match::params`'s reference card — ADR 0117.
+const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
+    short: "Every capture the matched path filled, keyed by the parameter name it binds, in path \
+            order.",
+    params: &[],
+    ret: "An array of the captures. A `{name}` declared `string` answers `tainted string` and is \
+          still percent-encoded; one declared `int` or `uint` answers the number the match \
+          already converted. A route with no captures answers an empty array.",
+    errors: &[],
+};
+
+/// `Core\Router\Match::param`'s reference card — ADR 0117.
+const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
+    short: "One capture by the parameter name it binds — `params()` read at one key, and the \
+            spelling a handler reaching for a single segment writes.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The capture's name as the route's path declared it, without the braces.",
+        shape: &[],
+    }],
+    ret: "The capture, on `params()`'s terms, or `null` where the matched route declares no \
+          capture under that name — including an optional `{name?}` the request left off.",
+    errors: &[],
+};
+
 /// The two symbols ADR 0077 § 4's **folded** link is lowered to, and the wire
 /// format they read argument 0 as.
 ///
@@ -327,6 +461,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
+        "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
+        "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
+        "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
         _ => return None,
     })
 }
@@ -572,6 +709,125 @@ nvs_runtime::nvs_helper! {
     /// from in a program run off the command line at all.
     fn nvs_core_router_url_absolute(_ctx, args: [2]) {
         Err(no_such_route("urlAbsolute", args))
+    }
+}
+
+// ---------------------------------------------------------------- ADR 0102 § 1's match
+
+/// The [`MATCH`] one request carries, built out of the match the door already
+/// took — the whole of how [`nvs_runtime::routes`]' row reaches a program.
+///
+/// `pub(crate)` because the reader is [`crate::request`]'s `route()`: § 1 puts
+/// the match on the request rather than on the router, and the class it answers
+/// with is this module's because `Core\Router\Match` is a `Core\Router` name.
+pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Value {
+    let mut params = NvsArray::new();
+    for (name, capture) in matched.params() {
+        params.set(NvsStr::new(name.as_bytes()), capture_value(capture));
+    }
+    crate::instance::build(
+        &MATCH,
+        [
+            match matched.name() {
+                Some(name) => Value::str(NvsStr::new(name.as_bytes())),
+                None => Value::null(),
+            },
+            Value::array(params),
+        ],
+    )
+}
+
+/// One capture as [`CAPTURE`] spells it — the one place
+/// [`nvs_runtime::routes::Param`]'s three forms become Novis values.
+fn capture_value(capture: &nvs_runtime::routes::Param) -> Value {
+    match capture {
+        nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+        nvs_runtime::routes::Param::Int(number) => Value::int(*number),
+        nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
+    }
+}
+
+/// Slot `index` of a [`MATCH`] receiver, retained for the caller — the shape
+/// [`crate::request`]'s `part_slot` already has, for the same reason: a slot
+/// read is a borrow, and Novis code handed the value needs a reference.
+fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &MATCH, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::name(): ?string` — ADR 0102 § 1's declared name,
+    /// which ADR 0076 § 1's `route` label reads and `Core\Router::url` resolves.
+    fn nvs_core_router_match_name(_ctx, args: [1]) {
+        match_slot(args, MATCH_ROUTE_NAME, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::params(): array<tainted string|int|uint>` — every
+    /// capture the path filled, keyed by the parameter it binds.
+    ///
+    /// The array is built once by [`match_value`] and read back here, so the
+    /// two members answer the same values rather than two walks of one row.
+    fn nvs_core_router_match_params(_ctx, args: [1]) {
+        match_slot(args, MATCH_PARAMS, "params")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint)` —
+    /// [`nvs_core_router_match_params`] read at one key.
+    ///
+    /// **`null` for a name the route does not declare**, rather than a throw,
+    /// and that is [`MATCH_PARAM_DOC`]'s stated answer rather than
+    /// `Core\Regex\Match::group`'s: an optional `{name?}` the request left off
+    /// is absent from the array and is the ordinary case § 4 exists for, so a
+    /// member that threw for an unknown name would have to tell two absences
+    /// apart that the table itself does not.
+    fn nvs_core_router_match_param(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &MATCH, "param")?;
+        let params = crate::instance::slot(receiver, MATCH_PARAMS);
+        // Unreachable from source: the slot's layout is this crate's on both
+        // sides — [`match_value`] is the only writer of it and always writes a
+        // `Value::array` — and a program can reach a `Core\Router\Match` no
+        // other way, since `CoreTy::Instance` gives the class no constructor
+        // and `E0401` refuses a receiver that is not one.
+        let array = params.array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router\\Match::param found tag {} in its `params` slot",
+                params.tag_byte()
+            ))
+        })?;
+        // Unreachable from source for the reason every mistyped argument slot
+        // is: the row's parameter is `CoreTy::Text(Qual::Neutral)`, so `E0401`
+        // refuses anything that is not a `string` before this body runs.
+        let key = args[1].as_str_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router\\Match::param expected a `string` name, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let found = crate::arr::borrowed(array).get(key).unwrap_or_else(Value::null);
+        #[expect(
+            unsafe_code,
+            reason = "the params array owns the reference this borrowed read returned, \
+                      so the caller needs one of its own; a `null` owns none and \
+                      retaining it is a no-op"
+        )]
+        unsafe {
+            found.retain();
+        }
+        Ok(found)
     }
 }
 

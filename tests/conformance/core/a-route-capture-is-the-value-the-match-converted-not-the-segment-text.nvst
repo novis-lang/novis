@@ -1,0 +1,29 @@
+--TEST--
+A capture reaches the program as the value the match already converted, so `Core\Router\Match::params` answers a union and not one text type — ADR 0102 §§ 1 and 5
+--FILE--
+<?nvs
+// A bound stated as a type. § 1 has the server compute "typed parameters", so a
+// `{id: uint}` capture arrives as the number the match converted rather than as
+// digits the handler would parse a second time -- and two parsers of one
+// segment is the shape that can disagree. `Core\Router\Match` therefore answers
+// `uint|int|tainted string`, and a `tainted string` binding -- exactly right for
+// the text arm and for that arm alone -- refuses the other two.
+//
+// The mark sits on the text arm because a segment is a piece of the request
+// path the peer wrote. The two numeric arms carry none: a converted `int` has
+// no spelling an injection could survive, which is why the qualifier axes are
+// defined over `string` and `bytes` and not over every type.
+var $matched = Core\Request::route();
+if ($matched != null) {
+    foreach ($matched->params() as tainted string $capture) {
+    }
+    echo $matched->name() ?? "none", "\n";
+    echo $matched->param("id") ?? "none", "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `tainted string`, found `uint|int|tainted string`
+   --> case.nvs:15:36
+%A
+error: aborting due to 1 error

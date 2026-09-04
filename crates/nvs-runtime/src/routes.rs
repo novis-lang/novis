@@ -60,12 +60,15 @@
 //!    conversion exists as a `Core` member and what is missing is the arm. A
 //!    route declaring one therefore matches a segment its declared type would
 //!    have refused.
-//! 3. **The one reader has not landed.** `Core\Request::route()` is what § 1
-//!    gives a program to read a match with, and `Core\Router\Match` — the type
-//!    it answers — does not exist yet either (`nvs_stdlib::router`'s own gap 3
-//!    names the same absence from the other side). Until it does, the match is
-//!    taken and carried and nothing in a program can see it, which is the
-//!    ordering § 1 asks for with its second half still owed.
+//! 3. **The reader answers the name and the captures, and never the row.**
+//!    `Core\Request::route()` has landed and `nvs_stdlib::router`'s
+//!    `Core\Router\Match` is what it answers with, built out of [`Match`] where
+//!    the match crosses. What does not cross is the [`Route`] itself — its
+//!    handler label, its declared verb and its access decision stay on this
+//!    side, because a program that could read them is one step from the
+//!    dispatch ADR 0077 § 4 refuses. Nothing needs them yet, and the day
+//!    something does is the day that refusal is re-argued rather than widened
+//!    here.
 //! 4. **A capture's value is the segment as it arrived, still percent-encoded.**
 //!    Decoding is `nvs_stdlib::uri`'s, one crate above this one, and a second
 //!    decoder here would be the two-that-agree-today failure the tainted

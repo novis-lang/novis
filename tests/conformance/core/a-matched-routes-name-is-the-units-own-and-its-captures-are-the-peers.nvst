@@ -1,0 +1,29 @@
+--TEST--
+A matched route's declared name is the unit's own literal and its captures are the peer's, so only one of the two refuses a plain `string` — ADR 0102 § 1, ADR 0024 § 1
+--FILE--
+<?nvs
+// Agreement, asked of the two things one `Core\Router\Match` carries: what
+// decides the qualifier is where the value came from, and nothing about which
+// member answered it. `name()` is the string the unit's own `#[Route(name: …)]`
+// wrote, so a plain `string` target takes it and the first binding below
+// compiles; a capture is a segment of the path the request arrived with, so the
+// same target refuses it and the last one does not.
+//
+// Both halves are load-bearing. A match that marked the name as well would make
+// a route's own name unusable at every sink it was declared for -- the metric
+// label and the link builder -- and one that marked neither would launder the
+// request path through the route table, which is the direction that costs.
+var $matched = Core\Request::route();
+if ($matched != null) {
+    string $named = $matched->name() ?? "";
+    foreach ($matched->params() as mixed $each) {
+    }
+    string $segment = $matched->param("id") ?? "0";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `string|uint|int|tainted string`
+   --> case.nvs:18:23
+%A
+error: aborting due to 1 error

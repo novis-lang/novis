@@ -1291,6 +1291,10 @@ pub const CLASSES: &[CoreClass] = &[
     // `methodsFor` answer a request and land with the server; [`crate::router`]
     // owns why, and owns the enum that section's `method` parameter takes.
     crate::router::CLASS,
+    // ADR 0102 § 1's match, which is a `Core\Router` name and so lives in that
+    // module — but is produced by `Core\Request::route()` rather than by
+    // anything on the class above, because § 1 puts the match on the *request*.
+    crate::router::MATCH,
     crate::csv::CLASS,
     // ADR 0023 § 2's externalizing carrier, and no spec § of its own: the walk
     // it reaches is `nvs_runtime::graph`'s, shared with the `spawn` boundary.

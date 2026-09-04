@@ -1,0 +1,24 @@
+--TEST--
+`Core\Request::route()` answers `?Core\Router\Match`, so a program cannot read the match without saying what it does when nothing matched — ADR 0102 § 1, spec § 15
+--FILE--
+<?nvs
+// A boundary, on the absence § 1 states: nothing in the table claimed this
+// method and path, which is a served request like any other because matching
+// dispatches nothing. So the answer is `?Core\Router\Match` and never a match
+// with an empty name, and the case a handler most wants to forget is the one
+// the checker makes it write down.
+//
+// No runtime assertion can show it: a program with no request at all refuses
+// before any of this runs, and a served one that matched would answer an
+// object either way. The refusal is the pin, and it is the binding that fails.
+Core\Router\Match $matched = Core\Request::route();
+echo $matched->name() ?? "none", "\n";
+var $captures = $matched->params();
+echo $matched->param("id") ?? "none", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Router\Match`, found `null|Core\Router\Match`
+   --> case.nvs:11:30
+%A
+error: aborting due to 1 error

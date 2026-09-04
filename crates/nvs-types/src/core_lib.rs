@@ -1165,7 +1165,15 @@ mod tests {
     /// a named launderer standing in front of it: it is a claim about a file on
     /// someone else's machine, and `Core\IO::within` is what turns one into a
     /// path here.
-    /// All sixteen belong in this set for the reason the claims do: a member that
+    /// The eighteenth and nineteenth are `Core\Router\Match`'s two capture
+    /// readers, and they are the only rows here whose answer is a *union*: a
+    /// capture is the segment text where the route declared `string` and the
+    /// number the match already converted where it declared `int` or `uint`
+    /// ([ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 5), so the mark sits on the one arm that can carry an injection.
+    /// `name()` is deliberately not among them, which is the same test read the
+    /// other way — a route's declared name is the unit's own literal.
+    /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     ///
@@ -1233,13 +1241,24 @@ mod tests {
                 ),
                 (r"Core\Request\Part", "name", "tainted string".to_owned()),
                 (r"Core\Request\Part", "readAll", "tainted bytes".to_owned(),),
+                (
+                    r"Core\Router\Match",
+                    "param",
+                    "uint|int|null|tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Router\Match",
+                    "params",
+                    "array<uint|int|tainted string>".to_owned(),
+                ),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at seventeen — \
+            "the roster of members whose *answer* is qualified `tainted` is closed at nineteen — \
              a verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
              with, everything attached to its standard input, the five reads of the request \
-             being answered, the three declarations one of its uploaded parts made and the \
-             bytes of that part held whole. `content()` is not one of them and is not a gap: \
+             being answered, the three declarations one of its uploaded parts made, the \
+             bytes of that part held whole, and the two readers of the captures the matched \
+             route filled. `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \
              collection the \
@@ -1293,11 +1312,15 @@ mod tests {
     /// two: ADR 0105 § 2 gives a submitted form the parse a query string gets,
     /// so a tainted array would close both in the same edit. Naming them here
     /// is what makes closing it an edit to this assertion instead of a test
-    /// that stays green across the fix. The other three plain rows are not
+    /// that stays green across the fix. The other four plain rows are not
     /// outside data at all: `method` has narrowed to a closed enum before
-    /// anything can hold a payload, `isHead` is one bit derived from it, and
+    /// anything can hold a payload, `isHead` is one bit derived from it,
     /// `saveTo` answers `void` because its bytes went to a file rather than to
-    /// the caller.
+    /// the caller, and `route` answers an instance of a class *outside* this
+    /// prefix — `Core\Router\Match`, whose two capture readers are marked and
+    /// are checked by the sibling test above. That last one is the third shape
+    /// this sweep cannot see on its own, beside the two the buckets handle: a
+    /// row handing the question to a class the prefix does not reach.
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {
         use nvs_stdlib::registry::iterable_element;
@@ -1346,11 +1369,17 @@ mod tests {
                 (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
                 (r"Core\Request", "post", "mixed".to_owned()),
                 (r"Core\Request", "query", "mixed".to_owned()),
+                (
+                    r"Core\Request",
+                    "route",
+                    r"null|Core\Router\Match".to_owned(),
+                ),
                 (r"Core\Request\Part", "saveTo", "void".to_owned()),
             ]),
-            "the request tree's rows that answer an unqualified value are closed at five, and \
-             three of them answer nothing a peer chose: a closed method enum, the bit derived \
-             from it, and the `void` of bytes that went to a file. `query` and `post` are the \
+            "the request tree's rows that answer an unqualified value are closed at six, and \
+             four of them answer nothing a peer chose: a closed method enum, the bit derived \
+             from it, the `void` of bytes that went to a file, and the matched route, whose \
+             own class carries the mark on the captures it hands back. `query` and `post` are the \
              other two and are one known hole — § 9's brackets make a value a `string` or a \
              nested array and there is no tainted array, so a member added here answering a bare \
              `string` off the wire joins this set and is the thing it exists to catch"
