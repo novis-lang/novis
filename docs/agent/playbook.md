@@ -7102,6 +7102,14 @@ sibling in the same namespace unqualified.
   caused it. The same shape as the `nvs-ir` label list an `errors::TREE` row breaks, and found the
   same way: run the whole gate rather than `-p nvs-stdlib`. Update the set, the count in the
   message and the doc comment's enumeration together; they are three statements of one roster.
+- **A handler closure in `nvs-cli` takes its parameter type from its first statement, and the type it
+  infers cannot be written down there.** `move |request| { … }` compiles only because
+  `table.select(&request, &OnDisk)` pins it to `Request<Incoming>`; a read of the request placed
+  *above* that line is `E0282: type annotations needed`, pointing at the closure and not at what
+  moved. The annotation the compiler asks for is unsayable — `nvs-cli` has no `hyper` dependency and
+  ADR 0051 § 4's answer is that it should not gain one for a parameter type. `nvs_server` re-exports
+  `Request` and `Incoming` for exactly this, so the fix is a `use` and an annotated parameter, not a
+  body reordered around inference.
 
 ## Divergences and refusals already pinned
 
