@@ -7286,6 +7286,14 @@ sibling in the same namespace unqualified.
   `spec-members-part-two-outstanding.txt`, whose line only shrinks and which fails with "names a
   member that is registered now" rather than with anything about the member. Budget all three when
   the row you are adding is qualified.
+- **Two ADRs can describe one wire event, and the one you are handed may state the answer while
+  the other states the precondition.** ADR 0074 § 2 says what a preflight is answered with; ADR
+  0097 § 4 is where a preflight is *defined* — an `OPTIONS` carrying `Origin` **and**
+  `Access-Control-Request-Method` — and the landed `Cors::preflight` read only the second header,
+  so it took the policy's answer for a request 0097 calls an ordinary `OPTIONS`. Nothing failed:
+  under a closed policy both readings refuse, and the divergence only became reachable when the
+  open half landed. `python tools/peek.py 'docs/adr/*.md:re:<the noun>'` finds every ADR naming
+  the event in one call, and it is worth spending before writing the predicate rather than after.
 
 ## Divergences and refusals already pinned
 

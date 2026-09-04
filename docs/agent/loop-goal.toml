@@ -129,6 +129,13 @@ adrs = [
   "0105 §2",
   "0105 §3",
   "0105 §4",
+  # Added when ADR 0074 § 2 closed and stage 5's routing item became the open one: § 1 is the rule that the
+  # server matches once before the handler and that `Core\Request::route()` is that match, and § 2 is the
+  # two answers a table gives — `404` where a path has no methods and `405` with `Allow` where it has some.
+  # Every one of the four tests the "match once, and the two answers" check names is specified in one of
+  # them, so a session opening that item without both is reading the check's comment instead of the rule.
+  "0102 §1",
+  "0102 §2",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
