@@ -134,6 +134,16 @@ calls a session across only 20.3 distinct files — and since the two hottest fi
 against the file's 276 KB. `peek.py` counts a session's fetches per file and names the flag once you have
 reached into the same one three times.
 
+**The 400-line floor is enforced on both sides now.** `peek.py` has always refused a bare `path` over
+`--max-lines` — 400, which is AGENTS.md rule 3's "whole file under ~400 lines" and the one home for that
+number. The harness's own `Read` tool had no such floor, and it is where the largest single tool result of
+a 72-session run came from: 35,040 bytes of `serve.rs` in one call, with 27 whole-file reads of the 177 KB
+`loop-goal.toml` behind it. `tools/guard-read.py` is a `PreToolUse` hook, wired in `.claude/settings.json`,
+that denies exactly one thing — a `Read` naming no `offset`/`limit` on a file over that same 400 lines —
+and answers with the two `peek.py` calls that would have landed. Claude Code is the only harness that
+reads `.claude/`; every other one gets the same floor from `peek.py`, which is why the hook imports the
+number rather than holding one.
+
 ## Verifying
 
 ```sh
@@ -142,6 +152,7 @@ python tools/verify.py --fast                                  # build + test on
 python tools/verify.py -p nvs-ir                               # the same, scoped to one package
 python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
 python tools/verify.py --no-cache                              # re-run even on an unchanged tree
+python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
 cargo test --release -p nvs-abi-probe --features wasm-probe     # + sandbox probes (pulls in Wasmtime)
 ```
@@ -173,6 +184,13 @@ order, stops at the first failure, and prints about ten lines when green — the
 calls and tens of thousands of tokens of output nobody reads once it passes. Every step's full output is
 written to `.agent-tmp/verify-<step>.log` either way. It judges nothing: a step's own exit status is the
 whole verdict.
+
+**`cargo doc` is not one of those steps.** It is `--doc`, run alone, and `tools/loop.py` runs it after
+every tenth session instead — measured at 41.8s over 72 sessions, 40% of a green verification and ~7% of
+the loop's whole wall clock, for a lint whose inputs are doc comments and which CI runs on every push
+anyway. Nobody needs to type it: the driver's `DOC_GATE_EVERY` fires it between sessions, keeps firing it
+every session while it is red, and a red gate arrives in the next pack under *THE RUSTDOC GATE IS RED*.
+`tools/verify.py` § *Why `doc` is a periodic gate rather than a step* is the whole argument.
 
 `fmt` is second, not last, because it costs a second and a formatting slip should not cost a whole run;
 it is not *first* because `cargo fmt --check` on unparseable code reports a rustfmt parse error instead
