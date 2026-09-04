@@ -9,11 +9,21 @@
 //! `echo secret > f` produces one and every injection system does; a value that genuinely ends in a
 //! newline is written with two.
 //!
-//! **The pair is spelled out in [`materialize`]** — `[db.<name>] password` and nothing else today —
-//! because [`mod@crate::directive`]'s registry carries a key's changeability and reloadability and
-//! has no field for secrecy. When it grows one this becomes a sweep over the registry; until then a
-//! secret directive added without a line here is a `_file` sibling that silently does nothing, and
-//! the roster in [`mod@crate::tree`] is the place that gap shows.
+//! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
+//! credential is covered by adding one row and not by editing a walk: `[db.<name>] password`
+//! ([ADR 0067] § 3a) and `[mail.<name>] password` ([ADR 0082] § 2) today. § 7 speaks of a directive
+//! "the registry marks secret", and this table is that marking.
+//!
+//! It is **not** a fourth field on [`mod@crate::directive`]'s rows, for two reasons that both make
+//! that table the wrong shape rather than merely a different one. A
+//! [`Directive`](crate::directive::Directive) row is a *prefix* — one row answers for every key
+//! beneath it — and secrecy is the opposite of prefix-shaped: `db.main.password` is secret and
+//! `db.main.host`, one segment away inside the same block, is not. And a credential is written in an
+//! operator-*named* block, so its key holds a segment no table can spell literally, while that
+//! registry has no wildcard and needs none, because a changeability class governs a whole block
+//! either way. What the two tables do share is the census habit: a credential on the tree with no
+//! row here, or a row whose value has no `_file` sibling, is a failing assertion in
+//! `tests/secret.rs` rather than a `_file` that silently does nothing.
 //!
 //! **The secret file is a configuration input like any other**, so it goes through
 //! [`Files::trust`] before it is read: an account that can rewrite it
@@ -40,11 +50,14 @@
 //! the table more than once (a reload carries `Boot` values across and retypes), and each of those
 //! rounds has to put the secrets back without re-reading a file.
 //!
-//! Cost: one trust check, one advisory and one whole-file read per secret file, at boot and again
-//! at each `nvs ctl reload`. Nothing here runs per request.
+//! Cost: one trust check, one advisory and one whole-file read per secret file, plus a walk of
+//! [`SECRETS`] against the named blocks the tree has — at boot and again at each `nvs ctl reload`.
+//! Nothing here runs per request.
 //!
 //! [ADR 0015]: ../../../docs/adr/0015-no-name-aliasing.md
 //! [ADR 0033]: ../../../docs/adr/0033-secret-qualifier-for-confidential-values.md
+//! [ADR 0067]: ../../../docs/adr/0067-core-db.md
+//! [ADR 0082]: ../../../docs/adr/0082-core-and-framework-boundary.md
 //! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
@@ -80,6 +93,111 @@ pub struct Materialized {
     pub warnings: Vec<Diagnostic>,
 }
 
+/// One secret directive: the `value`/`value_file` pair § 7 gives a key that holds a credential, as
+/// the four things a sweep needs to know about it and nothing else.
+///
+/// The two accessors are function pointers rather than a block name some `match` turns back into a
+/// field, which is what makes **a pair exactly one row and no second place**: the row that names
+/// `password_file` is the row that reads it, and there is no arm anywhere else to forget. The cost
+/// is a `&'static` table of thin pointers, walked at boot and at each reload and never on the
+/// request path.
+#[derive(Clone, Copy, Debug)]
+pub struct SecretPair {
+    /// The block the pair is written in, where `*` stands for the one segment an operator names —
+    /// `db.*` for ADR 0067's `[db.<name>]`. Every key and every diagnostic is built out of this.
+    pub block: &'static str,
+    /// The value's own segment. Its `_file` sibling is this plus `_file`, and § 7 gives no way to
+    /// spell either half differently.
+    pub value: &'static str,
+    /// Every block of this pair's map the tree has, named or not, secret or not.
+    sites: fn(&Config) -> Vec<Site<'_>>,
+    /// Puts a read value onto the typed tree, at the block named.
+    set: fn(&mut Config, &str, &str),
+}
+
+/// One block a pair could be written in, as the three facts § 7 asks of it.
+#[derive(Clone, Copy, Debug)]
+struct Site<'a> {
+    /// The operator's name for the block — `main`, in `[db.main]`.
+    name: &'a str,
+    /// The `_file` half, where this block names one.
+    file: Option<&'a str>,
+    /// Whether the inline half is set too, which is § 7's `E0608`.
+    inline: bool,
+}
+
+impl SecretPair {
+    /// The block a site is written in, with the operator's name in place of the `*` — `db.main`.
+    #[must_use]
+    pub fn block_of(&self, name: &str) -> String {
+        self.block.replace('*', name)
+    }
+
+    /// The key the pair is the value of — `db.main.password`.
+    #[must_use]
+    pub fn key(&self, name: &str) -> String {
+        format!("{}.{}", self.block_of(name), self.value)
+    }
+
+    /// Its `_file` sibling's key — `db.main.password_file`.
+    #[must_use]
+    pub fn file_key(&self, name: &str) -> String {
+        format!("{}_file", self.key(name))
+    }
+}
+
+/// Every secret directive § 7 marks, one row each.
+pub const SECRETS: &[SecretPair] = &[
+    // ADR 0067 § 3a, and § 7's own "today": the database password, the pair this whole mechanism was
+    // written for.
+    SecretPair {
+        block: "db.*",
+        value: "password",
+        sites: |config| {
+            config
+                .db
+                .iter()
+                .map(|(name, db)| Site {
+                    name,
+                    file: db.password_file.as_deref(),
+                    inline: db.password.is_some(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(db) = config.db.get_mut(name) {
+                db.password = Some(value.to_owned());
+            }
+        },
+    },
+    // ADR 0082 § 2's SMTP endpoint, which holds a submission credential of exactly the kind above:
+    // written by an operator into a named block, sent as `AUTH PLAIN` over `STARTTLS`, and delivered
+    // to a container by the same injected file. § 7 covering one and not the other was an omission
+    // rather than a decision. `nvs_stdlib::mail` needs no change to see it — that module reads
+    // `mail.<name>.password` through `Core\Config`, and [`mod@crate::request`] answers a
+    // materialized secret before it consults the table.
+    SecretPair {
+        block: "mail.*",
+        value: "password",
+        sites: |config| {
+            config
+                .mail
+                .iter()
+                .map(|(name, mail)| Site {
+                    name,
+                    file: mail.password_file.as_deref(),
+                    inline: mail.password.is_some(),
+                })
+                .collect()
+        },
+        set: |config, name, value| {
+            if let Some(mail) = config.mail.get_mut(name) {
+                mail.password = Some(value.to_owned());
+            }
+        },
+    },
+];
+
 /// § 7's cap on a secret file, in bytes.
 ///
 /// Not a resource bound — a credential is never this large, so the cap is what catches a
@@ -108,17 +226,22 @@ pub fn materialize(
     files: &dyn Files,
 ) -> Result<Materialized, Diagnostic> {
     let mut out = Materialized::default();
-    for (name, db) in &config.db {
-        let Some(named) = db.password_file.as_deref() else {
-            continue;
-        };
-        let key = format!("db.{name}.password_file");
-        let written_in = origins.get(&key);
-        if db.password.is_some() {
-            return Err(both_set(&format!("db.{name}"), "password", written_in));
+    for pair in SECRETS {
+        // The sites hold a shared borrow of the tree for the whole inner loop, which is why nothing
+        // in it touches the tree: reading a file needs the path and the key and no more, and
+        // [`apply`] does the writing once the last borrow is gone.
+        for site in (pair.sites)(config) {
+            let Some(named) = site.file else {
+                continue;
+            };
+            let key = pair.file_key(site.name);
+            let written_in = origins.get(&key);
+            if site.inline {
+                return Err(both_set(&pair.block_of(site.name), pair.value, written_in));
+            }
+            let secret = read(named, &key, written_in, files, &mut out.warnings)?;
+            out.secrets.insert(pair.key(site.name), secret);
         }
-        let secret = read(named, &key, written_in, files, &mut out.warnings)?;
-        out.secrets.insert(format!("db.{name}.password"), secret);
     }
     apply(config, &out.secrets);
     Ok(out)
@@ -126,7 +249,7 @@ pub fn materialize(
 
 /// Puts every materialized secret onto a typed tree, at the key it is the value of.
 ///
-/// The pair is spelled out here for the module doc's reason, and this is the *only* place a value
+/// A sweep over [`SECRETS`] like [`materialize`]'s, and this is the *only* place a value
 /// reaches [`Config`]: a tree deserialized from the merged table has `password_file` and no
 /// `password`, so every deserialization is followed by this call — [`materialize`]'s own, and each
 /// one a [`Snapshot`](crate::Snapshot) makes when it retypes.
@@ -135,9 +258,16 @@ pub fn materialize(
 /// secrets came from a table this same tree was built from, so that can only be a caller applying
 /// one tree's secrets to another's configuration.
 pub fn apply(config: &mut Config, secrets: &BTreeMap<String, Secret>) {
-    for (name, db) in &mut config.db {
-        if let Some(secret) = secrets.get(&format!("db.{name}.password")) {
-            db.password = Some(secret.value.clone());
+    for pair in SECRETS {
+        // The names come out owned because the setter takes the tree mutably and a site borrows it.
+        let names: Vec<String> = (pair.sites)(config)
+            .into_iter()
+            .map(|site| site.name.to_owned())
+            .collect();
+        for name in names {
+            if let Some(secret) = secrets.get(&pair.key(&name)) {
+                (pair.set)(config, &name, &secret.value);
+            }
         }
     }
 }

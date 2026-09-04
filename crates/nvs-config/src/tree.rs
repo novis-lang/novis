@@ -467,7 +467,8 @@ pub struct CapMail {
 /// `user` and `password` are the pair that asks for TLS: a block naming them is sent through
 /// `STARTTLS` and refused where the endpoint cannot carry one, and a block naming neither stays in
 /// the clear. `nvs_stdlib::mail`'s module doc is the home of that decision, including why the
-/// upgrade is not opportunistic.
+/// upgrade is not opportunistic. The password is ADR 0103 § 7's kind of value, so `password_file` is
+/// beside it and [`mod@crate::secret`] owns every rule about the pair.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct MailEndpoint {
@@ -478,10 +479,16 @@ pub struct MailEndpoint {
     /// The envelope sender and the `From:` header, both. There is no call-site override: domain
     /// alignment is a fact about the deployment.
     pub from: Option<String>,
-    /// The submission user. Set with `password` or not at all — half a credential is refused.
+    /// The submission user. Set with `password` or not at all — half a credential is refused, and a
+    /// `password_file` is that half arriving as a file.
     pub user: Option<String>,
     /// Its password, sent as `AUTH PLAIN` over the `STARTTLS` its presence requires.
     pub password: Option<String>,
+    /// The file whose whole content is the password, on [`Database::password_file`]'s footing and
+    /// under every rule [`mod@crate::secret`] states: exactly one of this and `password` may be set,
+    /// and it stays set after the value is read so ADR 0103 § 9's dump can name where the secret
+    /// came from.
+    pub password_file: Option<String>,
     /// How long the whole exchange may take, 30s where the block names none.
     pub timeout: Option<String>,
 }

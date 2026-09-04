@@ -348,3 +348,172 @@ fn a_secret_survives_into_the_snapshot_without_entering_the_table() {
         "the content is carried beside the table and never in it — `dump --toml` is that table",
     );
 }
+
+/// A root naming `secrets/mail` as `[mail.relay]`'s password file, with the rest of the block
+/// ADR 0082 § 2 needs so that `nvs_stdlib::mail` would accept it.
+const MAIL_ROOT: &str = "[mail.relay]\nhost = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\npassword_file = \"secrets/mail\"\n";
+
+/// § 7 is about the pairs the registry marks, and `[mail.<name>] password` is the second one: an
+/// SMTP submission credential is written by an operator into a named block and injected into a
+/// container as a file, exactly as a database password is.
+///
+/// The assertion on `secrets` is the one that matters most, and it is not a duplicate of the one on
+/// the typed tree. That map keyed by the *value's* key is what `nvs config dump` renders `<secret>`,
+/// what `Snapshot::retype` puts back, and what `Core\Config::get` — and therefore
+/// `nvs_stdlib::mail`'s own `configured` — answers out of before it ever consults the table. A value
+/// that reached the typed tree and not this map would work in the resolver and vanish at the first
+/// reload.
+#[test]
+fn a_mail_endpoints_password_arrives_as_a_file_too() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", MAIL_ROOT),
+        ("etc/secrets/mail", "relay-hunter2\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+
+    assert_eq!(
+        resolved.config.mail["relay"].password.as_deref(),
+        Some("relay-hunter2"),
+    );
+    assert_eq!(
+        resolved.secrets["mail.relay.password"].value, "relay-hunter2",
+        "filed under the key the value is of, which is what every reader past the resolver asks for",
+    );
+    assert_eq!(
+        resolved.config.mail["relay"].password_file.as_deref(),
+        Some("secrets/mail"),
+        "and the file stays named, so § 9's dump can say where the credential came from",
+    );
+}
+
+/// § 7's one-of-the-pair rule is the registry's and not `[db]`'s: the same refusal, naming the block
+/// that actually set both.
+#[test]
+fn setting_both_halves_of_a_mail_endpoints_pair_is_refused() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[mail.relay]\npassword = \"inline\"\npassword_file = \"secrets/mail\"\n",
+        ),
+        ("etc/secrets/mail", "relay-hunter2\n"),
+    ]);
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SECRET_FILE));
+    assert!(
+        diagnostic.message.contains("mail.relay"),
+        "the refusal names the block that set both, not the pair's first registry row: {}",
+        diagnostic.message,
+    );
+}
+
+/// The credential-shaped field names this census recognizes.
+///
+/// A list rather than a heuristic, and deliberately a short one: it is what to extend when a
+/// deployment starts writing a credential under a name that is not here. Extending it is loud rather
+/// than optional, because the assertion below fails the moment such a field exists without its
+/// `_file` sibling.
+const CREDENTIAL_FIELDS: &[&str] = &[
+    "password",
+    "passphrase",
+    "secret",
+    "token",
+    "api_key",
+    "access_key",
+    "private_key",
+];
+
+/// Every `pub struct` in the config tree, as its name and the field names it declares.
+///
+/// Read out of the source because there is no other way to ask: the tree is a set of `serde` structs
+/// with no runtime field roster, and the whole point of this census is to catch a field that was
+/// added without the row that reads it.
+fn tree_structs() -> Vec<(String, Vec<String>)> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tree.rs");
+    let text =
+        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+
+    let mut out: Vec<(String, Vec<String>)> = Vec::new();
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("pub struct ") {
+            let name = rest
+                .split(|ch: char| !ch.is_alphanumeric() && ch != '_')
+                .next()
+                .unwrap_or_default();
+            out.push((name.to_string(), Vec::new()));
+        } else if line == "}" {
+            // Whatever item just ended, nothing after it belongs to it.
+            out.push((String::new(), Vec::new()));
+        } else if let Some(rest) = line.strip_prefix("    pub ")
+            && let Some((field, _)) = rest.split_once(':')
+            && let Some((_, fields)) = out.last_mut()
+        {
+            fields.push(field.to_string());
+        }
+    }
+    out.retain(|(name, _)| !name.is_empty());
+    out
+}
+
+/// ADR 0103 § 7 marks *directives*, plural: a credential added to the typed tree with no
+/// [`SECRETS`] row is a `_file` sibling that silently does nothing, which is exactly how
+/// `[mail.<name>] password` came to have no file half for as long as it did.
+///
+/// Nothing about that omission failed to compile, and no behavioural case could have found it,
+/// because the missing code and the missing case were the same absence. So this asserts both
+/// directions over the tree's own source: a credential field implies a `_file` sibling and a row,
+/// and a row implies a credential field that has one.
+#[test]
+fn every_credential_on_the_tree_has_a_file_sibling_and_a_secrets_row() {
+    let structs = tree_structs();
+    assert!(
+        structs.iter().any(|(name, _)| name == "Database"),
+        "the census read no structs at all, so it is asserting nothing: {structs:?}",
+    );
+
+    let mut found: BTreeSet<String> = BTreeSet::new();
+    for (name, fields) in &structs {
+        for credential in CREDENTIAL_FIELDS {
+            if !fields.iter().any(|field| field == credential) {
+                continue;
+            }
+            found.insert((*credential).to_string());
+            let sibling = format!("{credential}_file");
+            assert!(
+                fields.contains(&sibling),
+                "`{name}` holds a `{credential}` and no `{sibling}`: ADR 0103 § 7 gives every \
+                 credential a file half, and a deployment that injects secrets as files cannot \
+                 reach this one at all",
+            );
+            assert!(
+                nvs_config::secret::SECRETS
+                    .iter()
+                    .any(|pair| pair.value == *credential),
+                "`{name}` holds a `{credential}` with no row in `secret::SECRETS`, so its \
+                 `{sibling}` parses, dumps, and is never read",
+            );
+        }
+    }
+
+    for pair in nvs_config::secret::SECRETS {
+        assert!(
+            found.contains(pair.value),
+            "`SECRETS` marks `{}` in `{}` and the tree declares no such credential field — either \
+             the field was renamed or `CREDENTIAL_FIELDS` above no longer recognizes it",
+            pair.value,
+            pair.block,
+        );
+        let segments: Vec<&str> = pair.block.split('.').collect();
+        assert_eq!(
+            segments.iter().filter(|segment| **segment == "*").count(),
+            1,
+            "a row's block names exactly one operator-chosen segment: `{}`",
+            pair.block,
+        );
+        assert_eq!(
+            pair.key("main"),
+            format!("{}.{}", pair.block_of("main"), pair.value)
+        );
+        assert_eq!(pair.file_key("main"), format!("{}_file", pair.key("main")));
+    }
+}

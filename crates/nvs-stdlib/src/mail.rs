@@ -52,7 +52,8 @@
 //!
 //! # A credential asks for TLS, and asking for it is what makes it required
 //!
-//! A `[mail.<name>]` block that sets `user` and `password` is sent through `STARTTLS` and
+//! A `[mail.<name>]` block that sets `user` and `password` — or `password_file`, the same half of
+//! the credential arriving as an injected file (ADR 0103 § 7) — is sent through `STARTTLS` and
 //! authenticated with `AUTH PLAIN`, and there is no path on which the credential reaches a
 //! plaintext socket: the upgrade is issued after the first `EHLO`, `EHLO` is re-issued over the
 //! secured stream because the extension list is the *session's* and an endpoint offering `AUTH`
