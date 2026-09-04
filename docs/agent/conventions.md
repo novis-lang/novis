@@ -280,6 +280,30 @@ number. An instance member needs a case writing `->name(`.
 instance receiver is slot 0 and absent from `params`. The playbook's *Adding a `Core` member* section has
 the arithmetic and what a mismatch looks like.
 
+## Citing a document
+
+**The form depends on whether a renderer resolves the link, and there are exactly two.**
+
+| Where you are writing | The form | Why |
+|---|---|---|
+| a `.md` file | relative to the file — `](../adr/0067-core-db.md)` | GitHub and the website render it, and both resolve against the file's own location |
+| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/adr/0067-core-db.md)` | nothing renders it, so the readers are people, agents and `grep` |
+
+A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
+wrong number of `../`, 23 naming a filename its ADR no longer had. A prefix encodes the **citing**
+file's depth, so every split, rename and new directory level silently invalidated every link in the
+half that moved, and nothing looked. The root-absolute form has one spelling per target and survives
+the move, which is the whole reason it is worth two rules instead of one.
+
+`python tools/check-links.py` is the gate for both, and CI's `docs` job runs it. Two shapes in a
+source file are not paths and it skips them: a rustdoc intra-doc link naming an item
+(`[the store](Cache::store)`) has no `/`, and a link to a rustdoc page (`../nvs_ir/ids/index.html`)
+is deliberately relative to the rendered HTML. `.py` is outside the gate — `tools/` emits markdown,
+so a link in a string literal there is relative to the *generated* file.
+
+Neither form is what rustdoc follows: a relative link in a doc comment resolves against the generated
+HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a check on any of this.
+
 ## An ADR
 
 **Do not assemble one by hand.** `python tools/adr.py --draft > .agent-tmp/adr.md` prints the skeleton

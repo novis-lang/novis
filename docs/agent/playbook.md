@@ -5429,14 +5429,15 @@ is why" — is this file.
 - **Header prose splits with the code.** A module doc that grew a paragraph per ADR slice *is* the split
   plan: each paragraph already names the rule it belongs to. What is left in `mod.rs` afterwards is its
   charter — see AGENTS.md's length-target table for why the charter is the part that matters.
-- **Every `](../../../docs/…)` in the moved half needs one more `../`, `mod.rs` included, and no gate
-  says so.** These links are relative to the **source file** — what a git host renders them against —
-  so a file's prefix should have exactly as many `../` as its directory has segments. 990 of the tree's
-  1,528 match that; the rest are drift, and reading one of those is how the tds split concluded they
-  were relative to the rustdoc page and left `tds/mod.rs` a level short. `verify.py --doc` passes
-  either way, because the broken-link lint reads intra-doc paths and never a relative URL. Recompute
-  the prefix from the file's own depth rather than nudging what is there, which fixes the drifted ones
-  in the moved half for free: splitting `tds.rs` moved 29 and `db.rs` another 18.
+- **A moved file's doc links no longer move with it — leave them exactly as they are.** A `.rs`, `.nvs`
+  or `.nvst` file cites a document absolutely from the root (`](/docs/adr/0067-core-db.md)`), so a
+  split, a rename or a new directory level changes nothing in the prose. The `../` prefix this replaced
+  encoded the *citing* file's depth, which made every move a silent breakage: 465 of 1,640 links were
+  dead when it was finally measured, and reading one of the drifted ones is how the tds split concluded
+  they were relative to the rustdoc page. `python tools/check-links.py` reads source files now and is
+  the gate; `verify.py --doc` never was, because rustdoc's broken-link lint reads intra-doc paths and
+  never a URL. A **markdown** file stays relative — a git host renders it. Conventions § *Citing a
+  document* is the home.
 - **A private `const` that falls out of scope becomes a binding pattern, not an error.** `TY_XML` in a
   `match` arm is a *new variable* once the module that holds it is a sibling, so the arm matches
   everything after it. The 20 in that file happened to sit in multi-pattern arms, where `E0408` names
