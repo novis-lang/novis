@@ -333,6 +333,7 @@ python tools/dossier.py --bless <file.nvs>       # create an example's `.out` fr
 python tools/dossier.py --record-perf --group G  # measure, append to docs/perf/members.ndjson
 python tools/dossier.py --no-perf …              # any of the above, with the perf proof switched off
 python tools/dossier.py --emit-goals             # write the unattended loop that produces what is owed
+python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml   # ... onto a live chain
 ```
 
 [ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) is why four proofs and not some other
@@ -342,10 +343,18 @@ rest. **The roster is derived from `nvs meta --json` and the reference chapters*
 adding to a list when a feature lands.
 
 `--emit-goals` writes a whole `loop.py --chain` under `docs/agent/goals/dossier/` and prints the command
-that starts it. It is **fired by a person, never by a session** — like `doc-cleanup.md` and
-`dependency-update.md`, and for the same reason: it decides what several hundred sessions will do next.
+that starts it. **Deciding to run it is the user's**, like `doc-cleanup.md` and `dependency-update.md`,
+for the same reason: it decides what several hundred sessions will do next. The user made that decision
+on 2026-09-04, and `--append-chain` is what it turned into — [goal 20](goals/20-dossier.md) is one
+session whose whole job is to fire the emitter at `docs/agent/goals/chain.toml`, so the roster's own
+goals land on the end of the chain the driver is already walking and the run continues into them without
+a restart. `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by
+`md` path, so goal 20's check re-runs it under `--dry-run` and passes only on *nothing appended*.
+
 Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
-writes the chain that is left rather than the one that was.
+writes the chain that is left rather than the one that was. With `--append-chain` the generated files
+drop their ordinal prefix — `core-str.md`, not `001-core-str.md` — because a later emission renumbers,
+and an entry already on a chain must keep pointing at its own group's files.
 
 ## How wide anything runs
 
