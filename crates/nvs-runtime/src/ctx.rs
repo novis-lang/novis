@@ -768,6 +768,23 @@ pub struct Ctx {
     /// **What it spends:** one `Arc` clone per request; the rows themselves are
     /// shared and charged to whoever compiled them.
     commands: Option<std::sync::Arc<crate::commands::CommandTable>>,
+    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 1's route table, as the compiler built it — what the door matched this
+    /// request against, and what `Core\Router`'s own members ask a second
+    /// question of.
+    ///
+    /// The table, and never this request's *match*: that is a fact about the
+    /// request and lives on [`Inbound`], because § 1's rule is that it is taken
+    /// once before any application code and travels from there.
+    ///
+    /// Written before the program runs and never rewritten, on
+    /// [`Self::commands`]' argument exactly — and `None` is a program that
+    /// declared no `#[Route]`, which is ADR 0077 § 5's opt-in rule as a member
+    /// sees it.
+    ///
+    /// **What it spends:** one `Arc` clone per request; the rows themselves are
+    /// shared and charged to whoever compiled them.
+    routes: Option<std::sync::Arc<crate::routes::Routes>>,
     /// The process argument vector past the program itself — what
     /// [ADR 0086](../../../docs/adr/0086-core-cli-terminal-is-a-sink.md) § 6's
     /// `Core\Command::run` matches against the table above, and what § 13's
@@ -1552,6 +1569,7 @@ impl Ctx {
             log_format: LogFormat::Json,
             origin: None,
             commands: None,
+            routes: None,
             arguments: Vec::new(),
             program_name: String::new(),
             config: None,
@@ -1674,6 +1692,21 @@ impl Ctx {
     /// written before the program runs exactly as [`Self::set_config`] is.
     pub fn set_commands(&mut self, table: std::sync::Arc<crate::commands::CommandTable>) {
         self.commands = Some(table);
+    }
+
+    /// This program's route table, or `None` for one that declares no
+    /// `#[Route]` — see [`Self::routes`]'s field docs, and [`crate::routes`]
+    /// for why the rows cross as a runtime value.
+    #[must_use]
+    pub fn routes(&self) -> Option<&crate::routes::Routes> {
+        self.routes.as_deref()
+    }
+
+    /// Hands this program the route table the compiler built for it — ADR 0102
+    /// § 1, written before the program runs exactly as [`Self::set_commands`]
+    /// is.
+    pub fn set_routes(&mut self, table: std::sync::Arc<crate::routes::Routes>) {
+        self.routes = Some(table);
     }
 
     /// This process's argument vector past the program itself — see
@@ -4566,6 +4599,26 @@ pub struct Inbound {
     /// that happened to carry nothing would make the rule depend on what the
     /// peer sent.
     claimed_by: Option<&'static str>,
+    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 1's match: the row this request selected out of the program's table,
+    /// and the captures it filled.
+    ///
+    /// **It is on the carrier because it is a fact about the request**, and
+    /// because § 1's whole rule is that the match is taken *once*, before any
+    /// application code, and travels from there — a field on the context would
+    /// be a place a second match could be written from inside the program.
+    /// [`Ctx::routes`] holds the table it was taken against, which is the
+    /// program's and not the request's.
+    ///
+    /// `None` is "nothing matched" and is also every carrier nobody matched
+    /// for: a program run off the command line, and a request whose unit
+    /// declared no route. All three answer alike, which is § 1's `null` —
+    /// nothing here dispatches, so there is no fourth case to tell apart.
+    ///
+    /// **What it spends:** one pointer per request, plus — only for a matched
+    /// one — an `Arc` bump on the row and one `String` per capture.
+    /// [`crate::routes`] accounts for the rest.
+    route: Option<crate::routes::Match>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -4606,6 +4659,9 @@ impl Inbound {
             parts: None,
             form: None,
             claimed_by: None,
+            // Nothing has matched yet, which is what every carrier says until
+            // the door that has a table says otherwise.
+            route: None,
         }
     }
     /// Records who the request came from, as ADR 0097 § 6's walk decided it.
@@ -4629,6 +4685,24 @@ impl Inbound {
     #[must_use]
     pub fn scheme(&self) -> Scheme {
         self.scheme
+    }
+
+    /// Records ADR 0102 § 1's match, which whoever accepted the request took
+    /// against the program's own table.
+    ///
+    /// Called at most once, beside [`Self::set_peer`] and before the program
+    /// runs — `nvs_server::route` is the one caller and the home of that
+    /// direction. Nothing during the request can move it: matching again would
+    /// be the second match § 1 exists to remove.
+    pub fn set_route(&mut self, matched: crate::routes::Match) {
+        self.route = Some(matched);
+    }
+
+    /// The match this request arrived with, and `None` where nothing matched —
+    /// the field's own doc owns why the three absences are one case.
+    #[must_use]
+    pub fn route(&self) -> Option<&crate::routes::Match> {
+        self.route.as_ref()
     }
     /// The verb, verbatim.
     #[must_use]

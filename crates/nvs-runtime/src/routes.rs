@@ -1,0 +1,616 @@
+//! [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+//! § 1's route table, as a *running* program sees it: the rows the compiler
+//! built, and the match the door takes against them once.
+//!
+//! # Why the table is a runtime value at all
+//!
+//! [`crate::commands`]' argument, one table along, and the same one § 1 makes
+//! for itself: the table is a compile product — `nvs_types::routes::RouteTable`,
+//! built by the same ADR 0061 § 3 scan ADR 0086's commands are — and the
+//! question asked of it is a *request's*, which no compile-time answer can
+//! hold. So the rows cross, and they cross as **strings and two closed enums**:
+//! [`CaptureConv`], which is the one thing a matcher needs that no string
+//! spells, and [`Param`], which is what a converted capture became. Nothing
+//! below this line learns that a compiler exists — this crate has no
+//! `nvs-types` dependency and could not name one of its types if it wanted to.
+//!
+//! # Where the two halves live
+//!
+//! The **table** is installed on [`crate::Ctx`] before the program runs, by
+//! whoever compiled it, exactly as the command table and the configuration
+//! snapshot are. A context with no table is a program that declared no
+//! `#[Route]`, which is ADR 0077 § 5's opt-in rule as a member sees it.
+//!
+//! The **match** is not on the context: it is on [`crate::Inbound`], because it
+//! is a fact about the request rather than about the program, and § 1's whole
+//! rule is that it is taken once *before* any application code and travels from
+//! there. `nvs_server::route` is the door that takes it and the home of that
+//! direction; `Core\Request::route()` is the one reader.
+//!
+//! # What matching is, and what it is deliberately not
+//!
+//! [`Routes::match_request`] answers with the row and its typed captures, and
+//! **dispatches nothing** — § 1's second rule. A failed conversion is not a
+//! match, which is why the walk continues to the next row rather than answering
+//! with a row whose capture it could not fill.
+//!
+//! Where two rows both match, the one that is *more literal earlier* wins:
+//! every row carries a rank — one byte per segment, literal below capture below
+//! optional below catch-all — and the smallest rank in load order is the answer.
+//! That is `matchit`'s left-to-right precedence, which ADR 0077 § 2 names as the
+//! model, stated as a comparison rather than grown out of a trie.
+//!
+//! **What it spends:** one `Arc` clone per request that carries a table, over
+//! one `String` per row's verb, path, name, handler and access decision — tens
+//! of them for an application, and nothing at all for a program that declares no
+//! route. A *matched* request holds one `Arc` bump on the row plus one `String`
+//! per capture, which is the segment text it converted. O(in-flight requests),
+//! per [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md).
+//!
+//! # Known gaps
+//!
+//! 1. **The walk is a linear scan, not ADR 0077 § 2's trie.** § 1's measured
+//!    table is `matchit`'s, and this is a comparison over every row of the
+//!    right verb: the same answers, and a cost that grows with the table rather
+//!    than with the path. The shape a trie would replace is one function
+//!    ([`Routes::match_request`]) and the rank it already computes.
+//! 2. **`decimal` and `Core\Uuid` captures are [`CaptureConv::Unconverted`]**,
+//!    which matches the segment and hands its text over — [`crate::commands`]'
+//!    gap 1 exactly, for the same reason and with the same fix waiting: the
+//!    conversion exists as a `Core` member and what is missing is the arm. A
+//!    route declaring one therefore matches a segment its declared type would
+//!    have refused.
+//! 3. **The one reader has not landed.** `Core\Request::route()` is what § 1
+//!    gives a program to read a match with, and `Core\Router\Match` — the type
+//!    it answers — does not exist yet either (`nvs_stdlib::router`'s own gap 3
+//!    names the same absence from the other side). Until it does, the match is
+//!    taken and carried and nothing in a program can see it, which is the
+//!    ordering § 1 asks for with its second half still owed.
+//! 4. **A capture's value is the segment as it arrived, still percent-encoded.**
+//!    Decoding is `nvs_stdlib::uri`'s, one crate above this one, and a second
+//!    decoder here would be the two-that-agree-today failure the tainted
+//!    laundering rules exist to prevent. A `uint` capture is unaffected — no
+//!    digit has an encoded spelling.
+
+use std::sync::Arc;
+
+/// What a capture's text becomes before it reaches the program.
+///
+/// ADR 0102 § 5's "a capture narrows to a closed set with a type" as the *one*
+/// fact about that type which crosses: not the type, but the conversion the
+/// checker already picked for it. [`crate::commands::ArgConv`] is the sibling
+/// this is modelled on, and `nvs_types::routes::RouteParam`'s `ty` and
+/// `allowed` are where the choice is made.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CaptureConv {
+    /// `string` — the segment's own text, unconverted and `tainted`.
+    Text,
+    /// `int` — a signed decimal, and **no match** where the segment is not one.
+    Int,
+    /// `uint` — as [`Self::Int`], and no match where the number is negative.
+    Uint,
+    /// § 5's closed set: the segment text of each admitted value, in the order
+    /// the union declares them. A segment outside the set is no match, which is
+    /// what makes the narrowing a property of the *table* rather than a check
+    /// the handler was trusted to write.
+    OneOf(Vec<String>),
+    /// A type § 5 admits and this module's gap 2 does not convert yet.
+    Unconverted,
+}
+
+/// One capture of a route: the parameter it binds and the conversion its text
+/// takes.
+///
+/// Apart from the path it was written in because the path is text and this is
+/// what the *signature* said about it — the two are joined by name, which is
+/// ADR 0102 § 3's own rule for relating a capture to a parameter.
+#[derive(Clone, Debug)]
+pub struct Capture {
+    /// The parameter's name, sigil-less, as § 3 compares it.
+    pub name: String,
+    /// What this capture's text becomes.
+    pub conv: CaptureConv,
+}
+
+/// A capture as the request filled it — § 1's "typed parameters".
+#[derive(Clone, Debug, PartialEq)]
+pub enum Param {
+    /// The segment's text. `tainted` everywhere above this crate: it is a
+    /// request path the peer wrote.
+    Text(String),
+    /// A `int` capture, converted.
+    Int(i64),
+    /// A `uint` capture, converted.
+    Uint(u64),
+}
+
+/// § 2's three capture forms and the literal that is none of them, as the
+/// matcher walks a path rather than as an author wrote one.
+///
+/// Parsed once, when the row is built, because a path is fixed for the life of
+/// the program and re-reading its braces per request would be the same answer
+/// bought again at every hop.
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum Seg {
+    /// Compared byte for byte and case-sensitively
+    /// ([ADR 0062](../../../docs/adr/0062-case-sensitivity-is-a-compiler-property.md)).
+    Literal(String),
+    /// `{name}` — one whole segment, which may not be empty.
+    One(String),
+    /// `{name?}` — one whole segment or none.
+    Optional(String),
+    /// `{name...}` — every remaining segment, as one value.
+    Rest(String),
+}
+
+impl Seg {
+    /// This form's place in § 2's precedence: lower binds tighter.
+    fn rank(&self) -> u8 {
+        match self {
+            Self::Literal(_) => 0,
+            Self::One(_) => 1,
+            Self::Optional(_) => 2,
+            Self::Rest(_) => 3,
+        }
+    }
+}
+
+/// One row of § 1's table: a declared route, and what a match against it
+/// answers with.
+///
+/// `nvs_types::routes::Route`'s fields that survive the crossing — the verb,
+/// the path, § 1's name, the handler label and ADR 0096 § 1's access decision —
+/// plus the two things derived from the path once at boot: its parsed segments
+/// and its rank. The OpenAPI half of the compiler's row (summary, tags,
+/// security, errors, example) does not cross: nothing a *request* asks reads
+/// it, and ADR 0085's document is generated from the compiler's own table.
+///
+/// Built through [`Route::new`] rather than as a literal, because those two
+/// derived fields are not the caller's to state — two fields that must agree
+/// are two fields that can disagree.
+#[derive(Clone, Debug)]
+pub struct Route {
+    verb: String,
+    path: String,
+    name: Option<String>,
+    handler: String,
+    access: Option<String>,
+    captures: Vec<Capture>,
+    segments: Vec<Seg>,
+    rank: Vec<u8>,
+}
+
+impl Route {
+    /// The row a compiled `#[Route]` becomes, with its path read as § 2's
+    /// grammar.
+    ///
+    /// A segment that is neither a literal nor a well-formed capture is taken
+    /// as a **literal**, which is the fail-closed reading: it then matches its
+    /// own text and absorbs nothing. Such a path does not compile
+    /// (`nvs_types::routes::parse_path` refuses it), so this is only reachable
+    /// from a table built by hand.
+    #[must_use]
+    pub fn new(
+        verb: impl Into<String>,
+        path: impl Into<String>,
+        name: Option<String>,
+        handler: impl Into<String>,
+        access: Option<String>,
+        captures: Vec<Capture>,
+    ) -> Self {
+        let path = path.into();
+        let segments = segments_of(&path);
+        let rank = segments.iter().map(Seg::rank).collect();
+        Self {
+            verb: verb.into(),
+            path,
+            name,
+            handler: handler.into(),
+            access,
+            captures,
+            segments,
+            rank,
+        }
+    }
+
+    /// The `Core\Http\Method` case this route is declared under, by its own
+    /// name — `Get`, `Post`.
+    #[must_use]
+    pub fn verb(&self) -> &str {
+        &self.verb
+    }
+
+    /// The path exactly as written, captures and all.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// § 1's `name`, or `None` where the route declares none.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// `Class::method` the attribute was attached to.
+    #[must_use]
+    pub fn handler(&self) -> &str {
+        &self.handler
+    }
+
+    /// ADR 0096 § 1's access decision as the name it resolved to, which
+    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 8 leaves to whoever dispatches. `None` only for a program that was
+    /// already refused.
+    #[must_use]
+    pub fn access(&self) -> Option<&str> {
+        self.access.as_deref()
+    }
+
+    /// Every capture this route declares, by name.
+    #[must_use]
+    pub fn captures(&self) -> &[Capture] {
+        &self.captures
+    }
+
+    /// The captures `request` fills, or `None` where this row does not match it
+    /// at all — including the row that matches shape-wise and whose conversion
+    /// failed, which § 1's measured table counts as a miss.
+    fn fill(&self, request: &[&str]) -> Option<Vec<(String, Param)>> {
+        let mut filled: Vec<(String, Param)> = Vec::new();
+        let mut index = 0usize;
+        for segment in &self.segments {
+            match segment {
+                Seg::Literal(text) => {
+                    if *request.get(index)? != text.as_str() {
+                        return None;
+                    }
+                    index += 1;
+                }
+                Seg::One(name) => {
+                    let text = *request.get(index)?;
+                    // A capture is "one whole segment", and `//` carries none:
+                    // admitting it would bind an empty string to a parameter
+                    // whose declaration says a segment was there.
+                    if text.is_empty() {
+                        return None;
+                    }
+                    filled.push((name.clone(), self.convert(name, text)?));
+                    index += 1;
+                }
+                Seg::Optional(name) => match request.get(index) {
+                    // `/posts` against `/posts/{page?}`: the segment is absent
+                    // and so is the parameter.
+                    None => {}
+                    // `/posts/` — a trailing slash is the same absence written
+                    // with one more byte, and not an empty value.
+                    Some(&"") => index += 1,
+                    Some(&text) => {
+                        filled.push((name.clone(), self.convert(name, text)?));
+                        index += 1;
+                    }
+                },
+                Seg::Rest(name) => {
+                    if index >= request.len() {
+                        return None;
+                    }
+                    let joined = request[index..].join("/");
+                    if joined.is_empty() {
+                        return None;
+                    }
+                    filled.push((name.clone(), self.convert(name, &joined)?));
+                    index = request.len();
+                }
+            }
+        }
+        // Every segment of the request has to have been claimed: a route is
+        // matched whole, and a prefix of one is a different path.
+        (index == request.len()).then_some(filled)
+    }
+
+    /// `text` as the parameter `name` is declared to take it, or `None` where
+    /// it is not one of those values.
+    ///
+    /// A capture no declaration names is [`CaptureConv::Text`]: it cannot occur
+    /// in a program that compiles (an unbound capture is
+    /// `code::E_ROUTE_CAPTURE_UNBOUND`), and text is what the segment already
+    /// is.
+    fn convert(&self, name: &str, text: &str) -> Option<Param> {
+        let conv = self
+            .captures
+            .iter()
+            .find(|capture| capture.name == name)
+            .map_or(&CaptureConv::Text, |capture| &capture.conv);
+        match conv {
+            CaptureConv::Text | CaptureConv::Unconverted => Some(Param::Text(text.to_owned())),
+            CaptureConv::Int => text.parse::<i64>().ok().map(Param::Int),
+            CaptureConv::Uint => text.parse::<u64>().ok().map(Param::Uint),
+            CaptureConv::OneOf(admitted) => admitted
+                .iter()
+                .any(|value| value == text)
+                .then(|| Param::Text(text.to_owned())),
+        }
+    }
+}
+
+/// § 2's grammar over one path, as the matcher needs it.
+///
+/// The leading empty piece `"/users"` splits into is kept rather than skipped,
+/// so that a request path — which also begins at the root — is compared piece
+/// for piece with no offset to remember.
+fn segments_of(path: &str) -> Vec<Seg> {
+    path.split('/')
+        .map(|segment| {
+            let Some(inner) = segment
+                .strip_prefix('{')
+                .and_then(|rest| rest.strip_suffix('}'))
+            else {
+                return Seg::Literal(segment.to_owned());
+            };
+            if let Some(name) = inner.strip_suffix("...") {
+                Seg::Rest(name.to_owned())
+            } else if let Some(name) = inner.strip_suffix('?') {
+                Seg::Optional(name.to_owned())
+            } else if inner.is_empty() {
+                Seg::Literal(segment.to_owned())
+            } else {
+                Seg::One(inner.to_owned())
+            }
+        })
+        .collect()
+}
+
+/// § 1's match: the row the request selected, and the captures it filled.
+///
+/// It holds the row rather than a copy of its fields — one atomic bump against
+/// four `String` clones — and the capture names it does copy are the few a path
+/// declares. The row outliving the table is what makes the match *travel*: a
+/// request carries this from the door to `Core\Request::route()` with nothing
+/// left to look up, which is § 1's rule stated as an ownership.
+#[derive(Clone, Debug)]
+pub struct Match {
+    route: Arc<Route>,
+    params: Vec<(String, Param)>,
+}
+
+impl Match {
+    /// The row this request matched.
+    #[must_use]
+    pub fn route(&self) -> &Route {
+        &self.route
+    }
+
+    /// § 1's declared name, which
+    /// [ADR 0076](../../../docs/adr/0076-observability-export.md) § 1's `route`
+    /// label reads. `None` where the route declares none.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        self.route.name()
+    }
+
+    /// Every capture the path filled, in path order.
+    #[must_use]
+    pub fn params(&self) -> &[(String, Param)] {
+        &self.params
+    }
+
+    /// One capture by the parameter name it binds.
+    #[must_use]
+    pub fn param(&self, name: &str) -> Option<&Param> {
+        self.params
+            .iter()
+            .find(|(bound, _)| bound == name)
+            .map(|(_, value)| value)
+    }
+}
+
+/// Every route the program declares, in the compiler's own load order.
+///
+/// A `Vec` rather than a map, which is the compiler-side table's shape and its
+/// reason: a path key is a *shape* rather than the written text, so nothing
+/// could be looked up by one. Order is also what breaks a precedence tie —
+/// [`Self::match_request`] takes the first row of the best rank.
+#[derive(Clone, Debug, Default)]
+pub struct Routes {
+    rows: Vec<Arc<Route>>,
+}
+
+impl Routes {
+    /// The table holding `rows`, in load order.
+    #[must_use]
+    pub fn new(rows: Vec<Route>) -> Self {
+        Self {
+            rows: rows.into_iter().map(Arc::new).collect(),
+        }
+    }
+
+    /// Every row, in load order.
+    #[must_use]
+    pub fn rows(&self) -> &[Arc<Route>] {
+        &self.rows
+    }
+
+    /// § 1's match: this method and this path against the whole table, once.
+    ///
+    /// `None` is "nothing matched", which is a served request like any other —
+    /// nothing here dispatches and nothing here refuses. § 2's `404`/`405` is
+    /// the *other* question, asked only once this one has answered `None`.
+    ///
+    /// **`HEAD` matches a route declared `Get`**, which is RFC 9110 § 9.3.2's
+    /// own reading of the verb and is what `Core\Request::method` already
+    /// answers with; a table that made them different would have the door and
+    /// the program disagreeing about which handler a `HEAD` is for.
+    #[must_use]
+    pub fn match_request(&self, method: &str, path: &str) -> Option<Match> {
+        let verb = if method.eq_ignore_ascii_case("HEAD") {
+            "GET"
+        } else {
+            method
+        };
+        let request: Vec<&str> = path.split('/').collect();
+        let mut best: Option<(&Vec<u8>, Match)> = None;
+        for row in &self.rows {
+            if !row.verb.eq_ignore_ascii_case(verb) {
+                continue;
+            }
+            let Some(params) = row.fill(&request) else {
+                continue;
+            };
+            // Strictly better, so a tie is the row that was loaded first.
+            if best
+                .as_ref()
+                .is_none_or(|(best_rank, _)| row.rank < **best_rank)
+            {
+                best = Some((
+                    &row.rank,
+                    Match {
+                        route: Arc::clone(row),
+                        params,
+                    },
+                ));
+            }
+        }
+        best.map(|(_, matched)| matched)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Capture, CaptureConv, Param, Routes};
+
+    /// A table of the four shapes § 2's grammar admits, in a deliberately
+    /// unhelpful load order: the capture rows come before the literals they
+    /// have to lose to.
+    fn table() -> Routes {
+        Routes::new(vec![
+            super::Route::new(
+                "Get",
+                "/users/{id}",
+                Some("user.show".to_owned()),
+                "App\\Users::show",
+                Some("Core\\Audience::Public".to_owned()),
+                vec![Capture {
+                    name: "id".to_owned(),
+                    conv: CaptureConv::Uint,
+                }],
+            ),
+            super::Route::new("Get", "/users/new", None, "App\\Users::new", None, vec![]),
+            super::Route::new("Post", "/users", None, "App\\Users::create", None, vec![]),
+            super::Route::new(
+                "Get",
+                "/posts/{page?}",
+                None,
+                "App\\Posts::list",
+                None,
+                vec![Capture {
+                    name: "page".to_owned(),
+                    conv: CaptureConv::Uint,
+                }],
+            ),
+            super::Route::new(
+                "Get",
+                "/files/{rest...}",
+                None,
+                "App\\Files::send",
+                None,
+                vec![Capture {
+                    name: "rest".to_owned(),
+                    conv: CaptureConv::Text,
+                }],
+            ),
+            super::Route::new(
+                "Get",
+                "/{lang}/about",
+                None,
+                "App\\Pages::about",
+                None,
+                vec![Capture {
+                    name: "lang".to_owned(),
+                    conv: CaptureConv::OneOf(vec!["en".to_owned(), "de".to_owned()]),
+                }],
+            ),
+        ])
+    }
+
+    /// § 2's four forms each match what they claim, and the verb selects among
+    /// rows sharing a path.
+    #[test]
+    fn every_capture_form_matches_the_shape_its_grammar_declares() {
+        let routes = table();
+        let matched = routes.match_request("GET", "/users/42").expect("a match");
+        assert_eq!(matched.name(), Some("user.show"));
+        assert_eq!(matched.param("id"), Some(&Param::Uint(42)));
+
+        assert_eq!(
+            routes
+                .match_request("GET", "/posts")
+                .expect("an absent optional")
+                .params(),
+            &[]
+        );
+        assert_eq!(
+            routes
+                .match_request("GET", "/posts/3")
+                .expect("a filled optional")
+                .param("page"),
+            Some(&Param::Uint(3))
+        );
+        assert_eq!(
+            routes
+                .match_request("GET", "/files/a/b/c.png")
+                .expect("a catch-all")
+                .param("rest"),
+            Some(&Param::Text("a/b/c.png".to_owned()))
+        );
+        assert_eq!(
+            routes
+                .match_request("POST", "/users")
+                .expect("the verb selects")
+                .route()
+                .handler(),
+            "App\\Users::create"
+        );
+        assert!(routes.match_request("DELETE", "/users").is_none());
+    }
+
+    /// § 2's precedence, and § 1's "a failed conversion is not a match" — both
+    /// asserted where the answer is a *different* row rather than nothing, so a
+    /// matcher that took the first shape-wise hit fails here.
+    #[test]
+    fn a_literal_beats_a_capture_and_a_failed_conversion_is_a_miss() {
+        let routes = table();
+        assert_eq!(
+            routes
+                .match_request("GET", "/users/new")
+                .expect("the literal row")
+                .route()
+                .handler(),
+            "App\\Users::new"
+        );
+        // `/users/{id}` is `uint` and `/users/new` is spelled differently, so
+        // nothing in the table claims this path.
+        assert!(routes.match_request("GET", "/users/-1").is_none());
+        assert!(routes.match_request("GET", "/en/about").is_some());
+        // § 5's closed set: `fr` is not one of the two the union declares.
+        assert!(routes.match_request("GET", "/fr/about").is_none());
+    }
+
+    /// A route is matched whole: neither a prefix of one nor a path with an
+    /// empty segment where a capture is declared.
+    #[test]
+    fn a_partial_path_and_an_empty_segment_are_both_misses() {
+        let routes = table();
+        assert!(routes.match_request("GET", "/users").is_none());
+        assert!(routes.match_request("GET", "/users/42/edit").is_none());
+        assert!(routes.match_request("GET", "/users/").is_none());
+        assert!(routes.match_request("GET", "//about").is_none());
+    }
+
+    /// RFC 9110 § 9.3.2, and the reason `Core\Request::method` answers `Get`
+    /// for one: a `HEAD` is a `GET` that stops at the head.
+    #[test]
+    fn head_matches_a_route_declared_get() {
+        let matched = table().match_request("HEAD", "/users/7").expect("a match");
+        assert_eq!(matched.param("id"), Some(&Param::Uint(7)));
+    }
+}

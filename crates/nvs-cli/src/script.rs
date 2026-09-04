@@ -42,18 +42,85 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use nvs_runtime::script::{Program, Resolver};
 use nvs_runtime::{Ctx, Value};
+
+/// One compiled unit, and the one compile product a *caller* of this cache
+/// still needs beside it.
+///
+/// ADR 0102 § 1's table is not something the unit's code can be asked for: it
+/// is matched against **before** any of that code runs, by the door, so it has
+/// to be reachable without running the program. Holding it here is what makes
+/// "the compiled unit's route table" a thing the server can have — the cache
+/// that already answers "which unit serves this file" is the one place both
+/// halves of that answer exist.
+#[derive(Debug)]
+pub(crate) struct Compiled {
+    /// The unit itself, whose `Rc` is what keeps its pages mapped.
+    unit: Rc<nvs_codegen::Unit>,
+    /// The routes it declared, already crossed into the runtime's own shape.
+    /// Empty for a program with no `#[Route]`, which is ADR 0077 § 5's opt-in
+    /// rule and is one case rather than an `Option`'s two.
+    routes: Arc<nvs_runtime::routes::Routes>,
+}
 
 /// The one implementor: the front end and the backend `nvs run` already
 /// carries, plus the cache in front of them.
 #[derive(Debug, Default)]
 pub(crate) struct Compiler {
-    /// Written path to the unit compiled from it. `RefCell` because the seam
+    /// Written path to what was compiled from it. `RefCell` because the seam
     /// borrows a resolver shared, and a cache that could not be written on a
     /// hit would not be one.
-    cache: RefCell<HashMap<PathBuf, Rc<nvs_codegen::Unit>>>,
+    cache: RefCell<HashMap<PathBuf, Rc<Compiled>>>,
+}
+
+impl Compiler {
+    /// The program over `path`'s unit **and** that unit's route table, which is
+    /// what a server needs and what [`Resolver::resolve`]'s own signature has
+    /// nowhere to put.
+    ///
+    /// Compiles on the first ask and hits the cache afterwards, exactly as
+    /// `resolve` does — it *is* what `resolve` does, with the second half kept
+    /// rather than dropped.
+    ///
+    /// # Errors
+    ///
+    /// The one-line summary `resolve` reports, for the same two failures: a
+    /// program the front end refused, and one the backend could not compile.
+    pub(crate) fn compiled(
+        &self,
+        path: &str,
+    ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
+        let key = PathBuf::from(path);
+        if let Some(compiled) = self.cache.borrow().get(&key) {
+            return Ok((
+                program_over(Rc::clone(compiled)),
+                Arc::clone(&compiled.routes),
+            ));
+        }
+
+        let checked = crate::front_end(&key)
+            .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
+        let lowered = nvs_ir::lower::lower_program(
+            crate::SCRIPT,
+            &checked.program_files(),
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        );
+        let compiled = Rc::new(Compiled {
+            unit: Rc::new(
+                nvs_codegen::compile(&lowered).map_err(|error| format!("`{path}`: {error}"))?,
+            ),
+            routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
+        });
+        self.cache.borrow_mut().insert(key, Rc::clone(&compiled));
+        let routes = Arc::clone(&compiled.routes);
+        Ok((program_over(compiled), routes))
+    }
 }
 
 impl Resolver for Compiler {
@@ -68,25 +135,11 @@ impl Resolver for Compiler {
     /// failure-is-a-value rule is about the second and says nothing that
     /// forbids the first.
     fn resolve(&self, path: &str) -> Result<Program, String> {
-        let key = PathBuf::from(path);
-        if let Some(unit) = self.cache.borrow().get(&key) {
-            return Ok(program_over(Rc::clone(unit)));
-        }
-
-        let checked = crate::front_end(&key)
-            .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
-        let lowered = nvs_ir::lower::lower_program(
-            crate::SCRIPT,
-            &checked.program_files(),
-            &checked.exprs,
-            &checked.interner,
-            &checked.enums,
-            &checked.layouts,
-        );
-        let unit =
-            Rc::new(nvs_codegen::compile(&lowered).map_err(|error| format!("`{path}`: {error}"))?);
-        self.cache.borrow_mut().insert(key, Rc::clone(&unit));
-        Ok(program_over(unit))
+        // A spawned isolate is not answering a request, so the table
+        // [`Self::compiled`] hands back is the half this seam has nothing to
+        // do with — it still travels *into* the child, because the program
+        // installs it on its own context.
+        self.compiled(path).map(|(program, _)| program)
     }
 }
 
@@ -97,17 +150,23 @@ impl Resolver for Compiler {
 /// a `Unit` owns its pages (`nvs_codegen::Unit`) — and it is a clone of the
 /// cache's, so a second isolate over the same path shares them rather than
 /// compiling again.
-fn program_over(unit: Rc<nvs_codegen::Unit>) -> Program {
+fn program_over(compiled: Rc<Compiled>) -> Program {
     Box::new(move |ctx: &mut Ctx, args: Value| -> Value {
         // The child unit's statics and its error class, which
         // `nvs_runtime::script::Program` requires before any of its code runs
         // and `Ctx::isolate` deliberately left empty.
-        unit.install_in(ctx);
+        compiled.unit.install_in(ctx);
+        // And ADR 0102 § 1's table, on the same terms and for the same reason
+        // `nvs run` installs one: a member that reads it is reading a compile
+        // product of *this* unit, and an isolate shares nothing else.
+        if !compiled.routes.rows().is_empty() {
+            ctx.set_routes(Arc::clone(&compiled.routes));
+        }
         // Ownership discharged into the isolate's own root; the seam's type
         // doc owns why this and not a release here.
         ctx.set_isolate_argument(args);
 
-        let Some(entry) = unit.function(crate::SCRIPT) else {
+        let Some(entry) = compiled.unit.function(crate::SCRIPT) else {
             // Not reachable for a unit that compiled — every program has a
             // script frame — but it is a failure value rather than a panic,
             // because a child may not be able to end its parent.

@@ -804,6 +804,75 @@ fn runtime_commands(
     )
 }
 
+/// ADR 0102 § 1's table, as the runtime carries it.
+///
+/// A copy rather than a borrow, for [`runtime_commands`]' reason exactly: the
+/// context outlives the front end's own tables in every caller, and a request
+/// owns the table it was matched against. It is a handful of `String`s per
+/// declared route, taken once per compiled unit and shared by every request
+/// that unit answers.
+///
+/// **The OpenAPI half of a row does not cross** — summary, tags, security,
+/// errors and example are ADR 0085's document, generated from the compiler's
+/// own table, and nothing a request asks reads them.
+///
+/// The one thing here that is a reading rather than a copy is the conversion:
+/// `nvs_types::routes::RouteParam` carries the declared type as
+/// `TypeInterner::describe` rendered it, and `nvs_runtime::routes::CaptureConv`
+/// is the closed set a matcher needs instead. Its own gap 2 owns what
+/// `Unconverted` costs.
+pub(crate) fn runtime_routes(table: &nvs_types::RouteTable) -> nvs_runtime::routes::Routes {
+    nvs_runtime::routes::Routes::new(
+        table
+            .rows()
+            .iter()
+            .map(|row| {
+                nvs_runtime::routes::Route::new(
+                    row.verb.clone(),
+                    row.path.clone(),
+                    row.name.as_ref().map(|(name, _)| name.clone()),
+                    row.handler.clone(),
+                    row.access.clone(),
+                    row.params
+                        .iter()
+                        // ADR 0102 § 3's `#[Query]` parameters are declared on
+                        // the same signature and are not part of the path, so
+                        // they are not what a segment fills.
+                        .filter(|param| param.source == nvs_types::ParamIn::Path)
+                        .map(|param| nvs_runtime::routes::Capture {
+                            name: param.name.clone(),
+                            conv: capture_conv(param),
+                        })
+                        .collect(),
+                )
+            })
+            .collect(),
+    )
+}
+
+/// Which conversion § 5's declared type is, as the matcher spells it.
+///
+/// A closed set of *values* takes precedence over the type that describes it —
+/// a union of string literals renders as a type nothing would convert, and its
+/// admitted set is the whole of what § 5 narrows with. Everything the runtime
+/// has no arm for is `Unconverted` rather than silently `Text`, so the gap is
+/// one an arm closes rather than a behaviour somebody has to notice.
+fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureConv {
+    use nvs_runtime::routes::CaptureConv;
+
+    if let Some(allowed) = &param.allowed {
+        return CaptureConv::OneOf(allowed.clone());
+    }
+    match param.ty.as_deref() {
+        Some("int") => CaptureConv::Int,
+        Some("uint") => CaptureConv::Uint,
+        // A capture is always `tainted`, and both spellings render for one
+        // declared `string` depending on where the qualifier was written.
+        Some("string" | "tainted string") | None => CaptureConv::Text,
+        Some(_) => CaptureConv::Unconverted,
+    }
+}
+
 /// The label the script frame is compiled and looked up under.
 ///
 /// `nvs_ir::lower::lower_script` leaves the name to its caller; this is the
@@ -942,6 +1011,14 @@ fn run_run(
     let commands = checked.exprs.commands();
     if !commands.rows().is_empty() {
         ctx.set_commands(std::sync::Arc::new(runtime_commands(commands)));
+    }
+    // ADR 0102 § 1: the same crossing one table along. A program run off the
+    // command line is matched against nothing — there is no request — but
+    // `Core\Router`'s own members read the table, so it is installed wherever a
+    // program runs rather than only where a server is answering.
+    let routes = checked.exprs.routes();
+    if !routes.rows().is_empty() {
+        ctx.set_routes(std::sync::Arc::new(runtime_routes(routes)));
     }
     // The words past the file are the program's own, and `Core\Command::run`
     // matches them against the table above. Written here rather than read from

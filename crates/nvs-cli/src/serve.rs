@@ -300,20 +300,29 @@ pub(crate) fn run(
                     return nvs_server::statics::send(&file, request.headers(), &OnDisk);
                 }
             };
-            let program: Program = match compiler.resolve(&file.to_string_lossy()) {
-                Ok(program) => program,
-                // Reachable now that step 4 can name a file the boot compile
-                // never saw: under `dispatch = "path"` a `.nvs` under the mount
-                // root compiles on the request that first asks for it. It is a
-                // failing program rather than a panic because a handler answers
-                // with a reply and not with a `Result`: ADR 0006's failure is a
-                // value, and the accept loop turns one into this request's
-                // `500`.
-                Err(message) => Box::new(move |ctx: &mut Ctx, _args| {
-                    ctx.set_pending(message);
-                    Value::null()
-                }),
-            };
+            // Both halves of what the selected unit is: the code to run, and
+            // ADR 0102 § 1's table to match against before it does.
+            // `crate::script::Compiled` owns why the cache holds the second
+            // one at all.
+            let (program, routes): (Program, Option<Arc<nvs_runtime::routes::Routes>>) =
+                match compiler.compiled(&file.to_string_lossy()) {
+                    Ok((program, routes)) => (program, Some(routes)),
+                    // Reachable now that step 4 can name a file the boot compile
+                    // never saw: under `dispatch = "path"` a `.nvs` under the mount
+                    // root compiles on the request that first asks for it. It is a
+                    // failing program rather than a panic because a handler answers
+                    // with a reply and not with a `Result`: ADR 0006's failure is a
+                    // value, and the accept loop turns one into this request's
+                    // `500`. It matches against nothing: a table is a product of
+                    // the compile that did not happen.
+                    Err(message) => (
+                        Box::new(move |ctx: &mut Ctx, _args| {
+                            ctx.set_pending(message);
+                            Value::null()
+                        }),
+                        None,
+                    ),
+                };
             // The carrier, built here because this is the last point at which
             // the arrived request and step 2's remainder are both in hand, and
             // handed to the isolate rather than to this loop's own context —
@@ -340,6 +349,15 @@ pub(crate) fn run(
             // call — and `Core\Request::clientIp()` and `::scheme()` are what
             // read them back.
             inbound.set_peer(origin.client(), origin.scheme());
+            // ADR 0102 § 1's match, here because this is the first point at
+            // which the request and the unit that will answer it are both in
+            // hand, and the last one before application code exists to have
+            // run. `nvs_server::route` owns why the door takes it rather than
+            // the program, and why nothing is written for a request the table
+            // does not claim.
+            if let Some(routes) = &routes {
+                nvs_server::route::take(routes, &mut inbound);
+            }
             // Split only here: everything above reads the request whole, and
             // the body is the one part of it that does not go where the rest
             // does.

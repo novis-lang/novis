@@ -49,6 +49,13 @@
 //! the handler is — a `503` with `Retry-After: 1` and no isolate allocated for
 //! it — and that module's docs own why the order *is* the guarantee.
 //!
+//! [`route`] is ADR 0102 § 1's match: the selected unit's own route table
+//! against the mount-stripped path, taken **once** and written onto the request
+//! rather than left for the program to ask a second time. It dispatches
+//! nothing — a name and typed parameters, and then it stops — which is why the
+//! CSRF check, the `route` metric label and § 8's access decision can each read
+//! one answer instead of making three.
+//!
 //! What is **not** here yet is the rest of `[server]`. [`serve`]'s own docs
 //! § *What this module does not decide yet* is the list.
 //!
@@ -80,6 +87,7 @@ pub mod cors;
 pub mod forwarded;
 pub mod io;
 pub mod mount;
+pub mod route;
 pub mod secure;
 pub mod serve;
 pub mod statics;

@@ -269,6 +269,7 @@ pub mod logfile;
 pub mod object;
 pub mod pool;
 pub mod release;
+pub mod routes;
 pub mod script;
 pub mod sequence;
 mod string;
