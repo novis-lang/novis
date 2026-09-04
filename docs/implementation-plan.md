@@ -60,7 +60,7 @@
 > is whole**: `[session]` is shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends
 > it. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. **ADR 0073's ticker fires**:
 > a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse`
-> drains on a tree detached from the connection; § 7's cap counts trees. Conformance 1515,
+> drains detached; § 7's cap counts trees; ADR 0076's trace continues at the door. Conformance 1515,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

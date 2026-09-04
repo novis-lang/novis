@@ -1949,6 +1949,17 @@ is why" — is this file.
   the request's context, and it never does — a request is an isolate, its tree lives on the task
   `nvs_host::isolate` spawned, and the connection only joins it. When a check's crate cannot host
   the fixture, ask which crate holds the state the claim is about before moving it.
+- **`python tools/verify.py` can fail on a *concurrent session's* half-written file, and the repair
+  is never to format it.** `--wait` came back on a `cargo fmt` diff in
+  `crates/nvs-config/tests/secret.rs`, a file this session had not opened; `git status --porcelain`
+  then showed two more `nvs-config` paths, a `nvs-stdlib` one and three under `docs/` dirty as well —
+  another loop session's work in flight, on a driver running up to four at once. The gate stops at
+  the first failure, so test, the `.nvst` trees and clippy never ran and the verdict says nothing
+  about what *this* session wrote. Formatting the other session's file to make the gate green would
+  land their unfinished work under this session's commit message. What is honest instead is the same
+  checks scoped to the crates you touched — `cargo fmt -p A -p B -- --check`, `cargo test -p A -p B`,
+  `cargo clippy -p A -p B --all-targets` — plus one line in the handoff saying the full gate was not
+  reached and why. `git status --porcelain` is the whole triage and it is one call.
 
 ## Running things
 
