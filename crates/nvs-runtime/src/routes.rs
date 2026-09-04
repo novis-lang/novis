@@ -475,6 +475,52 @@ impl Routes {
         }
         best.map(|(_, matched)| matched)
     }
+
+    /// § 2's other question: every verb this path claims, in load order.
+    ///
+    /// Empty is "no route claims this path at all" — the `404`. Non-empty is
+    /// the `405`, and the list is the `Allow:` header RFC 9110 requires beside
+    /// it. It is asked **only once [`Self::match_request`] has answered
+    /// `None`**, so a served request never walks this.
+    ///
+    /// The same walk, with the verb filter dropped and the rank ignored: a row
+    /// claims the path iff [`Route::fill`] fills it, which is what makes § 2's
+    /// `{name?}` rule fall out rather than needing a case — `/posts` and
+    /// `/posts/3` against `/posts/{page?}` are both fills, so the shorter form
+    /// cannot `404` while the longer one `405`s. A failed conversion is not a
+    /// claim, on § 1's own reading: a `uint` capture that the segment is not
+    /// leaves the path unclaimed by that row, exactly as it leaves it unmatched.
+    ///
+    /// **`HEAD` is never synthesized into the answer**, although
+    /// [`Self::match_request`] serves one from a row declared `Get`. The two
+    /// agree without it: a `HEAD` against a path with a `Get` row *matched*, so
+    /// this is never asked; and a path with no `Get` row does not serve `HEAD`
+    /// either, so naming it in `Allow:` would advertise a method the door
+    /// refuses. What the member answers is what the table declares.
+    ///
+    /// **What it spends:** the discarded capture `Vec` of every row whose shape
+    /// fits, because it reuses `fill` rather than growing a second shape-only
+    /// walk that would have to agree with it forever. That is on the `405` path
+    /// only, where a response is being built regardless.
+    #[must_use]
+    pub fn methods_for(&self, path: &str) -> Vec<&str> {
+        let request: Vec<&str> = path.split('/').collect();
+        let mut verbs: Vec<&str> = Vec::new();
+        for row in &self.rows {
+            if row.fill(&request).is_none() {
+                continue;
+            }
+            // Two rows may claim one path under one verb — a literal and the
+            // capture it beat — and `Allow: GET, GET` is not a header.
+            if !verbs
+                .iter()
+                .any(|verb| verb.eq_ignore_ascii_case(&row.verb))
+            {
+                verbs.push(&row.verb);
+            }
+        }
+        verbs
+    }
 }
 
 #[cfg(test)]
@@ -615,5 +661,66 @@ mod tests {
     fn head_matches_a_route_declared_get() {
         let matched = table().match_request("HEAD", "/users/7").expect("a match");
         assert_eq!(matched.param("id"), Some(&Param::Uint(7)));
+    }
+
+    /// § 2's two answers, asked of the same table § 1's match walks: empty is
+    /// the `404` and non-empty is the `405`'s `Allow:`, with both bounds named
+    /// together so a member that claimed everything or nothing fails here.
+    #[test]
+    fn methods_for_answers_the_verbs_a_path_claims_and_nothing_where_none_does() {
+        let routes = table();
+        // The `405`: the path is claimed, just not under the verb asked for.
+        assert!(routes.match_request("GET", "/users").is_none());
+        assert_eq!(routes.methods_for("/users"), vec!["Post"]);
+        // The `404`: nothing in the table claims this path at all…
+        assert!(routes.methods_for("/nothing/here").is_empty());
+        // …including the path whose *shape* fits and whose conversion does
+        // not, which § 1 counts as a miss and so does this.
+        assert!(routes.methods_for("/users/-1").is_empty());
+        // No `HEAD` is invented beside the `Get` it would be served from.
+        assert_eq!(routes.methods_for("/users/42"), vec!["Get"]);
+    }
+
+    /// § 2's `{name?}` rule, stated as the agreement it exists to force: the
+    /// two forms of a terminal node answer the same verbs, so the shorter one
+    /// cannot `404` while the longer one `405`s.
+    #[test]
+    fn both_forms_of_an_optional_capture_claim_the_same_verbs() {
+        let routes = table();
+        assert_eq!(routes.methods_for("/posts"), vec!["Get"]);
+        assert_eq!(routes.methods_for("/posts"), routes.methods_for("/posts/3"));
+    }
+
+    /// The answer is the *verbs*, once each and in load order — not one entry
+    /// per row, which the literal-beats-a-capture table would otherwise make
+    /// into `Allow: GET, GET`.
+    #[test]
+    fn a_paths_verbs_are_reported_once_each_in_load_order() {
+        let text = |name: &str| {
+            vec![Capture {
+                name: name.to_owned(),
+                conv: CaptureConv::Text,
+            }]
+        };
+        let routes = Routes::new(vec![
+            super::Route::new(
+                "Delete",
+                "/users/{id}",
+                None,
+                "App\\Users::destroy",
+                None,
+                text("id"),
+            ),
+            super::Route::new(
+                "Get",
+                "/users/{id}",
+                None,
+                "App\\Users::show",
+                None,
+                text("id"),
+            ),
+            super::Route::new("Get", "/users/me", None, "App\\Users::me", None, vec![]),
+        ]);
+        assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);
     }
 }
