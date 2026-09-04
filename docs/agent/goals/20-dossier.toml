@@ -81,3 +81,18 @@ stage = "2 the emission"
 name = "plan.py: the index and the grown chain still agree"
 argv = ["python", "tools/plan.py", "--check"]
 want = ["every cell agreeing with the chain"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the loop is ready for 93 of the same shape.
+#
+# One mechanical gate, because only one of stage 3's findings has a right answer that a check can
+# state: a generated goal must be one the driver can walk and `orient.py` can orient inside. The rest
+# of the stage is judgment and lands in the report, which no check can grade -- see the goal prose.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the loop is ready"
+name = "dossier: every generated goal is walkable and its manifest resolves"
+argv = ["python", "tools/dossier.py", "--check-goals"]
+want = ["every manifest resolves"]

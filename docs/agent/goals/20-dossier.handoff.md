@@ -12,7 +12,10 @@ the numbers off your own run rather than trusting those.
 
 ## Next group
 
-**The whole goal is one group** — one file set, `tools/dossier.py` and `docs/agent/goals/`.
+**The whole goal is one group** — one file set, `tools/dossier.py` and `docs/agent/goals/`. Stage 2 is
+the emission and takes minutes; **stage 3 is the goal** — an optimization pass run at the one moment it
+has leverage, with the 93 generated files in front of you and none of them walked yet. Do not stop after
+stage 2 with headroom left.
 
 - [ ] **`cargo build --release -p nvs-cli`**, then
       `python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml`. It prints what
@@ -24,6 +27,11 @@ the numbers off your own run rather than trusting those.
 - [ ] **Any fix goes in `goal_toml()` / `goal_prose()` in `tools/dossier.py`**, then re-emit. A hand-edit
       to a generated file is lost at the next emission.
 - [ ] **Two commits**: the generator fix, if there was one, and the generated tree.
+- [ ] **Then stage 3**, which the goal prose owns in full. Three findings are already named there and
+      measured — 14 goals whose `[context] modules` `orient.py` cannot map, whether a `--scaffold` is
+      worth building, and what the growing floor actually costs — plus whatever those three did not
+      name. `python tools/dossier.py --check-goals` is the one mechanical gate; the rest of the stage
+      lands in `.loop/optimization/report.md`, and its *Proposals* section is the valuable half.
 
 ## Backlog
 
@@ -31,4 +39,6 @@ the numbers off your own run rather than trusting those.
   emitted dossier goal — without a restart. `Chain.refresh()` in `tools/loop.py` is that half; if the
   console does not print `chain: docs/agent/goals/chain.toml grew by N goal(s)` after `GOAL REACHED`,
   that is the thing to look at, not the emitter.
-- The proofs themselves start at goal 21 and belong to no session of this one.
+- The proofs themselves start at goal 21 and belong to no session of this one. The one exception is
+  stage 3: writing a single example and a single attack to feel the shape is a measurement, and it
+  belongs in the report rather than in a commit.
