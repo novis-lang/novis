@@ -1718,6 +1718,81 @@ mod tests {
         );
     }
 
+    /// The honest oversized client is refused at the door: a declared length
+    /// already over [`crate::body::UPLOAD_TOTAL`] is answered `413` with no
+    /// program having been asked for.
+    ///
+    /// ADR 0105 § 5's "before dispatch" is two facts and neither implies the
+    /// other, so both are asserted: the peer's status, and a counter only a
+    /// program that ran could have moved. A refusal taken *after* dispatch
+    /// would answer `413` just the same and would already have allocated the
+    /// isolate the ADR says the client never reaches.
+    ///
+    /// The request carries no body bytes at all, which is the case rather than
+    /// a shortcut for a 256 MiB write: the refusal is read off the header, so a
+    /// server that waited for what it was promised hangs here instead of
+    /// answering.
+    #[test]
+    fn an_upload_total_over_the_cap_is_refused_before_dispatch() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let declared = crate::body::UPLOAD_TOTAL + 1;
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    format!(
+                        "POST /upload HTTP/1.1\r\nHost: localhost\r\n\
+                         Content-Length: {declared}\r\nConnection: close\r\n\r\n"
+                    )
+                    .as_bytes(),
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        // The door `nvs-cli` writes, in the two lines of it this case is about:
+        // classify the body first, and only then ask for a program.
+        let dispatched = Rc::new(Cell::new(0_usize));
+        let handler = {
+            let dispatched = Rc::clone(&dispatched);
+            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let (head, incoming) = request.into_parts();
+                match crate::body::of(&head.headers, incoming) {
+                    crate::body::Arrived::TooLarge => Reply::too_large(),
+                    crate::body::Arrived::Absent | crate::body::Arrived::Streaming(..) => {
+                        let dispatched = Rc::clone(&dispatched);
+                        let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                            dispatched.set(dispatched.get() + 1);
+                            child.write_output(b"dispatched").expect("a buffer");
+                            Value::null()
+                        });
+                        Reply::run(Isolate::new(program, Value::null(), Output::Capture))
+                    }
+                }
+            })
+        };
+
+        let answer = served_by(listener, &handler, client);
+        assert!(
+            answer.starts_with("HTTP/1.1 413"),
+            "a body declaring more than upload_total was not refused: {answer}"
+        );
+        assert_eq!(
+            dispatched.get(),
+            0,
+            "the oversized request reached a program before it was refused: {answer}"
+        );
+    }
+
     /// A handler whose program says which sink it is writing through, so the
     /// response body *is* the carrier's class name.
     fn echo_the_sink() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
