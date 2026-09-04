@@ -5078,6 +5078,15 @@ is why" — is this file.
   capture of the outer one. A `catch` inside a closure is fine on its own; only the name
   collision is. Renaming the inner binding is the whole workaround, and it costs a `--EXPECT--`
   section nothing.
+- **`Core\Out::capture` answers a `Core\Cli\Text`, so `==` between two captures is identity and a
+  case comparing them counts zero agreements while printing the right bytes.** ADR 0090 § 4 makes
+  `==` on two objects identity, and the carrier is an object — so an agreement case that captures
+  the same four bytes from `echo`, from `Core\Response::text` and from `Core\Response::bytes` and
+  then counts `$a == $b` reports `agreed 0 of 2` *beside* an `on [body]` that shows all three
+  agreeing. Nothing is wrong with the members; the comparison never asked about bytes. Interpolate
+  each into a `string` first — `string $s = "{$captured}";` renders the carrier through ADR 0088
+  § 5's `value_to_string` and `==` then compares content. The neighbouring `Core\Response` cases
+  hide this by only ever printing a capture, so the corpus is no warning.
 
 ## Splitting a file that got too big
 
@@ -6983,6 +6992,15 @@ sibling in the same namespace unqualified.
   body by declaration. Before implementing a rule an ADR states over a run-time noun, grep the corpus
   for the members it names — a green case exercising the very combination is the cheapest possible
   statement of the scope you actually have.
+- **A `Core` member the spec states in Part Two has a sixth edit, and `conventions.md`'s "five
+  edits" does not name it.** `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` is a
+  ledger of every §§ 13-24 member the spec names and the registry does not yet build, and
+  `every_part_two_spec_member_is_registered` fails the moment you register one without deleting its
+  line — `1 line(s) … name a member that is registered now, or a key no spec bullet or row
+  produces: §15 Response::setStatus`. The message is clear once you have it, but it arrives only
+  from a full `-p nvs-stdlib` test run, so it costs a whole verify cycle at the very end of a
+  session. Delete the line in the same edit as the row. Members in §§ 1-12 do not have this: those
+  sections are `| Member |` tables and a different test reads them.
 
 ## Divergences and refusals already pinned
 

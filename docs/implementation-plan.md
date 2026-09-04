@@ -44,13 +44,13 @@
 > **Open now:** **Goal 6 — the built-in server, M7 — is running.**  **`crates/nvs-db`'s PostgreSQL
 > is whole**, § 3's upgrade through § 13's reset.  § 9's type map decodes over it and § 7 nests as a
 > `SAVEPOINT` to any depth. **`Core\Db` has opened**: § 18's `connect` over a memoized connection,
-> `inList`, `quoteIdentifier` and § 4's `query`, `execute`, `executeMany` and `open`.
-> **`queryAs<T>` hydrates** over `ClassDesc::db_codec`, and § 6's *request* converts. **§ 13's pool
-> is complete**, **§ 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's
-> schema in either dialect, §§ 1, 4 and 6 run on both, a worker on all three, and real servers hold
-> every statement it sends**. **MySQL and MariaDB both run a block end to end**: `connect`/`open`
-> pool either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own, and a real server of each holds §
-> 3's park, § 7, § 8 and § 13's pool. **SQL Server holds §§ 1, 3, 4, 7 and 13 on a real server, and
+> `inList`, `quoteIdentifier` and § 4's `query`, `execute`, `executeMany` and `open`. **`queryAs<T>`
+> hydrates** over `ClassDesc::db_codec`, and § 6's *request* converts. **§ 13's pool is complete**,
+> **§ 2's `[queue]` resolves at boot** (`E0617`), **`nvs queue migrate` applies § 2's schema in
+> either dialect, §§ 1, 4 and 6 run on both, a worker on all three, and real servers hold every
+> statement it sends**. **MySQL and MariaDB both run a block end to end**: `connect`/`open` pool
+> either, §§ 1, 3, 5, 7, 9 and 13 follow each driver's own, and a real server of each holds § 3's
+> park, § 7, § 8 and § 13's pool. **SQL Server holds §§ 1, 3, 4, 7 and 13 on a real server, and
 > SQLite runs §§ 4, 7, 9 and 13 off the blocking pool and reads a column back as declared**.  **ADR
 > 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,  `.`, `.=`, interpolation
 > and `as string` refuse one. **Goals 1-5 and M4 are closed**. **`crates/nvs-server` runs an h1
@@ -58,9 +58,9 @@
 > `echo` is the body, ADR 0097 §§ 4-5 bound and route it; `nvs serve` boots the whole mount table on
 > one core and § 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling;
 > § 5's ceiling is an arithmetic against the memory budget, `503` before an isolate exists; § 8's
-> accept backs off, § 10's mount holds no policy, and § 5's drain answers the probe and
-> `isDraining()`; `Core\Response` holds § 4's `text`, `json`, `bytes`; `E0801` refuses `echo` beside
-> one. **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1460,
+> accept backs off, § 10's mount holds no policy, § 5's drain answers the probe and `isDraining()`;
+> `Core\Response` has `text`, `json`, `bytes`, `setStatus`; `E0801` refuses `echo` beside one.
+> **Stage 10's corpus opened**: § 5's bindings, § 6's naming, § 7's flag. Conformance 1463,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized

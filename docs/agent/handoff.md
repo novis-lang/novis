@@ -2,61 +2,77 @@
 
 ## State
 
-**Goal 6, Stage 4 item 1 is closed: `E0801` refuses `echo` beside a `Core\Response` body
-member.** `crates/nvs-types/src/response.rs` is the whole rule and its module doc owns every
-decision below; `nvs_diagnostics::code`'s `E08xx` band is new and its header says why.
+**Goal 6, Stage 4 item 2 is closed: `Core\Response::setStatus` sets a status and it crosses to
+the peer.** Five edits and one channel, and each end owns its own reasoning:
+`crates/nvs-stdlib/src/response.rs`'s module doc has a new section — *A status crosses that same
+channel, and is not a body* — that is the home for every decision below.
 
-**The rule is checked in a `#[Route]` handler and nowhere else.** ADR 0088 § 3 binds `echo` by
-*context*, so which sink a body writes to is a run-time fact for every body but one — ADR 0102
-§ 1 makes a handler a response body by declaration. Outside one nothing fires, which is what
-keeps the nine CLI-shaped `.nvst` cases that observe a body member green; the entry-script half
-of § 4's row (ADR 0097 § 4 runs a file's top-level frame as the request body) is a stated known
-gap in that module doc, and closing it needs a declaration that a file is an entry.
+**The channel is `content_type`'s, twice over rather than widened.** `Ctx::status` is a second
+`Option<u16>` field beside `Ctx::content_type` (`crates/nvs-runtime/src/ctx.rs:889`), taken by
+`take_status` on the same finish path, carried on `Completion::status`
+(`crates/nvs-runtime/src/host.rs:274`) and turned into a status line by `nvs_server`'s `answer`.
+Two fields and not one struct: every body member sets a media type and exactly one member sets a
+status, so a single declaration would let a body member reach a status it has no business setting.
 
-**The reach inside a handler is that handler's own body**, closures included. State lives on
-`Env::body_writers`, installed and put back per method body by `check_method`
-(`crates/nvs-types/src/check.rs:605`); the two note sites are the `Echo` arm
-(`crates/nvs-types/src/locals.rs:1278`) and the resolved static call
-(`crates/nvs-types/src/expr/calls.rs:296`). A helper method the handler calls is not seen —
-that is a whole-program question and this is body-local.
+**A status is not a body, so `E0801` does not reach it.** `nvs_types::response`'s `BODY_MEMBERS`
+is five names and `setStatus` is not among them, so `setStatus` beside an `echo` is the ordinary
+spelling and needed no edit in `nvs-types` at all.
 
-**Unchanged limits.** Two typed members in one handler are not refused: § 4's row names `echo`
-and a typed writer, and inventing the second rule is the ADR's call, not a session's. `html`
-and `sendFile` are already in the module's roster, so landing either member needs no edit here.
-The driver's `native examples/upload.nvs` failure is stage 5's frozen `want`, not a regression.
+**Two decided-and-recorded calls.** The parameter is `CoreTy::Uint` — ADR 0007 § 4's type refuses
+a negative at compile time — and the admitted range is **100 to 599**, `LogicError` outside it:
+RFC 9110 § 15 gives a status a class from its first digit and there are five, so a `6xx` is three
+digits nothing downstream has a rule for. `hyper` would carry up to `999`; refusing at the member
+is `spellable`'s direction for a media type, at the same layer. **A request that failed answers
+`500` whatever it declared** — `answer` reaches `failed()` before it reads the field.
 
-**`[context]` gaps still open**, now reported three times: `adrs` prints `0097 §2`, `§4` and
-`0106 §13` but not **`0097 §5`**, and **`0088 §§ 3-4`** — the section every Stage 4 item is
-specified by — had to be sliced by hand again. `modules` still names no `nvs-cli` pattern.
+**Unchanged limits.** A status set off a request declares onto a context nobody asks — module gap
+1's reasoning, now stated for this member too. A `.nvst` case cannot observe a status line, so the
+crossing is pinned by `crates/nvs-server/src/serve.rs`'s
+`a_declared_status_is_the_responses_status_and_a_failure_outranks_it`, beside the two content-type
+tests that exist for the same reason.
+
+**`[context]` gaps still open**, now reported four times: `adrs` prints `0097 §2`, `§4` and
+`0106 §13` but not **`0097 §5`**, and **`0088 §§ 3-4`** is still not printed. `modules` still names
+no `nvs-cli` pattern. New this session: `shapes` prints the `Core` member's five edits but nothing
+about **spec § 15**, which is prose rather than a `| Member |` table — so a § 15 member has no
+signature column and `every_registry_rows_names_are_the_specs_signature_column` never sees it. A
+`[context] spec` selector for § 15 would have saved two reads.
 
 ## Next group
 
-**Stage 4 items 2 and 3: what a response carries besides its body** — spec § 15 and ADR 0088
-§ 4. One file set, none of it loaded by this session, which is why it stopped at one slice:
+**Stage 4 item 3 and its neighbour: the headers a response carries** — spec § 15 and ADR 0074.
+One file set, and it is exactly this session's, all of it already anchored:
 `crates/nvs-stdlib/src/response.rs`, `crates/nvs-runtime/src/ctx.rs`,
 `crates/nvs-host/src/isolate.rs`, `crates/nvs-server/src/serve.rs`.
 
-- [ ] **`setStatus`, and the status crosses the same way the content type does** — spec § 15.
-      `crates/nvs-stdlib/src/response.rs:232` is the member shape to follow (declare, then
-      write), `crates/nvs-runtime/src/ctx.rs:4128` is `declare_content_type`, the neighbour a
-      status declaration sits beside and the model for the `Completion` field, and
-      `crates/nvs-server/src/serve.rs:445` is `answer`, which turns a declaration into what the
-      peer sees. A status the response never sent has no meaning off a request — module gap 1's
-      reasoning applies unchanged.
 - [ ] **`setHeader`, a header sink over that same channel** — spec § 15 says it overrides a
-      default, so the ADR 0074 defaults `answer` writes are what it has to override:
-      `crates/nvs-server/src/serve.rs:445`. The name and the value are both sinks — a header
-      field cannot carry what `crates/nvs-stdlib/src/response.rs:216`'s `spellable` refuses, and
-      CR/LF in either half is header injection, which M7's acceptance names as a suite.
+      policy-owned header on one response, so unlike a status it is a *map* and the crossing is a
+      list rather than a word. `crates/nvs-runtime/src/ctx.rs:4128` is `declare_content_type` and
+      `crates/nvs-runtime/src/ctx.rs:4141` is `declare_status`, the two neighbours a header store
+      sits beside; `crates/nvs-runtime/src/host.rs:274` is where the `Completion` field goes;
+      `crates/nvs-server/src/serve.rs:445` is `answer`, which must apply a program's header
+      **after** the policy headers for § 15's override to mean anything; and
+      `crates/nvs-stdlib/src/response.rs:216` is `spellable`, which already answers what a field
+      value may carry and is the check a name and a value both owe. ADR 0074's secure-header set is
+      what "policy-owned" names — decide and record whether `Content-Type` is reachable this way,
+      since `bytes` already owns it.
+- [ ] **`addCookie`, whose options shape defaults every field from `[http.cookies]`** — spec § 15,
+      ADR 0074. `crates/nvs-stdlib/src/response.rs:97` is the row block and
+      `crates/nvs-stdlib/src/response.rs:216` is `spellable` again; a cookie is a `Set-Cookie`
+      header, so this rides whatever `setHeader` builds rather than opening a third channel.
+      `SameSite` is an enum and never a string, which needs a registry enum in the row.
+- [ ] **A `.nvst` case that a status and a header survive a throw** — the completion carries both
+      out of `finish` on the throwing path (`crates/nvs-host/src/isolate.rs:473`), and nothing yet
+      asks whether it should. `crates/nvs-server/src/serve.rs:452` is where `answer` decides it
+      does not, which is the half a case can reach only through the server's own tests.
 
 ## Backlog
 
-- `each_body_member_sets_its_own_content_type` is filed under the `-p nvs-types` check in
-  `docs/agent/loop-goal.toml:3313`; a content type is not a types question, and the crate that
-  can host it is `nvs-server` or `nvs-stdlib` — fix the live copy and `docs/agent/goals/` both.
-- Two typed body members in one handler disagree exactly as `echo` and one do, and nothing
-  refuses it — `crates/nvs-types/src/response.rs`'s module doc, needs an ADR 0088 sentence.
-- The entry-script half of § 4's sixth row — same module doc, needs a way to declare an entry.
-- `Core\Response::html` waits on `Core\Html\Markup` as a registry parameter; `sendFile` on the
-  mount root a path resolves against — `crates/nvs-stdlib/src/response.rs`'s module doc.
-- Stage 5 (routing, sessions, uploads) is what `native examples/upload.nvs` is waiting for.
+- `html` and `sendFile`, § 4's remaining two body members — `crates/nvs-stdlib/src/response.rs`'s
+  module doc names what each is blocked on.
+- Two typed body members in one handler are not refused — `nvs_types::response`'s module doc.
+- The entry-script half of § 4's sixth row — `nvs_types::response`'s module doc.
+- Stage 5's uploads: the driver's `native examples/upload.nvs` check is that stage's frozen `want`,
+  not a regression — ADR 0105 is its specification.
+- Raw/unparsed body access for an arbitrary content-type — `docs/plan/m7.md`, ADR 0024's
+  *Revisiting*.
