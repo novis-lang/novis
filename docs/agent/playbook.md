@@ -2402,17 +2402,6 @@ is why" — is this file.
   changes here", `nvs_array_row_for_write`'s "a fresh empty array with a count of one") and
   now say it. The general shape: after a representation changes to share a header, every
   "this is solely owned" claim written before it is a suspect.
-- **`wsl.exe -- bash /mnt/d/...` run through the *Bash* tool is rewritten by Git Bash's path
-  conversion, and the failure looks like a pass.** `wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh
-  examples/queue.nvs` came back as
-  `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/leak-check.sh: No such file or directory` — and
-  **exit 0**, because the status is `bash`'s own and the tool reported success. A leak leg that
-  silently runs nothing and reports green is the worst shape a check can take. MSYS rewrites any
-  argument that looks like an absolute POSIX path before `wsl.exe` ever sees it, so the WSL legs in
-  `docs/agent/commands.md` go through the **PowerShell** tool, or through Bash with
-  `MSYS_NO_PATHCONV=1`. The tell is the `C:/Program Files/Git/` prefix glued to a path you wrote
-  as `/mnt/...`.
-
 - **`tools/leak-check.sh` prints one grep across *every* loss record, so the frames under its
   `exit 97` are usually not the leaking stack.** Its filter is
   `grep -E "definitely lost|nvs_stdlib|nvs_ir|nvs_runtime::" | head -12`, which matches
