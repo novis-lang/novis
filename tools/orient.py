@@ -94,6 +94,21 @@ problems: list[str] = []
 # and the item decides which of them are printed whole -- see `run_playbook`.
 current_item: str = ""
 
+#: Sub-lines `audit` prints under the traps row, filled by `run_playbook`. The traps section is
+#: reliably the largest one, and its size is two costs added together that pull in different
+#: directions: what the *goal's* manifest names, which is the goal author's to trim, and which of
+#: those the *item's* paths promote to being printed whole, which changes item to item and is
+#: nobody's to trim. A single row cannot tell a rising manifest from an item that happens to touch
+#: a well-documented file, and a supervisor pass reading only the row spent three passes reporting
+#: the growth without being able to attribute it. Supervisor-facing only -- these lines are
+#: appended after the pack, so the pack a session reads is byte-identical with and without
+#: `--audit`.
+traps_detail: list[str] = []
+
+#: The traps section's heading, named once because `audit` hangs `traps_detail` off the ledger row
+#: that carries it.
+TRAPS_TITLE = "THE TRAPS THAT APPLY HERE"
+
 #: A `path:line` anchor in a checklist item, which `run_state` expands into a window of the file.
 #: `docs` is a root here for the same reason the code trees are: a group whose work is prose --
 #: a reference page, an ADR section, a table that still says a feature has no spelling -- names the
@@ -888,13 +903,15 @@ def run_playbook(wanted: list[str]) -> None:
         whole, listed = picked, []
 
     section(
-        "THE TRAPS THAT APPLY HERE",
+        TRAPS_TITLE,
         f"{rel(PLAYBOOK)}, filtered to [context] playbook"
         + (f", then to the {len(terms)} path(s) your item names" if terms else ""),
     )
+    at_whole = len(out)
     for _, body in whole:
         emit()
         emit(body)
+    at_listed = len(out)
 
     if listed:
         emit()
@@ -906,6 +923,32 @@ def run_playbook(wanted: list[str]) -> None:
             lead = re.match(r"^- \*\*(.+?)\*\*", mask_code(head))
             label = head[lead.start(1):lead.end(1)] if lead else head[2:]
             emit(f"   {name}  --  {brief.strip_links(label).strip('* ')[:110]}")
+
+    # The split the row itself cannot show -- see `traps_detail`. `unnarrowed` is the
+    # counterfactual the goal author controls: every bullet the manifest selects, printed whole,
+    # which is what this section cost before the item narrowing existed and what it would cost
+    # again for an item that names no path.
+    # Measured the way the section emits -- blank line, body -- so it is the same quantity as
+    # `whole_b` and can never come out under it.
+    unnarrowed = nbytes("\n".join(x for _, b in picked for x in ("", b)))
+    whole_b = nbytes("\n".join(out[at_whole:at_listed]))
+    # By subtraction, so the two halves add up to the ledger row exactly. Measuring the tail on
+    # its own loses the newline that joins it to the head, and a one-byte remainder in a report
+    # whose whole job is attribution reads as a third contribution nobody named.
+    listed_b = nbytes("\n".join(out[at_whole:])) - whole_b
+    traps_detail.extend([
+        f"    manifest names {len(wanted)} selector(s) -> {len(picked)} bullet(s), "
+        f"{unnarrowed:,} B whole",
+        f"    your ITEM's {len(terms)} path(s) promote {len(whole)} of them: "
+        f"{whole_b:,} B printed in full"
+        if terms
+        else f"    your ITEM names no path, so all {len(whole)} are printed in full: "
+        f"{whole_b:,} B",
+        f"    the other {len(listed)} cost one lead-in line each: {listed_b:,} B",
+        f"    so narrowing saved {max(unnarrowed - whole_b - listed_b, 0):,} B, and a bound on "
+        "the manifest",
+        f"    would act on the {unnarrowed:,} B -- not on this item's share of it",
+    ])
 
 
 def run_plan(m: Manifest) -> None:
@@ -1086,6 +1129,8 @@ def audit() -> list[str]:
     for title, size in ledger:
         total += size
         lines.append(f"  {title:<44}{size:>8,} B{size / ratio:>10,.0f} tok")
+        if title == TRAPS_TITLE and traps_detail:
+            lines.extend(traps_detail)
     lines.append(f"  {'TOTAL':<44}{total:>8,} B{total / ratio:>10,.0f} tok")
     lines.append("")
     lines.append("  The driver pipes this to the session, so it enters the context once -- and is")
@@ -1097,6 +1142,11 @@ def audit() -> list[str]:
     lines.append("  The largest section is usually the traps. A `[context] playbook` entry may name")
     lines.append("  one BULLET rather than a whole section -- `\"Tooling > A whole ADR\"` -- which is")
     lines.append("  what keeps this from growing every time a trap is written down.")
+    lines.append("")
+    lines.append("  Its indented rows split that cost in two, because only one half is yours: the")
+    lines.append("  manifest's bullets are what a goal author trims, while which of them this ITEM")
+    lines.append("  promotes to full text moves item to item. A traps row that rose because the")
+    lines.append("  item touches a well-documented file is not an argument for naming fewer traps.")
     lines.append("")
     lines.append("  This is a number to look at when you WRITE a goal. It is not a check: nothing")
     lines.append("  here exits non-zero over a size (docs/agent/doc-style.md says why).")
