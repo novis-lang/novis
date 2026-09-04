@@ -6,7 +6,11 @@
 # classified. When it goes green the parity claim is made; the driver then switches to goal 7, the
 # post-parity temp sweep (ADR 0131), which is the chain's last entry.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT. The one exception is a bug rather
+# than a licence: a `want` naming a fact no `nvs run` leg can ever produce -- anything needing an inbound
+# request, or a second one -- is a mis-filed check, and the fix is the check plus a comment naming the
+# cargo check that owns the end-to-end half. Two have been found this way, `upload.nvs` and
+# `session.nvs`; weakening a want for any other reason is the cheat this line exists to refuse.
 
 files = [
   "examples/serve.nvs",
@@ -84,6 +88,11 @@ modules = [
   "crates/nvs-config/src/*.rs",
   # Request, Response, Server, Session, Router, Metrics are registered here.
   "crates/nvs-stdlib/src/registry.rs",
+  # Added when the uploads group opened: stage 5's whole surface -- `files()`, the part and its three
+  # consumers, and the parse the walk pulls -- is these two files, and the map printed neither, so a
+  # session arrived holding a registry map for work that happens nowhere near it.
+  "crates/nvs-stdlib/src/request.rs",
+  "crates/nvs-stdlib/src/multipart.rs",
   # Item 9's compile error, and item 3's `tainted` returns.
   "crates/nvs-types/src/expr/quals.rs",
 ]
@@ -105,6 +114,13 @@ adrs = [
   # Every remaining `[server]` bound — the accept backoff (§ 8) and the wedged-core watchdog (§ 7) — is
   # the same shape, so this is the section the whole block resolves against.
   "0106 §13",
+  # Added when the session fixture's check turned out to want what no program leg can print: § 4 is where
+  # `Core\Session::start()` is fixed and where the backing store is deferred, so it is what says whether a
+  # `nvs run` leg could ever answer a session at all. Stage 5's item 14 opens here.
+  "0012 §4",
+  # Beside it, the rule that item is under: a session read on one core and written on another must see one
+  # value, so the local tier is not one of its backends.
+  "0059 §4",
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
@@ -3365,18 +3381,53 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 routing and uploads"
-name = "nvs-server (ADR 0105, whole)"
+name = "nvs-stdlib (ADR 0105 -- what is landed)"
+args = ["test", "-p", "nvs-stdlib"]
+# THIS CHECK HOLDS ONLY NAMES THE TREE ALREADY HAS, and the one below holds only names it does not:
+# a landed test bundled with unwritten ones reports nothing, so a session that writes one of the open
+# names moves it up here in the same commit. That is what makes "did not run" mean work rather than
+# filing.
+tests = [
+  # § 2 -- `filename` is the whole distinction between a file part and a form field, and the parse that
+  # decides it is `nvs_stdlib::multipart` (`crates/nvs-stdlib/src/multipart.rs:847`).
+  "a_part_is_a_file_part_iff_content_disposition_carries_a_filename",
+  # § 1 -- lazy, and the one door: a part yielded from what arrived before the rest of the body failed,
+  # and a count over the registry saying no second member answers a walk or a part
+  # (`crates/nvs-stdlib/src/request.rs:3028`).
+  "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
+]
+
+# ADR 0105's surface is `Core\Request` and `Core\Request\Part`, and both live in `nvs_stdlib::request`.
+# `crates/nvs-server/Cargo.toml` names four dependencies and `nvs-stdlib` is not among them, so no test
+# that calls `files()` can run under `-p nvs-server` however end-to-end the claim reads. The server's own
+# half of this ADR is § 5's refusal, which is the check after this one.
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-stdlib (ADR 0105 §§ 1-3 -- the walk, the part, and its consumers)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  # § 1 -- the other half of "the only way in": there is no temp path to name and no `move_uploaded_file`
+  # to call, which is asked of the registry's rosters rather than of a body.
+  "there_is_no_temp_path_and_no_move_uploaded_file",
+  # § 3 -- one part, three consumers, and each of them spends it.
+  "a_part_is_consumed_by_read_all_by_iteration_or_by_save_to",
+  # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller.
+  "a_non_file_part_is_buffered_into_post",
+  # §§ 3, 6-8 -- exclusive with body and with files on one request, which `claim_body` decides
+  # (`crates/nvs-runtime/src/ctx.rs:4577`, wrapped at `crates/nvs-stdlib/src/request.rs:980`).
+  "body_stream_is_exclusive_with_body_and_with_files",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-server (ADR 0105 § 5 -- refused before an isolate exists)"
 args = ["test", "-p", "nvs-server"]
 tests = [
-  "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
-  "a_part_is_a_file_part_iff_content_disposition_carries_a_filename",
-  "a_part_is_consumed_by_read_all_by_iteration_or_by_save_to",
-  "there_is_no_temp_path_and_no_move_uploaded_file",
-  "a_non_file_part_is_buffered_into_post",
-  # § 5 -- refused pre-dispatch when Content-Length already exceeds it.
+  # § 5 -- refused pre-dispatch when Content-Length already exceeds the cap. This one IS the server's:
+  # it is answered at the door, before a program exists to ask anything of the body.
   "an_upload_total_over_the_cap_is_refused_before_dispatch",
-  # §§ 3, 6-8 -- exclusive with body and with files on one request.
-  "body_stream_is_exclusive_with_body_and_with_files",
 ]
 
 [[check]]
@@ -3386,7 +3437,7 @@ file = "examples/upload.nvs"
 # A program leg answers no request, so a body's own facts -- how many parts, what a field was
 # called, what a file claimed to be named -- cannot be among these: `Core\Request::files()` refuses
 # where nothing is inbound (ADR 0012 § 7), and that refusal is the first line here. The end-to-end
-# half is the `nvs-server (ADR 0105, whole)` check above, which is where a real multipart body has
+# half is the two `ADR 0105 §§ 1-3` checks above, which is where a real multipart body has
 # somewhere to arrive from. What this leg pins is the surface a handler writes -- the walk, the
 # launderer, `saveTo` -- plus § 4's `writeStream`, which a program *can* run.
 want = ["no request", "streamed 10240 bytes", "escape refused", "removed"]
@@ -3395,7 +3446,14 @@ want = ["no request", "streamed 10240 bytes", "escape refused", "removed"]
 kind = "exact"
 stage = "5 routing and uploads"
 file = "examples/session.nvs"
-want = ["new session", "visits=1", "visits=2", "regenerated", "visits=1"]
+# A program leg is one run with no cookie round trip, so a visit counter rising *across requests* --
+# `new session`, then `visits=1`, then `visits=2` -- is not something `nvs run` can ever print. That is a
+# server fact, and the cross-request half is the two names in the `nvs-stdlib (session, and the tier it
+# may not use)` check above, which is ADR 0059 § 4's rule and where `Core\Session` itself is still open
+# work. What a program leg can pin is the carrier a session id rides on, and that is what this fixture
+# runs: ADR 0060 § 1's ring is ordered, so a cookie sealed under the old key still opens across a
+# rotation and is a forgery once that key is off the tail.
+want = ["opened", "forgery refused", "opens across a rotation", "retired key refused"]
 
 
 # ---------------------------------------------------------------------------------------------------
