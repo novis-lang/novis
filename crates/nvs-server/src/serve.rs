@@ -1676,6 +1676,75 @@ mod tests {
         );
     }
 
+    /// A handler whose program says which sink it is writing through, so the
+    /// response body *is* the carrier's class name.
+    fn echo_the_sink() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let said = child.carrier();
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 3's first row, end to end: inside an HTTP request `echo` writes to the
+    /// response body, and what carries those bytes is `Core\Html\Markup`. No
+    /// call site on this path says so — the isolate was handed a request, and
+    /// that is the whole of what attaches the sink.
+    ///
+    /// The contrast is the load-bearing half, because § 3's direction is the
+    /// fail-closed one. Every other context this path runs is a terminal sink's
+    /// and stays one: the coroutine the accept loop runs on and the one a
+    /// connection is served on both discard what they are handed, and neither
+    /// ever runs a line of a program. `nvs_host::isolate`'s
+    /// `an_isolates_echo_takes_the_terminal_sinks_neutralization` is the same
+    /// rule at the one line that decides it, over the isolate that is *not*
+    /// answering a request.
+    #[test]
+    fn the_html_sink_is_attached_by_a_request_and_by_nothing_else() {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(b"GET /page HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let answer = served_by(listener, &echo_the_sink(), client);
+        assert!(
+            answer.ends_with(nvs_runtime::CARRIER_HTML_MARKUP),
+            "the program answering a request was not writing through the HTML sink: {answer}"
+        );
+        assert_eq!(
+            Ctx::new(OutputSink::Sink).carrier(),
+            nvs_runtime::CARRIER_CLI_TEXT,
+            "the context a connection is served on attached the HTML sink"
+        );
+        assert_eq!(
+            Ctx::buffered().carrier(),
+            nvs_runtime::CARRIER_CLI_TEXT,
+            "a context that is answering nothing attached the HTML sink"
+        );
+    }
+
     /// Runs one accept loop on a scheduler of its own until the client thread
     /// above it is done, and answers what that client read.
     fn served_by<H>(

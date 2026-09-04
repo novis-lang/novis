@@ -204,11 +204,14 @@ pub const CARRIER_CLI_TEXT: &str = r"Core\Cli\Text";
 
 /// The carrier of the **HTML** sink — ADR 0088 § 3's HTTP-request row.
 ///
-/// Declared beside [`CARRIER_CLI_TEXT`] and unreachable until M8 attaches that
-/// sink: no [`OutputSink`] variant selects it yet. It is here so the pair is
-/// one fact in one file, and so [`crate::value_to_string`]'s carrier row is
-/// written against the *set* of carriers rather than against the one that
-/// happens to exist.
+/// Selected by [`OutputSink::Body`] and by nothing else, which is that row's
+/// "attached by an HTTP request and by nothing else" written as a fact about
+/// the sink rather than as a rule: `nvs_host::Isolate` builds that sink for an
+/// isolate answering a request, so a CLI program, a scheduled script, a job
+/// worker and a test keep [`CARRIER_CLI_TEXT`] without any of them saying so.
+/// Declared beside [`CARRIER_CLI_TEXT`] so the pair is one fact in one file,
+/// and so [`crate::value_to_string`]'s carrier row is written against the *set*
+/// of carriers rather than against one of them.
 pub const CARRIER_HTML_MARKUP: &str = r"Core\Html\Markup";
 
 /// The field slot every sink carrier holds its already-escaped bytes in.
@@ -245,9 +248,22 @@ pub enum OutputSink {
     Stderr,
     /// An in-memory buffer, read back with [`Ctx::take_buffered_output`].
     ///
-    /// This is what a test uses, and the shape an HTTP response body will
-    /// reuse in M7.
+    /// This is what a test uses, and the shape [`Self::Body`] reuses.
     Buffer(Vec<u8>),
+    /// An HTTP **response body** — the same buffer as [`Self::Buffer`], read
+    /// back the same way, and the one sink that answers
+    /// [`CARRIER_HTML_MARKUP`].
+    ///
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 3's first row: inside an HTTP request `echo` writes to the response
+    /// body, and what carries those bytes is `Core\Html\Markup`. A variant
+    /// rather than a flag on [`Self::Buffer`], because "which sink is attached"
+    /// is then one question with one answer and [`Ctx::carrier`] is one arm
+    /// rather than a rule a call site states. It is selected in exactly one
+    /// place — `nvs_host::Isolate`, from whether the isolate was handed a
+    /// request — and a `spawn script` child inside a request takes it because
+    /// § 3's third row gives that child the *parent's* carrier.
+    Body(Vec<u8>),
     /// A file on disk, under [ADR 0106](../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
     /// § 10's rotation and retention bound.
     ///
@@ -2876,7 +2892,16 @@ impl Ctx {
         reason = "the parent-outlives-child obligation is a fact about the                   caller's control flow and cannot be expressed in the signature"
     )]
     pub unsafe fn child(&self) -> Self {
-        let mut child = Self::new(OutputSink::Buffer(Vec::new()));
+        // A fresh buffer, but not necessarily a fresh *sink*: ADR 0072's task
+        // is part of this request rather than a context of its own, so it is
+        // still answering whatever this one is answering and ADR 0088 § 3's
+        // first row still applies to it. An isolate reaches the same conclusion
+        // by the third row, and `nvs_host::Isolate` is where that is read.
+        let mut child = Self::new(if matches!(self.output, OutputSink::Body(_)) {
+            OutputSink::Body(Vec::new())
+        } else {
+            OutputSink::Buffer(Vec::new())
+        });
         // Request-wide, and therefore shared or copied.
         child.statics = self.statics;
         child.debug = self.debug;
@@ -4113,7 +4138,7 @@ impl Ctx {
     #[must_use]
     pub fn take_buffered_diagnostic(&mut self) -> Option<Vec<u8>> {
         match &mut self.diagnostic {
-            OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
+            OutputSink::Buffer(buffer) | OutputSink::Body(buffer) => Some(std::mem::take(buffer)),
             OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
                 None
             }
@@ -4135,7 +4160,10 @@ impl Ctx {
             OutputSink::Stderr => io::stderr().flush(),
             // A `LogFile` writes straight through — there is no buffer of its
             // own between `write_all` and the descriptor.
-            OutputSink::Buffer(_) | OutputSink::File(_) | OutputSink::Sink => Ok(()),
+            OutputSink::Buffer(_)
+            | OutputSink::Body(_)
+            | OutputSink::File(_)
+            | OutputSink::Sink => Ok(()),
         }
     }
 
@@ -4143,15 +4171,19 @@ impl Ctx {
     /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
     /// § 3's table, read as a class name.
     ///
-    /// [`CARRIER_CLI_TEXT`] for every sink that exists today, because every
-    /// one of them is a terminal or a stand-in for one: `nvs run`'s stdout, a
-    /// test's buffer, a discarded run. [`CARRIER_HTML_MARKUP`] arrives with
-    /// M8's HTTP request, which is the only context that attaches the HTML
-    /// sink, and it is a new [`OutputSink`] variant plus one arm here rather
-    /// than a rule any call site states.
+    /// [`CARRIER_HTML_MARKUP`] for [`OutputSink::Body`], and
+    /// [`CARRIER_CLI_TEXT`] for every other sink, because every other one is a
+    /// terminal or a stand-in for one: `nvs run`'s stdout, a test's buffer, a
+    /// discarded run. § 3's direction is the fail-closed one — the HTML sink is
+    /// attached by an HTTP request and by nothing else — and it is that variant
+    /// plus this arm rather than a rule any call site states:
+    /// `nvs_host::Isolate` picks the sink from the request it was handed, so a
+    /// scheduled script, a job worker, a `#[Test]` method and a CLI program all
+    /// stay on the terminal sink by never having attached anything.
     #[must_use]
     pub fn carrier(&self) -> &'static str {
         match &self.output {
+            OutputSink::Body(_) => CARRIER_HTML_MARKUP,
             OutputSink::Stdout
             | OutputSink::Stderr
             | OutputSink::Buffer(_)
@@ -4339,7 +4371,7 @@ impl Ctx {
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
         match &mut self.output {
-            OutputSink::Buffer(buffer) => Some(std::mem::take(buffer)),
+            OutputSink::Buffer(buffer) | OutputSink::Body(buffer) => Some(std::mem::take(buffer)),
             OutputSink::Stdout | OutputSink::Stderr | OutputSink::File(_) | OutputSink::Sink => {
                 None
             }
@@ -4880,7 +4912,7 @@ fn write_to(sink: &mut OutputSink, bytes: &[u8]) -> io::Result<()> {
     match sink {
         OutputSink::Stdout => io::stdout().write_all(bytes),
         OutputSink::Stderr => io::stderr().write_all(bytes),
-        OutputSink::Buffer(buffer) => {
+        OutputSink::Buffer(buffer) | OutputSink::Body(buffer) => {
             buffer.extend_from_slice(bytes);
             Ok(())
         }
@@ -5565,6 +5597,10 @@ mod tests {
         assert_eq!(Ctx::stdout().carrier(), CARRIER_CLI_TEXT);
         assert_eq!(Ctx::buffered().carrier(), CARRIER_CLI_TEXT);
         assert_eq!(Ctx::new(OutputSink::Sink).carrier(), CARRIER_CLI_TEXT);
+        assert_eq!(
+            Ctx::new(OutputSink::Body(Vec::new())).carrier(),
+            CARRIER_HTML_MARKUP
+        );
         assert!(is_carrier(CARRIER_CLI_TEXT) && is_carrier(CARRIER_HTML_MARKUP));
         assert!(!is_carrier(r"Core\Str"));
     }

@@ -269,9 +269,23 @@ impl Isolate {
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
+        //
+        // *Which* buffer is ADR 0088 § 3's table, and this is the one place it
+        // is read: an isolate handed a request attaches the HTML sink, because
+        // its `echo` is the response body, and one spawned inside a request
+        // takes its parent's carrier — that row says so, and it is what keeps a
+        // `spawn script` child of a page from handing `Core\Out::capture` back
+        // a class its parent's own bytes are not. Everything else — a CLI
+        // program, a scheduled script, a job worker, a `#[Test]` method — never
+        // reaches either half and so keeps the terminal sink by default.
+        let sink = if inbound.is_some() || ctx.carrier() == nvs_runtime::CARRIER_HTML_MARKUP {
+            OutputSink::Body(Vec::new())
+        } else {
+            OutputSink::Buffer(Vec::new())
+        };
         let mut isolate_ctx = match charge {
-            Charge::Tree => ctx.isolate(OutputSink::Buffer(Vec::new())),
-            Charge::EngineReserve => ctx.handler_isolate(OutputSink::Buffer(Vec::new())),
+            Charge::Tree => ctx.isolate(sink),
+            Charge::EngineReserve => ctx.handler_isolate(sink),
         };
         // The request this child answers, on the context that will run it and
         // before it can run — [`Isolate::answering`] owns why it arrives here
@@ -796,6 +810,53 @@ mod tests {
             "and the parent's own base is untouched by the child arming two slots"
         );
         assert_eq!(ctx.statics_len(), 1, "the parent still has its one slot");
+    }
+
+    /// [ADR 0088](../../../docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
+    /// § 3's third row: a `spawn script` isolate's `echo` reaches a buffer of
+    /// its own, and what carries those bytes is the **parent's** carrier — so a
+    /// child spawned by a CLI program, a scheduled script, a job worker or a
+    /// `#[Test]` method takes `Core\Cli\Text` and its substitution, which is
+    /// that sink's neutralization.
+    ///
+    /// The request half is asserted beside it because the rule is one `if` and
+    /// a test of half of it would pass on a runtime that attached the HTML sink
+    /// to everything. `nvs_server::serve`'s
+    /// `the_html_sink_is_attached_by_a_request_and_by_nothing_else` is the same
+    /// claim over a socket; this is it at the line that decides.
+    #[test]
+    fn an_isolates_echo_takes_the_terminal_sinks_neutralization() {
+        let carrier_of = |ctx: &mut Ctx, answering: Option<Inbound>| -> &'static str {
+            let seen: Rc<Cell<&'static str>> = Rc::new(Cell::new(""));
+            let recorded = Rc::clone(&seen);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                recorded.set(child.carrier());
+                Value::null()
+            });
+            let isolate = Isolate::new(program, Value::null(), Output::Capture);
+            let done = run(
+                match answering {
+                    Some(inbound) => isolate.answering(inbound),
+                    None => isolate,
+                },
+                ctx,
+            )
+            .expect("a null argument crosses");
+            assert!(done.ok, "{:?}", done.error);
+            seen.get()
+        };
+
+        let mut ctx = parent();
+        assert_eq!(
+            carrier_of(&mut ctx, None),
+            nvs_runtime::CARRIER_CLI_TEXT,
+            "an isolate answering no request took something other than the terminal sink"
+        );
+        assert_eq!(
+            carrier_of(&mut ctx, Some(Inbound::new("GET", "/page", ""))),
+            nvs_runtime::CARRIER_HTML_MARKUP,
+            "an isolate handed a request did not attach the HTML sink"
+        );
     }
 
     /// ADR 0116 § 5's copy is rooted in the **collector's** ownership, so a
