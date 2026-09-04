@@ -1350,3 +1350,117 @@ nvs_runtime::nvs_helper! {
         Ok(Value::null())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{JSON_MEDIA_TYPE, TEXT_MEDIA_TYPE};
+    use nvs_runtime::{Ctx, NvsStr, OutputSink, Value, call};
+
+    /// One body member's whole effect on the response *head*, which is the one
+    /// word ADR 0088 § 4 puts there: the media type it declared, read back off
+    /// the context the isolate's finish path takes it from.
+    ///
+    /// A fresh context per call, because the claim is that each member declares
+    /// its own rather than that the last one to run wins — sharing one would
+    /// assert the opposite by construction.
+    fn declared(
+        member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+        args: &[Value],
+    ) -> Option<Box<str>> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        call(member, &mut ctx, args).expect("a body member with a well-formed argument answers");
+        ctx.take_content_type()
+    }
+
+    /// Drops a reference this module built and the borrowing member did not
+    /// take — `arr`'s tests own theirs the same way.
+    fn dropped(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the reference it built, and a `Core` member \
+                      borrows its arguments rather than consuming them"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// ADR 0088 § 4's table, asserted as a table: each landed body member owns
+    /// one body shape and sets **its own** `Content-Type`, which is the whole
+    /// argument for five members rather than one `write`.
+    ///
+    /// Three claims rather than one row each, because a member that answered a
+    /// neighbour's media type would still read plausibly on its own line: the
+    /// declarations are asserted against § 4's column, asserted to be
+    /// *distinct*, and — for the one member that is told its type — asserted to
+    /// carry two different ones rather than a constant that happened to match.
+    ///
+    /// `html` and `sendFile` are § 4's other two rows and are not here because
+    /// they have not landed; `nvs_stdlib::response`'s module doc owns that gap,
+    /// and the sweep below is over the roster rather than over three names, so
+    /// each of them joins by being added to it.
+    #[test]
+    fn each_body_member_sets_its_own_content_type() {
+        // Nothing else on the path declares one: a context no body member has
+        // answered on carries no media type at all, so every declaration below
+        // is that member's own act and not a default read back.
+        let mut untouched = Ctx::new(OutputSink::Sink);
+        assert_eq!(untouched.take_content_type(), None);
+
+        let body = Value::str(NvsStr::new(b"a paragraph"));
+        let blob = Value::bytes(NvsStr::new(b"\x89PNG"));
+        let told = Value::str(NvsStr::new(b"application/octet-stream"));
+
+        let table = [
+            (
+                "text",
+                declared(super::nvs_core_response_text, &[body]),
+                TEXT_MEDIA_TYPE,
+            ),
+            (
+                "json",
+                declared(super::nvs_core_response_json, &[Value::int(1)]),
+                JSON_MEDIA_TYPE,
+            ),
+            (
+                "bytes",
+                declared(super::nvs_core_response_bytes, &[blob, told]),
+                "application/octet-stream",
+            ),
+        ];
+        for (member, said, expected) in &table {
+            assert_eq!(
+                said.as_deref(),
+                Some(*expected),
+                "Core\\Response::{member} declares § 4's own media type"
+            );
+        }
+
+        // And they are its own: two members answering one type is the endpoint
+        // that serves JSON labelled as HTML, which is what § 4 exists to make
+        // unwritable. Counted rather than compared pairwise, so a fourth row
+        // added above is covered by this line as it stands.
+        let distinct: std::collections::BTreeSet<_> =
+            table.iter().map(|(_, said, _)| said.clone()).collect();
+        assert_eq!(
+            distinct.len(),
+            table.len(),
+            "each body member declares a media type no other one does: {table:?}"
+        );
+
+        // `bytes` is the row that is *told*, so its declaration is asserted on
+        // a second value: a member that declared a constant matching the first
+        // one would pass every line above.
+        let other = Value::str(NvsStr::new(b"image/png"));
+        assert_eq!(
+            declared(super::nvs_core_response_bytes, &[blob, other]).as_deref(),
+            Some("image/png"),
+            "Core\\Response::bytes carries the content type it was given"
+        );
+
+        dropped(body);
+        dropped(blob);
+        dropped(told);
+        dropped(other);
+    }
+}
