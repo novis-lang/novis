@@ -5299,6 +5299,17 @@ is why" — is this file.
   counted from the first line after `--FILE--`, `<?nvs` included. When a case's expectation changes at
   all, re-run it with `python tools/try.py <case>` and copy the whole location line rather than the
   part that changed; the two-minute `verify.py` leg is the expensive way to learn this.
+- **Closing a conversion gap turns the conformance case that pinned the gap red, and the case's
+  name does not say which type it used.**
+  `command-run-throws-for-a-parameter-no-argument-converts-into.nvst` declared `decimal $amount`
+  to reach `Core\Command::run`'s `ArgConv::Unconverted` refusal, so landing the `decimal` arm left
+  the one case asserting that refusal asserting nothing, with an `--EXPECT--` that would have
+  failed at the full verify rather than at the edit. A gap case's name says *what* it pins and
+  never *with which type*, so `grep -rln '<the type>' tests/conformance/` before widening any
+  roster, and rewrite the case with a type still on the far side of the gap — here an enum, which
+  is what `nvs_runtime::commands`' gap 1 now holds. The neighbouring bullet is the other
+  direction: that one is a green case pinning an absence its ADR forbids, this one is a green case
+  pinning an absence you have just filled.
 
 ## Splitting a file that got too big
 

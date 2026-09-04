@@ -59,8 +59,8 @@
 > parts; the door writes the carrier, a request is a peer task, and pulls its body; every response
 > carries ADR 0074 § 1's set, § 2 is whole; a request is matched once, `route()` and `methodsFor`
 > answer, and § 2's two answers are the table's computation rather than a status the door sends; a
-> `decimal` and a `Core\Uuid` capture convert and refuse what is not one; `E0801` refuses `echo`
-> beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1499,
+> `decimal` and a `Core\Uuid` convert as a capture and as a command argument; `E0801` refuses `echo`
+> beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1503,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
