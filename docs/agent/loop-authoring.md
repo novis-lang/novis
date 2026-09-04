@@ -54,8 +54,9 @@ fixed floor plus the pack that is on disk right now. That matters when you have 
 session reads: without it, a pass that halves the pack goes on producing the old cap until a whole further
 run has been spent re-measuring what was just measured.
 
-Whatever you pick, **say in the commit which cap it is and why.** AGENTS.md § *Session workflow* step 2 is
-the one place it lives.
+Whatever number you change there — the ceiling or the 120k gate — **say in the commit which one it is and
+why.** AGENTS.md § *Session workflow* step 2 is the one place either lives, and it takes no slice count:
+`loop-stats.py`'s three group-curve readings are a read of the curve, not a menu to install one of.
 
 ## 2. Scope the context — decide what a session may read, before deciding what it does
 

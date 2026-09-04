@@ -866,8 +866,9 @@ def main():
             f"{r['speedup']:>8.2f}x{r['token_ratio']:>8.2f}x{r['ctx_end']:>10,}{note}"
         )
 
-    # Three defensible caps, because they optimise three different things. Which one is
-    # right is the author's call, not this script's: loop-authoring.md names the tradeoff.
+    # Three readings of the same curve, because they optimise three different things. None of
+    # them is a cap to install: AGENTS.md step 2 replaced the slice count with the 120k gate,
+    # and takes only the ceiling from here. loop-authoring.md § 1 names the lever each shape wants.
     safe = [r for r in rows if not r["over_ceiling"]]
     cheapest = [r for r in safe if r["token_ratio"] <= 1.0]
     knee = [
@@ -875,14 +876,15 @@ def main():
         for r, prev in zip(safe[1:], safe)
         if r["speedup"] - prev["speedup"] >= 0.10
     ]
-    print("\n== CAPS  three answers, optimising three different things")
+    print("\n== GROUP CURVE  what the curve says, not a cap to install")
     if not safe:
         print(
             "   NONE. Even a single slice projects past the ceiling, so there is no group size to\n"
-            "   pick: the cap is one slice, and the work is cutting what a session reads. The\n"
-            "   projection above charges every extra slice a full fresh read, which is the right\n"
-            "   assumption for an unrelated slice and pessimistic for one sharing a file set --\n"
-            "   so re-run this after the first session that lands well under the ceiling."
+            "   pick: there is nothing to group, and the work is cutting what a session reads --\n"
+            "   not counting slices. The projection above charges every extra slice a full fresh\n"
+            "   read, which is the right assumption for an unrelated slice and pessimistic for one\n"
+            "   sharing a file set -- so re-run this after the first session that lands well under\n"
+            "   the ceiling."
         )
     if cheapest:
         r = cheapest[-1]
@@ -904,9 +906,12 @@ def main():
         )
     if safe:
         print(
-            "\n   Pick one, put it in AGENTS.md § Session workflow step 2, and say in the commit which\n"
-            "   of the three it is and why. If the cap there matches none of them, it predates this\n"
-            "   measurement: docs/agent/loop-authoring.md § Measure first says what to do about that."
+            "\n   These are readings of the curve, not caps to install. AGENTS.md § Session\n"
+            "   workflow step 2 holds no slice count any more -- the 120k gate replaced it, because\n"
+            "   a slice's cost is not fixed and a count prices every slice as the most expensive\n"
+            "   one. What step 2 does take from here is the CEILING, and only after a run that\n"
+            "   changed what a session reads. docs/agent/loop-authoring.md § Measure first says\n"
+            "   which lever each shape wants."
         )
 
 
