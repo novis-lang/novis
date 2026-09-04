@@ -5,7 +5,9 @@
 //! fails silently by construction — an entry that never fires is indistinguishable from one whose
 //! interval has not come round, and the operator learns about it from the work that did not happen.
 //! So the questions are asked once, over the merged tree, and a tree that cannot answer them does
-//! not serve: § 1 for `name` and `script`, § 2 for `cron`, § 3 for `scope`.
+//! not serve: § 1 for `name` and `script`, § 2 for `cron`, § 3 for `scope`, § 6 for `overlap` —
+//! which has a default and is checked anyway, because a word that is not one of its three is a mode
+//! the operator asked for and will not get.
 //!
 //! **Over the merged tree, beside [`app::canonicalize`](crate::app::canonicalize), and for the same
 //! reason:** `[[schedule]]` is an array of tables, so entries accumulate across the files
@@ -91,8 +93,9 @@ const DAYS: [&str; 7] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 ///
 /// One [`Diagnostic`], `E0611`, for the first entry that cannot answer: no `name` or a duplicate
 /// one, no `cron` or one outside § 2's dialect, a `timezone` no IANA database knows, no `script` or
-/// one outside the `script.spawn` roots, no `scope` or one that is neither `fleet` nor `host`, or a
-/// `fleet` entry with no shared store to hold § 3's lease.
+/// one outside the `script.spawn` roots, no `scope` or one that is neither `fleet` nor `host`, an
+/// `overlap` that is none of § 6's three, or a `fleet` entry with no shared store to hold § 3's
+/// lease.
 pub fn validate(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
@@ -181,6 +184,27 @@ pub fn validate(
                  this job means",
                 origins,
                 "scope",
+            ));
+        }
+
+        // § 6's `overlap` has a default, so what is refused here is a *word* rather than a missing
+        // key. It earns a refusal because the three differ in whether a fire is dropped, held or
+        // allowed to replace the run before it: a typo falling through to `skip` is a job that
+        // quietly does nothing where the operator asked for the previous run to be cancelled, and
+        // the only place that is observable is the run that did not happen.
+        if let Some(overlap) = entry.overlap.as_deref()
+            && !matches!(overlap, "skip" | "queue" | "kill")
+        {
+            return Err(refusal(
+                index,
+                entry,
+                format!("`overlap = \"{overlap}\"` is none of `skip`, `queue` or `kill`"),
+                "§ 6 gives an entry that comes due while its last run is still going exactly three \
+                 answers — drop this fire, hold one until that run ends, or cancel that run and \
+                 wait for its teardown — and `skip` is what an entry that says nothing gets",
+                "drop the key for `skip`, or name one of the three",
+                origins,
+                "overlap",
             ));
         }
 

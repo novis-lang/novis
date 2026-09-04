@@ -976,6 +976,39 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
     );
 }
 
+/// ADR 0073 § 6: `overlap` has a default, and a word that is not one of its three still refuses the
+/// boot. Asserted with the default and both named modes beside the refusal, because a check that
+/// only refused would pass just as well if the key were refused whenever it was written at all —
+/// and `queue` and `kill` are configurations the ADR states, so refusing them would be the same
+/// silent failure in the other direction.
+#[test]
+fn an_overlap_that_is_none_of_the_three_refuses_the_boot() {
+    let fs = scheduling(&entry("scope = \"host\"\noverlap = \"replace\"\n"));
+
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SCHEDULE));
+    assert!(
+        diagnostic.message.contains("nightly") && diagnostic.message.contains("overlap"),
+        "the refusal names the entry and the key that cannot be read: {}",
+        diagnostic.message,
+    );
+
+    for written in [
+        "",
+        "overlap = \"skip\"\n",
+        "overlap = \"queue\"\n",
+        "overlap = \"kill\"\n",
+    ] {
+        let fs = scheduling(&entry(&format!("scope = \"host\"\n{written}")));
+        assert_eq!(
+            tree_of(&fs, "etc/nvs.toml").config.schedule.len(),
+            1,
+            "§ 6 names three modes and gives an entry that writes none of them `skip`: {written:?}",
+        );
+    }
+}
+
 /// A tree whose only content is `block`, for the two `[http]` pairs ADR 0074 refuses.
 fn http(block: &str) -> Fake {
     Fake::with(&[("etc/nvs.toml", block)])
