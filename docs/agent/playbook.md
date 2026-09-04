@@ -1859,6 +1859,18 @@ is why" — is this file.
   slice turned on. The tell is the target being echoed back verbatim with `NOT FOUND` after it,
   where a real miss prints the file and the pattern separately. Keep `--locate` in a call of its
   own; a call that wants bodies and anchors at once wants two calls or no `--locate` at all.
+- **A failing acceptance check can name a feature with no foundation anywhere in the tree, and
+  then the cheapest triage is one `grep -rn` for the ADR number across `crates/*/src`.** The
+  `nvs-server (match once, and the two answers)` check names four ADR 0102 tests; the grep found
+  `nvs-stdlib/src/router.rs`, whose own module doc says `Core\Router::match` is unwritten and that
+  the link half "is as much of the router as exists today". So the check is not misfiled and not a
+  regression — it is a whole milestone-sized item (a compiled route table travelling on the unit,
+  ADR 0102 § 1) reported as "did not run", which is the ordinary state this goal's checks are
+  written in. The sibling bullets cover the misfiled case and the impossible-crate case; this is
+  the third outcome, and the tell is that the grep finds the surface *named* in a module doc's
+  "known gaps" rather than implemented or absent. Two of the four names additionally cannot be
+  hosted by `-p nvs-server`: `Core\Request::route()` is `nvs-stdlib`'s and that crate is in
+  neither the dependencies nor the dev-dependencies of `crates/nvs-server/Cargo.toml`.
 
 ## Running things
 

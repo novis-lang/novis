@@ -53,15 +53,15 @@
 > 0133's carrier landed**: `Core\Html::escape` answers `Core\Html\Markup`,  `.`, `.=`, interpolation
 > and `as string` refuse one. **Goals 1-5 and M4 closed**. **`crates/nvs-server` runs an h1 request
 > as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on` (ADR 0138), `echo`
-> is the body, ADR 0097 §§ 4-5 bound and route it; `nvs serve` boots the whole mount table on one
-> core and § 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling; §
-> 5's ceiling is arithmetic against the memory budget, `503` before an isolate exists; § 6's walk
-> decides the peer, `400` on a bad token; § 8's accept backs off, § 10's mount holds no policy, §
-> 5's drain answers the probe and `isDraining()`; `Core\Response` has seven, `Core\Request` eleven,
-> an upload walks as parts; the door writes the carrier, a request is a peer task, and pulls its
-> body; every response carries ADR 0074 § 1's set, and § 2 refuses a preflight; `E0801` refuses
-> `echo` beside one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance
-> 1493, differential 256, migration 100%; valgrind green.
+> is the body; `nvs serve` boots the whole mount table on one core and § 4's static policy sends a
+> file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic against the
+> memory budget, `503` before an isolate exists; § 6's walk decides the peer, `400` on a bad token;
+> § 8's accept backs off, § 10's mount holds no policy, § 5's drain answers the probe and
+> `isDraining()`; `Core\Response` has seven, `Core\Request` eleven, an upload walks as parts; the
+> door writes the carrier, a request is a peer task, and pulls its body; every response carries ADR
+> 0074 § 1's set, § 2 refuses a preflight and crosses a named origin; `E0801` refuses `echo` beside
+> one. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. Conformance 1493,
+> differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call orders 1–5 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
