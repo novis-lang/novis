@@ -66,6 +66,7 @@ pub mod cache;
 pub mod capability;
 pub mod db;
 pub mod directive;
+pub mod export;
 pub mod file;
 pub mod http;
 pub mod log;

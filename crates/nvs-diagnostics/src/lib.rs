@@ -1554,6 +1554,37 @@ pub mod code {
     /// system ever reports it.
     pub const E_SESSION_BACKEND: Code = Code::new("E0626");
 
+    /// `[metrics] exporter` or `[trace] exporter` names no exporter that block
+    /// has.
+    ///
+    /// ADR 0076 § 6 gives metrics a scrape (`prometheus`) or a push (`otlp`)
+    /// and gives a trace only the push, with `false` the disabled state for
+    /// both. The asymmetry is the section's, not a limitation of the exporters:
+    /// a scrape answers with a series' current value, and a span is a finished
+    /// record with no current value to answer with.
+    ///
+    /// Refused where the key is written rather than where an export would run,
+    /// for `E0613`'s reason. Both blocks are `System`, so the value in force is
+    /// the one the boot read, and a wrong one produces silence — a collector
+    /// nothing writes to is indistinguishable from a deployment with nothing to
+    /// say, so every dashboard over it is empty rather than wrong and nothing
+    /// reports why.
+    pub const E_UNSPELLED_EXPORTER: Code = Code::new("E0627");
+
+    /// `[trace] sample` is not a fraction of one.
+    ///
+    /// ADR 0076 § 6 writes the head sample as `0.0` to `1.0` inclusive. A
+    /// number outside that names no smaller or larger sample — it names
+    /// nothing, and what a reader does with `sample = 5` depends on which side
+    /// of a comparison it lands on, where "record everything" and "record
+    /// nothing" are both plausible readings of the same value.
+    ///
+    /// Non-finite is refused here rather than left to that comparison, because
+    /// TOML spells `nan` and `inf` and every ordering against a `NaN` is false:
+    /// a sample written as one would read as "record nothing" through the same
+    /// expression that reads `0.0` that way.
+    pub const E_SAMPLE_NOT_A_FRACTION: Code = Code::new("E0628");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
