@@ -617,6 +617,14 @@ where
             serving.secure.fill(refused.headers_mut(), scheme);
             return Ok::<_, Infallible>(refused);
         }
+        // § 2's other half, decided here because the handler below takes the
+        // request by value and the `Origin` it must read is on it. The two
+        // refusals above carry none of this on purpose: they are the door's own
+        // answers, they carry no CORS header under any policy, and saying they
+        // varied by an origin nothing looked at would be a claim about an
+        // answer the policy never produced. [`crate::cors`] owns the rest,
+        // including why a cache is what `Vary` is for.
+        let crossing = serving.cors.answer(request.headers());
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -712,8 +720,11 @@ where
         phase.set(Phase::Write);
         // Last, and once for every path above: ADR 0074 § 1's set is what this
         // response carries beside whatever wrote it, and filling leaves a name
-        // the answer already spelled for itself exactly as it is.
+        // the answer already spelled for itself exactly as it is. § 2's answer
+        // is written on the same terms and at the same point, so a response has
+        // one place where policy reaches it rather than two.
         serving.secure.fill(answered.headers_mut(), scheme);
+        crossing.fill(answered.headers_mut());
         Ok(answered)
     });
     let connection = http1::Builder::new().serve_connection(io, service);
@@ -2418,6 +2429,87 @@ mod tests {
             "§ 2 emits no CORS header at all with `origins = []`, and this answer carried \
              one: {answer}"
         );
+    }
+
+    /// ADR 0074 § 2's open half over the wire: a tree that named `https://allowed.example`
+    /// tells that origin it may read the answer, tells every other origin nothing, and marks
+    /// **both** answers as varying by `Origin`.
+    ///
+    /// The two requests are one case rather than two because what is being pinned is that they
+    /// differ in the allow line and *agree* on the `Vary` — asserted apart, the refused half
+    /// passes a server that never varies anything and the allowed half passes one that varies
+    /// only what it allowed, which is the cache bug [`crate::cors`]'s module doc is about. The
+    /// header names are read off the wire because this is the assertion that the door writes
+    /// what the policy decided; `cors::tests` is where the decision itself is pinned.
+    #[test]
+    fn a_named_origin_crosses_and_every_answer_says_it_varies() {
+        for (origin, allowed) in [
+            ("https://allowed.example", true),
+            ("https://other.example", false),
+        ] {
+            let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+                .expect("the OS refused a port");
+            let addr = listener
+                .local_addr()
+                .expect("a bound listener had no address");
+
+            let client = std::thread::spawn(move || {
+                let mut socket =
+                    TcpStream::connect(addr).expect("the loopback refused a connection");
+                socket
+                    .write_all(
+                        format!(
+                            "GET /hello HTTP/1.1\r\nHost: localhost\r\n\
+                             Origin: {origin}\r\nConnection: close\r\n\r\n"
+                        )
+                        .as_bytes(),
+                    )
+                    .expect("the write failed");
+                let mut answer = String::new();
+                socket
+                    .read_to_string(&mut answer)
+                    .expect("the response could not be read");
+                answer
+            });
+
+            let answer = served_under(listener, &echo_the_path(), client, naming_one_origin());
+            let sent = answer.to_ascii_lowercase();
+            assert!(
+                sent.starts_with("http/1.1 200 ok"),
+                "the cross-origin request was not the one this case is about: {answer}"
+            );
+            assert_eq!(
+                sent.contains("access-control-allow-origin: https://allowed.example"),
+                allowed,
+                "`{origin}` was answered by the wrong half of `[http.cors] origins`: {answer}"
+            );
+            assert!(
+                sent.contains("vary: origin"),
+                "an answer an open policy could have varied did not say so: {answer}"
+            );
+        }
+    }
+
+    /// [`wide_open`] with one origin named, which is the only difference between § 2's two
+    /// halves as a request meets them.
+    fn naming_one_origin() -> Serving {
+        let http = nvs_config::tree::Http {
+            cors: Some(nvs_config::tree::HttpCors {
+                origins: Some(vec!["https://allowed.example".to_owned()]),
+                ..nvs_config::tree::HttpCors::default()
+            }),
+            ..nvs_config::tree::Http::default()
+        };
+        Serving::new(
+            Arc::new(Admission::new(&Ceiling::of(&Capacity {
+                configured: 10_000,
+                per_request: None,
+                budget: None,
+            }))),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::of(Some(&http))),
+        )
     }
 
     /// ADR 0074 § 2's other half over the wire: a preflight is answered `403`
