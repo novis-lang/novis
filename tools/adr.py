@@ -65,6 +65,14 @@ WHAT IT CHECKS, AND WHY EACH ONE IS HERE RATHER THAN IN A REVIEWER'S HEAD
              is the failure mode this set is most exposed to, because sections are cited by number
              from other ADRs, from `loop-goal.toml`, and from code comments.
 
+             A `SS N` counts as citing *another* ADR only when that ADR is named directly in front
+             of it -- `[0067] SS 13`, `ADR 0072 SS 6`, `[0104]'s SS 3`. Prose in between means the
+             section belongs to the ADR doing the writing, which is how 0044 and 0084 cite their
+             own SS 7 and SS 8 a clause after naming someone else. Reading across that clause finds
+             1,031 more citations than matching the link text alone, and four of them are wrong;
+             refusing to costs three citations of a shape nobody writes twice. A gate that cries
+             wolf gets ignored, so this takes the narrow rule and 1,288 checked citations.
+
   symmetry   `Amends: A` in B obliges `Amended by: B` in A. One-directional folds are how an ADR
              ends up describing a rule that a later one already replaced.
 
@@ -143,6 +151,21 @@ COUNTERS = [
 ]
 
 
+#: A markdown link's target, as `](0007-explicit-type-system.md)`. `section_refs` collapses it so a
+#: citation reads as `[0007] § 4`; the `.md` in it is otherwise a sentence break to any scan.
+LINK_TARGET_RE = re.compile(r"\]\(\d{4}-[a-z0-9-]+\.md(?:#[^)]*)?\)")
+SECTION_CITE_RE = re.compile(r"§§?\s*(\d+[a-z]?)")
+
+#: A `§ N` cites *another* ADR only when that ADR is named right in front of it -- `[0067] § 13`,
+#: `ADR 0072 § 6`, `[0104]'s § 3`. Anything else between the two is prose, and prose means the `§`
+#: belongs to the ADR doing the writing: 0044 § 199 says "[ADR 0024] ... already carry: every
+#: ported call site in § 7's table", and that § 7 is 0044's own. A window wide enough to reach
+#: across a clause reads every one of those as a cross-reference and reports it as dangling.
+#: `E0122` is a diagnostic code, so a digit run preceded by a letter never counts; `2026` is a
+#: year, so an ADR number always leads with a zero.
+CROSS_CITE_RE = re.compile(r"(?<![A-Za-z0-9])(0\d{3})\]?(?:'s)?[\s,]*$")
+
+
 class Adr:
     def __init__(self, path: str, text: str | None = None) -> None:
         self.path = path
@@ -208,15 +231,24 @@ class Adr:
         return set(re.findall(r"\b(\d{4})\b", self.fields.get(name, "")))
 
     def section_refs(self) -> list[tuple[int, str, str]]:
-        """(line, target ADR number, section number) for every `0007 SS 3`-shaped citation."""
+        """(line, target ADR number, section number) for every `0007 SS 3`-shaped citation.
+
+        Read backwards from the `§`, not forwards from the number. A citation names its target
+        immediately before the section mark, so the target is the *last* ADR number in the run of
+        text ahead of it; scanning forward from every number instead makes
+        `[0007](...) and [0009](...) § 2` a claim about 0007 as well, which it is not."""
         out = []
         for i, line in enumerate(self.lines, 1):
-            # `[0007](…)` or a bare `ADR 0007`, then §N within a short span. `E0122` is a
-            # diagnostic code, not an ADR, so a digit run preceded by a letter never counts.
-            for m in re.finditer(r"(?<![A-Za-z0-9])(\d{4})(?:\]|\)|\b)[^.\n|]{0,60}?§§?\s*(\d+[a-z]?)", line):
-                num, sec = m.group(1), m.group(2)
-                if num != self.num and re.match(r"^0\d{3}$", num):
-                    out.append((i, num, sec))
+            # `[0007](0007-explicit-type-system.md) § 4` is how a citation is nearly always
+            # written, and the `.md` in the link target used to stop the scan dead -- so the one
+            # form in common use was the one form never checked, and nine dangling `§ N` had
+            # accumulated behind it. Collapsing the target to `]` leaves `[0007] § 4` and moves
+            # no column onto another line.
+            plain = LINK_TARGET_RE.sub("]", line)
+            for m in SECTION_CITE_RE.finditer(plain):
+                cite = CROSS_CITE_RE.search(plain[max(0, m.start() - 40):m.start()])
+                if cite and cite.group(1) != self.num:
+                    out.append((i, cite.group(1), m.group(1)))
         return out
 
 

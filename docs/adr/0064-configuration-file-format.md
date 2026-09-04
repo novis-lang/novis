@@ -146,7 +146,7 @@ that a reader of `nvs.toml` has one place to start:
 | `[server]`, `[[server.mount]]` | [0097](0097-development-server-and-proxied-origin.md) |
 | `[cache]` | [0042](0042-on-disk-artifact-cache-format.md) |
 | `[control]` | [0078](0078-config-reload-and-control-socket.md) § 3 |
-| `[opcache]` | [0017](0017-hot-reload-without-restart.md), and its file-cache half [0042](0042-on-disk-artifact-cache-format.md) § 9 |
+| `[opcache]` | [0017](0017-hot-reload-without-restart.md), and its file-cache half [0042](0042-on-disk-artifact-cache-format.md) § 7 |
 | `[image]` | [0120](0120-the-image-component-is-a-pipeline-that-crosses-the-boundary-once.md) § 6 |
 
 `[[schedule]]` is an array-of-tables for § 2's stated reason — a repeated record with several fields — and
