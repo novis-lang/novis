@@ -206,7 +206,8 @@ pub struct Resolved {
     /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
-    /// What the tree is only *advised* about — today § 7's readable secret file, `W1005`. A
+    /// What the tree is only *advised* about — today § 7's readable secret file (`W1005`) and its
+    /// credential with an edge space (`W1007`). A
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
     pub warnings: Vec<Diagnostic>,

@@ -449,6 +449,9 @@ own lists:
   preserved; empty, whitespace-only, non-UTF-8 and oversized files refuse; setting both `password` and
   `password_file` refuses; a group-writable secret file refuses and a world-readable one warns.
   `nvs config dump` prints `<secret>` and never the value.
+- A credential in force whose value begins or ends with whitespace warns `W1007`, in both spellings, and
+  the value is unchanged by it; no reader trims a credential, and `nvs_stdlib::mail`'s `present` is a unit
+  test of that where the last one that did was found.
 - The pair rule is the registry's and not `[db.<name>]`'s: a `[mail.<name>] password_file` materializes
   into the value `Core\Config::get` answers and `nvs_stdlib::mail` submits, setting both halves refuses
   naming that block, and a credential field on the typed tree with no registry row fails a source census

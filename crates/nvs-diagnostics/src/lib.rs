@@ -2979,4 +2979,19 @@ pub mod code {
     /// [ADR 0066](../../../docs/adr/0066-nullable-conversion-operator.md) § 6
     /// gives for its own.
     pub const W_CATCH_ARM_DISCARDS_EVERY_FAILURE: Code = Code::new("W1006");
+    /// A credential the configuration puts in force begins or ends with
+    /// whitespace. ADR 0103 § 7 keeps such a value exactly as it was written —
+    /// a password may legitimately carry an edge space, and removing it would
+    /// be ADR 0095's repair of input in place of a reading of it — so the value
+    /// is used as-is and this is an advisory, never a refusal: refusing it
+    /// would wall off a credential issued somewhere else, with no remedy in
+    /// the file that names it.
+    ///
+    /// It is said out loud because that space is invisible in the one place an
+    /// operator looks. In the file half of a § 7 pair there is nothing to see
+    /// at all, and at the end of a TOML line it is a space before a quote. A
+    /// reader that quietly trimmed it instead — `nvs_stdlib::mail` did — turns
+    /// a working credential into an authentication failure at the far end,
+    /// which is the bug this code exists to make loud.
+    pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007");
 }

@@ -19970,6 +19970,11 @@ boot; one another account can only **read** is a warning and not a refusal, beca
 secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`, and from inside a
 container that is the norm rather than a mistake.
 
+A credential is used exactly as it was written, and no part of the runtime trims one: a password may
+legitimately begin or end with a space. Because such a space is invisible — there is nothing to see
+inside a secret file, and at the end of a TOML line it is one character before a quote — the boot
+warns `W1007` naming the directive, and goes on with the value.
+
 There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
 or it is the content of a file the directive names.
 

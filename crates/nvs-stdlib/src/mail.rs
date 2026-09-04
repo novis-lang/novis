@@ -291,8 +291,26 @@ struct Endpoint {
 fn configured(ctx: &Ctx, endpoint: &str, key: &str) -> Option<String> {
     ctx.config()
         .and_then(|config| config.get(&format!("mail.{endpoint}.{key}")))
-        .map(|text| text.trim().to_owned())
-        .filter(|text| !text.is_empty())
+        .and_then(present)
+}
+
+/// Blank read as absent, and anything else answered **verbatim**.
+///
+/// The two halves are separate rules and this reader used to conflate them. A
+/// blank value is a cleared setting, which is the paragraph above. A *non-blank*
+/// value is the operator's, byte for byte: `password = "hunter2 "` is a
+/// credential that ends in a space, ADR 0103 § 7 is explicit that such a value
+/// is kept rather than trimmed, and the boot already says `W1007` about it. This
+/// function trimmed the value it returned, so the one endpoint that could have
+/// used that password submitted a different one — an authentication failure at
+/// the far end, from a file that plainly held the right bytes. ADR 0095 is the
+/// general form: input is read or refused, never repaired.
+fn present(text: String) -> Option<String> {
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text)
+    }
 }
 
 /// The block `endpoint` names, once `mail.send` has been shown to grant it.
@@ -1167,6 +1185,30 @@ mod tests {
             injected.starts_with("=?UTF-8?B?") && !injected.contains('\r'),
             "an injected header survived encoding: {injected}"
         );
+    }
+
+    /// ADR 0095 on the reader every directive comes through: a blank value is a
+    /// cleared setting and reads as absent, and a value that is not blank is
+    /// answered byte for byte.
+    ///
+    /// The second half is the one with a bug behind it. A credential is exactly
+    /// as the operator wrote it (ADR 0103 § 7), so a password with an edge space
+    /// is a password with an edge space; this reader trimmed it, and the only
+    /// place that showed was a rejected `AUTH PLAIN` against a file that held
+    /// the right bytes.
+    #[test]
+    fn a_configured_value_is_read_or_absent_and_never_repaired() {
+        assert_eq!(present(String::new()), None);
+        assert_eq!(present("   ".to_string()), None);
+        assert_eq!(present("\t\n".to_string()), None);
+
+        for verbatim in [" hunter2 ", "hunter2 ", " hunter2", "hun ter2", "hunter2"] {
+            assert_eq!(
+                present(verbatim.to_string()).as_deref(),
+                Some(verbatim),
+                "a non-blank value is the operator's, byte for byte",
+            );
+        }
     }
 
     /// ADR 0095, on the parameter where repair is most tempting: an address

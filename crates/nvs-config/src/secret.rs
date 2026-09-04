@@ -32,6 +32,15 @@
 //! `W1005` and not a refusal, because a Compose secret is mounted `0444`. [`mod@crate::trust`]'s
 //! module doc owns that split.
 //!
+//! **A credential is never repaired, and an edge space is said out loud instead.** § 7 keeps the
+//! value exactly as it arrived, so the one thing left to do about a password that begins or ends
+//! with whitespace is to name it: [`padding`] finds it and `W1007` reports it, for the inline half
+//! as well as the file half, and the boot goes on with the value. Refusing it instead would wall
+//! off a credential some other system issued, with no remedy in the file that names it; trimming it
+//! is what [ADR 0095] calls repairing input in place of reading it, and it is what
+//! `nvs_stdlib::mail` used to do — a working credential turned into an authentication failure at
+//! the far end, which no message anywhere would have explained.
+//!
 //! **The value stays out of every message this module writes.** A refusal names the file, the key
 //! and the shape of the problem — empty, whitespace-only, oversized, not UTF-8 — and never a byte
 //! of the content, which is [ADR 0033]'s type-level meaning applied one layer below the language.
@@ -88,8 +97,9 @@ pub struct Materialized {
     /// Each secret under the key it answers — `db.main.password`, never the `_file` sibling that
     /// named it, which is still in the table under its own key.
     pub secrets: BTreeMap<String, Secret>,
-    /// § 7's advisories, `W1005` for a secret file another account can read. Never a refusal: that
-    /// arrives as the `Err` instead.
+    /// § 7's advisories: `W1005` for a secret file another account can read, `W1007` for a
+    /// credential whose value begins or ends with whitespace. Never a refusal: that arrives as the
+    /// `Err` instead.
     pub warnings: Vec<Diagnostic>,
 }
 
@@ -122,8 +132,10 @@ struct Site<'a> {
     name: &'a str,
     /// The `_file` half, where this block names one.
     file: Option<&'a str>,
-    /// Whether the inline half is set too, which is § 7's `E0608`.
-    inline: bool,
+    /// The inline half, where this block sets one. Both halves at once is § 7's `E0608`, and the
+    /// value itself is here rather than a `bool` because the advisory below asks about the value
+    /// whichever of the two spellings put it in force.
+    inline: Option<&'a str>,
 }
 
 impl SecretPair {
@@ -160,7 +172,7 @@ pub const SECRETS: &[SecretPair] = &[
                 .map(|(name, db)| Site {
                     name,
                     file: db.password_file.as_deref(),
-                    inline: db.password.is_some(),
+                    inline: db.password.as_deref(),
                 })
                 .collect()
         },
@@ -186,7 +198,7 @@ pub const SECRETS: &[SecretPair] = &[
                 .map(|(name, mail)| Site {
                     name,
                     file: mail.password_file.as_deref(),
-                    inline: mail.password.is_some(),
+                    inline: mail.password.as_deref(),
                 })
                 .collect()
         },
@@ -231,16 +243,37 @@ pub fn materialize(
         // in it touches the tree: reading a file needs the path and the key and no more, and
         // [`apply`] does the writing once the last borrow is gone.
         for site in (pair.sites)(config) {
-            let Some(named) = site.file else {
-                continue;
-            };
-            let key = pair.file_key(site.name);
-            let written_in = origins.get(&key);
-            if site.inline {
-                return Err(both_set(&pair.block_of(site.name), pair.value, written_in));
+            let key = pair.key(site.name);
+            let file_key = pair.file_key(site.name);
+            match (site.file, site.inline) {
+                (Some(_), Some(_)) => {
+                    return Err(both_set(
+                        &pair.block_of(site.name),
+                        pair.value,
+                        origins.get(&file_key),
+                    ));
+                }
+                (Some(named), None) => {
+                    let written_in = origins.get(&file_key);
+                    let secret = read(named, &file_key, written_in, files, &mut out.warnings)?;
+                    if let Some(edge) = padding(&secret.value) {
+                        out.warnings
+                            .push(padded(&key, edge, Some(&secret.file), written_in));
+                    }
+                    out.secrets.insert(key, secret);
+                }
+                // The inline half is in force and there is nothing for § 7 to read — the value is
+                // already the table's. It gets the advisory all the same, because the rule an
+                // operator has to hold is then one sentence with no exception in it, and a space
+                // before a closing quote is missed about as easily as one inside a file.
+                (None, Some(value)) => {
+                    if let Some(edge) = padding(value) {
+                        out.warnings
+                            .push(padded(&key, edge, None, origins.get(&key)));
+                    }
+                }
+                (None, None) => {}
             }
-            let secret = read(named, &key, written_in, files, &mut out.warnings)?;
-            out.secrets.insert(pair.key(site.name), secret);
         }
     }
     apply(config, &out.secrets);
@@ -336,6 +369,24 @@ fn read(
     })
 }
 
+/// How a value is padded, as the phrase a message says it with, and `None` when it is not.
+///
+/// Asked of the value § 7 arrived at, so the newline that rule already removed is not padding: a
+/// file holding `hunter2\n` is the ordinary case and says nothing. A file holding `hunter2\n\n` is
+/// § 7's spelling of a credential that genuinely ends in a newline, and that one does warn — it is
+/// exactly the value someone will later wonder about.
+fn padding(value: &str) -> Option<&'static str> {
+    match (
+        value.starts_with(char::is_whitespace),
+        value.ends_with(char::is_whitespace),
+    ) {
+        (true, true) => Some("begins and ends with whitespace"),
+        (true, false) => Some("begins with whitespace"),
+        (false, true) => Some("ends with whitespace"),
+        (false, false) => None,
+    }
+}
+
 /// One trailing `\n`, and the `\r` before it, and nothing else — § 7's whole trimming rule.
 ///
 /// Only the last newline: a file ending in two of them yields a value ending in one, which is how
@@ -376,6 +427,32 @@ fn refusal(path: &Path, key: &str, problem: &str, written_in: Option<&Origin>) -
          at the first request instead of at boot{}",
         origin_note(written_in)
     ))
+}
+
+/// `W1007`: the credential in force has an edge space, which § 7 keeps and this names.
+///
+/// `from` is the secret file when the file half is in force, because in that spelling there is
+/// nothing an operator could have looked at; the inline spelling names only the key, which is
+/// already in the file the note points at.
+fn padded(key: &str, edge: &str, from: Option<&Path>, written_in: Option<&Origin>) -> Diagnostic {
+    Diagnostic::warning(
+        code::W_CREDENTIAL_HAS_EDGE_WHITESPACE,
+        match from {
+            Some(path) => format!("`{key}` names `{}`, whose content {edge}", path.display()),
+            None => format!("`{key}` {edge}"),
+        },
+    )
+    .with_note(format!(
+        "ADR 0103 § 7 keeps a credential exactly as it was written — a password may legitimately \
+         carry an edge space, and removing it would be ADR 0095's repair of input in place of a \
+         reading of it — so the value is in force as-is and this is an advisory{}",
+        origin_note(written_in)
+    ))
+    .with_help(
+        "if it was not meant, rewrite the value without it; a secret file is written with \
+         `printf %s` rather than `echo`, whose one trailing newline § 7 already removes"
+            .to_string(),
+    )
 }
 
 /// `W1005`: the advisory half, which names the mode and stops.

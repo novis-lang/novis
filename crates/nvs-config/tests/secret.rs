@@ -150,9 +150,80 @@ fn a_password_file_yields_its_content_with_one_trailing_newline_stripped() {
         "the file stays named after the value is read: § 9's dump renders the value `<secret>` and \
          names where it came from, which it can only do if this is still here",
     );
+    let codes: Vec<_> = resolved
+        .warnings
+        .iter()
+        .map(|warning| warning.code)
+        .collect();
+    assert_eq!(
+        codes,
+        vec![Some(code::W_CREDENTIAL_HAS_EDGE_WHITESPACE)],
+        "nothing is advised about a secret file no other account can read — but the edge spaces \
+         this case exists to preserve are advised about, because preserving them and saying nothing \
+         is how a working credential becomes an unexplained authentication failure",
+    );
+}
+
+/// § 7 keeps a credential as it was written, so the only thing left to do about an edge space is to
+/// name it: `W1007`, in both spellings of the pair, with the value untouched either way.
+///
+/// The two halves are one case because the rule is one sentence. The file half is the reason the
+/// advisory exists — there is nothing in a file for an operator to look at — and the inline half is
+/// the reason it has no exception, since a space before a closing quote is missed about as easily.
+#[test]
+fn a_credential_with_an_edge_space_is_kept_and_advised_in_both_spellings() {
+    let from_a_file = Fake::with(&[("etc/nvs.toml", ROOT), ("etc/secrets/db", "hunter2 \n")]);
+    let resolved = tree_of(&from_a_file, "etc/nvs.toml");
+
+    assert_eq!(password(&resolved), Some("hunter2 "));
+    let warning = resolved
+        .warnings
+        .iter()
+        .find(|warning| warning.code == Some(code::W_CREDENTIAL_HAS_EDGE_WHITESPACE))
+        .expect("the edge space is advised");
     assert!(
-        resolved.warnings.is_empty(),
-        "nothing is advised about a secret file no other account can read",
+        warning.message.contains("db.main.password") && warning.message.contains("ends with"),
+        "the advisory names the directive and which end: {}",
+        warning.message,
+    );
+    assert!(
+        !warning.message.contains("hunter2") && !warning.notes.join(" ").contains("hunter2"),
+        "and never the credential itself: {} {:?}",
+        warning.message,
+        warning.notes,
+    );
+
+    let inline = Fake::with(&[(
+        "etc/nvs.toml",
+        "[db.main]\ndriver = \"postgres\"\npassword = \" hunter2\"\n",
+    )]);
+    let resolved = tree_of(&inline, "etc/nvs.toml");
+
+    assert_eq!(
+        password(&resolved),
+        Some(" hunter2"),
+        "the inline half is not repaired either",
+    );
+    assert!(
+        resolved.warnings.iter().any(|warning| warning.code
+            == Some(code::W_CREDENTIAL_HAS_EDGE_WHITESPACE)
+            && warning.message.contains("begins with")),
+        "and it is advised about, naming the end it is on: {:?}",
+        resolved.warnings,
+    );
+}
+
+/// The ordinary credential says nothing at all. An advisory an operator sees on every boot is one
+/// they stop reading, so the case that matters most for `W1007` is the one where it is silent —
+/// including § 7's own `echo secret > file`, whose one trailing newline is removed before this
+/// question is asked.
+#[test]
+fn an_ordinary_credential_raises_no_advisory() {
+    let fs = Fake::with(&[("etc/nvs.toml", ROOT), ("etc/secrets/db", "hunter2\n")]);
+
+    assert!(
+        tree_of(&fs, "etc/nvs.toml").warnings.is_empty(),
+        "a credential with nothing wrong with it is not worth a line of a boot log",
     );
 }
 
