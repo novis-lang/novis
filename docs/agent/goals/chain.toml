@@ -61,6 +61,47 @@ toml = "docs/agent/goals/6-server.toml"
 handoff = "docs/agent/goals/6-server.handoff.md"
 milestone = "M7"
 
+# Post-parity, and first of the post-parity entries because this is where the orphans are made. A
+# goal switch carries the outgoing goal's [[check]] blocks forward and its unclosed *items* not at
+# all, so goal 6's handoff backlog stops existing the moment goal 6 goes green -- which is how
+# `§18 stream` came to be filed under "goal 5's" six goals after goal 5 closed. Every item here is
+# a gap a shipped feature already carries, written down in the module that owns it, and claimed by
+# no entry on this chain: the `db.open` wildcard ADR 0067 § 3 writes and nothing reads, `nvs
+# check` never building the grants its own § 10 diagnostic needs, a cycle closed through an array
+# surviving ADR 0116 § 2's sweep, ADR 0076 § 6's four log-record fields, ADR 0073 § 3's fleet
+# lease, spec § 18's `stream`/`streamAs`, the two rules that were waiting on a diagnostic band
+# that has since opened, and the CLDR rosters that throw. Its stage 2 is the keystone and the
+# reason it is first: an outstanding key gains an owner column and the test fails when that owner
+# is no longer a live entry, so the next switch cannot make the same orphans. Docker preflight
+# because its floor is goal 6's, which carries goals 4-6's container-backed checks.
+[[goal]]
+name = "21 carried-gaps"
+md = "docs/agent/goals/21-carried-gaps.md"
+toml = "docs/agent/goals/21-carried-gaps.toml"
+handoff = "docs/agent/goals/21-carried-gaps.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
+
+# Post-parity: ADR 0042's on-disk artifact cache, which goal 3 built exactly as specified and
+# which has had no caller since. `crates/nvs-cli/src/cache.rs` is the whole store -- layout,
+# fsync/rename write, mmap-verify read, eviction sweep, its own tests -- and nothing in `nvs-cli`
+# calls it, so every run compiles from source and the only cache on the path is one in-process
+# HashMap that dies with the process. The obstacle is real and is `nvs-codegen`'s: `emit.rs` bakes
+# host addresses in as `iconst` immediates with no relocation record, so a page dump is wrong in
+# the next process however it is serialized. That makes this a subsystem rather than a gap, which
+# is why it is its own entry and not a stage of goal 21. After 21 because 21 builds the durable
+# file a note like this one belongs in -- the last one was left in a handoff backlog and deleted
+# by a goal switch -- and before 7 because a warm start is the largest single latency item left
+# and everything after it only adds source to compile. Docker preflight because its floor is goal
+# 21's.
+[[goal]]
+name = "22 warm-start"
+md = "docs/agent/goals/22-warm-start.md"
+toml = "docs/agent/goals/22-warm-start.toml"
+handoff = "docs/agent/goals/22-warm-start.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
+
 # Post-parity: ADR 0131's temporary-directory sweep. It rides the same chain after the program's gate
 # because its server half — the post-response sweep and the boot orphan sweep — needs the `nvs-server`
 # goal 6 creates. Docker preflight because its floor carries goals 4-6's container-backed checks.

@@ -149,6 +149,10 @@ This file is read in full by every future session, so it is a **bounded state fi
      them from to inline the code into the next pack, and `session.py --wrap` refuses an open item without
      one.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc. Trim the ones that went stale.
+     **This section dies at the next goal switch** — `tools/loop.py` overwrites the whole handoff with
+     the incoming goal's seed — so an item that is still true after this goal ends belongs in
+     [carried-gaps.md](carried-gaps.md), which survives one. Use this section for what the *next
+     session* needs and that file for what the next *goal* does.
 
 **If `orient.py` did not print something you needed, say so in the handoff**, naming the `[context]` field
 that was missing it. That manifest is the only thing standing between the next session and the whole

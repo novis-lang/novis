@@ -63,6 +63,20 @@ which removes the loopback double-grant *and* the obstacle to a Unix socket, sin
 address and a socket path has none. Its stage 4 puts an `AF_UNIX` connect under three of goal 5's
 drivers. It goes in front of the dossier because that entry stops adding surface and this one adds some.
 
+**Then, before any of that, two entries the user added on 2026-09-05** — inserted directly after goal 6
+rather than on the end, because goal 6 going green is what *makes* the problem they close.
+[21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
+this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
+grants its own diagnostic needs, a cycle closed through an array surviving ADR 0116 § 2's sweep, ADR
+0076 § 6's four missing log-record fields, ADR 0073 § 3's unarmed fleet lease, spec § 18's
+`stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
+CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
+key gains an owner column and the test fails when that owner is no longer a live entry, so a switch
+cannot orphan work silently again. [22 warm-start](22-warm-start.md) is ADR 0042's artifact cache, which
+goal 3 built exactly as specified and which has never had a caller — a subsystem rather than a gap,
+because the payload needs a second `nvs-codegen` `Module` and a named symbol for every host address the
+JIT bakes in, which is why it is its own entry.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals --append-chain
 docs/agent/goals/chain.toml`, which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
@@ -119,7 +133,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + ADR 0013/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
-| 21–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [21 carried-gaps](21-carried-gaps.md) | post-parity, ADR 0067/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
+| [22 warm-start](22-warm-start.md) | post-parity, ADR 0042 | `nvs-codegen`, `nvs-cli`, `nvs-config` |
+| 23–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
 

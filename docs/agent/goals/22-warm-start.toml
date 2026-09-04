@@ -1,0 +1,150 @@
+# Goal 22 -- The on-disk artifact cache has a producer
+# The acceptance test, as data.
+#
+# `22-warm-start.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No new fixture: every check here is a unit test or a measurement, and what a warm hit must not
+  # change is the output of every fixture the floor already froze.
+]
+
+[context]
+
+modules = [
+  # Stage 2 -- the one lowering walk, and the entry point that gains an object-module sibling.
+  "crates/nvs-codegen/src/lib.rs",
+  # Stage 2 -- the three sites that bake a host address in as an `iconst` with no relocation record.
+  "crates/nvs-codegen/src/emit.rs",
+  # Stages 3-4 -- the store itself: written, tested, and with no caller until this goal.
+  "crates/nvs-cli/src/cache.rs",
+  # Stage 3 -- the two seams a warm hit is consulted at.
+  "crates/nvs-cli/src/runner.rs",
+  "crates/nvs-cli/src/script.rs",
+  # Stage 3 -- the key both caches are addressed by, and the env hash that separates two toolchains.
+  "crates/nvs-config/src/cache.rs",
+  # Stage 2 -- what a descriptor's address means to the runtime, which is what a symbol must resolve
+  # to for the JIT path to be unchanged.
+  "crates/nvs-runtime/src/object.rs",
+]
+
+# 0042 is the whole design; 0017 is the hot reload the key has to keep working; 0061 and 0048 are the
+# two other readers of the same hashes; 0004 is why a warm start is worth spending memory on.
+rules = ["0042", "0017", "0061", "0048", "0004", "0006"]
+
+# 0042 whole -- it is this goal's entire design and every stage implements one of its sections.
+adrs = ["0042", "0017 §2"]
+
+shapes = ["An ADR", "A commit message"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a multi-file',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its own checks need no container at all. The floor is goal 21's, which is goals 4-6's -- the Redis
+# tier, the five drivers and the session store -- so the daemon is the floor's requirement and not
+# this goal's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: `nvs-codegen` emits the same IR a second way. ADR 0042 § 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 object module"
+name = "nvs-codegen (one walk, two backends)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "the_object_module_emits_every_program_the_jit_module_does",
+  "a_class_descriptor_address_is_a_relocation_not_an_immediate",
+  "an_instanceof_target_is_a_relocation_not_an_immediate",
+  "a_statically_resolved_call_target_is_a_relocation_not_an_immediate",
+  "the_two_modules_answer_the_same_for_every_lowering_fixture",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the relocating read path, and the wiring. ADR 0042 § 3, as amended by stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 warm hit"
+name = "nvs-cli (a warm hit relocates and runs)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable",
+  "a_second_run_of_the_same_program_does_not_compile_it",
+  "a_payload_whose_checksum_fails_is_a_miss_and_not_an_error",
+  "a_payload_written_by_a_different_toolchain_is_a_miss",
+  "an_absent_or_unwritable_cache_directory_is_a_miss_and_the_run_succeeds",
+  "an_edited_source_file_is_a_miss_on_the_next_run",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the amendment, and the number. ADR 0042 §§ 2-3.
+# ---------------------------------------------------------------------------------------------------
+
+# The measurement is the check: a cache that does not beat compiling is a cache to delete, and this
+# is what would say so. The threshold is written when the bench is, from what it prints.
+[[check]]
+kind = "cargo-named"
+stage = "4 measured"
+name = "nvs-cli (warm beats cold, by a margin the bench names)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- nothing a warm hit does changes an answer.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+tree = "tests/conformance"
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+tree = "tests/differential"

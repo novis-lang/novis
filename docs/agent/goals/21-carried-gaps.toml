@@ -1,0 +1,340 @@
+# Goal 21 -- The gaps no goal owned. The acceptance test, as data.
+#
+# `21-carried-gaps.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # Stage 4 -- goal 4 wrote it; this goal adds the cycle whose only closing edge is inside an array.
+  "examples/cycles.nvs",
+  # Stage 5 -- `stream`/`streamAs` at constant memory, over the compose PostgreSQL.
+  "examples/stream.nvs",
+  # Stage 10 -- a percent-escape that is not UTF-8, decoded as octets, and a route capture with a
+  # `%20` in it that the handler reads as a space.
+  "examples/octets.nvs",
+]
+
+[context]
+
+modules = [
+  # Stage 2 -- the outstanding lists and the walk that reads them; the keystone lives here.
+  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  # Stage 3 -- `host_granted` and its two callers; the wildcard is one predicate.
+  "crates/nvs-config/src/capability.rs",
+  # Stage 3 -- `front_end`/`run_check`, which build no grants today.
+  "crates/nvs-cli/src/main.rs",
+  # Stage 3 -- `check_program_granted`, written and callerless, and the pass that reads `Env::grants`.
+  "crates/nvs-types/src/check.rs",
+  "crates/nvs-types/src/intrinsics.rs",
+  # Stage 4 -- `object_fields` and `sweep`: the tally that decides what is unreachable.
+  "crates/nvs-runtime/src/object.rs",
+  # Stage 5 -- § 18's tail, the pool bounds and the statement deadline.
+  "crates/nvs-stdlib/src/db/*.rs",
+  "crates/nvs-db/src/*.rs",
+  "crates/nvs-config/src/db.rs",
+  # Stage 6 -- the record envelope, the request id it needs, and the trace context beside it.
+  "crates/nvs-stdlib/src/log.rs",
+  "crates/nvs-server/src/trace.rs",
+  # Stage 7 -- `arm`, which skips a fleet entry, and the shared tier that owes it a compare-and-set.
+  "crates/nvs-server/src/schedule.rs",
+  "crates/nvs-stdlib/src/cache.rs",
+  # Stage 8 -- the E08xx band, and the two rules that were waiting on it.
+  "crates/nvs-diagnostics/src/lib.rs",
+  "crates/nvs-stdlib/src/html.rs",
+  # Stages 9 and 10 -- the CLDR rosters, and the two decoders.
+  "crates/nvs-stdlib/src/cldr.rs",
+  "crates/nvs-stdlib/src/uri.rs",
+  "crates/nvs-runtime/src/routes.rs",
+]
+
+# 0067 for the grant, the pool and § 18's roster; 0116 for why the sweep is an obligation; 0076 for the
+# record envelope; 0073 for the lease; 0133 for the reason literal; 0009 for the checked `bytes as
+# string` item 19 leans on; 0063 for R20, which is why item 5 refuses a second spelling of `*`.
+rules = ["0067", "0116", "0076", "0073", "0133", "0009", "0063", "0088", "0004", "0056"]
+
+# Only the sections a stage implements, never a whole ADR: 0067 is 11k and three sections of it are
+# what this goal touches.
+adrs = [
+  "0067 §3",
+  "0067 §10",
+  "0067 §13",
+  "0116",
+  "0076 §6",
+  "0073 §3",
+  "0133 §3",
+]
+
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message", "An ADR"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a multi-file',
+  'Writing a test case > a test binary',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Stage 5 sends statements to a real PostgreSQL, and the floor carries goals 4-6's container-backed
+# checks whole -- the Redis tier, the five drivers and the session store. Same compose file, same
+# memoization.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: an outstanding key names a goal that is still on the chain.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 owned keys"
+name = "nvs-stdlib (an orphaned key stops the run)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_outstanding_key_names_an_owner",
+  "an_owner_that_is_not_a_live_chain_entry_fails",
+  "a_key_whose_member_is_now_registered_fails_as_a_stale_line",
+]
+
+# `carried-gaps.md` is a file the tools read, so its absence is a failing check rather than a habit.
+[[check]]
+kind = "command"
+stage = "2 owned keys"
+name = "the durable gap list exists and every entry names an owner"
+args = ["python", "tools/chain.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a grant an operator wrote is a grant something reads. 0067 §§ 3 and 10.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 grants"
+name = "nvs-config (the leading-label wildcard)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_wildcard_grant_matches_a_subdomain_at_a_label_boundary",
+  "a_wildcard_grant_does_not_match_the_bare_domain",
+  "a_wildcard_grant_does_not_match_a_suffix_inside_a_label",
+  "a_bare_star_is_refused_as_a_second_spelling_of_every_host",
+  "net_connect_takes_no_wildcard_because_it_is_asked_of_an_address",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 grants"
+name = "nvs-cli (`nvs check` reads the configuration)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "nvs_check_reports_an_open_host_no_grant_covers",
+  "nvs_check_with_no_config_reports_no_grant_diagnostic",
+  "nvs_check_reports_a_broken_nvs_toml_as_a_config_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- a cycle closed through an array is swept. 0116 § 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 array cycles"
+name = "nvs-runtime (the tally reads array elements)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_cycle_closed_through_an_array_element_is_swept_at_teardown",
+  "a_cycle_closed_through_a_nested_array_is_swept_too",
+  "an_object_held_only_by_a_live_members_array_survives_the_sweep",
+]
+
+# `examples/cycles.nvs` itself is already pinned by the floor -- goal 4 wrote it and froze its output.
+# What this stage adds to it is a cycle closed through an array element, which is invisible in stdout
+# and visible to the WSL valgrind leg, so the fixture keeps the output it has and the leak sweep is
+# the check.
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `Core\Db` answers spec § 18's whole roster. 0067 §§ 13 and 18.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 db tail"
+name = "nvs-stdlib (streaming, close, the readonly three)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "stream_answers_rows_without_holding_the_result_set",
+  "a_second_statement_on_a_streaming_connection_is_a_logic_error",
+  "close_releases_the_connection_and_a_later_member_refuses",
+  "an_open_reads_its_pool_bounds_from_the_blocks_pool_table",
+  "an_unscoped_pool_false_reaches_a_program_opened_connection",
+  "a_statement_timeout_reaches_the_socket_and_throws_on_expiry",
+]
+
+# Frozen: the row count proves the walk reaches the end, the held count proves it did not buffer the
+# result set, and the third line proves § 18's connection-busy refusal is a `LogicError` and not an
+# `IOError`. The fixture's source is written to produce these; they are not read off a first run.
+[[check]]
+kind = "exact"
+stage = "5 db tail"
+file = "examples/stream.nvs"
+want = [
+  "streamed 10000 rows",
+  "rows held at once: 1",
+  "a second statement on a streaming connection: LogicError",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- a log line can be jumped to from a trace. 0076 § 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "6 log envelope"
+name = "nvs-stdlib (the record's four new fields)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_record_written_inside_a_request_carries_ts_and_request_id",
+  "a_record_written_while_a_trace_is_active_carries_trace_id_and_span_id",
+  "a_field_with_no_value_is_omitted_rather_than_empty",
+  "a_cli_runs_record_is_still_level_and_msg_alone",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 log envelope"
+name = "nvs-server (the id a record reads is the one the trace carries)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_requests_log_record_and_its_span_carry_the_same_trace_id",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 7 -- a `fleet` schedule entry fires. 0073 § 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "7 fleet lease"
+name = "nvs-server (one run across the deployment)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease",
+  "a_fleet_scoped_entry_whose_lease_expired_is_taken_by_another_host",
+  "a_shared_store_with_no_compare_and_set_leaves_the_entry_unarmed_and_says_so",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 8 -- the two rules a full diagnostic band was blocking. 0133 § 3, 0067 § 9.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "8 the E08xx rules"
+name = "nvs-types (refused where it is written)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_computed_to_source_reason_is_refused_at_the_call",
+  "a_const_reason_is_a_source_literal_and_compiles",
+  "query_as_over_a_class_with_no_db_derive_is_refused_at_the_call",
+  "query_as_over_a_list_form_is_refused_at_the_call",
+  "query_as_over_a_class_with_an_opaque_field_is_refused_at_the_call",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 9 -- the rosters that throw. `Core\Cldr` gaps 2-4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "9 cldr rosters"
+name = "nvs-stdlib (plurals, ordinals, the eight letters)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_language_named_absent_in_the_gap_note_now_has_a_rule",
+  "an_ordinal_category_is_answered_for_every_language_with_a_published_table",
+  "the_eight_refused_pattern_letters_format_and_parse",
+  "a_language_with_no_published_rule_still_throws_naming_itself",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 10 -- a percent-decoder answers octets, and a route capture is decoded once.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "10 octets"
+name = "nvs-stdlib (the decoders answer bytes)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "decode_component_answers_octets_that_are_not_valid_utf8",
+  "parse_query_answers_octets_for_a_name_and_for_a_value",
+  "the_two_encoders_still_take_text_and_answer_text",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "10 octets"
+name = "nvs-server (a capture reaches the handler decoded)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "a_route_capture_is_percent_decoded_once_where_it_crosses",
+  "a_uint_capture_is_unchanged_by_the_decode",
+]
+
+# Frozen: the first line is the octet no `string` answer could have carried, the second is the same
+# decoder reached through a query string, and the third is a route capture the handler reads with the
+# space already in it rather than as `%20`.
+[[check]]
+kind = "exact"
+stage = "10 octets"
+file = "examples/octets.nvs"
+want = [
+  "decoded octets: ff fe fd",
+  "query name and value decode as octets too",
+  "capture: hello world",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 11 -- the suites, whole, and the leak sweep.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "11 suites"
+name = "the conformance tree"
+tree = "tests/conformance"
+
+[[check]]
+kind = "nvs-suite"
+stage = "11 suites"
+name = "the differential tree"
+tree = "tests/differential"
