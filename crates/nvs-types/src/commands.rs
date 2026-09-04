@@ -177,7 +177,7 @@ pub enum ArgConv {
     /// § 3's union of literal types: the word each member admits, in the order
     /// the union declares them, and a usage error for anything else.
     ///
-    /// The same set [`crate::routes::CaptureConv::OneOf`] narrows a segment to,
+    /// The same set `nvs_runtime::routes::CaptureConv::OneOf` narrows a segment to,
     /// computed by the same [`crate::routes::closed_set`] — a word a command
     /// line supplies and a segment a route matches are admitted by one grammar,
     /// which is the arrangement `decimal` and `Core\Uuid` already have.
