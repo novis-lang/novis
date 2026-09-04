@@ -3457,8 +3457,28 @@ tests = [
   # ADR 0102 § 1 -- once, before the handler, travelling on the request.
   "a_request_is_matched_once_before_the_handler_and_route_returns_that_match",
   "the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again",
-  # § 7 -- how one table serves many tenants.
-  "a_mounts_captures_reach_the_handler_as_tainted_values",
+  # § 7 -- how one table serves many tenants. The door's half: the prefix step 2 stripped and
+  # § 3's captures of the row that stripped it cross onto the carrier the isolate answers
+  # (`nvs_server::mount::carry`).
+  "a_mounts_captures_reach_the_request_the_handler_answers",
+]
+
+# § 7's other half, and it could never have been asserted in the check above: `tainted` is a
+# qualifier on a registry row's signature, and `crates/nvs-server/Cargo.toml` names neither
+# `nvs-stdlib` nor `nvs-types` -- the door writes two strings and has nothing to write a qualifier
+# with. So one name was two claims: what the door carries, above, and what the member hands the
+# program, here. `Core\Request::mount()` does not exist yet, and its open question is the return
+# type -- § 7 spells a shape literal, `CoreTy::Shape` is a parameter-only spelling
+# (`nvs_stdlib::registry`'s own doc: "no runtime representation of a shape appears anywhere"), and
+# a `Ty::Shape` value erases to `Ty::Object`, so the member either gains a return-position shape or
+# is spelled as an instance class the way `Core\Router\Match` already is.
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-stdlib (§ 7's mount, where the taint is declared)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "core_request_mount_answers_the_prefix_and_its_captures_as_tainted_strings",
 ]
 
 # § 2's two answers were filed above, under `-p nvs-server`, and could not be asserted there: § 1 forbids
