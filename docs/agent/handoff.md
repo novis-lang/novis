@@ -2,54 +2,61 @@
 
 ## State
 
-**Goal 6, M7. ADR 0102 § 2's *table half* is whole, on both sides of the crossing.**
-`nvs_runtime::routes::Routes::methods_for` walks the table with the verb filter dropped and answers
-the verbs a path claims, once each and in load order; `Core\Router::methodsFor(tainted string
-$path): array<Core\Http\Method>` is its program-visible reader over `Ctx::routes`. Empty is § 2's
-`404` and non-empty is the `405`'s `Allow:`. § 1's match is unchanged.
+**Goal 6, M7. ADR 0102 § 2 is closed on all three of its sides** — the runtime walk, the
+program-visible reader, and now the acceptance check.
+`no_methods_for_a_path_is_404_and_some_is_405_with_allow` lives in
+`crates/nvs-runtime/src/routes.rs` and its check is `-p nvs-runtime`: the `404`/`405` decision is a
+computation the table performs and the *program* sends, which ADR 0102 § 1 settles in one clause, so
+the test writes the sender's arithmetic out as a closure and asserts the answer under it.
+`crates/nvs-server/src/route.rs` keeps § 1's half and nothing of § 2. The playbook bullet under
+*Tooling* is the general shape.
 
-**The door does not send either answer, and the check that says it does is wrong.** ADR 0102 § 1 —
-"the program may still serve the request however it likes, because nothing here dispatches" — and a
-door refusing a miss would refuse every request of a program that declares no route at all. So
-stage 5's `no_methods_for_a_path_is_404_and_some_is_405_with_allow`, filed `-p nvs-server`, cannot
-assert a status anything sends; the playbook bullet under *Tooling* has the whole finding. The
-previous handoff's item 3 ("the door answers 404/405") is what that bullet retires.
+**`nvs_runtime::routes` gap 2 has split, and only its `Core\Uuid` half is open.** A `decimal`
+capture converts through `crate::decimal::Decimal::parse` and refuses a segment that is not one, so
+the § 5 narrowing a `decimal` route declares is now a property of the table. The `Core\Uuid` half is
+**a placement decision, not a missing arm**: that parse is `nvs_stdlib::uuid`, one crate above
+`nvs-runtime`, which cannot depend on it — and writing the `8-4-4-4-12` grammar a second time here
+is what gap 4 refuses. The two candidates are stated in the module doc's own gap 2, which is that
+decision's home.
 
-**The other failing name is unchanged and still triaged**: neither half of
-`the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again` exists — `nvs-server`
-depends on no `nvs-stdlib`, where `Core\Csrf::verify` would live, and no `route` metric label is
-emitted anywhere.
+**Unchanged and still triaged**: neither half of
+`the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again` exists. ADR 0102 § 8
+puts CSRF enforcement on the *server*, and `Core\Csrf::verify`'s seal/open primitive is
+`nvs_stdlib::crypto`, which `nvs-server` does not depend on — so that half carries the same
+placement question the `Core\Uuid` half does, while the `route` label half is ADR 0076 § 1's, in a
+different subsystem. Its `_and_` makes it the playbook's conjunction shape.
 
-**`orient.py`'s gap, carried forward unclosed**: `[context] adrs` in `docs/agent/loop-goal.toml`
-should gain ADR 0102 §§ 4 and 8 and ADR 0096 § 4 — §§ 4 and 8 are what the two open items are
-specified against, and nothing printed them this session either.
+**`orient.py`'s carried gap is closed**: `[context] adrs` gained ADR 0102 §§ 4 and 8 and ADR 0096
+§ 4, and dropped § 2 with the stage it closed. `docs/agent/goals/6-server.toml` is byte-identical to
+the live goal again — it had drifted by one hunk.
 
 ## Next group
 
-**Where § 2's two answers are *sent* from, and the two names stage 5's check still reports.** The
-file set is `crates/nvs-server/src/route.rs`, `crates/nvs-runtime/src/routes.rs` and
-`docs/agent/loop-goal.toml`.
+**Two placements, each a rule stated in one crate whose reader lives in another.** The file set is
+`crates/nvs-runtime/src/routes.rs`, `crates/nvs-stdlib/src/uuid.rs`,
+`crates/nvs-stdlib/src/router.rs` and `crates/nvs-cli/src/main.rs`.
 
-- [ ] **File `no_methods_for_a_path_is_404_and_some_is_405_with_allow` where it can be honest**
-      (ADR 0102 §§ 1-2) — the walk it would assert is `crates/nvs-runtime/src/routes.rs:479`'s
-      `methods_for`, already covered there by three tests and by three `.nvst` cases; what is open is
-      the check block at `docs/agent/loop-goal.toml:3447`, whose `args = ["test", "-p",
-      "nvs-server"]` puts the test in the one crate that may not send the status. Decide between
-      moving the check to `-p nvs-runtime` and giving `crates/nvs-server/src/route.rs:57` a
-      *shape* — the reply a dispatcher would send — with no sender behind it; the first is what
-      the ADR reads like, and the comment above the block is the specification either way.
-- [ ] **The CSRF check and the `route` label read the match rather than matching again**
-      (ADR 0102 §§ 1 and 8, ADR 0096 § 4) — `crates/nvs-server/src/route.rs:57` is where the match
-      lands and the reader would sit; `crates/nvs-server/Cargo.toml:1` is the manifest that names no
-      `nvs-stdlib`, which is why the CSRF half is a dependency decision before it is a test.
-- [ ] **`nvs_runtime::routes` gap 2: a `decimal` and a `Core\Uuid` capture still match as text**
-      (ADR 0102 § 5) — `crates/nvs-runtime/src/routes.rs:100`'s `CaptureConv::Unconverted` and the
-      arm missing from `crates/nvs-runtime/src/routes.rs:321`'s `convert`, which is `commands`' gap 1
-      with the same fix waiting.
+- [ ] **Decide where a `Core\Uuid` capture's acceptance lives, and close gap 2** (ADR 0102 § 5) —
+      the arm is `crates/nvs-runtime/src/routes.rs:345`, the variant it would replace is
+      `crates/nvs-runtime/src/routes.rs:115`, the producer is `crates/nvs-cli/src/main.rs:873`, and
+      the crossing that would carry the value is `crates/nvs-stdlib/src/router.rs:841`. The two
+      candidates are in that module's gap 2: move the 16-byte parse down beside
+      `crates/nvs-runtime/src/decimal.rs:1`, or leave the conversion where it cannot be performed
+      and say so. `decimal` landed this session and is the shape to copy.
+- [ ] **`Core\Router\Match` answers no `Core\Uuid`** — `crates/nvs-stdlib/src/router.rs:841`'s
+      `capture_value` gains the arm the moment the item above decides. Take it in the same session
+      as item 1 or not at all; alone it is a one-line edit with nothing to test.
+- [ ] **Split `the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again` into
+      one name per half** (ADR 0102 § 8, ADR 0096 § 4) — the check block is
+      `docs/agent/loop-goal.toml:3447`, the door is `crates/nvs-server/src/route.rs:57`, and the
+      primitive the CSRF half needs is `crates/nvs-stdlib/src/csrf.rs:339`. The conjunction reports
+      one open item where there are two, and the halves land in different crates.
 
 ## Backlog
 
-- `Core\Router::match` stays out of scope — `docs/agent/loop-goal.md` § *Standing decisions*.
-- The mount prefix in front of a link — `crates/nvs-stdlib/src/router.rs`'s gap 2.
-- A capture's text is still percent-encoded — `crates/nvs-runtime/src/routes.rs`'s gap 4.
-- A `501` at the door for a verb outside the roster — `crates/nvs-stdlib/src/router.rs`'s gap 4.
+- Gap 1: the walk is a linear scan, not ADR 0077 § 2's trie — `crates/nvs-runtime/src/routes.rs:52`.
+- Gap 4: a capture's value is still percent-encoded; decoding is `nvs_stdlib::uri`'s —
+  `crates/nvs-runtime/src/routes.rs:79`.
+- `crates/nvs-runtime/src/commands.rs:69` gap 1 is the same `decimal` arm one table along, and is
+  now the only place that conversion is still missing.
+- ADR 0076 § 1's `route` metric label is emitted nowhere — the second half of the conjunction above.

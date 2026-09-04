@@ -1883,6 +1883,18 @@ is why" — is this file.
   are a computation the table performs and the *program* sends. The general shape: when a check name
   contains a wire-level effect (a status, a header, a close), find who is allowed to emit it before
   writing the test — the crate in `args` is where a session will otherwise put it.
+- **A `loop-goal.toml` check filed in a crate that may not host it has a *third* repair, and it is
+  the one to reach for when the ADR forbids the *effect* rather than the crate lacking a
+  dependency: move the check, and let the test name that effect as what a sender does with the
+  answer.** `no_methods_for_a_path_is_404_and_some_is_405_with_allow` was filed `-p nvs-server`
+  and could not be honest there, because ADR 0102 § 1 forbids the door to send either status. The
+  sibling bullets' repairs — correct the `args`, split the conjunction, read the crate's known
+  gaps — all stop at "this crate cannot host it" and leave open what the test then asserts. What
+  made it writable was that `404`/`405` is a decision taken *over* the table's answer, so the test
+  lives beside the walk (`crates/nvs-runtime/src/routes.rs:506`) and writes the sender's arithmetic
+  out as a closure the crate does not otherwise contain. The check moves to the crate that owns the
+  computation, and a comment on the moved block records why the wire-level spelling in its name is
+  not a claim about who sends it.
 
 ## Running things
 
