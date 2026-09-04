@@ -26,8 +26,8 @@ use nvs_diagnostics::{Diagnostics, SourceMap};
 /// file needs one `use common::*;` rather than an import line per area that
 /// drifts from what that area actually asserts on.
 pub(crate) use nvs_runtime::{
-    Ctx, DebugFlags, EXITED, FATAL, FaultSite, OK, STACK_RESERVE, SafepointFlags, THROWN, Value,
-    call,
+    Ctx, DebugFlags, EXITED, FATAL, FaultSite, Inbound, OK, STACK_RESERVE, SafepointFlags, THROWN,
+    TraceContext, Value, call,
 };
 
 /// Compiles a whole file, returning the unit or the first thing that refused

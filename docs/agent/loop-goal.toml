@@ -162,6 +162,15 @@ adrs = [
   # cap throws at the call site rather than queueing.
   "0072 §6",
   "0072 §7",
+  # Added 2026-09-04 with the exporter group, after a session spent three calls fetching them: the whole
+  # of what stage 6 still owes is ADR 0076's export, and no part of it was printed. § 6 is the two
+  # `System` blocks verbatim — every key, its class and its closed value set — § 7 is the per-core
+  # cardinality bound the registry is written around, and § 1 is the nine default series with the rule
+  # that each is read from instrumentation that already exists. The group's three items are specified in
+  # these and nothing else prints them.
+  "0076 §1",
+  "0076 §6",
+  "0076 §7",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is
@@ -3658,9 +3667,22 @@ tests = [
   # ADR 0076 -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
   "an_inbound_traceparent_is_continued_and_a_missing_one_is_generated",
   "a_trace_id_exists_whether_or_not_the_request_is_sampled",
-  "no_probe_is_added_to_the_measured_path",
   "the_default_metric_series_are_exported",
 ]
+
+[[check]]
+kind = "cargo-named"
+stage = "6 beside a request"
+name = "nvs-codegen (ADR 0076 § 1 -- the export adds no site to the measured path)"
+args = ["test", "-p", "nvs-codegen"]
+# Moved off `-p nvs-server`, where it could not be honest. What § 1 forbids is an *effect* on emitted
+# code -- "no probe site is added to the per-statement/per-call path ADR 0018 measures" -- and a probe
+# site is something this crate emits; `crates/nvs-server/Cargo.toml` names neither `nvs-codegen` nor
+# `nvs-ir`, so the door can see a header and a counter and never a site. The test that names the
+# effect therefore lives beside ADR 0018's own probe fixtures and asserts the counts under § 2's trace
+# identity against the same script without one, which is the shape that fails if either a new site is
+# emitted to feed a series or the identity switches ADR 0018's sites on.
+tests = ["no_probe_is_added_to_the_measured_path"]
 
 [[check]]
 kind = "cargo-named"

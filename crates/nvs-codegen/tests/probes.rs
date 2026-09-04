@@ -59,6 +59,47 @@ fn turning_coverage_on_records_one_hit_per_executed_statement() {
     assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
 }
 
+/// A statement path and a call path in one script, so both of ADR 0018's probe
+/// units are present for the assertion below to count.
+const MEASURED: &str = "<?nvs\nclass Math {\n    public static function double(int $n): int {\n        return $n + $n;\n    }\n}\nint $n = Math::double(2);\necho $n;\n";
+
+#[test]
+fn no_probe_is_added_to_the_measured_path() {
+    // ADR 0076 § 1: every default series is read from instrumentation that
+    // already exists, so its export "adds no probe site to the
+    // per-statement/per-call path" ADR 0018 measures. A probe site is emitted
+    // code, which is why the claim is this crate's — a server sees a header
+    // and a counter, never a site.
+    //
+    // The case that would break it is a request already carrying ADR 0076
+    // § 2's trace identity, which is what an exporter keys its spans off: a
+    // site emitted to feed a series, or an identity that switches ADR 0018's
+    // own sites on, both move the counts. They are asserted against the same
+    // script with no identity, so either failure shows up here while both runs
+    // still print `4`.
+    let sites = |identity: bool, flags: DebugFlags| {
+        let mut ctx = Ctx::buffered();
+        if identity {
+            let mut inbound = Inbound::new("GET", "/", "");
+            inbound.set_trace_context(TraceContext::continuing(Some(
+                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            )));
+            ctx.set_inbound(inbound);
+        }
+        ctx.set_debug_flags(flags);
+        run_with(&mut ctx, MEASURED).expect("the script ran");
+        (ctx.stmt_hits().to_vec(), ctx.trace().len())
+    };
+
+    // With ADR 0018's bits off, the identity is on the context and reaches
+    // neither path.
+    assert_eq!(sites(true, DebugFlags::empty()), (Vec::new(), 0));
+
+    // With them on, what fires is exactly ADR 0018's own set, identity or not.
+    let on = DebugFlags::COVERAGE | DebugFlags::TRACE;
+    assert_eq!(sites(true, on), sites(false, on));
+}
+
 #[test]
 fn a_loop_and_a_branch_run_through_their_phis() {
     // The one shape that exercises everything structural at once: a header
