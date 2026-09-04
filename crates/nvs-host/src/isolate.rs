@@ -562,6 +562,20 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         let record = nvs_runtime::floor::uncaught(thrown);
         crate::ladder::escalate(isolate_ctx, &record);
     }
+    // ADR 0139 § 4's write-back, at the end of the program that opened the
+    // record: an HTTP request is a root isolate, so this is the line where a
+    // request ends, and `Ctx::end_session` is the no-op an isolate that started
+    // no session — or only read one — returns from. It runs after the tier-3
+    // climb above because a request that threw still changed what it changed,
+    // and before the output is taken below so that anything it has to report
+    // crosses at the await with the rest of what this child wrote.
+    //
+    // **Not on the cancelled path.** The send parks on the store, and a task
+    // being torn down may not park (`nvs_runtime::HelperFrame`) — the same rule
+    // that makes `Running::abandon` the one call that need not wait.
+    if !cancelled {
+        isolate_ctx.end_session();
+    }
     let output = isolate_ctx.take_buffered_output().unwrap_or_default();
     // ADR 0088 § 4's declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,

@@ -11,17 +11,51 @@
 //! [ADR 0012](../../../../docs/adr/0012-no-superglobals.md) § 4 was buying, and worth nothing if
 //! the first `get` can silently start one.
 //!
-//! **What is left is § 4's write-back at the end of the request.** [`write_back`] marks the record
-//! changed on the request, and [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`]
-//! reach the store as they land because § 4 says those two are immediate — but the send a dirty
-//! record earns when the request *ends* is unwritten, so a `set` this build accepts is visible to
-//! the rest of this request and to nothing after it.
+//! **§ 4's write-back is on disk too.** [`write_back`] marks the record changed on the request,
+//! [`send_at_end`] sends it when the program that opened it ends, and
+//! [`nvs_core_session_regenerate`] and [`nvs_core_session_destroy`] reach the store as they land
+//! because § 4 makes those two immediate. The section below is where the send is decided.
 //!
 //! **`db` is a store § 3 admits and this build cannot serve.** Every operation below is written
 //! against the shared tier's wire, so `start` under `backend = "db"` throws naming the half that
 //! is unwritten. Deliberately at run time rather than at boot: the word names a store the ADR
 //! admits, and refusing it where it is written would be this build claiming the *decision* was
 //! wrong rather than that its second half has not landed.
+//!
+//! # Decision: a dirty record is sent by the *program's* end, and it travels there itself
+//!
+//! § 4 says the record is written back "when the request ends" and leaves open who does it. Three
+//! crates have a claim and none of them can hold it alone: this one owns the store and cannot see
+//! a request end; `nvs-host` ends every isolate and may not name `nvs-stdlib`; `nvs-server` ends
+//! the HTTP request and names neither. So the send is a `fn` pointer that rides on the record —
+//! [`nvs_runtime::Session::write_back`], filled in here by `start` and `regenerate`, called
+//! through `Ctx::end_session` by whoever ends the program. That method's own docs own the
+//! mechanism; what is decided here is the *where*, and it is three refusals:
+//!
+//! **Not the door.** The obvious reading of § 4 puts the send in `nvs-server`, at the line where a
+//! request's response is collected — and the door does not have the record. A request is a root
+//! isolate ([ADR 0006](../../../../docs/adr/0006-isolated-script-execution.md)), so
+//! `Core\Session::start` opened the session on the *isolate's* context, which is built and dropped
+//! inside `nvs-host` ([ADR 0116](../../../../docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+//! § 2) and is nothing the connection's own context can reach. Giving `nvs-server` a dependency on
+//! this crate would not have fixed that; it would have bought the wrong context with a new edge.
+//!
+//! **Not a method on `nvs_runtime::host::Host`.** That trait is the seam a `Core` member reaches
+//! its *scheduler* through, and its one implementor is `nvs-host`'s — which has no dependency on
+//! this crate, so the method would have had no body that could reach a store. The direction is
+//! also backwards: every other method on it is a member asking the host for something, and this is
+//! the host telling a member the request is over.
+//!
+//! **Not a second thread-local beside that one.** A host is per core and installed once per
+//! thread; a session is per request. A thread-local write-back would have to be installed by every
+//! binary and every test fixture that could ever run a request, to say something the record itself
+//! already knows.
+//!
+//! What this leaves as the rule: **a session is written back when the program that started it
+//! ends**, which is every isolate — so every HTTP request — and `nvs run`'s root task, after
+//! [ADR 0127](../../../../docs/adr/0127-the-end-of-a-script-is-observable.md)'s exit hooks, since
+//! a hook is user code that may still write. A cancelled task is the one end that sends nothing,
+//! because the send parks and a task being torn down may not park.
 //!
 //! # Decision: the local tier is unreachable from here, structurally
 //!
@@ -616,7 +650,12 @@ nvs_runtime::nvs_helper! {
         .filter(|id| issuable(id));
         let opened = match presented {
             Some(id) => on_shared(NAME, "start", |open| load(open, &id))?
-                .map(|record| nvs_runtime::Session { id, record, dirty: false }),
+                .map(|record| nvs_runtime::Session {
+                    id,
+                    record,
+                    dirty: false,
+                    write_back: send_at_end,
+                }),
             None => None,
         };
 
@@ -629,7 +668,12 @@ nvs_runtime::nvs_helper! {
                 // why — so issuing one builds no value and encodes nothing.
                 on_shared(NAME, "start", |open| save(open, &id, &[], lifetime))?;
                 issue_cookie(ctx, "start", &id)?;
-                nvs_runtime::Session { id, record: Vec::new(), dirty: false }
+                nvs_runtime::Session {
+                    id,
+                    record: Vec::new(),
+                    dirty: false,
+                    write_back: send_at_end,
+                }
             }
         };
         ctx.open_session(session);
@@ -948,7 +992,12 @@ nvs_runtime::nvs_helper! {
 
         // Not dirty: the record was written whole a line ago, so § 4's write-back has nothing left
         // to send. `Ctx::open_session` replaces rather than refuses for exactly this call.
-        ctx.open_session(nvs_runtime::Session { id: fresh, record, dirty: false });
+        ctx.open_session(nvs_runtime::Session {
+            id: fresh,
+            record,
+            dirty: false,
+            write_back: send_at_end,
+        });
         Ok(Value::null())
     }
 }
@@ -981,6 +1030,77 @@ nvs_runtime::nvs_helper! {
         on_shared(NAME, "destroy", |open| destroy(open, &held))?;
         ctx.close_session();
         Ok(Value::null())
+    }
+}
+
+/// How the write-back names itself in a failure: not as a member, because no member called it.
+///
+/// The request did, by ending. A message reading `Core\Session::save()` would name a member of a
+/// class that has none, and the operator reading it is looking for the request rather than for a
+/// line of the program.
+const SENDER: &str = "Core\\Session's write-back at the end of the request";
+
+/// ADR 0139 § 4's write-back, as the function every session this module opens carries.
+///
+/// Installed on [`nvs_runtime::Session::write_back`] by `start` and `regenerate`, and reached
+/// through [`Ctx::end_session`] at the end of the program that opened the record — the isolate an
+/// HTTP request is, or `nvs run`'s root task. Only a record something changed gets here: the flag
+/// is § 4's whole "writing only when the record changed", and that context method is where it is
+/// read.
+///
+/// **It reports rather than throws.** There is nothing left to throw *to* — the program has ended,
+/// so no `catch` can be reached and the ladder's tiers 1 to 3 are all behind us — and a `Fault`
+/// returned from here would have nowhere to go but the floor by a longer road. So it calls the
+/// floor directly, at [`nvs_render::Level::Error`], and the record says the writes are lost rather
+/// than that a write failed: that is what the request will look like from the next one.
+///
+/// **Losing them is the answer, rather than holding the response until the store comes back.** A
+/// request that cannot reach its store at the end has already produced its output; waiting there
+/// is the wedge [ADR 0106](../../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// is named after, and § 4's last-write-wins already declines to repair a lost write.
+fn send_at_end(ctx: &mut Ctx) {
+    // Nothing is copied out of the record: `open_configured` and `on_shared` both borrow, and the
+    // one call that needs the context by value — the report below — happens after this borrow has
+    // ended. A write-back that cloned the record would spend O(record) on the request path to say
+    // exactly what the bytes already on the context say.
+    let sent = match ctx.session() {
+        None => return,
+        Some(open) => {
+            let lifetime = ttl(ctx);
+            open_configured(ctx, SENDER, ", which is where this session's record lives").and_then(
+                |()| {
+                    on_shared(NAME, "the write-back", |store| {
+                        save(store, &open.id, &open.record, lifetime)
+                    })
+                },
+            )
+        }
+    };
+    if let Err(why) = sent {
+        let record = nvs_runtime::floor::note(
+            nvs_render::Level::Error,
+            &format!(
+                "this request's changes to its session were not sent, so they are lost — {}",
+                reason(&why)
+            ),
+        );
+        nvs_runtime::floor::report(ctx, &record);
+    }
+}
+
+/// The text a [`Fault`] carries, for the one caller in this module that has nowhere to throw it.
+///
+/// [`Fault::Pending`] cannot arrive here — it is what a helper that already ran compiled Novis
+/// code returns, and neither call in [`send_at_end`] does — but it carries no message by
+/// construction, so it is answered rather than asserted. It is answered by the *wildcard* because
+/// the enum is `#[non_exhaustive]`: a variant added later is a failure with no text this module
+/// knows how to read, which is the same case.
+fn reason(fault: &Fault) -> &str {
+    match fault {
+        Fault::Thrown(_, message)
+        | Fault::ThrownWithSlots(_, message, _)
+        | Fault::Fatal(message) => message,
+        _ => "the store refused it",
     }
 }
 
@@ -1201,6 +1321,7 @@ mod tests {
             id: ID.to_owned(),
             record: Vec::new(),
             dirty: false,
+            write_back: super::send_at_end,
         });
 
         let empty = record(&ctx, "get").expect("a started session has a record to read");
@@ -1240,6 +1361,70 @@ mod tests {
             emptied.record.is_empty(),
             "a record with no keys left is zero bytes again, not the encoding of an empty array — \
              `nvs_runtime::Session::record`'s own doc owns why, and `start` relies on it"
+        );
+    }
+
+    /// § 4's write-back, asserted **both ways**: the send a changed record earns, and the round
+    /// trip a read-only request does not make.
+    ///
+    /// One direction alone passes something broken. A build that sent unconditionally would
+    /// satisfy "a `set` reaches the store" while spending a write on every request that read its
+    /// session — the cost § 4 names when it says only a changed record is written — and a build
+    /// that never sent would satisfy "a read-only request makes one round trip" perfectly.
+    ///
+    /// **The flag is earned through the real member path**, by the same [`write_back`] `set` calls,
+    /// rather than written by hand: a `set` that stopped marking the record would pass a test that
+    /// set `dirty` itself and lose every write in production.
+    ///
+    /// **The send is a test's own function pointer**, which is what the seam is for: whether the
+    /// bytes reach a store is [`save`]'s question and three cases above already ask it, while what
+    /// is unproven here is that `Ctx::end_session` calls what the record carries exactly when the
+    /// flag says to. The third assertion is the idempotence that method promises — sending clears
+    /// the flag — which is what lets both ends of a program call it without agreeing on which of
+    /// them is the real one.
+    #[test]
+    fn a_changed_record_is_sent_when_the_program_ends_and_an_unchanged_one_is_not() {
+        thread_local! {
+            static SENT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        }
+        fn counting(_ctx: &mut Ctx) {
+            SENT.with(|sent| sent.set(sent.get() + 1));
+        }
+
+        let mut ctx = Ctx::buffered();
+        ctx.open_session(nvs_runtime::Session {
+            id: ID.to_owned(),
+            record: Vec::new(),
+            dirty: false,
+            write_back: counting,
+        });
+
+        // The read-only request, made of the one member that reads.
+        drop(record(&ctx, "get").expect("a started session has a record to read"));
+        ctx.end_session();
+        assert_eq!(
+            SENT.with(std::cell::Cell::get),
+            0,
+            "a request that only read its session makes one round trip, not two — § 4's whole \
+             reason for the flag"
+        );
+
+        let mut writing = record(&ctx, "set").expect("a started session has a record to write");
+        writing.set(NvsStr::new(b"cart"), Value::int(17));
+        write_back(&mut ctx, writing, "set").expect("the changed record encodes");
+
+        ctx.end_session();
+        assert_eq!(
+            SENT.with(std::cell::Cell::get),
+            1,
+            "and a request that changed it sends it, through the pointer the record carries"
+        );
+
+        ctx.end_session();
+        assert_eq!(
+            SENT.with(std::cell::Cell::get),
+            1,
+            "sending clears the flag, so a second end sends nothing"
         );
     }
 

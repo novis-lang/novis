@@ -1159,6 +1159,27 @@ pub struct Session {
     /// request off the write path: a request that starts a session and reads it
     /// makes one round trip, not two.
     pub dirty: bool,
+    /// How [`Self::record`] is sent when the program that opened it ends —
+    /// § 4's write-back, travelling **with the record** rather than being
+    /// reached for at the end.
+    ///
+    /// It has to travel, because none of the three crates involved can name
+    /// the other two. The store is `nvs-stdlib`'s — § 2's four operations are
+    /// over `Core\Cache`'s wire — while the two places a program *ends* are
+    /// `nvs-host`'s isolate teardown, which an HTTP request is
+    /// ([ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)), and
+    /// `nvs run`'s root task; neither of those crates depends on `nvs-stdlib`,
+    /// and `nvs-stdlib` may not depend on either. This crate is the one all of
+    /// them already rest on, so the seam is inverted through it exactly as
+    /// [`crate::host`]'s own § 1 inverts the scheduler's, and the pointer is
+    /// filled in by `Core\Session::start`, the only member that opens a record
+    /// at all.
+    ///
+    /// A bare `fn` rather than a boxed closure: there is one implementation
+    /// and it captures nothing — everything it needs is on the [`Ctx`] it is
+    /// handed — so a `dyn FnOnce` would be an allocation per request to say
+    /// what one word already says.
+    pub write_back: fn(&mut Ctx),
 }
 
 /// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
@@ -1678,6 +1699,44 @@ impl Ctx {
     /// throw that names it.
     pub fn close_session(&mut self) {
         self.session = None;
+    }
+
+    /// Send this request's session record, if anything changed it — ADR 0139
+    /// § 4's write-back, at the end of the program that opened it.
+    ///
+    /// Called by whoever ends a program, and called **unconditionally** by
+    /// each of them: a program that started no session, or started one and
+    /// only read it, is the no-op this returns on. That is § 4's "writing only
+    /// when the record changed" decided in the one place that can see the
+    /// flag, rather than a condition every caller would have to restate.
+    ///
+    /// The two callers are `nvs-host`'s isolate teardown — which is where an
+    /// HTTP request ends, since a request is a root isolate — and `nvs run`'s
+    /// root task, after ADR 0127's exit hooks, because a hook is user code
+    /// that may still write. Neither can reach the store itself, which is what
+    /// [`Session::write_back`] is for.
+    ///
+    /// **Not on a cancelled task.** The send parks on the store, and a task
+    /// being torn down may not park ([`crate::HelperFrame`]) — so a caller
+    /// that got here through a cancellation skips this and the record is lost.
+    /// That is the same answer a request whose process died gives, and § 4's
+    /// last-write-wins already declines to repair a lost write.
+    ///
+    /// Sending clears the flag, so a second call sends nothing: the send is
+    /// idempotent even where two ends could both reach it.
+    pub fn end_session(&mut self) {
+        let Some(write_back) = self
+            .session
+            .as_ref()
+            .filter(|session| session.dirty)
+            .map(|session| session.write_back)
+        else {
+            return;
+        };
+        if let Some(session) = self.session.as_mut() {
+            session.dirty = false;
+        }
+        write_back(self);
     }
 
     /// The process status `exit`/`exit(n)` named, `0` if none ran.

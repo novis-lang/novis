@@ -1187,6 +1187,14 @@ fn run_run(
                 // nothing about the status it is passing on.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }
+            // ADR 0139 § 4's write-back, and the second of its two ends — the
+            // other is `nvs-host`'s isolate teardown, which is where an HTTP
+            // request ends. **After the hooks**, because an exit hook is user
+            // code that may still write to the session, and here inside the
+            // task for the reason tier 3 above is: the send talks to the store
+            // over the reactor this run installed, and the code below the spawn
+            // does not run until that has been taken down.
+            ctx.end_session();
             status.set(Some(outcome));
             // The script is the run, so its end is the workers' end too — and
             // it is said from inside the task because that is where the end
