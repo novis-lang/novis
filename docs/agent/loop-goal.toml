@@ -182,7 +182,11 @@ adrs = [
   # to and only ever expensive to leave alone.
 ]
 
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
+# "An ADR" taken out 2026-09-05, by hand and not by a pass: it was the largest of the five shapes at
+# 3,880 B of pack (4.2%), and the ledger behind it is one ADR written in 15 sessions. It is the one
+# shape a session can fetch for free — `python tools/adr.py --draft` prints it, and `--check` refuses a
+# wrong one by name — so the pack was renting it. Put it back on the session an item asks for one.
+shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
