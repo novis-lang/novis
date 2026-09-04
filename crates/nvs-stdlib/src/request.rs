@@ -1566,7 +1566,7 @@ fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
 /// most specific cookie first, so the first is the one that applies most closely
 /// to this path; that is reading the peer's own order rather than choosing among
 /// answers, exactly as [`joined_field`] preserves it.
-fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
+pub(crate) fn cookie_of<'a>(inbound: &'a Inbound, name: &[u8]) -> Option<&'a [u8]> {
     let lines = cookie_lines(inbound, name);
     if name.starts_with(HOST_PREFIX) && lines.len() > 1 {
         return None;

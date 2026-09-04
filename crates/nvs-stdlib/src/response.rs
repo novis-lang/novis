@@ -763,7 +763,7 @@ fn redirect_status(status: &Value) -> Result<u16, Fault> {
 /// The set is that grammar's own: letters, digits and [`TOKEN_MARKS`]. Refusing
 /// here is [`spellable`]'s direction at [`spellable`]'s layer, and it is what
 /// makes `nvs_server`'s own conversion of one of these unreachable from source.
-fn nameable(name: &str) -> bool {
+pub(crate) fn nameable(name: &str) -> bool {
     !name.is_empty()
         && name
             .bytes()
@@ -973,7 +973,68 @@ const MAX_AGE_ARG: usize = 7;
 
 /// What [`nvs_core_response_add_cookie`] appends under — never `declare_header`,
 /// for the reason [`nvs_runtime::Ctx::append_header`]'s own doc gives.
-const SET_COOKIE_HEADER: &str = "Set-Cookie";
+pub(crate) const SET_COOKIE_HEADER: &str = "Set-Cookie";
+
+/// One `Set-Cookie` line's parts, each already known to carry no byte that
+/// could end the part it is in.
+///
+/// A shape rather than eight arguments because it has a second caller:
+/// `Core\Session::start` writes the identifier's cookie
+/// ([`crate::session`]), and a second rendering there would be a second place
+/// the `SameSite` spelling, the attribute order and the `Secure`/`HttpOnly`
+/// flags could drift. The *policy* already has one home in
+/// [`nvs_config::http::Cookies`]; this is the other half of the same rule, and
+/// the two callers differ only in where the parts came from.
+///
+/// **Checking is the caller's, and it is not symmetric.**
+/// [`nvs_core_response_add_cookie`] validates every part because a program
+/// supplied them; the session's parts are a configured name and 22 base64url
+/// characters this core drew, so it has nothing to check and no refusal to
+/// raise. Putting the checks in here would have made the second caller carry a
+/// throw it can never take.
+pub(crate) struct Cookie<'a> {
+    /// The name, matched byte for byte on the way back.
+    pub name: &'a str,
+    /// The value, as RFC 6265's `cookie-octet` admits it.
+    pub value: &'a str,
+    /// The `Path` attribute, which is never omitted.
+    pub path: &'a str,
+    /// The `Domain` attribute, omitted for the narrower of its two meanings.
+    pub domain: Option<&'a str>,
+    /// `Max-Age` in seconds, omitted for a session cookie.
+    pub max_age: Option<i64>,
+    /// Whether the line carries `Secure`.
+    pub secure: bool,
+    /// Whether the line carries `HttpOnly`.
+    pub http_only: bool,
+    /// Which cross-site requests carry it.
+    pub same_site: nvs_config::http::SameSite,
+}
+
+impl Cookie<'_> {
+    /// The header line, concatenated with no escape anywhere — which is what
+    /// the caller's checks bought.
+    pub(crate) fn line(&self) -> String {
+        let mut line = format!("{}={}; Path={}", self.name, self.value, self.path);
+        if let Some(domain) = self.domain {
+            line.push_str("; Domain=");
+            line.push_str(domain);
+        }
+        if let Some(seconds) = self.max_age {
+            line.push_str("; Max-Age=");
+            line.push_str(&seconds.to_string());
+        }
+        if self.secure {
+            line.push_str("; Secure");
+        }
+        if self.http_only {
+            line.push_str("; HttpOnly");
+        }
+        line.push_str("; SameSite=");
+        line.push_str(self.same_site.as_str());
+        line
+    }
+}
 
 /// ADR 0095 § 3's stricter prefix: `Secure`, `Path=/`, and no `Domain`.
 const HOST_PREFIX: &str = "__Host-";
@@ -994,7 +1055,7 @@ const ADD_COOKIE: &str = "Core\\Response::addCookie()";
 /// `[queue]` — would be wrong here, because a missing `[queue]` block means the
 /// deployment runs no jobs while a missing `[http.cookies]` block means it
 /// accepted the defaults.
-fn configured_cookies(ctx: &nvs_runtime::Ctx) -> nvs_config::http::Cookies {
+pub(crate) fn configured_cookies(ctx: &nvs_runtime::Ctx) -> nvs_config::http::Cookies {
     ctx.config().map_or_else(
         || nvs_config::http::Cookies::of(None),
         |config| nvs_config::http::Cookies::of(config.snapshot().config.http.as_ref()),
@@ -1241,26 +1302,20 @@ nvs_runtime::nvs_helper! {
             ));
         }
 
-        // Concatenated with no escape anywhere, which is what the four checks
-        // above bought: every part is already known to hold no byte that could
-        // end the part it is in.
-        let mut line = format!("{name}={value}; Path={path}");
-        if let Some(domain) = domain {
-            line.push_str("; Domain=");
-            line.push_str(domain);
+        // Rendered by [`Cookie::line`], which is the four checks above cashed
+        // in: every part is already known to hold no byte that could end the
+        // part it is in, so nothing is escaped anywhere.
+        let line = Cookie {
+            name,
+            value,
+            path,
+            domain,
+            max_age,
+            secure,
+            http_only,
+            same_site,
         }
-        if let Some(seconds) = max_age {
-            line.push_str("; Max-Age=");
-            line.push_str(&seconds.to_string());
-        }
-        if secure {
-            line.push_str("; Secure");
-        }
-        if http_only {
-            line.push_str("; HttpOnly");
-        }
-        line.push_str("; SameSite=");
-        line.push_str(same_site.as_str());
+        .line();
         ctx.append_header(SET_COOKIE_HEADER, &line);
         Ok(Value::null())
     }

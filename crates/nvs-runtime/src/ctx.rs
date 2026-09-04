@@ -1104,6 +1104,16 @@ pub struct Ctx {
     /// memoization key it was reached by and the pool lease it goes home on —
     /// see [`Ctx::hold_open_connection`].
     open_connections: Vec<OpenConnection>,
+    /// The session `Core\Session::start` opened, or `None` for a request that
+    /// started none — see [`Session`].
+    ///
+    /// [ADR 0139](../../../docs/adr/0139-a-session-is-a-record-its-store-issued.md)
+    /// § 1 makes every other member of that class throw while this is `None`,
+    /// which is the whole of what
+    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 4 was buying:
+    /// "this request uses sessions" is a line in the source, and it is worth
+    /// nothing if the first `get` can silently start one.
+    session: Option<Session>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
@@ -1114,6 +1124,41 @@ pub struct Ctx {
     /// and the one write per object allocation reaches it through
     /// [`current_live_list`] rather than through the context at all.
     live: std::rc::Rc<crate::object::LiveList>,
+}
+
+/// The session one request has open — ADR 0139 § 4's "loaded once and written
+/// whole", as the three things a request holds between `Core\Session::start`
+/// and the write-back at its end.
+///
+/// **Deliberately not a [`Value`].** The record crosses the store boundary as
+/// [ADR 0023](../../../docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)'s
+/// byte carrier in both directions — ADR 0139 § 2 says so, for the same reason
+/// a `Core\Cache` entry does — so holding the bytes means the context has
+/// nothing to release at teardown and holds no object that could name a
+/// `ClassDesc` an [ADR 0017](../../../docs/adr/0017-hot-reload-without-restart.md)
+/// unit swap has retired. Decoding is [`crate::decode`]'s, once per member that
+/// reads, over bytes this struct already owns.
+///
+/// What it spends: one identifier and one decoded record per **in-flight**
+/// request that started a session, freed with the request — never O(sessions
+/// served).
+#[derive(Debug)]
+pub struct Session {
+    /// The identifier the store issued, as it rides in the cookie.
+    pub id: String,
+    /// The record under [`Self::id`], as the byte carrier wrote it.
+    ///
+    /// **Empty is the empty session.** A record with no keys is zero bytes
+    /// rather than the encoding of an empty map, so `start` can mint one
+    /// without building a `Value` to encode, and a store that answered an empty
+    /// entry and one that answered a freshly minted one are the same record.
+    pub record: Vec<u8>,
+    /// Whether anything has changed [`Self::record`] since it was loaded.
+    ///
+    /// § 4's "writing only when the record changed" is what keeps a read-only
+    /// request off the write path: a request that starts a session and reads it
+    /// makes one round trip, not two.
+    pub dirty: bool,
 }
 
 /// One entry of [ADR 0079](../../../docs/adr/0079-testing-is-a-language-feature.md)
@@ -1593,10 +1638,34 @@ impl Ctx {
             started_scripts: Vec::new(),
             open_files: Vec::new(),
             open_connections: Vec::new(),
+            session: None,
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);
         ctx
+    }
+
+    /// Open `session` on this request, replacing whatever it had open.
+    ///
+    /// Replacing rather than refusing, because ADR 0139 § 1's `regenerate` is
+    /// exactly this call under a new identifier. The refusal of a *second*
+    /// `start` belongs to that member, which is the only one that can tell an
+    /// accidental re-open from a deliberate one.
+    pub fn open_session(&mut self, session: Session) {
+        self.session = Some(session);
+    }
+
+    /// The session this request started, or `None` before `Core\Session::start`
+    /// — which is what every other member of that class throws on.
+    #[must_use]
+    pub fn session(&self) -> Option<&Session> {
+        self.session.as_ref()
+    }
+
+    /// The same, to write: `set`, `remove` and `clear` reach the record and its
+    /// dirty flag through this, and nothing else may.
+    pub fn session_mut(&mut self) -> Option<&mut Session> {
+        self.session.as_mut()
     }
 
     /// The process status `exit`/`exit(n)` named, `0` if none ran.
