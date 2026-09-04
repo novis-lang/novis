@@ -2,64 +2,66 @@
 
 ## State
 
-**Goal 6, M7, stage 6 — the registry landed and the exporter is what is left.** The stage-6
-acceptance failure is closed: `the_default_metric_series_are_exported` runs in
-`crates/nvs-server/src/metrics.rs`, which is ADR 0076 §§ 5 and 7's per-core registry — § 1's nine
-families fixed to their kind and labels before anything writes one, § 7's `max_series` refusing a
-*new* series and never evicting an old one, and the two request series carrying § 1's `route` label.
-That module's own doc is the authority on all of it; nothing here restates it.
+**Goal 6, M7, stage 6b — ADR 0006's entry rule, half landed.** The stage's acceptance check names
+four tests; `an_fn_literal_is_refused_as_a_spawn_target_naming_the_method_form` and
+`a_callable_typed_variable_is_refused_as_a_spawn_target` now run and pass in
+`crates/nvs-cli/tests/spawn_entry.rs`. The rule's one home is `check_entry` in
+`crates/nvs-types/src/expr/isolate.rs:198`, whose own doc owns why the operand is matched on its
+*shape* before it is asked about its type: a `Class::method(...)` reference and a variable holding
+the callable it produces have the same type and are not the same operand.
 
-**`[metrics]` resolves in `nvs-config`.** `nvs_config::Metering` (`crates/nvs-config/src/export.rs`)
-is the exporter in force plus § 6's own `max_series = 10000` default, beside the refusal that was
-already there — `crate::server`'s `Capacity` is the precedent. `exporter = false`, an unwritten key
-and a missing block all resolve to `None`, and `Registry::of` then builds nothing at all.
+**The method form is checked and refused, deliberately.** `E0803` says so where it is written,
+under `E0777`'s reading — an ADR-specified form that is accepted and then does something else is
+worse than one refused at the spawn site. Nothing below `nvs-types` lowers it, so the check's other
+two tests are unwritten rather than failing. `E0803` is removed when the lowering lands, as `E0703`
+was.
 
-**Nothing scrapes or pushes yet, and that is one gap with two faces.** ADR 0076 § 8's two exporters
-are not in this crate's graph, so no core owns a registry and `crates/nvs-server/src/route.rs`'s
-`label` still has no caller — its known gap 2 now says so precisely. The decision the next session
-owes first: `opentelemetry-otlp` and `metrics-exporter-prometheus` both bring a tokio *runtime*
-(`rt`, `net`, `time`), and this crate compiles tokio as `features = ["sync"]` on purpose
-(`crates/nvs-server/src/lib.rs:86`). `nvs_host::block_on` drives one connection future per
-coroutine; whether it can drive a `tonic` client that spawns its own tasks is the question, and the
-cheap answer if it cannot is that the scrape path needs no client at all — a `hyper` server on
-`[metrics] listen`, which this crate already has, formats `Registry::series` and pushes nothing.
+**Stage 6's metrics exporter is untouched and still open** — the acceptance failure outranked it,
+and the previous handoff's group (ADR 0076 § 8's two dependencies, over
+`crates/nvs-server/Cargo.toml:12` and `crates/nvs-server/src/metrics.rs:52`) is unchanged and still
+correct. It is in Backlog below rather than lost.
 
-**`[context] adrs` needs `0076 §§ 3, 4, 5, 8`.** The pack carries §§ 1, 6, 7; § 5 and § 7 are what
-the item cited, § 3 fixes a name to one kind, § 4 is the `route` label's whole rule and § 8 is the
-next slice — four `sed` slices to fetch what the item's own ADR already governs.
+**`[context] adrs` needs `0006 § Decision`.** The pack printed ADR 0006 only as a one-line ground
+rule, and the whole entry rule — both forms, the named-argument binding, and the two refusals with
+their reasons — is in that section. One `sed` slice fetched what the check's own name cites.
 
 ## Next group
 
-**ADR 0076's exporter**, over `crates/nvs-server/Cargo.toml`, `crates/nvs-server/src/metrics.rs`,
-`crates/nvs-server/src/serve.rs` and `crates/nvs-server/src/route.rs`. The first decides what the
-second can be.
+**ADR 0006 § *Decision*'s static-method entry**, over `crates/nvs-runtime/src/script.rs`,
+`crates/nvs-cli/src/script.rs`, `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-stdlib/src/script.rs`
+and `crates/nvs-types/src/expr/isolate.rs`. The first decides what the other two can be.
 
-- [ ] **§ 8's two dependencies, feature-gated — and what an executor-less crate can take of them**
-      (ADR 0076 §§ 6, 8) — `crates/nvs-server/Cargo.toml:12` for the graph and
-      `crates/nvs-server/src/metrics.rs:52` for the paragraph that records the answer. § 6 makes
-      the exporter Native and feature-gated, defaulting on in the server distribution and absent
-      from an ADR 0048 single-file build. Decide the scrape path and the push path separately: the
-      scrape is a `hyper` service over `Registry::series` and needs no new dependency, the push is
-      where tokio's runtime arrives. Pre-authorized under the goal's § *Standing decisions*; record
-      it in the module doc, not a new ADR.
-- [ ] **A core owns one registry, and the door records each response into it** (ADR 0076 §§ 1, 5) —
-      `crates/nvs-server/src/serve.rs:916` is where a core's loop starts,
-      `crates/nvs-server/src/metrics.rs:371` is the type it would hold and
-      `crates/nvs-server/src/metrics.rs:526` is the one call the response path makes, whose third
-      argument is `crates/nvs-server/src/route.rs:133`. § 5's "per core" is why it is a `&mut` on
-      the core's own loop and not anything shared; a `RefCell` in a thread-local is the shape, since
-      every connection on that core is a coroutine on that one thread. Closing this closes route.rs's
-      known gap 2, and the ceiling on the whole group is that `serve.rs` is large — read it at the
-      anchor.
+- [ ] **How a child isolate reaches the class its entry is declared in** (ADR 0006 § *Decision*,
+      § *What is and is not shared*) — `crates/nvs-runtime/src/script.rs:69` for the `Program`
+      contract and `crates/nvs-cli/src/script.rs:153` for `program_over`, which is the closure a
+      method entry's own must be a sibling of. The pieces are all on disk: a `static` method
+      compiles to the function named `"{class}::{method}"`
+      (`crates/nvs-codegen/src/lib.rs:404`, where `build_fixture` already does exactly this),
+      `Unit::function` looks it up (`crates/nvs-codegen/src/lib.rs:317`), and `Unit::install_in`
+      (`crates/nvs-codegen/src/lib.rs:432`) is what arms the child's fresh statics. The open
+      question is *which* unit — the class is the **parent's**, and the `Resolver` seam
+      (`crates/nvs-runtime/src/script.rs:115`) is keyed by path and holds no notion of a running
+      one. Recommended and not yet taken: let `install_in` also hand the `Ctx` a handle the spawn
+      helper can look a function up through, so the method form needs no resolver at all and ADR
+      0006's "shares nothing but compiled code" is that handle. Record it in
+      `crates/nvs-runtime/src/script.rs`'s module doc, not a new ADR.
+- [ ] **The lowering, the helper and the named binding** (ADR 0006 § *Decision*) —
+      `crates/nvs-ir/src/lower/expr.rs:2880` is `lower_spawn_script`, whose three fixed arguments
+      and `nvs_types::CORE_SCRIPT_SPAWN` symbol the method form needs a sibling of, and
+      `crates/nvs-stdlib/src/script.rs:536` is `nvs_core_script_spawn`. `args:`'s entries bind to
+      the entry's parameters **by name**, so the parameter list has to reach the helper: the
+      checker sees it and the runtime does not. Drop the `E0803` arm in
+      `crates/nvs-types/src/expr/isolate.rs:198` in the same slice.
+- [ ] **The check's other two tests** (ADR 0006 § *Decision*) —
+      `crates/nvs-cli/tests/spawn_entry.rs:22`'s `refusal` helper is the shape to extend with a
+      `run` sibling; fixtures live beside it under `tests/fixtures/spawn/`. The names are fixed by
+      `docs/agent/loop-goal.toml:3719`: `spawn_script_runs_a_static_method_reference_in_a_fresh_isolate`
+      and `spawn_script_binds_args_to_the_entrys_parameters_by_name`.
 
 ## Backlog
 
-- `Core\Metrics`'s three members, Tier 0 and always present — ADR 0076 § 3, rows in
-  `crates/nvs-stdlib/src/registry.rs`; § 4's `tainted` refusal on the `labels` value is the half
-  that needs `nvs-types`.
-- Seven of § 1's nine series have no writer — the query, GC, spawn and memory numbers come from
-  ADR 0041 §§ 1-3's event kinds, which is where the wiring is specified.
-- `Core\Log`'s JSON-Lines record gains `trace_id` and `span_id` — ADR 0076 § 6, ADR 0020 § 6.
-- `[trace] propagate` still has no reader, as § 6 leaves it — `crates/nvs-config/src/tree.rs:757`.
-- ADR 0073's fleet-scoped lease is M8's, not this goal's — ADR 0073 *Verification*, and the stage-6
-  check's own comment in `docs/agent/loop-goal.toml` carries the triage.
+- ADR 0076 § 8's two exporters, and what an executor-less crate can take of them —
+  `crates/nvs-server/src/metrics.rs`'s § *What is not here yet* owns the gap.
+- A core owns one registry and the door records each response into it — ADR 0076 §§ 1, 5.
+- `crates/nvs-server/src/route.rs`'s `label` still has no caller — that file's known gap 2.
+- `spawn script`'s `limits:`/`grants:`/`on:` are still refused under `E0777` — that code's own doc.

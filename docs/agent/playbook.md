@@ -1963,6 +1963,12 @@ is why" — is this file.
   checks scoped to the crates you touched — `cargo fmt -p A -p B -- --check`, `cargo test -p A -p B`,
   `cargo clippy -p A -p B --all-targets` — plus one line in the handoff saying the full gate was not
   reached and why. `git status --porcelain` is the whole triage and it is one call.
+- **`peek.py --window` is a global flag, not a per-target one, so a second `--window` later in the
+  same argv is an argparse error that discards the whole call.** `peek.py A.rs:re:x --window 40
+  B.rs:re:y --window 8` exits 2 with `unrecognized arguments`, having read nothing — the cost is a
+  round trip, and the reflex it teaches is the wrong one (split into two calls, which is what this
+  tool exists to stop). Pick the one window the widest target needs and let the narrow ones overshoot;
+  an extra twenty lines of a file you were going to open anyway is cheaper than the second call.
 
 ## Running things
 
