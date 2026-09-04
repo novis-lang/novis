@@ -1463,4 +1463,58 @@ mod tests {
         dropped(told);
         dropped(other);
     }
+
+    /// ADR 0074 § 3, at the member that owns it: a cookie written with no options bag carries
+    /// `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`. The four come off `[http.cookies]`, and a
+    /// context with no configuration attached is the tree that wrote no such block — which is the
+    /// case § 3 is a statement about, since a deployment that configured the block chose its own.
+    ///
+    /// The whole line is compared rather than four `contains` calls, because the failure this is
+    /// written against is an attribute that went *missing*: every `contains` still passes on a line
+    /// that grew a fifth attribute nobody asked for, and on one whose parts fell in an order no peer
+    /// parses. `Path` first and `SameSite` last is the render's own order and is not § 3's claim —
+    /// what § 3 claims is that all four are there with nothing configured.
+    #[test]
+    fn a_cookie_is_secure_httponly_samesite_lax_by_default() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        assert!(
+            ctx.config().is_none(),
+            "the defaults are the ones a tree with no `[http.cookies]` resolves to"
+        );
+
+        let name = Value::str(NvsStr::new(b"session"));
+        let value = Value::str(NvsStr::new(b"abc123"));
+        // Six nulls: `secure`, `httpOnly`, `sameSite`, `path`, `domain` and `maxAge`, every one of
+        // them left out, which is the call site this case is about.
+        let args = [
+            name,
+            value,
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
+        ];
+        call(super::nvs_core_response_add_cookie, &mut ctx, &args)
+            .expect("a cookie whose name and value are both well formed is written");
+
+        let headers = ctx.take_headers();
+        assert_eq!(
+            headers.len(),
+            1,
+            "one call writes one cookie and nothing else: {headers:?}"
+        );
+        assert_eq!(&*headers[0].name, "Set-Cookie");
+        assert_eq!(
+            &*headers[0].value,
+            "session=abc123; Path=/; Secure; HttpOnly; SameSite=Lax",
+        );
+        // Appends rather than replaces, which is § 3's neighbour and the reason this member is not
+        // `setHeader`: a second cookie may not silently take the first one's place.
+        assert!(headers[0].append);
+
+        dropped(name);
+        dropped(value);
+    }
 }
