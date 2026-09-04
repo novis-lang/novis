@@ -920,7 +920,11 @@ nvs_runtime::nvs_helper! {
 /// are paid once per in-flight request, while that one bounds the total of a
 /// body streamed past memory entirely. § 5's table is the home of both numbers
 /// and of why one cap could not have governed both.
-const REQUEST_BODY: usize = 8 * 1024 * 1024;
+///
+/// ADR 0105 § 2's buffered multipart form fields are charged against it too, by
+/// [`crate::multipart`], for the reason that row gives: a form field's text is
+/// bytes parsed into memory, which is exactly what this cap means.
+pub(crate) const REQUEST_BODY: usize = 8 * 1024 * 1024;
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request::body(): tainted string` — spec § 15's whole-body reader,

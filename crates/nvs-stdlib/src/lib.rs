@@ -249,6 +249,7 @@ mod jwt;
 mod log;
 mod mail;
 pub mod math;
+mod multipart;
 mod objmap;
 mod objset;
 mod ordering;
