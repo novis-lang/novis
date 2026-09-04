@@ -203,13 +203,18 @@
 //!    allocates its result. That is a widening of [`NvsStr`] wherever a
 //!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
-//! 3. **`Ctx` carries no coroutine yielder and no request arena.** Both are
-//!    M4/M5 (`benches/abi-probe`'s own `Ctx` shows the yielder shape ADR 0002
-//!    § *Consequences* commits to). A helper cannot suspend yet.
+//! 3. **`Ctx` carries a coroutine yielder and no request arena, and neither
+//!    is a gap any more.** `Ctx::yielder`/`Ctx::set_yielder` landed with M5's
+//!    scheduler and a helper suspends through them, which is the shape ADR
+//!    0002 § *Consequences* commits to. The arena is not missing but decided
+//!    against: ADR 0116 § 1 rejected a region per isolate, and [`object`]'s
+//!    per-context live list plus [`object::sweep`] are what took its place.
 //! 4. **No custom panic hook is installed.** ADR 0002 § *Corollary* wants the
-//!    panic message routed to the request log with its request id; there is
-//!    no request log until M5, and the default hook's stderr output is the
-//!    right destination for a CLI script until then. [`nvs_helper!`] already
+//!    panic message routed to the request log with its request id. The request
+//!    log exists now — `Ctx::write_log_record` under `nvs_stdlib::log` — so
+//!    what is left is the hook itself, and the request id that module's own
+//!    envelope note is waiting on beside it; the default hook's stderr output
+//!    is still the right destination for a CLI script. [`nvs_helper!`] already
 //!    captures the message into [`Ctx`], so the hook is presentation, not
 //!    containment.
 //! 5. **`nvs_safepoint` acts on two of its four flags.** `CPU_LIMIT` and

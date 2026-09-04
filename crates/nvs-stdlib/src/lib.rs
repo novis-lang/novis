@@ -74,51 +74,30 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The registry holds part of §§ 1–2, all of §§ 3–4 and § 8, most of
-//!    §§ 5–6 and § 9, and none of § 7 or §§ 10–12.**
+//! 1. **The registry holds spec §§ 1–12 whole; §§ 13–20 hold whatever the
+//!    goals since have written, and nothing measures the remainder.**
 //!    `Core\Arr::count` was the first, and landed with the mechanism rather
 //!    than after it, on this repository's standing "narrow slice, end to end"
 //!    rule. Two more members proved the two things the mechanism still had to:
 //!    `Arr::filter`, which calls *back* into Novis code through
 //!    `nvs_runtime::call_closure`, and `Str::join`, the first with an optional
 //!    parameter. Everything registered since is a registry row plus a body and
-//!    nothing else. The spec file's §§ 1–12 are the work list, and
-//!    `tests/conformance_coverage.rs` is the gate that keeps the *registered*
-//!    half honest: a member with no `.nvst` case that calls it fails
-//!    `cargo test -p nvs-stdlib`, which is the check
-//!    `docs/agent/loop-goal.md`'s Stage 4 names.
+//!    nothing else.
 //!
-//!    Within § 1, ADR 0009 § 2's granularity question is closed and
-//!    [`granularity::DEFAULT`] is its answer, so `length`, `at`, `slice`,
-//!    `indexOf`, `lastIndexOf` and `wrap` all count in it. Twelve of that
-//!    section's rows are left: `compare`, `chunk`, `lines`, `graphemes`,
-//!    `codePoints`, `replaceAll`, `replaceRange`, `fold`, `normalize` and the
-//!    two `fromCodePoint` members. `format` is written, over the printf
-//!    grammar [`mod@format`] owns and the first variadic parameter in `Core`.
-//!    Section 3 is whole: every one of [`math::CLASS`]'s thirty-eight rows
-//!    runs, and `abs`/`sign`/`format` take the `int|float|decimal` the spec
-//!    writes (see [`math`]'s own gap note for the four rounding rows that do
-//!    not yet). Section 5 is six of its eight: [`regex::CLASS`] holds both of
-//!    ADR 0056's tiers and the `Core`-owned `Match` they answer with, and that
-//!    module's own gap 1 owns `compile`/`replaceWith`, which need `Pattern`.
-//!    Section 4 runs but its two component types: [`time`] holds
-//!    `Core\Time`'s entry points, `Instant`, `DateTime`, `Duration` and `Zone`
-//!    over `jiff` and `cldr`'s pattern grammar — that module's own docs own
-//!    why that crate and what it spends, and its gap 1 owns `Date`,
-//!    `TimeOfDay` and `Core\Month`. Section 6 is three of its four:
-//!    [`json::CLASS`] holds `encode`, `decode` and `isValid` over
-//!    `serde_json`, and that module's own gap 2 owns `decodeAs<T>`, which
-//!    waits on ADR 0071 and on an explicit type argument at a call site.
-//!    Section 8 is whole and needed no dependency at all — [`path`] is `&str`
-//!    arithmetic, and its own docs own the one-grammar-on-every-platform rule
-//!    that makes a `Core\Path` case pinnable on both legs, the three rows
-//!    where it diverges from `pathinfo`/`dirname`, and the two path *shapes*
-//!    (UNC, drive-relative) it does not model. Section 9 is **whole**:
-//!    [`objmap`], [`objset`] and [`heap`] hold every member of their rows over
-//!    the one store [`identity_store`] owns, and all three answer a `foreach`
-//!    — ADR 0053's iteration protocol reaches a `Core` receiver through its
-//!    descriptor's own method table, which [`cursor`] decides and
-//!    [`instance`]'s dispatch roster writes.
+//!    **Two gates say so, and both stop at § 12.**
+//!    `tests/spec_registry_coverage.rs` fails on a §§ 1–12 row the registry
+//!    does not declare, and `tests/spec-members-outstanding.txt` — the file it
+//!    reads, which only ever shrinks — holds no keys, which is this project's
+//!    definition of *registered whole*. `tests/conformance_coverage.rs` then
+//!    keeps that half honest: a member with no `.nvst` case that calls it fails
+//!    `cargo test -p nvs-stdlib`.
+//!
+//!    **Past § 12 there is no outstanding-members file and no coverage gate**,
+//!    so a row nobody has written fails nothing — `Core\Db`'s `stream`,
+//!    `streamAs` and `Connection::close` are spec § 18 rows in exactly that
+//!    position. What each of §§ 13–20 still owes is its own module's known
+//!    gaps; `docs/agent/carried-gaps.md` is where the ones no chain goal owns
+//!    are kept, and widening either gate past § 12 is an entry on it.
 //! 3. **Every shape a §§ 1–12 signature writes can now be stated.** The last
 //!    one was a **variadic** parameter, and it is
 //!    [`registry::CoreTy::Variadic`] — one ABI argument holding a fresh

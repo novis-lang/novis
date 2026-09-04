@@ -149,13 +149,14 @@
 //! rather than renumbering the ones below it — the same rule the diagnostic
 //! registry states for a retired `E`-code, and for the same reason.
 //!
-//! 1. **`do`/`while` does not lower** — [`lower::Lowering::lower_while`] with
-//!    the branch moved below the body, and nothing new to build. Every other
-//!    control-flow statement does: `for`
-//!    ([`lower::Lowering::lower_for`]), whose one restriction is a condition
-//!    clause of more than one comma-separated expression, and `switch`
-//!    ([`lower::Lowering::lower_switch`]) and `match`
-//!    ([`lower::Lowering::lower_match`]), whose one restriction is a label
+//! 1. **Every control-flow statement lowers; two restrictions on their parts
+//!    do not.** `while` and `do`/`while` are both
+//!    [`lower::Lowering::lower_while`] and
+//!    [`lower::Lowering::lower_do_while`]. What is left is a `for`
+//!    ([`lower::Lowering::lower_for`]) whose condition
+//!    clause holds more than one comma-separated expression, and a `switch`
+//!    ([`lower::Lowering::lower_switch`]) or `match`
+//!    ([`lower::Lowering::lower_match`]) label
 //!    whose representation differs from the subject's. Both of the latter
 //!    lower to an equality chain of [`ir::Terminator::Branch`]es rather than
 //!    to [`ir::Terminator::Switch`] — that terminator selects on an integer,

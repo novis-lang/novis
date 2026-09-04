@@ -61,13 +61,17 @@
 //!
 //! # Known gaps
 //!
-//! 1. **ADR 0056 § 4's sink is not enforced.** The pattern parameter must
-//!    demand the plain, unqualified `string`, and nothing in
-//!    [`crate::registry`] can state a qualifier at all — `tainted` and
-//!    `secret` are grammar and checker rows without a `Core`-facing half yet.
-//!    A registry row that cannot say "plain `string` only" accepts a tainted
-//!    pattern, which is the one place this module is currently *less* safe
-//!    than that ADR requires.
+//! 1. **ADR 0056 § 4's sink is enforced, and seven of the eight rows enforce
+//!    it without saying so.** `compile`'s pattern parameter carries
+//!    `Qual::Sink`; the seven members that take `Pattern|string` carry no
+//!    classification at all, because `nvs_types::core_lib`'s `qual_of` answers
+//!    `None` for a [`crate::registry::CoreTy::Union`]. `None` and `Sink`
+//!    refuse a qualified argument alike — `nvs_types::expr::quals`'
+//!    `admits_tainted_argument` — so a `tainted` pattern is refused at all
+//!    eight, which is what that ADR asks for. What is left is the *spelling*:
+//!    a union has nowhere to hold a mark, so those seven refuse by the default
+//!    rather than by a rule a reader can find, and a union that ever wanted
+//!    [`Qual::Launder`] would have no slot for it.
 //! 2. **The step budget is a constant, not a directive.** ADR 0056 § 2 puts
 //!    the default in `nvs.toml` under ADR 0005's ordinary rules, and there is
 //!    no configuration subsystem before M6. [`BACKTRACK_BUDGET`] is that

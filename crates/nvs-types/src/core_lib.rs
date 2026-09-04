@@ -381,22 +381,21 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // reads it out. This arm interns the *type*, and the two are separate
         // questions on purpose.
         //
-        // **Known gap: nothing reads it back at the call yet.**
-        // `crate::expr::calls` does not consult `param_quals`, so a parameter
-        // marked `Contagious` or `Neutral` still refuses a qualified argument
-        // exactly as an unclassified one does — `Core\Bytes::length($tainted)`
-        // is `E0401: expected bytes, found tainted bytes`. That is ADR 0088
-        // § 2's *default* applied to rows whose author wrote something else:
-        // § 2 gives `Contagious` a qualified result and `Neutral` a plain one,
-        // and both are meant to *accept*. Only `Sink`'s refusal is what the
-        // tree actually does, and it is right for the wrong reason. Being
-        // over-strict is safe — a tainted value cannot launder through a
-        // member it cannot reach — so the cost is that `tainted` is unusable
-        // with `Core` rather than that it leaks. What is left is the call
-        // check admitting a qualified argument on the two accepting marks, and
-        // a `Contagious` call's *result* gaining the union of its arguments'
-        // qualifiers. `Neutral` dropping `secret` is a laundering decision, so
-        // that half is ADR 0088's to answer before it is written.
+        // It **is** read back at the call: `crate::expr::args`' `check_arg`
+        // asks `MethodSig::qual_at` for the parameter's mark and
+        // `crate::expr::quals`' `admits_tainted_argument`/
+        // `admits_secret_argument` decide from it — `Sink` refuses a qualified
+        // argument, `Neutral`, `Launder` and `Reveal` admit one, and
+        // `Contagious` admits one exactly where the result can carry the
+        // qualifier back out.
+        //
+        // **What has no mark is a nested spelling.** `qual_of` answers `None`
+        // for a `CoreTy::Union`, for an `array<text>` element and for an
+        // options bag's members, and `None` refuses a qualified argument
+        // exactly as `Sink` does. That is safe and over-strict — it is how
+        // `Core\Regex`'s seven `Pattern|string` parameters refuse a tainted
+        // pattern without a row saying so — and it is the reason a union can
+        // never be given an *accepting* mark without widening this function.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
         CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
         // The one pair that carries a *qualifier* rather than a

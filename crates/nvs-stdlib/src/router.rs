@@ -68,11 +68,12 @@
 //!    not this module's — `Core\Request::method` is the one reader that turns a
 //!    method token into a case, and its module doc owns the two decisions in
 //!    it: `HEAD` answering `Get`, and a token outside this roster being refused
-//!    rather than mapped. What is still open is the half above that: a served
-//!    request carrying an unrecognized verb should be answered **501 at the
-//!    door**, before an isolate exists, and that belongs to `nvs_server`. Until
-//!    it lands, the refusal is a throw inside the program rather than a status
-//!    outside it.
+//!    rather than mapped. The half above it has landed: a served request
+//!    carrying an unrecognized verb is answered **501 at the door**, before an
+//!    isolate exists — `nvs_server::serve`'s `Answer::not_implemented`, `501`
+//!    and not `405` because the route table has not been asked yet — so the
+//!    throw inside the program is now only what a program reading
+//!    `Core\Request::method` for itself gets.
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 

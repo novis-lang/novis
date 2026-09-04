@@ -43,10 +43,13 @@
 //! edge, which ADR 0092 § 1 sanctions and `nvs-render`'s own § *Where this
 //! sits* prices.
 //!
-//! **The envelope is `level` and `msg` and stops there.** § 6 lists `ts`,
-//! `request_id`, `trace_id` and `span_id` as well; none of them has a source
-//! yet — there is no request, no trace and no clock the fixture could freeze —
-//! and § 6 already says `trace_id`/`span_id` are omitted rather than empty
+//! **The envelope is `level` and `msg` and stops there, and that is now a gap
+//! rather than a wait.** § 6 lists `ts`, `request_id`, `trace_id` and `span_id`
+//! as well, and every one of them has a source since goal 6: a served request,
+//! `nvs_server::trace`'s context, and `Core\Time`'s clock. Without
+//! `trace_id`/`span_id` a log line cannot be jumped to from a trace, which is
+//! the whole of what § 6 asks for; `docs/agent/carried-gaps.md` owns it.
+//! § 6 already says `trace_id`/`span_id` are omitted rather than empty
 //! when no trace is active, which is the same treatment the rest take here.
 //! `fields` follows that rule too: an empty bag is an absent key, not `{}`.
 //!
