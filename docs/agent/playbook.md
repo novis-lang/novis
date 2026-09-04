@@ -7431,6 +7431,17 @@ sibling in the same namespace unqualified.
   a new plain row is plain. Any member answering a marked value anywhere, or any member at all under
   `Core\Request`, owes both: `grep -n 'closed at' crates/nvs-types/src/core_lib.rs` finds them for
   the price of one call, where the full verify finds them for the price of a whole run.
+- **A `Core` member is five edits plus a sixth nobody names, and the sixth fails in a test file
+  that mentions neither your module nor your class.** Registering `Core\Session::start` built
+  clean and passed every gate in `registry.rs`, then `cargo test -p nvs-stdlib` failed
+  `every_part_two_spec_member_is_registered` with "1 line(s) in
+  `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` name a member that is registered
+  now". That file is the spec's part-two roster minus what is on disk, it **only shrinks**, and
+  striking the line is part of the slice that registers the member — the message says so, but it
+  arrives from `--test spec_registry_coverage` rather than from anything the five edits touched, so
+  a session reads it as a gate it broke rather than as the ledger it is. Whole-class work strikes a
+  run of lines: `Core\Session` is seven, of which one is gone. `grep -n '<Class>::'` that file
+  before writing the row, and the strike goes in the same commit.
 
 ## Divergences and refusals already pinned
 
