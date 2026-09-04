@@ -76,6 +76,7 @@
 
 pub mod admit;
 pub mod body;
+pub mod forwarded;
 pub mod io;
 pub mod mount;
 pub mod secure;
@@ -93,6 +94,7 @@ pub use hyper::body::Incoming;
 
 pub use admit::{Admission, Ceiling, InFlight};
 pub use body::{Arrived, Pull, Supply};
+pub use forwarded::{Arrival, Origin, Trusted, Unusable};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
 pub use secure::{Scheme, Secure};
