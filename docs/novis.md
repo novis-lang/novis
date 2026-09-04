@@ -15757,7 +15757,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-response"></a>
 ### `Core\Response`
 
-Keywords: json, text, bytes, setStatus, setHeader
+Keywords: json, text, bytes, setStatus, setHeader, redirect
 
 | Member | Signature |
 |---|---|
@@ -15766,6 +15766,7 @@ Keywords: json, text, bytes, setStatus, setHeader
 | [`Core\Response::bytes`](#core-core-response-bytes) | `bytes(bytes $body, string $contentType): void` |
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
+| [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
 
 <a id="core-core-response-json"></a>
 #### `Core\Response::json`
@@ -15851,6 +15852,24 @@ Sets `$name` to `$value` on this response, replacing whatever the server's own p
 **Returns** `void` — Nothing. Setting one name twice keeps the last value, at the first call's position, and a request that failed answers `500` carrying none of them.
 
 **Throws** `LogicError` — `$name` is empty, holds a byte a token cannot, or is `Content-Type`; or `$value` holds a byte outside printable ASCII.
+
+<a id="core-core-response-redirect"></a>
+#### `Core\Response::redirect`
+
+```nvs skip
+Core\Response::redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void
+```
+
+Answers by sending the peer to `$url`, declaring the redirect status and the `Location` header together — spec § 15's redirect, replacing a `Location` written by hand beside `http_response_code`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$url` | `string` (sink) | Where the peer is being sent: printable ASCII and non-empty, absolute or relative to the request. A sink, because a destination chosen by whoever sent the request is an open redirect. |
+| `$status` | `Core\Response\Redirect` (default `Core\Response\Redirect::SeeOther`) | Which redirect this is. Defaults to `SeeOther`, the one that answers a form post by sending the browser to fetch a page. |
+
+**Returns** `void` — Nothing, and no byte of body. The last call on one response is the one that answers, and a request that failed answers `500` carrying neither the status nor the header.
+
+**Throws** `LogicError` — `$url` is empty, or holds a byte outside printable ASCII — a newline included, which would end the header line and begin one the program never wrote.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
@@ -18396,6 +18415,17 @@ The one access decision `Core` names for `#[Access(allow: …)]`: a route open t
 |---|---|
 | `Core\Audience::Public` | The route is open to every caller; every other decision is the application's own enum case or class constant. |
 
+<a id="enum-core-response-redirect"></a>
+#### `Core\Response\Redirect`
+
+Which redirect a response is. The three cases are the redirect statuses whose meaning is defined without reference to what browsers historically did with them, so what a program writes is what every peer performs.
+
+| Case | Meaning |
+|---|---|
+| `Core\Response\Redirect::SeeOther` | `303` — the other resource is fetched with a `GET`, whatever method asked. The answer to a form post, and the default. |
+| `Core\Response\Redirect::Temporary` | `307` — repeat this request, method and body intact, at the new address this time only. Nothing is cached and nothing is renamed. |
+| `Core\Response\Redirect::Permanent` | `308` — repeat this request, method and body intact, and the new address is the one from now on. Caches and crawlers are entitled to remember it. |
+
 <a id="enum-core-cli-stream"></a>
 #### `Core\Cli\Stream`
 
@@ -20362,6 +20392,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `get_resource_type` | dropped | there is no `resource` (R14) — anything with a lifetime is an object, and its type is its class |
 | `get_resource_id` | dropped | same; identity across a collection is `Core\ObjectMap`'s key |
 | `get_resources` | dropped | same, and an enumeration of every open handle in the process is not a per-request fact in a runtime that serves many requests at once |
+| `header` | member | three members, because it is three jobs behind one string: `Core\Response::setHeader`, `Core\Response::redirect` for the `Location:` form, and `Core\Response::setStatus` for the `HTTP/1.1 404` form. `setHeader` is a header **sink**, so a `tainted` value is refused ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md)) — which is response splitting closed structurally rather than by remembering to strip a newline |
 | `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)), and overriding one on a single response is `Core\Response::setHeader` |
 | `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
 | `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](spec/01-core-library.md)) |
