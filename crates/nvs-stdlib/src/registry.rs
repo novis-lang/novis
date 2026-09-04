@@ -1392,6 +1392,16 @@ pub const CLASSES: &[CoreClass] = &[
     // iterator rather than a snapshot, and its own docs say why: the next chunk
     // of a request body does not exist yet when the walk is named.
     crate::request::BODY_STREAM,
+    // What `Core\Request::files` answers with, and ADR 0105 § 1's whole
+    // `Iterable<Part>` — a name for the walk, with every member on the part
+    // rather than on it, exactly as the body walk above carries none.
+    crate::request::FILES,
+    // And what that walk yields: ADR 0105 § 2's file part, which is a part iff
+    // it declared a `filename`. Three readers of what one upload said about
+    // itself, all of them `tainted`, and no `size` — [`crate::request`]'s `PART`
+    // docs own why the spec's two marks became three and why there is no
+    // fourth reader.
+    crate::request::PART,
     // § 15's fourth request-facing class, and the first one that *writes*: ADR
     // 0088 § 4's five body members, of which `text` is registered. Beside
     // `Core\Server` because the two are the same request's two halves, and
@@ -2249,6 +2259,14 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
     (crate::request::BODY_STREAM_NAME, &CoreTy::TaintedBytes),
+    // ADR 0105 § 1's `files(): Iterable<Part>`. A concrete element again, and
+    // the first one that is an *instance* rather than a scalar: what a
+    // multipart body yields is a `Core\Request\Part` whatever the upload was,
+    // so there is no receiver variable for it to be one of.
+    (
+        crate::request::FILES_NAME,
+        &CoreTy::Instance(crate::request::PART_NAME),
+    ),
 ];
 
 /// The element type `class`'s `Iterable<T>` is fixed at, or `None` when it is
@@ -3967,6 +3985,7 @@ mod tests {
             crate::db::IN_LIST_NAME,
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,
+            crate::request::FILES_NAME,
         ];
         for class in CLASSES {
             if HANDLES.contains(&class.name) {

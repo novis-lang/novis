@@ -1,0 +1,28 @@
+--TEST--
+Every reader `Core\Request\Part` has answers `tainted string`, including the field name the spec leaves unmarked, so a plain `string` binding refuses all three — ADR 0024 § 1, ADR 0105 § 2, spec § 15
+--FILE--
+<?nvs
+// Agreement, asked of all three readers at once: what decides the qualifier is
+// that the bytes came off a connection, and nothing about which of the three
+// declarations they are. No runtime assertion can show it -- a plain value is
+// assignable into a `tainted` target, so a case that only bound one would pass
+// over a member that had dropped the mark. The refusal is the pin, and it is
+// the binding that has to fail: `string` narrows through no qualifier bit.
+//
+// `name` is the one worth a case of its own. ADR 0105 § 2 marks `filename` and
+// `contentType` and says nothing about the field name, which is a peer's choice
+// exactly as the other two are -- a client is under no obligation to send back
+// the names the form declared. Left plain, it would have been the one launderer
+// on the class, reachable by using a part's own name as a path or an identifier.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    string $field = $part->name();
+    string $claimed = $part->filename();
+    string $declared = $part->contentType();
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:21
+%A
+error: aborting due to 3 errors

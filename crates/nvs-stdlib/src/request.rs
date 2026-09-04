@@ -4,19 +4,20 @@
 //!
 //! # What is here, and what is not
 //!
-//! Nine of
+//! Ten of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
 //! fifteen members: `method`, `isHead`, `path` and `query` — the request *line*,
 //! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
 //! `header`, `headers` and `cookie`, the fields that arrived with it, and
-//! `body` and `bodyStream`, the two members here that read what arrived
-//! **after** all of those — the same [`nvs_runtime::RequestBody`] pulled to its
-//! end into one value, or walked a chunk at a time.
-//! `files`, `clientIp`, `scheme`, `host`, `mount` and
+//! `body`, `bodyStream` and `files`, the three members here that read what
+//! arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
+//! pulled to its end into one value, walked a chunk at a time, or walked as the
+//! parts a `multipart/form-data` body declares
+//! ([ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+//! § 1, the parse itself being [`crate::multipart`]'s).
+//! `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
-//! a different thing: `files` on
-//! [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-//! § 3's third way of reading that same body — as parts —
+//! a different thing:
 //! `route`/`mount` on the match `nvs_server` makes once
 //! before the handler, and `clientIp`/`scheme`/`host` on
 //! `[server] trusted_proxies` and the forwarded-header walk. Those three read a
@@ -41,7 +42,7 @@
 //! answer to — and a named class would be a `catch` name for a condition no
 //! correct program ever recovers from.
 //!
-//! # Two members read the body, and the request records which one did
+//! # Three members read the body, and the request records which one did
 //!
 //! Spec § 15 makes `body`, `bodyStream` and `files` exclusive on one request:
 //! whichever is called first has consumed the stream, so a later read of any of
@@ -263,6 +264,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_body_stream",
             doc: Some(&BODY_STREAM_DOC),
         },
+        CoreMethod {
+            name: "files",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(FILES_NAME),
+            symbol: "nvs_core_request_files",
+            doc: Some(&FILES_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -437,6 +447,39 @@ const BODY_STREAM_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Request::files`'s reference card — ADR 0117.
+const FILES_DOC: MethodDoc = MethodDoc {
+    short: "The uploaded files this request carries, as a walk over its parts — the one way to \
+            receive one, replacing `$_FILES` and `move_uploaded_file` with a stream that never \
+            lands in a temporary directory.",
+    params: &[],
+    ret: "An `Iterable<Core\\Request\\Part>` a `foreach` walks once, yielding each file part as \
+          it comes off the wire. Ordinary form fields are not parts of this walk: they are \
+          buffered as the walk passes them and read back through `post`. Empty where the \
+          request declared no `multipart/form-data` body, which is what a request carrying no \
+          upload is.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `body` or `bodyStream` — the three are exclusive on one \
+                   request, and naming this walk is the reading.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The request declared a `multipart/form-data` body and then did not say how \
+                   to read one — no `boundary`, two of them, or one outside RFC 2046's grammar \
+                   — or what arrived is not the body it declared. An ambiguous body is refused \
+                   rather than guessed at.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the \
+                   length it declared.",
+        },
+    ],
+};
+
 /// `Core\Request::bodyStream`'s answer, as [`CoreTy::Instance`] spells it.
 pub(crate) const BODY_STREAM_NAME: &str = r"Core\Request\BodyStream";
 
@@ -494,6 +537,174 @@ pub(crate) const BODY_STREAM: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// `Core\Request::files`'s answer, as [`CoreTy::Instance`] spells it.
+pub(crate) const FILES_NAME: &str = r"Core\Request\Files";
+
+/// The symbol behind `Iterable<Part>::iterate()`, reached by name through this
+/// class's method table — see [`crate::instance`]'s dispatch roster.
+pub(crate) const FILES_ITERATE_SYMBOL: &str = "nvs_core_request_files_iterate";
+/// The symbol behind `Iterator<Part>::advance()`, which is where the parse is
+/// walked to the next file part.
+pub(crate) const FILES_ADVANCE_SYMBOL: &str = "nvs_core_request_files_advance";
+/// The symbol behind `Iterator<Part>::current()`.
+pub(crate) const FILES_CURRENT_SYMBOL: &str = "nvs_core_request_files_current";
+
+/// [`FILES`]'s one slot: the part the last `advance()` opened, which `current()`
+/// answers, and `null` before the first one and after the last.
+const FILES_PART: usize = 0;
+
+/// The class [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// § 1's `files()` answers with — `Iterable<Core\Request\Part>`, given the name
+/// the registry needs to write it.
+///
+/// # It is its own iterator, for [`BODY_STREAM`]'s reason
+///
+/// The next part does not exist when the walk is named, so there is no snapshot
+/// for a [`crate::cursor`] to run over: `iterate()` answers the receiver and
+/// `advance()` walks [`crate::multipart::Multipart`] to the next file part.
+/// That class's own doc is the argument, one layer down, and this is the third
+/// `Core` class to take the shape after `Core\Task\Channel` and the body walk.
+///
+/// **Advancing past a part nobody read drains it** — § 1, where skipping an
+/// upload the application does not recognise is simply not touching it. The
+/// drain is the parse's and costs a walk over bytes the door already charged
+/// against `upload_total`, never memory.
+///
+/// # Why it has no members
+///
+/// [`BODY_STREAM`]'s answer: everything it does is the three names on
+/// [`crate::instance`]'s dispatch roster, so it is a *handle* in the sense
+/// `registry`'s `a_class_with_slots_has_instance_members_and_the_reverse`
+/// names. Spec § 15 writes `files(): Iterable<Part>` and puts every member on
+/// the part rather than on the walk.
+pub(crate) const FILES: CoreClass = CoreClass {
+    name: FILES_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["part"],
+    constants: &[],
+};
+
+/// One file part of a multipart body, as [`CoreTy::Instance`] spells it.
+pub(crate) const PART_NAME: &str = r"Core\Request\Part";
+
+/// [`PART`]'s slots, in the order [`part_value`] fills them.
+const PART_FIELD: usize = 0;
+const PART_FILENAME: usize = 1;
+const PART_CONTENT_TYPE: usize = 2;
+/// Which part of the body this one is, counted from the start and including the
+/// form-field parts the walk consumed on the way — the identity ADR 0105 § 3's
+/// "valid only while this part is the iterator's current one" is checked
+/// against, once `content` and `readAll` land to check it.
+#[allow(
+    dead_code,
+    reason = "the slot is filled by `part_value` positionally and is read by ADR 0105 § 3's \
+              `content` and `readAll`, which are the next slice. Delete this attribute with \
+              their first read."
+)]
+const PART_ORDINAL: usize = 3;
+
+/// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+/// § 2's file part: what one upload declared about itself, ahead of its bytes.
+///
+/// # A part is a file part iff it declared a `filename`
+///
+/// RFC 7578's own distinction, and § 2 refuses to invent a second one. Every
+/// other part is an ordinary form field, which [`crate::multipart`] buffers as
+/// the walk passes it and `post()` reads back — so this class is never a form
+/// field's carrier and has no member that would answer for one.
+///
+/// # All three readers are `tainted`, and the spec taints two
+///
+/// `filename` and `contentType` are what § 2 marks, and `name` is marked here
+/// as well: a field name arrives off the same wire, from a peer that is under
+/// no obligation to send back the names the form declared, and
+/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)'s
+/// rule is over untrusted *input* rather than over a list of fields. Leaving it
+/// plain would have made the part's own name the one launderer on the class —
+/// reachable by using it as a path or an identifier — which is the direction
+/// `AGENTS.md`'s priority 1 does not trade.
+///
+/// # There is no `size`, and there is no `filename` that is a path
+///
+/// § 2 refuses a `size`: there is no honest value before the part has been
+/// consumed, and inventing one is the repair
+/// [ADR 0095](../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// exists to forbid. `filename` is the client's *claim* and is never treated as
+/// a path — as a `tainted string` it reaches no path sink without
+/// `Core\IO::within` laundering it, which is the same refusal every other
+/// untrusted string meets.
+///
+/// **`contentType` answers `text/plain` where the part declared none**, which
+/// is RFC 7578 § 4.4's stated default rather than a repair of a missing value.
+/// The alternative — a nullable reader — would put a `??` at every call site to
+/// re-supply the number the RFC already fixed.
+pub(crate) const PART: CoreClass = CoreClass {
+    name: PART_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_request_part_name",
+            doc: Some(&PART_FIELD_DOC),
+        },
+        CoreMethod {
+            name: "filename",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_request_part_filename",
+            doc: Some(&PART_FILENAME_DOC),
+        },
+        CoreMethod {
+            name: "contentType",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedStr,
+            symbol: "nvs_core_request_part_content_type",
+            doc: Some(&PART_CONTENT_TYPE_DOC),
+        },
+    ],
+    slots: &["name", "filename", "contentType", "ordinal"],
+    constants: &[],
+};
+
+/// `Core\Request\Part::name`'s reference card — ADR 0117.
+const PART_FIELD_DOC: MethodDoc = MethodDoc {
+    short: "The form field this file arrived under — the `name` attribute of the `<input>`, as \
+            the peer sent it back.",
+    params: &[],
+    ret: "The field name, `tainted` because the peer chose it: a client is free to send a name \
+          the form never declared, so it is untrusted input like every other byte of the part.",
+    errors: &[],
+};
+
+/// `Core\Request\Part::filename`'s reference card — ADR 0117.
+const PART_FILENAME_DOC: MethodDoc = MethodDoc {
+    short: "The file name the client claimed — a claim about a file on someone else's machine, \
+            and never a path on this one.",
+    params: &[],
+    ret: "The claimed name, `tainted`. It reaches no path sink without `Core\\IO::within` \
+          laundering it, which is what keeps a peer from choosing where its own upload lands.",
+    errors: &[],
+};
+
+/// `Core\Request\Part::contentType`'s reference card — ADR 0117.
+const PART_CONTENT_TYPE_DOC: MethodDoc = MethodDoc {
+    short: "The media type this part declared, which is what the client said the bytes are and \
+            not what they turn out to be.",
+    params: &[],
+    ret: "The declared type, `tainted`, or `text/plain` where the part declared none — RFC 7578 \
+          § 4.4's default. A program that needs to know what the bytes *are* reads the bytes.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -507,6 +718,15 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_cookie" => (nvs_core_request_cookie as *const ()).cast(),
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
+        "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
+        "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
+        "nvs_core_request_part_filename" => (nvs_core_request_part_filename as *const ()).cast(),
+        "nvs_core_request_part_content_type" => {
+            (nvs_core_request_part_content_type as *const ()).cast()
+        }
+        FILES_ITERATE_SYMBOL => (nvs_core_request_files_iterate as *const ()).cast(),
+        FILES_ADVANCE_SYMBOL => (nvs_core_request_files_advance as *const ()).cast(),
+        FILES_CURRENT_SYMBOL => (nvs_core_request_files_current as *const ()).cast(),
         BODY_STREAM_ITERATE_SYMBOL => (nvs_core_request_body_stream_iterate as *const ()).cast(),
         BODY_STREAM_ADVANCE_SYMBOL => (nvs_core_request_body_stream_advance as *const ()).cast(),
         BODY_STREAM_CURRENT_SYMBOL => (nvs_core_request_body_stream_current as *const ()).cast(),
@@ -1141,12 +1361,271 @@ fn body_stream_chunk(value: Value) -> Result<Value, Fault> {
     Ok(held)
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::files(): Iterable<Core\Request\Part>` — ADR 0105 § 1's
+    /// walk over this request's uploads, replacing `$_FILES` and
+    /// `move_uploaded_file` with a stream that never reaches a temporary
+    /// directory.
+    ///
+    /// ADR 0105 § 3's third way of reading one body, and the only one that
+    /// reads it as *structure*. The parse is built here and stored on
+    /// [`nvs_runtime::Inbound`], because the walk this answers reaches it again
+    /// through a different value on every `advance()` and `post()` will read the
+    /// form fields it buffered on the way past — that carrier's `parts` field
+    /// owns the argument.
+    ///
+    /// **A request that declared no multipart body walks empty.** Nothing is
+    /// held for it, and `advance()` then answers `false` at once: "this request
+    /// sent no files" is exactly true of a `GET`, and a throw there would make
+    /// every handler write the content-type check this member has already done.
+    /// A request that declares a multipart body and then does not say how to
+    /// read one is the other case, and is refused — `crate::multipart`'s
+    /// `is_multipart` is where the two are split apart.
+    fn nvs_core_request_files(ctx, _args: [0]) {
+        // Read before the claim because it borrows the carrier immutably and
+        // reading a header has no effect on the body; the claim below is still
+        // the first thing that happens *to* the request.
+        let declared = joined_field(inbound_of(ctx, "files")?, b"content-type");
+        // The claim is here rather than at the first part, for `bodyStream`'s
+        // reason: naming the walk is the reading.
+        claim_body(ctx, "files")?;
+        if let Some(declared) = declared.filter(|value| crate::multipart::is_multipart(value)) {
+            // No case can reach this: a `.nvst` program answers no request, so
+            // it carries no `Content-Type` to declare a body with. Asserted by
+            // `a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named`.
+            let boundary = crate::multipart::boundary_of(&declared).map_err(|why| {
+                Fault::thrown_as(
+                    ThrownClass::Parse,
+                    format!(
+                        "Core\\Request::files(): this request declared a multipart body and \
+                         then did not say how to read one — {why}"
+                    ),
+                )
+            })?;
+            ctx.inbound_mut()
+                .expect("the read above refuses a context that is answering no request")
+                .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary)));
+        }
+        Ok(crate::instance::build(&FILES, [Value::null()]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<Part>::iterate(): Iterator<Part>` — the walk itself, because
+    /// the next part does not exist when the walk is named.
+    ///
+    /// [`nvs_core_request_body_stream_iterate`]'s shape and for its reason: the
+    /// receiver's transferred reference is handed straight back out, so nothing
+    /// is allocated and the cursor *is* the parse.
+    fn nvs_core_request_files_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &FILES, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Part>::advance(): bool` — walks the parse to the next file
+    /// part, answering `false` at the closing delimiter.
+    ///
+    /// This is the only place a `foreach` over an upload suspends, and it parks
+    /// the isolate rather than a thread: every pull underneath is
+    /// [`nvs_runtime::RequestBody::next_chunk`]'s.
+    ///
+    /// **Advancing past a part whose bytes nobody read drains it**, which is the
+    /// parse's own behaviour and ADR 0105 § 1's rule — skipping an upload the
+    /// application does not recognise is simply not touching it.
+    fn nvs_core_request_files_advance(ctx, args: [1]) {
+        let stepped = files_step(ctx, args[0]);
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<Part>::current(): Core\Request\Part` — the part the last
+    /// `advance()` opened.
+    fn nvs_core_request_files_current(_ctx, args: [1]) {
+        let read = files_part(args[0]);
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
+/// [`FILES_ADVANCE_SYMBOL`]'s body: one part, built into the receiver's slot,
+/// and whether there was one.
+///
+/// The slot is cleared to `null` at the end of the walk rather than left holding
+/// the last part, on [`body_stream_step`]'s reasoning: the loop is over, so
+/// keeping it would hold a part's declarations for as long as the program held
+/// the walk value.
+///
+/// # Errors
+///
+/// `LogicError` where the context is answering no request — [`inbound_of`]'s
+/// refusal — `IOError` where the connection failed under the body, and
+/// `ParseError` where what arrived is not the multipart body the request
+/// declared. The parse itself classifies nothing; which of the last two applies
+/// is read off `Multipart::failed_on_the_wire`, which records the source at the
+/// one place it is known.
+fn files_step(ctx: &mut Ctx, value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let receiver = crate::instance::receiver(value, &FILES, member)?;
+    // No case can reach this: a `.nvst` program answers no request, so it can
+    // hold no walk to advance. Asserted by
+    // `a_files_walk_yields_the_file_parts_and_drains_what_it_passes`, which
+    // drives the three names a `foreach` drives.
+    inbound_of(ctx, "files")?;
+    let inbound = ctx
+        .inbound_mut()
+        .expect("the read above refuses a context that is answering no request");
+    let opened = match inbound.parts_mut() {
+        // No parse, or no body at all: both are a request with no file parts in
+        // it, which is an empty walk rather than a refusal.
+        None => None,
+        Some((parse, body)) => {
+            let parse = parse
+                .downcast_mut::<crate::multipart::Multipart>()
+                .expect("`files()` is the only member that holds a parse, and it holds this one");
+            match parse.next_part(body) {
+                Ok(head) => head.map(|head| (head, parse.opened())),
+                Err(why) => {
+                    // No case can reach either of these: a `.nvst` program
+                    // answers no request, so it holds no parse to walk and no
+                    // connection to fail under one. Asserted by
+                    // `a_files_walk_that_fails_mid_body_throws_rather_than_ending`
+                    // and by
+                    // `a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named`.
+                    let (class, what) = if parse.failed_on_the_wire() {
+                        (ThrownClass::Io, "the body did not arrive whole")
+                    } else {
+                        (
+                            ThrownClass::Parse,
+                            "this is not the multipart body the request declared",
+                        )
+                    };
+                    return Err(Fault::thrown_as(
+                        class,
+                        format!("Core\\Request::files(): {what} — {why}"),
+                    ));
+                }
+            }
+        }
+    };
+    let more = opened.is_some();
+    let held = opened.map_or_else(Value::null, |(head, ordinal)| part_value(&head, ordinal));
+    crate::instance::set_slot(receiver, FILES_PART, held);
+    Ok(Value::bool(more))
+}
+
+/// [`FILES_CURRENT_SYMBOL`]'s body: the slot [`files_step`] last wrote,
+/// retained, because the receiver keeps it until the next part is opened.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not a walk — only a bug in this
+/// crate can produce one, the receiver having been checked at compile time.
+fn files_part(value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::CURRENT;
+    let receiver = crate::instance::receiver(value, &FILES, member)?;
+    let held = crate::instance::slot(receiver, FILES_PART);
+    #[expect(
+        unsafe_code,
+        reason = "the slot keeps its reference until the next `advance`, so the \
+                  value handed back needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+/// One [`PART`] instance, built out of the header block the parse read.
+///
+/// The three declarations are copied here rather than borrowed from the parse,
+/// because the part outlives the buffer they were read out of: the very next
+/// `advance()` compacts it. That is one short allocation per *file* part, which
+/// is O(in-flight) and bounded by `MAX_PARTS`.
+fn part_value(head: &crate::multipart::PartHead, ordinal: usize) -> Value {
+    crate::instance::build(
+        &PART,
+        [
+            Value::str(NvsStr::new(&head.name)),
+            Value::str(NvsStr::new(&head.filename)),
+            // RFC 7578 § 4.4's default where the part declared none, which is
+            // the class doc's decision and not a repair of a missing value.
+            Value::str(NvsStr::new(
+                head.content_type.as_deref().unwrap_or(b"text/plain"),
+            )),
+            Value::uint(
+                u64::try_from(ordinal).expect("`MAX_PARTS` bounds a body at a thousand parts"),
+            ),
+        ],
+    )
+}
+
+/// What one of [`PART`]'s three readers answers: the slot the part was built
+/// with, retained for the caller.
+///
+/// One helper rather than three bodies, so none of them spells a slot index
+/// itself — [`crate::io`]'s `metadata_slot` is the same shape for the same
+/// reason.
+///
+/// # Errors
+///
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce.
+fn part_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &PART, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::name(): tainted string` — the form field this file
+    /// arrived under.
+    ///
+    /// `tainted` although ADR 0105 § 2 marks only the other two: the class doc
+    /// owns why, and it is that a peer chooses this string as freely as it
+    /// chooses the filename.
+    fn nvs_core_request_part_name(_ctx, args: [1]) {
+        part_slot(args, PART_FIELD, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::filename(): tainted string` — the client's claimed
+    /// name, which is never a path here.
+    fn nvs_core_request_part_filename(_ctx, args: [1]) {
+        part_slot(args, PART_FILENAME, "filename")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Part::contentType(): tainted string` — what the client said
+    /// the bytes are, or RFC 7578 § 4.4's `text/plain` where it said nothing.
+    fn nvs_core_request_part_content_type(_ctx, args: [1]) {
+        part_slot(args, PART_CONTENT_TYPE, "contentType")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         REQUEST_BODY, cookie_of, grouped_fields, joined_field, method_ordinal,
         nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
+        nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
+        nvs_core_request_files_iterate, nvs_core_request_part_content_type,
+        nvs_core_request_part_filename, nvs_core_request_part_name,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -1200,6 +1679,107 @@ mod tests {
         let mut ctx = Ctx::buffered();
         ctx.set_inbound(inbound);
         ctx
+    }
+
+    /// A context answering a request that declared `content_type`, with `body`
+    /// still on the wire under it.
+    fn uploading(content_type: &str, body: Option<Chunks>) -> Ctx {
+        let mut inbound = Inbound::new("POST", "/", "");
+        inbound.push_header("content-type", content_type.as_bytes());
+        if let Some(body) = body {
+            inbound.set_body(Box::new(body));
+        }
+        let mut ctx = Ctx::buffered();
+        ctx.set_inbound(inbound);
+        ctx
+    }
+
+    /// What one file part declared about itself: its field name, the name it
+    /// claimed and the type it declared, in the order [`PART`]'s rows read.
+    type Declarations = (Vec<u8>, Vec<u8>, Vec<u8>);
+
+    /// Drives the three names a `foreach` over `files()` drives, answering one
+    /// row per **file** part: what its three readers said, in row order.
+    ///
+    /// Nothing here reads a part's bytes, so every part this walks is one the
+    /// parse drained on the way to the next — which is exactly ADR 0105 § 1's
+    /// "advancing past an unconsumed part drains it", asserted by the walk
+    /// finishing rather than by a counter.
+    ///
+    /// The `Err` is the throw a member raised, as [`walked`]'s is.
+    fn parts_of(ctx: &mut Ctx, files: Value) -> Result<Vec<Declarations>, i32> {
+        /// The retain a virtual call's receiver owes — see [`crate::cursor`].
+        fn lend(value: Value) {
+            #[expect(
+                unsafe_code,
+                reason = "each of the three names consumes a reference, so the \
+                          driver holds one of its own and retains per call"
+            )]
+            unsafe {
+                value.retain();
+            }
+        }
+        /// One of the part's three readers, which **borrows** its receiver the
+        /// way every registered `Core` member does.
+        fn read(
+            member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+            ctx: &mut Ctx,
+            part: Value,
+        ) -> Result<Vec<u8>, i32> {
+            let answer = nvs_runtime::call(member, ctx, &[part])?;
+            let bytes = answer
+                .as_text()
+                .expect("a part's readers answer `string`")
+                .as_bytes()
+                .to_vec();
+            #[expect(unsafe_code, reason = "the reader transferred what it answered")]
+            unsafe {
+                answer.release();
+            }
+            Ok(bytes)
+        }
+        lend(files);
+        let cursor = nvs_runtime::call(nvs_core_request_files_iterate, ctx, &[files])
+            .expect("a walk is its own iterator, so naming it cannot fail");
+        let mut seen = Vec::new();
+        let walk = loop {
+            lend(cursor);
+            match nvs_runtime::call(nvs_core_request_files_advance, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(more) if more.as_bool() != Some(true) => break Ok(()),
+                Ok(_) => {}
+            }
+            lend(cursor);
+            let part = match nvs_runtime::call(nvs_core_request_files_current, ctx, &[cursor]) {
+                Err(why) => break Err(why),
+                Ok(part) => part,
+            };
+            let row = (
+                read(nvs_core_request_part_name, ctx, part),
+                read(nvs_core_request_part_filename, ctx, part),
+                read(nvs_core_request_part_content_type, ctx, part),
+            );
+            #[expect(unsafe_code, reason = "`current` transferred the part it answered")]
+            unsafe {
+                part.release();
+            }
+            match row {
+                (Ok(name), Ok(filename), Ok(content_type)) => {
+                    seen.push((name, filename, content_type));
+                }
+                (Err(why), ..) | (_, Err(why), _) | (.., Err(why)) => break Err(why),
+            }
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the driver owns the reference it was handed and the one \
+                      `iterate` answered with, and both are done with here"
+        )]
+        unsafe {
+            cursor.release();
+            files.release();
+        }
+        walk.map(|()| seen)
     }
 
     /// An `Inbound` carrying `lines` as its header field lines and nothing
@@ -1609,11 +2189,11 @@ mod tests {
         );
     }
 
-    /// Spec § 15's exclusivity, asked in both directions and on a request with
-    /// no body at all: whichever of the two readings a program takes first is
-    /// the one that has the body, and the other is refused rather than answered
-    /// empty. Both directions matter, because a record kept by one member would
-    /// pass the direction it was written for and fail the other.
+    /// Spec § 15's exclusivity, asked of all three readings in both directions
+    /// and on a request with no body at all: whichever a program takes first is
+    /// the one that has the body, and the others are refused rather than
+    /// answered empty. Both directions matter, because a record kept by one
+    /// member would pass the direction it was written for and fail the other.
     ///
     /// The bodiless request is the case that says what the rule is *about*: no
     /// bytes were consumed either way, so a claim tied to the stream rather than
@@ -1649,6 +2229,37 @@ mod tests {
             "`body` after `bodyStream` is refused in the same direction as its twin"
         );
 
+        // The third reading of the same body is on the same terms as the other
+        // two, in both directions: a walk over parts consumes the stream a
+        // `body()` would have read, and a `body()` consumes the one it would
+        // have parsed.
+        let mut parted = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut parted, &[])
+            .expect("naming the walk is the reading, and it is the first one here");
+        assert!(
+            nvs_runtime::call(nvs_core_request_body, &mut parted, &[]).is_err(),
+            "`body` after `files` is the program bug § 15 names, not an empty answer"
+        );
+        assert_eq!(
+            parts_of(&mut parted, files)
+                .expect("the claimed walk is the one that works")
+                .len(),
+            2,
+            "the member that claimed the body is the one that reads it"
+        );
+
+        let mut read_whole = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let whole = nvs_runtime::call(nvs_core_request_body, &mut read_whole, &[])
+            .expect("the first reading of a body is the one that gets it");
+        #[expect(unsafe_code, reason = "the call transferred the reference it answered")]
+        unsafe {
+            whole.release();
+        }
+        assert!(
+            nvs_runtime::call(nvs_core_request_files, &mut read_whole, &[]).is_err(),
+            "`files` after `body` is refused in the same direction as its twin"
+        );
+
         let mut bodiless = answering(None);
         let nothing = nvs_runtime::call(nvs_core_request_body, &mut bodiless, &[])
             .expect("a request that carried no body is still a request");
@@ -1676,6 +2287,135 @@ mod tests {
         assert!(
             walked(&mut cut_off, stream).is_err(),
             "a connection that failed under a body did not deliver the end of one"
+        );
+    }
+
+    /// One multipart body, split across the wire the way a real one arrives:
+    /// a form field, a file part that declares its type, and a second file part
+    /// that declares none.
+    const UPLOAD: &[&[u8]] = &[
+        b"--X\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nQ3 report\r\n--X\r\n\
+          Content-Disposition: form-data; name=\"doc\"; filename=\"report.pdf\"\r\n\
+          Content-Type: application/pdf\r\n\r\n%PDF-1.4 and ",
+        b"the rest of it\r\n--X\r\n\
+          Content-Disposition: form-data; name=\"notes\"; filename=\"notes.txt\"\r\n\r\n\
+          jotted down\r\n--X--\r\n",
+    ];
+
+    /// The walk yields ADR 0105 § 2's **file** parts and only those: the form
+    /// field is buffered as the walk passes it and never appears as a part, and
+    /// a part that declared no type answers RFC 7578 § 4.4's default rather
+    /// than nothing. Beside it, the two requests that walk empty — a request
+    /// whose `Content-Type` is not multipart at all, and one that declared a
+    /// multipart body and then sent none.
+    ///
+    /// The parts are walked without their bytes ever being read, which is § 1's
+    /// drain: a walk that could not skip an unconsumed part would stall on the
+    /// first one here.
+    ///
+    /// The receiver is driven by hand rather than by a `.nvst` `foreach`,
+    /// because a case is a program with no request in front of it — the
+    /// `ASSERTED_OFF_THE_CORPUS` reading `conformance_coverage.rs` owns.
+    #[test]
+    fn a_files_walk_yields_the_file_parts_and_drains_what_it_passes() {
+        let mut arriving = uploading("multipart/form-data; boundary=X", Some(Chunks::of(UPLOAD)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut arriving, &[])
+            .expect("a request that declared a multipart body can be walked");
+        assert_eq!(
+            parts_of(&mut arriving, files).expect("a body that arrives whole walks whole"),
+            vec![
+                (
+                    b"doc".to_vec(),
+                    b"report.pdf".to_vec(),
+                    b"application/pdf".to_vec()
+                ),
+                (
+                    b"notes".to_vec(),
+                    b"notes.txt".to_vec(),
+                    b"text/plain".to_vec()
+                ),
+            ],
+            "a part is a file part iff it declared a `filename`, and `title` declared none"
+        );
+
+        let mut urlencoded = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[&b"title=Q3+report"[..]])),
+        );
+        let none = nvs_runtime::call(nvs_core_request_files, &mut urlencoded, &[])
+            .expect("a request that is not multipart is still a request");
+        assert!(
+            parts_of(&mut urlencoded, none)
+                .expect("a body with no parts in it is no parts")
+                .is_empty(),
+            "\"this request sent no files\" is an empty walk, and only \"no request\" is a throw"
+        );
+
+        let mut bodiless = uploading("multipart/form-data; boundary=X", None);
+        let empty = nvs_runtime::call(nvs_core_request_files, &mut bodiless, &[])
+            .expect("a request that carried no body is still a request");
+        assert!(
+            parts_of(&mut bodiless, empty)
+                .expect("no body is no parts")
+                .is_empty(),
+            "a declared multipart body that never arrived is no parts, not a refusal"
+        );
+    }
+
+    /// A request that says it is multipart and then does not say how to read one
+    /// is refused where it was named, not walked as far as the ambiguity —
+    /// ADR 0095, and the split `crate::multipart::is_multipart` exists to make.
+    /// The `boundary` is the one token the parse trusts to appear inside a body,
+    /// so guessing at a missing one would be a truncation rule chosen by the
+    /// peer.
+    ///
+    /// The refusal lands on `files()` itself rather than on the first
+    /// `advance()`, for `bodyStream`'s reason: naming the walk is the reading.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so
+    /// `inbound_of` refuses it before it reaches the `Content-Type`.
+    #[test]
+    fn a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named() {
+        let mut unreadable = uploading(
+            "multipart/form-data",
+            Some(Chunks::of(&[&b"--X--\r\n"[..]])),
+        );
+        assert!(
+            nvs_runtime::call(nvs_core_request_files, &mut unreadable, &[]).is_err(),
+            "a multipart body with no boundary is ambiguous, and ambiguity is refused"
+        );
+
+        let mut malformed = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::of(&[&b"there is no delimiter in here at all"[..]])),
+        );
+        let files = nvs_runtime::call(nvs_core_request_files, &mut malformed, &[])
+            .expect("the `Content-Type` was readable; the body is what is not");
+        assert!(
+            parts_of(&mut malformed, files).is_err(),
+            "a body that ends anywhere but after its closing delimiter is refused"
+        );
+    }
+
+    /// A walk that fails mid-body throws rather than ending, which is
+    /// `a_body_stream_that_fails_mid_walk_throws_rather_than_ending`'s property
+    /// on the third reading of the same body: `advance()` answering `false`
+    /// means the parts are over, so reporting a dead connection that way would
+    /// tell a loop it had seen every file the peer sent.
+    ///
+    /// No case can reach this: a `.nvst` program answers no request, so it can
+    /// hold no walk for a connection to fail under.
+    #[test]
+    fn a_files_walk_that_fails_mid_body_throws_rather_than_ending() {
+        let mut cut_off = uploading(
+            "multipart/form-data; boundary=X",
+            Some(Chunks::failing_at(&UPLOAD[..1], 1)),
+        );
+        let files = nvs_runtime::call(nvs_core_request_files, &mut cut_off, &[])
+            .expect("the failure is the wire's, and it has not happened yet");
+        assert!(
+            parts_of(&mut cut_off, files).is_err(),
+            "a connection that failed under an upload did not deliver the end of one"
         );
     }
 }

@@ -158,6 +158,17 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
+    // And the third, for the third time: ADR 0105 § 1's walk over a multipart
+    // body's file parts, whose next part has not arrived when the walk is named.
+    // `crate::request`'s `FILES` docs are the argument.
+    (
+        crate::request::FILES_NAME,
+        &[
+            (sequence::ITERATE, crate::request::FILES_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::request::FILES_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::request::FILES_CURRENT_SYMBOL),
+        ],
+    ),
     (
         crate::cursor::NAME,
         &[

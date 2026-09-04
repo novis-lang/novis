@@ -1153,8 +1153,19 @@ mod tests {
     /// as the hole it is. `body` is the thirteenth and the widest of them: the
     /// request's own bytes, undecoded, which is the least trusted thing any of
     /// these classes hands back and the one a program is most likely to want to
-    /// parse — so the mark is what stands between it and a grammar sink.
-    /// All thirteen belong in this set for the reason the claims do: a member that
+    /// parse — so the mark is what stands between it and a grammar sink. The
+    /// fourteenth, fifteenth and sixteenth are `Core\Request\Part`'s three
+    /// readers, and they are the same sentence read once more over a
+    /// `multipart/form-data` body:
+    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// § 2 marks `filename` and `contentType`, and `name` is marked with them
+    /// because a peer chooses the field name it sends back as freely as it
+    /// chooses the other two — `nvs_stdlib::request`'s `PART` doc owns why the
+    /// spec's two marks became three. `filename` is the one of the sixteen with
+    /// a named launderer standing in front of it: it is a claim about a file on
+    /// someone else's machine, and `Core\IO::within` is what turns one into a
+    /// path here.
+    /// All sixteen belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     ///
@@ -1210,12 +1221,24 @@ mod tests {
                     "array<array<tainted string>>".to_owned(),
                 ),
                 (r"Core\Request", "path", "tainted string".to_owned()),
+                (
+                    r"Core\Request\Part",
+                    "contentType",
+                    "tainted string".to_owned(),
+                ),
+                (
+                    r"Core\Request\Part",
+                    "filename",
+                    "tainted string".to_owned(),
+                ),
+                (r"Core\Request\Part", "name", "tainted string".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at thirteen — \
+            "the roster of members whose *answer* is qualified `tainted` is closed at sixteen — \
              a verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
-             with, everything attached to its standard input and the five reads of the request \
-             being answered — and where the answer is a \
+             with, everything attached to its standard input, the five reads of the request \
+             being answered and the three declarations one of its uploaded parts made — and \
+             where the answer is a \
              collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"

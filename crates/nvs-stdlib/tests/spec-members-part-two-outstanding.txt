@@ -21,11 +21,10 @@
 # § 15 -- the request-facing half, and nothing else: every member left here is
 # one that needs a request, which makes all of them goal 6's. `Core\Env`,
 # `Core\Cap` and `Core\Cli` are registered whole; `Core\Request` has the request
-# line (`method`, `path`, `query`), the fields that arrived with it and both
-# readings of the body, and owes the parts, the peer and the match, and
-# `Core\Session` is owed whole.
+# line (`method`, `path`, `query`), the fields that arrived with it and all three
+# readings of the body, and owes the peer and the match, and `Core\Session` is
+# owed whole.
 §15 Request::clientIp
-§15 Request::files
 §15 Request::host
 §15 Request::mount
 §15 Request::route

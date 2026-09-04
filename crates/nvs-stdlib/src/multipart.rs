@@ -45,13 +45,6 @@
 //! value with no closing quote, a boundary that is not RFC 2046's, and a body
 //! that ends anywhere but after its closing delimiter.
 
-#![allow(
-    dead_code,
-    reason = "ADR 0105 § 1's `Core\\Request::files()` is the next slice and is this parse's only \
-              non-test caller; until it lands, the module's own tests are what hold this module \
-              up. Delete this attribute with that member's first call."
-)]
-
 use std::ops::Range;
 
 use nvs_runtime::RequestBody;
@@ -115,6 +108,16 @@ pub(crate) struct Multipart {
     buffered: usize,
     /// Whether the supplier has answered its last chunk.
     ended: bool,
+    /// Whether the last error this parse answered came **out of the supplier**
+    /// rather than out of the bytes.
+    ///
+    /// The two are one `Box<str>` here on purpose — this module classifies
+    /// nothing — but the member reading it has to classify: a connection that
+    /// failed under an upload is an `IOError` and a body that is not the
+    /// multipart one it declared is a `ParseError`, and those are different
+    /// `catch` names for the caller. Recording the source at the one place it
+    /// is known costs a `bool` and saves the reader from guessing at a message.
+    from_the_wire: bool,
 }
 
 /// Where the cursor stands between calls.
@@ -191,7 +194,27 @@ impl Multipart {
             fields: Vec::new(),
             buffered: 0,
             ended: false,
+            from_the_wire: false,
         }
+    }
+
+    /// How many parts this parse has opened, field parts included.
+    ///
+    /// The identity ADR 0105 § 3's "valid only while this part is the
+    /// iterator's current one" is checked against: a `Core\Request\Part` is
+    /// stamped with this at the moment it is answered, so a program holding an
+    /// older one is refused rather than handed the current part's bytes. It
+    /// counts field parts too, because what it identifies is a position in the
+    /// body and not a position among the parts that were answered.
+    pub(crate) fn opened(&self) -> usize {
+        self.parts
+    }
+
+    /// Whether the error this parse last answered came off the connection.
+    ///
+    /// Meaningful only immediately after an `Err`; see [`Self::from_the_wire`].
+    pub(crate) fn failed_on_the_wire(&self) -> bool {
+        self.from_the_wire
     }
 
     /// § 2's buffered form fields, in the order they arrived.
@@ -199,6 +222,12 @@ impl Multipart {
     /// Arrival order rather than a map, for `crate::request`'s own reason: a
     /// repeated field name is a value a form is allowed to send twice, and the
     /// order of the two is part of what it sent.
+    #[allow(
+        dead_code,
+        reason = "§ 2's fields are read by `Core\\Request::post()`, which has not landed; until \
+                  it does, this module's own tests are what hold the buffering up. Delete this \
+                  attribute with that member's first call."
+    )]
     pub(crate) fn fields(&self) -> &[(Vec<u8>, Vec<u8>)] {
         &self.fields
     }
@@ -258,6 +287,12 @@ impl Multipart {
     /// # Errors
     ///
     /// As [`Self::next_part`].
+    #[allow(
+        dead_code,
+        reason = "§ 3's `Core\\Request\\Part::content` is the next slice and is this method's \
+                  only non-test caller; `next_part`'s drain reaches `chunk` directly. Delete \
+                  this attribute with that member's first call."
+    )]
     pub(crate) fn next_chunk(
         &mut self,
         body: &mut dyn RequestBody,
@@ -477,7 +512,13 @@ impl Multipart {
         if self.ended {
             return Ok(false);
         }
-        let Some(chunk) = body.next_chunk()? else {
+        let pulled = body.next_chunk().inspect_err(|_| {
+            // The one place a failure is known to be the supplier's rather than
+            // the body's, which is what [`Self::from_the_wire`] exists to carry
+            // out to a member that has to pick a `catch` name.
+            self.from_the_wire = true;
+        })?;
+        let Some(chunk) = pulled else {
             self.ended = true;
             return Ok(false);
         };
@@ -490,6 +531,22 @@ impl Multipart {
     }
 }
 
+/// Whether `content_type` declares a `multipart/form-data` body at all — the
+/// question that comes *before* [`boundary_of`]'s.
+///
+/// The two are apart because the answers are different facts for the member
+/// asking them. A request that is not multipart carries no file parts, and
+/// `Core\Request::files()` walks it empty rather than refusing it: "this
+/// request sent no files" is exactly true of a `GET`, and a throw there would
+/// make every handler write the content-type check the runtime has already
+/// done. A request that *says* it is multipart and then does not say how is
+/// ADR 0095's ambiguity and is refused. One `Err` covering both would have
+/// forced `files()` to choose between refusing every `GET` and swallowing a
+/// body whose boundary it could not find.
+pub(crate) fn is_multipart(content_type: &[u8]) -> bool {
+    media_type(content_type).eq_ignore_ascii_case(b"multipart/form-data")
+}
+
 /// The `boundary` a `Content-Type` declares, checked against RFC 2046's own
 /// grammar for one.
 ///
@@ -500,7 +557,7 @@ impl Multipart {
 /// the one token this parse trusts to appear inside a body, so a repaired one
 /// would be a truncation rule chosen by the peer.
 pub(crate) fn boundary_of(content_type: &[u8]) -> Result<Vec<u8>, Box<str>> {
-    if !media_type(content_type).eq_ignore_ascii_case(b"multipart/form-data") {
+    if !is_multipart(content_type) {
         return Err("the request body is not `multipart/form-data`".into());
     }
     let boundary = parameter(content_type, b"boundary")?
