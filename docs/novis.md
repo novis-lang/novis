@@ -89,6 +89,7 @@ Conventions the whole file uses:
 | [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
 | [`Core\Uri`](#core-core-uri) | RFC 3986 URI references read, rebuilt, resolved and compared, with the two percent-encoders and PHP's query-string convention |
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front |
+| [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name` and the captures its path filled, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
@@ -13882,6 +13883,85 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 
 **Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since an origin is never derived from a request header.
 
+<a id="core-core-router-match"></a>
+### `Core\Router\Match`
+
+Keywords: route match, matched route, route parameters, path captures, Core\Request::route, named route, tainted capture, name, params, param
+
+A `Core\Router\Match` is what `Core\Request::route()` answers (`null` when nothing in the route
+table claimed this method and path); it is never constructed by hand. The server matches the
+incoming request against the compiled table **once**, before any of the program runs, and this is
+that result travelling on the request — so a handler never matches its own path a second time.
+Matching is not dispatching: nothing here calls the annotated method, and the matched route's
+handler, its declared verb and its access decision do not cross.
+
+`name()` is the route's `#[Core\Route(name: …)]` as the program wrote it, or `null` for a route
+that declares none; it is a plain `string`, because it is the unit's own literal. `params()` is
+every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
+one key — `null` for a name the route does not declare, including an optional `{name?}` the request
+left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,
+and the `int` or `uint` the match already converted where it declared one of those, so a handler
+never parses a segment the router has parsed already.
+
+Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a
+test — there is none, and the reader refuses rather than answering `null`, because "no request
+arrived" and "nothing matched" are different facts.
+
+```nvs
+<?nvs
+try {
+    Core\Request::route();
+} catch (LogicError $why) {
+    echo "no request here\n";
+}
+```
+```output
+no request here
+```
+
+| Member | Signature |
+|---|---|
+| [`Core\Router\Match->name`](#core-core-router-match-name) | `name(): ?string` |
+| [`Core\Router\Match->params`](#core-core-router-match-params) | `params(): array<tainted string\|int\|uint>` |
+| [`Core\Router\Match->param`](#core-core-router-match-param) | `param(string $name): ?tainted string\|int\|uint` |
+
+<a id="core-core-router-match-name"></a>
+#### `Core\Router\Match->name`
+
+```nvs skip
+$match->name(): ?string
+```
+
+The declared name of the route this request matched, as its `#[Route(name: …)]` wrote it — the same string `Core\Router::url` resolves and the `route` metric label carries.
+
+**Returns** `?string` — The name, or `null` where the matched route declares none. Not `tainted`: it is the unit's own literal and not anything the request carried.
+
+<a id="core-core-router-match-params"></a>
+#### `Core\Router\Match->params`
+
+```nvs skip
+$match->params(): array<tainted string|int|uint>
+```
+
+Every capture the matched path filled, keyed by the parameter name it binds, in path order.
+
+**Returns** `array<tainted string|int|uint>` — An array of the captures. A `{name}` declared `string` answers `tainted string` and is still percent-encoded; one declared `int` or `uint` answers the number the match already converted. A route with no captures answers an empty array.
+
+<a id="core-core-router-match-param"></a>
+#### `Core\Router\Match->param`
+
+```nvs skip
+$match->param(string $name): ?tainted string|int|uint
+```
+
+One capture by the parameter name it binds — `params()` read at one key, and the spelling a handler reaching for a single segment writes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The capture's name as the route's path declared it, without the braces. |
+
+**Returns** `?tainted string|int|uint` — The capture, on `params()`'s terms, or `null` where the matched route declares no capture under that name — including an optional `{name?}` the request left off.
+
 <a id="core-core-csv"></a>
 ### `Core\Csv`
 
@@ -15762,7 +15842,7 @@ Reports whether this server has begun a graceful shutdown — the same fact `[se
 <a id="core-core-request"></a>
 ### `Core\Request`
 
-Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files, post
+Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream, files, post, route
 
 | Member | Signature |
 |---|---|
@@ -15777,6 +15857,7 @@ Keywords: method, isHead, path, query, header, headers, cookie, body, bodyStream
 | [`Core\Request::bodyStream`](#core-core-request-bodystream) | `bodyStream(): Core\Request\BodyStream` |
 | [`Core\Request::files`](#core-core-request-files) | `files(): Core\Request\Files` |
 | [`Core\Request::post`](#core-core-request-post) | `post(string $name): mixed` |
+| [`Core\Request::route`](#core-core-request-route) | `route(): ?Core\Router\Match` |
 
 <a id="core-core-request-method"></a>
 #### `Core\Request::method`
@@ -15936,6 +16017,19 @@ One submitted form field by name, read with PHP's bracket convention — the sam
 **Returns** `mixed` — The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the form carried no such name. Reading the body to its end is what this member does, so on a `multipart/form-data` request it is called **after** the `files()` walk, never before: the uploads are drained on the way to the last field.
 
 **Throws** `LogicError` — This program is not answering a request, or this request's body has already been read by `body` or `bodyStream` — those two hand the bytes over uninterpreted and leave no fields behind. A body `files` is walking is the one case this member joins rather than refuses.; `ParseError` — The request declared a `multipart/form-data` body and then did not say how to read one, or what arrived is not the body it declared, or a urlencoded field holds percent escapes that decode to octets that are not UTF-8.; `IOError` — The connection failed under the body, or the peer stopped short of the length it declared.
+
+<a id="core-core-request-route"></a>
+#### `Core\Request::route`
+
+```nvs skip
+Core\Request::route(): ?Core\Router\Match
+```
+
+The route this request matched, which the server took once at the door before any of this program ran — the same match the CSRF check and the `route` metric label read, so a handler never matches its own path a second time.
+
+**Returns** `?Core\Router\Match` — A `Core\Router\Match` answering the declared name and the path's captures, or `null` where nothing in the table claimed this method and path — which is a served request like any other, since matching dispatches nothing. A program declaring no `#[Route]` builds no table and reads `null` here for the same reason.
+
+**Throws** `LogicError` — This program is not answering a request, as a CLI program, a scheduled script, a job worker and a test are not — refused rather than answered `null`, because "no request arrived" and "nothing matched" are different facts.
 
 <a id="core-core-request-bodystream"></a>
 ### `Core\Request\BodyStream`
