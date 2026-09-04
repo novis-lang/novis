@@ -3,8 +3,9 @@
 ## State
 
 **Goal 20 — queue the dossier — has just started; nothing of it has landed yet.** Goal 19's whole list is
-this goal's floor. There is no design to settle: [ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md)
-decided the four proofs, `tools/dossier.py` derives the roster from `nvs meta --json`, and
+this goal's floor. There is no design to settle: ADR 0134 decided the four proofs (the goal prose links
+it; a handoff is copied to `docs/agent/` and its relative links would break),
+`tools/dossier.py` derives the roster from `nvs meta --json`, and
 `--append-chain` puts the goals it writes onto the end of the chain the driver is walking. The last sweep
 before this goal was written said **795 features, one of them complete, 93 goals over 794 owed** — read
 the numbers off your own run rather than trusting those.
