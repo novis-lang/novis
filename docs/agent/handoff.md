@@ -2,65 +2,60 @@
 
 ## State
 
-**Goal 6, M7. ADR 0076 § 2's trace now reaches the request**, which closes the stage-6 acceptance
-check that had been failing on `an_inbound_traceparent_is_continued_and_a_missing_one_is_generated`.
-The door reads the arrived `traceparent` at `crates/nvs-server/src/trace.rs:64`
-(`nvs_server::trace::take`), beside `route::take` and `mount::carry`, and writes the answer onto the
-carrier; `nvs_runtime::Inbound` holds it and `Ctx::set_inbound` is the one place it becomes the
-context's, leaving the eager root `Ctx::new` drew standing where no door asked. `nvs-cli`'s handler
-is the one production caller. Two `traceparent` field lines are treated as one malformed one — the
-module doc owns why — and every other way a header can be unusable is
-`nvs_runtime::trace_context`'s, unchanged.
+**Goal 6, M7, stage 6 — the exporter is what is left of it.** The stage-6 acceptance failure is
+closed and it was a filing bug, not work: `no_probe_is_added_to_the_measured_path` asserts ADR 0076
+§ 1's "no probe site is added to the per-statement/per-call path", which is an effect on *emitted
+code*, and `crates/nvs-server/Cargo.toml` names neither `nvs-codegen` nor `nvs-ir`. The check moved
+to `-p nvs-codegen` in both copies of the goal file and the test landed beside ADR 0018's own probe
+fixtures. `the_default_metric_series_are_exported` stays where it is — the registry is the server's.
 
-**The full `verify.py` gate was not reached**, and not because of anything here: it stopped at `cargo
-fmt` on `crates/nvs-config/tests/secret.rs`, which a concurrent loop session has in flight along with
-five other paths. `nvs-server`, `nvs-runtime` and `nvs-cli` were checked scoped instead — fmt, test
-and clippy, all green — and the new playbook bullet owns why formatting somebody else's file is the
-wrong repair. **Re-run the whole gate once the tree is quiet.**
+**ADR 0076 § 6's two blocks are read at boot.** `crates/nvs-config/src/export.rs` is the roster and
+the refusal, reached from `crates/nvs-config/src/resolve.rs:340` with every other merged-tree check.
+Both blocks were already deserialized (`crates/nvs-config/src/tree.rs:737`, `:751`) and already
+`System` in the registry; what was missing was that nothing refused a value. `E0627` is a written
+`exporter` neither block spells — metrics take a scrape or a push, a trace only the push, and the
+asymmetry is § 6's own — and `E0628` is a `[trace] sample` outside `0.0`–`1.0`, which the item did
+not name and which is in for the reason the module doc gives: nothing downstream can tell `5` from a
+deployment that meant it. `propagate` still has no reader, as § 6 leaves it.
 
-**The exporter is still the whole of what is open in stage 6**, and it is bigger than the handoff's
-old item [2] read: ADR 0076 § 6 is two `System` config blocks, § 7 a per-core cardinality bound, § 8
-two new dependencies, and § 1 nine series. It is decomposed below rather than carried as one item.
-
-**Two of that check's names need triage before a line is written.**
-`no_probe_is_added_to_the_measured_path` is a claim about ADR 0018's per-statement path, which
-`crates/nvs-server` cannot observe at all; `the_default_metric_series_are_exported` names series
-(`nvs_gc_pause_seconds`, `nvs_memory_bytes`) that are the runtime's readings. Both may be filed in
-the wrong crate — the playbook's run of `loop-goal.toml` bullets is the shape, and the manifest plus
-one `sed -n '1,20p'` of an existing test in the named directory settles it.
+**`[context] adrs` gained `0076 §§ 1, 6, 7`** in `docs/agent/loop-goal.toml` and in
+`docs/agent/goals/6-server.toml`. The pack printed no part of ADR 0076 while the whole open group is
+that ADR, and three calls went on fetching § 1, § 6 and § 8 by hand.
 
 ## Next group
 
-**ADR 0076's exporter**, over `crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/directive.rs`
-and a new `crates/nvs-server/src/metrics.rs`. Take them in this order — the registry cannot be
-written before it knows what bounds it.
+**ADR 0076's registry and its series**, over a new `crates/nvs-server/src/metrics.rs`,
+`crates/nvs-server/src/lib.rs` and `crates/nvs-config/src/export.rs`. In this order — nothing can be
+registered before the thing that bounds it exists.
 
-- [ ] **`[metrics]` and `[trace]` are read at boot, both `System`, and a bad `exporter` refuses it**
-      (ADR 0076 § 6) — the block structs go beside `crates/nvs-config/src/tree.rs:713`'s `Schedule`
-      and their fields beside `crates/nvs-config/src/tree.rs:94`; the class is
-      `crates/nvs-config/src/directive.rs`'s registry. `exporter` is `false | "prometheus" | "otlp"`
-      for metrics and `false | "otlp"` for traces, and anything else is the next free
-      configuration code, **E0627** — `crates/nvs-config/src/log.rs` is the worked shape for a
-      block whose values are a closed set. `sample` is `0.0`–`1.0` and `propagate` a bool; neither
-      has a reader yet and both are stated in § 6.
-- [ ] **The per-core registry, with § 7's `max_series` bound** (ADR 0076 §§ 5, 7) — new
-      `crates/nvs-server/src/metrics.rs`, registered in `crates/nvs-server/src/lib.rs:104` beside
-      `pub mod trace;`. A new series past the cap is a **no-op**, an existing one is **never
-      evicted** (§ 7 argues why at length), and the memory is charged to the core exactly as ADR
-      0059 § 3's cache is. § 8 names `metrics-exporter-prometheus` for the scrape path; picking it
-      is pre-authorized under ADR 0051 § 4.
-- [ ] **§ 1's nine default series, and the `route` label reaching them** (ADR 0076 §§ 1, 4) —
-      `crates/nvs-server/src/route.rs:129`'s `label` is written and has no caller, which is that
-      module's own known gap 2; this closes it. The label is the matched route's **declared name**
-      and never the path, and § 4 refuses a `tainted` label value. Triage where
-      `the_default_metric_series_are_exported` and `no_probe_is_added_to_the_measured_path` can
-      honestly live before writing either — see `## State`.
+- [ ] **The per-core registry, with § 7's `max_series` bound** (ADR 0076 §§ 5, 7) — a new
+      `crates/nvs-server/src/metrics.rs`, declared in the module list at
+      `crates/nvs-server/src/lib.rs:98`. The bound is `crates/nvs-config/src/tree.rs:745`'s
+      `max_series`, per core, and § 7 is *refuse the new, never evict the old*: a recreated counter
+      reads as a process restart to every backend and corrupts `rate()` silently. The exporter
+      selection is already resolved — `crates/nvs-config/src/export.rs:36`'s `Exporter`, with
+      `false` meaning no registry is built at all.
+- [ ] **§ 1's nine default series, and the `route` label reaching them** (ADR 0076 §§ 1, 4) — this
+      is what `the_default_metric_series_are_exported` in the stage-6 `-p nvs-server` check names.
+      The label is the *declared route name* and never a path; the door already took the match and
+      `crates/nvs-server/src/route.rs:129`'s `label` hands it back. § 4 refuses a `tainted` label
+      value, which is a `nvs-types` qualifier the server cannot see — check which half of that is
+      this crate's before writing it, the way the moved check above had to be checked.
+- [ ] **§ 8's two dependencies, feature-gated** (ADR 0076 § 8) — the selection they hang off is
+      `crates/nvs-config/src/export.rs:36`'s `Exporter`, and the feature is declared beside the
+      module list at `crates/nvs-server/src/lib.rs:93`: `metrics-exporter-prometheus` for
+      the scrape and `opentelemetry`/`opentelemetry-otlp` for the push, defaulting on in the server
+      distribution only, so an ADR 0048 single-file executable carries neither. Pre-authorized under
+      ADR 0051 § 4; take it last, since the registry above is what they export.
 
 ## Backlog
 
-- `Core\Metrics`'s three members — ADR 0076 § 3, Tier 0, and not reachable from `crates/nvs-server`.
-- `Core\Log`'s record gains `trace_id`/`span_id` while a trace is active — ADR 0076 § 6's last line.
-- `Core\Server::traceId()` reads the context's trace id — ADR 0076 § 2; no member exists yet.
-- Head sampling: `[trace] sample` is what will ever set a root's `sampled` — `nvs-runtime/src/trace_context.rs`'s *What is not here yet*.
-- `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` — ADR 0073 *Verification*'s M8 bullet, waiting on the shared store's compare-and-set.
-- ADR 0102 § 4's CSRF refusal at the door — `crates/nvs-server/src/route.rs`'s known gap 1.
+- `an_after_response_tree_outlives_its_connection`, filed `-p nvs-host` — still open; ADR 0072 § 6.
+- `a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` — ADR 0073 *Verification*'s M8
+  bullet; needs a compare-and-set the shared tier does not have.
+- `Core\Log`'s record gaining `trace_id`/`span_id` whenever a trace is active — ADR 0076 § 6's last
+  paragraph, and the whole of what makes a log line jump to a trace.
+- Raw/unparsed body access for an arbitrary content-type — ADR 0024 *Revisiting*, narrowed by
+  `docs/plan/m7.md`; a decided-and-recorded call in `Core\Request`'s module doc.
+- `[trace] propagate` has no reader: ADR 0076 § 6 sends `traceparent` on outbound
+  `Core\Http\Client` calls, and nothing does.

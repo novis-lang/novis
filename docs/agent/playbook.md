@@ -5404,6 +5404,15 @@ is why" — is this file.
   `crates/nvs-stdlib/src/cache.rs:717`), and — for the six members that are not `start` — being
   called before `start`. Plan each member with its refusals, or the row lands red on a gate that has
   nothing to do with the member.
+- **`Diagnostic::with_help` lands in `notes`, not in `suggestions`, and the struct has a
+  `suggestions` field to lead you the wrong way.** A refusal test that asserts on the help sentence
+  — the shape `session.rs` and `log.rs` both use for the *note* — reads `refused.suggestions` on the
+  obvious guess, compiles once the element type is fixed to `Suggestion { message, replacement,
+  span }`, and then fails with an empty vector, because `with_help` pushes `format!("help: {text}")`
+  onto `notes` (`crates/nvs-diagnostics/src/diagnostic.rs:214`) and `suggestions` is only ever a
+  machine-applicable replacement with a span. Two build cycles, each of them a full `nvs-config`
+  rebuild. Assert a help sentence as `refused.notes.iter().any(...)`; `suggestions` is empty for
+  every configuration diagnostic in the tree, none of which offers a span to rewrite.
 
 ## Splitting a file that got too big
 
