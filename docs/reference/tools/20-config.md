@@ -2,7 +2,7 @@
 id: config
 title: "Configuration: nvs.toml, limits and capabilities"
 summary: the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config`
-keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, password_file, Core\Config
+keywords: nvs.toml, configuration, config, TOML, limits, memory_limit, max_execution_time, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, process.exec, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, ini_get, ini_set, ini_restore, ini_get_all, php.ini, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config
 ---
 
 # The file and where it is read from
@@ -54,6 +54,7 @@ accepts — anything else is `E0601`:
 | `[cache]` | `dir` — the artifact cache directory (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
+| `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
 | `[server]`, `[[server.mount]]` | the web server's listen addresses, timeouts and mounts |
@@ -362,19 +363,59 @@ answer the question the check asks.
 
 A directive that holds a secret has a `_file` sibling: the file's **whole content** is the value,
 with exactly one trailing newline (and a `\r` before it) removed and nothing else trimmed. Exactly
-one of the pair may be set — both is `E0608`. Today the pair is `[db.<name>] password` /
-`password_file`:
+one of the pair may be set — both is `E0608`. Two directives have such a pair today,
+`[db.<name>] password` and `[mail.<name>] password`:
 
 ```toml
 [db.main]
-driver = "sqlite"
-path = "app.db"
+driver = "postgres"
+host = "db.internal"
 password_file = "/run/secrets/db-password"
+
+[mail.relay]
+host = "smtp.internal"
+from = "app@example.test"
+user = "app"
+password_file = "/run/secrets/mail-password"
 ```
 
-The value never appears in a diagnostic or a dump. In this build nothing opens a `[db]` block, and
-`Core\Config::get("db.main.password")` answers `null` for a `password_file` — the file is checked
-for the pair rule and not read.
+The value is read at boot, and again at each `nvs ctl reload`, never per request. It never appears
+in a diagnostic or a dump: `nvs config dump` prints `<secret>` and names the file the value came
+from, so an audit can act on the file without the credential passing through the audit.
+`Core\Config::get("db.main.password")` answers the value, not the path — the `_file` sibling is how
+the value is *written*, not a second key a program reads.
+
+A secret file is part of the trust boundary above, because an account that can rewrite it chooses
+the credential the server connects with. So a secret file another account can **write** refuses the
+boot; one another account can only **read** is a warning and not a refusal, because a Docker Compose
+secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`, and from inside a
+container that is the norm rather than a mistake.
+
+There is no `${ENV_VAR}` interpolation and no `--set`. A directive's value is written in the file,
+or it is the content of a file the directive names.
+
+## Encrypted secrets: SOPS, `age`, sealed secrets
+
+Novis decrypts nothing itself, and does not need to: every secret-management tool in common use ends
+by producing a plaintext file, and `_file` is the seam that takes one.
+
+| How the deployment manages secrets | What it produces | What `nvs.toml` names |
+|---|---|---|
+| [SOPS](https://getsops.io/) with `age` or a KMS, in a task runner or a `make` target | `sops -d --extract '["db"]["password"]' secrets.enc.yaml > /run/novis/db-password` | `password_file = "/run/novis/db-password"` |
+| SOPS under systemd | a `sops -d` in `ExecStartPre`, or `LoadCredential=` | `password_file = "/run/credentials/novis.service/db-password"` |
+| Docker Compose | a `secrets:` entry, mounted `0444` | `password_file = "/run/secrets/db-password"` |
+| Kubernetes — Flux's kustomize-sops, the SOPS operator, Sealed Secrets, an external-secrets sync | a `Secret`, mounted as a volume | `password_file = "/etc/secrets/db-password"` |
+| Vault or a cloud secret manager | an agent or sidecar templating a file | `password_file = "/run/novis/db-password"` |
+
+Two things make this work rather than merely parse. Write the decrypted file where only the serving
+account can read it — a `tmpfs` mount, or the directory systemd's `LoadCredential=` hands the unit —
+because the boot warns about one the rest of the host can read. And decrypt **before** the server
+starts: a `password_file` that is not there yet is a boot refusal naming the path, which is the
+failure an operator wants, rather than a first request that cannot connect.
+
+This keeps the decryption key out of the serving process. The process holding the master key and the
+process serving requests are deliberately different processes, and a file path is what separates
+them.
 
 # Reading and changing it from a program: `Core\Config`
 

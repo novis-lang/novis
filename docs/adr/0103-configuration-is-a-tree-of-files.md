@@ -248,9 +248,11 @@ by that sentence.
 
 ### 7. A secret arrives as a file whose content is the value
 
-A directive the registry marks **secret** — `[db.<name>] password` today, and whatever joins it — gains a
-`_file` sibling. Exactly one of the pair may be set; both is a refusal, so this is two sources for one
-value rather than the second spelling [0015](0015-no-name-aliasing.md) refuses.
+A directive the registry marks **secret** — `[db.<name>] password` and `[mail.<name>] password` today, and
+whatever joins it — gains a `_file` sibling. Exactly one of the pair may be set; both is a refusal, so this
+is two sources for one value rather than the second spelling [0015](0015-no-name-aliasing.md) refuses. The
+registry is `nvs_config::secret::SECRETS`, one row per pair; a credential on the typed tree with no row is a
+failing census rather than a `_file` that parses and is never read.
 
 ```toml
 [db.main]
@@ -387,6 +389,23 @@ read.
   it reopens the door 0064 closed against Dhall: a configuration file that computes. [0091 § 3](0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
   already refuses to read the run mode from the environment on purpose, and an inherited, unaudited
   namespace is not where the file that grants capabilities should get its values.
+- **Decrypting SOPS — or `age`, or a KMS envelope — inside the binary,** so that a directive could name an
+  encrypted file and the runtime would open it. Rejected on three separate grounds, any one of which is
+  enough. **It does not compose with the format:** SOPS' structured stores are YAML, JSON, dotenv and INI
+  and never TOML, so an encrypted configuration file could only go through its opaque `binary` store —
+  which encrypts the whole file, gives up the readable-structure-with-encrypted-leaves property that is the
+  entire reason to reach for SOPS, and puts § 3's merge, § 4's includes and § 9's dump downstream of one
+  blob. **It inverts the blast radius:** the serving process holds one plaintext credential today, and a
+  decryptor would put the key that unlocks *every* credential into the address space of the process that
+  also JITs a program and parses hostile bytes, which AGENTS.md's priority 1 does not trade for a
+  boot-time convenience. **And it buys nothing this section does not already give:** `sops -d`,
+  `sops exec-file`, `helm-secrets`, Flux's kustomize-sops, the SOPS operator, Sealed Secrets, a Vault
+  agent and a `sops -d` in a systemd `ExecStartPre` beside `LoadCredential=` all terminate in a file — or
+  in a Kubernetes secret volume, which is a file — and a `_file` sibling consumes every one of them
+  unchanged. What a partial implementation would add is a support matrix (`age` yes, AWS KMS no) for an
+  operator to get wrong. The half worth having is the handling, and § 7 already has it: the value never
+  enters the merged table, never reaches a diagnostic, and renders `<secret>` in a dump. Reopen only if a
+  deployment target appears that cannot produce a file at all.
 - **A general `*_file` suffix for every string directive.** One uniform rule, at the cost of doubling the
   key space of the format and complicating `deny_unknown_fields`, to serve a handful of directives that
   the registry can mark instead.
@@ -430,6 +449,10 @@ own lists:
   preserved; empty, whitespace-only, non-UTF-8 and oversized files refuse; setting both `password` and
   `password_file` refuses; a group-writable secret file refuses and a world-readable one warns.
   `nvs config dump` prints `<secret>` and never the value.
+- The pair rule is the registry's and not `[db.<name>]`'s: a `[mail.<name>] password_file` materializes
+  into the value `Core\Config::get` answers and `nvs_stdlib::mail` submits, setting both halves refuses
+  naming that block, and a credential field on the typed tree with no registry row fails a source census
+  rather than parsing and never being read.
 - `nvs serve --mode=development` overrides the file and is itself overridden by a matching `[[app]]`
   block's `mode`; `--set` is not an option the CLI accepts.
 - `nvs config check` exits non-zero on each refusal above with no server running, and `nvs ctl config`
