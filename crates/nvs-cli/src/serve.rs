@@ -70,8 +70,10 @@ use nvs_config::server::{Listen, capacity_for, listen_on, waits_for};
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::{Program, Resolver as _};
-use nvs_runtime::{Ctx, OutputSink, TaskRoot, Value};
-use nvs_server::{Admission, Ceiling, OnDisk, Reply, Resolved, Secure, Serving, Table, What};
+use nvs_runtime::{Ctx, Inbound, OutputSink, TaskRoot, Value};
+use nvs_server::{
+    Admission, Ceiling, Incoming, OnDisk, Reply, Request, Resolved, Secure, Serving, Table, What,
+};
 
 use crate::script::Compiler;
 
@@ -240,7 +242,15 @@ pub(crate) fn run(
         let compiler = Rc::clone(&compiler);
         let table = Rc::clone(&table);
         let draining = draining.clone();
-        move |request| {
+        move |request: Request<Incoming>| {
+            // Ahead of the table, because a verb outside `Core\Http\Method`'s
+            // eight names no application on this server rather than none at
+            // this path: `Reply::not_implemented` owns why that is a `501` and
+            // not the route table's `405`. Asked of `nvs_stdlib::request`,
+            // which is the roster's one home — the door does not keep a list.
+            if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
+                return Reply::not_implemented();
+            }
             let selected = match table.select(&request, &OnDisk) {
                 // Step 0, ahead of every mount: § 5's probe says the process is
                 // alive, which is a fact this loop holds and no program is asked
@@ -253,6 +263,10 @@ pub(crate) fn run(
                 // nothing to run: not a program's `404` but the table's.
                 None => return Reply::not_found(),
             };
+            // § 4 step 2's remainder, taken before the branch below moves the
+            // rest of the selection: it is the path the application is written
+            // against, and the prefix it was deployed under is not its business.
+            let stripped = selected.path;
             let file = match selected.what {
                 What::Run(file) => file,
                 // Step 3 chose a file to *send*, and sending it is one policy
@@ -277,7 +291,25 @@ pub(crate) fn run(
                     Value::null()
                 }),
             };
-            Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
+            // The carrier, built here because this is the last point at which
+            // the arrived request and step 2's remainder are both in hand, and
+            // handed to the isolate rather than to this loop's own context —
+            // `Isolate::answering` owns that direction. It interprets nothing:
+            // the verb is the token the peer wrote, the query is everything
+            // after the `?` undecoded, and a header is one entry per field
+            // line in arrival order. The names are `hyper`'s, so they are
+            // lower-cased — a `HeaderName` is normalised on the way in and
+            // there is no spelling left to preserve; `Core\Request::header`
+            // compares case-insensitively regardless (RFC 9110 § 5.1).
+            let mut inbound = Inbound::new(
+                request.method().as_str(),
+                &stripped,
+                request.uri().query().unwrap_or(""),
+            );
+            for (name, value) in request.headers() {
+                inbound.push_header(name.as_str(), value.as_bytes());
+            }
+            Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
         }
     });
 

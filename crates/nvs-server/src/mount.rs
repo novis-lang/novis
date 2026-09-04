@@ -261,7 +261,11 @@ impl Table {
             // 5.
             What::Run(mount.entry.clone())
         };
-        Some(Resolved::Mounted(Selection { mount, what }))
+        Some(Resolved::Mounted(Selection {
+            mount,
+            what,
+            path: remainder.into(),
+        }))
     }
 
     /// Step 1: the longest prefix among the mounts answering on `host`, and then
@@ -328,6 +332,22 @@ pub struct Selection<'a> {
     pub mount: &'a Mounted,
     /// Steps 3, 4 and 5's outcome.
     pub what: What,
+    /// Step 2's remainder: the request path with `mount.prefix` taken off the
+    /// front, always beginning with `/` and still percent-encoded.
+    ///
+    /// Carried rather than left to the caller to recompute, because it is what
+    /// `nvs_runtime::Inbound` holds as the request's path — a mounted
+    /// application is written against its own root and never learns the prefix
+    /// it was deployed under — and a second stripping at the door would be a
+    /// second answer to step 2.
+    ///
+    /// Owned, at one short allocation per request: the remainder borrows the
+    /// request target, which outlives neither the table this borrows from nor
+    /// the [`Reply`](crate::Reply) the caller builds out of it, and threading a
+    /// second lifetime through the whole table to save it would buy nothing
+    /// [ADR 0004](../../../docs/adr/0004-memory-for-simplicity.md) ranks above
+    /// simplicity.
+    pub path: Box<str>,
 }
 
 /// What § 4 decided the request is, once a mount had been selected.

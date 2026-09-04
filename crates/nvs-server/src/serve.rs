@@ -204,6 +204,26 @@ impl Reply {
         Self::status(StatusCode::NOT_FOUND)
     }
 
+    /// The verb the peer wrote is outside the eight `Core\Http\Method` names, so
+    /// no program is asked to answer it: `501`, before an isolate exists.
+    ///
+    /// `501` and not `405`, which is the route table's answer to a verb it knows
+    /// standing at a path that does not accept it — a distinction RFC 9110 § 15.5
+    /// draws and `Core\Router` owns the other half of. A verb this server has no
+    /// case for is not implemented *anywhere* on it, and saying so before any
+    /// application code runs is what keeps `Core\Request::method()`'s closed
+    /// roster total: a member that answers one of eight cases can only do that if
+    /// a ninth never reaches it.
+    ///
+    /// **The roster itself is `nvs_stdlib::request`'s**, which this crate has no
+    /// dependency on and gains none for a list of eight words: the caller asks
+    /// that crate and answers with this. `nvs-cli`'s handler is the one door
+    /// today.
+    #[must_use]
+    pub fn not_implemented() -> Self {
+        Self::status(StatusCode::NOT_IMPLEMENTED)
+    }
+
     /// [ADR 0097] § 5's probe, answered by a server that is accepting: `200`
     /// with an empty body, no dependency check and no version.
     ///
@@ -1075,6 +1095,108 @@ mod tests {
             });
             Reply::Run(Isolate::new(program, Value::null(), Output::Capture))
         })
+    }
+
+    /// The isolate the carrier case answers with: a handler that reads the
+    /// arrived request into `nvs_runtime::Inbound` and a program that reads it
+    /// back off its **own** context, which is the whole of the seam
+    /// [`Isolate::answering`] opens.
+    ///
+    /// It says the request line and every `X-Trace` line, in arrival order, so
+    /// that the assertion is about what the peer sent rather than about a
+    /// response merely being well-formed. The path is the target's own here:
+    /// stripping a mount prefix is `crate::mount`'s step 2 and this crate's
+    /// tests have no table.
+    fn echo_the_carrier() -> Rc<impl Fn(Request<Incoming>) -> Reply> {
+        Rc::new(|request: Request<Incoming>| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            for (name, value) in request.headers() {
+                inbound.push_header(name.as_str(), value.as_bytes());
+            }
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let said = {
+                    let inbound = child
+                        .inbound()
+                        .expect("the isolate ran with no request in front of it");
+                    let mut said = format!(
+                        "{} {} {}",
+                        inbound.method(),
+                        inbound.path(),
+                        inbound.query()
+                    );
+                    for (name, value) in inbound.headers() {
+                        if name == "x-trace" {
+                            said.push(' ');
+                            said.push_str(&String::from_utf8_lossy(value));
+                        }
+                    }
+                    said
+                };
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// A request reaches the program answering it, end to end: off the socket,
+    /// through the handler, into the isolate's own context, and back out as the
+    /// body — spec § 15's request line and headers as `Core\Request` will read
+    /// them.
+    ///
+    /// The two `X-Trace` lines are the load-bearing half. `Ctx::push_header`
+    /// keeps one entry per *field line* rather than per name, and a carrier that
+    /// folded them into a map would answer `8` alone — which reads as a working
+    /// server right up to the request whose `X-Forwarded-For` chain matters.
+    #[test]
+    fn a_served_request_reaches_its_isolate_as_the_inbound_carrier() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"GET /greet?who=world HTTP/1.1\r\nHost: localhost\r\nX-Trace: 7\r\n\
+                      X-Trace: 8\r\nConnection: close\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &echo_the_carrier(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let answer = client.join().expect("the client thread panicked");
+        assert!(
+            answer.ends_with("GET /greet who=world 7 8"),
+            "the request did not reach the program as the peer sent it: {answer}"
+        );
     }
 
     /// A valve every case but the last one is not about, beside ADR 0074 § 1's

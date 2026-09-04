@@ -81,6 +81,15 @@ pub mod secure;
 pub mod serve;
 pub mod statics;
 
+// The request a handler is handed, so that one can be *spelled* where it is
+// written. `hyper` is this crate's dependency and deliberately not its callers'
+// — ADR 0051 § 4's answer is one crate owning h1 — but the parameter type of a
+// `Fn(Request<Incoming>) -> Reply` has to be nameable outside it, and a handler
+// that cannot annotate its own parameter is one whose first statement decides
+// what it is.
+pub use hyper::Request;
+pub use hyper::body::Incoming;
+
 pub use admit::{Admission, Ceiling, InFlight};
 pub use io::{ConnectionIo, Phase};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};

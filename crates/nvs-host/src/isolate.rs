@@ -72,7 +72,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
-use nvs_runtime::{Ctx, ErrorClass, Fault, Limit, OutputSink, TaskRoot, Value};
+use nvs_runtime::{Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, TaskRoot, Value};
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
@@ -92,6 +92,7 @@ pub struct Isolate {
     args: Value,
     output: Output,
     charge: Charge,
+    inbound: Option<Inbound>,
 }
 
 /// Whose budget an isolate spends: ADR 0006's answer, and ADR 0020 § 3's one
@@ -131,7 +132,34 @@ impl Isolate {
             args,
             output,
             charge: Charge::Tree,
+            inbound: None,
         }
+    }
+
+    /// Gives it the request it is answering, which the child's own context then
+    /// carries for `Core\Request`'s members to read
+    /// ([`Ctx::set_inbound`](nvs_runtime::Ctx::set_inbound)).
+    ///
+    /// **The request rides on the isolate rather than on the parent's context**,
+    /// because the context that runs the application is the one [`Isolate::start`]
+    /// builds at the spawn: the accept loop's own context never runs a line of a
+    /// program, so a request installed there would sit where nothing reads it.
+    ///
+    /// That is also why a `spawn script` child answers no request — nothing calls
+    /// this for one, and
+    /// [ADR 0006](../../../docs/adr/0006-isolated-script-execution.md)'s isolate
+    /// shares nothing but compiled code, so `Core\Request::method()` inside one
+    /// throws exactly as it does in a CLI program. Passing the request down
+    /// automatically would be ambient authority crossing the boundary that exists
+    /// to stop it; a child that needs a header is handed it as an argument.
+    ///
+    /// **What it spends:** the carrier is moved, not copied — `nvs_runtime::Inbound`
+    /// owns the per-request accounting — and it is released with the child's
+    /// context.
+    #[must_use]
+    pub fn answering(mut self, inbound: Inbound) -> Self {
+        self.inbound = Some(inbound);
+        self
     }
 
     /// Charges it to ADR 0020 § 3's engine-owned reserve instead of to the tree
@@ -189,6 +217,7 @@ impl Isolate {
             args,
             output,
             charge,
+            inbound,
         } = self;
         // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -240,10 +269,17 @@ impl Isolate {
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
-        let isolate_ctx = match charge {
+        let mut isolate_ctx = match charge {
             Charge::Tree => ctx.isolate(OutputSink::Buffer(Vec::new())),
             Charge::EngineReserve => ctx.handler_isolate(OutputSink::Buffer(Vec::new())),
         };
+        // The request this child answers, on the context that will run it and
+        // before it can run — [`Isolate::answering`] owns why it arrives here
+        // rather than on the parent, and `Ctx::set_inbound` why it is written
+        // once and never cleared.
+        if let Some(inbound) = inbound {
+            isolate_ctx.set_inbound(inbound);
+        }
 
         Ok(match Wake::current() {
             Some(wake) => start_as_task(
