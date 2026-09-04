@@ -1820,6 +1820,13 @@ is why" — is this file.
   call carrying both `A.rs:120-160` windows and `--locate sym …` answered the five symbols and
   dropped the two windows without saying so, so the two questions cost two calls instead of the
   one the tool exists to save. Ask for anchors or for code, never both in the same call.
+- **A `cargo-named` check reports only the *first* of its missing names, so one "did not run" can be
+  four tests of work.** The driver's line after session 0008 named
+  `a_connection_future_is_driven_by_block_on_over_the_parking_stream` and nothing else, and the
+  `nvs-server (the connection seam)` check it came from lists four; all four were unwritten. One
+  `grep -rn` over the whole `tests` list is what said so, and it costs one call. Size the item from
+  the check's list rather than from the report's one name — and the same grep is what separates a
+  name the tree pins elsewhere from one nobody has written.
 
 ## Running things
 
