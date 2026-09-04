@@ -15,16 +15,20 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+/// The directory every fixture in this file lives in.
+fn fixtures() -> PathBuf {
+    [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "spawn"]
+        .iter()
+        .collect()
+}
+
 /// `nvs check <fixture>`'s standard error, with the exit status asserted to be
 /// a refusal first.
 ///
 /// `check` rather than `run`: every case in this file is about what the
 /// compiler refuses, and a program that does not compile has no run to observe.
 fn refusal(fixture: &str) -> String {
-    let path: PathBuf = [env!("CARGO_MANIFEST_DIR"), "tests", "fixtures", "spawn"]
-        .iter()
-        .collect::<PathBuf>()
-        .join(fixture);
+    let path = fixtures().join(fixture);
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .arg("check")
         .arg(&path)
@@ -77,5 +81,62 @@ fn a_callable_typed_variable_is_refused_as_a_spawn_target() {
         !stderr.contains("E0401"),
         "the operand position accepts two shapes, so it never reports one \
          expected type: {stderr}"
+    );
+}
+
+/// `nvs run <fixture>`'s standard output, with the exit status asserted to be a
+/// success first.
+///
+/// `--config` names the grant beside the fixtures rather than letting step 2
+/// find whatever `nvs.toml` the test process happens to be standing in
+/// (ADR 0103 § 1): `script.spawn` is deny-by-default, so a run without it
+/// asserts the denial instead of what the case is about.
+fn run(fixture: &str) -> String {
+    let dir = fixtures();
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .arg("--config")
+        .arg(dir.join("spawning.toml"))
+        .arg("run")
+        .arg(dir.join(fixture))
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    assert!(
+        out.status.success(),
+        "`{fixture}` runs: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+/// The entry form the ADR specifies, end to end — one unit, a `static` method
+/// of it called in a child, and the child's statics its own.
+///
+/// The three lines are three claims, and the last two are what make the run an
+/// *isolate* rather than a call: the child re-materializes `$runs` from the
+/// declared default and answers 1 where the parent had set 40, and the parent
+/// still reads 40 afterwards. `Ctx::method_isolate` is what arms the child from
+/// the parent's own recipes, there being no second unit to install.
+#[test]
+fn spawn_script_runs_a_static_method_reference_in_a_fresh_isolate() {
+    assert_eq!(run("method-entry.nvs"), "ok\n1\n40\n");
+}
+
+/// The half of the method form still unlowered, refused where it is written.
+///
+/// This case dies with `E0804`: it exists because the child calls the entry
+/// with no arguments, and `nvs_runtime::abi` requires exactly the callee's
+/// arity — so accepting it would be a slot nobody filled rather than a wrong
+/// answer. The slice that binds `args:` by name deletes the code, the fixture
+/// and this test together.
+#[test]
+fn a_method_entry_declaring_a_parameter_is_refused_until_args_bind() {
+    let stderr = refusal("method-entry-with-parameters.nvs");
+    assert!(
+        stderr.contains("E0804"),
+        "the unbound-parameter refusal, not the entry-form one: {stderr}"
+    );
+    assert!(
+        stderr.contains("Core\\Script::args()"),
+        "the help names the way through for an entry that needs its map: {stderr}"
     );
 }

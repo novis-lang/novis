@@ -1,0 +1,27 @@
+<?nvs
+// ADR 0006 § *Decision*: an isolate's entry is a path **or a static method**.
+// The method form runs code the parent's own unit already holds — no path, no
+// resolver, no second file — and is an isolate all the same, because what makes
+// one is the arena rather than where the code came from.
+class Reports
+{
+    public static int $runs = 0;
+
+    public static function monthly(): int {
+        Reports::$runs = Reports::$runs + 1;
+        return Reports::$runs;
+    }
+}
+
+// Set in the parent, before the spawn. The child re-materializes the declared
+// default instead of reading this, which is ADR 0006's "globals, class statics
+// and runtime-defined constants are fresh" — so the child answers 1, and this
+// slot is still 40 afterwards.
+Reports::$runs = 40;
+
+var $job = spawn script Reports::monthly(...);
+var $result = await $job;
+
+echo $result->ok ? "ok" : "failed", "\n";
+echo $result->value as string, "\n";
+echo Reports::$runs as string, "\n";

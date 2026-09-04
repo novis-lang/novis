@@ -7597,6 +7597,24 @@ sibling in the same namespace unqualified.
   and the repair is one line at the wait rather than a second timer. `nvs_host::` alone will not show
   you `wait_until`: `grep -n "pub fn" crates/nvs-host/src/timer.rs` is the list, and the same is true
   of every other `pub mod` in that crate whose `pub use` line is a subset.
+- **A named-argument binding cannot be done at run time from anything the runtime holds: neither
+  `nvs_runtime::MethodRow` nor `nvs_types::ResolvedCall` carries parameter *names*.** The row has
+  `arity` and `param_tags`, and the resolved call has `param_tys`, `inout`, `variadic` and
+  `defaults` — everything a positional call needs and nothing a map keyed by name does, because
+  every existing site binds names to positions in `nvs_types::expr::calls` and lowers the result.
+  So a feature that binds a *runtime* map to a callee's parameters (ADR 0006's `args:`, and
+  anything shaped like it) has to record the names somewhere new and emit them from the lowering;
+  it is not a read the helper can make from the class descriptor it already reaches through
+  `Ctx::class_desc`. The other half of the same fact is what makes a short argument list unsound
+  rather than wrong: `nvs_runtime::abi::call` passes a raw pointer and its doc requires "as many
+  values as the callee's arity", so a call built with fewer reads a slot nobody filled.
+- **Adding a row-less `Core` symbol fails a `-p nvs-stdlib --lib` test whose message is two
+  numbers.** `every_registered_member_has_an_implementation_address` (`crates/nvs-stdlib/src/lib.rs`)
+  checks `symbols()` against the rosters plus a hand-written `+ 5` for the constructs that have no
+  registry row — `spawn script`, `await`, `as Markup`, `Markup + Markup`, `Text + Text` — so a
+  sixth arrives as `left: 587 / right: 586` with nothing naming the symbol or the file. The full
+  roster a new row-less symbol owes is: the `const`, the `address()` arm, the `.chain([…])` in
+  `symbols()`, and that literal. It is the `nvs_hir::errors::TREE` bullet's shape one crate over.
 
 ## Divergences and refusals already pinned
 
