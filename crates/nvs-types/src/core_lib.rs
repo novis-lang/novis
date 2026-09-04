@@ -1172,7 +1172,12 @@ mod tests {
     /// ([ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
     /// § 5), so the mark sits on the one arm that can carry an injection.
     /// `name()` is deliberately not among them, which is the same test read the
-    /// other way — a route's declared name is the unit's own literal.
+    /// other way — a route's declared name is the unit's own literal. The
+    /// twentieth is `Core\Request\Mount::captures`, ADR 0102 § 7's glob
+    /// captures of the mount serving the request, and its sibling `prefix()`
+    /// is the same pairing read the other way again: every mount row was
+    /// expanded against the disk at boot, so the prefix is the operator's text
+    /// while which row a request selects is the peer's choice.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1230,6 +1235,11 @@ mod tests {
                 ),
                 (r"Core\Request", "path", "tainted string".to_owned()),
                 (
+                    r"Core\Request\Mount",
+                    "captures",
+                    "array<tainted string>".to_owned(),
+                ),
+                (
                     r"Core\Request\Part",
                     "contentType",
                     "tainted string".to_owned(),
@@ -1252,13 +1262,14 @@ mod tests {
                     "array<uint|int|decimal|tainted string|Core\\Uuid>".to_owned(),
                 ),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at nineteen — \
+            "the roster of members whose *answer* is qualified `tainted` is closed at twenty — \
              a verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
              with, everything attached to its standard input, the five reads of the request \
              being answered, the three declarations one of its uploaded parts made, the \
-             bytes of that part held whole, and the two readers of the captures the matched \
-             route filled. `content()` is not one of them and is not a gap: \
+             bytes of that part held whole, the two readers of the captures the matched \
+             route filled, and the captures of the mount serving the request. \
+             `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \
              collection the \
@@ -1312,7 +1323,7 @@ mod tests {
     /// two: ADR 0105 § 2 gives a submitted form the parse a query string gets,
     /// so a tainted array would close both in the same edit. Naming them here
     /// is what makes closing it an edit to this assertion instead of a test
-    /// that stays green across the fix. The other four plain rows are not
+    /// that stays green across the fix. The other six plain rows are not
     /// outside data at all: `method` has narrowed to a closed enum before
     /// anything can hold a payload, `isHead` is one bit derived from it,
     /// `saveTo` answers `void` because its bytes went to a file rather than to
@@ -1320,7 +1331,14 @@ mod tests {
     /// prefix — `Core\Router\Match`, whose two capture readers are marked and
     /// are checked by the sibling test above. That last one is the third shape
     /// this sweep cannot see on its own, beside the two the buckets handle: a
-    /// row handing the question to a class the prefix does not reach.
+    /// row handing the question to a class the prefix does not reach. `mount`
+    /// is the same shape read the *inside* way: it answers
+    /// `Core\Request\Mount`, which the prefix does reach, so that class's own
+    /// two rows are swept here — the marked `captures()` and the sixth plain
+    /// row, `prefix()`, which is plain because a mount row was expanded against
+    /// the disk at boot rather than derived from the URL
+    /// ([ADR 0097](../../../docs/adr/0097-development-server-and-proxied-origin.md)
+    /// § 2).
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {
         use nvs_stdlib::registry::iterable_element;
@@ -1374,12 +1392,17 @@ mod tests {
                     "route",
                     r"null|Core\Router\Match".to_owned(),
                 ),
+                (r"Core\Request", "mount", r"Core\Request\Mount".to_owned(),),
+                (r"Core\Request\Mount", "prefix", "string".to_owned()),
                 (r"Core\Request\Part", "saveTo", "void".to_owned()),
             ]),
-            "the request tree's rows that answer an unqualified value are closed at six, and \
-             four of them answer nothing a peer chose: a closed method enum, the bit derived \
-             from it, the `void` of bytes that went to a file, and the matched route, whose \
-             own class carries the mark on the captures it hands back. `query` and `post` are the \
+            "the request tree's rows that answer an unqualified value are closed at eight, and \
+             six of them answer nothing a peer chose: a closed method enum, the bit derived \
+             from it, the `void` of bytes that went to a file, the matched route, whose \
+             own class carries the mark on the captures it hands back, the mount serving the \
+             request, whose class does the same, and that class's own `prefix()` — a mount row \
+             is expanded against the disk at boot (ADR 0097 § 2), so a prefix is the \
+             operator's text and not the peer's. `query` and `post` are the \
              other two and are one known hole — § 9's brackets make a value a `string` or a \
              nested array and there is no tainted array, so a member added here answering a bare \
              `string` off the wire joins this set and is the thing it exists to catch"

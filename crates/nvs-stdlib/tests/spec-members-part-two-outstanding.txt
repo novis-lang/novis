@@ -26,7 +26,6 @@
 # `Core\Session` is owed whole.
 §15 Request::clientIp
 §15 Request::host
-§15 Request::mount
 §15 Request::scheme
 §15 Response::html
 §15 Response::sendFile

@@ -1,0 +1,25 @@
+--TEST--
+`Core\Request::mount()` answers the prefix as the deployment's own plain text and the captures as the peer's `tainted` ones, so a grammar sink is open to one and shut to the other -- ADR 0102 § 7, ADR 0024 §§ 1 and 3, ADR 0088 § 1
+--FILE--
+<?nvs
+// A bound asserted on both sides, and the only shape that can assert it: a
+// plain `string` is assignable into a `tainted` target, so a case that merely
+// declared the captures `tainted` would pass over a member that had dropped
+// the mark. What pins it is that one sink takes one of the pair and refuses
+// the other.
+var $mount = Core\Request::mount();
+// The prefix is what ADR 0097 § 4 step 2 took off the path, and every mount
+// row was expanded against the disk at boot -- § 2's rule that a path is never
+// derived from a URL at request time -- so it is the operator's own text.
+Core\Regex\Pattern $ours = Core\Regex::compile($mount->prefix());
+// The captures are marked, which is § 7's own call: the peer chose which mount
+// answers it, and a capture is what a multi-tenant program keys its data by.
+Core\Regex\Pattern $theirs = Core\Regex::compile($mount->captures()[0]);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:50
+%A
+error: aborting due to 1 error

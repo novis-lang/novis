@@ -1,8 +1,8 @@
 --TEST--
-Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15, ADR 0105 § 3
+Every reader `Core\Request` has refuses rather than answering empty in a program that is answering no request -- ADR 0012 § 7, spec § 15, ADR 0105 § 3, ADR 0102 § 7
 --FILE--
 <?nvs
-// Agreement, asked of all twelve readers: what decides the answer is whether a
+// Agreement, asked of all thirteen readers: what decides the answer is whether a
 // request arrived, and nothing about which member was called. A conformance
 // case is a program with no request in front of it -- which is exactly the
 // situation ADR 0012 § 7 is about, and the same one a scheduled script and a
@@ -101,7 +101,18 @@ try {
 } catch (LogicError $matched) {
     $refused = $refused + 1;
 }
-echo "refused ", $refused, " of 12\n";
+// And the thirteenth reads the other thing the server concluded before this
+// program started -- ADR 0102 § 7's mount, the prefix taken off the path and
+// the glob captures of the row that took it. Its ordinary answer is the one
+// most easily mistaken for an absence: a door that strips nothing answers `""`
+// and no captures, so "there is no door at all" cannot be that same pair.
+try {
+    Core\Request::mount()->prefix();
+    Core\Request::mount()->captures();
+} catch (LogicError $mounted) {
+    $refused = $refused + 1;
+}
+echo "refused ", $refused, " of 13\n";
 
 // The sentence names the member that was read, so a handler that wrapped six
 // questions learns which one it was standing on -- and it says why the answer
@@ -113,5 +124,5 @@ try {
     echo $why->message, "\n";
 }
 --EXPECT--
-refused 12 of 12
+refused 13 of 13
 Core\Request::path(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

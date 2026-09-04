@@ -1390,6 +1390,11 @@ pub const CLASSES: &[CoreClass] = &[
     // that is answering no request gets a throw rather than an empty answer,
     // and why a verb becomes a `Core\Http\Method` case here and nowhere else.
     crate::request::CLASS,
+    // What `Core\Request::mount` answers with: ADR 0102 § 7's two facts about
+    // which mount is serving this request, as a pair rather than as the shape
+    // that section spells — [`crate::request`]'s `MOUNT` docs own why a shape
+    // has no return-position spelling and why the captures carry the mark.
+    crate::request::MOUNT,
     // What `Core\Request::bodyStream` answers with, and the whole of § 15's
     // `Iterable<bytes>` — a name for the walk, with no member on it, exactly as
     // `Core\IO\Lines` is. It is the one `Iterable` in `Core` that is its own

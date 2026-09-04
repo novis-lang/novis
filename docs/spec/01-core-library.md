@@ -1053,8 +1053,9 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 - `Core\Request`: `method`, `path`, `query`, `post`, `body`, `bodyStream`, `header`, `headers`, `cookie`,
   `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
-  **removed** and `mount(): {prefix, captures}` is what was removed together with that mount's glob
-  captures, `tainted`, which is how a host-mounted deployment learns which tenant it serves;
+  **removed** and `mount(): Request\Mount` answers what was removed — a `prefix(): string` and that mount's
+  glob `captures(): array<tainted string>` — which is how a host-mounted deployment learns which tenant it
+  serves, and never `null`, because a request that reached a program reached it through some mount;
   `route(): ?Router\Match` is the match the server made once before the handler, and is what the CSRF check
   and the `route` metric label read ([0102](../adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md));
   `method` reports `Get` for a `HEAD` request so a

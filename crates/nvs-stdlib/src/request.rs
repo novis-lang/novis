@@ -303,6 +303,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_route",
             doc: Some(&ROUTE_DOC),
         },
+        CoreMethod {
+            name: "mount",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(MOUNT_NAME),
+            symbol: "nvs_core_request_mount",
+            doc: Some(&MOUNT_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -564,6 +573,122 @@ const ROUTE_DOC: MethodDoc = MethodDoc {
                job worker and a test are not — refused rather than answered `null`, because \
                \"no request arrived\" and \"nothing matched\" are different facts.",
     }],
+};
+
+/// `Core\Request::mount`'s reference card — ADR 0117.
+const MOUNT_DOC: MethodDoc = MethodDoc {
+    short: "Which mount is serving this request: the prefix the server took off the path before \
+            `path()` answered it, and the glob captures of the mount row that took it — the pair a \
+            host-mounted deployment learns which tenant it is running for from.",
+    params: &[],
+    ret: "A `Core\\Request\\Mount`, always — a request that reached this program reached it through \
+          some mount, and one that came in by a door with no prefix and no glob answers `\"\"` and \
+          an empty array rather than `null`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not answering a request — a CLI program, a scheduled script, a job \
+               worker and a test are not, and none of them was mounted anywhere.",
+    }],
+};
+
+// ---------------------------------------------------------------- ADR 0102 § 7's mount
+
+/// `Core\Request\Mount`'s fully-qualified name, written once so the registry
+/// row and every message quoting it cannot drift apart.
+pub(crate) const MOUNT_NAME: &str = r"Core\Request\Mount";
+
+/// [`MOUNT`]'s slots, in the order [`mount_value`] fills them.
+const MOUNT_PREFIX: usize = 0;
+const MOUNT_CAPTURES: usize = 1;
+
+/// `array<tainted string>` — what [`MOUNT`]'s `captures` answers, and a named
+/// constant for [`HEADER_LINES`]'s reason: the qualifier has to sit on the
+/// value a program actually reaches, and there is no `tainted array<T>` for it
+/// to sit on instead.
+const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
+
+/// [ADR 0102](../../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+/// § 7's mount, as the program answering the request reads it.
+///
+/// # Why a class, where § 7 spells a shape
+///
+/// § 7 writes `{prefix: string, captures: array<tainted string>}`, and that is
+/// not spellable in return position: [`CoreTy::Shape`] is a parameter-only
+/// variant whose own doc says no runtime representation of a shape appears
+/// anywhere, and `nvs_ir::lower_checked_ty` erases a `Ty::Shape` value to
+/// `Ty::Object` — so a program holding one would reach both fields through
+/// `mixed` and the `tainted` § 7 exists to state would be gone with them. The
+/// alternative was a return-position shape, which is a type-system feature
+/// bought for one member. `Core\Router\Match` is the same pair of answers six
+/// sections earlier and is already a class, so this costs a reader nothing new
+/// to learn; § 7's body spells this class now, so the ADR and the row agree.
+///
+/// # The prefix is the deployment's, the captures are read as the peer's
+///
+/// Both come off the `nvs_config::mount` row that
+/// [ADR 0097](../../../../docs/adr/0097-development-server-and-proxied-origin.md)
+/// § 4 step 1 selected, and every such row was expanded against the disk at
+/// boot — § 2's rule that a path is never derived from a URL at request time is
+/// exactly what makes that so. The prefix is therefore one of a set the
+/// operator wrote, and plain. **The captures are `tainted` anyway**, which is
+/// § 7's own call and the fail-closed one: which row answers is the peer's
+/// choice, a capture is what a multi-tenant program keys its data by, and
+/// laundering one for a query is the ordinary path rather than a cost.
+///
+/// What it spends is one instance and one array of the mount's own captures per
+/// *read* — a handful of values against a glob's one or two captures, and
+/// O(in-flight) either way. Nothing is cached: the two facts are on
+/// [`Inbound`](nvs_runtime::Inbound) and this class is a reading of them, the
+/// same arrangement `Core\Request::route()` has with the match.
+pub(crate) const MOUNT: CoreClass = CoreClass {
+    name: MOUNT_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "prefix",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_request_mount_prefix",
+            doc: Some(&MOUNT_PREFIX_DOC),
+        },
+        CoreMethod {
+            name: "captures",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CAPTURE_SEGMENTS,
+            symbol: "nvs_core_request_mount_captures",
+            doc: Some(&MOUNT_CAPTURES_DOC),
+        },
+    ],
+    slots: &["prefix", "captures"],
+    constants: &[],
+};
+
+/// `Core\Request\Mount::prefix`'s reference card — ADR 0117.
+const MOUNT_PREFIX_DOC: MethodDoc = MethodDoc {
+    short: "What the server took off the front of the path before `Core\\Request::path()` answered \
+            it — so a program mounted at `/acme` sees `/orders` and learns the `/acme` here.",
+    params: &[],
+    ret: "The prefix, with its leading slash and no trailing one, or `\"\"` where the request \
+          reached this program through a mount that strips nothing. Not `tainted`: every mount is \
+          a row of the table the boot expanded against the disk, so a prefix is the operator's \
+          text and not the peer's.",
+    errors: &[],
+};
+
+/// `Core\Request\Mount::captures`'s reference card — ADR 0117.
+const MOUNT_CAPTURES_DOC: MethodDoc = MethodDoc {
+    short: "The glob captures of the mount serving this request, in order — `{1}` is `captures[0]` \
+            — which is how one compiled program running at many prefixes learns which tenant it is \
+            answering for.",
+    params: &[],
+    ret: "The captures as `tainted string`s, and an empty array for a mount whose prefix holds no \
+          glob. They are marked because the peer chose which mount answers it, so one reaching a \
+          query or a path launders the way anything else off a request does.",
+    errors: &[],
 };
 
 /// `Core\Request::bodyStream`'s answer, as [`CoreTy::Instance`] spells it.
@@ -1016,6 +1141,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_request_method" => (nvs_core_request_method as *const ()).cast(),
         "nvs_core_request_route" => (nvs_core_request_route as *const ()).cast(),
+        "nvs_core_request_mount" => (nvs_core_request_mount as *const ()).cast(),
+        "nvs_core_request_mount_prefix" => (nvs_core_request_mount_prefix as *const ()).cast(),
+        "nvs_core_request_mount_captures" => (nvs_core_request_mount_captures as *const ()).cast(),
         "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
         "nvs_core_request_query" => (nvs_core_request_query as *const ()).cast(),
@@ -1503,6 +1631,81 @@ nvs_runtime::nvs_helper! {
             Some(matched) => crate::router::match_value(matched),
             None => Value::null(),
         })
+    }
+}
+
+/// The [`MOUNT`] one request carries, built out of the two facts the door
+/// already recorded on the carrier — the whole of how ADR 0097 § 4 step 1's
+/// selection reaches a program.
+///
+/// Built per read rather than held, which is [`crate::router::match_value`]'s
+/// arrangement and for the same reason: the row lives on
+/// [`Inbound`](nvs_runtime::Inbound), where the door put it once, and an object
+/// a program is holding reaches nothing of the mount table through it.
+fn mount_value(inbound: &Inbound) -> Value {
+    let mut captures = NvsArray::new();
+    for capture in inbound.mount_captures() {
+        captures.append(Value::str(NvsStr::new(capture.as_bytes())));
+    }
+    crate::instance::build(
+        &MOUNT,
+        [
+            Value::str(NvsStr::new(inbound.mount_prefix().as_bytes())),
+            Value::array(captures),
+        ],
+    )
+}
+
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce — [`part_slot`]'s note owns why the copy handed
+/// back needs a reference of its own.
+fn mount_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &MOUNT, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request::mount(): Core\Request\Mount` — ADR 0102 § 7's two facts
+    /// about which mount is serving this request.
+    ///
+    /// **The answer is never `null`**, where the sibling `route()` is nullable:
+    /// nothing matching the route table is an ordinary served request, but
+    /// every request that reached a program reached it *through* a mount, and
+    /// a door that strips nothing carries `""` and no captures rather than an
+    /// absence. That is [`Inbound`](nvs_runtime::Inbound)'s own reading of the
+    /// two fields, and [`MOUNT`]'s docs own why the pair is one object.
+    fn nvs_core_request_mount(ctx, _args: [0]) {
+        let inbound = inbound_of(ctx, "mount")?;
+        Ok(mount_value(inbound))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Mount::prefix(): string` — what ADR 0097 § 4 step 2 took
+    /// off the path before [`nvs_core_request_path`] answered it.
+    fn nvs_core_request_mount_prefix(_ctx, args: [1]) {
+        mount_slot(args, MOUNT_PREFIX, "prefix")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Request\Mount::captures(): array<tainted string>` — ADR 0097
+    /// § 3's glob captures of the row that selected this program.
+    ///
+    /// The array is built once by [`mount_value`] and read back here, so the
+    /// two members answer one carrier rather than two readings of it.
+    fn nvs_core_request_mount_captures(_ctx, args: [1]) {
+        mount_slot(args, MOUNT_CAPTURES, "captures")
     }
 }
 
@@ -2632,12 +2835,13 @@ nvs_runtime::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::{
-        CoreTy, FILES_NAME, PART_NAME, REQUEST_BODY, cookie_of, grouped_fields, joined_field,
-        method_ordinal, nvs_core_request_body, nvs_core_request_body_stream,
-        nvs_core_request_body_stream_advance, nvs_core_request_body_stream_current,
-        nvs_core_request_body_stream_iterate, nvs_core_request_files,
-        nvs_core_request_files_advance, nvs_core_request_files_current,
+        CLASS, CoreTy, FILES_NAME, MOUNT, MOUNT_NAME, PART_NAME, REQUEST_BODY, cookie_of,
+        grouped_fields, joined_field, method_ordinal, nvs_core_request_body,
+        nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
+        nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
+        nvs_core_request_files, nvs_core_request_files_advance, nvs_core_request_files_current,
         nvs_core_request_files_iterate, nvs_core_request_is_head, nvs_core_request_method,
+        nvs_core_request_mount, nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
         nvs_core_request_part_content, nvs_core_request_part_content_advance,
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
@@ -2918,6 +3122,124 @@ mod tests {
                  this member's whole content, and it is what a handler skips building a body on"
             );
         }
+    }
+
+    /// ADR 0102 § 7's two facts as a program reads them: the prefix the door
+    /// stripped and the glob captures of the row that stripped it, with the
+    /// mark on the captures and not on the prefix.
+    ///
+    /// **A bound asserted on both sides.** The mounted case and the door that
+    /// strips nothing are both here, because `""` and an empty array are the
+    /// answer for the second one rather than an absence — which is the whole
+    /// of why this member is not nullable where its sibling `route()` is, and
+    /// a member that answered `null` there would look right on the first half
+    /// alone.
+    ///
+    /// **The taint half is a declaration, not a value.** A qualifier lives on
+    /// the registry row's signature and no [`Value`] carries one, so it is
+    /// asserted where it is written. That is also the half `-p nvs-server`
+    /// could never have made: its manifest names neither `nvs-stdlib` nor
+    /// `nvs-types`, so the door writes two strings with nothing to write a
+    /// qualifier with, and `nvs_server::mount::carry`'s own test asserts the
+    /// carrying.
+    #[test]
+    fn core_request_mount_answers_the_prefix_and_its_captures_as_tainted_strings() {
+        /// A context answering a request that reached the mount at `prefix`,
+        /// whose glob filled `captures`.
+        fn served(prefix: &str, captures: &[&str]) -> Ctx {
+            let mut ctx = Ctx::buffered();
+            let mut inbound = Inbound::new("GET", "/orders", "");
+            let filled: Vec<String> = captures.iter().map(|text| (*text).to_owned()).collect();
+            inbound.set_mount(prefix, &filled);
+            ctx.set_inbound(inbound);
+            ctx
+        }
+
+        /// What the three members answer together, as Rust values.
+        fn read(ctx: &mut Ctx) -> (String, Vec<String>) {
+            let mount = nvs_runtime::call(nvs_core_request_mount, ctx, &[])
+                .expect("a request being answered reached some mount");
+            let prefix = nvs_runtime::call(nvs_core_request_mount_prefix, ctx, &[mount])
+                .expect("the receiver is the class the member is declared on");
+            let captured = nvs_runtime::call(nvs_core_request_mount_captures, ctx, &[mount])
+                .expect("the receiver is the class the member is declared on");
+            let held =
+                crate::arr::borrowed(captured.array_ptr().expect("`captures()` answers an array"));
+            let captures = (0..held.count())
+                .map(|slot| {
+                    held.get_index(i64::try_from(slot).expect("a capture count fits an i64"))
+                        .expect("a list holds every index below its count")
+                        .as_text()
+                        .expect("a capture is text")
+                        .to_owned()
+                })
+                .collect();
+            (
+                prefix
+                    .as_text()
+                    .expect("`prefix()` answers a string")
+                    .to_owned(),
+                captures,
+            )
+        }
+
+        let (prefix, captures) = read(&mut served("/acme", &["acme"]));
+        assert_eq!(
+            prefix, "/acme",
+            "the prefix is what ADR 0097 § 4 step 2 took off the path, verbatim"
+        );
+        assert_eq!(
+            captures,
+            vec!["acme".to_owned()],
+            "`{{1}}` is `captures[0]`, which is § 7's whole spelling of how one \
+             table serves many tenants"
+        );
+
+        let (bare, none) = read(&mut served("", &[]));
+        assert_eq!(
+            bare, "",
+            "a door that strips nothing answers the empty prefix, not an absence"
+        );
+        assert!(
+            none.is_empty(),
+            "a mount whose prefix holds no glob captured nothing, and that is an \
+             empty array rather than a `null` mount"
+        );
+
+        let row = CLASS
+            .methods
+            .iter()
+            .find(|method| method.name == "mount")
+            .expect("the member is registered");
+        let CoreTy::Instance(answered) = &row.return_ty else {
+            panic!("`mount()` answers an instance class, because § 7's shape has no spelling here")
+        };
+        assert_eq!(
+            *answered, MOUNT_NAME,
+            "the row and the class agree on the name, or a program resolves neither"
+        );
+
+        let member = |name: &str| {
+            MOUNT
+                .instance
+                .iter()
+                .find(|method| method.name == name)
+                .unwrap_or_else(|| panic!("`{name}` is declared on the class"))
+                .return_ty
+        };
+        assert!(
+            matches!(member("prefix"), CoreTy::Str),
+            "the prefix is a row of the table the boot expanded, so it is the \
+             operator's text and carries no mark"
+        );
+        let CoreTy::Array(element) = member("captures") else {
+            panic!("`captures()` answers an array")
+        };
+        assert!(
+            matches!(*element, CoreTy::TaintedStr),
+            "§ 7 states the captures as `tainted string`, and the qualifier sits on \
+             the value a program reaches because there is no `tainted array<T>`"
+        );
     }
 
     /// A field name is case-insensitive both ways round — the spelling the peer

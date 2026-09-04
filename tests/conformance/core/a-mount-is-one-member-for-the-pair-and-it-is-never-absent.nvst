@@ -1,0 +1,26 @@
+--TEST--
+The prefix and the captures are one member of `Core\Request` and it always answers, where the route the same request carries may be `null` -- ADR 0102 §§ 1 and 7, spec § 15
+--FILE--
+<?nvs
+// § 7 replaced `mountPrefix`, which stated half of the fact. Two members for
+// one answer is what this repository's one-home rule forbids, and nothing was
+// ever built on the old spelling, so nothing migrated -- the refusal at the
+// bottom is what pins that there is no second way to ask.
+//
+// Beside it, the boundary the sibling reader draws differently. The binding
+// below names no `?`, so a `mount()` that answered `null` the way `route()`
+// does would be a second error here: nothing matching the route table is an
+// ordinary served request, but every request that reached this program reached
+// it through some mount, and a door that strips nothing carries `""` and no
+// captures -- an answer, not an absence.
+Core\Request\Mount $mount = Core\Request::mount();
+tainted string $tenant = $mount->captures()[0];
+echo $mount->prefix(), " ", $tenant, "\n";
+var $half = Core\Request::mountPrefix();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Request` has no member named `mountPrefix`
+   --> case.nvs:16:13
+%A
+error: aborting due to 1 error

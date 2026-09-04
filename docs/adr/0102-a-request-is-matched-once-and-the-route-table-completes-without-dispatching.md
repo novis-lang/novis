@@ -290,7 +290,9 @@ so the failure is at deploy time rather than in a sent message.
 ### 7. A mount's captures are how one table serves many tenants
 
 ```php
-Core\Request::mount(): {prefix: string, captures: array<tainted string>}
+Core\Request::mount(): Request\Mount
+Core\Request\Mount::prefix(): string
+Core\Request\Mount::captures(): array<tainted string>
 ```
 
 **This replaces `mountPrefix`**, which stated half of it; two members for one fact is what this repository's
@@ -298,6 +300,15 @@ one-home rule forbids, and nothing is built, so nothing migrates. `prefix` is wh
 [0097](0097-development-server-and-proxied-origin.md) § 3 strips from the path, and `captures` are that
 section's glob captures — `{1}` is `captures[0]`. They are `tainted string` because they came off the wire,
 so feeding one to a query launders normally.
+
+**The pair is a class, not the shape literal it reads as.** A shape has no return-position spelling:
+`nvs_stdlib::registry`'s `CoreTy::Shape` is a parameter-only variant with no runtime representation, and
+`nvs_ir::lower_checked_ty` erases a `Ty::Shape` value to `Ty::Object` — which would take the `tainted` above
+with it, so the shape spelling loses the one thing this section is for. § 1's `Router\Match` is the same
+pair-of-answers shape one member along and is already a class, so this costs a reader nothing new.
+**`mount()` is not nullable**, where § 1's `route()` is: nothing matching the route table is an ordinary
+served request, but every request that reached a program reached it *through* a mount, and a door that
+strips nothing answers `""` and an empty array rather than an absence.
 
 **`#[Route]` gains no `host` field.** Host matching already exists one layer down, and putting a hostname in the
 compiled table would destroy the property [0097](0097-development-server-and-proxied-origin.md) § 3 bought:
