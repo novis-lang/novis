@@ -2,24 +2,30 @@
 
 ## State
 
-**Goal 6, M7. ADR 0102 § 7 is closed, both halves.** The door carries the prefix and the captures
-(`nvs_server::mount::carry`), and `Core\Request::mount()` answers them as `Core\Request\Mount` — a
-two-slot instance class whose `prefix()` is plain and whose `captures()` is
-`array<tainted string>`. Both acceptance checks the split produced are green.
+**Goal 6, M7. ADR 0139 landed: the session mechanics ADR 0012 § 4 deferred are decided.** The
+backends are the shared cache tier and the database; `[session] backend = "local"` is `E0626` at
+boot, naming ADR 0059 § 4, which is what that section's "enforced rather than documented" now
+means. There is no lock (§ 4, last-write-wins over the whole record) and no sweeper (§ 5, the store
+expires the entry). ADR 0012 § 4's body was folded to point here, and spec § 15's row gained
+`start`.
 
-**The return-type question is decided and recorded.** § 7's shape literal has no return-position
-spelling — `CoreTy::Shape` is parameter-only and a `Ty::Shape` value erases to `Ty::Object`, taking
-the qualifier with it — so the pair is a class, exactly as `Core\Router\Match` already is. The
-reasoning lives once, in `crates/nvs-stdlib/src/request.rs`'s `MOUNT` doc; § 7's body and spec § 15
-were folded to spell the class in the same commit, `spec-members-part-two-outstanding.txt` lost its
-`§15 Request::mount` line, and `nvs-types`' two taint rosters gained the two new rows.
+**§ 2's store is on disk; § 1's class is not.** `crates/nvs-stdlib/src/session.rs` has the key, the
+drawn identifier, `load` and `save` over `crate::cache::redis::Connection`, plus the three
+directives read off the snapshot. There are **no registry rows, no cards and no `.nvst` cases** —
+`Core\Session`'s seven members are the next slice of this feature, and that module's own doc says
+so. `Connection::set_expiring` is new beside `set`, because a cache entry has no clock and every
+session record has one.
 
-**`Core\Request` is thirteen readers now**, and the agreement case that asks all of them whether a
-program answering no request is refused was widened with it.
+**Both tests the stage-5 acceptance check names now run and pass**, which was the failure that
+outranked the previous handoff's group:
+`a_session_is_never_backed_by_the_local_cache_tier` and
+`a_session_survives_a_request_landing_on_another_core`, both `-p nvs-stdlib`. The second is a
+two-thread test against one fake RESP store; the local tier's copy staying invisible to the second
+thread is the assertion, not the round trip.
 
-**What ADR 0086 § 6 still owes is corpus, not code.** `ArgConv::OneOf` converts and refuses in
-`crates/nvs-stdlib/src/command.rs`; no `.nvst` case asks it anything, where the enum half landed
-with two.
+**What ADR 0086 § 6 still owes is corpus, not code** — unchanged, and displaced by the above.
+`ArgConv::OneOf` converts and refuses in `crates/nvs-stdlib/src/command.rs`; no `.nvst` case asks it
+anything, where the enum half landed with two.
 
 ## Next group
 
@@ -32,20 +38,19 @@ with two.
       `tests/conformance/core/command-run-converts-an-enum-argument-by-its-case-name.nvst`, and
       `crates/nvs-stdlib/src/command.rs:1186` is a table already declaring a two-member union.
 - [ ] **A word outside the set is a usage error naming every accepted one** (ADR 0086 § 6) — the
-      refusal sibling, whose shape is
-      `tests/conformance/core/command-run-refuses-an-enum-argument-written-as-its-backing-value.nvst`;
-      the message is written at `crates/nvs-stdlib/src/command.rs:543`'s arm, so read it there
-      rather than guessing the wording.
-- [ ] **A subset of an enum's cases still refuses to convert** (ADR 0086 § 6) —
-      `crates/nvs-runtime/src/commands.rs:100` is where `OneOf` and the enum meet, and gap 1 in
-      that module's own doc states what closing it needs. Take this only if the two above left the
-      file set loaded and the budget open.
+      message is built at `crates/nvs-stdlib/src/command.rs:547`, and
+      `crates/nvs-stdlib/src/command.rs:1195` pins its exact wording as a `#[test]` already.
+- [ ] **A subset of an enum's cases still refuses to convert** (ADR 0086 § 6) — the same arm,
+      `crates/nvs-stdlib/src/command.rs:543`, reached with a `OneOf` naming fewer words than the
+      enum has cases; gap 1 in that module's known gaps is the case-subset half.
 
 ## Backlog
 
-- § 4's CSRF refusal needs a verified token and a `[http]` key — `crates/nvs-server/src/route.rs`'s
-  known gap 1.
-- Nothing exports ADR 0076's `route` label — `crates/nvs-server/src/route.rs`'s known gap 2.
-- Raw body access for an arbitrary content-type — ADR 0024's *Revisiting*, narrowed by
-  `docs/plan/m7.md`.
-- A capture's text is still percent-encoded — `nvs_runtime::routes`' own gap 4.
+- `Core\Session`'s seven members over the landed store — ADR 0139 § 1's roster, registry rows,
+  cards and `.nvst` cases; `crates/nvs-stdlib/src/session.rs`'s module doc owns which half is on
+  disk.
+- The `db` backend ADR 0139 § 3 admits and nothing implements — same module doc.
+- `tests/conformance/http/` does not exist and the stage-9 `nvs-suite` check names eight cases under
+  it; the corpus is flat with a subsystem prefix (`docs/agent/loop-goal.toml:3810`).
+- ADR 0059's own *Verification* still files four fixtures under **M8** that goal 6's stage 5 asks
+  for — the local-tier eviction and secret-refusal cases.

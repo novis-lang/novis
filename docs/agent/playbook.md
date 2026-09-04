@@ -1914,6 +1914,19 @@ is why" — is this file.
   or an "and …" in it is often two claims that landed a crate apart. Splitting the check is the
   repair, and the second half then names where the qualifier is declared rather than where the value
   was carried.
+- **A `loop-goal.toml` check can name a test for a feature no ADR has decided yet, and then the
+  first slice is the ADR rather than the test.** Stage 5's `a_session_is_never_backed_by_the_local_cache_tier`
+  read as an ordinary open item; `Core\Session` had no module in `nvs-stdlib`, no `[session]` block
+  in `nvs-config` and no row in the registry, and ADR 0059 § 4 — the section the check cites — said
+  the ban is "enforced rather than documented" without naming what enforces it, while ADR 0012 § 4
+  explicitly *deferred* the mechanics to "the milestone that builds it". Three tells separate this
+  from the sibling bullets' misfiled checks: the crate has no module for the surface at all, the
+  cited ADR defers rather than specifies, and the ADR's own *Verification* names a later milestone
+  than the check's stage. The repair is not to move the check and not to write the test against
+  nothing — it is to decide the thing, which for a `[context]`-listed goal is pre-authorized under
+  the goal's own § *Standing decisions*. One `grep -rn` for the class name across `crates/` and
+  `docs/spec/` costs less than the triage, and a `Verification` section naming `M8:` for a check
+  filed in an M7 goal is the sentence that says the ADR is the missing half.
 
 ## Running things
 
