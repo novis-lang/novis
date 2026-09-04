@@ -19,6 +19,12 @@
 //! what an eventual reader does with `sample = 5` depends entirely on which side of a comparison it
 //! lands on. Both readings are plausible and neither is what anyone wrote it for.
 //!
+//! **The resolved reading lives here too**, as [`Metering`], for the reason [`crate::server`] keeps
+//! `Capacity` beside its own refusal: § 6's written defaults are part of what a block *means*, and a
+//! reader that applied them itself would be a second place for `max_series = 10000` to be written
+//! down. What comes out is what a core is asked to build — the protocol in force and § 7's bound —
+//! and `None` where `exporter = false` says to build nothing.
+//!
 //! Cost: one match over a short string per block in the merged tree, at boot and at reload, and
 //! nothing at all per request — a request never reads either block, because neither is its to
 //! change.
@@ -53,6 +59,44 @@ impl Exporter {
             "otlp" => Some(Self::Otlp),
             _ => None,
         }
+    }
+}
+
+/// § 6's own `max_series`, for a `[metrics]` block that writes an exporter and not a bound.
+const DEFAULT_MAX_SERIES: u64 = 10_000;
+
+/// ADR 0076 § 6's `[metrics]` block, resolved into what one core is asked to build: where its
+/// series ship to, and § 7's bound on how many of them it may hold.
+///
+/// Only the two values a registry needs. `listen` and `endpoint` are the exporter's own address and
+/// are read where the exporter is built, which is a crate this one does not know about; putting them
+/// here would make this the shape of an exporter rather than of a block.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Metering {
+    /// The protocol § 6 named, already checked by [`validate`] against [`Block::Metrics`].
+    pub exporter: Exporter,
+    /// `[metrics] max_series`, or § 6's own `10000` where the key is unwritten. Per core (§ 7).
+    pub max_series: u64,
+}
+
+impl Metering {
+    /// What the merged tree asks a core to meter, or `None` where nothing does.
+    ///
+    /// `None` covers three ways of saying the same thing — no `[metrics]` block, no `exporter` key,
+    /// and `exporter = false` — because § 6 writes the default as `false` and a block that only
+    /// sets `max_series` has bounded a registry it never asked for. A word naming no protocol is
+    /// `None` as well and cannot be reached: [`validate`] refused it at boot, and a caller holding a
+    /// [`Config`] holds one that got past that.
+    #[must_use]
+    pub fn of(config: &Config) -> Option<Self> {
+        let metrics = config.metrics.as_ref()?;
+        let Setting::Text(written) = metrics.exporter.as_ref()? else {
+            return None;
+        };
+        Some(Self {
+            exporter: Exporter::of(written)?,
+            max_series: metrics.max_series.unwrap_or(DEFAULT_MAX_SERIES),
+        })
     }
 }
 
