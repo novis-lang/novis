@@ -82,6 +82,7 @@ use hyper::body::Incoming;
 use hyper::header::HOST;
 use nvs_config::mount::Mounted;
 use nvs_config::tree::Config;
+use nvs_runtime::Inbound;
 
 /// Which of § 4's two dispatch readings is in force.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -330,9 +331,10 @@ impl<'a> Resolved<'a> {
 /// says the request is.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Selection<'a> {
-    /// The row step 1 chose. Its `origin` is what `Core\Router::urlAbsolute`
-    /// prepends and its `captures` are what `Core\Request::mount()` answers, both
-    /// of which are the request-context slice's to read off it.
+    /// The row step 1 chose. Its `prefix` and `captures` are ADR 0102 § 7's
+    /// answer and cross onto the request through [`carry`]; its `origin` is what
+    /// `Core\Router::urlAbsolute` prepends, which is still the request-context
+    /// slice's to read off it.
     pub mount: &'a Mounted,
     /// Steps 3, 4 and 5's outcome.
     pub what: What,
@@ -494,6 +496,30 @@ fn decode(segment: &str) -> Option<String> {
 fn is_nvs(path: &Path) -> bool {
     path.extension()
         .is_some_and(|extension| extension.eq_ignore_ascii_case("nvs"))
+}
+
+/// Records [ADR 0102] § 7's mount on the carrier the selected program will
+/// answer: the prefix step 2 stripped, and § 3's glob captures of the row that
+/// selected it.
+///
+/// **Nothing here searches.** Both are fields of the [`Mounted`] that
+/// [`Table::resolve`] already chose, exactly as
+/// [`crate::route::csrf_required`] reads a field of the match rather than
+/// matching a second time — and for the same reason: the request was resolved
+/// once, before any application code, and § 7 is a *reading* of that answer.
+///
+/// This is where the door's half of § 7 ends. What the two facts become for a
+/// program is `Core\Request::mount()`'s, one crate above this one, and that is
+/// also where § 7's `tainted` is declared: a qualifier is a fact about a
+/// registry row's signature and there is no such thing to write here.
+///
+/// Called for every request that reached a mount at all, which is every request
+/// but § 5's health probe — that one is answered ahead of step 1, so no mount
+/// ever claims it and no carrier is built for it.
+///
+/// [ADR 0102]: ../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md
+pub fn carry(mount: &Mounted, inbound: &mut Inbound) {
+    inbound.set_mount(&mount.prefix, &mount.captures);
 }
 
 #[cfg(test)]
@@ -788,5 +814,71 @@ mod tests {
             Table::from_config(mounts(), &config).resolve(None, "/healthz", &fs),
             Some(Resolved::Health)
         );
+    }
+
+    /// ADR 0102 § 7 on the carrier: one table, two tenants, and each request
+    /// reaching its program with the row that claimed it.
+    ///
+    /// **The captures are the load-bearing half.** `prefix` alone is
+    /// `mountPrefix`, which § 7 replaces precisely for stating half the fact, so
+    /// the two mounts here differ in nothing else: same entry shape, same
+    /// remainder, same everything a reading could accidentally answer from. One
+    /// that carried the table's first row, or the written `"/{1}"` before
+    /// [`nvs_config::mount::expand`] substituted it, still prints plausibly on
+    /// either line alone.
+    ///
+    /// The stripped path is asserted **equal across the two**, which is what
+    /// ADR 0097 § 3 bought and what § 7 exists to give back: an application
+    /// written against its own root sees `/orders/17` under both mounts, and the
+    /// only thing telling it which tenant it is serving is the capture.
+    #[test]
+    fn a_mounts_captures_reach_the_request_the_handler_answers() {
+        let fs = Fake::with(&["/srv/acme/index.nvs", "/srv/globex/index.nvs"]);
+        // `scan = "/srv/*/index.nvs"` with `prefix = "/{1}"`, as the boot
+        // expansion leaves it: the glob is gone, the row is literal, and the
+        // capture that produced it stands beside the prefix it was substituted
+        // into.
+        let tenant = |name: &str| Mounted {
+            captures: vec![name.to_owned()],
+            ..mount(&format!("/{name}"), None, &format!("/srv/{name}/index.nvs"))
+        };
+        let table = Table::new(
+            vec![tenant("acme"), tenant("globex")],
+            Dispatch::Entry,
+            false,
+        );
+        let carried = |path: &str| {
+            let selected = table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("a tenant claims requests under its own prefix");
+            let mut inbound = Inbound::new("GET", &selected.path, "");
+            carry(selected.mount, &mut inbound);
+            inbound
+        };
+        let words = |inbound: &Inbound| {
+            inbound
+                .mount_captures()
+                .iter()
+                .map(Box::as_ref)
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+
+        let acme = carried("/acme/orders/17");
+        let globex = carried("/globex/orders/17");
+        assert_eq!(words(&acme), ["acme"]);
+        assert_eq!(words(&globex), ["globex"]);
+        assert_eq!(acme.mount_prefix(), "/acme");
+        assert_eq!(globex.mount_prefix(), "/globex");
+        assert_eq!(acme.path(), "/orders/17");
+        assert_eq!(globex.path(), acme.path());
+
+        // And a carrier nothing mounted answers the empty pair rather than
+        // guessing: a CLI program and a test both build one, and § 7's `prefix`
+        // is what was stripped.
+        let unmounted = Inbound::new("GET", "/orders/17", "");
+        assert_eq!(unmounted.mount_prefix(), "");
+        assert!(words(&unmounted).is_empty());
     }
 }

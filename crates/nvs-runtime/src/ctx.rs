@@ -4476,6 +4476,32 @@ pub struct Inbound {
     /// no query at all — the two are not distinguished, because a query with no
     /// pairs and no query yield the same empty set of parameters.
     query: Box<str>,
+    /// [ADR 0102](../../../docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
+    /// § 7's first half: the prefix ADR 0097 § 4 step 2 took off [`Self::path`]
+    /// above, which is the one fact about where an application was deployed
+    /// that the application itself is allowed to see.
+    ///
+    /// `""` for a request no mount table selected — a test, a CLI program, a
+    /// carrier built by something that never had a table — and equally for a
+    /// mount written `prefix = "/"`. Those are deliberately one answer: § 7's
+    /// `prefix` is *what was stripped*, and neither of them stripped anything.
+    ///
+    /// **What it spends:** one short allocation per request, of a prefix the
+    /// mount table already holds. It is copied rather than borrowed because the
+    /// carrier outlives the handler that read the table
+    /// (`nvs_server::mount::carry` owns that direction).
+    mount_prefix: Box<str>,
+    /// § 7's other half: ADR 0097 § 3's glob captures of the row that selected
+    /// this request, in order — `{1}` is the first — and empty for every mount
+    /// whose `scan` had no `*` to capture with.
+    ///
+    /// The two are one fact and are written by one call ([`Self::set_mount`]):
+    /// a prefix standing beside somebody else's captures is not a mount.
+    ///
+    /// **What it spends:** one allocation per capture, of which § 3 admits as
+    /// many as the `scan` has `*`s — one, for the tenant-per-directory layout
+    /// § 7 exists to serve.
+    mount_captures: Box<[Box<str>]>,
     /// One entry per header field line, in arrival order, name first.
     ///
     /// **A list rather than a map, for [`DeclaredHeader`]'s reason read the
@@ -4630,6 +4656,8 @@ impl std::fmt::Debug for Inbound {
             .field("method", &self.method)
             .field("path", &self.path)
             .field("query", &self.query)
+            .field("mount_prefix", &self.mount_prefix)
+            .field("mount_captures", &self.mount_captures)
             .field("headers", &self.headers)
             .field("client", &self.client)
             .field("scheme", &self.scheme)
@@ -4648,6 +4676,11 @@ impl Inbound {
             method: method.into(),
             path: path.into(),
             query: query.into(),
+            // What a carrier nobody mounted says, and the same thing a mount at
+            // `/` with no glob says: nothing was stripped and nothing was
+            // captured. [`Self::set_mount`] is the only way to anything else.
+            mount_prefix: "".into(),
+            mount_captures: Box::new([]),
             headers: Vec::new(),
             body: None,
             // The fail-closed pair, and both are what a carrier built by
@@ -4685,6 +4718,43 @@ impl Inbound {
     #[must_use]
     pub fn scheme(&self) -> Scheme {
         self.scheme
+    }
+
+    /// Records ADR 0102 § 7's mount: the prefix [`Self::path`] no longer
+    /// carries, and the captures the row selecting this request was expanded
+    /// from.
+    ///
+    /// Called at most once, beside [`Self::set_peer`] and before the program
+    /// runs — `nvs_server::mount::carry` is the one caller and the home of that
+    /// direction. Both facts arrive in one call for [`Self::set_peer`]'s
+    /// reason: they are two fields of one row, and a carrier holding half of a
+    /// mount would answer `Core\Request::mount()` with a prefix and somebody
+    /// else's captures.
+    ///
+    /// Nothing here interprets either one. § 7 states the captures as
+    /// `tainted string` and this crate has no qualifier to write them with —
+    /// the taint is declared on the member that hands them over, which is
+    /// `nvs_stdlib::request`'s registry row.
+    pub fn set_mount(&mut self, prefix: &str, captures: &[String]) {
+        self.mount_prefix = prefix.into();
+        self.mount_captures = captures
+            .iter()
+            .map(|capture| capture.as_str().into())
+            .collect();
+    }
+
+    /// The prefix ADR 0097 § 4 step 2 took off [`Self::path`], and `""` where
+    /// nothing did — the field's own doc owns why those are one answer.
+    #[must_use]
+    pub fn mount_prefix(&self) -> &str {
+        &self.mount_prefix
+    }
+
+    /// ADR 0097 § 3's glob captures of the mount that selected this request, in
+    /// order, and empty where it had none.
+    #[must_use]
+    pub fn mount_captures(&self) -> &[Box<str>] {
+        &self.mount_captures
     }
 
     /// Records ADR 0102 § 1's match, which whoever accepted the request took
