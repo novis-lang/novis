@@ -1827,6 +1827,18 @@ is why" — is this file.
   `grep -rn` over the whole `tests` list is what said so, and it costs one call. Size the item from
   the check's list rather than from the report's one name — and the same grep is what separates a
   name the tree pins elsewhere from one nobody has written.
+- **A `loop-goal.toml` check whose comment says a slice is unlanded can be right, and then the
+  cheapest triage is the *crate's own manifest plus one grep for the surface*.** The
+  `nvs-server (the peer, and who may speak for it)` check named
+  `client_ip_and_scheme_come_from_the_peer_unless_a_trusted_proxy_asserted` and its comment cited
+  `serve.rs:538` as naming the gap out loud; that line really did say so, and three sibling module
+  docs (`secure.rs`, `mount.rs`, `nvs-stdlib/src/request.rs`) each carried their own copy of "that
+  walk has not landed". One `grep -rn` for `trusted_proxies\|X-Forwarded` across the four crates
+  answered the whole triage — where the rule was named, where it was implemented (nowhere), and
+  which four doc comments would go stale the moment it was. The sibling bullets are about checks
+  that are *misfiled*; this is the other outcome, and it is worth knowing that the same one grep
+  settles it either way. Its second use is the edit list: a rule stated as unlanded in four module
+  docs is four edits, and the grep that found the gap is also the one that finds them.
 
 ## Running things
 
