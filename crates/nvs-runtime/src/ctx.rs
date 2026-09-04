@@ -4408,6 +4408,33 @@ pub struct Inbound {
     /// of every in-flight request and, through ADR 0106 § 13's arithmetic, the
     /// number of requests this process may admit at once.
     body: Option<Box<dyn RequestBody>>,
+    /// [ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+    /// §§ 1-2's parse of that body, once `Core\Request::files()` has named one
+    /// — **type-erased**, because the parse is `nvs_stdlib::multipart`'s and
+    /// this crate is below it.
+    ///
+    /// It lives here for [`Self::claimed_by`]'s reason: what a parse is *of* is
+    /// the request. `files()` builds it, every `advance()` of the walk it
+    /// answers reaches it again through a different value, and `post()` will
+    /// read the form fields it buffered on the way past — so none of the three
+    /// can be its home and the carrier they share is.
+    ///
+    /// [`Any`](std::any::Any) rather than a trait declared here, on
+    /// [`Self::claimed_by`]'s argument again: a trait would be this crate
+    /// holding a roster of what a multipart parse may be asked, which is a copy
+    /// of `nvs_stdlib`'s surface kept one crate below it and free to drift.
+    /// What this carrier knows is that the request has a parse and that it
+    /// outlives any one call into `Core` — nothing else, and nothing else is
+    /// needed to store it.
+    ///
+    /// A single `Option` rather than the keyed table [`Ctx::hold_open_file`]
+    /// holds: that table exists because a request may have many files open at
+    /// once, and a request has exactly one body and therefore one parse of it.
+    ///
+    /// **What it spends:** one pointer per request, plus — only for a request
+    /// that actually walked its parts — what `nvs_stdlib::multipart`'s own doc
+    /// accounts for, which is one wire chunk and one delimiter's tail.
+    parts: Option<Box<dyn std::any::Any>>,
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
@@ -4444,6 +4471,7 @@ impl std::fmt::Debug for Inbound {
             .field("query", &self.query)
             .field("headers", &self.headers)
             .field("body", &self.body.is_some())
+            .field("parts", &self.parts.is_some())
             .finish()
     }
 }
@@ -4459,6 +4487,7 @@ impl Inbound {
             query: query.into(),
             headers: Vec::new(),
             body: None,
+            parts: None,
             claimed_by: None,
         }
     }
@@ -4559,6 +4588,36 @@ impl Inbound {
     #[must_use]
     pub fn has_body(&self) -> bool {
         self.body.is_some()
+    }
+    /// Gives this carrier the parse of its body that `Core\Request::files()`
+    /// built, for [`Self::parts_mut`] to hand back on every later call.
+    ///
+    /// Called at most once per request: `files()` is the only member that names
+    /// a parse, and [`Self::claim_body`] is what makes it callable once.
+    pub fn hold_parts(&mut self, parts: Box<dyn std::any::Any>) {
+        self.parts = Some(parts);
+    }
+    /// The parse and the body it reads, borrowed **together** — `None` unless
+    /// this request has both.
+    ///
+    /// One accessor rather than two, because the two are borrowed at the same
+    /// moment and neither outlives the call: `nvs_stdlib::multipart` takes the
+    /// body per call rather than holding one — its own module doc says why —
+    /// so every step of a parse needs `&mut` on both at once, and two methods
+    /// could not hand that out. They are two fields of one struct, so this is a
+    /// borrow the compiler can see through where a pair of calls would not be.
+    ///
+    /// `None` for a request that carried no body at all, which is a walk over
+    /// no parts rather than an error: RFC 9110 § 8.6's "there is no body" is
+    /// the same fact [`Self::body`] answers `None` for, and a multipart parse
+    /// of it would be a parse of nothing.
+    pub fn parts_mut(
+        &mut self,
+    ) -> Option<(
+        &mut (dyn std::any::Any + 'static),
+        &mut (dyn RequestBody + 'static),
+    )> {
+        Some((self.parts.as_deref_mut()?, self.body.as_deref_mut()?))
     }
 }
 
