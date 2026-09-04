@@ -4435,12 +4435,37 @@ pub struct Inbound {
     /// that actually walked its parts — what `nvs_stdlib::multipart`'s own doc
     /// accounts for, which is one wire chunk and one delimiter's tail.
     parts: Option<Box<dyn std::any::Any>>,
+    /// The body `Core\Request::post()` read, verbatim, for a request that did
+    /// not declare a multipart one.
+    ///
+    /// It is here because `post()` answers **one named field per call** while
+    /// the body it reads is a stream that can be pulled once: the second
+    /// `post('description')` on a request would otherwise read an exhausted
+    /// supplier and answer `null` for a field the peer sent. A multipart body
+    /// needs nothing here — [`Self::parts`] already holds ADR 0105 § 2's
+    /// buffered fields, which is the same fact stored where that parse put it.
+    ///
+    /// The bytes rather than the parsed array, so that this crate holds no
+    /// value of the program's and nothing here has a reference to release when
+    /// the request ends. `Core\Request::query` re-parses per call over the
+    /// query string for exactly that reason, and this is the same trade one
+    /// field along.
+    ///
+    /// **What it spends:** the body's own bytes, resident until the request
+    /// ends, only for a request whose program called `post()` — bounded by
+    /// `[limits] request_body`, which ADR 0105 § 2 makes the cap on form field
+    /// text, and O(in-flight).
+    form: Option<Box<[u8]>>,
     /// Which member has read the body, once one has — the name it spells
     /// itself, so a refusal can say what already took it.
     ///
     /// `docs/spec/01-core-library.md` § 15 makes `body`, `bodyStream` and
     /// `files` exclusive on one request, and this field is the whole of that
-    /// rule. **It lives on the carrier rather than on any of the three**,
+    /// rule. `post` is the fourth member that takes the claim and the only one
+    /// that reads the name back to *join* rather than to refuse — ADR 0105
+    /// § 2's form fields being what a `files` walk sets aside — which is
+    /// `nvs_stdlib::request`'s `claim_form` and nothing this crate decides.
+    /// **It lives on the carrier rather than on any of the three**,
     /// because what is exclusive is the *request*: each of them consumes the
     /// same stream, so a record kept by one of them could not see the other two
     /// — and the three are two crates apart, `nvs_stdlib::request` owning the
@@ -4488,6 +4513,7 @@ impl Inbound {
             headers: Vec::new(),
             body: None,
             parts: None,
+            form: None,
             claimed_by: None,
         }
     }
@@ -4568,8 +4594,10 @@ impl Inbound {
     /// silent-wrong-answer this whole carrier is written against.
     ///
     /// The [`Err`] is the claiming member's own name, for the caller to put in
-    /// a message; this crate raises nothing, the three members being
-    /// `nvs_stdlib`'s and the wording theirs.
+    /// a message — or to read, `post` being the member that answers some of
+    /// those names by joining the reading rather than by refusing. This crate
+    /// raises nothing and decides nothing about which is which; the members are
+    /// `nvs_stdlib`'s and so is the rule.
     ///
     /// # Errors
     ///
@@ -4618,6 +4646,21 @@ impl Inbound {
         &mut (dyn RequestBody + 'static),
     )> {
         Some((self.parts.as_deref_mut()?, self.body.as_deref_mut()?))
+    }
+    /// Gives this carrier the body `Core\Request::post()` read, for every later
+    /// call of that member to parse again — [`Self::form`] owns why.
+    ///
+    /// Called at most once per request: `post()` reads the body behind
+    /// [`Self::claim_body`], so the call that fills this is the only one that
+    /// finds it empty.
+    pub fn hold_form(&mut self, form: Box<[u8]>) {
+        self.form = Some(form);
+    }
+    /// The body [`Self::hold_form`] was given, or `None` where `post()` has not
+    /// read one.
+    #[must_use]
+    pub fn form(&self) -> Option<&[u8]> {
+        self.form.as_deref()
     }
 }
 

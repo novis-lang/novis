@@ -5224,6 +5224,17 @@ is why" — is this file.
   flattens the row's four slots. One `grep -n 'fn ' crates/<crate>/src/<file>.rs | awk -F: '$1>NNNN'`
   over the test module lists every fixture it holds, and it is the first call to make when an item
   predicts a setup cost — a member that landed with tests brought its fixtures with it.
+- **A `-p nvs-stdlib` test driver may already own the reference you are about to release, and the
+  double release panics one crate away with `attempt to subtract with overflow`.**
+  `crates/nvs-stdlib/src/request.rs`'s `parts_of` takes `files: Value` **by value** and ends with
+  `cursor.release(); files.release();` — because `iterate` consumes its receiver and the driver
+  hands its own reference over to match. A new test that wrote the obvious `let files = …;
+  parts_of(&mut ctx, files); dropped(files);` therefore released one reference too many, and the
+  panic arrived at `nvs_runtime::object::drop_one` under `release::step_field` with no mention of
+  the test's own line except in the backtrace. The tell is the frame list, not the message:
+  `dropped` called *directly* from the test body means the driver is the over-releaser. Read the
+  last four lines of a `Value`-taking test helper before calling it — whether it releases what it
+  was handed is the whole question, and `#[expect(unsafe_code, reason = …)]` is where it says so.
 
 ## Splitting a file that got too big
 

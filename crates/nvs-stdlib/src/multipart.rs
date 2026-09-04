@@ -222,14 +222,31 @@ impl Multipart {
     /// Arrival order rather than a map, for `crate::request`'s own reason: a
     /// repeated field name is a value a form is allowed to send twice, and the
     /// order of the two is part of what it sent.
-    #[allow(
-        dead_code,
-        reason = "§ 2's fields are read by `Core\\Request::post()`, which has not landed; until \
-                  it does, this module's own tests are what hold the buffering up. Delete this \
-                  attribute with that member's first call."
-    )]
+    /// Complete after a [`Self::drain`], and a prefix of the form before one:
+    /// a field is buffered as the walk passes it, so `Core\Request::post()`
+    /// drains before it reads.
     pub(crate) fn fields(&self) -> &[(Vec<u8>, Vec<u8>)] {
         &self.fields
+    }
+
+    /// Walks what is left of the body, buffering every field part it passes and
+    /// draining every file part.
+    ///
+    /// `Core\Request::post()`'s whole reading, and the reason ADR 0105 § 2 can
+    /// promise *every* field rather than the ones that happened to arrive first:
+    /// a form is free to write a text input after a file input, and a `post()`
+    /// answering what the walk had reached would report that field absent.
+    ///
+    /// It costs one pass and no memory beyond the fields themselves — the drain
+    /// is [`Self::next_part`]'s own, which walks a file part's bytes without
+    /// copying them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::next_part`].
+    pub(crate) fn drain(&mut self, body: &mut dyn RequestBody) -> Result<(), Box<str>> {
+        while self.next_part(body)?.is_some() {}
+        Ok(())
     }
 
     /// The next **file** part, `Ok(None)` at the closing delimiter.

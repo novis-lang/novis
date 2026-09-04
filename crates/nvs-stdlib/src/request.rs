@@ -4,17 +4,19 @@
 //!
 //! # What is here, and what is not
 //!
-//! Ten of
+//! Eleven of
 //! [docs/spec/01-core-library.md](../../../docs/spec/01-core-library.md) § 15's
-//! fifteen members: `method`, `isHead`, `path` and `query` — the request *line*,
+//! sixteen members: `method`, `isHead`, `path` and `query` — the request *line*,
 //! and the one fact reporting a `HEAD` as a `Get` would otherwise lose —
 //! `header`, `headers` and `cookie`, the fields that arrived with it, and
-//! `body`, `bodyStream` and `files`, the three members here that read what
-//! arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
-//! pulled to its end into one value, walked a chunk at a time, or walked as the
+//! `body`, `bodyStream`, `files` and `post`, the four members here that read
+//! what arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
+//! pulled to its end into one value, walked a chunk at a time, walked as the
 //! parts a `multipart/form-data` body declares
 //! ([ADR 0105](../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-//! § 1, the parse itself being [`crate::multipart`]'s).
+//! § 1, the parse itself being [`crate::multipart`]'s), or read to its end as
+//! the form it submitted (§ 2, and `post` is the one of the four that joins
+//! another's reading rather than claiming against it — [`claim_form`]).
 //! `clientIp`, `scheme`, `host`, `mount` and
 //! `route` are known gaps of this module rather than of § 15, and each waits on
 //! a different thing:
@@ -277,6 +279,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_request_files",
             doc: Some(&FILES_DOC),
         },
+        CoreMethod {
+            name: "post",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_request_post",
+            doc: Some(&POST_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -475,6 +486,42 @@ const FILES_DOC: MethodDoc = MethodDoc {
                    to read one — no `boundary`, two of them, or one outside RFC 2046's grammar \
                    — or what arrived is not the body it declared. An ambiguous body is refused \
                    rather than guessed at.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed under the body, or the peer stopped short of the \
+                   length it declared.",
+        },
+    ],
+};
+
+/// `Core\Request::post`'s reference card — ADR 0117.
+const POST_DOC: MethodDoc = MethodDoc {
+    short: "One submitted form field by name, read with PHP's bracket convention — the same parse \
+            `query` performs, over a `multipart/form-data` body's non-file parts or over a \
+            urlencoded one, replacing `$_POST` and `filter_input(INPUT_POST, …)`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field's name, as the form declared it and without brackets for a nested value.",
+        shape: &[],
+    }],
+    ret: "The field's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` \
+          where the form carried no such name. Reading the body to its end is what this member \
+          does, so on a `multipart/form-data` request it is called **after** the `files()` walk, \
+          never before: the uploads are drained on the way to the last field.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, or this request's body has already \
+                   been read by `body` or `bodyStream` — those two hand the bytes over \
+                   uninterpreted and leave no fields behind. A body `files` is walking is the one \
+                   case this member joins rather than refuses.",
+        },
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The request declared a `multipart/form-data` body and then did not say how to \
+                   read one, or what arrived is not the body it declared, or a urlencoded field \
+                   holds percent escapes that decode to octets that are not UTF-8.",
         },
         ErrorDoc {
             error: "IOError",
@@ -942,6 +989,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_request_body" => (nvs_core_request_body as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
+        "nvs_core_request_post" => (nvs_core_request_post as *const ()).cast(),
         "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
         "nvs_core_request_part_filename" => (nvs_core_request_part_filename as *const ()).cast(),
         "nvs_core_request_part_content_type" => {
@@ -995,10 +1043,188 @@ fn claim_body(ctx: &mut Ctx, member: &'static str) -> Result<(), Fault> {
                  `Core\\Request::{first}()`. Spec § 15 makes `body`, `bodyStream` and `files` \
                  exclusive on one request, because each of them consumes the stream the other two \
                  would read — so this is refused rather than answered empty, which is all an \
-                 exhausted stream could say"
+                 exhausted stream could say. `post` is the one reading that joins another: it \
+                 reads the fields a `files` walk buffers"
             ),
         )
     })
+}
+
+/// Which reading of the body `Core\Request::post()` is making — see
+/// [`claim_form`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reading {
+    /// Nothing had read the body; `post` has taken the claim.
+    First,
+    /// `files()` holds the claim, and this reading joins its walk.
+    Joining,
+    /// `post` itself holds the claim: this is a second call on one request.
+    Again,
+}
+
+/// [`claim_body`] as `Core\Request::post()` makes it, which is the same rule
+/// with two of its outcomes moved.
+///
+/// `files` moves from the refusals to the joins, because what the two members
+/// read is not the same stream twice: ADR 0105 § 2's non-file parts are
+/// buffered by that walk on its way past, so `post` reads what `files` set
+/// aside rather than the bytes `files` yielded. `body` and `bodyStream` hand
+/// the body over uninterpreted and leave nothing behind, so both still refuse.
+/// And `post` itself is not a second reading at all — the first call held what
+/// it read, and every later one re-parses that.
+///
+/// # Errors
+///
+/// `LogicError` where `body` or `bodyStream` has already read this body.
+fn claim_form(ctx: &mut Ctx) -> Result<Reading, Fault> {
+    let claimed = ctx
+        .inbound_mut()
+        .expect("the caller reads the request before it claims the body")
+        .claim_body("post");
+    match claimed {
+        Ok(()) => Ok(Reading::First),
+        Err("files") => Ok(Reading::Joining),
+        Err("post") => Ok(Reading::Again),
+        // No case can reach this: a `.nvst` program answers no request, so
+        // `inbound_of` refuses both readers before either reaches the claim.
+        // Asserted by `a_form_is_refused_to_a_body_that_was_handed_over_whole`.
+        Err(first) => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Request::post(): this request's body has already been read by \
+                 `Core\\Request::{first}()`, which hands the bytes over uninterpreted and leaves \
+                 no form fields behind — so there is nothing left here to read them out of. A \
+                 program that wants both parses what it was handed. `files` is the one reading \
+                 `post` joins, because that walk buffers the non-file parts on its way past"
+            ),
+        )),
+    }
+}
+
+/// The whole form this request submitted, parsed afresh on every call.
+///
+/// `Core\Request::post()`'s reading, split out so that member reads as the one
+/// question it answers. What it costs per call is [`nvs_core_request_post`]'s
+/// own doc, and it is `Core\Request::query`'s cost over a body instead of a
+/// query string.
+///
+/// # Errors
+///
+/// [`claim_form`]'s refusal, a body that is not the multipart one it declared
+/// or that did not arrive whole, and a urlencoded field whose escapes decode to
+/// octets that are not UTF-8.
+fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> {
+    let reading = claim_form(ctx)?;
+    match declared.filter(|value| crate::multipart::is_multipart(value)) {
+        Some(declared) => multipart_form(ctx, &declared, reading),
+        None => urlencoded_form(ctx, reading),
+    }
+}
+
+/// ADR 0105 § 2's buffered fields, with the walk driven to the closing
+/// delimiter first.
+///
+/// The drain is what makes *every* field answerable rather than the ones that
+/// happened to arrive before the part a `files()` walk stopped on, and it is
+/// idempotent: a parse already at its end walks nothing.
+fn multipart_form(ctx: &mut Ctx, declared: &[u8], reading: Reading) -> Result<NvsArray, Fault> {
+    if reading == Reading::First {
+        // No case can reach this: a `.nvst` program answers no request, so it
+        // carries no `Content-Type` to declare a body with. Asserted by
+        // `a_multipart_body_that_declares_no_boundary_is_refused_where_it_is_named`.
+        let boundary = crate::multipart::boundary_of(declared).map_err(|why| {
+            Fault::thrown_as(
+                ThrownClass::Parse,
+                format!(
+                    "Core\\Request::post(): this request declared a multipart body and then did \
+                     not say how to read one — {why}"
+                ),
+            )
+        })?;
+        ctx.inbound_mut()
+            .expect("the caller reads the request before it reads the form")
+            .hold_parts(Box::new(crate::multipart::Multipart::new(&boundary)));
+    }
+    let inbound = ctx
+        .inbound_mut()
+        .expect("the caller reads the request before it reads the form");
+    let mut out = NvsArray::new();
+    // No parse, or no body at all: a request that submitted no form, which is
+    // an empty answer rather than a refusal — `files()`'s own reading of the
+    // same two cases.
+    let Some((parse, body)) = inbound.parts_mut() else {
+        return Ok(out);
+    };
+    let parse = parse
+        .downcast_mut::<crate::multipart::Multipart>()
+        .expect("`files()` and `post()` hold one parse between them, and it is this one");
+    if let Err(why) = parse.drain(body) {
+        // No case can reach either of these, for `files()`'s reason: a `.nvst`
+        // program holds no parse to walk and no connection to fail under one.
+        let (class, what) = if parse.failed_on_the_wire() {
+            (ThrownClass::Io, "the body did not arrive whole")
+        } else {
+            (
+                ThrownClass::Parse,
+                "this is not the multipart body the request declared",
+            )
+        };
+        return Err(Fault::thrown_as(
+            class,
+            format!("Core\\Request::post(): {what} — {why}"),
+        ));
+    }
+    for (name, value) in parse.fields() {
+        // `parse_query`'s own skip, so one nameless field means the same thing
+        // in a form as it does in a query string.
+        if name.is_empty() {
+            continue;
+        }
+        crate::uri::place(&mut out, name, Value::str(NvsStr::new(value)));
+    }
+    Ok(out)
+}
+
+/// A `application/x-www-form-urlencoded` body, read once and parsed per call.
+///
+/// The bytes are held on [`nvs_runtime::Inbound`] rather than the array,
+/// because this crate hands a fresh value to each call and the carrier below it
+/// holds no value of the program's — [`nvs_runtime::Inbound::hold_form`] owns
+/// that argument.
+///
+/// It does not check the content type. A body that declares nothing, or
+/// declares something else, is still read the way `$_POST` reads one, because
+/// what a peer wrote in a header is not what decides whether a form is a form —
+/// and a body that is not one parses to no fields rather than to a refusal.
+fn urlencoded_form(ctx: &mut Ctx, reading: Reading) -> Result<NvsArray, Fault> {
+    if reading != Reading::Again {
+        let whole = whole_body(ctx, "post")?;
+        ctx.inbound_mut()
+            .expect("the caller reads the request before it reads the form")
+            .hold_form(whole.into_boxed_slice());
+    }
+    let held = ctx
+        .inbound()
+        .expect("the caller reads the request before it reads the form")
+        .form()
+        .expect("the branch above holds the body before the first read of it");
+    // Refused rather than repaired, under ADR 0095: a urlencoded body is
+    // percent-escaped ASCII by construction, so a raw octet outside UTF-8 in
+    // one is a body that is not what it claims to be — and lossily replacing it
+    // would answer a field the peer never sent.
+    //
+    // No case can reach this: a `.nvst` program answers no request, so it has
+    // no body to send octets in. Asserted by
+    // `a_form_is_refused_to_a_body_that_was_handed_over_whole`.
+    let held = std::str::from_utf8(held).map_err(|_| {
+        Fault::thrown_as(
+            ThrownClass::Parse,
+            "Core\\Request::post(): this request's body is not text, so it holds no urlencoded \
+             form to read. A body that is not a form is read with `body()` or `bodyStream()`"
+                .to_owned(),
+        )
+    })?;
+    crate::uri::parse_query(held, "post")
 }
 
 /// The request this context is answering, or ADR 0012 § 7's refusal.
@@ -1282,6 +1508,68 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Request::post(string $name): mixed` — spec § 15's submitted-form
+    /// reader, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
+    ///
+    /// [`nvs_core_request_query`]'s answer over a body instead of a query
+    /// string, down to the bracket convention, which is
+    /// [`crate::uri::place`]'s once rather than twice.
+    ///
+    /// **It reads the body to its end**, and that is the whole of its rule. ADR
+    /// 0105 § 2 promises *every* field of a mixed form, and a form is free to
+    /// write a text input after a file input — so a member answering the fields
+    /// that had arrived so far would report one the peer sent as absent, which
+    /// is the silent wrong answer [`nvs_runtime::Inbound`] is written against.
+    /// On a `multipart/form-data` request it therefore drains what is left of
+    /// the walk, and a program that wants the uploads too takes `files()`
+    /// **first**: a part's bytes exist only while the walk is on it.
+    ///
+    /// **It is the one reading that joins another rather than claiming against
+    /// it** — [`claim_form`] owns why, and it is the only place that rule
+    /// lives.
+    ///
+    /// **The parse is per call.** A urlencoded body is pulled whole and held on
+    /// the carrier, a multipart one has its fields buffered by the parse
+    /// already, and each call builds its array afresh over those bytes.
+    /// `query`'s judgement exactly, and its module doc argues it: an array
+    /// cached here would be a value of the program's held by the carrier
+    /// underneath it.
+    ///
+    /// **What it spends:** for a urlencoded body, the body's own bytes resident
+    /// until the request ends; for either kind, one array per call, dropped
+    /// before the call returns. Both are bounded by [`REQUEST_BODY`] — ADR 0105
+    /// § 2's cap on form field text — and both are O(in-flight).
+    fn nvs_core_request_post(ctx, args: [1]) {
+        // Unreachable from source: the row's parameter is `CoreTy::Text`, so
+        // `E0401` refuses anything that is not a `string` before this runs.
+        let name = args[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Request::post expected a `string` for the name, got tag {}",
+                args[0].tag_byte()
+            ))
+        })?;
+        // Read before the claim, because it borrows the carrier immutably and
+        // reading a header has no effect on the body.
+        let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
+        let parsed = form_of(ctx, declared)?;
+        let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
+        // `query`'s reason, and its wording: `get` borrows rather than retains
+        // and `parsed` releases everything it holds when it drops at the end of
+        // this block, so the value being handed back needs a reference of its
+        // own and the caller owns exactly that one.
+        #[expect(
+            unsafe_code,
+            reason = "the payload is live: `parsed` still holds its own reference \
+                      to it at this point and is dropped after"
+        )]
+        unsafe {
+            answer.retain();
+        }
+        Ok(answer)
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Request::header(string $name): ?tainted string` — spec § 15's
     /// single-field reader, replacing the `HTTP_*` half of `$_SERVER` and
     /// `filter_input(INPUT_SERVER, …)`.
@@ -1412,47 +1700,65 @@ nvs_runtime::nvs_helper! {
         // reading is refused whether or not this request carried any bytes,
         // because what spec § 15 makes exclusive is the reading.
         claim_body(ctx, "body")?;
-        let inbound = ctx
-            .inbound_mut()
-            .expect("the read above refuses a context that is answering no request");
-        let mut whole: Vec<u8> = Vec::new();
-        if let Some(body) = inbound.body() {
-            loop {
-                match body.next_chunk() {
-                    Ok(None) => break,
-                    Ok(Some(chunk)) => {
-                        if whole.len().saturating_add(chunk.len()) > REQUEST_BODY {
-                            // No case can reach this: a `.nvst` program answers
-                            // no request, so it has no body to send over the
-                            // bound. Asserted by
-                            // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
-                            // below, on both sides of the bound.
-                            return Err(Fault::thrown(format!(
-                                "Core\\Request::body(): this request's body is larger than \
-                                 `[limits] request_body` ({REQUEST_BODY} bytes), so it is refused \
-                                 rather than held. That directive bounds what a body may cost in \
-                                 memory; a body bigger than it is one to stream rather than to \
-                                 read whole"
-                            )));
-                        }
-                        whole.extend_from_slice(chunk);
-                    }
-                    Err(why) => {
-                        // No case can reach this either, and for the same
-                        // reason: a connection has to exist before it can fail
-                        // under a body. Asserted by
-                        // `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`.
-                        return Err(Fault::thrown_as(
-                            ThrownClass::Io,
-                            format!(
-                                "Core\\Request::body(): the body did not arrive whole — {why}"
-                            ),
-                        ));
-                    }
+        Ok(Value::str(NvsStr::new(&whole_body(ctx, "body")?)))
+    }
+}
+
+/// This request's body, pulled to its end into one buffer under
+/// [`REQUEST_BODY`].
+///
+/// One function rather than two copies of the loop, because `body` and the
+/// urlencoded half of `post` read the same bytes the same way and differ only
+/// in what they do with them afterwards. The caller owes the claim: this reads,
+/// and says nothing about who may.
+///
+/// A request that arrived without a body reads as an empty one. "The peer sent
+/// nothing" and "no request arrived" are different facts and [`inbound_of`]
+/// answers the second, so there is nothing left here to refuse.
+///
+/// # Errors
+///
+/// `RuntimeError` for a body past [`REQUEST_BODY`], and `IOError` for one that
+/// did not arrive whole.
+fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
+    let inbound = ctx
+        .inbound_mut()
+        .expect("the caller reads the request before it reads the body");
+    let mut whole: Vec<u8> = Vec::new();
+    let Some(body) = inbound.body() else {
+        return Ok(whole);
+    };
+    loop {
+        match body.next_chunk() {
+            Ok(None) => return Ok(whole),
+            Ok(Some(chunk)) => {
+                if whole.len().saturating_add(chunk.len()) > REQUEST_BODY {
+                    // No case can reach this: a `.nvst` program answers no
+                    // request, so it has no body to send over the bound.
+                    // Asserted by
+                    // `the_request_body_cap_is_the_last_body_read_and_the_first_one_refused`
+                    // below, on both sides of the bound.
+                    return Err(Fault::thrown(format!(
+                        "Core\\Request::{member}(): this request's body is larger than \
+                         `[limits] request_body` ({REQUEST_BODY} bytes), so it is refused \
+                         rather than held. That directive bounds what a body may cost in \
+                         memory; a body bigger than it is one to stream rather than to \
+                         read whole"
+                    )));
                 }
+                whole.extend_from_slice(chunk);
+            }
+            Err(why) => {
+                // No case can reach this either, and for the same reason: a
+                // connection has to exist before it can fail under a body.
+                // Asserted by
+                // `a_body_that_fails_mid_stream_throws_rather_than_answering_its_prefix`.
+                return Err(Fault::thrown_as(
+                    ThrownClass::Io,
+                    format!("Core\\Request::{member}(): the body did not arrive whole — {why}"),
+                ));
             }
         }
-        Ok(Value::str(NvsStr::new(&whole)))
     }
 }
 
@@ -2270,6 +2576,7 @@ mod tests {
         nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
         nvs_core_request_part_content_type, nvs_core_request_part_filename,
         nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
+        nvs_core_request_post,
     };
     use crate::router::METHOD;
     use nvs_runtime::{Ctx, Inbound, RequestBody, Value};
@@ -3909,5 +4216,230 @@ mod tests {
         dropped(stale);
         dropped(files);
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// A form written the way ADR 0105 § 2 describes one: a text field, a file,
+    /// and **a second text field after the file**.
+    ///
+    /// The last part is what the fixture exists for. A form is free to write an
+    /// input after a file input, and a `post()` answering the fields a walk had
+    /// reached would report it absent — so a body whose fields all preceded the
+    /// upload would let that member pass.
+    const MIXED: &[&[u8]] = &[
+        b"--X\r\nContent-Disposition: form-data; name=\"title\"\r\n\r\nQ3 report\r\n--X\r\n\
+          Content-Disposition: form-data; name=\"doc\"; filename=\"report.pdf\"\r\n\
+          Content-Type: application/pdf\r\n\r\n%PDF-1.4 and ",
+        b"the rest of it\r\n--X\r\n\
+          Content-Disposition: form-data; name=\"notes[first]\"\r\n\r\nafter the file\r\n--X--\r\n",
+    ];
+
+    /// `Core\Request::post(name)` on `ctx`, with the argument's own reference
+    /// released the way a compiled call site releases it.
+    fn posted(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
+        let asked = Value::str(nvs_runtime::NvsStr::new(name.as_bytes()));
+        let answered = nvs_runtime::call(nvs_core_request_post, ctx, &[asked]);
+        dropped(asked);
+        answered
+    }
+
+    /// [`posted`]'s answer as bytes, or `None` where the member answered the
+    /// `null` a form with no such field is owed.
+    fn field(ctx: &mut Ctx, name: &str) -> Option<Vec<u8>> {
+        let answer = posted(ctx, name).expect("this form is readable");
+        let text = answer.as_text().map(|text| text.as_bytes().to_vec());
+        if answer.tag_byte() != Value::null().tag_byte() {
+            dropped(answer);
+        }
+        text
+    }
+
+    /// ADR 0105 § 2's split read from the other side: a part carrying no
+    /// `filename` is a form field, is buffered as the walk passes it, and is
+    /// what `post()` answers — **including the one written after the file**,
+    /// which is the position the member is built around.
+    ///
+    /// Two halves, because the claim differs on each side. With `files()`
+    /// holding the reading, `post` joins it; with nothing holding it, `post`
+    /// takes it and draining to the last field is what consumed the uploads —
+    /// so `files()` afterwards is refused rather than answered empty, which is
+    /// all a drained walk could say.
+    #[test]
+    fn a_non_file_part_is_buffered_into_post() {
+        let mut walked = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut walked, &[])
+            .expect("a request that declared a multipart body can be walked");
+        // `parts_of` consumes the reference it is handed, as `iterate` does.
+        let parts = parts_of(&mut walked, files).expect("the walk reaches the closing delimiter");
+        assert_eq!(
+            parts.len(),
+            1,
+            "one of the three parts carried a `filename`, so one of them is a file"
+        );
+
+        assert_eq!(
+            field(&mut walked, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "the field written before the upload is buffered on the way past it"
+        );
+        let nested = posted(&mut walked, "notes").expect("this form is readable");
+        assert!(
+            nested.array_ptr().is_some(),
+            "§ 9's bracket convention is `query`'s over a form field too: `notes[first]` is \
+             reached under `notes`, not under its whole written name"
+        );
+        dropped(nested);
+        assert_eq!(
+            field(&mut walked, "notes[first]"),
+            None,
+            "and the written name is a path rather than a key, so nothing answers to it whole"
+        );
+        assert_eq!(
+            field(&mut walked, "doc"),
+            None,
+            "a file part is not a form field, whichever of the two members is asked"
+        );
+
+        // The other half: nothing has read this body, so `post` claims it and
+        // reads to the closing delimiter itself — the uploads drained on the
+        // way, which is what makes the walk afterwards a refusal.
+        let mut alone = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
+        let after = posted(&mut alone, "notes").expect("a form is readable without a walk");
+        assert!(
+            after.array_ptr().is_some(),
+            "the field after the upload is answered whether or not a walk went first"
+        );
+        dropped(after);
+        assert!(
+            nvs_runtime::call(nvs_core_request_files, &mut alone, &[]).is_err(),
+            "reading to the last field consumed the parts, so the walk is refused rather than \
+             answered empty"
+        );
+    }
+
+    /// A urlencoded body is the other half of what `post()` reads, and it is
+    /// read **once**: the body is a stream that can be pulled a single time,
+    /// while the member answers one named field per call.
+    ///
+    /// Asserted by asking twice with a different field in between, because a
+    /// member that re-read the supplier prints correctly on its first call and
+    /// answers `null` on its third for a field the peer plainly sent.
+    #[test]
+    fn a_urlencoded_body_is_read_once_and_answers_every_call() {
+        let mut submitting = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[
+                b"title=Q3+report&note",
+                b"s=after%20the%20file",
+            ])),
+        );
+        assert_eq!(
+            field(&mut submitting, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "`+` is a space in a form value, and a chunk boundary is the wire's rather than a \
+             field's"
+        );
+        assert_eq!(
+            field(&mut submitting, "notes").as_deref(),
+            Some(&b"after the file"[..]),
+            "a field split across two pulls is one field"
+        );
+        assert_eq!(
+            field(&mut submitting, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "and the third call reads the same body the first one held"
+        );
+        assert_eq!(
+            field(&mut submitting, "absent"),
+            None,
+            "a field the form did not carry is `null`, which is the one empty answer this member \
+             owes"
+        );
+    }
+
+    /// ADR 0105 § 2's charge, named on both sides: a submitted form is bytes
+    /// parsed into memory, so it is bounded by `[limits] request_body` — the
+    /// same directive, and the same buffer, `body()` is bounded by.
+    ///
+    /// `crate::multipart`'s `a_field_part_is_buffered_against_the_in_memory_bound`
+    /// asserts the multipart half at the parse. This is the half that has no
+    /// parse in front of it, and the one where the member could have grown a
+    /// cap of its own.
+    #[test]
+    fn a_urlencoded_form_is_bounded_by_the_directive_a_body_is() {
+        let written = "title=".len();
+        let last = format!("title={}", "x".repeat(REQUEST_BODY - written));
+        let mut inside = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[last.as_bytes()])),
+        );
+        assert_eq!(
+            field(&mut inside, "title").map(|value| value.len()),
+            Some(REQUEST_BODY - written),
+            "a form of exactly the cap is read, so the bound is not one byte early"
+        );
+
+        let over = format!("{last}x");
+        let mut outside = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[over.as_bytes()])),
+        );
+        assert!(
+            posted(&mut outside, "title").is_err(),
+            "and one byte past it is refused before the copy, so the bound is not one byte late"
+        );
+    }
+
+    /// `post` refuses after `body` and after `bodyStream`, and joins after
+    /// `files` — spec § 15's exclusivity with the one exception ADR 0105 § 2
+    /// creates, asserted on both sides because either half alone reads as
+    /// correct.
+    ///
+    /// A member that simply never claimed would pass the joining half; one that
+    /// claimed like the other three would pass the refusing half.
+    #[test]
+    fn a_form_is_refused_to_a_body_that_was_handed_over_whole() {
+        let mut handed = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"title=Q3+report"])),
+        );
+        let whole = nvs_runtime::call(nvs_core_request_body, &mut handed, &[])
+            .expect("a request that carried a body can be read whole");
+        dropped(whole);
+        assert!(
+            posted(&mut handed, "title").is_err(),
+            "`body` hands the bytes over uninterpreted and leaves no fields behind"
+        );
+
+        let mut streamed = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"title=Q3+report"])),
+        );
+        let chunks = nvs_runtime::call(nvs_core_request_body_stream, &mut streamed, &[])
+            .expect("naming the walk cannot fail on a request that carried a body");
+        dropped(chunks);
+        assert!(
+            posted(&mut streamed, "title").is_err(),
+            "and naming that walk is the reading, whether or not a chunk was pulled"
+        );
+
+        let mut walking = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
+        let files = nvs_runtime::call(nvs_core_request_files, &mut walking, &[])
+            .expect("a request that declared a multipart body can be walked");
+        dropped(files);
+        assert_eq!(
+            field(&mut walking, "title").as_deref(),
+            Some(&b"Q3 report"[..]),
+            "`files` is the one reading `post` joins, because that walk sets the fields aside"
+        );
+
+        let mut binary = uploading(
+            "application/x-www-form-urlencoded",
+            Some(Chunks::of(&[b"title=\xff\xfe"])),
+        );
+        assert!(
+            posted(&mut binary, "title").is_err(),
+            "a body that is not text holds no urlencoded form, and ADR 0095 refuses it rather \
+             than replacing the octets it cannot read"
+        );
     }
 }

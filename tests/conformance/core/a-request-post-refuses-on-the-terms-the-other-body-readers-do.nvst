@@ -1,0 +1,59 @@
+--TEST--
+`Core\Request`'s four readers of the body refuse in one sentence that differs only in the member naming itself, so the fourth of them did not grow a refusal of its own -- ADR 0012 § 7, ADR 0105 §§ 2-3, spec § 15
+--FILE--
+<?nvs
+// Agreement, asked of the four members that read what arrived after the field
+// block: `body` pulls it whole, `bodyStream` walks it a chunk at a time,
+// `files` walks it as the parts a multipart body declares, and `post` reads it
+// to its end as the form it submitted. They are written apart -- three of them
+// claim the body against each other and `post` joins one of them -- so this is
+// the case that fails if the newest of the four states the shared rule in its
+// own words.
+//
+// Asserted by *comparison* rather than by printing four lines: a member that
+// grew its own wording still prints plausibly on its own line, and only a
+// question that puts its sentence next to a sibling's can tell.
+string $tail = '(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts';
+
+uint $agreed = 0;
+try {
+    Core\Request::body();
+} catch (LogicError $whole) {
+    if ($whole->message == 'Core\Request::body' . $tail) {
+        $agreed = $agreed + 1;
+    }
+}
+try {
+    Core\Request::bodyStream();
+} catch (LogicError $chunks) {
+    if ($chunks->message == 'Core\Request::bodyStream' . $tail) {
+        $agreed = $agreed + 1;
+    }
+}
+try {
+    Core\Request::files();
+} catch (LogicError $parts) {
+    if ($parts->message == 'Core\Request::files' . $tail) {
+        $agreed = $agreed + 1;
+    }
+}
+try {
+    Core\Request::post("title");
+} catch (LogicError $form) {
+    if ($form->message == 'Core\Request::post' . $tail) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "the body's four readers agree: ", $agreed, " of 4\n";
+
+// And the fourth is not the first three's refusal wearing another name: the
+// member it reports is its own, which is what a handler standing on two of
+// these reads to know which one it was standing on.
+try {
+    Core\Request::post("description");
+} catch (LogicError $which) {
+    echo $which->message, "\n";
+}
+--EXPECT--
+the body's four readers agree: 4 of 4
+Core\Request::post(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

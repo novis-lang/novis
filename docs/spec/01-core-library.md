@@ -1050,8 +1050,8 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); every value they return that
 originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
 
-- `Core\Request`: `method`, `path`, `query`, `body`, `bodyStream`, `header`, `headers`, `cookie`, `files`,
-  `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
+- `Core\Request`: `method`, `path`, `query`, `post`, `body`, `bodyStream`, `header`, `headers`, `cookie`,
+  `files`, `clientIp`, `scheme`, `host`, `mount`, `route`, `isHead` — replacing `$_GET`, `$_POST`, `$_FILES`,
   `$_COOKIE`, `$_REQUEST`, `filter_input`. `path` is the request path with the matched mount's prefix
   **removed** and `mount(): {prefix, captures}` is what was removed together with that mount's glob
   captures, `tainted`, which is how a host-mounted deployment learns which tenant it serves;
@@ -1065,8 +1065,12 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   and consumed by `readAll({max?}): tainted bytes`, by iterating `content(): Iterable<bytes>`, or by
   `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
   ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a
-  multipart form's non-file parts are buffered into `post()` as usual; and
-  `bodyStream(): Iterable<tainted bytes>`
+  multipart form's non-file parts are buffered into `post()` as usual;
+  `post(string $name): mixed` reads one submitted field by name under `query`'s bracket convention, over
+  those buffered parts or over a urlencoded body, and is the one body reader that **joins** a `files` walk
+  rather than claiming against it — it reads to the **end** of the body, which is what makes it answer
+  every field rather than the ones that arrived before the part the walk stopped on, so a handler wanting
+  the uploads too takes `files()` first; and `bodyStream(): Iterable<tainted bytes>`
   is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets, and
   exclusive with it and with `files` on one request
   ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).

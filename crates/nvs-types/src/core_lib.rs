@@ -1284,17 +1284,20 @@ mod tests {
     /// names, so a new class under the request — a trailer bag, a second body
     /// shape — joins it without anyone remembering to add it.
     ///
-    /// **`query` is the one plain row that really does answer outside data**,
-    /// and it is the hole this repository has already written down rather than
-    /// an oversight: spec § 9's bracket convention makes a value a `string` or
-    /// a nested `array`, `nvs_types` has no tainted array to hold the second,
-    /// so the row answers `mixed` and the mark has nowhere to sit —
-    /// `nvs_stdlib::request`'s module doc owns why. Naming it here is what
-    /// makes closing it an edit to this assertion instead of a test that stays
-    /// green across the fix. The other three plain rows are not outside data
-    /// at all: `method` has narrowed to a closed enum before anything can hold
-    /// a payload, `isHead` is one bit derived from it, and `saveTo` answers
-    /// `void` because its bytes went to a file rather than to the caller.
+    /// **`query` and `post` are the plain rows that really do answer outside
+    /// data**, and they are the hole this repository has already written down
+    /// rather than an oversight: spec § 9's bracket convention makes a value a
+    /// `string` or a nested `array`, `nvs_types` has no tainted array to hold
+    /// the second, so both rows answer `mixed` and the mark has nowhere to sit
+    /// — `nvs_stdlib::request`'s module doc owns why. They are one hole and not
+    /// two: ADR 0105 § 2 gives a submitted form the parse a query string gets,
+    /// so a tainted array would close both in the same edit. Naming them here
+    /// is what makes closing it an edit to this assertion instead of a test
+    /// that stays green across the fix. The other three plain rows are not
+    /// outside data at all: `method` has narrowed to a closed enum before
+    /// anything can hold a payload, `isHead` is one bit derived from it, and
+    /// `saveTo` answers `void` because its bytes went to a file rather than to
+    /// the caller.
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {
         use nvs_stdlib::registry::iterable_element;
@@ -1341,15 +1344,16 @@ mod tests {
             BTreeSet::from([
                 (r"Core\Request", "isHead", "bool".to_owned()),
                 (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
+                (r"Core\Request", "post", "mixed".to_owned()),
                 (r"Core\Request", "query", "mixed".to_owned()),
                 (r"Core\Request\Part", "saveTo", "void".to_owned()),
             ]),
-            "the request tree's rows that answer an unqualified value are closed at four, and \
+            "the request tree's rows that answer an unqualified value are closed at five, and \
              three of them answer nothing a peer chose: a closed method enum, the bit derived \
-             from it, and the `void` of bytes that went to a file. `query` is the fourth and is \
-             the known hole — § 9's brackets make a value a `string` or a nested array and there \
-             is no tainted array, so a member added here answering a bare `string` off the wire \
-             joins this set and is the thing it exists to catch"
+             from it, and the `void` of bytes that went to a file. `query` and `post` are the \
+             other two and are one known hole — § 9's brackets make a value a `string` or a \
+             nested array and there is no tainted array, so a member added here answering a bare \
+             `string` off the wire joins this set and is the thing it exists to catch"
         );
         assert_eq!(
             walks_marked_elements,

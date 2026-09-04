@@ -2312,13 +2312,28 @@ pub(crate) fn parse_query(query: &str, member: &str) -> Result<NvsArray, Fault> 
             member,
             "the decoded value of a query parameter",
         )?;
-        let value = Value::str(NvsStr::new(value.as_bytes()));
-        match path_of(name.as_bytes()) {
-            Some((base, path)) => insert(&mut out, base, &path, value),
-            None => out.set(NvsStr::new(name.as_bytes()), value),
-        }
+        place(
+            &mut out,
+            name.as_bytes(),
+            Value::str(NvsStr::new(value.as_bytes())),
+        );
     }
     Ok(out)
+}
+
+/// One already-decoded name and value, placed under the bracket convention.
+///
+/// [`parse_query`]'s tail, lifted out because `Core\Request::post()` reaches
+/// the same convention from the other direction: a multipart form field arrives
+/// as a name and a value that were never percent-encoded, so it has nothing to
+/// decode and everything below the decode to share. Two spellings of the
+/// bracket walk is how `a[b]=c` would come to mean one thing in a query string
+/// and another in a form.
+pub(crate) fn place(out: &mut NvsArray, name: &[u8], value: Value) {
+    match path_of(name) {
+        Some((base, path)) => insert(out, base, &path, value),
+        None => out.set(NvsStr::new(name), value),
+    }
 }
 
 nvs_runtime::nvs_helper! {
