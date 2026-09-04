@@ -54,12 +54,19 @@
 //!    right verb: the same answers, and a cost that grows with the table rather
 //!    than with the path. The shape a trie would replace is one function
 //!    ([`Routes::match_request`]) and the rank it already computes.
-//! 2. **`decimal` and `Core\Uuid` captures are [`CaptureConv::Unconverted`]**,
-//!    which matches the segment and hands its text over — [`crate::commands`]'
-//!    gap 1 exactly, for the same reason and with the same fix waiting: the
-//!    conversion exists as a `Core` member and what is missing is the arm. A
-//!    route declaring one therefore matches a segment its declared type would
-//!    have refused.
+//! 2. **A `Core\Uuid` capture is [`CaptureConv::Unconverted`]**, which matches
+//!    the segment and hands its text over, so a route declaring one matches a
+//!    segment its declared type would have refused. `decimal` closed with the
+//!    arm [`crate::commands`]' gap 1 is still waiting for, and the two are no
+//!    longer the same gap: a decimal's reader is [`crate::decimal`], in this
+//!    crate, where a `Core\Uuid`'s is `nvs_stdlib::uuid` — one crate *above*
+//!    this one, which cannot be depended on from here. So closing the second
+//!    half is a placement decision rather than an arm, and the two candidates
+//!    are moving the 16-byte parse down beside [`crate::decimal`] or teaching
+//!    the crossing to carry a conversion it cannot perform. Writing the
+//!    canonical `8-4-4-4-12` grammar a second time here is not one of them —
+//!    that is gap 4's failure mode, and the rule this module already keeps for
+//!    percent-decoding.
 //! 3. **The reader answers the name and the captures, and never the row.**
 //!    `Core\Request::route()` has landed and `nvs_stdlib::router`'s
 //!    `Core\Router\Match` is what it answers with, built out of [`Match`] where
@@ -77,6 +84,8 @@
 
 use std::sync::Arc;
 
+use crate::decimal::Decimal;
+
 /// What a capture's text becomes before it reaches the program.
 ///
 /// ADR 0102 § 5's "a capture narrows to a closed set with a type" as the *one*
@@ -92,6 +101,11 @@ pub enum CaptureConv {
     Int,
     /// `uint` — as [`Self::Int`], and no match where the number is negative.
     Uint,
+    /// `decimal` — ADR 0054 § 4's literal, whole, and no match where the
+    /// segment is not one. The parse is [`crate::decimal::Decimal::parse`]
+    /// itself rather than a grammar written here: a second decimal reader that
+    /// agreed today is gap 4's failure mode, one type along.
+    Decimal,
     /// § 5's closed set: the segment text of each admitted value, in the order
     /// the union declares them. A segment outside the set is no match, which is
     /// what makes the narrowing a property of the *table* rather than a check
@@ -125,6 +139,9 @@ pub enum Param {
     Int(i64),
     /// A `uint` capture, converted.
     Uint(u64),
+    /// A `decimal` capture, converted — the value, not the text it arrived as,
+    /// so `19.90` keeps the scale ADR 0054 § 4 says it renders with.
+    Decimal(Decimal),
 }
 
 /// § 2's three capture forms and the literal that is none of them, as the
@@ -328,6 +345,7 @@ impl Route {
             CaptureConv::Text | CaptureConv::Unconverted => Some(Param::Text(text.to_owned())),
             CaptureConv::Int => text.parse::<i64>().ok().map(Param::Int),
             CaptureConv::Uint => text.parse::<u64>().ok().map(Param::Uint),
+            CaptureConv::Decimal => Decimal::parse(text).map(Param::Decimal),
             CaptureConv::OneOf(admitted) => admitted
                 .iter()
                 .any(|value| value == text)
@@ -525,7 +543,7 @@ impl Routes {
 
 #[cfg(test)]
 mod tests {
-    use super::{Capture, CaptureConv, Param, Routes};
+    use super::{Capture, CaptureConv, Decimal, Param, Routes};
 
     /// A table of the four shapes § 2's grammar admits, in a deliberately
     /// unhelpful load order: the capture rows come before the literals they
@@ -722,5 +740,112 @@ mod tests {
             super::Route::new("Get", "/users/me", None, "App\\Users::me", None, vec![]),
         ]);
         assert_eq!(routes.methods_for("/users/me"), vec!["Delete", "Get"]);
+    }
+
+    /// § 5's narrowing, for the type whose reader this crate owns: a `decimal`
+    /// capture converts, and a segment that is not one is **no match** rather
+    /// than text handed to a handler that declared a number.
+    ///
+    /// Both sides named together, because a conversion that refused everything
+    /// would pass either half alone. The refused half is the whole point of the
+    /// gap this closes: before it, every one of these matched.
+    #[test]
+    fn a_decimal_capture_converts_and_refuses_what_is_not_one() {
+        let routes = Routes::new(vec![super::Route::new(
+            "Get",
+            "/orders/{total}",
+            None,
+            "App\\Orders::show",
+            None,
+            vec![Capture {
+                name: "total".to_owned(),
+                conv: CaptureConv::Decimal,
+            }],
+        )]);
+        let matched = |path: &str| routes.match_request("GET", path);
+
+        // The value, not the text: `19.90` keeps its scale, and an integral
+        // segment is a decimal too.
+        assert_eq!(
+            matched("/orders/19.90").expect("a match").param("total"),
+            Some(&Param::Decimal(Decimal::parse("19.90").expect("a decimal")))
+        );
+        assert_eq!(
+            matched("/orders/-7").expect("a match").param("total"),
+            Some(&Param::Decimal(Decimal::parse("-7").expect("a decimal")))
+        );
+
+        // The grammar admitted is ADR 0054 § 4's whole literal and not a
+        // narrower one this arm picked: an exponent is a decimal literal, so a
+        // segment written that way matches. Asserted because delegating is the
+        // rule here — a hand-written `[0-9.]` check would pass every other line
+        // of this test and fail this one.
+        assert!(matched("/orders/1e3").is_some());
+
+        // Refused, and the row is the only one in the table, so a refusal is a
+        // miss: the segment is not a decimal literal, is one with something
+        // stuck to it, or is empty. `parse` decides all of them — this arm
+        // never spells the grammar out a second time.
+        for segment in ["abc", "19.90usd", "", " 1"] {
+            assert!(
+                matched(&format!("/orders/{segment}")).is_none(),
+                "`{segment}` is not a decimal literal and must not match"
+            );
+        }
+    }
+
+    /// § 2's two answers as the *decision* taken over them: a miss is the `404`
+    /// exactly where nothing claims the path, and the `405` otherwise, with the
+    /// answer spelling the `Allow:` RFC 9110 requires beside it.
+    ///
+    /// **Filed here rather than in `nvs-server`, where the acceptance check
+    /// first named it.** § 1 forbids the door to send either status — "the
+    /// program may still serve the request however it likes, because nothing
+    /// here dispatches" — and a door that refused a miss would refuse every
+    /// request of a program declaring no `#[Route]` at all, since an empty
+    /// table claims no path. So both answers are a computation *this* table
+    /// performs and the program sends, and this is the only crate where the
+    /// claim can be asserted against something that exists.
+    #[test]
+    fn no_methods_for_a_path_is_404_and_some_is_405_with_allow() {
+        let routes = table();
+        // What a sender does with the answer, written out once here because
+        // nothing in this crate does it: the status, and the field value that
+        // rides beside a `405`. The `expect` is § 2's calling rule — the walk
+        // is asked *only* once the match has answered `None`.
+        let answer = |verb: &str, path: &str| {
+            assert!(
+                routes.match_request(verb, path).is_none(),
+                "{verb} {path} matched; § 2 is asked only after a miss"
+            );
+            let verbs = routes.methods_for(path);
+            if verbs.is_empty() {
+                (404, String::new())
+            } else {
+                (405, verbs.join(", "))
+            }
+        };
+
+        // The `405`: the path is claimed, under verbs the header now names.
+        assert_eq!(answer("DELETE", "/users/42"), (405, "Get".to_owned()));
+        assert_eq!(answer("GET", "/users"), (405, "Post".to_owned()));
+        assert_eq!(answer("PUT", "/files/a/b.png"), (405, "Get".to_owned()));
+        assert_eq!(answer("POST", "/en/about"), (405, "Get".to_owned()));
+
+        // The `404`, and all three ways a path goes unclaimed: no row's shape
+        // fits it, or a shape fits under a conversion the segment fails —
+        // whether that conversion is a number or a closed set.
+        assert_eq!(answer("GET", "/nothing/here"), (404, String::new()));
+        assert_eq!(answer("GET", "/users/-1"), (404, String::new()));
+        assert_eq!(answer("GET", "/fr/about"), (404, String::new()));
+
+        // The other side of the bound: a `405` is a *refused* verb rather than
+        // an unknown path, so each of those paths is served under the verb it
+        // declares. A member answering `405` for everything passes the block
+        // above and fails here.
+        assert!(routes.match_request("GET", "/users/42").is_some());
+        assert!(routes.match_request("POST", "/users").is_some());
+        assert!(routes.match_request("GET", "/files/a/b.png").is_some());
+        assert!(routes.match_request("GET", "/en/about").is_some());
     }
 }

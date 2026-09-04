@@ -866,6 +866,7 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
     match param.ty.as_deref() {
         Some("int") => CaptureConv::Int,
         Some("uint") => CaptureConv::Uint,
+        Some("decimal") => CaptureConv::Decimal,
         // A capture is always `tainted`, and both spellings render for one
         // declared `string` depending on where the qualifier was written.
         Some("string" | "tainted string") | None => CaptureConv::Text,

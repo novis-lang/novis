@@ -123,11 +123,19 @@ adrs = [
   # Every one of the four tests the "match once, and the two answers" check names is specified in one of
   # them, so a session opening that item without both is reading the check's comment instead of the rule.
   "0102 §1",
-  "0102 §2",
+  # Added 2026-09-04 after three consecutive handoffs asked for them and none of the three edited this
+  # list: § 8 is where the access decision rides on the match and where the split between "the server
+  # enforces CSRF" and "the dispatcher enforces access" is stated, 0096 § 4 is the CSRF check itself, and
+  # § 4 is the capture grammar the remaining `nvs_runtime::routes` gap is measured against. The routing
+  # group's two open items are specified in these three and nothing else prints them.
+  "0102 §4",
+  "0102 §8",
+  "0096 §4",
   # Taken out 2026-09-04, every one of them a closed stage the handoff's group and backlog no longer
   # name: 0074 § 5 (stage 2's bounds), 0012 § 4 and 0059 § 4 (the session fixture), 0105 §§ 2-4
-  # (uploads). Put one back on the session that names it again — this list is cheap to add to and
-  # only ever expensive to leave alone.
+  # (uploads), and 0102 § 2, whose member is landed on both sides of the crossing and whose check now
+  # names a test that runs. Put one back on the session that names it again — this list is cheap to add
+  # to and only ever expensive to leave alone.
 ]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic", "An ADR", "A commit message"]
@@ -3439,16 +3447,31 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "5 routing and uploads"
-name = "nvs-server (match once, and the two answers)"
+name = "nvs-server (match once, at the door)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # ADR 0102 § 1 -- once, before the handler, travelling on the request.
   "a_request_is_matched_once_before_the_handler_and_route_returns_that_match",
   "the_csrf_check_and_the_route_label_read_the_match_rather_than_matching_again",
-  # § 2 -- a missing path and a refused verb are different answers.
-  "no_methods_for_a_path_is_404_and_some_is_405_with_allow",
   # § 7 -- how one table serves many tenants.
   "a_mounts_captures_reach_the_handler_as_tainted_values",
+]
+
+# § 2's two answers were filed above, under `-p nvs-server`, and could not be asserted there: § 1 forbids
+# the door to send either status ("the program may still serve the request however it likes, because
+# nothing here dispatches"), and a door refusing a miss would refuse every request of a program that
+# declares no `#[Route]` at all -- ADR 0077 § 5's opt-in rule inverted. The `404`/`405` decision is
+# therefore a computation the *table* performs and the program sends, so the test asserts it where the
+# walk is (`crates/nvs-runtime/src/routes.rs:506`) and names the statuses as what a sender does with the
+# answer. `crates/nvs-server/src/route.rs` keeps § 1's half of the ADR and nothing of § 2.
+[[check]]
+kind = "cargo-named"
+stage = "5 routing and uploads"
+name = "nvs-runtime (§ 2's two answers, where the table computes them)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  # § 2 -- a missing path and a refused verb are different answers.
+  "no_methods_for_a_path_is_404_and_some_is_405_with_allow",
 ]
 
 [[check]]

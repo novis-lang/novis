@@ -837,12 +837,13 @@ nvs_runtime::nvs_helper! {
 }
 
 /// One capture as [`CAPTURE`] spells it — the one place
-/// [`nvs_runtime::routes::Param`]'s three forms become Novis values.
+/// [`nvs_runtime::routes::Param`]'s four forms become Novis values.
 fn capture_value(capture: &nvs_runtime::routes::Param) -> Value {
     match capture {
         nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
         nvs_runtime::routes::Param::Int(number) => Value::int(*number),
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
+        nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
     }
 }
 
