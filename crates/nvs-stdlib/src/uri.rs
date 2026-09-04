@@ -2277,32 +2277,48 @@ nvs_runtime::nvs_helper! {
     /// why it is not `array<string>`.
     fn nvs_core_uri_parse_query(_ctx, args: [1]) {
         let query = text_of(args, "parseQuery")?;
-
-        let mut out = NvsArray::new();
-        for pair in query.split('&') {
-            let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
-            let name = text_from(
-                decode(written_name, Form::FormValue),
-                "parseQuery",
-                "the decoded name of a query parameter",
-            )?;
-            if name.is_empty() {
-                continue;
-            }
-            let value = text_from(
-                decode(written_value, Form::FormValue),
-                "parseQuery",
-                "the decoded value of a query parameter",
-            )?;
-            let value = Value::str(NvsStr::new(value.as_bytes()));
-            match path_of(name.as_bytes()) {
-                Some((base, path)) => insert(&mut out, base, &path, value),
-                None => out.set(NvsStr::new(name.as_bytes()), value),
-            }
-        }
-
-        Ok(Value::array(out))
+        Ok(Value::array(parse_query(query, "parseQuery")?))
     }
+}
+
+/// The bracket convention itself, over a raw query string, for whichever member
+/// is asking — `$member` is only the name a refusal quotes.
+///
+/// A free function rather than the body of the helper above, because
+/// [`crate::request`] reads the same convention off a served request's own query
+/// string and spec § 9 requires it to be *the same code*: `Core\Uri::parseQuery`
+/// exists in part so that `Core\Request::query` does not answer the question a
+/// second time, and two implementations of `a[b][]=1` is exactly the divergence
+/// that promise is about.
+///
+/// # Errors
+///
+/// [`text_from`]'s throw, for a name or a value whose escapes decode to octets
+/// that are not UTF-8.
+pub(crate) fn parse_query(query: &str, member: &str) -> Result<NvsArray, Fault> {
+    let mut out = NvsArray::new();
+    for pair in query.split('&') {
+        let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
+        let name = text_from(
+            decode(written_name, Form::FormValue),
+            member,
+            "the decoded name of a query parameter",
+        )?;
+        if name.is_empty() {
+            continue;
+        }
+        let value = text_from(
+            decode(written_value, Form::FormValue),
+            member,
+            "the decoded value of a query parameter",
+        )?;
+        let value = Value::str(NvsStr::new(value.as_bytes()));
+        match path_of(name.as_bytes()) {
+            Some((base, path)) => insert(&mut out, base, &path, value),
+            None => out.set(NvsStr::new(name.as_bytes()), value),
+        }
+    }
+    Ok(out)
 }
 
 nvs_runtime::nvs_helper! {

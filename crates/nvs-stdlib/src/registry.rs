@@ -1365,6 +1365,15 @@ pub const CLASSES: &[CoreClass] = &[
     // request carrying it. [`crate::server`]'s module doc owns that gap, and
     // why the bit it reads lives in `nvs-runtime`.
     crate::server::CLASS,
+    // § 15's second request-facing class, and the one every value that came
+    // from outside the process arrives through: ADR 0012's replacement for
+    // `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
+    // `method`, `path`, `query` — is registered. Beside `Core\Server` for the
+    // reason that class sits beside `Core\Response`: the two are one request
+    // read from two ends. [`crate::request`]'s module doc owns why a program
+    // that is answering no request gets a throw rather than an empty answer,
+    // and why a verb becomes a `Core\Http\Method` case here and nowhere else.
+    crate::request::CLASS,
     // § 15's fourth request-facing class, and the first one that *writes*: ADR
     // 0088 § 4's five body members, of which `text` is registered. Beside
     // `Core\Server` because the two are the same request's two halves, and

@@ -929,6 +929,36 @@ pub struct Ctx {
     /// for one that does, charged to that request's own budget like every
     /// other allocation it makes.
     headers: Vec<DeclaredHeader>,
+    /// The request this context is answering, as it arrived — spec § 15's
+    /// `Core\Request`, and `None` in every process that is not serving one.
+    ///
+    /// The three fields above are the response half of the same channel and
+    /// this is the inbound half, which is why it sits here rather than beside
+    /// the configuration: what is on it is per *request*, written once before
+    /// the program runs and never again.
+    ///
+    /// **`None` is an answer, not a missing value.** A CLI program, a scheduled
+    /// script and a test all run with no request, and
+    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 7 makes reading
+    /// `Core\Request` there a **throw** rather than an empty string — "there is
+    /// no request here" and "the request sent nothing" are different facts, and
+    /// an `Option` is what keeps them different this far down.
+    ///
+    /// **Boxed, and that is load-bearing rather than tidy.** A whole `Ctx` is
+    /// handed back from a coroutine inside `nvs_host::scheduler::Finished`, and
+    /// `corosensei` refuses to transfer anything over **1024 bytes** across a
+    /// stack switch — a limit this struct is already close to, and one whose
+    /// breach reads as `type is too big to transfer` from an unrelated test
+    /// rather than as anything about this line.
+    /// `nvs_host::scheduler`'s `a_finished_task_fits_the_stack_switch` is the
+    /// guard, and it is why a per-request aggregate belongs behind one pointer
+    /// here: everything else `Core\Request` still owes — the headers, the
+    /// cookies, the mount captures — grows [`Inbound`] and not this struct.
+    ///
+    /// **What it spends:** one word per request that has none, and one
+    /// allocation holding an [`Inbound`] — itself three short allocations — for
+    /// one that does.
+    inbound: Option<Box<Inbound>>,
     /// [ADR 0018](../../../docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
     /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
@@ -1516,6 +1546,7 @@ impl Ctx {
             content_type: None,
             status: None,
             headers: Vec::new(),
+            inbound: None,
             stmt_hits: Vec::new(),
             trace: Vec::new(),
             yielder: std::ptr::null(),
@@ -4272,6 +4303,26 @@ impl Ctx {
         std::mem::take(&mut self.headers)
     }
 
+    /// Gives this context the request it is answering — the inbound half of
+    /// the channel the three methods above are the outbound half of.
+    ///
+    /// Called once, by whoever accepted the request, before the program runs.
+    /// There is no member that clears one: a context answers one request for
+    /// its whole life, and the isolate is what is discarded between two.
+    pub fn set_inbound(&mut self, inbound: Inbound) {
+        self.inbound = Some(Box::new(inbound));
+    }
+    /// The request this context is answering, or `None` where there is none.
+    ///
+    /// **A borrow rather than a take**, unlike [`Self::take_headers`] and its
+    /// two neighbours: those are read once by the finish path and are gone, and
+    /// this is read as many times as the program asks. `Core\Request`'s members
+    /// are the only readers, and each of them turns `None` into
+    /// [ADR 0012](../../../docs/adr/0012-no-superglobals.md) § 7's throw.
+    #[must_use]
+    pub fn inbound(&self) -> Option<&Inbound> {
+        self.inbound.as_deref()
+    }
     /// Takes everything written so far, if this context buffers its output.
     #[must_use]
     pub fn take_buffered_output(&mut self) -> Option<Vec<u8>> {
@@ -4281,6 +4332,69 @@ impl Ctx {
                 None
             }
         }
+    }
+}
+
+/// The request line a context is answering, as it arrived off the wire —
+/// what spec § 15's `Core\Request` reads and the only thing on a context that
+/// came from outside the process.
+///
+/// **It interprets nothing.** The verb is the bytes the peer wrote, the path is
+/// what is left of the target after ADR 0097 § 4 step 2 stripped the matched
+/// mount's prefix, and the query is the raw string after the `?` with no
+/// percent-decoding and no bracket convention applied. Every reading of those
+/// three — which of `Core\Http\Method`'s eight cases a verb is, what a query
+/// parameter's name means — belongs to `nvs_stdlib::request`, because the
+/// rosters and the conventions are that crate's and a second copy of either
+/// here would be a second answer. This type is the carrier and nothing else,
+/// which is also what lets it exist in a crate that has never heard of HTTP.
+///
+/// **Everything on it is `tainted`** in the sense
+/// [ADR 0024](../../../docs/adr/0024-taint-tracking-for-injection-sinks.md)
+/// means: it is what a client sent. The qualifier itself is a *type*, so it is
+/// carried by the registry rows of the members that read this and not by any
+/// field here — there is no representation of a qualifier at runtime.
+///
+/// **What it spends:** three short allocations per served request, and nothing
+/// at all for a process serving none.
+#[derive(Debug, Clone)]
+pub struct Inbound {
+    /// The method token the peer wrote, verbatim and un-uppercased.
+    method: Box<str>,
+    /// The request path with the matched mount's prefix removed, still
+    /// percent-encoded.
+    path: Box<str>,
+    /// Everything after the `?`, without it, and `""` where the target carried
+    /// no query at all — the two are not distinguished, because a query with no
+    /// pairs and no query yield the same empty set of parameters.
+    query: Box<str>,
+}
+
+impl Inbound {
+    /// The three facts a request arrives with, as whoever accepted it read
+    /// them.
+    #[must_use]
+    pub fn new(method: &str, path: &str, query: &str) -> Self {
+        Self {
+            method: method.into(),
+            path: path.into(),
+            query: query.into(),
+        }
+    }
+    /// The verb, verbatim.
+    #[must_use]
+    pub fn method(&self) -> &str {
+        &self.method
+    }
+    /// The mount-stripped request path.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+    /// The raw query string, without the `?`.
+    #[must_use]
+    pub fn query(&self) -> &str {
+        &self.query
     }
 }
 

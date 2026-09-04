@@ -267,6 +267,7 @@ mod ratelimit;
 mod reflect;
 pub mod regex;
 pub mod registry;
+mod request;
 mod response;
 pub mod router;
 pub mod script;
@@ -398,6 +399,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| random::address(symbol))
         .or_else(|| ratelimit::address(symbol))
         .or_else(|| reflect::address(symbol))
+        .or_else(|| request::address(symbol))
         .or_else(|| response::address(symbol))
         .or_else(|| router::address(symbol))
         .or_else(|| regex::address(symbol))

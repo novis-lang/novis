@@ -59,11 +59,15 @@
 //!    *request*, which lands with the server; `docs/agent/loop-goal.md`
 //!    § *Standing decisions* keeps `::match` out of scope on purpose, and
 //!    `Core\Router\Match` — the type both answer with — does not exist either.
-//! 4. **Nothing converts a request's verb into one of these cases.** There is
-//!    no `Core\Request`, so the *parse* — an unrecognized verb answering 501
-//!    rather than becoming a case — has no home yet. It belongs beside that
-//!    class, which is what makes the closed set safe: a verb outside this
-//!    roster never reaches a route table at all.
+//! 4. **The parse of a verb into one of these cases is [`crate::request`]'s**,
+//!    not this module's — `Core\Request::method` is the one reader that turns a
+//!    method token into a case, and its module doc owns the two decisions in
+//!    it: `HEAD` answering `Get`, and a token outside this roster being refused
+//!    rather than mapped. What is still open is the half above that: a served
+//!    request carrying an unrecognized verb should be answered **501 at the
+//!    door**, before an isolate exists, and that belongs to `nvs_server`. Until
+//!    it lands, the refusal is a throw inside the program rather than a status
+//!    outside it.
 
 use nvs_runtime::{Fault, HelperResult, NvsStr, Tag, Value};
 
@@ -83,10 +87,12 @@ pub(crate) const METHOD_NAME: &str = r"Core\Http\Method";
 ///
 /// The integers are each case's own constant, written out rather than
 /// auto-incremented, per [`CoreEnum::cases`]. Unlike [`crate::hash::DIGEST`]'s
-/// they are not read back out of an argument slot by anything yet — but the
-/// tail above is a bound a later CSRF check is meant to take, so reordering
-/// this list is a behaviour change rather than a cosmetic one. The test module
-/// below is what holds that tail in place.
+/// they are not read back out of an argument slot by anything yet, but
+/// [`crate::request`]'s `method` now *writes* one — and the tail above is a
+/// bound a later CSRF check is meant to take, so reordering this list is a
+/// behaviour change rather than a cosmetic one. The test module below holds
+/// that tail in place, and that module's own test holds its parse against these
+/// names rather than against a second copy of the numbers.
 pub(crate) const METHOD: CoreEnum = CoreEnum {
     name: METHOD_NAME,
     cases: &[

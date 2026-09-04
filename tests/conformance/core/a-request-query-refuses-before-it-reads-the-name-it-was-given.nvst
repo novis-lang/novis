@@ -1,0 +1,61 @@
+--TEST--
+`Core\Request::query` answers the same way for every name it is given when no request arrived, so nothing about the parameter reaches the decision -- ADR 0012 § 7, spec §§ 9, 15
+--FILE--
+<?nvs
+// Invariance over a sweep, counted rather than read off a line: `query` is the
+// one of the three request-line readers that takes an argument, so it is the
+// one that could answer differently for one name than for another. It must
+// not. Whether a request arrived is decided before the name is looked at, and a
+// member that reported "no such parameter" for one spelling and refused for
+// another would be telling a caller something about a query string that does
+// not exist.
+uint $refused = 0;
+try {
+    Core\Request::query("id");
+} catch (LogicError $ordinary) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::query("");
+} catch (LogicError $empty) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::query("a[b]");
+} catch (LogicError $bracketed) {
+    $refused = $refused + 1;
+}
+try {
+    Core\Request::query("a name with spaces and %20 in it");
+} catch (LogicError $unspellable) {
+    $refused = $refused + 1;
+}
+echo "every name refused: ", $refused, " of 4\n";
+
+// The message is the same one for all four, which is the counted claim stated
+// the other way: it names the member and never the name, so no spelling of a
+// parameter can be told apart from another by reading it.
+try {
+    Core\Request::query("a[b]");
+} catch (LogicError $why) {
+    echo $why->message, "\n";
+}
+
+// And `query` refuses on the same terms as the two readers that take no
+// argument at all -- the whole class is unavailable, not this one member.
+uint $siblings = 0;
+try {
+    Core\Request::method();
+} catch (LogicError $verb) {
+    $siblings = $siblings + 1;
+}
+try {
+    Core\Request::path();
+} catch (LogicError $where) {
+    $siblings = $siblings + 1;
+}
+echo "its two siblings refused: ", $siblings, " of 2\n";
+--EXPECT--
+every name refused: 4 of 4
+Core\Request::query(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+its two siblings refused: 2 of 2

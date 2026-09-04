@@ -20,8 +20,9 @@
 
 # § 15 -- the request-facing half, and nothing else: every member left here is
 # one that needs a request, which makes all of them goal 6's. `Core\Env`,
-# `Core\Cap` and `Core\Cli` are registered whole, so what remains is the three
-# request classes whole.
+# `Core\Cap` and `Core\Cli` are registered whole; `Core\Request` has the request
+# line (`method`, `path`, `query`) and owes everything a body or a header
+# answers, and `Core\Session` is owed whole.
 §15 Request::body
 §15 Request::bodyStream
 §15 Request::clientIp
@@ -31,10 +32,7 @@
 §15 Request::headers
 §15 Request::host
 §15 Request::isHead
-§15 Request::method
 §15 Request::mount
-§15 Request::path
-§15 Request::query
 §15 Request::route
 §15 Request::scheme
 §15 Response::html

@@ -1,0 +1,48 @@
+--TEST--
+`Core\Request`'s refusal is an ordinary `Throwable` a program continues past, and reading twice refuses twice -- ADR 0012 § 7, ADR 0020 § 1, spec § 15
+--FILE--
+<?nvs
+// The edge on the other side of the refusal: what a program can do *after*
+// one. ADR 0012 § 7 asks for a throw rather than an empty value, and a throw
+// is a rung of ADR 0020's ladder every `catch` sees -- so the program is still
+// running here, which is what separates this from a fatal.
+uint $steps = 0;
+try {
+    Core\Request::method();
+} catch (LogicError $stopped) {
+    $steps = $steps + 1;
+}
+$steps = $steps + 1;
+echo "the program took ", $steps, " steps past the throw\n";
+
+// Twice, because the absence of a request is a property of this program and
+// not a state a read moves through: a refusal that consumed something would
+// answer differently the second time, and a member that cached its own first
+// answer would stop refusing.
+uint $caught = 0;
+try {
+    Core\Request::path();
+} catch (LogicError $first) {
+    $caught = $caught + 1;
+}
+try {
+    Core\Request::path();
+} catch (LogicError $second) {
+    $caught = $caught + 1;
+}
+echo "the same read refused ", $caught, " times\n";
+
+// And a `catch` on one member does not stand in front of another: the throw
+// carries no state that a later read of a different member could find already
+// spent.
+uint $after = 0;
+try {
+    Core\Request::query("page");
+} catch (LogicError $third) {
+    $after = $after + 1;
+}
+echo "a later read still refused ", $after, " time\n";
+--EXPECT--
+the program took 2 steps past the throw
+the same read refused 2 times
+a later read still refused 1 time

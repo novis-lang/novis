@@ -1135,8 +1135,15 @@ mod tests {
     /// class whose answer is marked: every other read in `Core\IO` names a path
     /// the program chose, while standard input is a descriptor somebody else
     /// attached, so what comes back is as much the invoker's as a command-line
-    /// word is.
-    /// All eight belong in this set for the reason the claims do: a member that
+    /// word is. `Core\Request::path` is the ninth and the least surprising of
+    /// them — spec § 15's opening sentence marks every value these classes
+    /// answer that came from outside the process, and a request path is the
+    /// canonical one. It is the *only* row `Core\Request` has here so far, and
+    /// deliberately: `query` answers `mixed`, because § 9's bracket convention
+    /// makes a value a `string` or a nested array and there is no tainted array
+    /// to hold it, which `nvs_stdlib::request`'s module doc names as the hole it
+    /// is. `header` and `cookie` join this list when they land.
+    /// All nine belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
     #[test]
@@ -1175,11 +1182,13 @@ mod tests {
                 (r"Core\Http\Response", "text", "tainted string".to_owned(),),
                 (r"Core\IO", "stdin", "tainted string".to_owned()),
                 (r"Core\Jwt", "verify", "array<tainted string>".to_owned()),
+                (r"Core\Request", "path", "tainted string".to_owned()),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at eight — a \
+            "the roster of members whose *answer* is qualified `tainted` is closed at nine — a \
              verified claim, an outbound reply's body, the two environment reads, the two \
              prompts that answer what a person typed, the words the program was started \
-             with and everything attached to its standard input — and where the answer is a \
+             with, everything attached to its standard input and the path of the request being \
+             answered — and where the answer is a \
              collection the \
              element type is what carries it, since `nvs_types` has no tainted array and a member \
              answering `array<mixed>` would have laundered every entry silently"
