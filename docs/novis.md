@@ -112,6 +112,7 @@ Conventions the whole file uses:
 | [`Core\Env`](#core-core-env) |  |
 | [`Core\Cap`](#core-core-cap) |  |
 | [`Core\Server`](#core-core-server) |  |
+| [`Core\Request`](#core-core-request) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -15753,6 +15754,60 @@ Core\Server::isDraining(): bool
 Reports whether this server has begun a graceful shutdown — the same fact `[server] health_path` answers a proxy with, for an application endpoint of its own.
 
 **Returns** `bool` — `true` once the server has stopped accepting connections, `false` while it is still accepting and in any process that is not serving.
+
+<a id="core-core-request"></a>
+### `Core\Request`
+
+Keywords: method, path, query
+
+| Member | Signature |
+|---|---|
+| [`Core\Request::method`](#core-core-request-method) | `method(): Core\Http\Method` |
+| [`Core\Request::path`](#core-core-request-path) | `path(): tainted string` |
+| [`Core\Request::query`](#core-core-request-query) | `query(string $name): mixed` |
+
+<a id="core-core-request-method"></a>
+#### `Core\Request::method`
+
+```nvs skip
+Core\Request::method(): Core\Http\Method
+```
+
+The verb this request carries, as one of `Core\Http\Method`'s eight cases — with `HEAD` reported as `Get`, so a `Get`-only route table still matches one and `isHead` carries the difference.
+
+**Returns** `Core\Http\Method` — The matching `Core\Http\Method` case. Never `Head`, by the rule above.
+
+**Throws** `LogicError` — This program is not answering a request — a CLI program, a scheduled script, a job worker or a test — or the verb it carries is outside the eight `Core\Http\Method` names, which the server refuses with a `501` before a program runs.
+
+<a id="core-core-request-path"></a>
+#### `Core\Request::path`
+
+```nvs skip
+Core\Request::path(): tainted string
+```
+
+The request path with the matched mount's prefix removed, so an application reads the same paths wherever it is mounted.
+
+**Returns** `tainted string` — The remainder of the path after the mount prefix, percent-encoded as it arrived and `tainted`. What was removed is `mount()`'s to report.
+
+**Throws** `LogicError` — This program is not answering a request.
+
+<a id="core-core-request-query"></a>
+#### `Core\Request::query`
+
+```nvs skip
+Core\Request::query(string $name): mixed
+```
+
+One query-string parameter by name, read with PHP's bracket convention — the same parse `Core\Uri::parseQuery` performs, so `a[b]=c` is reached as a nested array under `a`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The parameter's name, decoded — the key as a form writes it, without brackets for a nested value. |
+
+**Returns** `mixed` — The parameter's value as a `string`, a nested `array<mixed>` for a bracketed key, or `null` where the query carried no such name. Check it out with `as`, which throws on input the type does not fit rather than quietly yielding zero.
+
+**Throws** `LogicError` — This program is not answering a request, or the query string holds percent escapes that decode to octets that are not UTF-8.
 
 <a id="core-core-response"></a>
 ### `Core\Response`
