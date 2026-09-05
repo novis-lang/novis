@@ -63,6 +63,30 @@
 //! When the file is empty, its emptiness *is* the sentence at the top of this
 //! doc, and the loop is done with §§ 1-12.
 //!
+//! # An outstanding key names its owner, in a column
+//!
+//! Every key in every one of these files carries `# <owner>` after it: the goal
+//! from [chain.toml](/docs/agent/goals/chain.toml) that will strike the line, or
+//! the word `unowned` for a key that is nobody's yet and is a scheduling
+//! question for the user. [`every_outstanding_key_names_an_owner`] is what
+//! makes that a field rather than a note — it reads the chain and fails on an
+//! owner no entry there answers for, so a goal renamed or dropped cannot leave a
+//! key pointing at nothing.
+//!
+//! The column exists because these facts were header prose, where one paragraph
+//! owned eight keys and could not say which was which.
+//! [docs/agent/carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* is
+//! the rule this is the ratchet-file spelling of, and the failure it exists to
+//! stop is on record in its own opening: `§18 stream` read as "goal 5's" for six
+//! goals after goal 5 closed.
+//!
+//! What the gate deliberately does not check is whether an owner is still
+//! *ahead*. A chain entry that goes green without striking its key is the more
+//! interesting failure and it is a reader's to catch, because the chain file
+//! holds the order and not the position — nothing on disk says where the loop
+//! is. `unowned` is the honest answer once it happens, and striking the owner
+//! rather than the key is that same contract's second rule.
+//!
 //! # What a row is, and what is deliberately not checked
 //!
 //! Only a `| Member | Signature | … |` table is read. Three things in §§ 1-12
@@ -290,24 +314,226 @@ fn registered(candidates: &[&'static registry::CoreClass], name: &str) -> bool {
         .any(|class| class.members().any(|m| m.name == name) || class.constant(name).is_some())
 }
 
-/// The keys the named ratchet file under `tests/` lists, blank lines and `#`
-/// comments dropped.
+/// Every ratchet file this module owns, named once so a gate written over all of
+/// them cannot quietly miss one.
 ///
-/// There are two, one per walk — §§ 1-12's and §§ 14-19's — because the two
-/// halves are finished by different loops and a single file would make a Part I
-/// regression indistinguishable from a Part II member nobody has reached yet.
-fn outstanding_file(name: &str) -> (std::path::PathBuf, BTreeSet<String>) {
+/// There is one per walk — §§ 1-12's, §§ 14-19's, §§ 16-17's classes and the
+/// migration table's — because the halves are finished by different loops and a
+/// single file would make a Part I regression indistinguishable from a Part II
+/// member nobody has reached yet.
+const RATCHETS: [&str; 4] = [
+    "spec-members-outstanding.txt",
+    "spec-members-part-two-outstanding.txt",
+    "spec-classes-part-two-outstanding.txt",
+    "migration-members-outstanding.txt",
+];
+
+/// One ratchet file, read.
+struct Ratchet {
+    /// Where it is, so a failure can name the file to edit.
+    path: std::path::PathBuf,
+    /// Every key it lists, owner column dropped. This is what each gate's two
+    /// set comparisons are written against, so giving a line an owner cannot
+    /// change what its gate reads.
+    keys: BTreeSet<String>,
+    /// The owner each key names, by key, and absent for a key that names none.
+    /// [`every_outstanding_key_names_an_owner`] is the reader.
+    owners: BTreeMap<String, String>,
+}
+
+/// Read one: blank lines and whole-line `#` comments dropped, and every
+/// remaining line split into its key and its owner column.
+///
+/// A line is `<key>  # <owner>`. The module doc above owns why the owner is a
+/// column rather than a sentence in the header.
+fn outstanding_file(name: &str) -> Ratchet {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
         .join(name);
     let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let keys = text
-        .lines()
+    let mut keys = BTreeSet::new();
+    let mut owners = BTreeMap::new();
+    for line in text.lines().map(str::trim) {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, owner) = match line.split_once('#') {
+            Some((key, owner)) => (key.trim(), owner.trim()),
+            None => (line, ""),
+        };
+        assert!(
+            !line.contains('#') || !owner.is_empty(),
+            "{}: `{line}` opens an owner column and writes nothing in it",
+            path.display()
+        );
+        if !owner.is_empty() {
+            owners.insert(key.to_owned(), owner.to_owned());
+        }
+        keys.insert(key.to_owned());
+    }
+    Ratchet { path, keys, owners }
+}
+
+/// [docs/agent/goals/chain.toml](/docs/agent/goals/chain.toml), read for the one
+/// thing an owner column is checked against: which goal numbers the chain still
+/// lists.
+///
+/// The text is taken by the caller so that a `&str` key can borrow from it —
+/// and a goal's *number* is its name up to the first space, because
+/// `AGENTS.md`'s own rule is that a goal is said as "goal 19" and a milestone
+/// tag says nothing about order.
+fn chain_goals(text: &str) -> BTreeSet<&str> {
+    text.lines()
         .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .map(str::to_owned)
+        .filter_map(|line| line.strip_prefix("name = \""))
+        .map(|name| name.split(' ').next().unwrap_or(name))
+        .collect()
+}
+
+/// Read the chain, for [`chain_goals`] to walk.
+fn chain_text() -> String {
+    let chain = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/agent/goals/chain.toml");
+    fs::read_to_string(&chain).unwrap_or_else(|err| panic!("{}: {err}", chain.display()))
+}
+
+/// What is wrong with one key's owner column, or `None` if nothing is.
+///
+/// Two kinds of owner pass where
+/// [carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* allows three.
+/// A milestone tag is an owner for a *gap*, which a plan can cover; a key here
+/// is struck by a session, and only a chain entry runs sessions. A milestone
+/// nobody has cut into goals therefore reads here as `unowned`, which is what it
+/// is — that is the correction spec § 17's four classes needed, having been
+/// filed under an M9 whose plan carries none of them.
+///
+/// It is a function rather than a `match` inside the gate so that
+/// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
+/// no file on disk writes: a refusal nothing ever exercises is a refusal that
+/// can stop refusing without anything going red.
+fn owner_problem(owner: Option<&String>, goals: &BTreeSet<&str>) -> Option<String> {
+    match owner {
+        Some(owner) if owner == "unowned" || goals.contains(owner.as_str()) => None,
+        Some(owner) => Some(format!(
+            "names goal {owner}, which is no `[[goal]]` on the chain"
+        )),
+        None => Some("names no owner".to_owned()),
+    }
+}
+
+/// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
+/// `[[goal]]` [chain.toml](/docs/agent/goals/chain.toml) still lists, or the
+/// word `unowned`.
+///
+/// [`owner_problem`] owns which two those are, and the module doc owns why the
+/// owner is a column rather than a header sentence.
+#[test]
+fn every_outstanding_key_names_an_owner() {
+    let text = chain_text();
+    let goals = chain_goals(&text);
+    assert!(
+        goals.len() > 10,
+        "docs/agent/goals/chain.toml yielded only {} `[[goal]]` name(s) — the chain's shape has \
+         changed under this walk, and every owner below is being accepted against almost nothing",
+        goals.len()
+    );
+
+    let mut wrong = Vec::new();
+    let mut checked = 0usize;
+    for name in RATCHETS {
+        let ratchet = outstanding_file(name);
+        for key in &ratchet.keys {
+            checked += 1;
+            if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals) {
+                wrong.push(format!("{name}: `{key}` {problem}"));
+            }
+        }
+    }
+
+    assert!(
+        wrong.is_empty(),
+        "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
+         Write `# <goal>` after the key, taking the goal from docs/agent/goals/chain.toml, or \
+         `# unowned` with a bullet in docs/agent/carried-gaps.md § Unowned saying why it is \
+         nobody's. An owner that went green without striking its key is struck, not renamed.",
+        wrong.len(),
+        wrong.join("\n  ")
+    );
+    assert!(
+        checked > 0,
+        "no ratchet file holds a key, which makes this gate vacuous — either the parity program \
+         is finished, in which case delete it, or `outstanding_file` has stopped reading a line"
+    );
+}
+
+/// The refusal [`every_outstanding_key_names_an_owner`] is written around, asked
+/// of the three columns no file on disk writes: a goal the chain does not list,
+/// and no column at all.
+#[test]
+fn an_owner_that_is_not_a_live_chain_entry_fails() {
+    let text = chain_text();
+    let goals = chain_goals(&text);
+    let live = "21".to_owned();
+    let unowned = "unowned".to_owned();
+    let orphan = "99".to_owned();
+
+    assert!(
+        goals.contains(live.as_str()),
+        "goal {live} is not on the chain, so this case is asserting nothing — take a live entry \
+         from docs/agent/goals/chain.toml"
+    );
+    assert!(
+        !goals.contains(orphan.as_str()),
+        "goal {orphan} is on the chain now, so it is no longer an orphan — pick a number no \
+         `[[goal]]` uses"
+    );
+
+    assert_eq!(owner_problem(Some(&live), &goals), None);
+    assert_eq!(owner_problem(Some(&unowned), &goals), None);
+    assert!(
+        owner_problem(Some(&orphan), &goals).is_some(),
+        "an owner naming goal {orphan}, which the chain does not list, was accepted — a key can \
+         point at nothing again"
+    );
+    assert!(
+        owner_problem(None, &goals).is_some(),
+        "a key with no owner column at all was accepted"
+    );
+}
+
+/// The other direction every ratchet gate asserts, asked of a key that would be
+/// stale: a member §§ 14-19 names and [`registry::CLASSES`] declares.
+///
+/// The walk does not produce a key for a registered member, so a line naming one
+/// is a line a slice forgot to strike — the failure that keeps the list
+/// shrinking. Asserting it here means the arithmetic is exercised even in the
+/// state the files are usually in, which is one where no line is stale.
+#[test]
+fn a_key_whose_member_is_now_registered_fails_as_a_stale_line() {
+    let outstanding: BTreeSet<String> = part_two_members()
+        .into_iter()
+        .filter(|member| !registered(&member.candidates, &member.name))
+        .map(|member| member.key)
         .collect();
-    (path, keys)
+
+    let struck = "§15 Session::get".to_owned();
+    assert!(
+        !outstanding.contains(&struck),
+        "`{struck}` has no `registry::CLASSES` row, so this case's premise has gone — name \
+         another member §§ 14-19 writes and the registry declares"
+    );
+
+    let listed: BTreeSet<String> = outstanding
+        .iter()
+        .cloned()
+        .chain([struck.clone()])
+        .collect();
+    let stale: Vec<&String> = listed.difference(&outstanding).collect();
+    assert_eq!(
+        stale,
+        vec![&struck],
+        "a listed key whose member is registered was not reported as stale, so striking a line \
+         has stopped being part of the slice that registers the member"
+    );
 }
 
 #[test]
@@ -371,7 +597,9 @@ fn every_part_one_spec_member_is_registered() {
         spec.display()
     );
 
-    let (path, listed) = outstanding_file("spec-members-outstanding.txt");
+    let Ratchet {
+        path, keys: listed, ..
+    } = outstanding_file("spec-members-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
     assert!(
         unlisted.is_empty(),
@@ -741,7 +969,9 @@ fn every_part_two_spec_member_is_registered() {
         .map(|member| member.key)
         .collect();
 
-    let (path, listed) = outstanding_file("spec-members-part-two-outstanding.txt");
+    let Ratchet {
+        path, keys: listed, ..
+    } = outstanding_file("spec-members-part-two-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
     assert!(
         unlisted.is_empty(),
@@ -840,7 +1070,9 @@ fn every_part_two_spec_class_is_registered() {
         })
         .collect();
 
-    let (path, listed) = outstanding_file("spec-classes-part-two-outstanding.txt");
+    let Ratchet {
+        path, keys: listed, ..
+    } = outstanding_file("spec-classes-part-two-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
     assert!(
         unlisted.is_empty(),
@@ -935,7 +1167,7 @@ fn every_part_two_member_has_a_conformance_case() {
         checked > 20,
         "only {checked} of §§ 14-19's members are registered, and the ratchet lists {}, so          this gate has stopped reading most of what it should — `registered` or the walk has          regressed, since the ratchet only ever shrinks",
         outstanding_file("spec-members-part-two-outstanding.txt")
-            .1
+            .keys
             .len()
     );
     assert!(
@@ -1062,7 +1294,9 @@ fn every_migration_member_row_names_a_registered_member() {
         .map(|(class, member)| format!("{class}::{member}"))
         .collect();
 
-    let (path, listed) = outstanding_file("migration-members-outstanding.txt");
+    let Ratchet {
+        path, keys: listed, ..
+    } = outstanding_file("migration-members-outstanding.txt");
     let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
     assert!(
         unlisted.is_empty(),
@@ -1142,7 +1376,7 @@ fn every_migration_member_row_has_a_conformance_case() {
          member, and the ratchet lists {} — the walk or `classes_spelled` has regressed, since \
          that list only ever shrinks",
         outstanding_file("migration-members-outstanding.txt")
-            .1
+            .keys
             .len()
     );
     assert!(
