@@ -767,17 +767,14 @@ pub fn run_until_idle(sched: &mut Scheduler) -> io::Result<RunReport> {
         // the `sched.run()` above, because a task suspending inside that call
         // takes the same borrow to register what it is waiting for.
         let woken = with_current(|reactor| {
-            // Rule 3, on every turn rather than at the end: a task that
-            // finished is one whose registrations must not outlive it, and the
-            // finished list is only drained when its owner asks for it.
-            for finished in sched.finished() {
-                reactor.retire(finished.id);
-            }
-            // A task torn down for a cancellation owes the same, and owes it
-            // more urgently: it was parked on a registration when it died, so
-            // this is the only place that registration is ever dropped.
-            for id in sched.cancelled() {
-                reactor.retire(*id);
+            // Rule 3, on every turn rather than at the end: a task that ended
+            // is one whose registrations must not outlive it. One list and one
+            // drain for both ways of ending — a task torn down for a
+            // cancellation owes this more urgently than one that returned,
+            // since it was parked on a registration when it died and this is
+            // the only place that registration is ever dropped.
+            for id in sched.take_ended() {
+                reactor.retire(id);
             }
             if sched.parked_count() == 0 {
                 return Ok(None);

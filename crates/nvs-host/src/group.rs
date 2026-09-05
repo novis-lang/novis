@@ -711,7 +711,7 @@ mod tests {
                 other => panic!("expected a throw, got {other:?}"),
             }
         });
-        sched.run();
+        let report = sched.run();
 
         assert_eq!(&*threw.borrow(), "the first throw");
         assert_eq!(
@@ -721,7 +721,7 @@ mod tests {
         );
         assert_eq!(sched.parked_count(), 0);
         assert_eq!(sched.tracked_tasks(), 0);
-        assert_eq!(sched.take_cancelled().len(), 3);
+        assert_eq!(report.cancelled, 3);
     }
 
     /// § 3's `limit` shapes concurrency rather than throwing, and what proves

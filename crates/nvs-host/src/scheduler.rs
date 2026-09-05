@@ -79,9 +79,9 @@
 //! `Drop for Scheduler` already relies on for a worker retiring with requests
 //! still parked. A cancelled task hands back **no** [`Finished`] — its `Ctx` is
 //! dropped on its own stack rather than returned, so the output and exit code of
-//! a cancelled task are not readable afterwards. [`Scheduler::take_cancelled`]
-//! hands back the ids instead, and whoever owns the request boundary decides
-//! what that means.
+//! a cancelled task are not readable afterwards. [`Scheduler::take_ended`]
+//! hands back the ids instead — a cancelled task's beside every other task
+//! that ended — and whoever owns the request boundary decides what that means.
 //!
 //! **A stack carrying script frames is told instead of unwound**, and this is
 //! the half of the rule that is not free. A forced unwind is a panic, and an
@@ -537,7 +537,25 @@ impl std::fmt::Debug for Wake {
     }
 }
 
-/// A task that reached its end, handed back with the context it ran under.
+/// A **root** task that reached its end, handed back with the context it ran
+/// under.
+///
+/// **Only a root files one.** A child's answer is delivered through whatever
+/// spawned it — [`crate::Isolate`]'s own slot — and never through this list, so
+/// a child's context bought nothing by being kept and everything by being
+/// dropped: under a server every request, every connection and every scheduled
+/// fire is a child, so filing all of them held one arena and one carrier per
+/// request **served**, which is
+/// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s own definition of a
+/// leak. Their ids are not lost with them — [`Scheduler::take_ended`] carries
+/// every task that ended, whichever way it ended, which is what ADR 0115 § 2
+/// rule 3's deregistration reads.
+///
+/// What it spends, as ADR 0004 asks: one `Ctx` — the arena at its peak, the
+/// output buffer and the exit code — per **root** that has ended and has not
+/// been taken. A worker has one or two of those for the length of the process
+/// (`nvs serve`'s accept loop and its ticker), and `nvs run` takes its one back
+/// the moment the run is over, so this is O(roots) rather than O(tasks).
 #[derive(Debug)]
 pub struct Finished {
     /// Which task this was.
@@ -566,7 +584,8 @@ pub struct RunReport {
     /// the state ADR 0115's reactor waits in.
     pub parked: usize,
     /// How many tasks were torn down for a cancellation during this call. Their
-    /// ids are in [`Scheduler::take_cancelled`]; they are not in
+    /// ids are in [`Scheduler::take_ended`], beside every task that returned;
+    /// they are not in
     /// [`RunReport::finished`], because a cancelled task never returns one.
     pub cancelled: usize,
 }
@@ -608,8 +627,12 @@ pub struct Scheduler {
     tree: Rc<RefCell<TaskTree>>,
     ready: VecDeque<Task>,
     parked: HashMap<TaskId, Task>,
+    /// The **roots** that have ended and have not been taken. [`Finished`]'s
+    /// doc owns why a child is never one of them.
     finished: Vec<Finished>,
-    cancelled: Vec<TaskId>,
+    /// Every task that ended, however it ended, until whoever drops their I/O
+    /// registrations takes them — [`Scheduler::take_ended`].
+    ended: Vec<TaskId>,
     /// This worker's supply of task stacks — ADR 0115 § 4, and
     /// [`crate::stack`]'s module doc for the whole policy. It lives here rather
     /// than in [`crate::Worker`] because this is the type that knows when a
@@ -699,7 +722,7 @@ impl Scheduler {
             ready: VecDeque::new(),
             parked: HashMap::new(),
             finished: Vec::new(),
-            cancelled: Vec::new(),
+            ended: Vec::new(),
             stacks: StackPool::new(),
             _pinned_to_one_thread: PhantomData,
         }
@@ -880,8 +903,18 @@ impl Scheduler {
                     }
                     CoroutineResult::Return(finished) => {
                         report.finished += 1;
+                        // Asked before `orphan` retires the node, which is what
+                        // makes the answer "this task had no parent" rather
+                        // than "the tree has forgotten this id".
+                        let is_root = self.parent_of(finished.id).is_none();
+                        self.ended.push(finished.id);
                         self.orphan(finished.id);
-                        self.finished.push(finished);
+                        if is_root {
+                            self.finished.push(finished);
+                        }
+                        // A child's `Ctx` is dropped right here, on the
+                        // scheduler's own stack, because nothing was ever going
+                        // to read it back — [`Finished`] is the home of why.
                         // The coroutine is done, so its stack holds nothing and
                         // `into_stack` can take it — this is the one moment a
                         // stack is recyclable, and letting `task` drop here
@@ -972,7 +1005,7 @@ impl Scheduler {
         // is recyclable here exactly as it is for a task that returned.
         self.stacks.give(task.coro.into_stack());
         self.orphan(task.id);
-        self.cancelled.push(task.id);
+        self.ended.push(task.id);
         report.cancelled += 1;
     }
 
@@ -1008,21 +1041,25 @@ impl Scheduler {
         }
     }
 
-    /// Takes the tasks that have ended since this was last called.
+    /// Takes the **roots** that have ended since this was last called.
+    ///
+    /// [`Finished`] owns why a child is never in here and what that saves.
     pub fn take_finished(&mut self) -> Vec<Finished> {
         std::mem::take(&mut self.finished)
     }
 
-    /// The tasks that have ended and have not been taken yet.
+    /// Takes the ids of every task that ended since this was last called —
+    /// returned, or torn down for a cancellation.
     ///
-    /// Reading without draining, because two consumers want different things
-    /// from the same list: whoever owns the request boundary takes it, and
-    /// [`crate::reactor::run_until_idle`] only needs the ids in order to drop
-    /// their reactor registrations (ADR 0115 § 2 rule 3) and must not consume
-    /// what it did not ask for.
-    #[must_use]
-    pub fn finished(&self) -> &[Finished] {
-        &self.finished
+    /// Draining rather than reading, and one list rather than two, because
+    /// there is one consumer and one rule: a reactor registration must not
+    /// outlive the task that made it (ADR 0115 § 2 rule 3,
+    /// [`crate::reactor::run_until_idle`]), and how the task ended does not
+    /// change that. A list read without draining is walked again on every turn
+    /// and grows with the number of tasks a worker has *served*, which under a
+    /// server is O(requests served) in both memory and per-turn work.
+    pub fn take_ended(&mut self) -> Vec<TaskId> {
+        std::mem::take(&mut self.ended)
     }
 
     /// Marks a task and everything beneath it for teardown, answering how many
@@ -1075,23 +1112,6 @@ impl Scheduler {
     #[must_use]
     pub fn tracked_tasks(&self) -> usize {
         self.tree.borrow().nodes.len()
-    }
-
-    /// The tasks torn down for a cancellation and not taken yet.
-    ///
-    /// Ids and nothing else: a cancelled task's `Ctx` went down with its stack,
-    /// which the module doc's *task tree* section explains. Read without
-    /// draining for the same reason [`Scheduler::finished`] is —
-    /// [`crate::reactor::run_until_idle`] has to drop their registrations
-    /// without consuming a list it does not own.
-    #[must_use]
-    pub fn cancelled(&self) -> &[TaskId] {
-        &self.cancelled
-    }
-
-    /// Takes the tasks torn down for a cancellation since this was last called.
-    pub fn take_cancelled(&mut self) -> Vec<TaskId> {
-        std::mem::take(&mut self.cancelled)
     }
 
     /// How many tasks are parked waiting for a wake.
@@ -2004,7 +2024,10 @@ mod tests {
         assert_eq!(report.cancelled, 1, "the child was left running");
         assert_eq!(sched.ready_count(), 0);
         assert_eq!(sched.parked_count(), 0);
-        assert_eq!(sched.take_cancelled(), vec![child]);
+        assert!(
+            sched.take_ended().contains(&child),
+            "the torn-down child's registrations have nothing left to retire them"
+        );
         assert!(
             !past_safepoint.get(),
             "the child ran an instruction past the safepoint it was torn down at"
@@ -2064,12 +2087,12 @@ mod tests {
             0,
             "the tree outlived every task in it"
         );
-        let mut cancelled = sched.take_cancelled();
-        cancelled.sort_unstable();
+        let mut ended = sched.take_ended();
+        ended.sort_unstable();
         let mut expected = ids.borrow().clone();
         expected.push(root);
         expected.sort_unstable();
-        assert_eq!(cancelled, expected);
+        assert_eq!(ended, expected);
         assert_eq!(
             sched.pooled_stacks(),
             3,
