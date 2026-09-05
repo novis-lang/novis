@@ -2693,6 +2693,21 @@ is why" — is this file.
   `docker compose -f tests/db/compose.yaml up -d` restored it and the check went green with no tree
   change at all. The sibling bullets are about checks that are *misfiled*; this is the third
   outcome — the check is right, the tree is right, and the machine moved underneath both.
+- **An acceptance failure whose stderr names a path nothing in the repository references is the
+  shared test database talking, and the *exit code* beside it is the real finding.** `native
+  examples/pool.nvs [1 floor]` failed with `error: could not read scripts/receipt.nvs`, a path
+  `grep -rn` finds nowhere in the tree: it lives in an `nvs_jobs` row that
+  `crates/nvs-stdlib/tests/queue.rs` pushed into `novis_test` and clears only at the *start* of its
+  next run, and `nvs.toml`'s `[queue] workers = 1` plus `worker.rs`'s roster make every `nvs run` in
+  this checkout a worker that drains **every** queue in that database rather than only the one an
+  example named. So the message was an unrelated job and the finding was three lines further down:
+  `exit 3221226505` is `0xC0000409`, Rust's abort on Windows, and the run's own block in
+  `.loop/logs/<run>-console.log` carried a `misaligned pointer dereference` panic the ledger's
+  one-line summary had dropped. Read that block and not the ledger line. Two more readings that were
+  worth their minute: a hex address that decodes as ASCII (`0x74696d6d6f632d` is `-commit`) is a
+  freed allocation reused by a `String`, and it names the string, so it says which allocation died;
+  and an `Rc<T>` allocation is 24 bytes with the data at offset 16, which is why a 23-byte queue name
+  landed exactly on top of a one-word `LiveList`.
 
 ## Writing a test case
 
