@@ -1439,7 +1439,7 @@ pub mod code {
     /// `nvs_config::value`'s own words; this code is only for a well-formed
     /// duration whose *magnitude* is the problem.
     ///
-    /// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+    /// [ADR 0005]: /docs/adr/0005-config-changeability.md
     pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
 
     /// A `[server] listen` entry the server cannot bind, or a written array
@@ -1607,6 +1607,72 @@ pub mod code {
     /// exporter *sink* the tree does not know, and this one is a value the
     /// tree understands perfectly and is not allowed to accept.
     pub const E_NETWORK_CONTROL_SOCKET: Code = Code::new("E0629");
+
+    /// `nvs service` was asked to store an argv that names something other
+    /// than a server.
+    ///
+    /// ADR 0093 § 2's first two rows, under one code because they are one
+    /// reason: the trailing argv is executed by a privileged account at every
+    /// boot until somebody removes it, so what it names has to be a program
+    /// that *stays running* and carries no testing hook. A subcommand outside
+    /// the closed `serve`/`run` allowlist exits immediately, which every
+    /// service manager reports as a crash loop forever; `--fault-inject` is
+    /// `nvs-cli`'s own contained-panic hook, which that flag's doc comment
+    /// says must never be reachable from a served request, and a service
+    /// carrying it is exactly that with a privileged account attached.
+    pub const E_SERVICE_ARGV_NOT_ALLOWED: Code = Code::new("E0630");
+
+    /// A path in the argv `nvs service` was asked to store, or in one of its
+    /// own options, is relative — or the argv names no `--config` at all.
+    ///
+    /// ADR 0093 § 2's third and last-but-two rows, under one code because that
+    /// section says outright that they are the same failure: a service starts
+    /// in `System32` under a minimal environment, so a relative `--config` is
+    /// a guaranteed first-boot failure surfacing as an opaque service-manager
+    /// error, and an argv with no `--config` at all falls back to
+    /// [ADR 0103](/docs/adr/0103-configuration-is-a-tree-of-files.md)
+    /// § 1's `./nvs.toml` — the same failure one step less visible, because it
+    /// makes the service's configuration a property of whatever directory the
+    /// manager happened to start it in.
+    ///
+    /// Not `E0631`'s neighbour `E0632` reached from another direction: this
+    /// one is about a path the service could not *find*, and that one about
+    /// output it would have nowhere to put.
+    pub const E_SERVICE_PATH_NOT_ABSOLUTE: Code = Code::new("E0631");
+
+    /// `nvs service install` was given neither a `--log-file` nor a config
+    /// naming a `[log]` destination.
+    ///
+    /// ADR 0093 § 2's fourth row and § 4's *Output*: a service has no console
+    /// handle, so the process's stderr is discarded, and a refused compile or
+    /// a `FATAL` under this argv would leave no trace anywhere at all. The
+    /// installer refuses rather than picking a destination, because a log file
+    /// nobody was told about is the second place an administrator looks and
+    /// the first place they do not.
+    pub const E_SERVICE_OUTPUT_GOES_NOWHERE: Code = Code::new("E0632");
+
+    /// An `--account` password was passed to `nvs service` on the command
+    /// line.
+    ///
+    /// ADR 0093 § 2's fifth row: a command line is readable by other users on
+    /// the box, so the value is prompted for instead and is `secret` in
+    /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)'s
+    /// sense for its whole life. The option exists in order to be refused by
+    /// name — a bare "unrecognized argument" would read as a spelling mistake
+    /// and send the operator looking for the right flag.
+    pub const E_SERVICE_PASSWORD_ON_A_COMMAND_LINE: Code = Code::new("E0633");
+
+    /// `nvs service` was run from an
+    /// [ADR 0048](/docs/adr/0048-portable-single-file-executables.md)
+    /// bundle.
+    ///
+    /// ADR 0093 § 6. A bundle is a single trust domain because the person who
+    /// downloads and runs it is the only principal involved; installing a
+    /// service creates a **second** principal — a privileged account executing
+    /// that payload at every boot, with no operator having read what it
+    /// contains — which is the boundary 0048 § 1 declined to cross, arrived at
+    /// from the other side.
+    pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634");
 
     // --- E07xx types, continued --------------------------------------------
     //

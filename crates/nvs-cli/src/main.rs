@@ -98,6 +98,7 @@ mod queue;
 mod runner;
 mod script;
 mod serve;
+mod service;
 mod worker;
 
 #[derive(ClapParser)]
@@ -308,6 +309,18 @@ enum Command {
         #[command(subcommand)]
         command: QueueCommand,
     },
+    /// Register this binary with the platform's service manager, or print what
+    /// registering it would store.
+    ///
+    /// A namespace matching `nvs ctl`'s precedent
+    /// ([ADR 0093](/docs/adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md)
+    /// § 1): every other subcommand acts on files with no server involved, and
+    /// these do not. See [`service`], whose module doc owns which half of § 1
+    /// is on disk and why the other half is not.
+    Service {
+        #[command(subcommand)]
+        command: ServiceCommand,
+    },
     /// Print build, host and third-party licensing information.
     ///
     /// One call answers what this binary is and what is compiled into it,
@@ -428,6 +441,59 @@ enum QueueCommand {
     },
 }
 
+/// `nvs service`'s own subcommands.
+///
+/// One so far, and it is the one ADR 0093 § 5 makes the default on Linux:
+/// generate the unit and **print** it, because the operator's configuration
+/// management already owns the directory it belongs in and a binary that writes
+/// there behind Ansible's back is a worse citizen than one that prints. On
+/// Windows it emits § 5's equivalent `New-Service` invocation, carrying § 3's
+/// encoded `ImagePath` for review rather than execution.
+///
+/// Every § 2 refusal runs in front of it, so `unit` is also how an operator
+/// finds out that the argv they were about to install would have been refused —
+/// without an elevated shell, and without having installed anything.
+/// [`service`]'s module doc owns why `install`, `uninstall`, `start`, `stop`,
+/// `status` and `run` are not here yet.
+#[derive(Subcommand)]
+enum ServiceCommand {
+    /// Print the service definition this argv would be installed as, and
+    /// install nothing.
+    Unit {
+        /// The service's name — the identity `sc create` and systemd use, and
+        /// the one `nvs ctl --socket` addresses one of several servers by.
+        name: String,
+        /// Where the service writes diagnostics, if the named configuration
+        /// does not say (§ 2).
+        #[arg(long, value_name = "PATH")]
+        log_file: Option<PathBuf>,
+        /// The account the service runs as. The default is § 4's per-service
+        /// virtual account, which has no password to rotate or leak.
+        #[arg(long, value_name = "ACCOUNT")]
+        account: Option<String>,
+        /// Refused (`E0633`). It exists so the refusal can name it: a command
+        /// line is readable by other users on the box, so an account password
+        /// is prompted for instead.
+        #[arg(long, value_name = "PASSWORD")]
+        password: Option<String>,
+        /// The `nvs` arguments to store, verbatim.
+        ///
+        /// `--` is mandatory and is what makes § 1's "every parameter is
+        /// passable" true: everything to its left is the installer's own,
+        /// everything to its right is stored untouched and never interpreted.
+        /// Without it a `--start` would be ambiguous between the installer and
+        /// the hosted program — a defect `mysqld --install` has and one Novis
+        /// does not inherit.
+        #[arg(
+            last = true,
+            required = true,
+            allow_hyphen_values = true,
+            value_name = "ARGS"
+        )]
+        argv: Vec<String>,
+    },
+}
+
 /// The closed set of sites `--fault-inject` accepts, one per
 /// [`nvs_runtime::FaultSite`].
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -531,6 +597,23 @@ fn main() -> ExitCode {
                     dry_run,
                 },
         } => queue::migrate(&cli.config, &files, connection.as_deref(), dry_run),
+        Command::Service {
+            command:
+                ServiceCommand::Unit {
+                    name,
+                    log_file,
+                    account,
+                    password,
+                    argv,
+                },
+        } => service::print_unit(
+            &cli.config,
+            &name,
+            &argv,
+            log_file.as_deref(),
+            account.as_deref(),
+            password.as_deref(),
+        ),
         Command::Info { licenses } => info::run(licenses),
         Command::Meta { json: _ } => meta::run(),
     }
