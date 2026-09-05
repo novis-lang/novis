@@ -7650,6 +7650,17 @@ sibling in the same namespace unqualified.
   `nvs_runtime::value::nvs_value_release`, with the harness reporting the abort and nothing about
   the helper. `nvs_ir::lower::TemporaryKind`'s own doc is the answer and says it in one line —
   `Transferred` is "released on the error edge only", and that edge is the *caller's*.
+- **A first-class callable naming a `void`-returning method is an ICE, and the message names two
+  crates you did not touch.** `mixed $f = Chat::run(...)` where `run` returns `void` fails with
+  "internal error: an operand used before it is defined (this is a bug in nvs-ir or nvs-codegen)" —
+  with no span, no member name and nothing pointing at the reference that caused it. It has nothing
+  to do with `Core` or with the call site: `lower_callable`'s forwarding thunk
+  (`crates/nvs-ir/src/lower/closure.rs:526`) seals `Terminator::Return(Some(value))` over the value
+  the target's own call defines, and a `Ty::Void` call defines none — `crates/nvs-ir/src/lower/call.rs:1318`
+  is the convention it should be following. Any fcc of a void method reproduces it with no `Core`
+  member in sight, so a fixture that hands one to a member picks a target that returns a value, or
+  fixes this first. It surfaced while writing a case for `Core\Socket::upgrade(Chat::run(...))`,
+  where the entry method returning `void` is the natural shape.
 
 ## Divergences and refusals already pinned
 

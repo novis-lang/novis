@@ -93,9 +93,9 @@ never the credential that proved it.
 ```php
 #[Route(path: "/live/chat/{room}", method: Http\Method::Get)]
 #[Access(allow: Role::User)]
-public static function chat(string $room): Http\Response {
+public static function chat(string $room): void {
     var $user = Web\Auth::require();                       // an ordinary authenticated request
-    return Core\Socket::upgrade('sockets/chat.nvs',
+    Core\Socket::upgrade('sockets/chat.nvs',
         args:   {room: $room, userId: $user->id},
         limits: {memory: 8mb, idle: 5m},
         grants: {},                                        // narrowed: this socket needs nothing
@@ -122,8 +122,15 @@ $user->id})` opens the connection as `Chat::run(room: …, userId: …)`, with t
 - **A `secret` may not be passed**, per [0033](0033-secret-qualifier-for-confidential-values.md); a
   `tainted` value stays `tainted` on the other side, per
   [0024](0024-taint-tracking-for-injection-sinks.md).
-- **Returning the upgrade is what performs it.** A handler that computes an upgrade and discards it does not
-  upgrade, and the type system says so — the same shape as any other `Http\Response`.
+- **Calling it is what performs it**, and it answers `void`. Nothing in this language reads a handler's
+  return value: [0077](0077-compile-time-routing.md) § 4 and
+  [0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1 are one
+  rule — the server matches and "never decides what a return value means" — so an upgrade handed back to
+  the runtime would be handed to nobody. `Core\Response` is a class of `void` members writing the response
+  the request already has, and this is one more of them, in the same shape as `Core\Response::redirect`.
+  The alternative reading, that returning the upgrade performs it, needs a value type a dispatcher
+  interprets: that is a second response model and a crossing of 0077 § 4's refusal list, which is a larger
+  change than the one sentence it buys.
 
 ### 3. Inside, it is a loop
 
