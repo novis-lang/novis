@@ -96,6 +96,7 @@ Conventions the whole file uses:
 | [`Core\Out`](#core-core-out) | output buffering scoped to a closure — what it echoes is captured as the sink's carrier instead of reaching the output |
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
 | [`Core\Test`](#core-core-test) | the typed assertion roster a `#[Test]` method calls — what PHPUnit's `assert*` family becomes when testing is part of the language |
+| [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status and the bytes one in-process request produced |
 | [`Core\Task`](#core-core-task) | structured concurrency — run a fixed set or a whole array of closures as child tasks and get every result back before the call returns |
 | [`Core\Task\Channel<T>`](#core-core-task-channel) | a bounded queue between two tasks whose `send` waits at the bound — backpressure instead of a growing buffer |
 | [`Core\Script\Handle`](#core-core-script-handle) | what `spawn script` answers — a handle on a running child script that `await` collects exactly once |
@@ -14452,7 +14453,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers, request
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -14524,6 +14525,7 @@ final class CartTest {
 | [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
+| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -14760,6 +14762,81 @@ Writes down what the next `Core\Cli` prompts will be answered with, so an intera
 | `$answers` | `array<string>` | One line per prompt, in the order the subject asks them — what a person would have typed, without its ending. A `select` reads the menu number, a `confirm` reads `y` or `n`, and an empty line is an empty answer rather than a silence. |
 
 **Returns** `void` — Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads in one order; what no prompt drained is discarded with the test.
+
+<a id="core-core-test-request"></a>
+#### `Core\Test::request`
+
+```nvs skip
+Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response
+```
+
+Runs one request through the program under test in this process — the compiled route table and the real handler chain, with no socket and no port — and answers with what the program wrote.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$method` | `Core\Http\Method` | The verb the synthetic request carries, matched against the table exactly as an arrived one is. |
+| `$path` | `string` (neutral) | The path to ask for, mount prefix already stripped — what a handler's `#[Route]` is declared against. A `?` and everything after it is the query. |
+
+**Returns** `Core\Test\Response` — The status the program declared and the bytes it wrote. A path the table does not claim is still answered: nothing here dispatches, so the program decides what a miss means.
+
+**Throws** `RuntimeError` — There is no program under test — the call is outside a `nvs test` or `nvs run` invocation — or the call is already inside an in-process request, which is refused because the program answering one is the program that asked.
+
+<a id="core-core-test-response"></a>
+### `Core\Test\Response`
+
+Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, response, no socket, status, body
+
+`Core\Test\Response` is the value `Core\Test::request(...)` answers: what the program under test wrote
+while answering one synthetic request. **It has two members**, `status()` and `body()`, and no
+constructor — the only way to obtain one is to make a request.
+
+The request runs in this process. There is no socket and no port: the program's own entry is run as an
+isolate with the compiled route table's match already on it, so `Core\Request::route()` inside the
+program reads the same match a served request would, and the handler chain that answers is the real one
+rather than a mock of it. What comes back is the status the program declared — `200` where it declared
+none — and every byte it echoed.
+
+```nvs skip
+#[Test]
+public function itReturnsTheUser(): void {
+    var $rs = Core\Test::request(Core\Http\Method::Get, "/users/1");
+
+    Core\Test::assertEquals($rs->status(), 200);
+    Core\Test::assertEquals($rs->body(), "ada");
+}
+```
+
+**A request may not be made from inside one.** The program answering an in-process request is the same
+program that asked for it, so a second one would answer its own request forever; the call throws
+`RuntimeError` instead, naming why. The same throw is what a call outside `nvs test` or `nvs run` gets,
+there being no program under test to answer it.
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\Response->status`](#core-core-test-response-status) | `status(): uint` |
+| [`Core\Test\Response->body`](#core-core-test-response-body) | `body(): string` |
+
+<a id="core-core-test-response-status"></a>
+#### `Core\Test\Response->status`
+
+```nvs skip
+$response->status(): uint
+```
+
+The status the program under test declared for this request.
+
+**Returns** `uint` — The declared code, or `200` where the program declared none — the same default the server writes for a program that only echoed.
+
+<a id="core-core-test-response-body"></a>
+#### `Core\Test\Response->body`
+
+```nvs skip
+$response->body(): string
+```
+
+The bytes the program under test wrote while answering this request.
+
+**Returns** `string` — Everything the program echoed, in order, and an empty string for a program that wrote nothing. A program that threw still answers with whatever it had written first.
 
 <a id="core-core-task"></a>
 ### `Core\Task`
