@@ -2071,6 +2071,16 @@ is why" — is this file.
   a CLI program reads — and the member that could produce it. One `grep -n` of `loop-goal.md` for
   the name settles it, and it is worth doing before treating any gap note as a decision: a reason
   that names a goal file is true for one goal, unlike one that names an ADR.
+- **A `loop-goal.toml` `cargo-named` check's *other* test names are the specification for the
+  design question the ADR left open.** Stage 6 named four tests over ADR 0020 § 6's log envelope,
+  and the one that decides the design is `a_cli_runs_record_is_still_level_and_msg_alone`: § 6
+  lists `ts` beside `request_id` and says nothing about a run with no request, so the obvious
+  reading — a clock is always available, stamp it unconditionally — is the wrong one, and it would
+  have broken `application_code_and_the_engine_floor_produce_schema_identical_records`, which
+  compares a `Ctx::buffered()` line against `floor::uncaught`'s byte for byte. The goal's own
+  § *Standing decisions* had already ruled the same way ("the two-key envelope a CLI run
+  produces"). Read a check's whole `tests` list as one sentence before writing the first of them:
+  the names bound each other, and a sibling name is cheaper than re-deriving the bound from the ADR.
 
 ## Running things
 

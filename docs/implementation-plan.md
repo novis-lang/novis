@@ -52,9 +52,9 @@
 > kinds convert, decoded once; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's
 > session is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR
 > 0073's ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7
-> land**: `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace continues, both
-> blocks boot, a core meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:` at
-> a `Core` row too; ADR 0083 is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
+> land**: `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace reaches a log
+> record, both blocks boot, a core meters § 1's nine; ADR 0006's method entry binds `args:` at a
+> `Core` row too; ADR 0083 is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
 > 7's bounds are finite; `Core\Sse` fills § 5's cell. **ADR 0078's endpoint lands**: `E0629` refuses
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
 > **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
