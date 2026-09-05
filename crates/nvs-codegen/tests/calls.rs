@@ -106,6 +106,35 @@ fn a_hand_built_static_call_carries_the_class_it_was_called_on() {
     }
 }
 
+/// A short argument list is refused rather than read past, which is the other
+/// half of the receiver-slot defect: `nvs_runtime::call` is handed a pointer
+/// and never a length, so nothing below this can tell three slots from two.
+///
+/// The instance path already refuses the same thing
+/// (`nvs_runtime::construct_and_call`); this is the static one catching up.
+#[test]
+#[should_panic(expected = "declares 3 parameter(s) and this call supplies 2")]
+fn a_hand_built_call_short_of_an_argument_is_refused() {
+    let unit = compile(SLOTS).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    let _ = unit.call_static(
+        &mut ctx,
+        "Slots",
+        "first",
+        &[Value::int(11), Value::int(22)],
+    );
+}
+
+/// And a long one, which reads no further than the callee's own frame but
+/// means the caller and the callee disagree about the signature.
+#[test]
+#[should_panic(expected = "declares 0 parameter(s) and this call supplies 1")]
+fn a_hand_built_call_with_an_argument_too_many_is_refused() {
+    let unit = compile(SLOTS).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    let _ = unit.call_static(&mut ctx, "Slots", "tag", &[Value::int(11)]);
+}
+
 #[test]
 fn a_call_resolves_a_callee_declared_after_it() {
     // The declare-then-define pass is what makes this work: `first` names

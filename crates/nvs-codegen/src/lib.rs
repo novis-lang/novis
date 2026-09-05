@@ -291,6 +291,21 @@ pub struct Unit {
     /// what makes installing one need no `unsafe` at the call site.
     classes: std::rc::Rc<nvs_runtime::ClassTable>,
     entries: FxHashMap<String, *const u8>,
+    /// Every compiled function's declared shape, by the same name as
+    /// [`Unit::entries`] — moved out of the builder rather than dropped with
+    /// it, so [`Unit::call_static`] can check an argument count against the
+    /// arity the callee was compiled with.
+    ///
+    /// It is a move and not a copy: the builder filled this map in its
+    /// declaration pass and has no reader left after
+    /// [`UnitBuilder::bind_method_tables`], so what this costs is the map's own
+    /// bytes living as long as the `Unit` instead of being freed at
+    /// `finish` — one `MethodShape` and one `String` key per compiled function,
+    /// per unit. That buys a hand caller a refusal where it would otherwise
+    /// read slots the callee's frame does not own, which is
+    /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md)'s trade in the
+    /// direction it is meant to go.
+    shapes: FxHashMap<String, MethodShape>,
     /// This unit's static-property initializers, in the slot order the
     /// compiled code baked in — `nvs_ir::ir::Program::statics`' own order.
     /// Handed to a context by [`Unit::install_in`].
@@ -415,6 +430,24 @@ impl Unit {
     /// method, which is an internal inconsistency for a label that came out of
     /// the same compile.
     ///
+    /// # Panics
+    ///
+    /// If `args` is not as long as the method's declared arity. That is the
+    /// second half of the same defect the receiver slot is the first half of:
+    /// a short slice leaves the callee reading slots this frame does not own,
+    /// and nothing downstream can notice, because `nvs_runtime::call` is handed
+    /// a pointer and never a length.
+    ///
+    /// A panic rather than the recorded fault
+    /// [`nvs_runtime::construct_and_call`] answers the same condition with,
+    /// and the difference is deliberate: that one serves a `nvs test` runner
+    /// where a mismatched roster is a user program's inconsistency to report,
+    /// while every caller of this one is Rust code in this workspace, for which
+    /// a wrong count is a bug in the test rather than an outcome. A status
+    /// would also be indistinguishable from one the callee itself raised —
+    /// `tests/stack_limit.rs` asserts on exactly `Err(FATAL)` from a call made
+    /// through here, and would have gone on passing.
+    ///
     /// # Errors
     ///
     /// The status the call reported, with its message left on `ctx`.
@@ -425,7 +458,17 @@ impl Unit {
         method: &str,
         args: &[nvs_runtime::Value],
     ) -> Option<Result<nvs_runtime::Value, i32>> {
-        let target = self.function(&format!("{class}::{method}"))?;
+        let label = format!("{class}::{method}");
+        let target = self.function(&label)?;
+        // Both maps are filled per compiled function and `shapes` in the
+        // earlier pass, so a hit in one is a hit in the other.
+        let arity = self.shapes.get(&label)?.arity;
+        assert_eq!(
+            usize::try_from(arity).unwrap_or(usize::MAX),
+            args.len(),
+            "`{label}` declares {arity} parameter(s) and this call supplies {}",
+            args.len()
+        );
         let receiver =
             nvs_runtime::Value::class_desc(self.classes.desc(self.classes.id_of(class)?));
         let mut slots = Vec::with_capacity(args.len() + 1);
@@ -1402,6 +1445,7 @@ impl UnitBuilder<JITModule> {
             _module: self.module,
             classes: std::rc::Rc::new(self.classes.table),
             entries,
+            shapes: self.shapes,
             statics: self.static_defaults.into(),
         })
     }
