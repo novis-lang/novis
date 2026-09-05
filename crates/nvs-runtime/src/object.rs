@@ -1623,7 +1623,8 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 /// 1. **Snapshot the list**, so the tallies below can be indexed rather than
 ///    hashed twice.
 /// 2. **Tally, per member, how many of its references come from another
-///    member's field slot.** A member whose count that tally does not
+///    member's field slot or from an array that member solely owns.** A
+///    member whose count that tally does not
 ///    *exactly* account for is reachable from something outside the list — or
 ///    is held in a way this walk does not model, which is the same answer.
 /// 3. **Mark** those members live, and everything reachable from them: an
@@ -1638,13 +1639,23 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 ///    reference. Its slots are already null, so each dismantle is the header
 ///    alone — but it is a dismantle, so a member's own teardown runs.
 ///
-/// **A reference held through an array is not tallied**, only one held
-/// directly in a field slot. That is deliberate and it errs the safe way: an
-/// object reachable only through an array reads as externally held and is left
-/// alone. Walk 4 usually frees it anyway, because releasing the garbage
-/// member's field releases the array, which steps the object down to zero
-/// through the ordinary path. What survives is a cycle whose only closing edge
-/// is *inside* an array — see [`crate`]'s known gaps.
+/// **A reference held through a uniquely owned array is tallied too.** An
+/// array a member's field slot holds at a reference count of one has that
+/// member as its only owner, so an object in one of its elements is held by
+/// that member exactly as a field slot's reference would be — and the same
+/// reading carries down into a nested array the outer one is the sole owner
+/// of. An array at a higher count is *shared* — with another member, with a
+/// copy-on-write sibling, with a Rust caller — and this walk cannot show with
+/// whom, so its elements are not tallied at all: the objects behind them read
+/// as externally held and are left exactly where they were. That is the only
+/// direction this widening is allowed to move anything, and a
+/// `debug_assertions` assertion pins it, because a tally that came out *above*
+/// an object's reference count would be claiming holds that are not there and
+/// would free something somebody still has.
+///
+/// Both walks read the same edges: an object reachable from a *live* member
+/// only through that member's array is marked live by walk 3, or widening the
+/// tally would have turned a survivor into garbage rather than the reverse.
 ///
 /// **No user code runs.** A suspended generator's unwind entry point reaches
 /// its context through [`crate::ctx::with_current`], and at a context's own
@@ -1683,11 +1694,26 @@ pub(crate) fn sweep(list: &LiveList) {
 
     let mut held = vec![0_usize; members.len()];
     for &member in &members {
-        for target in object_fields(member) {
+        for target in member_targets(member) {
             if let Some(&at) = seat.get(&target) {
                 held[at] += 1;
             }
         }
+    }
+
+    // The widening's one bound, per this function's docs: every reference the
+    // tally counts is a reference that is really there, so a tally can only
+    // ever come out at or below the count it is compared against. A tally
+    // above it would be double-counting an edge — an array reached from two
+    // members, say — and the member it overshot would read as fully internal
+    // while something outside the list still held it.
+    #[cfg(debug_assertions)]
+    for (at, &member) in members.iter().enumerate() {
+        assert!(
+            held[at] <= refcount(member),
+            "the sweep's tally counted more references to an object than it \
+             has — see `sweep`'s docs in `crates/nvs-runtime/src/object.rs`"
+        );
     }
 
     let mut live = vec![false; members.len()];
@@ -1698,7 +1724,7 @@ pub(crate) fn sweep(list: &LiveList) {
         if std::mem::replace(&mut live[at], true) {
             continue;
         }
-        for target in object_fields(members[at]) {
+        for target in member_targets(members[at]) {
             if let Some(&next) = seat.get(&target)
                 && !live[next]
             {
@@ -1808,26 +1834,77 @@ fn refcount(ptr: *mut ObjHeader) -> usize {
     }
 }
 
-/// Every object one field slot of `ptr` points at, in slot order.
+/// Every object `ptr` holds a reference to: one per field slot that names an
+/// object, plus one per element of an array it is the sole owner of, in slot
+/// order and then in element order.
 ///
-/// Collected rather than borrowed so that [`sweep`]'s tally may be written
-/// while this is being read; a class's slot count is small and this runs at
-/// teardown alone.
-fn object_fields(ptr: *mut ObjHeader) -> Vec<*mut ObjHeader> {
-    (0..field_count(ptr))
-        .filter_map(|index| {
-            #[expect(
-                unsafe_code,
-                reason = "every caller in this module holds a live reference to \
-                          `ptr`, and every slot was initialized by `new`"
-            )]
-            let value = unsafe { *field_ptr(ptr, index) };
-            match value.tag() {
-                Some(Tag::Object) => value.obj_ptr().filter(|target| !target.is_null()),
-                _ => None,
+/// This is [`sweep`]'s one reader of the object graph, used by both its tally
+/// and its mark walk so that the two agree on what an edge is. Collected
+/// rather than borrowed so that the tally may be written while this is read;
+/// a class's slot count is small, an array's walk is one pass, and this runs
+/// at teardown alone.
+///
+/// **A reference count of one is what makes an array's elements countable**,
+/// and the check is exact rather than conservative in the other direction: the
+/// reference this walk just found *is* that one owner, so nothing else can be
+/// holding the array and no other member's walk can reach it. That also bounds
+/// the descent — a uniquely owned array cannot contain itself, since being its
+/// own element would be a second reference — so the arrays reached from one
+/// object form a tree and the worklist below drains.
+fn member_targets(ptr: *mut ObjHeader) -> Vec<*mut ObjHeader> {
+    /// Files one value under whichever walk can use it: an object is an edge,
+    /// a solely owned array is more edges to go and read, and anything else
+    /// holds no object reference at all.
+    fn file(
+        value: Value,
+        targets: &mut Vec<*mut ObjHeader>,
+        arrays: &mut Vec<*mut crate::array::ArrayHeader>,
+    ) {
+        match value.tag() {
+            Some(Tag::Object) => {
+                if let Some(target) = value.obj_ptr().filter(|target| !target.is_null()) {
+                    targets.push(target);
+                }
             }
-        })
-        .collect()
+            Some(Tag::Array) => {
+                #[expect(
+                    unsafe_code,
+                    reason = "the value was read out of a live object's slot or \
+                              a live array's element, so its allocation is live"
+                )]
+                if let Some(array) = value.array_ptr().filter(|array| !array.is_null())
+                    && unsafe { crate::array::NvsArray::refcount_of(array) } == 1
+                {
+                    arrays.push(array);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let mut targets = Vec::new();
+    let mut arrays = Vec::new();
+    for index in 0..field_count(ptr) {
+        #[expect(
+            unsafe_code,
+            reason = "every caller in this module holds a live reference to \
+                      `ptr`, and every slot was initialized by `new`"
+        )]
+        let value = unsafe { *field_ptr(ptr, index) };
+        file(value, &mut targets, &mut arrays);
+    }
+    while let Some(array) = arrays.pop() {
+        #[expect(
+            unsafe_code,
+            reason = "the array is live — a slot or element this walk read \
+                      holds the one reference to it — and nothing here \
+                      releases a borrowed value"
+        )]
+        for value in unsafe { crate::array::borrowed_values(array) } {
+            file(value, &mut targets, &mut arrays);
+        }
+    }
+    targets
 }
 
 /// Byte offset of the reference count within [`ObjHeader`].
@@ -3352,6 +3429,7 @@ const _: () = assert!(Tag::Object as u8 == 7);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::array::NvsArray;
     use crate::counting_alloc;
     use crate::string::NvsStr;
 
@@ -3936,6 +4014,105 @@ mod tests {
         drop(current);
         drop(ctx);
         assert_eq!(held.refcount(), 1);
+    }
+
+    #[test]
+    fn a_cycle_closed_through_an_array_element_is_swept_at_teardown() {
+        // The shape [`sweep`]'s docs used to name as what survives it: the
+        // only edge closing this ring is an *element* of `left`'s array, so a
+        // tally reading field slots alone accounted for neither object's
+        // reference and left the pair — and the array under them — out for the
+        // life of the process. Measured by the allocator, like its acyclic
+        // sibling above, because no reference count here ever reaches zero on
+        // its own.
+        let (table, animal, dog, _greets) = hierarchy();
+        drop(Ctx::new(crate::ctx::OutputSink::Sink));
+        let before = counting_alloc::live_bytes();
+        {
+            let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+            let current = crate::ctx::CurrentCtx::install(&mut ctx);
+            #[expect(unsafe_code, reason = "the table outlives the objects")]
+            unsafe {
+                let left = NvsObj::new(table.desc(animal));
+                let right = NvsObj::new(table.desc(dog));
+                let mut ring = NvsArray::new();
+                ring.append(Value::object(right.clone()));
+                left.set_field(0, Value::array(ring));
+                right.set_field(0, Value::object(left.clone()));
+            }
+            assert_eq!(ctx.live_objects(), 2);
+            drop(current);
+        }
+        assert_eq!(counting_alloc::live_bytes(), before);
+    }
+
+    #[test]
+    fn a_cycle_closed_through_a_nested_array_is_swept_too() {
+        // One level further down, which is the case the goal's standing
+        // decision listed as the one a walk might not be able to prove. It
+        // can: the outer array is `left`'s alone and the inner is the outer's
+        // alone, so each reference on the way down is accounted for and the
+        // descent is a tree rather than something needing its own cycle check.
+        let (table, animal, dog, _greets) = hierarchy();
+        drop(Ctx::new(crate::ctx::OutputSink::Sink));
+        let before = counting_alloc::live_bytes();
+        {
+            let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+            let current = crate::ctx::CurrentCtx::install(&mut ctx);
+            #[expect(unsafe_code, reason = "the table outlives the objects")]
+            unsafe {
+                let left = NvsObj::new(table.desc(animal));
+                let right = NvsObj::new(table.desc(dog));
+                let mut inner = NvsArray::new();
+                inner.append(Value::object(right.clone()));
+                let mut outer = NvsArray::new();
+                outer.append(Value::array(inner));
+                left.set_field(0, Value::array(outer));
+                right.set_field(0, Value::object(left.clone()));
+            }
+            assert_eq!(ctx.live_objects(), 2);
+            drop(current);
+        }
+        assert_eq!(counting_alloc::live_bytes(), before);
+    }
+
+    #[test]
+    fn an_object_held_only_by_a_live_members_array_survives_the_sweep() {
+        // The direction the widening is not allowed to move anything. Nothing
+        // outside the list refers to `kept` — its one reference is an element
+        // of `holder`'s array — so the tally now accounts for it exactly, and
+        // only the mark walk following the same edge keeps it. `holder` itself
+        // is a survivor of the kind `sweep`'s docs name: a handle a Rust
+        // caller still holds when the context goes down.
+        //
+        // The string is what the assertion reads, for
+        // `a_swept_cycles_native_teardown_runs`' reason: it is named from
+        // outside, so its count says whether `kept`'s own teardown ran without
+        // this test reading a header the sweep may have freed.
+        let (table, animal, dog, _greets) = hierarchy();
+        let named = NvsStr::new(b"a string only the array's object holds");
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        #[expect(unsafe_code, reason = "the table outlives the objects")]
+        let holder = unsafe {
+            let current = crate::ctx::CurrentCtx::install(&mut ctx);
+            let holder = NvsObj::new(table.desc(animal));
+            let kept = NvsObj::new(table.desc(dog));
+            kept.set_field(1, Value::str(named.clone()));
+            let mut element = NvsArray::new();
+            // Moved, not cloned: the array takes the handle's one reference,
+            // so nothing but the element refers to `kept` from here on.
+            element.append(Value::object(kept));
+            holder.set_field(0, Value::array(element));
+            drop(current);
+            holder
+        };
+        assert_eq!(named.refcount(), 2);
+        drop(ctx);
+        assert_eq!(named.refcount(), 2);
+        // And the graph is still a graph: releasing the survivor releases the
+        // array, the array releases `kept`, and `kept`'s teardown runs then.
+        drop(holder);
+        assert_eq!(named.refcount(), 1);
     }
 
     #[test]

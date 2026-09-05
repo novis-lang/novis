@@ -1219,6 +1219,44 @@ pub(crate) unsafe fn dismantle(ptr: *mut ArrayHeader, work: &mut Vec<crate::rele
     }
 }
 
+/// Every value the array at `ptr` holds, in slot order, **borrowed rather than
+/// retained** — [`crate::object::sweep`]'s reader for the edges an element
+/// carries.
+///
+/// The values are copied out of the table rather than read under its borrow so
+/// that the caller may walk into whatever they point at without holding a
+/// `RefCell` guard across the walk. Nothing here changes a reference count, so
+/// a returned `Value` is live only as long as the array is — which is the whole
+/// of the sweep, since it runs with no user code in flight.
+///
+/// # Safety
+///
+/// `ptr` must refer to a live Novis array allocation, and the caller must not
+/// release any value this hands back.
+#[must_use]
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation to state"
+)]
+pub(crate) unsafe fn borrowed_values(ptr: *mut ArrayHeader) -> Vec<Value> {
+    #[expect(unsafe_code, reason = "the caller guarantees the allocation is live")]
+    // `ManuallyDrop`, because `from_raw` reclaims a reference this borrow does
+    // not own: dropping the handle would release the array under its holder.
+    let handle = std::mem::ManuallyDrop::new(unsafe { NvsArray::from_raw(ptr) });
+    let table = handle.header().table.borrow();
+    let mut values = Vec::with_capacity(table.len());
+    let mut slot = 0;
+    while let Some(live) = table.next_slot(slot) {
+        values.push(
+            table
+                .value_at(live)
+                .expect("next_slot only names live entries"),
+        );
+        slot = live + 1;
+    }
+    values
+}
+
 // ---------------------------------------------------------------------------
 // The primitives compiled code calls
 // ---------------------------------------------------------------------------

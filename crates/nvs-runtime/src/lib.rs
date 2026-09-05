@@ -234,13 +234,15 @@
 //!    object links into its context's live list, and dropping the context
 //!    sweeps whatever the root drain left there — ADR 0116 § 2, with
 //!    [`object::sweep`] as the mechanism and that module's docs as its home.
-//!    Two shapes are still owed a collector. **A long-running CLI script that
+//!    One shape is still owed a collector: **a long-running CLI script that
 //!    builds cycles between teardowns** holds them until its context ends,
 //!    which is the shape a stop-the-world pass would serve and the one M5/M6
-//!    still owns. **A cycle whose only closing edge is inside an `array<T>`**
-//!    survives the sweep too: the tally that decides what is unreachable reads
-//!    field slots and not array elements, which errs towards leaving memory
-//!    alone rather than towards freeing what somebody holds.
+//!    still owns. **A cycle closed through an `array<T>` is swept**, since the
+//!    tally reads the elements of an array its holder solely owns as well as
+//!    its field slots; what it still leaves alone is a cycle closed through a
+//!    **shared** array, whose other owner this walk cannot name, and that errs
+//!    towards leaving memory alone rather than towards freeing what somebody
+//!    holds.
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an
