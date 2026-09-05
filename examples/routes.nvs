@@ -10,10 +10,11 @@ autoload 'App' from './routes';
 
 // The three routes this program declares, one line each.
 //
-// Nothing here reads the table back, because nothing can yet: `Router::match`
-// belongs to the goal that lands the server, and § 4's roster — `match`,
-// `methodsFor`, `url`, `urlAbsolute` — deliberately holds no enumeration of
-// the table. What asserts the table here is therefore the compiler, not the
+// Nothing here enumerates the table, because § 4's roster — `match`,
+// `methodsFor`, `url`, `urlAbsolute` — deliberately holds no member that
+// could: each one asks about a name or a path the caller already has.
+// `examples/octets.nvs` is where `match` is read back, over a route of its
+// own. What asserts the table here is therefore the compiler, not the
 // output: the two `Core\Router::url` calls below take a *literal* name, and
 // § 4 makes an unknown name, and a `$params` array that does not cover the
 // route's captures, compile errors. If `Users::show` were not in the table,

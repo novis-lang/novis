@@ -2061,6 +2061,16 @@ is why" — is this file.
   is ADR 0058 § 2's pinned address, which bounds what one *named* host may turn out to be and says
   nothing about how many names a pattern admits — keep the frozen test name, and say in the handoff
   that the wording was wrong rather than the decision.
+- **A module doc's known gap can give its reason as "`docs/agent/loop-goal.md` § *Standing
+  decisions* keeps it out of scope", and that reason expires at the next goal switch.**
+  `crates/nvs-stdlib/src/router.rs`'s gap 3 said `Core\Router::match` was deliberately absent and
+  cited that file; the *live* `loop-goal.md` says nothing about the member, because the goal that
+  scoped it out ended several goals ago and `tools/goal-switch.py` carries neither item lists nor
+  the sentences that referred to them. The gap therefore read as a standing decision while being
+  only a stale one, and it was the thing standing between a frozen acceptance line — a route capture
+  a CLI program reads — and the member that could produce it. One `grep -n` of `loop-goal.md` for
+  the name settles it, and it is worth doing before treating any gap note as a decision: a reason
+  that names a goal file is true for one goal, unlike one that names an ADR.
 
 ## Running things
 
@@ -2777,6 +2787,15 @@ is why" — is this file.
   failing test is always a JIT-heavy one (`ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`),
   and the panic frame names a crates.io path rather than anything under `crates/`. Re-run
   `verify.py --no-cache` before touching a line.
+- **A full `python tools/verify.py` can fail `-p nvs-cli --bin nvs` with a cranelift panic that is
+  the machine, not the tree.** `called Result::unwrap() on an Err value: TryFromIntError(NegOverflow)`
+  at `cranelift-jit-0.135.0/src/compiled_blob.rs:142` is a relocation that did not fit in 32 bits —
+  the JIT's code landed more than 2 GB from the host binary's, which happens when the gate runs many
+  test binaries at once and not when the crate runs alone. It arrived on
+  `script::tests::ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` and
+  `revalidation_is_lazy_and_rate_capped`, both of which the plan lists as green, and both passed
+  immediately on `cargo test -p nvs-cli --bin nvs`. Re-run the crate before believing a JIT panic
+  whose message names a `cargo` registry path rather than a file in this tree.
 
 ## Writing a test case
 

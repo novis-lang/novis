@@ -2,29 +2,56 @@
 // docs/spec/01-core-library.md § 12's decoders, answering octets rather than
 // text, and ADR 0102's route capture decoded the same way.
 //
-// This is a stand-in, for the reason `examples/stream.nvs` states in full:
-// `tools/loop.py`'s `begin` walks the goal's `files` list before it builds
-// anything, so a fixture that is not on disk costs the whole acceptance run its
-// measurement rather than one check.
-//
-// The rows this is written against are `Core\Uri`'s two decoders. They answer
-// `string` today, so a percent-escape that is not valid UTF-8 has no answer
-// they can give: `%ff%fe%fd` is three octets and not text, and ADR 0009 § 1
-// guarantees a `string` is valid UTF-8 by construction. The decided shape is
-// that both rows answer `bytes` and a caller wanting text writes `as string`,
-// which is ADR 0009 § 3's checked conversion and throws exactly where the
-// member throws now — so no program is denied an answer it could have used.
-// `encodeComponent` and `encodeFormValue` are untouched: they take text and
-// answer text, and they are this class's two `Qual::Launder` rows.
-//
-// What replaces this, when the rows change type, is the program the check's
-// three frozen lines describe:
-//
-//   1. `%ff%fe%fd` decodes to the three octets it names, printed as hex, which
-//      is an answer only a `bytes` return can carry.
-//   2. A query string's name and its value go through the same decoder, so a
-//      form field carrying octets survives being read as one.
-//   3. A route capture spelled `%20` reaches the handler as a space — the
-//      capture is decoded once, at the door, and the handler sees text.
+// Percent-decoding is defined over *octets*, and a `string` is guaranteed-valid
+// UTF-8 by construction (ADR 0009 § 1). So the two facts this file shows are
+// the same fact seen twice: where the decoded octets can be anything, the
+// answer is `bytes` and a caller wanting text writes `as string`; where they
+// must be text — a capture binds to a declared `tainted string` parameter — the
+// decode refuses instead, and there is nowhere in between.
 
-echo "examples/octets.nvs: Core\\Uri's decoders still answer string", "\n";
+// A class with one route, declared here rather than in a directory of its own:
+// ADR 0077 § 5's table is built by the same scan `Core\Program::implementing<T>`
+// uses, over the unit, so a single-file program has a table like any other.
+class Pages
+{
+    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string
+    {
+        return $slug;
+    }
+}
+
+// 1. `%ff%fe%fd` is three octets and is not text: no `string` answer could have
+// carried it, which is why `decodeComponent` answers `bytes`. Sliced a byte at
+// a time so the answer is read as the buffer it is rather than rendered.
+bytes $octets = Core\Uri::decodeComponent("%ff%fe%fd");
+echo "decoded octets: ",
+    Core\Encoding::toHex(Core\Bytes::slice($octets, 0, 1)), " ",
+    Core\Encoding::toHex(Core\Bytes::slice($octets, 1, 1)), " ",
+    Core\Encoding::toHex(Core\Bytes::slice($octets, 2, 1)), "\n";
+
+// 2. The same decoder reached through a query string. `na%6de` is the *name*
+// `name`, decoded as text because a name is the array key the pair is filed
+// under and octets outside UTF-8 in a key would break that same ADR 0009 § 1
+// guarantee the moment a program iterated the array. The value has no such
+// constraint, so it arrives as the octets themselves — identical to the buffer
+// above, which is what the comparison asserts.
+array<mixed> $query = Core\Uri::parseQuery("na%6de=%ff%fe%fd");
+bytes $value = $query["name"] as bytes;
+if (Core\Bytes::compare($value, $octets) == 0) {
+    echo "query name and value decode as octets too", "\n";
+}
+
+// 3. A route capture, decoded once where it crosses into the program: the
+// handler declares `string $slug`, so `%20` is a space by the time anything
+// reads it and never a `%20` the program would have to decode a second time.
+// `Core\Router::match` asks the table the same question the door asks of an
+// arriving request — ADR 0102 § 1 — and answers the same `Core\Router\Match`,
+// which is why one decode serves both. A capture whose escapes spell octets
+// outside UTF-8 has no `tainted string` to become and throws instead; that is
+// the boundary line 1 does not have.
+?Core\Router\Match $matched = Core\Router::match(Core\Http\Method::Get, "/pages/hello%20world");
+if ($matched != null) {
+    echo "capture: ", $matched->param("slug") as string, "\n";
+}
