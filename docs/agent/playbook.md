@@ -9049,3 +9049,12 @@ every session. Nothing below was reworded on the way.
   happened to hold the same value. Before theorising about instrumentation, print what the callee
   actually received for **several distinct non-zero arguments** — one run of that named the off-by-one
   that four sessions of reasoning about calling conventions would not have.
+- **`static::` anything inside a closure body panics in `Lowering::lsb`** — `nvs-ir: … names `static`
+  but has neither a receiver nor a called class`. A closure is lifted to its own `Class$fnN::invoke`
+  frame, and that frame captures neither `$this` nor the called class, so every late-bound spelling
+  reaching for one panics rather than diagnosing. `static::tag()` does it with no `::class` involved,
+  so it is not the `::class` work (ADR 0144) that opened it — that work only added a second spelling
+  that reaches the same hole. The checker is the layer that is expected to have refused this
+  (`lsb`'s own panic message says so) and does not. Whichever way it is closed — capturing the
+  enclosing called class, or a diagnostic — the test to write first is a closure inside both a
+  `static` and an instance method, because those two frames carry the descriptor in different slots.
