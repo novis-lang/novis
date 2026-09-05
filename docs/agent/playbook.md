@@ -5928,6 +5928,14 @@ is why" — is this file.
   in the file. Grep for both the message and the pattern string (`"yyyy-` and `format(\"`) before
   widening a closed grammar, and pick the replacement letter from the ones the module doc's gap 2
   still names.
+- **A `<?nvs` fixture inside a Rust string is subject to the whole front end, and two of its rules
+  bite a hand-written fixture first: a variable is declared with `var`, and there are no free
+  functions.** `$p = new Point();` fails the fixture assert with "`$p` is assigned to but was never
+  declared", and a `function circular(Shape $s): bool` at file scope fails it with "a function must
+  be a method" — neither of which reads like a syntax rule, because both arrive through
+  `nvs_types::check_program` rather than through the parser. Copy the shape from an existing
+  fixture in the same crate (`crates/nvs-codegen/tests/objects.rs:127` is one line of both) rather
+  than writing PHP from memory; the round trip is a full test-binary rebuild.
 
 ## Splitting a file that got too big
 

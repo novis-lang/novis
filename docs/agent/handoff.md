@@ -2,37 +2,57 @@
 
 ## State
 
-**Goal 22 — the on-disk artifact cache has a producer — has just started; nothing of it has landed
-yet.** Goal 21's whole list is this goal's Stage 1 floor.
+**Goal 22 stage 2 is half landed: the descriptor half of the keystone.** `nvs-codegen` no longer
+bakes a class-descriptor address in as an `iconst`. All three sites go through one helper,
+`Emitter::class_desc_value` (`crates/nvs-codegen/src/emit.rs:2172`), which declares a
+`Linkage::Import` data symbol and emits `symbol_value` — an import is undefined by this unit, so
+every use of it leaves the relocation record ADR 0042 § 2's object payload needs. Under `JITModule`
+the symbol resolves through a `symbol_lookup_fn` closure `Jit::new` installs over `Jit::desc_symbols`,
+which `compile_all` fills from `Classes::descriptors()` before any body is emitted. `is_pic` is off,
+so a symbol value is the same absolute `movabs` the `iconst` was: **the whole `-p nvs-codegen` suite
+passes unchanged**, which is the hot-path claim's evidence. `Classes`' own doc comment
+(`crates/nvs-codegen/src/lib.rs:534`) is the one home for why.
 
-The store is already written: `crates/nvs-cli/src/cache.rs` is ADR 0042 as specified, with its own
-tests, and **no caller anywhere**. What is missing is the payload, and that module's own known gap is
-the whole diagnosis — read it before anything else, because it names the three `emit.rs` sites that
-make a page dump wrong in the next process and is why the answer is a second `Module` rather than a
-serializer.
+**`method_address` was never a third site.** Its statically resolved target is already a `func_addr`
+against a `FuncId` (`crates/nvs-codegen/src/emit.rs:2142`), which is a relocation whichever `Module`
+finalizes it. Nothing there needs changing — only the check that names it, which is worth writing
+where an object product's relocation table can be read rather than guessed at.
+
+Two of stage 2's five named checks are green:
+`a_class_descriptor_address_is_a_relocation_not_an_immediate` and
+`an_instanceof_target_is_a_relocation_not_an_immediate`, both `-p nvs-codegen` lib unit tests,
+because they assert on `Jit`'s private tables and nothing outside `src/lib.rs` can reach those.
+Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the keystone — `nvs-codegen` emits the same IR a second way.** One file set:
-`crates/nvs-codegen/src/lib.rs` and `crates/nvs-codegen/src/emit.rs`.
+**Stage 2's remaining half: the second `Module`.** One file set — `crates/nvs-codegen/src/lib.rs`,
+`crates/nvs-codegen/src/emit.rs`, `Cargo.toml`, `crates/nvs-codegen/Cargo.toml`.
 
-- [ ] **A named symbol for the class-descriptor address** — `crates/nvs-codegen/src/emit.rs`, the
-      `class_desc` lowering. It is an `iconst` immediate today and must become a relocation against a
-      symbol; under `JITModule` that symbol resolves to the address it bakes now, so nothing on the
-      hot path changes.
-- [ ] **The same for the `instanceof` lowering and for `method_address`** — the other two sites, in
-      the same file, and the reason a byte-perfect page dump would be wrong rather than merely
-      unavailable.
-- [ ] **`cranelift-object` behind the same `nvs_ir::Program` walk** —
-      `crates/nvs-codegen/src/lib.rs:449`'s `compile` gains a sibling, not a fork. If the walk cannot
-      be shared the goal stops and says so: a second lowering is a second semantics.
+- [ ] **The lowering walk becomes generic over `M: Module`** — the goal's standing decision forbids a
+      second lowering, so this is the whole keystone. Three concrete signatures hold `JITModule`:
+      `crates/nvs-codegen/src/emit.rs:351` (`Emitter.module`),
+      `crates/nvs-codegen/src/emit.rs:127` (`compile_function`'s parameter) and
+      `crates/nvs-codegen/src/lib.rs:1288` (`Signatures::new`). Everything they call —
+      `declare_data`, `declare_data_in_func`, `declare_func_in_func`, `make_signature` — is on the
+      `Module` trait already, so this is a parameter change, not a redesign. `&mut dyn Module` is the
+      cheaper spelling if a generic bound turns viral.
+- [ ] **`cranelift-object` behind that same walk** — add `cranelift-object = "0.135"` beside its four
+      siblings in the workspace manifest's `[workspace.dependencies]` (the four `cranelift*` lines,
+      `rg -n 'cranelift-jit' Cargo.toml`) and at `crates/nvs-codegen/Cargo.toml:17`, then an `ObjectModule`
+      built with the *same* ISA flags as `crates/nvs-codegen/src/lib.rs:998` except that `is_pic`
+      must be **on** for a relocatable object, and with no `symbol_lookup_fn`: leaving every
+      `nvs_class_desc_*` undefined is the entire point of the previous slice. Pins
+      `the_object_module_emits_every_program_the_jit_module_does`.
+- [ ] **The two remaining named checks** — `a_statically_resolved_call_target_is_a_relocation_not_an_immediate`
+      reads the object product's relocations for the callee symbol, and
+      `the_two_modules_answer_the_same_for_every_lowering_fixture` walks the same fixtures both ways.
+      Both want the object module first; `crates/nvs-codegen/src/lib.rs:1500` is where the JIT-side
+      helpers already sit.
 
 ## Backlog
 
-- Stage 3 is the wiring — `crates/nvs-cli/src/runner.rs:384` and `crates/nvs-cli/src/script.rs:84` —
-  and it cannot start before stage 2 produces something to store.
-- Stage 4's bench is what decides whether any of this was worth it. If warm does not beat cold, the
-  standing decision is to delete `cache.rs` and retire ADR 0042 rather than keep it.
-- Gaps this goal does not take live in `docs/agent/carried-gaps.md`, not here.
-- When this goal's last check goes green the driver takes goal 7 — the post-parity temp sweep.
-  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
+- Stage 3's warm-hit read path relocates a private writable mapping — `crates/nvs-cli/src/cache.rs`'s
+  "Known gaps" states the amendment ADR 0042 § 3 still owes.
+- The ADR 0042 §§ 2-3 fold itself, once stage 2 proves reachable — the goal's standing decisions.
+- `class_desc_symbol` is `pub(crate)`; the stage-3 loader in `nvs-cli` will need it public.

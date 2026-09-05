@@ -120,11 +120,12 @@
 //! reasons. First, `cranelift_jit::JITModule` has no serialization at all: it finalizes into memory
 //! it owns and hands back a code pointer, and there is no API yielding the bytes plus the
 //! relocations another process would need. Second, and the one that would survive such an API, a
-//! byte-perfect page dump would be *wrong* in the next process — `nvs-codegen`'s `emit.rs` bakes
-//! host addresses in as `iconst` immediates carrying no relocation record: a class descriptor's
-//! address in `class_desc` and again in the `instanceof` lowering, and a statically resolved
-//! target's code address through `method_address`. Those are valid only for the process that
-//! allocated the descriptors and compiled the callee.
+//! byte-perfect page dump would be *wrong* in the next process, because a compiled page holds host
+//! addresses — a class descriptor's, and a statically resolved call target's — that are valid only
+//! for the process that allocated the descriptors and compiled the callee. Every one of them now
+//! arrives as a *relocation* rather than an immediate, which is what makes the dump's replacement
+//! possible: a descriptor is a named symbol `nvs-codegen`'s own `class_desc_symbol` mints and its
+//! `Classes` docs own, and a call target was always a `func_addr`.
 //!
 //! So the payload is `cranelift-object`'s `ObjectProduct` — the same `nvs_ir` emitted a second way,
 //! through a `Module` that records relocations instead of resolving them — and a warm hit maps,
