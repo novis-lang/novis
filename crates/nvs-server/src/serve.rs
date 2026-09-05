@@ -87,8 +87,8 @@ use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use nvs_config::Waits;
 use nvs_host::{
-    Completion, Isolate, NvsListener, NvsTcp, Running, Waiting, Wake, block_on, spawn_child,
-    suspend_current,
+    Completion, Isolate, NvsListener, NvsTcp, Output, Running, Waiting, Wake, block_on,
+    spawn_child, suspend_current,
 };
 use nvs_runtime::host::Woken;
 use nvs_runtime::{Ctx, Drain, OutputSink, TaskRoot};
@@ -536,9 +536,31 @@ impl Drop for Peer {
 /// hands the request's isolate the other half of a
 /// [`nvs_runtime::UpgradeSlot`] ([`Isolate::offering_upgrade`]) so that
 /// `Core\Socket::upgrade` has somewhere to leave the connection isolate it
-/// prepared. Nothing is started for it here — § 1's ordering is that the
-/// request ends first, and `nvs_stdlib::socket`'s module doc is the home of why
-/// the member cannot start one itself.
+/// prepared. `nvs_stdlib::socket`'s module doc is the home of why the member
+/// cannot start one itself.
+///
+/// **This function starts what the slot was filled with, and it starts it after
+/// the request has ended.** § 1's ordering is the security property rather than
+/// a sequencing detail: the request's isolate is joined first, so its arena and
+/// its carrier are already released when the connection's own isolate is built,
+/// and the connection cannot reach the request's session, cookies or headers
+/// because there is nothing left holding them. It is started from **this
+/// function's** context, which makes it the request's sibling under the
+/// connection rather than a child of the request tree, and it is joined after
+/// `hyper`'s connection future ends — a connection isolate outlives the request
+/// that opened it, and a task cancelled with the connection that started it
+/// would not.
+///
+/// **It is not answered `101`, and that is decided rather than deferred.**
+/// RFC 6455's `Sec-WebSocket-Accept` belongs to the framing crate ADR 0051 § 4
+/// picked and nothing here can frame a byte yet, so a `101` now would hand a
+/// peer a socket no code reads and no code closes. The request answers its own
+/// response instead — an ordinary one, which is what makes the upgrading
+/// request "end normally" observable on the wire — and the status, the
+/// `OnUpgrade` this function is still holding, and the hand-over of the socket
+/// into the isolate are all one later slice's. Until it lands the `OnUpgrade`
+/// is dropped with the request's future, which upgrades nothing and leaves the
+/// connection framing responses the ordinary way.
 ///
 /// # Errors
 ///
@@ -565,6 +587,19 @@ where
     // shared reference is the one kind of capture an `async move` may take out
     // of an `Fn` closure — it copies rather than moves.
     let ctx = &ctx;
+    // ADR 0083 § 1's isolate, between the request future that starts it and the
+    // end of this function that joins it. A cell rather than a return value
+    // because the two are a `hyper` connection apart: the service below is an
+    // `Fn` whose futures outlive the call that made them, and the only thing
+    // one of them can hand back is the response.
+    //
+    // At most one, because [`nvs_runtime::UpgradeSlot::fill`] refuses a second
+    // upgrade on one request and a request that upgraded answers nothing more
+    // on this connection — a peer that pipelined behind it gets whatever
+    // `hyper` does with a connection whose next read never comes, which is the
+    // framing slice's to make deliberate.
+    let connection_isolate: RefCell<Option<Box<dyn Running>>> = RefCell::new(None);
+    let connection_isolate = &connection_isolate;
     let io = ConnectionIo::new(stream, waits);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
@@ -768,6 +803,39 @@ where
                 }
             }
         };
+        // ADR 0083 § 1's other half, and the line above is what makes it § 1
+        // rather than a resumed request: the request has been joined, so its
+        // arena, its carrier and everything the peer authenticated with are
+        // released before anything of the connection's exists. The slot is
+        // taken unconditionally — a `Reply::Done` never filled one, and a
+        // request that ran and did not call `Core\Socket::upgrade` leaves it
+        // empty, which is the same `None` and needs no second question.
+        //
+        // Started from `ctx`, which is this **connection's** context and not
+        // the request's: that is the whole of "a root isolate, not a child of
+        // the request tree", spelled as the parent it is given rather than as
+        // a rule to remember. `Output::Capture` because a connection's bytes
+        // are frames it sends and never this response's body — the request
+        // below already wrote that.
+        if let Some((_on_upgrade, slot)) = offered
+            && let Some(upgrade) = slot.take()
+        {
+            let (program, args) = upgrade.into_parts();
+            match Isolate::new(program, args, Output::Capture).start(&mut ctx.borrow_mut()) {
+                Ok(running) => *connection_isolate.borrow_mut() = Some(running),
+                // The *argument* had no meaning on the other side. Not
+                // reachable through `Core\Socket::upgrade`, whose own copy
+                // already accepted this graph once (`nvs_stdlib::socket`'s
+                // "copied twice per upgrade"), so there is no program to hand
+                // it back to and no `catch` left to report it in — the request
+                // that asked for a connection is over. It becomes the
+                // connection's `500` for the reason the request's refusal
+                // above does: the peer asked for something this server then
+                // failed to build, and answering it as though it had succeeded
+                // is the one thing that would be a lie.
+                Err(_refused) => answered = failed(),
+            }
+        }
         // The request took as long as it took — a request's own runtime is
         // ADR 0106's ceiling and not a socket wait — and what remains on this
         // connection is a peer reading what it asked for.
@@ -782,7 +850,21 @@ where
         Ok(answered)
     });
     let connection = http1::Builder::new().serve_connection(io, service);
-    block_on(connection).unwrap_or(Ok(()))
+    let framed = block_on(connection).unwrap_or(Ok(()));
+    // The connection isolate outlives every request on this socket, so this is
+    // where it is waited for: `hyper` has no more requests to frame, and a
+    // connection task that returned here would retire with a live child, which
+    // `nvs_host::Scheduler::orphan` cancels. Joining is also the shape the
+    // framing slice needs rather than a placeholder for it — an upgraded
+    // connection is one whose HTTP life has ended and whose isolate now owns
+    // the socket, so "after the connection future" is when it runs either way.
+    //
+    // The completion is dropped: nothing on this side reads a connection's
+    // answer, and there is no response left to put one in.
+    if let Some(running) = connection_isolate.borrow_mut().take() {
+        drop(running.join(&mut ctx.borrow_mut()));
+    }
+    framed
 }
 
 /// The response one finished request is.
@@ -1624,6 +1706,230 @@ mod tests {
         assert!(
             seen.contains("/plain none"),
             "an ordinary request was offered an upgrade slot: {seen}"
+        );
+    }
+
+    /// The handler [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 1's three start cases answer with: a request that fills the slot on its
+    /// own carrier exactly as `Core\Socket::upgrade` will — one
+    /// [`nvs_runtime::Upgrade`] over a hand-written program — reports itself, and
+    /// ends.
+    ///
+    /// `carried` is the query the request's carrier holds, so a case can put a
+    /// *measurable* amount of the request's own state on it. `said` is the one
+    /// place both isolates report to, in the order they ran: there is no
+    /// response left for the connection's to write into and no socket yet for it
+    /// to frame on. An `Rc` reaches both because the connection isolate runs on
+    /// this core on a task of the connection's, which is the claim rather than a
+    /// convenience.
+    fn upgrade_leaving(
+        carried: String,
+        said: Rc<RefCell<Vec<String>>>,
+        connection: fn(&mut Ctx) -> String,
+    ) -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                &carried,
+            );
+            let path = request.uri().path().to_owned();
+            let said = Rc::clone(&said);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                // What the member will leave in the slot, built here for the
+                // same reason it can be: nothing but a program and an argument
+                // crosses, so a case needs no compiler to fill the slot the way
+                // `Core\Socket::upgrade` fills it.
+                let said_over_there = Rc::clone(&said);
+                let opened: Program = Box::new(move |conn: &mut Ctx, _args| {
+                    let line = connection(conn);
+                    said_over_there
+                        .borrow_mut()
+                        .push(format!("connection {line}"));
+                    Value::null()
+                });
+                let filled = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::upgrade_slot)
+                    .is_some_and(|slot| {
+                        slot.fill(nvs_runtime::Upgrade::new(opened, Value::null()))
+                            .is_ok()
+                    });
+                // Read here, with this request's carrier still alive and its
+                // arena at its peak — the number the connection's own reading
+                // is compared against.
+                said.borrow_mut()
+                    .push(format!("request {}", nvs_runtime::budget::live_bytes()));
+                let mine = format!("{path} {}", if filled { "upgraded" } else { "no slot" });
+                child.write_output(mine.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// The opening handshake `hyper` frames an upgrade for, written down once:
+    /// RFC 6455's two field lines, minus the key, since what decides the offer
+    /// is `hyper`'s own answer and not a header re-read here.
+    ///
+    /// It carries no `Connection: close`, because an upgradable request may not
+    /// also ask for the connection to end; the client closes the socket itself
+    /// once it has read the answer, which is what lets the connection future end
+    /// and [`serve_connection`] reach the isolate it started.
+    fn upgrade_request(path: &str) -> String {
+        format!(
+            "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
+             Upgrade: websocket\r\n\r\n"
+        )
+    }
+
+    /// Runs one connection's worth of the accept loop against `handler`, reads
+    /// until `needle` and closes — the four cases below differ only in the
+    /// program they leave in the slot.
+    fn upgrade_once<H>(handler: impl FnOnce() -> Rc<H> + 'static, path: &'static str) -> String
+    where
+        H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
+    {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(upgrade_request(path).as_bytes())
+                .expect("the write failed");
+            let mut seen = String::new();
+            read_until(&mut socket, &format!("{path} upgraded"), &mut seen);
+            seen
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked")
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// two halves at once: an upgrade opens a **root isolate** — its own context
+    /// and its own output, none of it this response's — and the request that
+    /// opened it ends normally rather than becoming it.
+    ///
+    /// The connection's own `echo` is what separates the two claims. Bytes it
+    /// writes reach its own buffer and never the wire, so an implementation that
+    /// resumed the request under another name, or that started the isolate while
+    /// the response was still open to it, fails here — where a case that only
+    /// counted the isolate's runs would pass either way. The order of `said`'s
+    /// two lines is § 1's ordering: the request reports before the connection
+    /// exists.
+    #[test]
+    fn an_upgrade_opens_a_root_isolate_and_the_upgrading_request_ends() {
+        fn write_where_nobody_is_reading(conn: &mut Ctx) -> String {
+            conn.write_output(b"never on this connection's wire")
+                .expect("a buffer");
+            "opened".to_owned()
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || upgrade_leaving(String::new(), handler_said, write_where_nobody_is_reading),
+            "/chat",
+        );
+
+        assert!(
+            seen.contains("200 OK") && seen.contains("/chat upgraded"),
+            "the upgrading request did not end with an ordinary answer of its own: {seen}"
+        );
+        assert!(
+            !seen.contains("never on this connection's wire"),
+            "the connection isolate wrote into the request's response: {seen}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "one of the two isolates did not run: {said:?}"
+        );
+        assert!(
+            said[0].starts_with("request ") && said[1] == "connection opened",
+            "the connection isolate did not open after the request ended: {said:?}"
+        );
+    }
+
+    // `the_upgrading_requests_arena_is_released_while_the_connection_is_open` is
+    // **not here, and it is not writable yet.** It was written, and it fails on
+    // something no door can fix: `nvs_host::Scheduler` pushes every task that
+    // returns onto its `finished` list *with the context it ran under*, and
+    // nothing in a server drains that list — `nvs_host::run_until_idle` only
+    // reads the ids for ADR 0115 § 2's reactor deregistration, and the two
+    // `take_finished` callers are `nvs-cli`'s, after the whole run. So the
+    // upgrading request's carrier is still alive while the connection isolate
+    // runs, and the measurement it would assert on — two readings of
+    // `nvs_runtime::budget::live_bytes`, two mebibytes of query on the request's
+    // carrier — comes back within 16 KiB of itself however long the connection
+    // sleeps first. `said`'s `request <balance>` line above is the first of
+    // those two readings, left in place for the case that can be written once
+    // the retention is fixed. The retention is also ADR 0004's "O(in-flight)
+    // rather than O(requests served)" in the other direction, which is why it is
+    // the next group's first item rather than a note here.
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// security property: the connection "cannot see the request's session,
+    /// cookies or headers unless a value was explicitly passed".
+    ///
+    /// The request's carrier is the one thing every one of those rides on, so
+    /// the assertion is that the connection isolate has none — and it is made
+    /// against a query the request itself could read, which is what makes the
+    /// answer a boundary rather than an empty carrier. Nothing was passed here,
+    /// so nothing is what the connection may have; what an explicitly passed
+    /// value looks like is `args`, and the member that copies one is the next
+    /// slice.
+    #[test]
+    fn a_connection_isolate_cannot_read_the_upgrading_requests_state() {
+        fn say_what_it_can_see(conn: &mut Ctx) -> String {
+            conn.inbound().map_or_else(
+                || "no request".to_owned(),
+                |inbound| format!("{}?{}", inbound.path(), inbound.query()),
+            )
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || {
+                upgrade_leaving(
+                    "session=abc123".to_owned(),
+                    handler_said,
+                    say_what_it_can_see,
+                )
+            },
+            "/private",
+        );
+        assert!(
+            seen.contains("/private upgraded"),
+            "the request never filled the slot: {seen}"
+        );
+
+        let said = said.borrow();
+        assert_eq!(
+            said[1], "connection no request",
+            "the connection isolate reached the upgrading request's carrier: {said:?}"
         );
     }
 
