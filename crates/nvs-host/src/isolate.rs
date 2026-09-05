@@ -14,6 +14,14 @@
 //! inbound HTTP request. This is that type; what differs between the two is the
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
+//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! WebSocket connection is the third caller and needs nothing added here
+//! either: it is [`Isolate::start`] from the *connection's* context, with a
+//! [`Program`] the upgrading request prepared and handed over before it ended,
+//! so the connection is that request's sibling rather than a child of its tree.
+//! `nvs-stdlib`'s `socket` module owns that decision and why the preparation
+//! cannot happen on this side.
+//!
 //! # The program arrives as a closure, not as a path
 //!
 //! An isolate runs another `.nvs` file, and turning a path into runnable code

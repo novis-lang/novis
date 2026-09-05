@@ -13,9 +13,10 @@
 //! The row and its signature. **The body throws**: § 1's hand-off — creating
 //! the root isolate, moving the socket into it, and framing RFC 6455 over it —
 //! is not built, and a member that answered plausibly without it would report a
-//! connection this process never opened. `Core\Sse` (§ 5) and `Core\Topic`
-//! (§ 4) are unregistered for the same reason and are this module's other two
-//! known gaps.
+//! connection this process never opened. What that body becomes instead is
+//! decided below, under *this member spawns nothing*. `Core\Sse` (§ 5) and
+//! `Core\Topic` (§ 4) are unregistered for the same reason and are this
+//! module's other two known gaps.
 //!
 //! There is no [`crate::registry::CAPABILITIES`] row, and that is a statement
 //! about the body rather than about the member: what throws reaches no
@@ -32,6 +33,86 @@
 //! accepted here and a `callable` in a variable is refused with the same
 //! `E0802` a `spawn script` reports. Its variant doc is the home of why the
 //! rule cannot be a parameter type.
+//!
+//! # Decision: this member spawns nothing, and the connection starts it
+//!
+//! § 1's root isolate is not started here, and it cannot be. A `Core` member
+//! runs on the request isolate's own task holding the request's
+//! `nvs_runtime::Ctx`, so every route out of this body reaches
+//! `nvs_runtime::host::Host::start_isolate` with *that* context — which is
+//! `Ctx::isolate`'s tree: the child's memory is charged to the request, its
+//! deadline is the same word the request's `wall_time` expires, and it is a
+//! task under the request's, so the request cannot return while it runs
+//! ([ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 4). Each
+//! of those is the opposite of what § 1 states, and none of them is a builder
+//! away.
+//!
+//! So the member **prepares** an isolate and records it; the **connection**
+//! starts it. What is prepared is what `nvs_host::Isolate::new` takes — a
+//! `nvs_runtime::script::Program` and the argument value that has already
+//! crossed — and it is prepared here, inside the request, because all three
+//! things that can refuse belong to the request:
+//!
+//! - **The capability.** ADR 0006's `script.spawn` grant, and the root check
+//!   under it, are asked against the request's own configuration overlay, so a
+//!   request that narrowed its grants cannot upgrade into a connection holding
+//!   the ones it gave up — § 1's "narrowed from the request's, never widened".
+//! - **The argument.** ADR 0023 § 2's refusal is the *parent's* fault, and
+//!   `nvs_host`'s `isolate` module doc owns that asymmetry; here is the one
+//!   point at which a `secret` passed to a socket is still a throw the program
+//!   can catch rather than a connection that closes after its `101`.
+//! - **The code.** A path is resolved through `nvs_runtime::script`; a static
+//!   method is code the request's *own* unit already holds, and the request's
+//!   context is the only place that unit's statics recipes and class table can
+//!   be taken from.
+//!
+//! Both of § 2's entry forms therefore collapse to one prepared `Program`, and
+//! that is what makes them one isolate at the far end rather than two shapes to
+//! keep in step. A path is the resolver's program unchanged. A method arrives
+//! as a **first-class callable value** — the entry interns as `mixed`, so
+//! `Chat::run(...)` reaches this body as the closure `nvs_ir`'s `lower_callable`
+//! built — so its program is a closure over that value, retained here, beside
+//! the statics recipes and the class table the request's context is holding;
+//! it arms the child itself, exactly as a path entry's `install_in` does.
+//! `nvs_host::Isolate`'s own method entry is *not* what a connection uses, and
+//! that is the same fact from the other end: that builder re-materializes the
+//! recipes off the **spawning** context, which for a connection is a context
+//! that never ran the unit.
+//!
+//! **The preparation rides on `nvs_runtime::Inbound`**, the request carrier,
+//! and that answers two questions at once. A connection is the only thing an
+//! upgrade can happen to, so a request that did not arrive on one — a CLI
+//! program, a `spawn script` child, a request the server could offer no
+//! upgrade for — has no slot to write into and this member throws, for the
+//! reason `Core\Request::method()` throws there
+//! ([ADR 0012](/docs/adr/0012-no-superglobals.md) § 7). And the server holds
+//! the other half of that slot, so § 1's ordering is what the code can express
+//! rather than what it must remember: the request is joined, its context is
+//! dropped and its arena with it, and only then is there a caller left holding
+//! the program.
+//!
+//! What the connection starts it over is its **own** context — the one
+//! `nvs-server`'s `serve` module already starts the request isolate from. The
+//! connection isolate is that request's *sibling* rather than its child, which
+//! is where its own budget, its own deadline and its own `spawn script` depth
+//! come from.
+//!
+//! **What it spends:** the argument graph is copied twice per upgrade — once
+//! here, and once by the spawn at the far end — because it crosses two
+//! boundaries and the refusal has to land on this side of the first one. That
+//! is one extra copy of a value an application chose to hand a connection, once
+//! per connection opened, and it buys a throw the program can still catch. The
+//! first copy is allocated before the connection's context takes its zero point
+//! and released after, so that context reads its own share a little low — the
+//! balance is a signed `Ctx::memory_base` for exactly this reason, and the
+//! error is bounded by the size of one `args` graph.
+//!
+//! Two alternatives were refused. **The request isolate becoming the
+//! connection** keeps the arena § 1 says is released and hands the connection
+//! the request's session, headers and statics. **Riding out on the isolate's
+//! completion** instead of on the carrier makes a value boundary carry a
+//! connection, and gives a `spawn script` child a completion its parent would
+//! then have to forward.
 //!
 //! # Why the member answers `void`
 //!
