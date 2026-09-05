@@ -52,6 +52,57 @@ pub enum PeerFrame {
     Binary(Vec<u8>),
 }
 
+/// One value published to a topic this connection subscribed to, queued for
+/// the next [`PeerSocket::receive`] the isolate performs.
+///
+/// ADR 0083 § 3's **second source**. It lives here rather than in `nvs-stdlib`
+/// for the reason [`PeerSocket`] does: the queue it waits in is the isolate's,
+/// so [`Ctx::deliver`](crate::Ctx::deliver) has to be able to name the type,
+/// and a `Ctx` cannot name a type that crate declares. § 4's bus is what will
+/// push one; nothing does yet, which is this seam's known gap and
+/// [`crate::Ctx::deliver`]'s own doc is where it is written down.
+///
+/// **The value is one owned reference.** Whoever takes a `Delivery` out of the
+/// queue owes [`Self::into_value`] and, if it does not hand the reference on,
+/// a release — the same convention `Ctx::set_isolate_argument` keeps for the
+/// other value a context holds. There is deliberately no `Drop`: a release
+/// needs the context that allocated it, and a `Delivery` does not carry one.
+#[derive(Debug)]
+pub struct Delivery {
+    /// The topic's name, which is what tells a delivery from a peer frame at
+    /// the one member that answers both (§ 3).
+    topic: Box<str>,
+    /// The published value, already copied across the boundary by the
+    /// publisher — [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+    /// § 2, as § 4 requires of anything the bus hands a subscriber.
+    value: crate::Value,
+}
+
+impl Delivery {
+    /// Builds one from the topic it arrived on and the value that crossed.
+    ///
+    /// Takes over the value's reference.
+    #[must_use]
+    pub fn new(topic: impl Into<Box<str>>, value: crate::Value) -> Self {
+        Self {
+            topic: topic.into(),
+            value,
+        }
+    }
+
+    /// The topic's name.
+    #[must_use]
+    pub fn topic(&self) -> &str {
+        &self.topic
+    }
+
+    /// The value, handing the reference on to the caller.
+    #[must_use]
+    pub fn into_value(self) -> crate::Value {
+        self.value
+    }
+}
+
 /// What went wrong on the socket, as the one thing a `Core` member turns into a
 /// throw.
 ///

@@ -986,6 +986,16 @@ pub struct Ctx {
     /// rule to remember. It is dropped with this context, and dropping it is
     /// what closes the descriptor.
     peer: Option<Box<dyn crate::peer::PeerSocket>>,
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 3's
+    /// **second source**: values published to topics this connection
+    /// subscribed to, in arrival order, waiting for the next `receive()`.
+    ///
+    /// Empty on every context that is not a connection's, and empty on most
+    /// of those too — see [`Ctx::deliver`], which owns why the queue is here
+    /// beside [`Self::peer`] rather than anywhere else. Each entry holds one
+    /// owned reference, given back in [`Drop`] for whatever is still queued
+    /// when the connection ends.
+    deliveries: std::collections::VecDeque<crate::peer::Delivery>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
@@ -1029,6 +1039,22 @@ impl Drop for Ctx {
             // SAFETY: `Ctx::push_exit_hook` was handed that reference and this
             // is the only other place it is given back.
             unsafe { hook.release() };
+        }
+        // ADR 0083 § 3's undelivered topic values, for a connection that ended
+        // with the queue non-empty — `crate::peer::Delivery` carries one owned
+        // reference and deliberately has no `Drop` of its own, so this is where
+        // the ones no `receive()` reached are given back.
+        for delivery in std::mem::take(&mut self.deliveries) {
+            #[expect(
+                unsafe_code,
+                reason = "the queue holds exactly one reference per delivery and \
+                          nothing else points at it"
+            )]
+            // SAFETY: `Ctx::deliver` was handed that reference and this is the
+            // only other place it is given back.
+            unsafe {
+                delivery.into_value().release();
+            }
         }
         // ADR 0072 § 6's deferred work is request-local for the same reason,
         // and a request that never returned ordinarily reaches here with its

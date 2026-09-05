@@ -150,6 +150,7 @@ impl Ctx {
             open_connections: Vec::new(),
             session: None,
             peer: None,
+            deliveries: std::collections::VecDeque::new(),
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);

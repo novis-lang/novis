@@ -52,6 +52,40 @@ impl Ctx {
         self.peer.is_some()
     }
 
+    /// Queues one topic delivery for this connection — ADR 0083 § 3's second
+    /// source, and § 4's bus is what will call it.
+    ///
+    /// The queue is on the context rather than on the socket because the two
+    /// sources are not the same kind of thing: the peer is a descriptor this
+    /// isolate owns, and a delivery is a value another task published. Putting
+    /// it here is what lets `Core\Socket::receive()` be the **one** wait § 3
+    /// specifies without the framing layer learning that topics exist.
+    ///
+    /// Takes over the value's reference; [`crate::peer::Delivery`] owns that
+    /// convention and [`Self::take_delivery`] is where it is handed on.
+    ///
+    /// # Known gap
+    ///
+    /// A delivery queued while this isolate is already parked inside
+    /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
+    /// `receive()` rather than waking the parked one, because the park is on
+    /// the socket alone. Nothing can observe that yet — § 4's bus is
+    /// unwritten, so the only publisher is a test on this same task — and
+    /// closing it is a wake seam the framing layer has to take part in, which
+    /// is § 4's slice and not this one's.
+    pub fn deliver(&mut self, delivery: crate::peer::Delivery) {
+        self.deliveries.push_back(delivery);
+    }
+
+    /// The oldest queued delivery, handing its reference to the caller.
+    ///
+    /// `None` when the bus has nothing waiting, which is every context that is
+    /// not a connection's and most that are.
+    #[must_use]
+    pub fn take_delivery(&mut self) -> Option<crate::peer::Delivery> {
+        self.deliveries.pop_front()
+    }
+
     /// Arms this request's static-property storage: one slot per entry in
     /// `defaults`, in that order, each materialized from its declared
     /// initializer.
