@@ -60,8 +60,8 @@
 > trees; ADR 0076: the trace continues, both blocks boot, a core meters § 1's nine under § 7's
 > bound; ADR 0006's method entry binds `args:`, at a `Core` row too; § 1's `101` frames a socket
 > into a root isolate, § 3's members read it back, § 4's bus crosses cores, closing a slow
-> subscriber; `Core\Sse` fills § 5's cell, offered to every request, and both is a `500`.
-> Conformance 1533, differential 256, migration 100%; valgrind green.
+> subscriber and refusing a `secret`; `Core\Sse` fills § 5's cell, and both is a `500`. Conformance
+> 1533, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
