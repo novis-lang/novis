@@ -632,6 +632,21 @@ Tests run in parallel (§ 2), so N transactions contend on one database. Rollbac
 free: a deadlock is reported as a test failure that **names the other test involved**, rather than as an
 opaque driver error.
 
+**Landed: the transaction is opened on the test's own context, from inside its isolate.** That is the one
+decision the mechanism makes, and it is what makes the savepoint sentence above true with no special case
+anywhere — a connection is memoized on the context it was opened on, so the test's own
+`Core\Db::connect("test")` reaches *this* connection and its own `transaction()` sees a non-zero nesting
+depth. A transaction opened on the suite's context instead would be on a connection the test could never
+reach, and the two would contend rather than nest. `nvs_stdlib::db::begin_test_transaction` and its
+rollback twin are the one home of that reading; `crates/nvs-cli/src/runner.rs`'s `run_in_isolate` arms them
+around § 20's whole retry allowance rather than around one attempt, because § 20 says only that the method
+is called again.
+
+What is still owed is the **deadlock message**: a serialization failure between two `db:` tests is reported
+as the driver's own error, not as a failure naming the other test, because nothing yet records which test
+holds which transaction. Tests also run one after another in the shipped runner, so the contention this
+paragraph is about is not reachable from it yet.
+
 ### 18. An HTTP test dispatches in-process through the compiled route table
 
 `Core\Test::request(...)` builds a request and runs it through

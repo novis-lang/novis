@@ -5685,6 +5685,14 @@ is why" — is this file.
   answering one") is what identifies it and the line number is not. ADR 0012 § 7 is the rule; the
   general shape is that "no request at all" is a *logic* error in this runtime and "the request sent
   nothing" is the runtime one.
+- **A `-p nvs-cli` runner fixture has no `nvs.toml`, so a `[db.<name>]` block is built in Rust —
+  and the boot-time resolution that block normally gets is skipped with it.** `crate::script::granting_ctx`
+  is the shape to copy for a capability, and `runner.rs`'s `compose_postgres` is the same call made for
+  a whole block. The half that bites is `tls_ca_file`: `nvs_config::db` resolves it against the directory
+  of the file it was written in at boot, and a tree assembled in Rust was written in no file, so a
+  relative `"tests/db/ca.crt"` resolves against whatever directory `cargo test` chose and the handshake
+  fails with a missing-bundle error that names no test. Build it from `CARGO_MANIFEST_DIR`. The same
+  applies to `path` on a `sqlite` block, for the same reason and with the same fix.
 
 ## Splitting a file that got too big
 
