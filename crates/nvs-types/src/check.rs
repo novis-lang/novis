@@ -147,6 +147,10 @@ pub fn check_program_granted(
     // ADR 0071 § 2's field-type question, accumulated for the same reason and
     // resolved in the same place — see `crate::derive::resolve_field_types`.
     let mut codec_sites = Vec::new();
+    // ADR 0067 § 9's question about a `queryAs<T>`'s class, accumulated for the
+    // same reason and resolved in the same place — see
+    // `crate::derive::check_row_sites`.
+    let mut row_sites = Vec::new();
     for file in files {
         let mut env = Env {
             symbols: &module.symbols,
@@ -164,6 +168,7 @@ pub fn check_program_granted(
             commands: &mut commands,
             links: &mut links,
             codec_sites: &mut codec_sites,
+            row_sites: &mut row_sites,
             diags: &mut *diags,
             closure_seq,
             fn_self: None,
@@ -194,6 +199,9 @@ pub fn check_program_granted(
     // class has recorded its codec: a field naming one of them is reachable
     // whichever file declared it.
     crate::derive::resolve_field_types(&codec_sites, &signatures, interner, exprs, diags);
+    // The call-site half of the same deferral: § 9's map asked of the class a
+    // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
+    crate::derive::check_row_sites(&row_sites, exprs, diags);
     // § 5's table crosses to `nvs-ir` here rather than being dropped: ADR 0085
     // emits the OpenAPI document from it, and it is what `nvs-ir` reads a
     // handler's declared path back out of.

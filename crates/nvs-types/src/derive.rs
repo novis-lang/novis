@@ -74,12 +74,22 @@
 //! 2. **A [`Format::Db`] codec is recorded and nothing generates `fromRow`
 //!    from it yet.** The checking half is whole — the roster, the nominal
 //!    match, §§ 2, 3, 5 and 7's rules and ADR 0067 § 9's type map are all
-//!    asked of a `#[Db\Derive]` class — and [`crate::ExprTypeTable::db_codec`]
+//!    asked of a `#[Db\Derive]` class, and [`check_row_sites`] asks the last
+//!    of them again of the class a `queryAs<T>` *wrote* — and
+//!    [`crate::ExprTypeTable::db_codec`]
 //!    holds the answer for the driver work to read back. What is missing is
 //!    the generated decoder itself, which needs `Core\Db\Row` to exist; the
 //!    erasure to [`CodecTy`] is shared with JSON meanwhile, so a `bytes` or a
 //!    `Core\Time\Instant` field is *accepted* by the type map above and still
 //!    lands on [`CodecTy::Opaque`] for gap 1's reason.
+//! 3. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
+//!    members share [`crate::expr::args::written_class_of`]'s lookup and do
+//!    not share a rule: `decodeAs<array<T>>` is a JSON array document and is
+//!    legitimate, and a document is a tree, so "the mapping cannot fill the
+//!    constructor" is a question about a *document* rather than about the
+//!    class. Whether the missing-`#[Json\Derive]` third of the rule should
+//!    move here from `nvs_stdlib::json`'s run-time refusal is a real question
+//!    and is ADR 0071's to answer, not this pass's to widen into.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -552,6 +562,116 @@ pub(crate) fn resolve_field_types(
             .with_help(format.no_mapping_help()),
         );
     }
+}
+
+/// One `Core\Db\…::queryAs<T>` call site, held until every deriving class in
+/// the program has recorded its mapping.
+///
+/// [`CodecFieldSite`]'s reason, one layer out: the row class a call names is
+/// routinely declared in a file the walk has not reached, so answering where
+/// the call is written would make the refusal depend on file order.
+#[derive(Debug)]
+pub struct RowSite {
+    /// `Class::method` as the message spells it — both of ADR 0067 § 7's
+    /// spellings reach here, and a reader needs to see the one they wrote.
+    member: String,
+    /// The class the type argument named, resolved.
+    class: QName,
+    /// Whether it was written `array<C>`.
+    list: bool,
+    /// Where the type argument is written.
+    span: Span,
+}
+
+impl RowSite {
+    /// Records a site, from [`crate::expr::args::written_class_of`] — the one
+    /// place a written class and the member that asked for it are both in hand.
+    pub(crate) fn new(member: String, class: QName, list: bool, span: Span) -> Self {
+        Self {
+            member,
+            class,
+            list,
+            span,
+        }
+    }
+}
+
+/// ADR 0067 § 9's map, asked of the class a `queryAs<T>` wrote, once every
+/// deriving class in the program has recorded its mapping.
+///
+/// Run after the walk, from [`crate::check::check_program`], beside
+/// [`resolve_field_types`] and for the same reason.
+///
+/// **Three conditions, one code.** They are the three ways one question — can
+/// a row be hydrated into this `T`? — is answered no, and a reader at the call
+/// site is fixing the same thing in each: the type argument. The third is the
+/// one that *cannot* move to the declaration, and it is why this pass exists at
+/// all: `#[Db\Field(skip: true)]` is ADR 0071 § 3's sanctioned way to take a
+/// property off the mapping, so a class carrying one is well formed and stays
+/// well formed — it is only a `queryAs` over it that has a constructor
+/// parameter nothing can fill.
+pub(crate) fn check_row_sites(
+    sites: &[RowSite],
+    exprs: &crate::expr_table::ExprTypeTable,
+    diags: &mut Diagnostics,
+) {
+    for site in sites {
+        let member = &site.member;
+        let class = &site.class;
+        if site.list {
+            report_row_site(
+                site,
+                format!("`{member}` builds one class per row, and `array<{class}>` is a list"),
+                "ADR 0067 § 4: the member already answers `Core\\Db\\Rows` of what it was asked \
+                 for, so a list form asks for the plural twice — write the row class alone",
+                diags,
+            );
+            continue;
+        }
+        let Some(codec) = exprs.db_codec(&class.to_string()) else {
+            report_row_site(
+                site,
+                format!("`{class}` carries no `#[Db\\Derive]`, so `{member}` has no mapping"),
+                "ADR 0071 § 1: hydrating a row is opt-in — write `#[Db\\Derive]` on the class, \
+                 which is what generates the `Core\\Db\\Codec` this call needs. A `#[Json\\Derive]` \
+                 is the document half and answers for nothing here: ADR 0067 § 9's map is over \
+                 columns",
+                diags,
+            );
+            continue;
+        };
+        let filled: std::collections::BTreeSet<usize> = codec
+            .fields
+            .iter()
+            .filter_map(|field| field.param)
+            .collect();
+        if filled.len() != codec.ctor_arity {
+            let arity = codec.ctor_arity;
+            let mapped = filled.len();
+            report_row_site(
+                site,
+                format!(
+                    "`{class}`'s mapping fills {mapped} of its constructor's {arity} \
+                     parameter(s), so `{member}` cannot build one"
+                ),
+                "a property left off the mapping — `#[Db\\Field(skip: true)]`, ADR 0071 § 3 — is \
+                 still a constructor parameter, and a row has no column to fill it from. Give it \
+                 a column and drop the `skip`, or build the class yourself from a \
+                 `Core\\Db\\Row`",
+                diags,
+            );
+        }
+    }
+}
+
+/// `E_QUERY_AS_NOT_A_ROW_CLASS`, from all three of [`check_row_sites`]'
+/// conditions.
+fn report_row_site(site: &RowSite, message: String, help: &str, diags: &mut Diagnostics) {
+    diags.report(
+        Diagnostic::error(code::E_QUERY_AS_NOT_A_ROW_CLASS, message)
+            .with_primary(site.span, "written here")
+            .with_help(help),
+    );
 }
 
 /// The format's type map, over the interned type rather than over [`CodecTy`]'s

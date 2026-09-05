@@ -692,6 +692,8 @@ pub fn build_signatures(
     // And again: this pass reaches no `#[Json\Derive]` class body, so the
     // sites it would collect are none and the vector is never read.
     let mut placeholder_codec_sites = Vec::new();
+    // And once more: a `queryAs<T>` is an expression too.
+    let mut placeholder_row_sites = Vec::new();
     // Same again: ADR 0046 § 4's retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
     let empty_attributes = crate::retrieval::AttributeTable::default();
@@ -715,6 +717,7 @@ pub fn build_signatures(
             commands: &mut placeholder_commands,
             links: &mut placeholder_links,
             codec_sites: &mut placeholder_codec_sites,
+            row_sites: &mut placeholder_row_sites,
             diags: &mut *diags,
             closure_seq: 0,
             fn_self: None,

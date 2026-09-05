@@ -773,6 +773,7 @@ mod tests {
             commands: &mut crate::commands::CommandTable::default(),
             links: &mut Vec::new(),
             codec_sites: &mut Vec::new(),
+            row_sites: &mut Vec::new(),
             diags: &mut diags,
             closure_seq: 0,
             fn_self: None,

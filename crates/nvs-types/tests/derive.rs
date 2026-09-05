@@ -467,3 +467,171 @@ class Row {
         "{diags:?}"
     );
 }
+
+/// The three ways ADR 0067 § 9's map answers "no" for a written `T`, all of
+/// them at the call — `nvs_types::derive::check_row_sites` is the pass, and
+/// its doc owns why the third cannot move to the declaration.
+#[test]
+fn query_as_over_a_class_with_no_db_derive_is_refused_at_the_call() {
+    // A plain class is well formed and is not a row mapping. The refusal is at
+    // the `queryAs`, not at the class, because the class is wrong for nothing
+    // else it does.
+    let plain = check_src(
+        "<?nvs
+class Person {
+    public uint $id;
+    public function constructor(uint $id) { $this->id = $id; }
+}
+class People {
+    public static function everyone(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Person>
+    {
+        return $tx->queryAs<Person>(\"select id from people\", []);
+    }
+}
+",
+    );
+    assert!(
+        plain
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)),
+        "{plain:?}"
+    );
+
+    // The near miss, and the reason the message names the attribute rather
+    // than "a codec": the document half is a different map over different
+    // sources, and a class carrying only it has nothing that reads columns.
+    let json_only = check_src(
+        "<?nvs
+#[Core\\Json\\Derive]
+class Person {
+    public uint $id;
+    public function constructor(uint $id) { $this->id = $id; }
+}
+class People {
+    public static function everyone(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Person>
+    {
+        return $tx->queryAs<Person>(\"select id from people\", []);
+    }
+}
+",
+    );
+    assert!(
+        json_only
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)),
+        "{json_only:?}"
+    );
+}
+
+#[test]
+fn query_as_over_a_list_form_is_refused_at_the_call() {
+    // `Core\Json::decodeAs<array<T>>` is a JSON array document and is the
+    // reason `written_class_of` reads the shape at all; ADR 0067 § 4's member
+    // already answers `Rows` of one, so the same spelling here asks for the
+    // plural twice.
+    let listed = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Person {
+    public uint $id;
+    public function constructor(uint $id) { $this->id = $id; }
+}
+class People {
+    public static function everyone(Core\\Db\\Transaction $tx): Core\\Db\\Rows<array<Person>>
+    {
+        return $tx->queryAs<array<Person>>(\"select id from people\", []);
+    }
+}
+",
+    );
+    assert!(
+        listed
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)),
+        "{listed:?}"
+    );
+
+    // The same call written the one way that is a row, asserted beside it so
+    // that a rule refusing every `queryAs` fails here.
+    let single = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Person {
+    public uint $id;
+    public function constructor(uint $id) { $this->id = $id; }
+}
+class People {
+    public static function everyone(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Person>
+    {
+        return $tx->queryAs<Person>(\"select id from people\", []);
+    }
+}
+",
+    );
+    assert!(!single.has_errors(), "{single:?}");
+}
+
+#[test]
+fn query_as_over_a_class_with_an_opaque_field_is_refused_at_the_call() {
+    // ADR 0071 § 3's escape hatch takes a property off the mapping, and the
+    // class stays well formed — `a_db_derive_field_with_no_column_mapping…`
+    // above is that refusal, made at the declaration. What it cannot say is
+    // that the constructor still demands the parameter, so a row arrives one
+    // value short of building one. That is this call's error and only this
+    // call's.
+    let skipped = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    #[Core\\Db\\Field(skip: true)]
+    public Handle $cache;
+    public int $n;
+    public function constructor(Handle $cache, int $n)
+    {
+        $this->cache = $cache;
+        $this->n = $n;
+    }
+}
+class Handle {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+class Rowsource {
+    public static function all(Core\\Db\\Transaction $tx): Core\\Db\\Rows<Row>
+    {
+        return $tx->queryAs<Row>(\"select n from t\", []);
+    }
+}
+",
+    );
+    assert!(
+        skipped
+            .iter()
+            .any(|d| d.code == Some(code::E_QUERY_AS_NOT_A_ROW_CLASS)),
+        "{skipped:?}"
+    );
+
+    // The class itself still compiles, which is the half `derive.rs`'s own
+    // `#[Db\Field(skip: true)]` case pins — so this test is about the call and
+    // not about a rule that grew at the declaration.
+    let declaration_alone = check_src(
+        "<?nvs
+#[Core\\Db\\Derive]
+class Row {
+    #[Core\\Db\\Field(skip: true)]
+    public Handle $cache;
+    public int $n;
+    public function constructor(Handle $cache, int $n)
+    {
+        $this->cache = $cache;
+        $this->n = $n;
+    }
+}
+class Handle {
+    public int $n;
+    public function constructor(int $n) { $this->n = $n; }
+}
+",
+    );
+    assert!(!declaration_alone.has_errors(), "{declaration_alone:?}");
+}

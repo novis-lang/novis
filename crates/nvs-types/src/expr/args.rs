@@ -1486,7 +1486,24 @@ pub(crate) fn written_class_of(
         _ => (first, false),
     };
     if let Ty::Class(qname, _) = env.interner.get(element) {
-        return Some((qname.clone(), list));
+        let qname = qname.clone();
+        // ADR 0067 § 9's own question about the class, which is a question
+        // about the whole program and so is only *recorded* here — see
+        // [`crate::derive::check_row_sites`]. `Core\Json::decodeAs` is the
+        // other row on this roster and deliberately gets no site: its list form
+        // is legitimate (a JSON array document) and ADR 0071's own decoders
+        // report what they cannot read, so the two members do not share a rule
+        // even though they share this lookup.
+        if method == "queryAs" {
+            let span = type_args.first().map_or(call_span, |ty| ty.span);
+            env.row_sites.push(crate::derive::RowSite::new(
+                format!("{owner}::{method}"),
+                qname.clone(),
+                list,
+                span,
+            ));
+        }
+        return Some((qname, list));
     }
     let found = env.interner.describe(first);
     let span = type_args.first().map_or(call_span, |ty| ty.span);
