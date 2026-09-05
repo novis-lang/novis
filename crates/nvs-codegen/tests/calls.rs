@@ -25,6 +25,87 @@ fn a_static_call_reaches_its_callee_and_brings_a_value_back() {
     assert_eq!(output_of(CALLS), "quadruple(5) = 20\n");
 }
 
+/// Three parameters whose values are told apart from each other and from
+/// whatever a slice's neighbour happens to hold, and one method per class that
+/// answers through `static::` — so what reached the receiver slot is readable
+/// from the outside.
+///
+/// `Renamed` re-declares `named` rather than inheriting it because
+/// `Unit::call_static` names a *compiled function* and fills the slot with
+/// that same class: an inherited body is compiled once, under the class that
+/// declares it.
+const SLOTS: &str = "<?nvs
+class Slots {
+    public static function first(int $a, int $b, int $c): int {
+        return $a;
+    }
+    public static function second(int $a, int $b, int $c): int {
+        return $b;
+    }
+    public static function third(int $a, int $b, int $c): int {
+        return $c;
+    }
+    public static function tag(): string { return \"base\"; }
+    public static function named(): string { return static::tag(); }
+}
+class Renamed extends Slots {
+    public static function tag(): string { return \"derived\"; }
+    public static function named(): string { return static::tag(); }
+}
+";
+
+/// A hand-built call delivers each argument to the parameter it was written
+/// for — the claim `nvs_runtime::NvsFn` makes about slot 0 being an implicit
+/// receiver, checked from the only side that can get it wrong.
+///
+/// **Every value here is non-zero and every one is different.** The bug this
+/// guards against shifts every parameter by one slot, so a caller reads its
+/// neighbour and then one `Value` past the end of its own slice — which is
+/// invisible against a `0` argument, invisible against two arguments that
+/// happen to be equal, and was invisible for as long as the workspace's only
+/// hand-built calls passed `Value::int(0)`. It is a live out-of-bounds read
+/// either way: under ASAN the trailing slot reads back as an int-tagged zero,
+/// and under an ordinary build as whatever was next on the stack.
+#[test]
+fn a_hand_built_call_delivers_every_argument_to_its_own_parameter() {
+    let unit = compile(SLOTS).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    let args = [Value::int(11), Value::int(22), Value::int(33)];
+
+    for (method, expected) in [("first", 11), ("second", 22), ("third", 33)] {
+        let answer = unit
+            .call_static(&mut ctx, "Slots", method, &args)
+            .expect("the method was compiled")
+            .expect("the method ran");
+        assert_eq!(
+            answer.as_int(),
+            Some(expected),
+            "`{method}` read the wrong argument slot"
+        );
+    }
+}
+
+/// The receiver slot is not filler: a `static` method reached from Rust can
+/// still answer `static::`, which is only true if slot 0 carries the *called*
+/// class rather than a null.
+///
+/// Without this, filling slot 0 with `Value::null()` would pass every other
+/// test in this file and hand late static binding a wild pointer.
+#[test]
+fn a_hand_built_static_call_carries_the_class_it_was_called_on() {
+    let unit = compile(SLOTS).expect("the fixture compiles");
+    let mut ctx = Ctx::buffered();
+    unit.install_in(&mut ctx);
+
+    for (class, tag) in [("Slots", &b"base"[..]), ("Renamed", &b"derived"[..])] {
+        let answer = unit
+            .call_static(&mut ctx, class, "named", &[])
+            .expect("the method was compiled")
+            .expect("the method ran");
+        assert_eq!(answer.as_str_bytes(), Some(tag));
+    }
+}
+
 #[test]
 fn a_call_resolves_a_callee_declared_after_it() {
     // The declare-then-define pass is what makes this work: `first` names
