@@ -17207,11 +17207,12 @@ Answers the keys of the objects on `$disk`, sorted byte-ascending — every entr
 <a id="core-core-cldr"></a>
 ### `Core\Cldr`
 
-Keywords: pluralCategory
+Keywords: pluralCategory, ordinalCategory
 
 | Member | Signature |
 |---|---|
 | [`Core\Cldr::pluralCategory`](#core-core-cldr-pluralcategory) | `pluralCategory(int\|float\|decimal $count, string $locale): Core\Cldr\PluralCategory` |
+| [`Core\Cldr::ordinalCategory`](#core-core-cldr-ordinalcategory) | `ordinalCategory(int\|float\|decimal $count, string $locale): Core\Cldr\PluralCategory` |
 
 <a id="core-core-cldr-pluralcategory"></a>
 #### `Core\Cldr::pluralCategory`
@@ -17230,6 +17231,24 @@ Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message
 **Returns** `Core\Cldr\PluralCategory` — The category the language's rules put `$count` in — `Other` for every count in a language that makes no plural distinction.
 
 **Throws** `LogicError` — The tag carries no language subtag, or names a language whose rules are not among those compiled in — a locale is never given another language's rules.; `RuntimeError` — `$count` is a `float` that is not finite, or one that prints more digits than the rules can be evaluated over.
+
+<a id="core-core-cldr-ordinalcategory"></a>
+#### `Core\Cldr::ordinalCategory`
+
+```nvs skip
+Core\Cldr::ordinalCategory(int|float|decimal $count, string $locale): Core\Cldr\PluralCategory
+```
+
+Answers which form `$count` takes as a *place* rather than as an amount — English's `1st`, `2nd`, `3rd`, `4th` — so a template writes the suffix its locale marks.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$count` | `int\|float\|decimal` | The place the message is about. CLDR states its ordinal rules over whole numbers, so a count showing a fraction is outside all of them and answers `Other` — except in the two languages whose rules read the integer part alone, Macedonian and Georgian. |
+| `$locale` | `string` (neutral) | A BCP 47 tag, read exactly as `pluralCategory` reads it: only the language subtag, and case is ignored. |
+
+**Returns** `Core\Cldr\PluralCategory` — The category the language's ordinal rules put `$count` in — `Other` for every count in a language that marks no ordinal form, which is most of them.
+
+**Throws** `LogicError` — The tag carries no language subtag, or names a language neither table carries rules for. A language carried for cardinals but marking no ordinal form is not this case: it answers `Other`.; `RuntimeError` — `$count` is a `float` that is not finite, or one that prints more digits than the rules can be evaluated over.
 
 <a id="core-core-password"></a>
 ### `Core\Password`
