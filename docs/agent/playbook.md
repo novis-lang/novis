@@ -2047,6 +2047,19 @@ is why" — is this file.
   for. The sibling bullets are all about a check that names a test the tree cannot host; this is the
   cheap opposite — before writing a new test for a goal item, `grep -n -A8 'stage = "<the stage>"'
   docs/agent/loop-goal.toml` and take the names from the `tests = [` block.
+- **A goal's § *Standing decisions* can be right about the ruling and wrong about the reason it
+  gives, and a frozen test name can carry the wrong reason with it.** Goal 21's item 5 forbids a
+  `net.connect` wildcard because that capability "is asked of a *resolved address*
+  (`capability.rs:87`)", and the acceptance check's own test name is
+  `net_connect_takes_no_wildcard_because_it_is_asked_of_an_address`. `capability.rs:87` is
+  `denied_by_default`, which is ADR 0058 § 3's *address table* and a different question entirely:
+  `Cap::NetConnect`'s **grant** is asked of a hostname, at `crates/nvs-runtime/src/capability.rs:151`'s
+  `pin_host`, before the name has been resolved at all. The ruling is pre-authorized and stands; its
+  stated reason would have gone into a module doc as a sentence that is simply false, and a module doc
+  outlives the goal file that seeded it. Write the doc from what the code does — here the real reason
+  is ADR 0058 § 2's pinned address, which bounds what one *named* host may turn out to be and says
+  nothing about how many names a pattern admits — keep the frozen test name, and say in the handoff
+  that the wording was wrong rather than the decision.
 
 ## Running things
 
