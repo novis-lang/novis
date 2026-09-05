@@ -633,6 +633,21 @@ fn start_as_task(
         // Every isolate but a connection's has no peer and takes this branch
         // never, which is why it is asked of the context rather than of a flag
         // this builder would have to carry.
+        //
+        // **A panic does not reach this line, and that is the answer rather
+        // than an omission.** `nvs_runtime::run_task` contains one — the core
+        // survives it and [`Started::join`] hands the waiter a cancelled
+        // completion — but the unwind runs [`Ended`]'s `Drop` and leaves,
+        // closing the descriptor with the child's context and giving the peer
+        // the reset § 7 asks this branch to replace. Moving the close into that
+        // guard is the only way to answer otherwise and it is refused twice
+        // over: the guard holds no context to reach a peer through, and a close
+        // is a *write*, which parks — where a stack being unwound may not
+        // (`crate::scheduler`'s module doc, `nvs_runtime::HelperFrame`). Nor is
+        // it the case § 1 is about: a panic is ADR 0020's engine floor rather
+        // than one of the `[limits]` a connection has a budget of, and every
+        // one of *those* arrives here as a fault because
+        // `nvs_runtime::run_helper` caught it a frame earlier.
         if let Some(peer) = child.peer() {
             peer.close(if completion.ok {
                 nvs_runtime::Closing::Done
