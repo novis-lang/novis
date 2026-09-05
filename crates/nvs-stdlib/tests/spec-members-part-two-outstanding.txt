@@ -1,7 +1,9 @@
 # Every member `docs/spec/01-core-library.md` §§ 14-19 names that
 # `nvs_stdlib::registry::CLASSES` does not declare yet. One key per line,
 # `§<section> <Class>::<member>` where the spec's bullet names a class, and
-# `§<section> <member>` where a table row does not.
+# `§<section> <member>` where a table row does not -- then the goal that will
+# strike it: `§18 stream  # 21`, read against docs/agent/goals/chain.toml by
+# `every_outstanding_key_names_an_owner`. That test's doc owns the column.
 #
 # `tests/spec_registry_coverage.rs` owns this file, and its module doc says why it
 # exists rather than the test simply failing. The list **only shrinks**: adding a
@@ -9,31 +11,27 @@
 # line as loudly as on an unlisted one. When this file holds no keys, spec
 # §§ 14-19 is registered whole.
 #
-# Part II is finished by more than one goal — the request-facing half of § 15 is
-# goal 6's and § 18's driver surface is goal 5's — so a key here is a member that
-# is owed, never one that is refused. Grouped by section for reading; the test
-# compares sets, so order means nothing to it.
+# A key here is a member that is owed, never one that is refused. Grouped by
+# section for reading; the test compares sets, so order means nothing to it.
 
 # § 14 is registered whole -- the handle roster, the whole-file members, the
 # directory, metadata and copying members, and both of its `Iterable<string>`s.
 # It keeps no keys here.
 
 # § 15 -- the request-facing half, and nothing else: every member left here is
-# one that needs a request, which makes all of them goal 6's. `Core\Env`,
-# `Core\Cap` and `Core\Cli` are registered whole; `Core\Request` has the request
-# line (`method`, `path`, `query`), the fields that arrived with it, all three
-# readings of the body and ADR 0102 § 1's `route`, and owes the peer, and
-# `Core\Session` is whole: § 1's seven members all have registry rows. What is
-# left of ADR 0139 is § 4's write-back at the end of the request, which is a
-# server question rather than a member.
-§15 Request::clientIp
-§15 Request::host
-§15 Request::scheme
-§15 Response::html
-§15 Response::sendFile
+# one that needs a request. `Core\Env`, `Core\Cap` and `Core\Cli` are registered
+# whole; `Core\Request` has the request line (`method`, `path`, `query`), the
+# fields that arrived with it, all three readings of the body and ADR 0102 § 1's
+# `route`, and owes the peer, and `Core\Session` is whole: § 1's seven members
+# all have registry rows. What is left of ADR 0139 is § 4's write-back at the end
+# of the request, which is a server question rather than a member.
+§15 Request::clientIp   # 17
+§15 Request::host       # 17
+§15 Request::scheme     # 17
+§15 Response::html      # 17
+§15 Response::sendFile  # 17
 
 # § 18 -- `Core\Db`, whose remaining members each need a driver and a server to
-# talk to: goal 5's. `inList` and `quoteIdentifier` need neither and have
-# landed.
-§18 stream
-§18 streamAs
+# talk to. `inList` and `quoteIdentifier` need neither and have landed.
+§18 stream              # 21
+§18 streamAs            # 21

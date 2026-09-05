@@ -3,24 +3,21 @@
 # spec_registry_coverage.rs owns the walk; that test's doc owns why a
 # class-level gate is what these two sections get.
 #
-# One key per line, as the spec section and the class's own spelling. The list
-# only shrinks: registering a class and striking its line here are one slice,
-# and a line naming a class that is registered now fails the same test.
+# One key per line, as the spec section and the class's own spelling, then the
+# goal that will strike it: `§16 Core\Net  # 24`, read against
+# docs/agent/goals/chain.toml by `every_outstanding_key_names_an_owner`. That
+# test's doc owns the column, and `unowned` is the answer for a class no entry on
+# the chain builds -- which is a scheduling question for the user, recorded in
+# docs/agent/carried-gaps.md § Unowned.
 #
-# Every one of these is owed by a goal that has not run, and each names it:
-# `Core\Metrics` is goal 6's item 19. `Core\Net`, `Core\Os` and `Core\Signal`
-# are goal 24's; `Core\Compress`, `Core\Mime` and `Core\Zip` are goal 25's;
-# `Core\Xml` is goal 26's, with `Core\Html::sanitize` and ADR 0122's parser
-# behind it. All seven are M8's: ADR 0051 § 3 puts them at Tier 0 and M8 is the
-# milestone that builds Core's stdlib. An earlier version of this comment filed
-# § 17's four under M9 -- m9.md is the extension system and carries none of
-# them -- which left them owned by nothing while reading as scheduled.
+# The list only shrinks: registering a class and striking its line here are one
+# slice, and a line naming a class that is registered now fails the same test.
 
-§16 Core\Metrics
-§16 Core\Net
-§16 Core\Os
-§16 Core\Signal
-§17 Core\Compress
-§17 Core\Mime
-§17 Core\Xml
-§17 Core\Zip
+§16 Core\Metrics   # unowned
+§16 Core\Net       # 24
+§16 Core\Os        # 24
+§16 Core\Signal    # 24
+§17 Core\Compress  # 25
+§17 Core\Mime      # 25
+§17 Core\Xml       # 26
+§17 Core\Zip       # 25
