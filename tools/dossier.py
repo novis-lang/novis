@@ -737,6 +737,22 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
 
 
 def jobs_for(count: int) -> int:
+    """How many proof programs run at once. `machine.py` § *The policy* owns the number.
+
+    **The memory cap that policy describes does not apply here yet, and an attack is the one kind
+    of program it was written for.** `machine.width()` caps on free memory only when the profile
+    carries both `mem_kb` and a `sample_rss_kb`, and the `local` context has neither on Windows:
+    `local_probe()` reads them out of `/proc/meminfo`, and it takes no timed sample because its
+    first caller's unit of work was a snippet that holds nothing. So a hostile sweep runs at half
+    the cores with nothing bounding what those workers allocate -- and `tests/hostile/README.md`
+    asks for input "sized to the memory of the machine rather than to the example".
+
+    Harmless while the attack tree is a handful of files, and the thing to fix before it is 800:
+    probe free memory on this context too, and give the sweep a `worker_kb` measured from the
+    attacks themselves. `NVS_DOSSIER_JOBS` is the way out in the meantime. A fan-out worker never
+    reaches this -- its brief forbids running an attack for exactly this reason -- so the parent
+    running the sweep is the only caller that can hit it.
+    """
     try:
         return machine.jobs("local", ceiling=count, envs=("NVS_DOSSIER_JOBS",))
     except Exception:
