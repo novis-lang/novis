@@ -988,18 +988,39 @@ where
         // `crate::socket`'s docs § *What `hyper` had already read* is the home
         // of why dropping it would lose a frame for a client that did not wait
         // for the handshake.
-        let peer = crate::socket::Framed::new(parts.io.into_stream(), parts.read_buf.into());
-        let (program, args) = upgrade.into_parts();
-        // The *argument* had no meaning on the other side, which is the one
-        // refusal left at this point and the one place it cannot be reported:
-        // the request that asked is over, there is no `catch` to reach and a
-        // peer that has read a `101` would not understand a status. The socket
-        // closes with `peer` instead, which is the only honest answer left.
-        if let Ok(running) = Isolate::new(program, args, Output::Capture)
-            .over_socket(Box::new(peer))
-            .start(&mut ctx.borrow_mut())
-        {
-            *connection_isolate.borrow_mut() = Some(running);
+        // ADR 0083 § 7's bounds, arming here because this is the first moment
+        // the descriptor is a connection rather than a request: `crate::bounds`
+        // is the home of the numbers, and every wait, frame and message from
+        // this line on is inside them.
+        let peer = crate::socket::Framed::new(
+            parts.io.into_stream(),
+            parts.read_buf.into(),
+            // § 7's defaults, and they are the whole of the answer today:
+            // `crate::bounds`' own § *Known gap* is where it is recorded that
+            // no `[server]` key overrides one yet.
+            crate::bounds::Connection::default(),
+        );
+        // § 7's per-process ceiling, and the ordering is the whole of what it
+        // buys: a connection the process has no room for is told 1013 and
+        // dropped *before* an isolate is allocated for it, which is
+        // `crate::admit`'s rule about refusing before allocating applied to the
+        // longer-lived thing.
+        if peer.admitted() {
+            let (program, args) = upgrade.into_parts();
+            // The *argument* had no meaning on the other side, which is the one
+            // refusal left at this point and the one place it cannot be
+            // reported: the request that asked is over, there is no `catch` to
+            // reach and a peer that has read a `101` would not understand a
+            // status. The socket closes with `peer` instead, which is the only
+            // honest answer left.
+            if let Ok(running) = Isolate::new(program, args, Output::Capture)
+                .over_socket(Box::new(peer))
+                .start(&mut ctx.borrow_mut())
+            {
+                *connection_isolate.borrow_mut() = Some(running);
+            }
+        } else {
+            peer.refuse();
         }
     }
     // The connection isolate outlives every request on this socket, so this is

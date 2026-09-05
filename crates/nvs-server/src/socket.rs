@@ -42,24 +42,36 @@
 //! The prefix beside it is whatever `hyper` had already read — a frame at the
 //! most, released the first time the codec drains it.
 //!
-//! # What is not here yet
+//! # The clock, and who winds it
 //!
-//! **The idle bound.** § 1 gives a connection its own `[limits] idle`, and
-//! [`crate::io::ConnectionIo::into_stream`] hands the stream over with no
+//! [`crate::io::ConnectionIo::into_stream`] hands the stream over with **no**
 //! deadline on purpose — the response wait it was under is not the bound a
-//! WebSocket wants. Nothing arms a new one yet, so a peer that opens a
-//! connection and goes silent holds one isolate until it closes: the limit is
-//! `Core\Socket`'s slice, together with § 3's send timeout, and this paragraph
-//! is what says so out loud until then.
+//! WebSocket wants — and this module is what arms the new one. Every wait a
+//! connection takes is bounded here rather than in the isolate above it,
+//! because `nvs_host::NvsStream` carries one deadline for the descriptor and
+//! this is the last object that holds the descriptor. [`crate::bounds`] is
+//! where the numbers and their reasoning live; what happens at each of them is
+//! [`Framed`]'s own doc.
+//!
+//! A timeout is therefore **not** an error a program sees on `receive()`: an
+//! idle or expired connection is closed with its code and answers `None`, which
+//! is § 3's `null` and the condition every connection loop already ends on. A
+//! `send` that times out is the one that throws, because § 3 says it does and
+//! because a program that could not tell a delivered frame from an abandoned
+//! one has no way to be correct.
 
 use std::io::{Read, Write};
+use std::time::Instant;
 
 use nvs_host::NvsTcp;
 use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket};
 use tungstenite::Message;
+use tungstenite::protocol::WebSocketConfig;
 use tungstenite::protocol::frame::CloseFrame;
 use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{Role, WebSocket};
+
+use crate::bounds::{Connection, Slot};
 
 /// RFC 6455's `Sec-WebSocket-Accept` for the key the opening carried.
 ///
@@ -88,6 +100,14 @@ pub struct Prefixed {
 }
 
 impl Prefixed {
+    /// Bounds every wait on the descriptor by `at`.
+    ///
+    /// The prefix is not bounded and does not need to be: it is bytes already
+    /// in memory, so a read that the cursor answers takes no wait at all.
+    fn set_deadline(&mut self, at: Instant) {
+        self.stream.set_deadline(Some(at));
+    }
+
     /// Whether the prefix still has bytes nobody has read.
     fn buffered(&self) -> bool {
         // Widening: a cursor's position is a `u64` and the buffer is a `Vec`,
@@ -120,24 +140,115 @@ impl Write for Prefixed {
 ///
 /// It owns the descriptor from the `101` onwards: dropping it closes the
 /// socket, which is what makes a connection isolate's teardown the connection's
-/// end with no second path to keep in step.
+/// end with no second path to keep in step. It owns § 7's clock for the same
+/// reason — the descriptor's deadline is one field of one stream, and this is
+/// the last object that holds it.
 #[derive(Debug)]
-pub struct Framed(WebSocket<Prefixed>);
+pub struct Framed {
+    /// The codec, already carrying § 7's two size bounds as its own config.
+    socket: WebSocket<Prefixed>,
+    /// § 7's numbers for this connection, copied at the `101`.
+    bounds: Connection,
+    /// When [`Connection::lifetime`] runs out, computed once so that every wait
+    /// is capped by the same instant rather than by a duration re-measured from
+    /// whenever it was asked.
+    expires_at: Instant,
+    /// This connection's place under [`Connection::max_open`], or `None` for a
+    /// connection the process had no room for. Held here so the count falls
+    /// exactly when the descriptor does.
+    slot: Option<Slot>,
+}
 
 impl Framed {
-    /// Takes the stream an upgrade handed back and frames it, server-side.
+    /// Takes the stream an upgrade handed back and frames it, server-side,
+    /// inside `bounds`.
     ///
     /// `Role::Server` is not a detail: it decides that outgoing frames are
     /// unmasked and that an incoming unmasked frame is a protocol error, which
     /// is RFC 6455's own asymmetry and the half a peer cannot lie its way out
     /// of.
+    ///
+    /// **The size bounds are handed to the codec and the time bounds are not**,
+    /// because `tungstenite` is what reassembles a message and this module is
+    /// what owns the descriptor's clock. Passing a config at all is the point:
+    /// the crate's own defaults are 16 MiB and 64 MiB, and
+    /// [`Connection::default`] is where it is argued that a connection given
+    /// 8 MiB may not be handed either.
+    ///
+    /// A connection this process has no room for is framed anyway and reports
+    /// [`Self::admitted`] as `false`. Refusing before framing would leave the
+    /// caller a raw descriptor and no way to say why it is closing, and § 7
+    /// asks for a defined code rather than a reset.
     #[must_use]
-    pub fn new(stream: NvsTcp, already_read: Vec<u8>) -> Self {
+    pub fn new(stream: NvsTcp, already_read: Vec<u8>, bounds: Connection) -> Self {
         let prefixed = Prefixed {
             read: std::io::Cursor::new(already_read),
             stream,
         };
-        Self(WebSocket::from_raw_socket(prefixed, Role::Server, None))
+        let config = WebSocketConfig::default()
+            .max_frame_size(Some(bounds.frame))
+            .max_message_size(Some(bounds.message));
+        Self {
+            socket: WebSocket::from_raw_socket(prefixed, Role::Server, Some(config)),
+            bounds,
+            expires_at: Instant::now() + bounds.lifetime,
+            slot: Slot::take(bounds.max_open),
+        }
+    }
+
+    /// Whether this process had a place for this connection under
+    /// [`Connection::max_open`].
+    ///
+    /// A caller that reads `false` owes the peer a
+    /// [`Closing::AtCapacity`] close and must start no isolate: the whole
+    /// saving of the ceiling is the isolate that is not allocated.
+    #[must_use]
+    pub fn admitted(&self) -> bool {
+        self.slot.is_some()
+    }
+
+    /// Tells the peer [`Closing::AtCapacity`] and drops the descriptor.
+    ///
+    /// An inherent method rather than the caller reaching for
+    /// [`nvs_runtime::PeerSocket::close`], because this is the one close taken
+    /// by a caller that never hands the socket to an isolate — and importing
+    /// the whole seam trait into [`crate::serve`] to spell one refusal would
+    /// put `receive` and `send` in scope in the module that must never call
+    /// either.
+    pub fn refuse(mut self) {
+        self.close(Closing::AtCapacity);
+    }
+
+    /// Bounds the next wait by `window`, or by the lifetime where that is
+    /// sooner.
+    ///
+    /// The cap is what makes [`Connection::lifetime`] a bound at all: a
+    /// connection that speaks every minute would otherwise re-arm the idle
+    /// window forever and never reach its own expiry.
+    fn arm(&mut self, window: std::time::Duration) {
+        let at = (Instant::now() + window).min(self.expires_at);
+        self.socket.get_mut().set_deadline(at);
+    }
+
+    /// Which of § 7's two clocks a `TimedOut` was, or `None` for an error that
+    /// is not one.
+    ///
+    /// Read off the *lifetime* rather than off which window was armed, because
+    /// [`Self::arm`] hands the stream one instant and the stream reports one
+    /// kind — so the question "was that the lifetime" is answered by asking the
+    /// lifetime, and everything else is the idle window by construction.
+    fn expiry(&self, error: &tungstenite::Error) -> Option<Closing> {
+        let tungstenite::Error::Io(io) = error else {
+            return None;
+        };
+        if io.kind() != std::io::ErrorKind::TimedOut {
+            return None;
+        }
+        Some(if Instant::now() >= self.expires_at {
+            Closing::Expired
+        } else {
+            Closing::Idle
+        })
     }
 }
 
@@ -155,9 +266,22 @@ impl PeerSocket for Framed {
     /// this reads again rather than making every loop in every application
     /// filter control frames it did not ask about. A close — orderly, or the
     /// socket ending under us — is `None`, which is § 3's `null`.
+    ///
+    /// **A ping re-arms the idle window**, which is the arming being inside the
+    /// loop rather than above it. That is what makes § 7's idle bound usable at
+    /// all: a client with nothing to say keeps its connection by doing what RFC
+    /// 6455 already tells it to do, and a client that has genuinely gone is the
+    /// one that stops.
+    ///
+    /// § 7's two timeouts end the connection here rather than reporting one:
+    /// the peer is told [`Closing::Idle`] or [`Closing::Expired`] and the
+    /// member answers `None`, so a program's loop ends exactly as it does on an
+    /// ordinary disconnect. A connection closed on the clock is not a fault of
+    /// the program's, and there is nothing for it to catch.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
         loop {
-            return match self.0.read() {
+            self.arm(self.bounds.idle);
+            return match self.socket.read() {
                 Ok(Message::Text(text)) => Ok(Some(PeerFrame::Text(text.as_str().to_owned()))),
                 Ok(Message::Binary(bytes)) => Ok(Some(PeerFrame::Binary(bytes.to_vec()))),
                 Ok(Message::Ping(_) | Message::Pong(_)) => continue,
@@ -167,23 +291,37 @@ impl PeerSocket for Framed {
                 Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
                     Ok(None)
                 }
-                Err(error) => Err(failed(&error)),
+                Err(error) => match self.expiry(&error) {
+                    Some(why) => {
+                        self.close(why);
+                        Ok(None)
+                    }
+                    None => Err(failed(&error)),
+                },
             };
         }
     }
 
     /// Sends one frame and flushes it, parking until the bytes are out.
     ///
+    /// § 3's *send timeout* is [`Connection::send`], armed here and reported as
+    /// an error rather than as a close: this is the one operation whose failure
+    /// a program must see, because a peer that stopped reading and a frame that
+    /// went out are the same call otherwise.
+    ///
     /// # Errors
     ///
-    /// The socket failed. § 3's *send timeout* is not among them yet — the
-    /// module doc's § *What is not here yet* is where that gap is recorded.
+    /// The socket failed, or the send timeout expired — including the case
+    /// where it was [`Connection::lifetime`] that expired first, since
+    /// [`Framed::arm`] caps every wait by it and a connection past its lifetime
+    /// may not keep writing.
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError> {
         let message = match frame {
             PeerFrame::Text(text) => Message::Text(text.into()),
             PeerFrame::Binary(bytes) => Message::Binary(bytes.into()),
         };
-        self.0.send(message).map_err(|error| failed(&error))
+        self.arm(self.bounds.send);
+        self.socket.send(message).map_err(|error| failed(&error))
     }
 
     /// Starts RFC 6455's close handshake, ignoring what it fails with.
@@ -194,11 +332,22 @@ impl PeerSocket for Framed {
     /// The code and the reason are [`Closing`]'s, which is the one place this
     /// tree decides them — a peer told 1008 rather than 1000 is a client that
     /// can log why it will not simply reconnect into the same overflow.
+    ///
+    /// **The lifetime does not bound this write**, which is why the deadline is
+    /// set here rather than through [`Framed::arm`]: the connection being over
+    /// is the commonest reason to be closing one, and a close capped by an
+    /// instant already in the past would send nothing at all — turning every
+    /// [`Closing::Expired`] into the reset § 7 asks this to replace. The send
+    /// timeout still applies, so a peer that has stopped reading costs one
+    /// window and not a stuck coroutine.
     fn close(&mut self, why: Closing) {
-        drop(self.0.close(Some(CloseFrame {
+        self.socket
+            .get_mut()
+            .set_deadline(Instant::now() + self.bounds.send);
+        drop(self.socket.close(Some(CloseFrame {
             code: CloseCode::from(why.code()),
             reason: why.reason().into(),
         })));
-        drop(self.0.flush());
+        drop(self.socket.flush());
     }
 }

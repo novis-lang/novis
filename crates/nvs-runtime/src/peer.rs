@@ -347,10 +347,17 @@ pub trait PeerSocket: std::fmt::Debug {
 
 /// Why a connection is being closed, as the code RFC 6455 puts on the wire.
 ///
-/// Two, because there are two reasons this runtime ever closes one from its own
-/// side, and a peer that cannot tell them apart cannot decide whether to
-/// reconnect. It is deliberately not a `u16`: a code is a *decision* this crate
-/// makes, and an open integer would let each call site invent one.
+/// One variant per reason this runtime ever closes a connection from its own
+/// side, because a peer that cannot tell them apart cannot decide whether to
+/// reconnect — and that decision is the whole of what a close code is for. It
+/// is deliberately not a `u16`: a code is a *decision* this crate makes, and an
+/// open integer would let each call site invent one.
+///
+/// **Two variants may share a code, and none may share an action.** The
+/// question a client asks is "do I reconnect, and when", so the codes here fall
+/// into three answers: 1000 and 1001 mean reconnect now, 1013 means back off
+/// first, and 1008 means the reconnect will end the same way unless the client
+/// changes what it does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Closing {
     /// The connection ended the way it was meant to — its loop finished, or the
@@ -362,6 +369,38 @@ pub enum Closing {
     /// specifically not 1001 or 1011, which say the server is going away or
     /// broke, and either would tell a client to reconnect and do it again.
     SlowSubscriber,
+    /// ADR 0083 § 7's idle timeout: nothing arrived from this peer for
+    /// `nvs_server::bounds::Connection::idle`. RFC 6455's 1001, *going away* —
+    /// the peer did nothing wrong and reconnecting is the correct response,
+    /// which is what separates this from [`Self::SlowSubscriber`] however
+    /// similar the two look from the server's side.
+    Idle,
+    /// ADR 0083 § 7's total lifetime: this connection has been open for
+    /// `nvs_server::bounds::Connection::lifetime`, however busy it was. 1001
+    /// for [`Self::Idle`]'s reason, and the reason text is what tells the two
+    /// apart in a log.
+    Expired,
+    /// ADR 0083 § 7's per-process ceiling: this process already holds
+    /// `nvs_server::bounds::Connection::max_open` connections, so this one is
+    /// closed before its isolate is started. 1013, *try again later*, which is
+    /// the one registered code that says the refusal is about load and not
+    /// about the request — a client told 1001 here would reconnect immediately
+    /// and be refused again.
+    AtCapacity,
+    /// ADR 0083 § 1: this connection's isolate ended in a failure — a throw
+    /// that reached ADR 0020's floor, or one of the `[limits]` values § 1 gives
+    /// a connection its own budget of. RFC 6455's 1011, *internal error*.
+    ///
+    /// **One code for both**, and that is § 1's own wording rather than a
+    /// coarsening of it: what it asks for is that a connection exceeding a
+    /// limit "is closed with a defined code, the same way a request that
+    /// exceeds one is terminated", and a request over its budget and a request
+    /// that threw past every handler are one status on the HTTP side too. The
+    /// distinction that matters to a client is that the server chose the close
+    /// — the alternative being the reset it reads when a process is killed for
+    /// the memory it was holding, which is the failure this code exists to say
+    /// did *not* happen.
+    Faulted,
 }
 
 impl Closing {
@@ -371,6 +410,9 @@ impl Closing {
         match self {
             Self::Done => 1000,
             Self::SlowSubscriber => 1008,
+            Self::Idle | Self::Expired => 1001,
+            Self::AtCapacity => 1013,
+            Self::Faulted => 1011,
         }
     }
 
@@ -380,6 +422,10 @@ impl Closing {
         match self {
             Self::Done => "closing",
             Self::SlowSubscriber => "subscriber too slow to keep up with its topics",
+            Self::Idle => "idle for longer than this connection is allowed to be",
+            Self::Expired => "open for longer than a connection may stay open",
+            Self::AtCapacity => "this server already holds as many connections as it may",
+            Self::Faulted => "this connection's isolate ended in a failure",
         }
     }
 }

@@ -19,14 +19,13 @@
 //! opens a root isolate that **has** a peer.
 //!
 //! § 3's surface is over it as well — `current()`, `receive()` and the two
-//! `send` rows, plus the [`MESSAGE`] each wait answers with. What is missing is
-//! the far half of `receive()`'s second source: [`crate::topic`] registers
-//! § 4's `subscribe` and `unsubscribe`, and its `publish` — the fan-out, and
-//! the only thing that can fill a connection's queue — is unwritten. That is
-//! this module's known gap. `nvs_server::socket`'s own
-//! docs § *What is not here yet* carry the other half of it — § 1's `[limits]
-//! idle` and § 3's send timeout — which is the same list read from under the
-//! seam.
+//! `send` rows, plus the [`MESSAGE`] each wait answers with. [`crate::topic`]
+//! is the far half of `receive()`'s second source and is whole: § 4's
+//! `subscribe`, `unsubscribe` and the `publish` that fans out across cores.
+//! The waits both members sit inside are `nvs_server::bounds`' — § 7's idle,
+//! lifetime and send timeout, armed by the framing layer because the deadline
+//! belongs to the descriptor. Nothing here can name a duration, which is why
+//! `send`'s own doc says only that the failure arrives as a throw.
 //!
 //! `Core\Sse` (§ 5) is [`crate::sse`], and it is a module of its own rather
 //! than a second class here because what § 5 splits is the **door** and never
