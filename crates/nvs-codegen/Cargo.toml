@@ -16,10 +16,12 @@ cranelift.workspace = true
 cranelift-jit.workspace = true
 cranelift-module.workspace = true
 cranelift-native.workspace = true
+cranelift-object.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+object.workspace = true
 nvs-diagnostics.workspace = true
 nvs-syntax.workspace = true
 nvs-hir.workspace = true

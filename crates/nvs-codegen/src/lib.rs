@@ -209,6 +209,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, ModuleError};
+use cranelift_object::{ObjectBuilder, ObjectModule};
 use nvs_ir::Program;
 use nvs_runtime::NvsFn;
 use rustc_hash::FxHashMap;
@@ -459,9 +460,36 @@ impl Unit {
 /// [`CodegenError::UnsupportedHost`] on a machine Cranelift has no backend
 /// for.
 pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
-    let mut jit = Jit::new(None)?;
-    jit.compile_all(program)?;
-    jit.finish()
+    let mut unit = UnitBuilder::new(None)?;
+    unit.compile_all(program)?;
+    unit.finish()
+}
+
+/// Compiles every function in `program` into a relocatable object file, and
+/// returns its bytes — [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
+/// § 2's cached payload.
+///
+/// **The same walk [`compile`] runs**, and that is the point rather than an
+/// implementation detail: `emit.rs` is handed a different [`Module`] and
+/// nothing else, so the two products cannot drift into two semantics. What
+/// differs is only what a `Module` decides — the JIT resolves a call, a runtime
+/// helper and a class descriptor to an address in its own process, while the
+/// object leaves each of them an undefined symbol for whoever loads the file to
+/// resolve.
+///
+/// The bytes are the host's own object format (COFF on Windows, ELF elsewhere),
+/// for the host's ISA: an artifact is addressed by a key that already covers
+/// the target, so a file that would not load here is a cache miss rather than
+/// anything this function has to refuse.
+///
+/// # Errors
+///
+/// The same three cases [`compile`] reports, plus a refusal from the object
+/// writer itself, which is an engine bug.
+pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
+    let mut unit = UnitBuilder::for_object()?;
+    unit.compile_all(program)?;
+    unit.finish_object()
 }
 
 /// Compiles every function in `program` and returns the generated machine
@@ -477,20 +505,29 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 ///
 /// The same three cases [`compile`] reports, for the same reasons.
 pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
-    let mut jit = Jit::new(Some(String::new()))?;
-    jit.compile_all(program)?;
+    let mut unit = UnitBuilder::new(Some(String::new()))?;
+    unit.compile_all(program)?;
     // `finish` still has to run: `finalize_definitions` is what resolves the
     // relocations, and a unit that cannot be linked is not a unit whose
     // disassembly should be reported as if it were fine.
-    let disasm = jit.disasm.take().unwrap_or_default();
-    jit.finish()?;
+    let disasm = unit.disasm.take().unwrap_or_default();
+    unit.finish()?;
     Ok(disasm)
 }
 
-/// The JIT module under construction, plus the imported runtime symbols every
-/// compiled function shares.
-struct Jit {
-    module: JITModule,
+/// The compilation unit under construction: whichever [`Module`] will finalize
+/// it, plus the tables every emitted function shares.
+///
+/// `M` is a [`JITModule`] for [`compile`] and an [`ObjectModule`] for
+/// [`compile_object`], and the whole of the difference between the two products
+/// is in that one parameter — [`Self::compile_all`], [`Self::compile_function`]
+/// and all of `emit.rs` are the same code either way, which is the standing
+/// decision that an object backend is a second `Module` and never a second
+/// lowering. What each backend *finishes* with is its own: only
+/// `UnitBuilder<JITModule>` has a `finish`, because only a JIT has an address
+/// to hand back.
+struct UnitBuilder<M> {
+    module: M,
     ctx: codegen::Context,
     fn_ctx: FunctionBuilderContext,
     sigs: Signatures,
@@ -502,12 +539,12 @@ struct Jit {
     functions: FxHashMap<String, cranelift_module::FuncId>,
     /// Every function's *declared shape*, by the same Novis name — its arity
     /// and its parameter-tag word, read off `nvs_ir::ir::Function::params` in
-    /// the same declaration pass that fills [`Jit::functions`].
+    /// the same declaration pass that fills [`UnitBuilder::functions`].
     ///
     /// Recorded for every function and read for the methods alone: a
     /// `nvs_runtime::MethodRow` carries the shape a caller holding only tagged
     /// values needs, and this is the one place that fact is still in hand —
-    /// [`Jit::bind_method_tables`] runs after finalization, where a function is
+    /// [`UnitBuilder::bind_method_tables`] runs after finalization, where a function is
     /// an address and nothing else.
     shapes: FxHashMap<String, MethodShape>,
     /// Every class the unit declares — the descriptors compiled code points
@@ -524,11 +561,11 @@ struct Jit {
     static_defaults: Vec<Option<nvs_runtime::FieldDefault>>,
     /// Every class descriptor's address, under the symbol name compiled code
     /// relocates against — [`class_desc_symbol`]'s spelling, and the third
-    /// symbol table [`Jit::new`] gives the module.
+    /// symbol table [`UnitBuilder::new`] gives the module.
     ///
     /// Shared with the closure that reads it, because the two happen at
     /// opposite ends of a compile: `JITBuilder::symbol` takes an address
-    /// *now* and the descriptors do not exist until [`Jit::compile_all`]
+    /// *now* and the descriptors do not exist until [`UnitBuilder::compile_all`]
     /// builds them, while a `symbol_lookup_fn` is not called until
     /// `finalize_definitions` relocates. The `Mutex` is what makes that
     /// closure `Send`, which `cranelift-jit` requires; it is uncontended.
@@ -558,10 +595,10 @@ struct Jit {
 /// process reads it — the descriptors it names were allocated by the process
 /// that compiled, not by the one that will run.
 ///
-/// **Nothing on the hot path changes.** `is_pic` is off (see [`Jit::new`]), so
+/// **Nothing on the hot path changes.** `is_pic` is off (see [`UnitBuilder::new`]), so
 /// a symbol value lowers to the same absolute `movabs` an `iconst` did, with
 /// an `Abs8` relocation attached; under [`JITModule`] that relocation resolves
-/// through the lookup closure [`Jit::new`] installs, to the very address this
+/// through the lookup closure [`UnitBuilder::new`] installs, to the very address this
 /// table holds. The descriptor is still an opaque token — `nvs_runtime::ClassDesc`
 /// needs no `#[repr(C)]` and no layout compiled code agrees on — and the only
 /// thing the change adds is a *record* of where the address came from.
@@ -618,7 +655,7 @@ struct ClassEntry {
     slots: FxHashMap<String, usize>,
     /// This class's own id in `Classes::table`, and every method it answers as
     /// `(method name, declaring class label, is `public`)` — kept until
-    /// [`Jit::finish`], which is the first moment a compiled function has an
+    /// [`UnitBuilder::finish`], which is the first moment a compiled function has an
     /// address to put in the runtime descriptor's method table. See
     /// `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
@@ -810,7 +847,7 @@ impl Classes {
     }
 
     /// Every class this unit declares, as `(label, descriptor address)` — what
-    /// [`Jit::compile_all`] publishes under [`class_desc_symbol`]'s names so a
+    /// [`UnitBuilder::compile_all`] publishes under [`class_desc_symbol`]'s names so a
     /// relocation against one of them resolves.
     fn descriptors(&self) -> impl Iterator<Item = (&str, *const nvs_runtime::ClassDesc)> {
         self.by_label
@@ -994,57 +1031,73 @@ struct Signatures {
     array_value_at: Signature,
 }
 
-impl Jit {
-    fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
-        let mut flags = settings::builder();
-        for (name, value) in [
-            // A JIT resolves every call through an absolute address, and the
-            // pages are its own — the same configuration benches/abi-probe has
-            // measured Novis's costs under since M0.
-            ("use_colocated_libcalls", "false"),
-            ("is_pic", "false"),
-            ("opt_level", "speed"),
-            // Cranelift defaults this **off**, and off means a frame larger
-            // than the guard page can move the stack pointer past it in one
-            // step and write into whatever lies beyond — a stack clash, which
-            // is a memory-safety bug rather than the clean crash a guard page
-            // exists to produce. `probestack_size_log2` defaults to 12, so a
-            // probe is emitted only for a frame over 4 KiB and no Novis frame is
-            // that big today: measured under callgrind on this tree, the
-            // retired-instruction count is unchanged to five significant
-            // figures either way (92,237,951 off vs 92,237,800 inline on a
-            // call-heavy fixture; 55,399,358 vs 55,399,652 on a 200-deep
-            // recursion). It is therefore insurance bought for nothing, and
-            // the frame that would need it is exactly the one nobody predicts.
-            //
-            // **Not the same mechanism as ADR 0020 § 1's call-stack limit**,
-            // which counts *depth* against a `Ctx` field at the safepoint's
-            // emit site. That catches a runaway recursion of ordinary frames;
-            // this catches one oversized frame skipping the guard. Neither
-            // covers the other, and both are wanted.
-            ("enable_probestack", "true"),
-            // Cranelift's default *strategy* is `outline`, which emits a call
-            // to a `__cranelift_probestack` libcall — a symbol with a custom
-            // register convention that no JIT gets for free, and that this
-            // module's `builder.symbol` loop below does not supply. So an
-            // outline probe does not protect an oversized frame; it panics
-            // `cranelift-jit` with `can't resolve libcall __cranelift_probestack`
-            // the first time one is compiled, which measured as roughly fifty
-            // consecutive `echo`s at a script's file scope. `inline` emits the
-            // probe loop into the frame itself and needs no symbol, so the
-            // guarantee above is the one actually in force.
-            ("probestack_strategy", "inline"),
-        ] {
-            flags
-                .set(name, value)
-                .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))?;
-        }
-
-        let isa = cranelift_native::builder()
-            .map_err(|e| CodegenError::UnsupportedHost(e.to_owned()))?
-            .finish(settings::Flags::new(flags))
+/// The host ISA both backends compile for, under the flags that are a policy
+/// rather than a tuning choice — `tests/backend_policy.rs` pins the two of
+/// those that leave no trace in a compiled unit.
+///
+/// **`is_pic` is the only flag the two backends disagree about**, and the
+/// disagreement is forced rather than a preference: a JIT owns the pages it
+/// writes into and resolves every call and every descriptor to an absolute
+/// address, while a relocatable object has no address to bake and every
+/// reference in it must be one a loader can place. Everything else is shared on
+/// purpose — an object emitted under different tuning would be evidence about
+/// some other compiler, not about the one whose output runs.
+fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> {
+    let mut flags = settings::builder();
+    for (name, value) in [
+        // A JIT resolves every call through an absolute address, and the
+        // pages are its own — the same configuration benches/abi-probe has
+        // measured Novis's costs under since M0.
+        ("use_colocated_libcalls", "false"),
+        ("is_pic", if is_pic { "true" } else { "false" }),
+        ("opt_level", "speed"),
+        // Cranelift defaults this **off**, and off means a frame larger
+        // than the guard page can move the stack pointer past it in one
+        // step and write into whatever lies beyond — a stack clash, which
+        // is a memory-safety bug rather than the clean crash a guard page
+        // exists to produce. `probestack_size_log2` defaults to 12, so a
+        // probe is emitted only for a frame over 4 KiB and no Novis frame is
+        // that big today: measured under callgrind on this tree, the
+        // retired-instruction count is unchanged to five significant
+        // figures either way (92,237,951 off vs 92,237,800 inline on a
+        // call-heavy fixture; 55,399,358 vs 55,399,652 on a 200-deep
+        // recursion). It is therefore insurance bought for nothing, and
+        // the frame that would need it is exactly the one nobody predicts.
+        //
+        // **Not the same mechanism as ADR 0020 § 1's call-stack limit**,
+        // which counts *depth* against a `Ctx` field at the safepoint's
+        // emit site. That catches a runaway recursion of ordinary frames;
+        // this catches one oversized frame skipping the guard. Neither
+        // covers the other, and both are wanted.
+        ("enable_probestack", "true"),
+        // Cranelift's default *strategy* is `outline`, which emits a call
+        // to a `__cranelift_probestack` libcall — a symbol with a custom
+        // register convention that no JIT gets for free, and that this
+        // module's `builder.symbol` loop below does not supply. So an
+        // outline probe does not protect an oversized frame; it panics
+        // `cranelift-jit` with `can't resolve libcall __cranelift_probestack`
+        // the first time one is compiled, which measured as roughly fifty
+        // consecutive `echo`s at a script's file scope. `inline` emits the
+        // probe loop into the frame itself and needs no symbol, so the
+        // guarantee above is the one actually in force.
+        ("probestack_strategy", "inline"),
+    ] {
+        flags
+            .set(name, value)
             .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))?;
+    }
 
+    cranelift_native::builder()
+        .map_err(|e| CodegenError::UnsupportedHost(e.to_owned()))?
+        .finish(settings::Flags::new(flags))
+        .map_err(|e| CodegenError::UnsupportedHost(e.to_string()))
+}
+
+impl UnitBuilder<JITModule> {
+    /// The in-process backend: code compiled into pages this process owns, with
+    /// every symbol it names resolved to an address before it is ever called.
+    fn new(disasm: Option<String>) -> Result<Self, CodegenError> {
+        let isa = host_isa(false)?;
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
         // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
         // helpers, and every Tier 0 `Core` member. Both have ADR 0002's one
@@ -1070,9 +1123,62 @@ impl Jit {
                 .map(|address| std::ptr::with_exposed_provenance(*address))
         }));
 
-        let module = JITModule::new(builder);
+        Ok(Self::around(JITModule::new(builder), desc_symbols, disasm))
+    }
+}
+
+impl UnitBuilder<ObjectModule> {
+    /// The out-of-process backend: ADR 0042 § 2's relocatable object, for a
+    /// cache file some later process will load.
+    ///
+    /// Exactly two things differ from [`UnitBuilder::new`], and both follow from
+    /// the file outliving the process that wrote it. `is_pic` is on, because
+    /// there is no address here to bake. And there is no symbol table of any
+    /// kind — no `builder.symbol` loop and no `symbol_lookup_fn` — because
+    /// leaving every runtime helper and every `nvs_class_desc_*` undefined is
+    /// precisely what makes the payload loadable somewhere else: an undefined
+    /// symbol is a relocation record, and a resolved one is an address that was
+    /// only ever true for the compiling process.
+    fn for_object() -> Result<Self, CodegenError> {
+        let isa = host_isa(true)?;
+        // The object's own name is metadata: a cached artifact is addressed by
+        // ADR 0042's key, which the file's contents cannot contribute to.
+        let builder = ObjectBuilder::new(isa, "nvs", cranelift_module::default_libcall_names())
+            .map_err(|source| CodegenError::Cranelift {
+                function: "<unit>".to_owned(),
+                source: Box::new(source),
+            })?;
+        Ok(Self::around(
+            ObjectModule::new(builder),
+            Arc::default(),
+            None,
+        ))
+    }
+
+    /// Writes the object out, which is this backend's whole answer.
+    ///
+    /// No counterpart to [`UnitBuilder::bind_method_tables`] runs here: a
+    /// method row holds a *code address*, and there is none until whoever loads
+    /// this file has placed it.
+    fn finish_object(self) -> Result<Vec<u8>, CodegenError> {
+        self.module.finish().emit().map_err(|source| {
+            emit::internal(&format!(
+                "an object file this unit could not write: {source}"
+            ))
+        })
+    }
+}
+
+impl<M: Module> UnitBuilder<M> {
+    /// The tables every backend shares, around a module only that backend's
+    /// own constructor knows how to build.
+    fn around(
+        module: M,
+        desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
+        disasm: Option<String>,
+    ) -> Self {
         let sigs = Signatures::new(&module);
-        Ok(Self {
+        Self {
             ctx: module.make_context(),
             fn_ctx: FunctionBuilderContext::new(),
             module,
@@ -1086,7 +1192,7 @@ impl Jit {
             literals: 0,
             entries: Vec::new(),
             disasm,
-        })
+        }
     }
 
     /// Declares every function in `program`, then emits every body.
@@ -1221,7 +1327,13 @@ impl Jit {
         }
         buffer.push('\n');
     }
+}
 
+impl UnitBuilder<JITModule> {
+    /// Finalizes the unit into callable code — the JIT's own ending, and the
+    /// reason it is not on the shared impl: `finalize_definitions` resolves
+    /// every relocation against an address in *this* process, which is exactly
+    /// what an object file must not do.
     fn finish(mut self) -> Result<Unit, CodegenError> {
         self.module
             .finalize_definitions()
@@ -1285,7 +1397,10 @@ impl Jit {
 }
 
 impl Signatures {
-    fn new(module: &JITModule) -> Self {
+    /// Every signature this unit calls through, built from whichever `Module`
+    /// is finalizing it — `make_signature` only asks the target's own calling
+    /// convention, so the answers are the same either way.
+    fn new(module: &dyn Module) -> Self {
         let ptr = types::I64;
 
         let mut helper = module.make_signature();
@@ -1493,14 +1608,14 @@ impl Signatures {
 
 /// Reduces an Novis function name to something a linker symbol may contain.
 ///
-/// Not a mangling scheme: [`Jit::compile_function`]'s index already supplies
+/// Not a mangling scheme: [`UnitBuilder::compile_function`]'s index already supplies
 /// uniqueness, so this only has to keep the name readable in a disassembly.
 /// The symbol name a class descriptor's address is relocated against.
 ///
 /// **This is a mangling scheme, unlike [`sanitize`]**, and it has to be: both
 /// ends of the relocation derive the name from the label alone — the emitter
 /// declaring the import, and whoever resolves it, which under `JITModule` is
-/// [`Jit::compile_all`]'s table and under an object backend is the loader
+/// [`UnitBuilder::compile_all`]'s table and under an object backend is the loader
 /// reading the file in another process. There is no index to disambiguate
 /// with, so two different labels must never collide. `sanitize` would collide
 /// `Foo\Bar` with `Foo_Bar`; escaping every non-alphanumeric byte as `_xx`
@@ -1534,7 +1649,7 @@ mod tests {
     /// The whole front end over `source`, lowered but not compiled.
     ///
     /// `tests/common/mod.rs` has the same helper for the end-to-end binaries.
-    /// This copy exists because the tests below assert on [`Jit`]'s *private*
+    /// This copy exists because the tests below assert on [`UnitBuilder`]'s *private*
     /// tables — what the module declared, and what a symbol resolves to — and
     /// nothing outside this file can reach those.
     fn lower(source: &str) -> Program {
@@ -1561,10 +1676,10 @@ mod tests {
     }
 
     /// Compiles `source` and hands back the JIT with its tables intact —
-    /// stopping short of [`Jit::finish`], which consumes them.
-    fn compiled(source: &str) -> Jit {
+    /// stopping short of [`UnitBuilder::finish`], which consumes them.
+    fn compiled(source: &str) -> UnitBuilder<JITModule> {
         let program = lower(source);
-        let mut jit = Jit::new(None).expect("this host has a Cranelift backend");
+        let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
         jit.compile_all(&program).expect("the fixture compiles");
         jit
     }
@@ -1578,7 +1693,7 @@ mod tests {
     /// and the whole of what an `iconst` immediate destroys. The second is the
     /// promise that came with it: under `JITModule` the record resolves to the
     /// address that used to be baked, so nothing on the hot path moved.
-    fn assert_relocated(jit: &Jit, label: &str) {
+    fn assert_relocated(jit: &UnitBuilder<JITModule>, label: &str) {
         let name = class_desc_symbol(label);
         let Some(FuncOrDataId::Data(id)) = jit.module.declarations().get_name(&name) else {
             panic!("no code relocated against `{name}`, so `{label}`'s address was baked in");
@@ -1650,6 +1765,204 @@ if ($s instanceof Circle) { echo \"circle\"; }
 ",
         );
         assert_relocated(&jit, "Circle");
+    }
+
+    /// The programs both backends are asked for, one per lowering family a
+    /// [`Module`] gets a say in: a descriptor address, an `instanceof`, a
+    /// statically resolved call, a string literal's data object, a branch and a
+    /// loop. Those are the sites where an object file needs a relocation and a
+    /// JIT needs an address, so they are where two walks would first disagree.
+    const BOTH_BACKENDS: &[(&str, &str)] = &[
+        (
+            "a class, its field and its method",
+            "<?nvs
+class Point {
+    public int $x = 1;
+
+    public function shifted(int $by): int {
+        return $this->x + $by;
+    }
+}
+
+var $p = new Point();
+echo $p->shifted(2);
+",
+        ),
+        (
+            "an instanceof against a class never constructed",
+            "<?nvs
+class Shape {
+    public int $sides = 0;
+}
+
+class Circle extends Shape {
+}
+
+var $s = new Shape();
+if ($s instanceof Circle) { echo \"circle\"; }
+",
+        ),
+        (
+            "a statically resolved call and a string literal",
+            "<?nvs
+class Tag {
+    public static function of(int $n): string {
+        return \"tag\";
+    }
+}
+
+echo Tag::of(3);
+",
+        ),
+        (
+            "a branch inside a loop",
+            "<?nvs
+var $total = 0;
+var $i = 0;
+while ($i < 10) {
+    if ($i > 4) {
+        $total = $total + $i;
+    }
+    $i = $i + 1;
+}
+echo $total;
+",
+        ),
+    ];
+
+    /// ADR 0042 § 2's keystone: the object backend is a second [`Module`] behind
+    /// the one lowering walk, so every program the JIT emits, it emits too.
+    ///
+    /// A failure here is not "the object file came out wrong". It is that the
+    /// two products no longer come from the same walk, which is the one thing
+    /// the goal's standing decision forbids outright — a second lowering is a
+    /// second semantics.
+    #[test]
+    fn the_object_module_emits_every_program_the_jit_module_does() {
+        for (what, source) in BOTH_BACKENDS {
+            let program = lower(source);
+
+            let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
+            jit.compile_all(&program)
+                .unwrap_or_else(|err| panic!("the JIT does not emit {what}: {err}"));
+
+            let object = compile_object(&program)
+                .unwrap_or_else(|err| panic!("the object module does not emit {what}: {err}"));
+            assert!(
+                object.len() > 64,
+                "the object module answered {} bytes for {what}, which is no unit at all",
+                object.len()
+            );
+        }
+    }
+
+    /// Every symbol a module was asked to declare, in one comparable form:
+    /// what it is, the name it carries into a linker, and its linkage.
+    ///
+    /// This is the whole of what a `Module` is told by the walk, which is why
+    /// comparing it compares the walks rather than the products — two backends
+    /// that were handed the same declarations in the same order ran the same
+    /// code to produce them.
+    fn declared(module: &dyn Module) -> Vec<String> {
+        let decls = module.declarations();
+        let mut out: Vec<String> = decls
+            .get_functions()
+            .map(|(id, decl)| format!("fn {} {:?}", decl.linkage_name(id), decl.linkage))
+            .chain(
+                decls
+                    .get_data_objects()
+                    .map(|(id, decl)| format!("data {} {:?}", decl.linkage_name(id), decl.linkage)),
+            )
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// The other half of the keystone: not just that both backends *finish*,
+    /// but that they were told the same thing on the way there.
+    ///
+    /// Their machine code cannot be compared — `is_pic` differs, so the same
+    /// call is a different encoding — and comparing it would be the wrong claim
+    /// anyway. What must match is the walk's own output: every function and
+    /// every literal, under the same name and the same linkage, in one shared
+    /// pass over [`BOTH_BACKENDS`].
+    #[test]
+    fn the_two_modules_answer_the_same_for_every_lowering_fixture() {
+        for (what, source) in BOTH_BACKENDS {
+            let program = lower(source);
+
+            let mut jit = UnitBuilder::new(None).expect("this host has a Cranelift backend");
+            jit.compile_all(&program)
+                .expect("the JIT emits the fixture");
+            let mut object = UnitBuilder::for_object().expect("this host has a Cranelift backend");
+            object
+                .compile_all(&program)
+                .expect("the object module emits the fixture");
+
+            assert_eq!(
+                declared(&jit.module),
+                declared(&object.module),
+                "the two modules were handed different declarations for {what}, so one walk \
+                 has become two"
+            );
+        }
+    }
+
+    /// A call to a function this unit defines reaches the code as a relocation
+    /// against the callee's symbol, not as a baked address.
+    ///
+    /// Under `JITModule` it always was — `func_addr` against a `FuncId` is a
+    /// relocation whichever module finalizes it — so the claim is only
+    /// *readable* on the object product, where the relocation table survives
+    /// finalization. That is what this reads: a `nvs_class_desc_*` import proves
+    /// nothing about a call, and a call site is the other half of what ADR 0042
+    /// § 2's loader has to place.
+    #[test]
+    fn a_statically_resolved_call_target_is_a_relocation_not_an_immediate() {
+        use object::{Object, ObjectSection, ObjectSymbol};
+
+        let program = lower(
+            "<?nvs
+class Tag {
+    public static function of(int $n): string {
+        return \"tag\";
+    }
+}
+
+echo Tag::of(3);
+",
+        );
+        let mut unit = UnitBuilder::for_object().expect("this host has a Cranelift backend");
+        unit.compile_all(&program).expect("the fixture compiles");
+        let id = *unit
+            .functions
+            .get("Tag::of")
+            .expect("the unit defines the callee");
+        let callee = unit
+            .module
+            .declarations()
+            .get_function_decl(id)
+            .linkage_name(id)
+            .into_owned();
+        let bytes = unit.finish_object().expect("the object is written");
+
+        let file = object::File::parse(&*bytes).expect("cranelift wrote a readable object");
+        let mut targets = Vec::new();
+        for section in file.sections() {
+            for (_, reloc) in section.relocations() {
+                if let object::RelocationTarget::Symbol(index) = reloc.target()
+                    && let Ok(symbol) = file.symbol_by_index(index)
+                    && let Ok(name) = symbol.name()
+                {
+                    targets.push(name.to_owned());
+                }
+            }
+        }
+        assert!(
+            targets.contains(&callee),
+            "nothing in the object relocates against `{callee}`, so the call to it was baked \
+             in as an address this process alone could use. Relocations found: {targets:?}"
+        );
     }
 
     /// The row a descriptor carries describes what a **call site** writes, and

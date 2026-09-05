@@ -60,6 +60,14 @@ cranelift = "0.135"
 cranelift-jit = "0.135"
 cranelift-module = "0.135"
 cranelift-native = "0.135"
+# The second `Module` behind the one lowering walk — ADR 0042 § 2's relocatable
+# object payload. Same version as its four siblings above, and it must stay so:
+# they share `cranelift-codegen`'s types.
+cranelift-object = "0.135"
+# The reader for what that one writes, and a test dependency only: an object's
+# relocation table is the evidence that an address was left for a loader rather
+# than baked in. Same version `cranelift-object` already resolved to.
+object = { version = "0.39", default-features = false, features = ["read", "std"] }
 
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"

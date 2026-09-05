@@ -758,6 +758,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cranelift-object"
+version = "0.135.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ca0d86955529d5b9041c4c07745f6ffa42c32326e9f467a834e2b7bd9a9d156"
+dependencies = [
+ "anyhow",
+ "cranelift-codegen",
+ "cranelift-control",
+ "cranelift-module",
+ "gimli",
+ "log",
+ "object",
+ "target-lexicon",
+]
+
+[[package]]
 name = "cranelift-srcgen"
 version = "0.135.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1918,6 +1934,7 @@ dependencies = [
  "cranelift-jit",
  "cranelift-module",
  "cranelift-native",
+ "cranelift-object",
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-ir",
@@ -1925,6 +1942,7 @@ dependencies = [
  "nvs-stdlib",
  "nvs-syntax",
  "nvs-types",
+ "object",
  "rustc-hash",
  "thiserror 2.0.20",
 ]
