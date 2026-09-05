@@ -1707,8 +1707,9 @@ is why" — is this file.
   read as open from two directions at once. `python tools/peek.py --locate <the test name>` is one
   call and `cargo test -p <crate> <name>` is the second, and together they cost less than the first
   `grep` of the file you were about to write it into. What the session then owes is the *comment*,
-  in both `docs/agent/loop-goal.toml` and `docs/agent/goals/5-database.toml`: they carry the same
-  check text, and fixing one leaves the other saying the feature does not exist.
+  in both `docs/agent/loop-goal.toml` and the live goal's twin under `docs/agent/goals/`: they carry
+  the same check text, and fixing one leaves the other saying the feature does not exist. (It was
+  `5-database.toml` when this happened; that entry has since been retired and the file is gone.)
 - **Taking a C dependency fails `--check-c-deps` on more crates than you took, and one of them is
   never compiled.** Adding `rusqlite` to `nvs-db` put *two* `links =` crates in the shipped graph:
   `libsqlite3-sys`, which is the real one, and `sqlite-wasm-rs`, which `libsqlite3-sys` names only

@@ -2971,8 +2971,8 @@ def relocate_links(text, from_dir):
 
     * `../../adr/0071-…` becomes `../adr/0071-…`: one `../` too many, so one is dropped. This is
       right for `../../../crates/…` too, which loses one of its three and keeps two.
-    * `1-core-depth.toml` and `README.md` are siblings in `goals/`, and from `docs/agent/` they are
-      `goals/1-core-depth.toml` and `goals/README.md`.
+    * `N-<name>.toml` and `README.md` are siblings in `goals/`, and from `docs/agent/` they are
+      `goals/N-<name>.toml` and `goals/README.md`.
 
     An anchor, an absolute path and anything with a scheme are left exactly as they are.
     """

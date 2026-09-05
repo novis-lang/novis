@@ -1945,8 +1945,8 @@ tests = [
 ]
 
 # `serialize`/`unserialize` and a handful of task names is all this goal owns in the inventory, so its
-# floor rises by two points and not by ten. 1-core-depth.toml's Stage 7 comment is where the whole
-# curve is derived; nothing here restates it.
+# floor rises by two points and not by ten. The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment
+# above is where the whole curve is derived; nothing here restates it.
 [[check]]
 kind = "command"
 stage = "1 floor"
@@ -2184,7 +2184,8 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the corpus and the migration floor. This goal owns the `ini_*` family, `gc_*`,
 # `opcache_*`, `set_time_limit` and the rest of PHP's runtime-configuration surface -- about
-# twenty-five names, so two points. 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# twenty-five names, so two points. The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above
+# derives the whole curve.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "nvs-suite"
@@ -2707,7 +2708,8 @@ min_passing = 250
 # 458 of the 860 names still open on 2026-08-29 are this goal's -- the filesystem, streams, processes,
 # crypto, hashing, output buffering, reflection and the `get_*`/`is_*` families. Modelled at 78%; the
 # floor is 74, four points under, because a family this pass attributed to goal 4 and that turns out to
-# belong elsewhere must not fail a run. 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# belong elsewhere must not fail a run. The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above
+# derives the whole curve.
 [[check]]
 kind = "command"
 stage = "1 floor"
@@ -3198,7 +3200,7 @@ want = [
 # The oracle build gained `mysqli`, `pgsql` and `sqlite3` on 2026-08-29, so the three APIs ADR 0067
 # replaces are now IN the inventory rather than a named hole beside it: 227 names, a fifth of the whole
 # table, all of them this goal's. Modelled at 98%; the floor is 94.
-# 1-core-depth.toml's Stage 7 comment derives the whole curve.
+# The `EVERY FLOOR IN THIS PROGRAM IS MEASURED` comment above derives the whole curve.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "nvs-suite"
