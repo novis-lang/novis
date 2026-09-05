@@ -56,6 +56,16 @@
 //! CSRF check, the `route` metric label and § 8's access decision can each read
 //! one answer instead of making three.
 //!
+//! [`socket`] is where this crate stops speaking HTTP:
+//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! upgrade, framed. [`serve`] answers the opening handshake `101` and takes the
+//! connection back off `hyper`; this module puts RFC 6455 over the same
+//! descriptor and hands the result to the connection's root isolate as
+//! [`nvs_runtime::PeerSocket`], which is the one type either side names. The
+//! codec is synchronous because [`nvs_host::NvsTcp`] parks rather than blocks,
+//! so a connection isolate's loop is straight-line code and not a second
+//! `async` seam.
+//!
 //! [`schedule`] is the other thing this core runs, and it is a **second task on
 //! the same scheduler** rather than a second scheduler: ADR 0073 § 5's ticker,
 //! sleeping until the soonest `[[schedule]]` fire and spawning each one as a
@@ -101,6 +111,7 @@ pub mod route;
 pub mod schedule;
 pub mod secure;
 pub mod serve;
+pub mod socket;
 pub mod statics;
 pub mod trace;
 
@@ -126,4 +137,5 @@ pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
 pub use schedule::{Armed, Fires, arm, tick_on_this_core};
 pub use secure::{Scheme, Secure};
 pub use serve::{Answer, Draining, Reply, Serving, serve_connection, serve_on_this_core};
+pub use socket::{Framed, accept_key};
 pub use statics::{Source, Stat};

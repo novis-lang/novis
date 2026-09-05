@@ -564,17 +564,23 @@ impl Drop for Peer {
 /// that opened it, and a task cancelled with the connection that started it
 /// would not.
 ///
-/// **It is not answered `101`, and that is decided rather than deferred.**
-/// RFC 6455's `Sec-WebSocket-Accept` belongs to the framing crate ADR 0051 § 4
-/// picked and nothing here can frame a byte yet, so a `101` now would hand a
-/// peer a socket no code reads and no code closes. The request answers its own
-/// response instead — an ordinary one, which is what makes the upgrading
-/// request "end normally" observable on the wire — and the status, the
-/// `OnUpgrade` this function is still holding, and the hand-over of the socket
-/// into the isolate are all one later slice's. Until it lands the `OnUpgrade`
-/// is dropped with the request's future, which upgrades nothing and leaves the
-/// connection framing responses the ordinary way. § 5's `200
-/// text/event-stream` is the same slice's for the same reason: until the door
+/// **The socket's isolate is answered `101` and started last; the event
+/// stream's is started inside the request's own future.** That is one ordering
+/// stated twice, because the two hand-overs need different things. A socket
+/// isolate's peer does not exist until RFC 6455's handshake is on the wire and
+/// `hyper` has stopped framing, so the prepared upgrade waits here and
+/// [`crate::socket`] frames the connection `http1::Connection::into_parts`
+/// hands back — and the `101` *replaces* whatever the request wrote for itself,
+/// this connection having one response left. An event stream takes no socket,
+/// so nothing is waiting for it.
+///
+/// The handshake is read off the request rather than assumed: `hyper` framing
+/// an upgrade says the connection can be taken over, and a
+/// `Sec-WebSocket-Key` with version 13 says a WebSocket is what asked. A
+/// request missing either is offered no slot at all, so it cannot upgrade and
+/// is answered as the ordinary request it is.
+///
+/// § 5's `200 text/event-stream` is still a later slice's: until the door
 /// writes one, an event stream's isolate runs with `Output::Capture` and its
 /// bytes reach its own buffer rather than a body.
 ///
@@ -611,17 +617,29 @@ where
     //
     // At most one, because [`nvs_runtime::UpgradeSlot::fill`] refuses a second
     // upgrade on one request and a request that upgraded answers nothing more
-    // on this connection — a peer that pipelined behind it gets whatever
-    // `hyper` does with a connection whose next read never comes, which is the
-    // framing slice's to make deliberate.
+    // on this connection: `hyper` stops framing at the `101`, so bytes a peer
+    // pipelined behind the handshake are frames and travel with the socket
+    // (`crate::socket`'s `Prefixed`) rather than being read as a second
+    // request.
     let connection_isolate: RefCell<Option<Box<dyn Running>>> = RefCell::new(None);
     let connection_isolate = &connection_isolate;
+    // § 1's socket hand-over, waiting for the two things it needs that the
+    // request cannot give it: the `101` on the wire, and the descriptor back
+    // from `hyper`. A request that filled the slot leaves its prepared isolate
+    // here beside the `OnUpgrade` that will yield the socket, and the end of
+    // this function is where the two meet.
+    //
+    // At most one for the same reason the cell above holds at most one, and
+    // more strongly: a connection that answered `101` frames no further request
+    // on this socket, so there is no second request to fill it.
+    let pending_socket: RefCell<Option<nvs_runtime::Upgrade>> = RefCell::new(None);
+    let pending_socket = &pending_socket;
     let io = ConnectionIo::new(stream, waits);
     // Taken before the adapter is handed to `hyper`, because that is the last
     // moment anything on this side can reach it.
     let phase = io.phase();
     let phase = &phase;
-    let service = service_fn(move |mut request: Request<Incoming>| async move {
+    let service = service_fn(move |request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists.
@@ -706,20 +724,38 @@ where
         // nothing, which is what `nvs_runtime::Inbound::offer_upgrade` says is
         // the point.
         //
-        // Both halves stay on this task: the slot's clone rides out to the
-        // request below, and the `OnUpgrade` never leaves, because the socket it
-        // yields belongs to this connection and § 1's isolate is started from
-        // here after the request has ended.
-        let upgradable = request
+        // The slot's clone rides out to the request below; the accept key stays
+        // with this connection, because the `101` it answers is this
+        // connection's response and not the request's to write.
+        //
+        // **The `OnUpgrade` is read and never taken.** `hyper` resolves one only
+        // for a caller driving `with_upgrades()`, which wants `I: Send + 'static`
+        // — a bound `crate::io::ConnectionIo` cannot meet and should not, since
+        // its whole point is that this connection never leaves the core that
+        // accepted it. The descriptor comes back through
+        // `http1::Connection::into_parts` at the end of this function instead,
+        // which is the same object by a route with no `Send` on it. What the
+        // extension is still good for is the question, unchanged: `hyper` leaves
+        // one on a request it framed an upgrade for and on no other.
+        //
+        // **`hyper`'s answer is necessary and RFC 6455's opening is the rest of
+        // it.** `hyper` frames an upgrade for any `Connection: Upgrade`, so what
+        // it says is that this connection *can* be taken over — not that a
+        // WebSocket is what asked. A handshake with no `Sec-WebSocket-Key` has
+        // nothing to derive an accept from, and one naming a version other than
+        // 13 speaks a framing this server does not: neither is offered the slot,
+        // so the program answers it as the ordinary request it is and the peer
+        // reads a status that is not `101`, which is RFC 6455's own spelling of
+        // a refused handshake. No `426` and no negotiation — there is one
+        // version, and a door that bargained would be a second handshake to keep
+        // correct.
+        let offered = request
             .extensions()
             .get::<hyper::upgrade::OnUpgrade>()
-            .is_some();
-        let offered = upgradable.then(|| {
-            (
-                hyper::upgrade::on(&mut request),
-                nvs_runtime::UpgradeSlot::new(),
-            )
-        });
+            .is_some()
+            .then(|| websocket_opening(request.headers()))
+            .flatten()
+            .map(|accept| (nvs_runtime::UpgradeSlot::new(), accept));
         // ADR 0083 § 5's cell, and the line above is the whole of what makes it
         // a second one: it is made for **every** request rather than for a
         // request `hyper` framed an upgrade for, because an event stream takes
@@ -758,7 +794,7 @@ where
                 // same hand. A reply that answers no request is left alone by
                 // it, exactly as `Reply::Done` is by having no arm here at all.
                 let isolate = match offered.as_ref() {
-                    Some((_, slot)) => isolate.offering_upgrade(slot.clone()),
+                    Some((slot, _accept)) => isolate.offering_upgrade(slot.clone()),
                     None => isolate,
                 };
                 // § 5's cell, offered unconditionally beside it and in the same
@@ -848,7 +884,8 @@ where
         // below already wrote that. § 5's stream is the one hand-over that
         // *will* want a body, and it is the half that is not landed: until the
         // `200 text/event-stream` it writes into exists, an event stream's
-        // isolate runs as § 1's does and echoes into its own buffer.
+        // isolate echoes into its own buffer. § 1's does the same and always
+        // will, its bytes being frames on a socket this response is over.
         //
         // Both cells are read here and § 5's contradiction is decided here,
         // which is what `nvs_runtime::SseSlot::fill` means by "decided where
@@ -862,17 +899,34 @@ where
         // is answered the `500` that says the server failed to build what it
         // was asked for. As with the refusals above it, there is no `catch`
         // left to report it to: the request that asked is over.
-        let opened = match (
-            offered.as_ref().and_then(|(_on_upgrade, slot)| slot.take()),
-            streaming.take(),
-        ) {
+        //
+        // The two are not started in the same place, and that is § 1's own
+        // ordering rather than a shape this function chose: a socket isolate's
+        // peer does not exist until the `101` is on the wire and `hyper` has
+        // given the descriptor back, so it is prepared here and started at the
+        // end of this function. An event stream's isolate takes no socket, so
+        // there is nothing for it to wait for and it starts here.
+        let socket = offered.as_ref().and_then(|(slot, _accept)| slot.take());
+        let opened = match (socket, streaming.take()) {
             (Some(socket), Some(stream)) => {
                 socket.discard();
                 stream.discard();
                 answered = failed();
                 None
             }
-            (Some(socket), None) => Some(socket),
+            // § 1's `101`, and it **replaces** whatever the request wrote for
+            // itself: this connection has one response left and the peer is
+            // owed the handshake rather than a page it cannot read. The request
+            // still ended normally — that is what makes the upgrade legal — and
+            // its own bytes are discarded here for the reason `answer` discards
+            // a failed request's, which is that a half-meant body is worse than
+            // none.
+            (Some(socket), None) => {
+                let (_slot, accept) = offered.expect("a slot that was filled came from an offer");
+                answered = switching(&accept);
+                *pending_socket.borrow_mut() = Some(socket);
+                None
+            }
             (None, stream) => stream,
         };
         if let Some(upgrade) = opened {
@@ -905,15 +959,56 @@ where
         crossing.fill(answered.headers_mut());
         Ok(answered)
     });
-    let connection = http1::Builder::new().serve_connection(io, service);
-    let framed = block_on(connection).unwrap_or(Ok(()));
+    // **Driven through a borrow rather than moved in**, which is the whole of
+    // what taking the socket back costs: `http1::Connection` is `Unpin` — the
+    // service's future is already boxed inside `hyper`'s own dispatcher — so
+    // polling it through a `Pin::new` leaves it owned by this frame, and
+    // `into_parts` below can then have it. The alternative is
+    // `with_upgrades()`, whose `I: Send + 'static` this connection cannot meet
+    // and should not: [`crate::io::ConnectionIo`] is an `Rc` and a socket
+    // registered on the core that accepted it, and making it `Send` to satisfy
+    // a bound would be saying it may move between cores.
+    let mut connection = http1::Builder::new().serve_connection(io, service);
+    let framed = block_on(std::future::poll_fn(|cx| {
+        Pin::new(&mut connection).poll(cx)
+    }))
+    .unwrap_or(Ok(()));
+    // ADR 0083 § 1's hand-over, at the first moment both halves exist: the
+    // `101` is on the wire, `hyper` has stopped framing, and the descriptor
+    // under it is nobody's until this line takes it. `hyper` ends a connection
+    // it answered `101` on without shutting the socket down, which is what
+    // makes the same bytes a WebSocket from here.
+    //
+    // A connection that upgraded nothing never reaches this: `into_parts` is
+    // asked for only where a request filled the slot, so the ordinary path
+    // still drops the whole connection here and closes it.
+    if let Some(upgrade) = pending_socket.borrow_mut().take() {
+        let parts = connection.into_parts();
+        // What `hyper` read past the request head travels with the stream:
+        // `crate::socket`'s docs § *What `hyper` had already read* is the home
+        // of why dropping it would lose a frame for a client that did not wait
+        // for the handshake.
+        let peer = crate::socket::Framed::new(parts.io.into_stream(), parts.read_buf.into());
+        let (program, args) = upgrade.into_parts();
+        // The *argument* had no meaning on the other side, which is the one
+        // refusal left at this point and the one place it cannot be reported:
+        // the request that asked is over, there is no `catch` to reach and a
+        // peer that has read a `101` would not understand a status. The socket
+        // closes with `peer` instead, which is the only honest answer left.
+        if let Ok(running) = Isolate::new(program, args, Output::Capture)
+            .over_socket(Box::new(peer))
+            .start(&mut ctx.borrow_mut())
+        {
+            *connection_isolate.borrow_mut() = Some(running);
+        }
+    }
     // The connection isolate outlives every request on this socket, so this is
     // where it is waited for: `hyper` has no more requests to frame, and a
     // connection task that returned here would retire with a live child, which
-    // `nvs_host::Scheduler::orphan` cancels. Joining is also the shape the
-    // framing slice needs rather than a placeholder for it — an upgraded
-    // connection is one whose HTTP life has ended and whose isolate now owns
-    // the socket, so "after the connection future" is when it runs either way.
+    // `nvs_host::Scheduler::orphan` cancels. It is the same point for both
+    // doors even though they start a slice apart — an upgraded connection is
+    // one whose HTTP life has ended and whose isolate now owns the socket, so
+    // "after the connection future" is where its whole life is.
     //
     // The completion is dropped: nothing on this side reads a connection's
     // answer, and there is no response left to put one in.
@@ -1033,6 +1128,52 @@ fn answer(mut done: Completion) -> Response<Answer> {
 fn unusable_forward() -> Response<Answer> {
     let mut response = Response::new(Answer::empty());
     *response.status_mut() = StatusCode::BAD_REQUEST;
+    response
+}
+
+/// RFC 6455's opening handshake, read off the request that framed an upgrade:
+/// the `Sec-WebSocket-Accept` this connection would answer with, and `None`
+/// where the request was not one.
+///
+/// **Two headers decide it and no more.** The key is what the accept is derived
+/// from, so a handshake without one cannot be answered at all; the version is
+/// the framing that follows the `101`, and 13 is the only one RFC 6455 defines.
+/// `Connection` and `Upgrade` are deliberately not re-read here — `hyper`
+/// framing an upgrade *is* that question, already answered by the code that
+/// parses the request line, and a second reading is a second parser to keep in
+/// step.
+fn websocket_opening(headers: &header::HeaderMap) -> Option<String> {
+    let thirteen = headers
+        .get("sec-websocket-version")
+        .is_some_and(|version| version.as_bytes() == b"13");
+    if !thirteen {
+        return None;
+    }
+    headers
+        .get("sec-websocket-key")
+        .map(|key| crate::socket::accept_key(key.as_bytes()))
+}
+
+/// `101`, and the three field lines RFC 6455 answers an opening with.
+///
+/// It carries no body, and `hyper` treats it as the switch it is: the bytes
+/// after this response are frames, and the descriptor is handed back through
+/// the `OnUpgrade` this connection kept.
+///
+/// A malformed accept cannot reach here — [`websocket_opening`] derived it from
+/// the peer's own key and base64 is header-safe — so the fallible spelling of
+/// building the value is discharged with a `500`, which is the same answer the
+/// rest of this door gives a thing it failed to build.
+fn switching(accept: &str) -> Response<Answer> {
+    let Ok(accept) = HeaderValue::from_str(accept) else {
+        return failed();
+    };
+    let mut response = Response::new(Answer::empty());
+    *response.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
+    let headers = response.headers_mut();
+    headers.insert(header::UPGRADE, HeaderValue::from_static("websocket"));
+    headers.insert(header::CONNECTION, HeaderValue::from_static("Upgrade"));
+    headers.insert(header::SEC_WEBSOCKET_ACCEPT, accept);
     response
 }
 
@@ -1696,11 +1837,17 @@ mod tests {
     }
 
     /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
-    /// offer, at the door: a request `hyper` framed an upgrade for reaches its
-    /// program with a slot on its carrier, and the request after it on the same
-    /// connection does not.
+    /// offer, at the door: a request that opened RFC 6455's handshake reaches
+    /// its program with a slot on its carrier, and neither of the two requests
+    /// after it on the same connection does.
     ///
-    /// **Both halves on one connection**, because the claim is that the offer is
+    /// **The middle one is the narrow half of the rule.** `hyper` frames an
+    /// upgrade for any `Connection: Upgrade`, which answers "can this
+    /// connection be taken over" and not "did a WebSocket ask": a handshake
+    /// with no `Sec-WebSocket-Key` has no accept to answer with, so the door
+    /// offers nothing and the program answers it as the ordinary request it is.
+    ///
+    /// **All of it on one connection**, because the claim is that the offer is
     /// per *request* and not per connection — the socket really is upgradable
     /// throughout, so a door that decided once at accept time and remembered
     /// would pass a case that asked only the first question. It is also the half
@@ -1717,17 +1864,22 @@ mod tests {
 
         let client = std::thread::spawn(move || {
             let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
-            // RFC 6455's own opening handshake, minus the key: what decides the
-            // offer is that `hyper` framed an upgrade, and the framing is these
-            // two field lines.
+            // RFC 6455's opening handshake, whole.
             socket
-                .write_all(
-                    b"GET /chat HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
-                      Upgrade: websocket\r\n\r\n",
-                )
+                .write_all(upgrade_request("/chat").as_bytes())
                 .expect("the write failed");
             let mut seen = String::new();
             read_until(&mut socket, "/chat offered", &mut seen);
+            // The same framing with no key, which `hyper` frames an upgrade for
+            // just the same: it is a `Connection: Upgrade` and nothing more, so
+            // the door has nothing to derive an accept from and offers nothing.
+            socket
+                .write_all(
+                    b"GET /nokey HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
+                      Upgrade: websocket\r\n\r\n",
+                )
+                .expect("the keyless write failed");
+            read_until(&mut socket, "/nokey none", &mut seen);
             socket
                 .write_all(b"GET /plain HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 .expect("the second write failed");
@@ -1758,6 +1910,11 @@ mod tests {
         assert!(
             seen.contains("/chat offered"),
             "an upgradable request reached its program with no slot: {seen}"
+        );
+        assert!(
+            seen.contains("/nokey none"),
+            "a request that framed an upgrade but opened no WebSocket was \
+             offered a slot: {seen}"
         );
         assert!(
             seen.contains("/plain none"),
@@ -1838,9 +1995,8 @@ mod tests {
         })
     }
 
-    /// The opening handshake `hyper` frames an upgrade for, written down once:
-    /// RFC 6455's two field lines, minus the key, since what decides the offer
-    /// is `hyper`'s own answer and not a header re-read here.
+    /// RFC 6455's opening handshake, written down once: the two field lines
+    /// `hyper` frames an upgrade for, and the two this door reads for itself.
     ///
     /// It carries no `Connection: close`, because an upgradable request may not
     /// also ask for the connection to end; the client closes the socket itself
@@ -1849,9 +2005,17 @@ mod tests {
     fn upgrade_request(path: &str) -> String {
         format!(
             "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
-             Upgrade: websocket\r\n\r\n"
+             Upgrade: websocket\r\nSec-WebSocket-Key: {KEY}\r\n\
+             Sec-WebSocket-Version: 13\r\n\r\n"
         )
     }
+
+    /// RFC 6455 § 1.3's own worked example, key half — so what the cases below
+    /// assert is the RFC's arithmetic and not this tree's agreement with itself.
+    const KEY: &str = "dGhlIHNhbXBsZSBub25jZQ==";
+    /// And the accept half, which is what the peer checks before it believes a
+    /// `101`.
+    const ACCEPT: &str = "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=";
 
     /// What a request reports about § 1's slot when `hyper` framed an upgrade
     /// for it.
@@ -1939,7 +2103,12 @@ mod tests {
         /// does not, because every case of that door was framed one.
         fn needle(self, path: &str) -> String {
             match self {
-                Self::Socket => format!("{path} upgraded"),
+                // The handshake, because a request that upgraded does **not**
+                // send the line it wrote for itself: the `101` is this
+                // connection's one remaining response and the program's bytes
+                // go nowhere. Reading to the accept key rather than to the
+                // status line is what makes the wait cover the whole head.
+                Self::Socket => ACCEPT.to_owned(),
                 Self::Sse => self.answered(path, NO_FRAMING),
                 // The refused case reads the *status*, because the answer this
                 // request wrote for itself is the one thing it must not get.
@@ -2031,8 +2200,13 @@ mod tests {
         );
 
         assert!(
-            seen.contains("200 OK") && seen.contains("/chat upgraded"),
-            "the upgrading request did not end with an ordinary answer of its own: {seen}"
+            seen.contains("101 Switching Protocols") && seen.contains(ACCEPT),
+            "the upgrading request was not answered RFC 6455's handshake: {seen}"
+        );
+        assert!(
+            !seen.contains("/chat upgraded"),
+            "the upgrading request's own answer was sent as well as the \
+             handshake: {seen}"
         );
         assert!(
             !seen.contains("never on this connection's wire"),
@@ -2061,9 +2235,11 @@ mod tests {
     /// in the order they ran: the request's, with its carrier at its peak, and
     /// the connection's, with the request over. The gap between them has to be
     /// the query the request carried, less what the connection holds for its
-    /// own reasons — which is under a kilobyte, against a query of two
-    /// mebibytes, so the allowance below is three orders of magnitude short of
-    /// hiding a failure: a connection that inherited, or that merely outlived,
+    /// own reasons — its context, its output buffer and the 128 KiB input
+    /// buffer `tungstenite` allocates per socket, which
+    /// [`crate::socket`]'s docs § *What it spends* is the home of. The
+    /// allowance below is a quarter of the query, so it cannot hide the failure
+    /// it is here for: a connection that inherited, or that merely outlived,
     /// the request's context reads within kilobytes of the *first* number
     /// rather than two mebibytes below it.
     ///
@@ -2112,7 +2288,7 @@ mod tests {
         );
 
         assert!(
-            seen.contains("/chat upgraded"),
+            seen.contains(ACCEPT),
             "the upgrading request did not reach its own end: {seen}"
         );
         let said = said.borrow();
@@ -2121,9 +2297,10 @@ mod tests {
             2,
             "one of the two isolates did not run: {said:?}"
         );
-        /// The connection isolate's own context and output buffer, which are
-        /// live at its reading and were not at the request's.
-        const CONNECTIONS_OWN: isize = 64 * 1024;
+        /// The connection isolate's own context and output buffer, plus the
+        /// codec's input buffer — all live at its reading and none of it at the
+        /// request's.
+        const CONNECTIONS_OWN: isize = 512 * 1024;
 
         let peak = balance(&said[0], "request ");
         let open = balance(&said[1], "connection ");
@@ -2170,7 +2347,7 @@ mod tests {
             Door::Socket,
         );
         assert!(
-            seen.contains("/private upgraded"),
+            seen.contains(ACCEPT),
             "the request never filled the slot: {seen}"
         );
 
@@ -2178,6 +2355,112 @@ mod tests {
         assert_eq!(
             said[1], "connection no request",
             "the connection isolate reached the upgrading request's carrier: {said:?}"
+        );
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// other half: the socket **arrives**. A connection isolate reads a frame
+    /// the peer sent and answers one the peer reads, over the descriptor that
+    /// carried the request an instant earlier.
+    ///
+    /// This is the case the three above could not make. Each of them asserts
+    /// something about the isolate the upgrade opened — that it is a root, that
+    /// it holds none of the request — and every one of them would still pass
+    /// against a door that answered the `101` and then dropped the connection
+    /// on the floor. What separates the two is a byte going each way, so that
+    /// is what this sends.
+    ///
+    /// **The client is `tungstenite` in the other role**, deliberately: a
+    /// hand-rolled frame would assert this tree's agreement with itself, where
+    /// a client codec masking its payload and refusing a masked answer is RFC
+    /// 6455 checking both directions. The handshake above it is still written
+    /// by hand, because the accept key is what [`websocket_opening`] derives
+    /// and a client that computed its own would hide a wrong one.
+    ///
+    /// The park is the other thing under test and it is not asserted
+    /// separately: the server has nothing to read when the isolate first calls
+    /// `receive`, so a codec that answered "would block" — or one that blocked
+    /// the *core* rather than the task — deadlocks this case rather than
+    /// failing it slowly.
+    #[test]
+    fn a_connection_isolate_reads_and_writes_frames_over_the_upgraded_socket() {
+        fn talk_to_the_peer(conn: &mut Ctx) -> String {
+            let Some(peer) = conn.peer() else {
+                return "no peer".to_owned();
+            };
+            let heard = match peer.receive() {
+                Ok(Some(nvs_runtime::PeerFrame::Text(text))) => text,
+                other => return format!("read {other:?}"),
+            };
+            let sent = peer.send(nvs_runtime::PeerFrame::Text(format!("echo of {heard}")));
+            peer.close();
+            match sent {
+                Ok(()) => format!("heard {heard}"),
+                Err(error) => format!("send {error}"),
+            }
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            // To the end of the head and no further, so that the codec below
+            // starts on the first byte after it: the accept key is not the last
+            // field line, ADR 0074 § 1's set being filled in after it.
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            peer.send(tungstenite::Message::text("a frame from the peer"))
+                .expect("the frame could not be sent");
+            let answer = peer.read().expect("the connection isolate sent nothing");
+            (head, answer.to_text().unwrap_or("not text").to_owned())
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler =
+                upgrade_leaving(Door::Socket, String::new(), handler_said, talk_to_the_peer);
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (head, answer) = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols") && head.contains(ACCEPT),
+            "the peer was not answered RFC 6455's handshake: {head}"
+        );
+        assert_eq!(
+            answer, "echo of a frame from the peer",
+            "the connection isolate did not answer the frame it was sent"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said[1], "connection heard a frame from the peer",
+            "the socket did not reach the connection isolate: {said:?}"
         );
     }
 
@@ -2190,10 +2473,11 @@ mod tests {
     /// **The plain `GET` is the case.** § 5's cell is offered to *every*
     /// request the server runs, so the opening carries no `Connection:
     /// Upgrade`, and the request reports § 1's slot absent in the same line it
-    /// reports § 5's cell filled. That pair is what "with no receive" is on
-    /// this side of the framing slice: there is no socket behind this
-    /// connection for a peer frame to arrive on, so the isolate has nothing to
-    /// wait on and nothing but `send` to do — where an implementation that
+    /// reports § 5's cell filled. That pair is the whole of "with no receive",
+    /// and it is permanent rather than a stage of the work: there is no socket
+    /// behind this connection for a peer frame to arrive on, so the isolate has
+    /// nothing to wait on and nothing but `send` to do — where an implementation
+    /// that
     /// offered the cell only where an upgrade *was* framed would open the same
     /// isolate and still fail here, because no upgrade was.
     ///

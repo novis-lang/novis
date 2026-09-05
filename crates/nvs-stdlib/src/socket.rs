@@ -13,12 +13,19 @@
 //! The row, its signature, and **the body that fills § 1's slot**: a path
 //! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by ADR
 //! 0023 § 2's graph copy, and the pair left on the request's carrier for the
-//! connection to start. What is still missing behind it is the framing — RFC
-//! 6455 over the socket, and the `101` that would precede it — so an upgrade
-//! prepared here opens a root isolate with no peer attached to it yet.
-//! `Core\Topic` (§ 4) is unregistered for that reason and is this module's one
-//! known gap, together with the `current()`/`receive()`/`send()` loop § 3
-//! describes, which is the same missing framing read from inside the isolate.
+//! connection to start. Behind it the framing has landed — `nvs_server::serve`
+//! answers RFC 6455's `101` and `nvs_server::socket` hands the framed socket to
+//! the isolate as a [`nvs_runtime::PeerSocket`] — so an upgrade prepared here
+//! opens a root isolate that **has** a peer.
+//!
+//! What is missing is the surface over it: § 3's
+//! `current()`/`receive()`/`send()` are unwritten, so a connection isolate can
+//! reach its socket from Rust and not yet from Novis, and `Core\Topic` (§ 4) is
+//! unregistered because `receive()` is the one wait a topic delivery arrives
+//! through. Those two are this module's known gap. `nvs_server::socket`'s own
+//! docs § *What is not here yet* carry the other half of it — § 1's `[limits]
+//! idle` and § 3's send timeout — which is the same list read from under the
+//! seam.
 //!
 //! `Core\Sse` (§ 5) is [`crate::sse`], and it is a module of its own rather
 //! than a second class here because what § 5 splits is the **door** and never

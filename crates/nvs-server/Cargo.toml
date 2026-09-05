@@ -35,6 +35,11 @@ nvs-runtime.workspace = true
 # counting minutes itself. Not a new crate in the graph — `nvs-config` already
 # rests on it, and what is named here is the two types that spell an instant.
 jiff.workspace = true
+# ADR 0083 § 1's framing, over the stream `hyper` hands back at the upgrade.
+# `src/socket.rs` is the whole of the seam; the workspace `Cargo.toml`'s comment
+# above this crate's name is where the choice is argued, including why a
+# synchronous codec is the one that fits a parking stream.
+tungstenite.workspace = true
 
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to

@@ -2040,6 +2040,7 @@ dependencies = [
  "nvs-config",
  "nvs-host",
  "nvs-runtime",
+ "tungstenite",
 ]
 
 [[package]]
@@ -3038,6 +3039,22 @@ name = "toml_writer"
 version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
+
+[[package]]
+name = "tungstenite"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48ac77174b19c110a50ab2128b24215ac9cb40e0e12e093fb602d175c569d22"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand",
+ "sha1 0.11.0",
+ "thiserror 2.0.20",
+]
 
 [[package]]
 name = "typenum"

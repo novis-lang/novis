@@ -125,6 +125,26 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # open decision about what that test is called.
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 
+# --- RFC 6455, over the connection h1 handed back (ADR 0083 § 1) ---
+# The framing crate, and ADR 0051 § 4's first question answers "yes" for exactly
+# the reason it does above: masking, fragmentation, control frames, UTF-8
+# validation and the close handshake are a wire protocol whose bugs are security
+# bugs, and owning one is refused here as it is for h1.
+#
+# **Synchronous, over `nvs_host::NvsTcp` with no adapter.**
+# `tungstenite::WebSocket::from_raw_socket` wants a `Read + Write` and the
+# parking stream is one, so a read that would block hands the core back and the
+# codec never learns that it suspended. That is why this crate and not
+# `tokio-tungstenite`, which wants the executor ADR 0072 says this binary does
+# not have.
+#
+# Default features, which is TLS-free: `handshake` is what
+# `derive_accept_key` lives behind, and everything the set pulls — `http`,
+# `httparse`, `data-encoding`, `sha1`, `rand` — is already in this lock file for
+# `hyper`, `Core\Hash` and `Core\Random`. No `native-tls` and no `rustls`,
+# because a `wss://` listener is a TLS listener and ADR 0097 § 1 has none.
+tungstenite = "0.30"
+
 # --- the configuration's trust boundary (ADR 0103 § 6) ---
 # § 6 is "no account but this one, root or an administrator may write it", and
 # neither half of it is in `std`: the effective uid is a `libc` call, and Windows
