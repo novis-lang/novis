@@ -89,6 +89,46 @@ What `--max-work-ms` budgets is the total **less** `nvs --version`, because most
 the operating system creating a process and not Novis at all. `warm_start()` owns that argument
 and the measurements behind it.
 
+## The serve-versus-FPM leg
+
+`--serve-vs-fpm` answers M7's own *Verify* line: requests/sec for `nvs serve` against PHP 8.5 with
+opcache, recorded in `benches/`. That paragraph names `wrk`/`oha` and PHP-FPM, and **neither is on
+the boxes this repository is developed and tested on** -- Windows has no php-fpm at all, and no load
+generator is installed. Three ways out were open and the choice is recorded here rather than
+re-argued every time the leg is read:
+
+- **The generator is this file**, not `wrk`. A closed-loop generator over keep-alive connections is
+  a page of `socket`, it is the same page on every platform, and a benchmark that runs only where a
+  C tool happens to be installed is a benchmark that never runs. `wrk` measures the same quantity
+  with better tail statistics; this leg reports no tail, so the difference does not arise.
+- **The baseline is `php-cgi -b`, and that is not a stand-in for FPM -- it is the same SAPI.** FPM
+  is the CGI/FastCGI SAPI plus a process manager, and `php-cgi -b host:port` is that SAPI speaking
+  that protocol, which is exactly how PHP is deployed on Windows where FPM does not exist. It is
+  driven over FastCGI with opcache on, as nginx would drive FPM -- so PHP pays no HTTP parse and no
+  proxy hop while `nvs serve` pays both. The comparison is therefore **biased towards PHP**, which
+  is the only direction a project may bias a benchmark of itself. `php -S` is the fallback when
+  `php-cgi` is missing; it is named as such in the record and it is the worse peer, being a
+  documented development server with no process manager behind it.
+- **Nothing is refused.** With no PHP at all the leg measures `nvs serve` alone and records
+  `baseline: null`. A hosted runner has no PHP, and a check that went red there would be reporting
+  the runner rather than the tree.
+
+**Concurrency defaults to 1, and the baseline is why.** Neither peer this box can offer serves two
+requests at once: `php-cgi -b` is one process with no `PHP_FCGI_CHILDREN` to fork it, and `php -S`
+answers serially by construction. Past 1, `--concurrency` measures Novis against a queue rather than
+against PHP and flatters it by however deep the queue got. The flag exists for a machine with a real
+FPM pool, and the value is in every record, so a figure taken at 1 and one taken at 64 can never be
+read as one series.
+
+Connections are opened before the clock starts and the handshake is outside the measurement: the two
+peers disagree about how many handshakes a run needs, and that difference is not what is being
+compared. Both bodies must match byte for byte before either number is reported, for the reason the
+suite's own agreement gate exists.
+
+`--record PATH` appends one object to a JSON array -- `benches/serve.json` is the path M7 names. The
+whole run is one object: both peers, both versions, the concurrency, the request count and the
+caveats that applied, because a requests/sec figure with no peer written beside it measures nothing.
+
 ## Adding a measure later
 
 `measure()` returns a dict, `columns_for()` says which keys are printed and how, and everything
@@ -100,12 +140,17 @@ here, not a change to the runner.
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 import platform
+import shutil
+import socket
 import statistics
+import struct
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -389,6 +434,538 @@ def evaluate(case: Case, engines: list[Engine], reps: int) -> dict:
     return record
 
 
+# --------------------------------------------------------------------------------------
+# The serve-versus-FPM leg. The module doc's section of that name owns every decision
+# below -- which peer, why the generator is here, why concurrency is 1; this half owns
+# only how it is carried out.
+# --------------------------------------------------------------------------------------
+
+SERVE_DIR = ROOT / "benches" / "serve"
+SERVE_CASE = "hello"  # the twin pair under SERVE_DIR; its README-less smallness is the point
+SERVE_HISTORY = 100  # runs kept in `--record`'s artifact; `write_serve_record` says why it is capped
+
+# FastCGI 1.0 record types and the two constants a responder request needs. Six numbers is
+# the whole of the protocol used here, which is why there is a client below and not a
+# dependency.
+FCGI_BEGIN_REQUEST, FCGI_END_REQUEST = 1, 3
+FCGI_PARAMS, FCGI_STDIN, FCGI_STDOUT, FCGI_STDERR = 4, 5, 6, 7
+FCGI_RESPONDER, FCGI_KEEP_CONN = 1, 1
+
+
+def free_port() -> int:
+    """A port the OS has just said is free. Racy by nature, and every harness is."""
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+class HttpConn:
+    """One keep-alive HTTP/1.1 connection, issuing one GET at a time.
+
+    Reopened transparently when the peer answers `Connection: close` -- `php -S` does, on
+    every response -- and `reconnects` counts it, for `FcgiConn`'s reason: a peer paying a
+    handshake per request and one that is not are two different measurements.
+    """
+
+    def __init__(self, port: int, path: str = "/") -> None:
+        self.port = port
+        self.wire = f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: */*\r\n\r\n".encode()
+        self.reconnects = 0
+        self.sock = None
+        self._connect()
+
+    def _connect(self) -> None:
+        self.sock = socket.create_connection(("127.0.0.1", self.port), 10)
+        self.sock.settimeout(30)
+        self.buf = b""
+
+    def _fill(self) -> None:
+        chunk = self.sock.recv(65536)
+        if not chunk:
+            raise ConnectionError("the server closed the connection mid-response")
+        self.buf += chunk
+
+    def request(self) -> bytes:
+        try:
+            return self._exchange()
+        except OSError:  # the peer answered `Connection: close`; that is a measurement
+            self.reconnects += 1
+            self.sock.close()
+            self._connect()
+            return self._exchange()
+
+    def _exchange(self) -> bytes:
+        self.sock.sendall(self.wire)
+        while b"\r\n\r\n" not in self.buf:
+            self._fill()
+        head, self.buf = self.buf.split(b"\r\n\r\n", 1)
+        lines = head.lower().split(b"\r\n")
+        if any(line.startswith(b"transfer-encoding:") for line in lines):
+            raise RuntimeError("a chunked response is not measured here; the case sends a fixed body")
+        length = next(
+            (int(line.split(b":", 1)[1]) for line in lines if line.startswith(b"content-length:")),
+            None,
+        )
+        closing = any(line == b"connection: close" for line in lines)
+        if length is not None:
+            while len(self.buf) < length:
+                self._fill()
+            body, self.buf = self.buf[:length], self.buf[length:]
+        elif closing:
+            # HTTP/1.0 framing: the body ends when the peer closes, which is what `php -S`
+            # sends. Reading to EOF is the only way to see the bytes the agreement gate needs.
+            while True:
+                chunk = self.sock.recv(65536)
+                if not chunk:
+                    break
+                self.buf += chunk
+            body, self.buf = self.buf, b""
+        else:
+            raise RuntimeError("a response framed by neither Content-Length nor a close is not read here")
+        if closing:
+            # Reopened here rather than by failing the next request into a dead socket: the
+            # peer asked for a handshake per request and the honest thing is to pay it once.
+            self.reconnects += 1
+            self.sock.close()
+            self._connect()
+        return body
+
+    def close(self) -> None:
+        self.sock.close()
+
+
+def _fcgi_len(n: int) -> bytes:
+    return bytes([n]) if n < 128 else struct.pack(">I", n | 0x80000000)
+
+
+def _fcgi_pair(name: str, value: str) -> bytes:
+    key, val = name.encode(), value.encode()
+    return _fcgi_len(len(key)) + _fcgi_len(len(val)) + key + val
+
+
+def _fcgi_record(kind: int, body: bytes, request_id: int = 1) -> bytes:
+    return struct.pack(">BBHHBB", 1, kind, request_id, len(body), 0, 0) + body
+
+
+class FcgiConn:
+    """One FastCGI connection to `php-cgi -b`, issuing one responder request at a time.
+
+    `FCGI_KEEP_CONN` is set, so the connection is reused where the SAPI honours it and
+    reopened transparently where it does not. `reconnects` counts the second case and the
+    record carries it: a peer paying a TCP handshake per request and one that is not are two
+    different measurements, and the artifact has to say which was taken.
+    """
+
+    def __init__(self, port: int, script: Path) -> None:
+        self.port = port
+        self.reconnects = 0
+        self.params = b"".join(_fcgi_pair(k, v) for k, v in {
+            "GATEWAY_INTERFACE": "CGI/1.1",
+            "REQUEST_METHOD": "GET",
+            "SCRIPT_FILENAME": str(script),
+            "SCRIPT_NAME": "/" + script.name,
+            "REQUEST_URI": "/" + script.name,
+            "DOCUMENT_ROOT": str(script.parent),
+            "QUERY_STRING": "",
+            "SERVER_PROTOCOL": "HTTP/1.1",
+            "SERVER_SOFTWARE": "novis-bench",
+            "SERVER_NAME": "127.0.0.1",
+            "REMOTE_ADDR": "127.0.0.1",
+            "CONTENT_LENGTH": "0",
+        }.items())
+        self.sock = None
+        self._connect()
+
+    def _connect(self) -> None:
+        self.sock = socket.create_connection(("127.0.0.1", self.port), 10)
+        self.sock.settimeout(30)
+
+    def _exactly(self, n: int) -> bytes:
+        out = b""
+        while len(out) < n:
+            chunk = self.sock.recv(n - len(out))
+            if not chunk:
+                raise ConnectionError("php-cgi closed the connection mid-record")
+            out += chunk
+        return out
+
+    def request(self) -> bytes:
+        try:
+            return self._exchange()
+        except OSError:  # the SAPI declined FCGI_KEEP_CONN; that is a measurement, not a failure
+            self.reconnects += 1
+            self._connect()
+            return self._exchange()
+
+    def _exchange(self) -> bytes:
+        self.sock.sendall(
+            _fcgi_record(FCGI_BEGIN_REQUEST, struct.pack(">HB5x", FCGI_RESPONDER, FCGI_KEEP_CONN))
+            + _fcgi_record(FCGI_PARAMS, self.params)
+            + _fcgi_record(FCGI_PARAMS, b"")
+            + _fcgi_record(FCGI_STDIN, b"")
+        )
+        out, err = b"", b""
+        while True:
+            _, kind, _, length, padding, _ = struct.unpack(">BBHHBB", self._exactly(8))
+            body = self._exactly(length + padding)[:length]
+            if kind == FCGI_STDOUT:
+                out += body
+            elif kind == FCGI_STDERR:
+                err += body
+            elif kind == FCGI_END_REQUEST:
+                break
+        if err:
+            raise RuntimeError("php-cgi wrote to stderr: " + err.decode(errors="replace")[:300])
+        return out.split(b"\r\n\r\n", 1)[1] if b"\r\n\r\n" in out else out
+
+    def close(self) -> None:
+        self.sock.close()
+
+
+class Server:
+    """A server subprocess, listening, with its output drained.
+
+    The drain thread is not tidiness: `php -S` logs a line per request, and an undrained
+    pipe wedges it at the OS buffer size -- which reads as the peer becoming slow, halfway
+    through a run, for no reason the numbers can explain.
+    """
+
+    def __init__(self, argv: list[str], port: int, cwd: Path | None = None,
+                 env: dict | None = None) -> None:
+        self.argv = argv
+        self.log: collections.deque = collections.deque(maxlen=60)
+        self.proc = subprocess.Popen(
+            argv,
+            cwd=str(cwd) if cwd else None,
+            env={**os.environ, **env} if env else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+        )
+        threading.Thread(target=self._drain, daemon=True).start()
+        self._await(port)
+
+    def _drain(self) -> None:
+        for line in self.proc.stdout:
+            self.log.append(line.rstrip())
+
+    def said(self) -> str:
+        return "\n".join(f"    {line}" for line in self.log) or "    (nothing)"
+
+    def _await(self, port: int) -> None:
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(
+                    f"{self.argv[0]} exited {self.proc.returncode} before it listened:\n{self.said()}"
+                )
+            try:
+                socket.create_connection(("127.0.0.1", port), 0.5).close()
+                return
+            except OSError:
+                time.sleep(0.05)
+        self.stop()
+        raise RuntimeError(f"{self.argv[0]} did not listen on port {port} within 30s:\n{self.said()}")
+
+    def stop(self) -> None:
+        self.proc.terminate()
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait()
+
+
+def hammer(open_conn, requests: int, concurrency: int) -> tuple[float, bytes]:
+    """`requests` GETs over `concurrency` keep-alive connections: seconds, and the body.
+
+    Closed-loop -- each connection issues its next request the moment the previous answer is
+    in hand, which is what a client-side requests/sec figure means. The connections are
+    opened before the clock starts; the module doc says why the handshake is outside.
+    """
+    share = [requests // concurrency + (1 if i < requests % concurrency else 0)
+             for i in range(concurrency)]
+    conns = [open_conn() for _ in share]
+    bodies: list[bytes] = [b""] * concurrency
+    errors: list[BaseException | None] = [None] * concurrency
+
+    def run(index: int) -> None:
+        try:
+            for _ in range(share[index]):
+                bodies[index] = conns[index].request()
+        except BaseException as exc:  # carried out of the thread, never swallowed
+            errors[index] = exc
+
+    threads = [threading.Thread(target=run, args=(i,)) for i in range(concurrency)]
+    start = time.perf_counter()
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    elapsed = time.perf_counter() - start
+    for conn in conns:
+        try:
+            conn.close()
+        except OSError:
+            pass
+    for exc in errors:
+        if exc is not None:
+            raise exc
+    answered = {body for body in bodies if body}
+    if len(answered) > 1:
+        raise RuntimeError("one server answered two connections with two different bodies")
+    reopened = sum(getattr(conn, "reconnects", 0) for conn in conns)
+    return elapsed, next(iter(answered), b""), reopened
+
+
+def measure_server(peer: dict, requests: int, concurrency: int, reps: int) -> dict:
+    """Boot one peer, warm it, time `reps` passes over it, and shut it down.
+
+    A failure mid-run is re-raised carrying what the server printed: the generator only ever
+    sees a reset socket, and the sentence that says why is always on the peer's own stdout.
+    """
+    server = Server(peer["argv"], peer["port"], peer.get("cwd"), peer.get("env"))
+    try:
+        # Discarded: the page cache, opcache's first compile and the JIT's first trace are
+        # start-up costs, and this leg is measuring a server that has been up for a while.
+        hammer(peer["open"], max(20, min(requests, 200)), concurrency)
+        rates, body, reopened = [], b"", 0
+        for _ in range(reps):
+            elapsed, body, reconnects = hammer(peer["open"], requests, concurrency)
+            rates.append(requests / elapsed)
+            reopened += reconnects
+    except Exception as exc:
+        hint = (
+            f"; at --concurrency {concurrency} a single-process peer does not answer the second "
+            "connection at all, which arrives here as a timeout -- the module doc says why 1 is "
+            "the default" if concurrency > 1 else ""
+        )
+        raise RuntimeError(
+            f"{peer['label']} failed mid-run ({exc}){hint}; it said:\n{server.said()}"
+        ) from exc
+    finally:
+        server.stop()
+    best = max(rates)
+    return {
+        "reconnects": reopened,
+        "kind": peer["kind"],
+        "label": peer["label"],
+        "detail": peer["detail"],
+        "requests_per_sec": best,
+        "median_requests_per_sec": statistics.median(rates),
+        "ms_per_request": 1000.0 * concurrency / best,
+        "version": version(peer["executable"], peer["version_argv"]),
+        "body": body,
+    }
+
+
+def php_peer(php: str, php_mode: str, choice: str = "auto") -> dict | None:
+    """The best PHP peer this box can offer, in the order the module doc argues for.
+
+    `choice` names one instead of taking the best: `--serve-baseline` exists so the two
+    weaker branches are *reachable* on a box that has the strong one. A fallback nothing can
+    run is a fallback nobody has run, and it fails the first time it is needed.
+    """
+    script = SERVE_DIR / f"{SERVE_CASE}.php"
+    opcache = ["-d", "opcache.enable=1", "-d", "opcache.enable_cli=1", *PHP_MODES[php_mode]]
+    if choice == "none":
+        return None
+    cgi = shutil.which("php-cgi") if choice in ("auto", "fcgi") else None
+    if cgi:
+        port = free_port()
+        return {
+            "kind": "php-cgi-fastcgi",
+            "label": "php-cgi",
+            "detail": "the FastCGI SAPI FPM runs, opcache on",
+            "argv": [cgi, "-b", f"127.0.0.1:{port}", *opcache],
+            # The FastCGI SAPI exits after 500 requests unless told otherwise, which arrives at
+            # the generator as a reset socket a third of the way into a run. FPM's own
+            # `pm.max_requests` defaults to 0 for the same reason: recycling is a leak workaround,
+            # and a benchmark that recycles is measuring process start-up.
+            "env": {"PHP_FCGI_MAX_REQUESTS": "0"},
+            "port": port,
+            "executable": cgi,
+            "version_argv": ["-v"],
+            "open": lambda: FcgiConn(port, script),
+        }
+    if choice in ("auto", "builtin") and shutil.which(php):
+        port = free_port()
+        return {
+            "kind": "php-builtin-server",
+            "label": "php -S",
+            "detail": "PHP's own development server, serial by construction",
+            "argv": [php, *opcache, "-S", f"127.0.0.1:{port}", str(script)],
+            "port": port,
+            "executable": php,
+            "version_argv": ["-v"],
+            "open": lambda: HttpConn(port),
+        }
+    return None
+
+
+def serve_vs_fpm(binary: Path, args) -> int:
+    """M7's throughput figure: `nvs serve` against PHP with opcache, both under one generator."""
+    entry = SERVE_DIR / f"{SERVE_CASE}.nvs"
+    twin = SERVE_DIR / f"{SERVE_CASE}.php"
+    if not entry.is_file():
+        sys.exit(f"{entry} is missing; this leg's case is the twin pair under benches/serve")
+    if args.requests < 1 or args.concurrency < 1:
+        sys.exit("--requests and --concurrency must each be at least 1")
+
+    port = free_port()
+    novis = {
+        "kind": "nvs-serve",
+        "label": "nvs serve",
+        "detail": "ADR 0097's development server, one core",
+        "argv": [str(binary), "serve", str(entry), "--listen", f"127.0.0.1:{port}"],
+        "cwd": ROOT,
+        "port": port,
+        "executable": binary,
+        "version_argv": ["--version"],
+        "open": lambda: HttpConn(port),
+    }
+    peer = php_peer(args.php, args.php_mode, args.serve_baseline) if twin.is_file() else None
+
+    if peer is not None and peer["kind"] == "php-cgi-fastcgi" and args.concurrency > 1:
+        # Honoured where FPM would exist and ignored on Windows, where the SAPI has no fork to
+        # make -- which is the whole of why `--concurrency` defaults to 1 here.
+        peer["env"]["PHP_FCGI_CHILDREN"] = str(args.concurrency)
+
+    caveats = []
+    if peer is None and not twin.is_file():
+        caveats.append(f"no PHP baseline: {twin.name} is missing")
+    elif peer is None and args.serve_baseline == "none":
+        caveats.append("no PHP baseline: --serve-baseline none, so this run is nvs serve alone")
+    elif peer is None:
+        caveats.append(
+            f"no PHP baseline: --serve-baseline {args.serve_baseline} found nothing on PATH, "
+            "so this run is nvs serve alone"
+        )
+    elif peer["kind"] == "php-builtin-server":
+        caveats.append(
+            "the baseline is `php -S`, PHP's development server -- a far weaker peer than the "
+            "FastCGI SAPI FPM runs, and a ratio against it is not M7's figure"
+        )
+    else:
+        caveats.append(
+            "the baseline pays no HTTP parse and no proxy hop -- it is driven over FastCGI as "
+            "nginx would drive FPM -- while nvs serve pays both; the comparison favours PHP"
+        )
+    if args.concurrency > 1:
+        caveats.append(
+            f"concurrency is {args.concurrency}: neither PHP peer here serves two requests at "
+            "once, so anything above 1 is measuring Novis against a queue"
+        )
+
+    print(
+        f"case {SERVE_CASE}: {args.requests} request(s) over {args.concurrency} keep-alive "
+        f"connection(s), {args.reps} rep(s), best of reps"
+    )
+    measured = [measure_server(novis, args.requests, args.concurrency, args.reps)]
+    if peer is not None:
+        measured.append(measure_server(peer, args.requests, args.concurrency, args.reps))
+    print()
+
+    label_width = max(len(m["label"]) for m in measured)
+    for result in measured:
+        print(
+            f"  {result['label']:<{label_width}}  {result['requests_per_sec']:>10,.0f} requests/sec"
+            f"  {result['ms_per_request']:>8.3f} ms/request   {result['detail']}"
+        )
+
+    bodies = {result["label"]: result["body"] for result in measured}
+    if len(set(bodies.values())) > 1:
+        print()
+        print("DIFF: the two servers did not answer with the same bytes, so neither number stands")
+        for label, body in bodies.items():
+            print(f"  {label} sent {body!r}")
+        return 1
+
+    for result in measured:
+        if result["reconnects"]:
+            caveats.append(
+                f"{result['label']} declined to keep the connection open and paid "
+                f"{result['reconnects']} extra handshake(s) inside the timed passes"
+            )
+
+    ratio = None
+    if len(measured) == 2:
+        ratio = measured[0]["requests_per_sec"] / measured[1]["requests_per_sec"]
+        print(
+            f"  nvs serve is {ratio:.2f}x {measured[1]['label']} at concurrency {args.concurrency}"
+        )
+    print()
+    for caveat in caveats:
+        print(f"  note: {caveat}")
+
+    record = {
+        "date": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "commit": version("git", ["rev-parse", "--short", "HEAD"]),
+        "case": SERVE_CASE,
+        "requests": args.requests,
+        "concurrency": args.concurrency,
+        "reps": args.reps,
+        "php_mode": args.php_mode,
+        "ratio": round(ratio, 4) if ratio is not None else None,
+        "caveats": caveats,
+        "nvs": _serve_entry(measured[0]),
+        "baseline": _serve_entry(measured[1]) if len(measured) == 2 else None,
+        "nvs_binary": str(binary.relative_to(ROOT)) if binary.is_relative_to(ROOT) else str(binary),
+        "host": {
+            "platform": platform.platform(),
+            "processor": platform.processor(),
+            "cpus": os.cpu_count(),
+        },
+    }
+    if args.record:
+        write_serve_record(Path(args.record), record)
+    else:
+        print("  not recorded: pass --record PATH to append this run to a JSON array")
+    return 0
+
+
+def _serve_entry(result: dict) -> dict:
+    """One peer's half of the record: the numbers, never the body it sent."""
+    return {
+        "kind": result["kind"],
+        "label": result["label"],
+        "detail": result["detail"],
+        "version": result["version"],
+        "requests_per_sec": round(result["requests_per_sec"], 1),
+        "median_requests_per_sec": round(result["median_requests_per_sec"], 1),
+        "ms_per_request": round(result["ms_per_request"], 4),
+        "reconnects": result["reconnects"],
+    }
+
+
+def write_serve_record(path: Path, record: dict) -> None:
+    """Append one run to a JSON array, so the artifact stays a readable history.
+
+    An array rather than the NDJSON `--json` writes: `benches/serve.json` is named by M7 with
+    that extension, one run is one object rather than one object per case, and a file a human
+    opens to read a headline number should parse as a whole.
+
+    The history is capped at `SERVE_HISTORY` runs, oldest dropped, because the loop driver's
+    acceptance check appends one every iteration -- an uncapped artifact rewritten in every
+    commit is a diff nobody reads, and the run that matters is the most recent one on a given
+    box. A figure worth keeping past that belongs in a doc that cites it.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    history: list = []
+    if path.is_file() and path.stat().st_size:
+        try:
+            history = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            sys.exit(f"{path} is not the JSON array this leg appends to ({exc}); move it aside")
+        if not isinstance(history, list):
+            sys.exit(f"{path} holds a {type(history).__name__}, not the JSON array this leg appends to")
+    history = [*history, record][-SERVE_HISTORY:]
+    path.write_text(json.dumps(history, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    shown = path.relative_to(ROOT) if path.is_absolute() and path.is_relative_to(ROOT) else path
+    print(f"  recorded 1 run to {shown} ({len(history)} in the history)")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run the userland benchmark suite across Novis, PHP, Python and Bun side by side.",
@@ -434,6 +1011,36 @@ def main() -> int:
     # budgeting the whole wall clock, most of which is the OS. See `warm_start`.
     parser.add_argument("--max-ms", type=float, metavar="MS", help=argparse.SUPPRESS)
     parser.add_argument("--json", metavar="PATH", help="append one NDJSON record per case")
+    parser.add_argument(
+        "--serve-vs-fpm",
+        action="store_true",
+        help="measure `nvs serve` requests/sec against PHP with opcache, instead of the suite",
+    )
+    parser.add_argument(
+        "--record",
+        metavar="PATH",
+        help="with --serve-vs-fpm: append the run to the JSON array at PATH",
+    )
+    parser.add_argument(
+        "--requests",
+        type=int,
+        default=1000,
+        metavar="N",
+        help="with --serve-vs-fpm: requests per rep, per server (default 1000)",
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        metavar="N",
+        help="with --serve-vs-fpm: keep-alive connections (default 1; the module doc says why)",
+    )
+    parser.add_argument(
+        "--serve-baseline",
+        choices=("auto", "fcgi", "builtin", "none"),
+        default="auto",
+        help="with --serve-vs-fpm: which PHP peer -- `auto` takes php-cgi over php -S",
+    )
     args = parser.parse_args()
 
     if args.max_ms is not None:
@@ -451,6 +1058,12 @@ def main() -> int:
         # installed to be measured. `--reps` rather than `reps`: `--check` narrows the suite to
         # agreement, and there is nothing here to agree with.
         return warm_start(binary, args.reps, args.max_work_ms)
+    if args.serve_vs_fpm:
+        # Before the roster, for `--warm-start`'s reason: this leg is one server against one
+        # PHP peer, and must not need Python or Bun installed to produce its number.
+        return serve_vs_fpm(binary, args)
+    if args.record:
+        sys.exit("--record writes the serve leg's artifact, and needs --serve-vs-fpm")
     if args.max_work_ms is not None:
         sys.exit("--max-work-ms is a budget on the warm-start figure, and needs --warm-start")
     selected = [name.strip() for name in args.engines.split(",") if name.strip()]
