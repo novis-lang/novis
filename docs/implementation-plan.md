@@ -106,8 +106,8 @@ somebody has already followed.
 | goals 12, 14, 15 | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | goal 2 | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | goal 3 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
-| goals 6, 16, 18, 19 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goals 4, 5, 17, 20 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| goals 6, 16, 18, 19, 23 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| goals 4, 5, 17, 20, 24, 25, 26 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | backlog 2 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |
