@@ -1,0 +1,47 @@
+--TEST--
+A typed capture is converted from the segment as it arrived, so `%34` is not a `uint` route's `4` — the conversion runs before the decode, and the two cannot be swapped — ADR 0102 §§ 1 and 5
+--FILE--
+<?nvs
+// § 5's capture narrows to the type its route parameter declared, and § 1 has
+// the server compute those typed parameters at the door. That fixes an order:
+// the conversion reads the raw segment, and the decode happens one layer above
+// it, where the value crosses into the program. Were it the other way round,
+// `/count/%34` would reach a `{n: uint}` route as `4` -- an escape choosing a
+// row -- which is why the order is asserted here rather than left to be read
+// off the two implementations.
+class Counter
+{
+    #[Core\Route(path:"/count/{n}", method: Core\Http\Method::Get, name: "Counter::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $n): string
+    {
+        return "count " . $n;
+    }
+}
+
+// The digits convert, and the value is the number rather than its text.
+?Core\Router\Match $counted = Core\Router::match(Core\Http\Method::Get, "/count/34");
+if ($counted != null) {
+    uint $n = $counted->param("n") as uint;
+    uint $next = $n + 1;
+    echo "n + 1 = ", $next as string, "\n";
+}
+
+// `%34` is the escape for `4`. It reaches the conversion undecoded, is not a
+// run of digits, and so claims nothing -- the row is not matched at all, rather
+// than matched with a smuggled value.
+?Core\Router\Match $escaped = Core\Router::match(Core\Http\Method::Get, "/count/%34");
+if ($escaped == null) {
+    echo "an escaped digit matches nothing", "\n";
+}
+
+// The ordinary failure to convert, for the same reason and by the same route:
+// a segment the declared type cannot hold is not a match.
+?Core\Router\Match $letters = Core\Router::match(Core\Http\Method::Get, "/count/abc");
+if ($letters == null) {
+    echo "a non-numeric segment matches nothing", "\n";
+}
+--EXPECT--
+n + 1 = 35
+an escaped digit matches nothing
+a non-numeric segment matches nothing

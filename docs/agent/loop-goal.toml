@@ -4232,11 +4232,14 @@ tests = [
   "the_two_encoders_still_take_text_and_answer_text",
 ]
 
+# Filed against `nvs-stdlib` and not `nvs-server`: the decode is at the crossing, which is
+# `nvs_stdlib::router`'s `capture_value`, and `crates/nvs-server/Cargo.toml` names neither
+# `nvs-stdlib` nor `nvs-types` -- so the door has no way to observe a capture's Novis value at all.
 [[check]]
 kind = "cargo-named"
 stage = "10 octets"
-name = "nvs-server (a capture reaches the handler decoded)"
-args = ["test", "-p", "nvs-server"]
+name = "nvs-stdlib (a capture crosses decoded)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_route_capture_is_percent_decoded_once_where_it_crosses",
   "a_uint_capture_is_unchanged_by_the_decode",

@@ -1,0 +1,54 @@
+--TEST--
+A route capture is percent-decoded exactly once as it crosses into the program, so `%20` is a space and `%2520` is the text `%20` — ADR 0102 § 1
+--FILE--
+<?nvs
+// The decode is at the crossing and nowhere else: the segment travels from the
+// matcher as the peer wrote it, and `Core\Router\Match` is where it stops being
+// a piece of a URL and becomes a value. `Core\Router::match` and a served
+// request's `Core\Request::route()` share that crossing, so the capture a
+// handler reads is decoded once however the match was taken.
+class Pages
+{
+    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string
+    {
+        return $slug;
+    }
+}
+
+// One pass: the space arrives as a space.
+?Core\Router\Match $spaced = Core\Router::match(Core\Http\Method::Get, "/pages/hello%20world");
+if ($spaced != null) {
+    echo "space: [", $spaced->param("slug") as string, "]", "\n";
+}
+
+// Once, and not "until it stops changing" -- `%2520` is an escaped `%` followed
+// by `20`, so one pass answers the text `%20` and a second would answer a
+// space. This is the case that tells the two apart.
+?Core\Router\Match $twice = Core\Router::match(Core\Http\Method::Get, "/pages/hello%2520world");
+if ($twice != null) {
+    echo "once: [", $twice->param("slug") as string, "]", "\n";
+}
+
+// A path segment, not a form value: `+` is a literal plus here, and only `%2B`
+// spells one on the `application/x-www-form-urlencoded` row.
+?Core\Router\Match $plus = Core\Router::match(Core\Http\Method::Get, "/pages/a+b");
+if ($plus != null) {
+    echo "plus: [", $plus->param("slug") as string, "]", "\n";
+}
+
+// The decoded octets still have to be text: a capture binds to a declared
+// `tainted string` and ADR 0009 § 1 leaves `%ff` no `string` to be, so the
+// crossing throws rather than answering the escape undecoded.
+try {
+    ?Core\Router\Match $refused = Core\Router::match(Core\Http\Method::Get, "/pages/%ff");
+    echo "unreachable", "\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}
+--EXPECT--
+space: [hello world]
+once: [hello%20world]
+plus: [a+b]
+the route capture `slug` percent-decodes to a byte a `string` cannot hold — byte 0 begins a sequence that is not valid UTF-8. A capture binds as a `tainted string`, so a path segment escaping an octet outside UTF-8 has no capture to become

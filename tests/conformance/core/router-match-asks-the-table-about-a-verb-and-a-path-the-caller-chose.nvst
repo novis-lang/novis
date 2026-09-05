@@ -1,0 +1,59 @@
+--TEST--
+`Core\Router::match` answers the compiled table for a verb and a path the program picked, and `null` where no route claims that pair — ADR 0102 § 1
+--FILE--
+<?nvs
+// § 1 puts the *request's* match on the request: the door takes it once, before
+// any of this program ran, and `Core\Request::route()` hands that one back.
+// This member is the other question entirely -- asked of the table, about a
+// verb and a path the caller chose -- which is why a CLI program can ask it at
+// all. Matching still dispatches nothing: neither method below is called.
+class Pages
+{
+    #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string
+    {
+        return $slug;
+    }
+
+    #[Core\Route(path:"/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string
+    {
+        return "made";
+    }
+}
+
+// A hit answers the name the `#[Route]` declared, which is the unit's own text
+// and never anything the caller supplied.
+?Core\Router\Match $shown = Core\Router::match(Core\Http\Method::Get, "/pages/intro");
+if ($shown != null) {
+    echo "name: ", $shown->name() ?? "unnamed", "\n";
+}
+
+// The same path under another verb is a different route, not the same one
+// asked differently -- so a `Post` at a `Get`-only path claims nothing.
+?Core\Router\Match $posted = Core\Router::match(Core\Http\Method::Post, "/pages/intro");
+if ($posted == null) {
+    echo "post at a get-only path: null", "\n";
+}
+
+// And the verb that does claim its own path answers a route with no captures.
+?Core\Router\Match $created = Core\Router::match(Core\Http\Method::Post, "/pages");
+if ($created != null) {
+    echo "name: ", $created->name() ?? "unnamed", "\n";
+    echo "captures: ", Core\Arr::count($created->params()) as string, "\n";
+}
+
+// A path no row claims at all is `null`, which is the answer a `404` is decided
+// from -- `Core\Router::methodsFor` is the member that tells it from a `405`.
+?Core\Router\Match $missing = Core\Router::match(Core\Http\Method::Get, "/nowhere");
+if ($missing == null) {
+    echo "unclaimed path: null", "\n";
+}
+--EXPECT--
+name: Pages::show
+post at a get-only path: null
+name: Pages::create
+captures: 0
+unclaimed path: null
