@@ -1,0 +1,178 @@
+# Cutting a release
+
+A release is one click in the Actions tab and one click on a draft, with a review in between. The
+schedule is [.github/workflows/release.yml](../.github/workflows/release.yml) and every decision
+it makes is [tools/release.py](../tools/release.py) — that split is the workflow header's subject
+and is not repeated here. **This file is the procedure and the one-time GitHub setup it needs.**
+
+Nothing here is automatic. No push, no schedule and no agent may start a release; the workflow has
+exactly one trigger, and it is a person choosing `Run workflow`.
+
+## What happens, in order
+
+| | | Writes |
+|---|---|---|
+| 1 | `plan` — the next version, and the notes rendered from the commit log | nothing |
+| 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
+| 3 | `build` — seven targets, each at the version being released | nothing |
+| 4 | `publish` — bump, changelog, commit, tag, push, draft release | **everything, at once** |
+
+Steps 1–3 write nothing to the repository on purpose: a build that fails after the tag was pushed
+would leave a version commit and a tag on `main` for a release that does not exist, and both would
+have to be undone by hand on the default branch. Nothing is written until every test and every
+binary is green.
+
+## Before the first release: setting up GitHub
+
+Six things, once. **None of them is a secret** — see *Credentials* below.
+
+### 1. The repository exists and `main` is its default branch
+
+`origin` today is a Forgejo instance; the release workflow only runs on GitHub. Once
+`github.com/novis-lang/novis` exists:
+
+```sh
+git remote add github https://github.com/novis-lang/novis.git
+git push github main
+git push github --tags
+```
+
+Then set `main` as the default branch in **Settings → General → Default branch**. The `plan` job
+refuses to run on any other ref, so a release cut from a topic branch is impossible rather than
+discouraged.
+
+`Cargo.toml`'s `repository` and `homepage` still say `nvs-lang/nvs`. Fix them when you move: they
+are what `tools/release.py` builds commit links from when it runs outside CI. Inside CI the runner
+supplies the real one, so a stale value there produces correct release notes and wrong local
+previews — the worst kind of stale, because nothing fails.
+
+### 2. Workflow permissions default to read
+
+**Settings → Actions → General → Workflow permissions** → select **Read repository contents and
+package permissions**. Leave *Allow GitHub Actions to create and approve pull requests* unchecked.
+
+Both workflows declare the permissions they need per job, so this default is only a floor — but it
+is the floor that applies to any workflow anyone adds later without thinking about it.
+
+### 3. The `release` environment — this is the approval gate
+
+**Settings → Environments → New environment**, named exactly `release`. Inside it:
+
+- **Required reviewers** → add yourself. This is what makes the tag and the push wait for a human
+  click *after* the binaries are green: the last point at which a release can be called off for
+  nothing.
+- **Deployment branches and tags** → *Selected branches* → `main`.
+
+Do **not** add any environment secret. The `publish` job needs none.
+
+### 4. If `main` is protected, `publish` needs a bypass
+
+`publish` pushes a commit and a tag to `main` using the run's own `GITHUB_TOKEN`. Branch
+protection blocks that like any other push.
+
+- **`main` is unprotected** (the state today — the unattended loop already pushes to it directly):
+  nothing to do.
+- **`main` has a ruleset**: **Settings → Rules → Rulesets →** your ruleset **→ Bypass list →**
+  add the role that the release runs as. Rulesets are the newer system and are the only one with a
+  bypass list; classic branch protection has no equivalent, so a classic rule means you must
+  either drop it or switch to the GitHub App variant of this workflow.
+
+Note that a push made with `GITHUB_TOKEN` does **not** trigger workflows. That is what stops the
+release commit from starting a fresh CI run, and it is deliberate.
+
+### 5. Public repository, or three build legs stop working
+
+Two matrix legs use GitHub's ARM runners (`ubuntu-22.04-arm`, `windows-11-arm`), which are free on
+public repositories and unavailable on private ones. Build provenance attestation is likewise a
+public-repository feature at the free tier.
+
+If the repository is private at first release, delete the two `aarch64` legs and the
+`attest-build-provenance` step, or expect them to fail. Everything else is unaffected.
+
+### 6. Nothing else
+
+There is no secret to create, no PAT to store, no deploy key, no signing key and no registry
+token. If a future step asks you to add one, that step is the thing to question.
+
+## Cutting a release
+
+1. **Preview it locally first.** No runner, no credentials, writes nothing:
+
+   ```sh
+   python tools/release.py --preview patch
+   ```
+
+   That prints the exact version and the exact notes the run will produce.
+
+2. **Pause the loop.** `publish` takes the current tip of `main` and pushes onto it; if the
+   unattended loop commits in the same few seconds, the push is rejected and the run fails after
+   the builds. Nothing is corrupted — but the whole matrix has to run again.
+
+3. **Actions → Release → Run workflow.** Choose the branch `main` and:
+
+   | Input | |
+   |---|---|
+   | `bump` | `patch`, `minor` or `major` — read *The version scheme* below, it is not plain SemVer |
+   | `version` | leave empty; an exact version here overrides the arithmetic |
+   | `allow_contract` | only when deliberately reaching 0.1.0 |
+   | `dry_run` | **tick this for the first ever run** — everything happens except the writing |
+
+4. **Approve the `release` environment** when the run pauses, after checking the notes in the run
+   summary and that every build leg passed.
+
+5. **Review the draft** at *Releases*, then press **Publish**. The workflow never does: everything
+   it produces is a draft, and announcing it is a separate human decision.
+
+## The version scheme is not plain SemVer
+
+[ADR 0068](adr/0068-dependency-currency-and-the-version-contract.md) § 3 owns it, and below 1.0 the
+breaking slot moves left by one — `0.MINOR` carries breaking changes and `0.MINOR.PATCH` is always
+compatible. From today's 0.0.1:
+
+| `bump` | Result | |
+|---|---|---|
+| `patch` | 0.0.2 | |
+| `minor` | 0.0.2 | the same, deliberately: below 1.0 there is no third slot for a compatible feature |
+| `major` | 0.1.0 | **and refuses unless `allow_contract` is ticked** |
+
+That refusal is not a formality. ADR 0068 § 1 makes 0.1.0 the release that ends the prototyping
+regime and declares the version contract — "the switch is thrown once, in the commit that tags
+0.1.0". A dropdown nobody read is not a way to throw it.
+
+## Credentials
+
+The only credential is the per-run `GITHUB_TOKEN`, minted by GitHub for the run and revoked when
+it ends. `tools/release.py` has no code path that reads a token at all, which is what makes the
+whole release reproducible on a laptop with no access to anything.
+
+Three habits in the workflow keep it that way, each load-bearing rather than decorative:
+`permissions: {}` at the top with per-job re-grants so only `publish` can write;
+`persist-credentials: false` on every checkout but that one, so the token is never written into
+`.git/config` where every build script and proc macro in the dependency tree could read it; and
+**no `${{ }}` inside any `run:` block**, because an expression is pasted in before the shell parses
+it and the commit log this workflow reads is written by an unattended loop, not curated by hand.
+
+## Verifying a published binary
+
+Each archive carries a signed statement that this repository's workflow, at a named commit,
+produced those exact bytes — keyless, so there is no key to leak:
+
+```sh
+gh attestation verify nvs-0.1.0-linux-x86_64.tar.gz --repo novis-lang/novis
+sha256sum --check --ignore-missing SHA256SUMS
+```
+
+Archives are deliberately **not** stripped. `[profile.release]` in [Cargo.toml](../Cargo.toml)
+keeps `debug = "line-tables-only"` so a production backtrace names lines; stripping the shipped
+binary would spend exactly what that setting buys, to save bytes — which AGENTS.md's priority
+ordering puts last.
+
+## When it goes wrong
+
+| | |
+|---|---|
+| `plan` refuses: *crosses into the version contract* | Working as intended. Read § *The version scheme*; tick `allow_contract` only if you mean it. |
+| An `optional` build leg failed | `linux-x86_64-musl` and `windows-aarch64` are marked optional because `wasmtime` and `corosensei` carry assembly and neither lists Windows on ARM64 as supported. The release still ships; drop `optional:` from that leg once a run has proved it. |
+| A **required** leg failed | `publish` refuses by name rather than shipping a quietly incomplete release. Fix and re-run; nothing was written. |
+| The push in `publish` was rejected | `main` moved (see step 2) or is protected (see setup § 4). Nothing was written — re-run. |
+| A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. Nothing else moved. |

@@ -1,0 +1,423 @@
+# The release cycle: test everything, build everything, and only then write anything.
+#
+# Fired by hand from the Actions tab. Nothing here runs on a push, on a schedule or from a fork —
+# a release is a decision a person takes, and this file never takes it on its own.
+#
+# ## The order, and why it is this order
+#
+# The obvious shape is tag → build → release, and it is wrong: a build that fails after the tag is
+# pushed leaves a version commit and a tag in the history for a release that does not exist, and
+# both have to be reverted by hand on the default branch. So nothing is written to the repository
+# until every test and every binary is green:
+#
+#     plan → test → build → publish
+#
+# The cost is that the version bump happens twice: `build` applies it to its own working copy and
+# throws it away, `publish` applies it for real. That is deliberate. `nvs --version` prints
+# `CARGO_PKG_VERSION` (crates/nvs-cli/src/main.rs), so a binary built before the bump would report
+# the *previous* version for the whole life of the release — which is precisely the bug the
+# obvious order hides. Applying it in both places buys correct binaries and a clean history at
+# once, and `tools/release.py` makes it the same code path both times.
+#
+# ## Every decision lives in tools/release.py, not here
+#
+# Version arithmetic, the changelog rules, the manifest rewrite and the packaging are all in that
+# script, for the reason `tools/verify.py` holds the verification steps: YAML that computes things
+# can only be tested by pushing it. Run `python tools/release.py --preview major` on a clone to
+# see exactly what a dispatch would produce, without a runner and without credentials.
+#
+# ## Credentials
+#
+# The only credential in this file is the per-run `GITHUB_TOKEN`, which GitHub mints for this run
+# and revokes when it ends. There is no PAT, no deploy key and no secret of any other kind, and
+# `tools/release.py` has no code path that reads one — it is runnable by anyone with a clone.
+#
+# Three habits keep it that way, and each is load-bearing rather than decorative:
+#
+#   * `permissions: {}` at the top, re-granted per job and never wider than the job needs. Only
+#     `publish` may write to the repository; `build` may not, so a compromised build script cannot
+#     push a commit even though it runs arbitrary code from the dependency tree.
+#   * `persist-credentials: false` on every checkout but `publish`'s. Without it the token is
+#     written into `.git/config` and stays there for the whole job — readable by every build
+#     script, proc macro and test this workspace compiles.
+#   * **No `${{ }}` inside any `run:` block.** Values reach a shell through `env:` only. A
+#     `${{ }}` is pasted into the script *before* the shell parses it, so a commit subject
+#     containing backticks or `$(...)` would execute — and the commit log this workflow reads is
+#     written by an unattended agent loop, not curated by hand.
+#
+# Assets are attached to a **draft**. Publishing it is a separate, human click.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which slot moves (ADR 0068 § 3 — below 1.0, "major" means 0.MINOR)'
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+      version:
+        description: 'Exact version, overriding the arithmetic. Leave empty normally.'
+        type: string
+        required: false
+        default: ''
+      allow_contract:
+        description: 'I understand reaching 0.1.0 declares the version contract (ADR 0068 § 1)'
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: 'Test, build and render the notes — but write nothing and tag nothing'
+        type: boolean
+        required: false
+        default: false
+
+# Re-granted per job. A job with no `permissions:` block of its own gets nothing.
+permissions: {}
+
+# Never two releases at once, and never cancel one half-way: a cancelled `publish` is exactly the
+# torn state — tag pushed, release missing — that the job order above exists to prevent.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. The version math and a preview of the notes. Writes nothing anywhere.
+  # ---------------------------------------------------------------------------
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    # A dispatch can name any ref, and a release built from a topic branch would be a release of
+    # code that never passed review. The tag and the commit both land on the default branch, so
+    # that is the only branch a release may be cut from.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      previous_tag: ${{ steps.plan.outputs.previous_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The changelog is derived from the commit log, and a shallow clone has none of it.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.x'
+
+      - name: Compute the next version
+        id: plan
+        env:
+          BUMP: ${{ inputs.bump }}
+          EXACT: ${{ inputs.version }}
+          ALLOW: ${{ inputs.allow_contract }}
+        run: |
+          set -euo pipefail
+          args=(--plan "$BUMP" --version "$EXACT" --github-output)
+          # An `if`, not `[ ... ] && ...`: under `set -e` the && form makes the whole step exit
+          # non-zero whenever the condition is false, which is the common case here.
+          if [ "$ALLOW" = "true" ]; then
+            args+=(--allow-contract)
+          fi
+          python tools/release.py "${args[@]}"
+
+      - name: Render the release notes
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: python tools/release.py --notes "$VERSION" --out release-notes.md
+
+      - name: Show them in the run summary
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Planned release \`$VERSION\`"
+            echo
+            cat release-notes.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-notes-preview
+          path: release-notes.md
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 2. The full suite, as the definition every push already runs. Not a copy of it.
+  # ---------------------------------------------------------------------------
+  test:
+    name: verify
+    needs: plan
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  # ---------------------------------------------------------------------------
+  # 3. The binaries, at the version about to be released.
+  #
+  # `optional: true` marks a target whose dependency tree is not yet proven to build for it —
+  # `wasmtime` and `corosensei` both carry assembly and neither lists Windows on ARM64 as a
+  # supported platform, and the musl leg has to satisfy `ring` and `zstd-sys`'s C with `musl-gcc`.
+  # Those legs may fail without failing the release; `publish` reports which arrived. Promote one
+  # to required (drop its `optional`) once a run has proved it.
+  # ---------------------------------------------------------------------------
+  build:
+    name: build ${{ matrix.name }}
+    needs: [plan, test]
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional == true }}
+    permissions:
+      contents: read
+      # Both are for the provenance attestation below, and for nothing else. `id-token` mints the
+      # short-lived OIDC token Sigstore signs against; neither can touch the repository.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ubuntu-22.04 rather than -latest on purpose: the glibc a binary is *linked* against is
+          # a floor on the systems it runs on, and 24.04's 2.39 would exclude every stable distro
+          # older than itself. 22.04 gives 2.35.
+          - name: linux-x86_64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-aarch64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive: tar.gz
+          - name: linux-x86_64-musl
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            archive: tar.gz
+            musl: true
+            optional: true
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+          - name: windows-aarch64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            archive: zip
+            optional: true
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
+            archive: tar.gz
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.x'
+
+      # rust-toolchain.toml pins the version; this only honours it.
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
+        with:
+          toolchain: none
+
+      - name: Add the release target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target add "$TARGET"
+
+      # `ring` and `zstd-sys` compile C, and the musl target has no C toolchain on the image.
+      - name: musl C toolchain
+        if: matrix.musl
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends musl-tools
+
+      - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+        with:
+          key: release-${{ matrix.name }}
+
+      # Before the manifests move, so the *committed* lock is what gets fetched and the build
+      # below can run `--offline`. A release must not resolve a dependency version nobody
+      # reviewed; dependency moves are a human's pass, per docs/agent/dependency-update.md.
+      - name: Fetch dependencies against the committed lock
+        run: cargo fetch --locked
+
+      # In this working copy only. Nothing is committed here — see the header.
+      - name: Set the version being released
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: python tools/release.py --apply "$VERSION" --manifests-only
+
+      - name: Build
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          CC_x86_64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --locked --offline -p nvs-cli --target "$TARGET"
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+          ARCHIVE: ${{ matrix.archive }}
+        run: |
+          python tools/release.py --package \
+            --version "$VERSION" --target "$TARGET" --name "$NAME" \
+            --archive "$ARCHIVE" --out dist
+
+      # Signs a statement that *this* runner, from *this* commit, produced these bytes. Keyless:
+      # the signing identity is the run's OIDC token, so there is no key to store or leak, and
+      # `gh attestation verify` checks it against Sigstore's public log.
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-path: dist/nvs-*.${{ matrix.archive }}
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # 4. The only job that writes anything: bump, changelog, commit, tag, draft.
+  #
+  # Gated on the `release` environment, so the tag and the push wait for a human click after the
+  # binaries are green — the last point at which a release can still be called off for free.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: tag, changelog and draft release
+    needs: [plan, test, build]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: main
+          # The one checkout that keeps the token: this job pushes.
+          persist-credentials: true
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.x'
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      # `build` may lose an optional leg without failing (see its comment), so the release would
+      # otherwise ship quietly incomplete. Required targets are checked by name here instead.
+      - name: Every required archive arrived
+        shell: bash
+        run: |
+          set -euo pipefail
+          required="linux-x86_64 linux-aarch64 windows-x86_64 macos-x86_64 macos-aarch64"
+          missing=""
+          for target in $required; do
+            ls dist/nvs-*-"$target".* >/dev/null 2>&1 || missing="$missing $target"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::required build(s) missing:$missing" >&2
+            exit 1
+          fi
+          ls -la dist/
+
+      # The tip may have moved while the matrix built — this repository's default branch takes
+      # commits from an unattended loop. Rebasing is not enough: the notes must describe what is
+      # actually being tagged, so they are re-rendered here rather than carried from `plan`.
+      - name: Take the current tip of main
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          git reset --hard origin/main
+
+      - name: Render the notes for what is actually being released
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: python tools/release.py --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
+
+      - name: Bump the manifests and prepend the changelog
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: python tools/release.py --apply "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+
+      - name: Commit and tag
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Named files, never `git add -A`: a runner's working tree also holds dist/ and
+          # whatever a build script dropped, and a release commit contains three files.
+          git add Cargo.toml Cargo.lock CHANGELOG.md
+          # Written to a file and passed with -F. The subject follows
+          # docs/agent/conventions.md, and the commit-msg hook rejects trailers — there are none.
+          printf '%s\n' \
+            "chore(release): the workspace is at $VERSION, and the changelog carries its section" \
+            "" \
+            "Cut by .github/workflows/release.yml after the full suite and every release binary" \
+            "were green. The version scheme is ADR 0068 section 3; the notes are rendered from the" \
+            "commit log by tools/release.py." > "$RUNNER_TEMP/msg"
+          git commit -F "$RUNNER_TEMP/msg"
+          git tag -a "$TAG" -m "Novis $VERSION"
+          # --atomic: the commit and the tag land together or neither does. Without it a push
+          # that half-succeeds leaves a tag pointing at a commit the branch does not have.
+          git push --atomic origin main "refs/tags/$TAG"
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          rm -f ./*.sha256
+          sha256sum nvs-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Draft the release
+        env:
+          # The per-run token, reaching `gh` through the environment and never through the
+          # command line — an argument is visible in the process list to anything on the runner.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # --draft: nothing is announced by this workflow. Someone reads the notes, checks the
+          # binaries and presses publish. --verify-tag refuses to invent a tag if the push above
+          # somehow did not land.
+          gh release create "$TAG" \
+            --draft \
+            --verify-tag \
+            --title "Novis $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            dist/SHA256SUMS dist/nvs-*
+          echo "### Draft release \`$TAG\` is ready to review" >> "$GITHUB_STEP_SUMMARY"
+          gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"

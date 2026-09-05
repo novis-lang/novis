@@ -1,0 +1,24 @@
+# Actions only, and deliberately nothing else.
+#
+# Every `uses:` in this repository is pinned to a full commit SHA, which is the only pin a tag
+# cannot be moved out from under -- a `@v4` is a mutable pointer in someone else's repository, and
+# `.github/workflows/release.yml` is the one place here that holds a token with write access.
+# The cost of a SHA is that it never updates on its own, and an action frozen for two years is its
+# own supply-chain problem. This closes that: Dependabot opens a PR that rewrites the SHA and the
+# trailing `# vX` comment together, and CI reviews it like any other change.
+#
+# Cargo is **not** here on purpose. ADR 0068 § 9 makes a dependency bump a pass a human fires, by
+# hand, with docs/agent/dependency-update.md as the procedure -- "bumping a dependency is the one
+# class of change whose entire value is that a person weighed it". A bot opening those PRs would
+# be exactly the automation that ADR refuses.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      # docs/agent/conventions.md's shape. `chore` because an action bump is not a change to the
+      # language, and the commit-msg hook rejects the trailers Dependabot does not add anyway.
+      prefix: 'chore(ci)'
