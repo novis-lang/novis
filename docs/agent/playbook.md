@@ -5727,6 +5727,17 @@ is why" — is this file.
   its own: `Ctx::memory_used` is measured from *that context's own* base, so it can never see what
   an earlier run left behind, and only `nvs_runtime::budget::live_bytes()` sampled across the
   boundary can.
+- **A test outside `nvs-runtime` cannot install a current context, so an object it allocates by hand
+  lands in no live list and the teardown sweep never sees it.** `NvsObj::new` links the object into
+  whatever `CurrentCtx` names, and `crate::ctx::CurrentCtx` is **not** in `nvs_runtime`'s
+  `pub use ctx::{…}` — only `CurrentStack` is, and that only takes the two words off the thread. The
+  route is the one a request already takes: `nvs_runtime::call(entry, ctx, &[…])` installs the context
+  around an `extern "C"` entry (`crates/nvs-runtime/src/abi.rs:580`), so the fixture is a captureless
+  `unsafe extern "C" fn` and the class reaches it through **slot 0** as a `Value::class_desc`, exactly
+  as ADR 0008's late static binding hands a static method its own.
+  `crates/nvs-host/src/isolate.rs`'s `build_a_cycle` is the shape. Getting this wrong does not fail
+  where it happens — the pair simply leaks, and what fails is an assertion about bytes several frames
+  away, which reads as though the sweep were broken.
 
 ## Splitting a file that got too big
 
