@@ -1,0 +1,37 @@
+--TEST--
+A value that cannot cross a copy boundary is refused by `Core\Topic::publish` whether or not anybody joined the topic — ADR 0083 § 4, ADR 0033 § 1, ADR 0023 § 2
+--FILE--
+<?nvs
+// § 4 copies a published value by ADR 0023 § 2's graph copy, and that walk does
+// two jobs: it gives every subscriber a value shared with nobody, and it
+// refuses what has no meaning on the other side. Only the first of those
+// scales with the audience, so the refusal is made once and *before* the walk.
+// A rule that held or did not by who happened to be listening would be no
+// rule -- and this script is why it has to be that way round: nothing here is
+// a connection, so no case in this corpus can ever have a subscriber, and a
+// refusal behind the fan-out would be unreachable from every one of them.
+class Credential {
+    public string $who = "ana";
+    public secret string $token = "s3cr3t";
+}
+
+Credential $held = new Credential();
+try {
+    Core\Topic::publish("room:lobby", $held);
+    echo "published\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// ADR 0033: it is the qualifier that is refused and not the object. The same
+// two fields without it cross, and answer the count nobody is.
+class Profile {
+    public string $who = "ana";
+    public string $token = "s3cr3t";
+}
+
+Profile $open = new Profile();
+echo Core\Topic::publish("room:lobby", $open), "\n";
+--EXPECT--
+`Core\Topic::publish` cannot publish this value: Credential::$token is `secret` and does not cross a copy boundary unless it is revealed
+0

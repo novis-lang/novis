@@ -58,9 +58,10 @@ pub enum PeerFrame {
 /// ADR 0083 § 3's **second source**. It lives here rather than in `nvs-stdlib`
 /// for the reason [`PeerSocket`] does: the queue it waits in is the isolate's,
 /// so [`Ctx::deliver`](crate::Ctx::deliver) has to be able to name the type,
-/// and a `Ctx` cannot name a type that crate declares. § 4's bus is what will
-/// push one; nothing does yet, which is this seam's known gap and
-/// [`crate::Ctx::deliver`]'s own doc is where it is written down.
+/// and a `Ctx` cannot name a type that crate declares. § 4's bus is what
+/// pushes one — `nvs_stdlib::topic`'s `publish` — and it reaches this queue
+/// through the [`Inbox`] handle the subscriber table holds rather than through
+/// a context it has no way to name.
 ///
 /// **The value is one owned reference.** Whoever takes a `Delivery` out of the
 /// queue owes [`Self::into_value`] and, if it does not hand the reference on,

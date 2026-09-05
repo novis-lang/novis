@@ -1,0 +1,32 @@
+--TEST--
+`Core\Topic::publish` answers how many subscribers it reached, and is the one member of the class that needs no connection of its own — ADR 0083 § 4
+--FILE--
+<?nvs
+// § 4's second row asks nothing about the program calling it. `subscribe` and
+// `unsubscribe` refuse anything that is not a connection, because a
+// subscription with no queue behind it is an entry nothing could ever drain --
+// but a publish is a value handed to whoever joined, and the commonest reason
+// to have a bus at all is an ordinary request telling the connections that
+// something changed. This script is no kind of connection, and it may speak.
+echo Core\Topic::publish("room:lobby", "hello"), "\n";
+
+// What it answers is the count delivered to, so a topic nobody joined is a
+// topic with nobody on it rather than an error: a publisher learns how many
+// were reached, never whether it should have bothered.
+echo Core\Topic::publish("room:lobby", "again"), "\n";
+echo Core\Topic::publish("room:never-mentioned", 42), "\n";
+
+// It is a `uint`, so it counts like one rather than reading like one.
+var $reached = Core\Topic::publish("room:lobby", 42);
+echo $reached + 1, "\n";
+
+// Publishing does not join anything. A name reaches the bus's table when a
+// connection subscribes to it and at no other moment, so a hundred publishes
+// to one name leave it exactly as empty as they found it.
+echo Core\Topic::publish("room:lobby", null), "\n";
+--EXPECT--
+0
+0
+0
+1
+0

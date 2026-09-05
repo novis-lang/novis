@@ -1,0 +1,71 @@
+--TEST--
+All three `Core\Topic` members refuse an empty name, and they agree on the sentence rather than each having grown its own — ADR 0083 § 4
+--FILE--
+<?nvs
+// The empty name is the one no publisher can mean and no subscriber can be
+// reached by, and the class refuses it at every door. What this case asks is
+// not what each member answered -- a sibling case already prints two of those
+// -- but whether the three *agree*: one sentence with only the member's own
+// name in it. A member that grew its own wording, or that answered a count of
+// nobody instead of refusing, still looks right on its own line and fails
+// here.
+var $tail = " needs a topic name and was given an empty one";
+
+var $fromSubscribe = "";
+try {
+    Core\Topic::subscribe("");
+} catch (LogicError $refused) {
+    $fromSubscribe = $refused->message;
+}
+
+var $fromPublish = "";
+try {
+    Core\Topic::publish("", "anything");
+} catch (LogicError $refused) {
+    $fromPublish = $refused->message;
+}
+
+var $fromUnsubscribe = "";
+try {
+    Core\Topic::unsubscribe("");
+} catch (LogicError $refused) {
+    $fromUnsubscribe = $refused->message;
+}
+
+if ($fromSubscribe == "`Core\\Topic::subscribe`" . $tail) {
+    echo "subscribe agrees\n";
+} else {
+    echo $fromSubscribe, "\n";
+}
+
+if ($fromPublish == "`Core\\Topic::publish`" . $tail) {
+    echo "publish agrees\n";
+} else {
+    echo $fromPublish, "\n";
+}
+
+if ($fromUnsubscribe == "`Core\\Topic::unsubscribe`" . $tail) {
+    echo "unsubscribe agrees\n";
+} else {
+    echo $fromUnsubscribe, "\n";
+}
+
+// The name is the first thing every one of them reads. `publish` has no second
+// question to ask -- it is not on a connection and does not care -- so the
+// empty name is the whole of what it can refuse, and it refuses it before the
+// value is so much as copied.
+try {
+    Core\Topic::publish("", new Credential());
+    echo "published\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+class Credential {
+    public secret string $token = "s3cr3t";
+}
+--EXPECT--
+subscribe agrees
+publish agrees
+unsubscribe agrees
+`Core\Topic::publish` needs a topic name and was given an empty one

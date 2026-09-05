@@ -53,7 +53,10 @@ impl Ctx {
     }
 
     /// Queues one topic delivery for this connection — ADR 0083 § 3's second
-    /// source, and § 4's bus is what will call it.
+    /// source. § 4's bus reaches the same queue through the
+    /// [`crate::peer::Inbox`] handle [`Self::inbox`] answers with, so this is
+    /// the seam for a caller holding the *context* rather than the
+    /// publisher's own route.
     ///
     /// The queue is on the context rather than on the socket because the two
     /// sources are not the same kind of thing: the peer is a descriptor this
@@ -69,10 +72,13 @@ impl Ctx {
     /// A delivery queued while this isolate is already parked inside
     /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
     /// `receive()` rather than waking the parked one, because the park is on
-    /// the socket alone. Nothing can observe that yet — § 4's `publish` is
-    /// unwritten, so the only publisher is a test on this same task — and
-    /// closing it is a wake seam the framing layer has to take part in, which
-    /// belongs to the slice that writes the fan-out and not to this one.
+    /// the socket alone. § 4's `publish` has landed, so this is now
+    /// **observable**: a connection parked with nothing coming from its peer
+    /// sits on a value another connection on the same core already published
+    /// to a topic it joined. Closing it needs the park to be over both
+    /// sources, which is a wake seam the framing layer has to take part in —
+    /// `nvs_stdlib::socket`'s `receive()` and `nvs_server::socket`, not this
+    /// method.
     pub fn deliver(&mut self, delivery: crate::peer::Delivery) {
         self.deliveries
             .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default()))

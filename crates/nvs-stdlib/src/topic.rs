@@ -9,12 +9,19 @@
 //!
 //! # What is here, and what is not
 //!
-//! `subscribe` and `unsubscribe`, and the table behind them. `publish` is § 4's
-//! third row and is **not registered yet**: it is the fan-out, and the fan-out
-//! is where the cross-core hand-off and § 4's bounded queue both live. That is
-//! this module's known gap, and until it lands the table has no filler but a
-//! test — the same shape [`nvs_runtime::Ctx::deliver`]'s own known gap
-//! describes from under the seam.
+//! § 4's three rows and the table behind them. What is **not** here is the
+//! hand-off between cores: `publish` copies to the subscribers that joined on
+//! the core it runs on, and § 4's "a publish from a connection on core 3
+//! reaches subscribers on core 0" waits on the bounded queue a neighbouring
+//! core is handed. Until that lands a publish is whole only where the
+//! publisher and the subscriber landed on the same core, and that is this
+//! module's first known gap.
+//!
+//! The second one is under the seam rather than here, and this row is what
+//! makes it reachable: a delivery queued while its connection is already
+//! parked inside `receive()` is answered by the *next* `receive()` rather than
+//! waking the parked one. [`nvs_runtime::Ctx::deliver`]'s own known gap is
+//! where that is written down.
 //!
 //! # Decision: the table is per core, and it holds a weak reference
 //!
@@ -45,16 +52,54 @@
 //! entry only until the next walk of that name, and an empty one is removed
 //! rather than left behind.
 //!
+//! # Decision: a publisher needs no connection, and is not excluded from its own topic
+//!
+//! `subscribe` and `unsubscribe` refuse a program that is not a connection,
+//! because a subscription with no queue behind it is an entry no `receive()`
+//! could ever drain. `publish` asks nothing about its host: it hands a value
+//! to whoever joined, and the commonest reason to have a bus at all is an
+//! ordinary HTTP request telling the connections that something changed. § 4
+//! writes its example publish from inside a connection, but nothing in it
+//! makes that the rule, and a refusal here would make an application hold a
+//! connection open for the sole purpose of being allowed to speak.
+//!
+//! A connection that joined a topic it also publishes to **is** delivered to,
+//! like every other subscriber. The table is keyed by name and holds
+//! connections rather than everybody-but-one, so an exclusion would have to be
+//! computed per publish, and it would make the count answer something other
+//! than "subscribers". § 3's own loop is written that way: the sender sees
+//! their own message, which is what every chat does.
+//!
+//! # Decision: the copy is made before the walk, and whether or not anyone joined
+//!
+//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md) § 2's
+//! graph copy does two jobs here and only one of them scales with the
+//! audience. It gives each subscriber a value that shares nothing with the
+//! publisher or with any other subscriber, which is § 4's rule and is one copy
+//! per subscriber; and it is what **refuses** a value with no meaning on the
+//! other side — a resource, or a `secret`, which
+//! [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md) says
+//! may never be published.
+//!
+//! A refusal that only happened once somebody had joined would be a rule that
+//! held or did not by timing, and it would be unreachable from the conformance
+//! corpus outright, because a `.nvst` case has no connection to subscribe
+//! with. So the first copy is made before the walk, the walk hands it to the
+//! first subscriber and makes one more for each further one, and a publish to
+//! a topic nobody joined releases it unused. **What it spends:** one graph
+//! copy on a publish nobody is listening to, which is the price of the refusal
+//! being the value's business rather than the topic's.
+//!
 //! # Decision: the name is checked before the connection is
 //!
-//! Both members refuse an empty name, and they do it **before** asking whether
-//! this context is a connection's. An empty name is wrong wherever it is
-//! written — no publisher can mean it and no subscriber can be reached by it —
-//! so it is the call that is wrong rather than the host, and reporting the
-//! host's shape first would tell a program running outside a connection the
-//! less useful of the two things wrong with its call. It also makes the
-//! boundary reachable from a `.nvst` case, which a check behind the connection
-//! refusal would not be.
+//! All three members refuse an empty name, and the two that ask about the host
+//! do it **before** asking whether this context is a connection's. An empty
+//! name is wrong wherever it is written — no publisher can mean it and no
+//! subscriber can be reached by it — so it is the call that is wrong rather
+//! than the host, and reporting the host's shape first would tell a program
+//! running outside a connection the less useful of the two things wrong with
+//! its call. It also makes the boundary reachable from a `.nvst` case, which a
+//! check behind the connection refusal would not be.
 //!
 //! `tainted` is refused by the *signature* and not by a body: the name
 //! parameter is a [`CoreTy::Text`] at [`Qual::Sink`], which is § 4's "a name is
@@ -71,15 +116,16 @@
 use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 
-use nvs_runtime::{Ctx, Fault, Inbox, ThrownClass, Value};
+use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, copy_graph};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::socket::{release_crossed, retained};
 
 /// `Core\Topic`'s fully-qualified name, in one place so the row and every
 /// message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Topic";
 
-/// `Core\Topic`'s registry rows — ADR 0083 § 4's first two, and see
+/// `Core\Topic`'s registry rows — ADR 0083 § 4's three, and see
 /// [`crate::registry::CLASSES`].
 ///
 /// A namespace class with no instance members and no slots, because a
@@ -104,6 +150,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SUBSCRIBE_DOC),
         },
         CoreMethod {
+            name: "publish",
+            names: &["topic", "value"],
+            // The name is a sink for `subscribe`'s reason. The value is not
+            // one: a `tainted` payload crosses and stays `tainted` where it
+            // arrives (ADR 0024), and what may not cross at all is refused by
+            // the copy rather than by the signature.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: PUBLISH_SYMBOL,
+            doc: Some(&PUBLISH_DOC),
+        },
+        CoreMethod {
             name: "unsubscribe",
             names: &["topic"],
             params: &[CoreTy::Text(Qual::Sink)],
@@ -120,6 +179,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// The symbol [`CLASS`]'s `subscribe` row is reached through.
 const SUBSCRIBE_SYMBOL: &str = "nvs_core_topic_subscribe";
+
+/// The symbol [`CLASS`]'s `publish` row is reached through.
+const PUBLISH_SYMBOL: &str = "nvs_core_topic_publish";
 
 /// The symbol [`CLASS`]'s `unsubscribe` row is reached through.
 const UNSUBSCRIBE_SYMBOL: &str = "nvs_core_topic_unsubscribe";
@@ -141,6 +203,37 @@ const SUBSCRIBE_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "An empty `$topic`, which no publisher can mean; and a call from a program that is \
                not a connection, which has nothing to deliver to.",
+    }],
+};
+
+/// `Core\Topic::publish`'s reference card — ADR 0117.
+const PUBLISH_DOC: MethodDoc = MethodDoc {
+    short: "Copies `$value` to every connection subscribed to `$topic`, and answers how many were \
+            reached.",
+    params: &[
+        ParamDoc {
+            name: "topic",
+            desc: "The topic's name, under the rule `subscribe` reads it under: it is built from \
+                   checked values or it does not compile.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "value",
+            desc: "What to publish. Every subscriber is handed its own copy, so nothing is shared \
+                   with the publisher or between subscribers; a `tainted` value is still \
+                   `tainted` where it arrives, and a `secret` may not be published at all.",
+            shape: &[],
+        },
+    ],
+    ret: "How many subscribers the value was queued for, which is `0` for a topic nobody has \
+          joined. Publishing needs no connection of its own — an ordinary request may tell the \
+          connections that something changed — and a connection publishing to a topic it joined \
+          itself is delivered to like any other subscriber.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "An empty `$topic`, which no subscriber can be reached by; and a `$value` with no \
+               meaning on the other side of a copy boundary — a resource, or a `secret` — which \
+               is refused whether or not anybody has joined.",
     }],
 };
 
@@ -166,6 +259,7 @@ const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         SUBSCRIBE_SYMBOL => (nvs_core_topic_subscribe as *const ()).cast(),
+        PUBLISH_SYMBOL => (nvs_core_topic_publish as *const ()).cast(),
         UNSUBSCRIBE_SYMBOL => (nvs_core_topic_unsubscribe as *const ()).cast(),
         _ => return None,
     })
@@ -265,6 +359,49 @@ fn leave(topic: &str, inbox: &Rc<Inbox>) {
     });
 }
 
+/// The live subscribers `topic` has on this core, with the row left holding
+/// only them.
+///
+/// Handed back as owned handles rather than walked in place: the fan-out makes
+/// a graph copy per subscriber, and a table borrow held across an allocation
+/// is a re-entrancy nobody needs — `subscribe` runs on a connection's own task
+/// and reaches the same map.
+fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
+    SUBSCRIBERS.with_borrow_mut(|table| {
+        let Some(row) = table.get_mut(topic) else {
+            return Vec::new();
+        };
+        let live: Vec<Rc<Inbox>> = row.iter().filter_map(Weak::upgrade).collect();
+        if live.is_empty() {
+            table.remove(topic);
+        } else {
+            row.retain(|held| held.strong_count() > 0);
+        }
+        live
+    })
+}
+
+/// ADR 0023 § 2's copy of the value being published, which is also the one
+/// refusal `publish` makes about it.
+///
+/// **Answers one owned reference**, which the delivery it is put in takes over.
+/// The argument is only borrowed by this frame, so the retain is what
+/// reconciles the two conventions — [`crate::socket::retained`] owns why.
+///
+/// # Errors
+///
+/// A `LogicError` naming what has no meaning on the other side of a copy
+/// boundary: a resource, or a `secret`, which ADR 0033 says may never be
+/// published.
+fn cross(value: Value) -> Result<Value, Fault> {
+    copy_graph(retained(value)).map_err(|refused| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
+        )
+    })
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Topic::subscribe(string $topic): void` — ADR 0083 § 4's first row.
     ///
@@ -275,6 +412,44 @@ nvs_runtime::nvs_helper! {
         let inbox = connection_inbox(ctx, "subscribe")?;
         join(&topic, &inbox);
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Topic::publish(string $topic, mixed $value): uint` — ADR 0083
+    /// § 4's second row, and the only member of this class that asks nothing
+    /// about the program calling it.
+    ///
+    /// The name, then the crossing, then the walk. The crossing stands before
+    /// the walk and is made once however many joined, which is this module's
+    /// third decision; the walk hands that first copy to the first subscriber
+    /// and makes one more for each further one, because § 4 says subscribers
+    /// share nothing with each other or with the publisher.
+    ///
+    /// The count is what reached a queue, not what a subscriber has read: a
+    /// delivery waits until that connection's own `receive()` drains it (§ 3),
+    /// and this member never blocks on one.
+    fn nvs_core_topic_publish(_ctx, args: [2]) {
+        let topic = topic_of(&args[0], "publish")?;
+        let subscribers = subscribers_of(&topic);
+        let mut first = Some(cross(args[1])?);
+        let mut delivered: u64 = 0;
+        for inbox in &subscribers {
+            // A refusal is a property of the graph rather than of the copy, so
+            // the one above is the one that reports it: a further copy of the
+            // same unchanged value cannot decide differently, and this `?` is
+            // unreachable in the same sense the module doc's decision is.
+            let copy = match first.take() {
+                Some(made) => made,
+                None => cross(args[1])?,
+            };
+            inbox.push(Delivery::new(topic.as_str(), copy));
+            delivered += 1;
+        }
+        if let Some(unused) = first {
+            release_crossed(unused);
+        }
+        Ok(Value::uint(delivered))
     }
 }
 
@@ -297,23 +472,18 @@ nvs_runtime::nvs_helper! {
 mod tests {
     use nvs_runtime::{Ctx, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value};
 
-    use super::{SUBSCRIBERS, nvs_core_topic_subscribe, nvs_core_topic_unsubscribe};
+    use super::{
+        nvs_core_topic_publish, nvs_core_topic_subscribe, nvs_core_topic_unsubscribe,
+        subscribers_of,
+    };
 
     /// How many live connections on this core have joined `topic`.
     ///
-    /// The table's only reader until § 4's `publish` lands, and the shape that
-    /// member's fan-out takes: walk the row, drop what is dead, count what is
-    /// live. It is here rather than beside the table because a second
-    /// `#[cfg(test)]` item in a module is what `capability.rs`'s scan for an
-    /// operating-system spelling stops at.
+    /// The fan-out's own walk, asked for its length — so a case counting
+    /// subscribers and a publish reaching them cannot disagree about which
+    /// entries are still alive.
     fn subscriber_count(topic: &str) -> usize {
-        SUBSCRIBERS.with_borrow_mut(|table| {
-            let Some(row) = table.get_mut(topic) else {
-                return 0;
-            };
-            row.retain(|held| held.strong_count() > 0);
-            row.len()
-        })
+        subscribers_of(topic).len()
     }
 
     /// A peer that says nothing and is never read: what these cases need from
@@ -356,6 +526,106 @@ mod tests {
             name.release();
         }
         answered
+    }
+
+    /// One `publish` call, with the name and a text payload as arguments, and
+    /// the count it answered.
+    fn publish(ctx: &mut Ctx, topic: &str, text: &str) -> Result<u64, i32> {
+        let name = Value::str(NvsStr::new(topic.as_bytes()));
+        let payload = Value::str(NvsStr::new(text.as_bytes()));
+        let answered = nvs_runtime::call(nvs_core_topic_publish, ctx, &[name, payload]);
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the two references it made for the arguments, and \
+                      the call borrows rather than takes them"
+        )]
+        // SAFETY: nothing else points at the values this case built — the copy
+        // each subscriber was queued is its own allocation.
+        unsafe {
+            name.release();
+            payload.release();
+        }
+        answered.map(|count| count.as_uint().expect("`publish` answers a `uint`"))
+    }
+
+    /// Takes the one delivery `topic` should have queued on `ctx`, releasing
+    /// the reference it hands over.
+    ///
+    /// The release is the case's rather than `Ctx`'s own `Drop` on purpose:
+    /// two independent releases of what a fan-out handed two subscribers is
+    /// exactly what a walk that shared one copy would fail at.
+    fn drained(ctx: &mut Ctx, topic: &str) {
+        let delivery = ctx.take_delivery().expect("this subscriber was queued one");
+        assert_eq!(delivery.topic(), topic);
+        #[expect(
+            unsafe_code,
+            reason = "the delivery handed this frame the only reference to its value"
+        )]
+        // SAFETY: nothing else points at the copy this subscriber was queued.
+        unsafe {
+            delivery.into_value().release();
+        }
+        assert!(ctx.take_delivery().is_none(), "and exactly one");
+    }
+
+    /// A publish reaches every live subscriber on this core, answers how many,
+    /// and hands each one a copy of its own — ADR 0083 § 4.
+    ///
+    /// The publisher here is not a connection, which is this module's second
+    /// decision: a topic is how two connections meet, and an ordinary program
+    /// is allowed to be what tells them so.
+    #[test]
+    fn a_publish_reaches_every_subscriber_on_this_core_and_answers_how_many() {
+        let mut first = connected();
+        let mut second = connected();
+        call(nvs_core_topic_subscribe, &mut first, "room:fanout").expect("one joins");
+        call(nvs_core_topic_subscribe, &mut second, "room:fanout").expect("and another");
+
+        let mut publisher = Ctx::buffered();
+        let reached = publish(&mut publisher, "room:fanout", "hello").expect("a publish");
+        assert_eq!(reached, 2);
+
+        drained(&mut first, "room:fanout");
+        drained(&mut second, "room:fanout");
+    }
+
+    /// A topic nobody joined is reached by nobody, and a connection that ended
+    /// is not a subscriber a publish counts — the weak reference in the table,
+    /// read from the fan-out's side rather than from the walk that prunes it.
+    #[test]
+    fn a_publish_counts_only_the_connections_that_are_still_there() {
+        let mut publisher = Ctx::buffered();
+        assert_eq!(
+            publish(&mut publisher, "room:empty", "nobody").expect("not an error"),
+            0
+        );
+
+        let mut staying = connected();
+        let mut leaving = connected();
+        call(nvs_core_topic_subscribe, &mut staying, "room:thinning").expect("one joins");
+        call(nvs_core_topic_subscribe, &mut leaving, "room:thinning").expect("and another");
+        drop(leaving);
+
+        assert_eq!(
+            publish(&mut publisher, "room:thinning", "still here").expect("a publish"),
+            1
+        );
+        drained(&mut staying, "room:thinning");
+    }
+
+    /// A connection that publishes to a topic it joined itself is delivered to
+    /// like every other subscriber — this module's second decision, and § 3's
+    /// own loop, where the sender sees their own message.
+    #[test]
+    fn a_connection_publishing_to_its_own_topic_is_one_of_the_subscribers() {
+        let mut talking = connected();
+        call(nvs_core_topic_subscribe, &mut talking, "room:echo").expect("it joins");
+
+        assert_eq!(
+            publish(&mut talking, "room:echo", "said").expect("and speaks"),
+            1
+        );
+        drained(&mut talking, "room:echo");
     }
 
     /// The table is keyed by name and holds one entry per live connection, so
