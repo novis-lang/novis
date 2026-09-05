@@ -257,6 +257,55 @@ impl Ctx {
         }
     }
 
+    /// Fills the envelope keys [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// § 6 asks for beyond `level` and `msg` — `ts`, `request_id`, and
+    /// `trace_id`/`span_id` when a trace is active.
+    ///
+    /// **Called by both of § 6's writers**, `Core\Log::write` and
+    /// [`crate::floor::report`], for the reason
+    /// [`Self::write_log_record`] gives about the format, the floor and the
+    /// destination: a rule asked once cannot come to be answered two ways. It
+    /// is a separate call from that one because
+    /// [`crate::floor::key`](crate::floor)'s coalescing window is keyed on
+    /// everything *except* these four, so they have to be on the record after
+    /// the key is taken and not before.
+    ///
+    /// **All four come from the request, and a context answering none stamps
+    /// nothing.** That is why `ts` is here rather than read off the clock
+    /// unconditionally: § 6's four keys are what a *request* contributes to a
+    /// record, and a bare clock read would give a CLI run a third envelope
+    /// shape — neither the two keys the floor writes with no request in front
+    /// of it nor the six a served one carries. Two shapes, not three, is
+    /// § 6's sameness. An absent key is omitted rather than written empty,
+    /// which is [ADR 0076](/docs/adr/0076-observability-export.md) § 6's rule
+    /// for `trace_id`/`span_id` applied to the whole envelope.
+    ///
+    /// `request_id` is the trace id, because ADR 0076 § 2 has that be Novis's
+    /// only request identifier — there is deliberately no second one to stamp.
+    /// It repeats in `trace_id` for a sampled trace on purpose: a log pipeline
+    /// correlating by request and a tracing backend correlating by trace read
+    /// their own key, and neither has to know the other's rule.
+    ///
+    /// **What it spends:** two 32-byte strings and one 16-byte one per written
+    /// record inside a request, and one clock read. Nothing per context, and
+    /// nothing that outlives the record.
+    pub fn stamp_envelope(&self, envelope: &mut nvs_render::Envelope) {
+        if self.inbound().is_none() {
+            return;
+        }
+        let trace = self.trace_context();
+        envelope.ts = Some(jiff::Timestamp::now().to_string());
+        envelope.request_id = Some(trace.trace_id_hex());
+        // § 6's "whenever a trace is active", where active is the sampling
+        // decision § 2 makes at the door: an id exists for every request, and
+        // what a sampled trace additionally has is spans a backend will be
+        // asked to join this line to.
+        if trace.sampled() {
+            envelope.trace_id = Some(trace.trace_id_hex());
+            envelope.span_id = Some(trace.span_id_hex());
+        }
+    }
+
     /// `[log] target` as the sink it names, through ADR 0020 § 4's grammar and
     /// not through a second reading of it.
     ///

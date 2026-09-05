@@ -45,6 +45,13 @@ nvs-render.workspace = true
 # module doc argues at length. No new crate reaches the tree: `nvs-stdlib`
 # depends on both this crate and `rand` already.
 rand.workspace = true
+# ADR 0020 § 6's record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
+# writes it for both of that section's writers. One renderer of that format in
+# the tree, not two: `Core\Time\Instant::toIso` is `jiff::Timestamp`'s own
+# `Display` and this is the same call, so a floor record's timestamp and a
+# program's cannot come to disagree about a leap second or a fractional digit.
+# No new crate reaches the tree -- `nvs-stdlib` and `nvs-config` both name it.
+jiff.workspace = true
 # ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
 # crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
 # same crate for the same reason — the workspace manifest's own comment beside

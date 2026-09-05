@@ -28,12 +28,20 @@
 //! # What is in an uncaught throw's record, and what is deliberately not
 //!
 //! [`uncaught`] fills § 6's `level`, `message` and two fields — the error class
-//! and, when the throw carried frames, the backtrace. It leaves `ts`,
-//! `request_id`, `trace_id` and `span_id` unset, exactly as
-//! `nvs_stdlib::log`'s `record` does: an envelope field is omitted rather than
-//! written empty, and a floor that filled one its ordinary-code twin does not
-//! would be the schema divergence § 6 forbids. When a clock and a request id
-//! reach one of the two callers they reach both, in the envelope they share.
+//! and, when the throw carried frames, the backtrace. It fills none of `ts`,
+//! `request_id`, `trace_id` or `span_id`, because it is handed a `Throwable`
+//! and not a context, and those four are the request's. [`report`] is where a
+//! context arrives, and it stamps them through
+//! [`Ctx::stamp_envelope`] — the *same* method `Core\Log::write` calls, which
+//! is what keeps a floor line and an application's the one shape § 6 asks for.
+//! A record built with no request in front of it carries neither writer's
+//! four, and an absent envelope key is omitted rather than written empty.
+//!
+//! The stamp happens **after** [`key`] has taken the coalescing window's key,
+//! which is why it is a call of its own rather than something
+//! [`Ctx::write_log_record`] does: those four keys are exactly what
+//! distinguishes two occurrences of one failure, and a limiter that saw them
+//! would never fire.
 //!
 //! # It cannot fill the disk it writes to
 //!
@@ -181,12 +189,15 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
     let Some(count) = admit(key(record), Instant::now()) else {
         return;
     };
-    if count == 1 {
-        let _ = ctx.write_log_record(record, crate::LogChannel::Diagnostic);
-        return;
-    }
+    // Owned from here on, because both of the two things left to do write to
+    // the envelope: the multiplicity, and § 6's four request keys. The clone
+    // is the one [`key`] already takes per call, on the path a request has
+    // already failed on rather than on the one it is served by.
     let mut carried = record.clone();
-    carried.envelope.count = Some(count);
+    if count > 1 {
+        carried.envelope.count = Some(count);
+    }
+    ctx.stamp_envelope(&mut carried.envelope);
     let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
 }
 

@@ -43,15 +43,18 @@
 //! edge, which ADR 0092 § 1 sanctions and `nvs-render`'s own § *Where this
 //! sits* prices.
 //!
-//! **The envelope is `level` and `msg` and stops there, and that is now a gap
-//! rather than a wait.** § 6 lists `ts`, `request_id`, `trace_id` and `span_id`
-//! as well, and every one of them has a source since goal 6: a served request,
-//! `nvs_server::trace`'s context, and `Core\Time`'s clock. Without
-//! `trace_id`/`span_id` a log line cannot be jumped to from a trace, which is
-//! the whole of what § 6 asks for; `docs/agent/carried-gaps.md` owns it.
-//! § 6 already says `trace_id`/`span_id` are omitted rather than empty
-//! when no trace is active, which is the same treatment the rest take here.
-//! `fields` follows that rule too: an empty bag is an absent key, not `{}`.
+//! **The envelope is `level` and `msg` for a CLI run, and six keys inside a
+//! request.** § 6's other four — `ts`, `request_id`, `trace_id` and `span_id` —
+//! are stamped by
+//! [`Ctx::stamp_envelope`](nvs_runtime::Ctx::stamp_envelope), which is the
+//! method `nvs_runtime::floor` calls too and is the one home for which key
+//! comes from what: `request_id` is ADR 0076 § 2's trace id, that section
+//! having made it Novis's only request identifier, and `trace_id`/`span_id`
+//! arrive on top of it for a *sampled* trace, which is § 6's "whenever a trace
+//! is active". Without them a log line could not be jumped to from a trace,
+//! which is the whole of what § 6 asks for. An absent key is omitted rather
+//! than written empty; `fields` follows that rule too, so an empty bag is an
+//! absent key and not `{}`.
 //!
 //! # Where the bytes go
 //!
@@ -74,7 +77,7 @@
 //! instead, beside where [`crate::debug`] sends a dump.
 
 use nvs_render::{Level, Node, Record, Rendered};
-use nvs_runtime::{Fault, LogChannel, Value};
+use nvs_runtime::{Ctx, Fault, LogChannel, Value};
 
 use crate::registry::{
     CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, Qual,
@@ -213,7 +216,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_log_write(ctx, args: [3]) {
         let level = level_of(&args[0])?;
         let message = message_of(&args[1])?;
-        let record = record(level, message, args[2]);
+        let record = record(ctx, level, message, args[2]);
         // Unreachable from source. Absent a `[log] target` the destination is
         // the process's own output stream, which nothing in the language moves
         // or closes — the reason `Core\Debug::dump`'s own write gives. With one
@@ -279,10 +282,14 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
 /// `[log] format`. That is ADR 0020 § 6's *one implementation, two callers* —
 /// the engine floor builds the same `Record` and hands it to the same method,
 /// so neither this member nor the floor has a rendering to choose.
-fn record(level: Level, message: &str, fields: Value) -> Record {
+fn record(ctx: &Ctx, level: Level, message: &str, fields: Value) -> Record {
     let mut record = Record::at(level);
     record.envelope.message = Some(Rendered::new(message));
     record.envelope.fields = named(fields);
+    // § 6's other four envelope keys, from the one place that has them and for
+    // both of that section's writers — [`Ctx::stamp_envelope`]'s own doc owns
+    // which key comes from what and why a CLI run gets none of them.
+    ctx.stamp_envelope(&mut record.envelope);
     record
 }
 
@@ -322,7 +329,8 @@ mod tests {
     use nvs_render::Level;
     use nvs_runtime::logfile::LogFile;
     use nvs_runtime::{
-        ClassTable, Ctx, ErrorClass, NvsArray, NvsStr, OutputSink, Value, call, floor,
+        ClassTable, Ctx, ErrorClass, Inbound, NvsArray, NvsStr, OutputSink, TraceContext, Value,
+        call, floor,
     };
 
     use super::{LEVEL, nvs_core_log_write};
@@ -357,9 +365,12 @@ mod tests {
     /// and the backtrace are an ordinary `fields` bag, since § 6 makes them
     /// fields and not envelope keys, and the level crosses as the integer a
     /// lowered case is. `ts`, `request_id`, `trace_id` and `span_id` are absent
-    /// from both, which is the same agreement one step further out — a floor
-    /// that filled an envelope key its ordinary-code twin does not would be the
-    /// divergence this test exists to catch.
+    /// from both, because this context answers no request and § 6's four
+    /// request keys are stamped from one — the same agreement one step further
+    /// out, and a floor that filled an envelope key its ordinary-code twin does
+    /// not would be the divergence this test exists to catch.
+    /// [`a_cli_runs_record_is_still_level_and_msg_alone`] asks the same
+    /// absence of the application half on its own.
     #[test]
     fn application_code_and_the_engine_floor_produce_schema_identical_records() {
         // ADR 0020 § 6's error, thrown the way a helper's failure is and
@@ -420,6 +431,202 @@ mod tests {
             ) && written.ends_with("\"}}\n"),
             "and the shape both wrote is § 6's — the envelope keys they have a \
              source for, then the bag, and nothing empty: {written}"
+        );
+    }
+
+    /// A trace id and parent span that are somebody else's, so that a
+    /// continuation can be told from a fresh draw.
+    ///
+    /// W3C's own worked example, and both are what a `traceparent` carries:
+    /// thirty-two and sixteen characters of lower-case hex, neither all-zero.
+    const TRACE: &str = "4bf92f3577b34da6a3ce929d0e0e4736";
+    /// [`TRACE`]'s parent span, on the same terms.
+    const SPAN: &str = "00f067aa0ba902b7";
+
+    /// A buffered context **answering a request**, which is the source
+    /// [`Ctx::stamp_envelope`] reads ADR 0020 § 6's four request keys from.
+    ///
+    /// `traceparent` is the only way a trace becomes *active* today: ADR 0076
+    /// § 2's head-based `[trace] sample` is unbuilt, so a root's flag is always
+    /// `false` and an inbound sampled header is the one thing that sets it —
+    /// `nvs_runtime::trace_context`'s own *What is not here yet* owns that.
+    /// `None` is therefore the ordinary served request, which has an id and no
+    /// trace being recorded.
+    fn serving(traceparent: Option<&str>) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        let mut inbound = Inbound::new("GET", "/orders", "");
+        if let Some(header) = traceparent {
+            inbound.set_trace_context(TraceContext::continuing(Some(header)));
+        }
+        ctx.set_inbound(inbound);
+        ctx
+    }
+
+    /// One `Core\Log::write` of `message` on `ctx`, as the line it wrote.
+    fn written(ctx: &mut Ctx, message: &str) -> String {
+        call(
+            nvs_core_log_write,
+            ctx,
+            &[
+                Value::int(error_severity()),
+                Value::str(NvsStr::new(message.as_bytes())),
+                Value::array(NvsArray::new()),
+            ],
+        )
+        .expect("a buffered sink is the one output that cannot fail");
+        String::from_utf8(
+            ctx.take_buffered_output()
+                .expect("a buffered context hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text")
+    }
+
+    /// That line as the object it is, parsed rather than matched on, so an
+    /// assertion is about a key and not about where a comma fell.
+    fn parsed(line: &str) -> serde_json::Value {
+        serde_json::from_str(line.trim_end())
+            .expect("ADR 0092 § 3 renders one JSON object per line")
+    }
+
+    /// The envelope keys that object carries, sorted.
+    fn keys(line: &str) -> Vec<String> {
+        let mut found: Vec<String> = parsed(line)
+            .as_object()
+            .expect("one record is one object")
+            .keys()
+            .cloned()
+            .collect();
+        found.sort();
+        found
+    }
+
+    /// ADR 0020 § 6's `ts` and `request_id`, which a record written inside a
+    /// request carries.
+    ///
+    /// Neither is *frozen*: a fixture pinning a timestamp or an id is a fixture
+    /// that has to be rewritten every run. What is asserted is that the keys
+    /// are there, that `ts` leads the line — ADR 0092 § 3's reading order — and
+    /// that `request_id` is the context's **own** trace id rather than a second
+    /// identifier this member drew for itself, which ADR 0076 § 2 forbids in as
+    /// many words.
+    #[test]
+    fn a_record_written_inside_a_request_carries_ts_and_request_id() {
+        let mut ctx = serving(None);
+        let expected = ctx.trace_context().trace_id_hex();
+        let line = written(&mut ctx, "the store said no");
+        let doc = parsed(&line);
+
+        assert!(
+            line.starts_with("{\"ts\":\""),
+            "§ 3 renders the envelope in reading order and `ts` leads it: {line}"
+        );
+        assert_eq!(expected.len(), 32, "a trace id is sixteen bytes as hex");
+        assert_eq!(
+            doc["request_id"].as_str(),
+            Some(expected.as_str()),
+            "ADR 0076 § 2 makes the trace id the only request identifier, so \
+             the record names that one rather than minting its own"
+        );
+        assert!(
+            doc["ts"].as_str().is_some_and(|ts| ts.ends_with('Z')),
+            "§ 6 fixes RFC 3339 and the stamp renders in UTC: {line}"
+        );
+    }
+
+    /// § 6's `trace_id`/`span_id`, asked on **both sides of the bound**: a
+    /// request whose trace is being recorded carries them, and the ordinary
+    /// request — which has an id and is not sampled — does not.
+    ///
+    /// A stamp that wrote them unconditionally passes the first half on its own
+    /// and makes every line claim a span no backend was ever sent, which is
+    /// exactly the thing § 6's "omitted rather than empty" is protecting.
+    ///
+    /// The ids are compared against the *header* and not against the context,
+    /// so this pins the continuation too: § 2 adopts an inbound trace's id and
+    /// parent span, and a line naming a freshly drawn one could not be joined
+    /// to the caller's trace at all.
+    #[test]
+    fn a_record_written_while_a_trace_is_active_carries_trace_id_and_span_id() {
+        let header = format!("00-{TRACE}-{SPAN}-01");
+        let mut sampled = serving(Some(&header));
+        let doc = parsed(&written(&mut sampled, "the store said no"));
+        assert_eq!(
+            doc["trace_id"].as_str(),
+            Some(TRACE),
+            "§ 2 continues the trace the request arrived carrying"
+        );
+        assert_eq!(doc["span_id"].as_str(), Some(SPAN), "and its parent span");
+        assert_eq!(
+            doc["request_id"].as_str(),
+            Some(TRACE),
+            "§ 2 has one identifier, so the request key repeats the trace id \
+             rather than disagreeing with it"
+        );
+
+        let mut unsampled = serving(None);
+        let quiet = keys(&written(&mut unsampled, "the store said no"));
+        assert!(
+            !quiet
+                .iter()
+                .any(|key| key == "trace_id" || key == "span_id"),
+            "§ 6 omits both while no trace is active: {quiet:?}"
+        );
+    }
+
+    /// § 6's omission rule, asserted by **counting the keys three shapes
+    /// produce** rather than by reading one of them: a record carries exactly
+    /// the envelope keys its context has a source for, and an absent one is
+    /// gone rather than written empty.
+    ///
+    /// Three contexts, because the rule only bites where the sources differ — a
+    /// CLI run, a served request with no active trace, and a served request
+    /// with one. A stamp that wrote `""` for what it did not have would print
+    /// plausibly on any single line here and would fail every count; so would
+    /// one that wrote `"fields":{}` for the empty bag each of the three passes.
+    #[test]
+    fn a_field_with_no_value_is_omitted_rather_than_empty() {
+        let header = format!("00-{TRACE}-{SPAN}-01");
+        let shapes: [(Ctx, &[&str]); 3] = [
+            (Ctx::buffered(), &["level", "msg"]),
+            (serving(None), &["level", "msg", "request_id", "ts"]),
+            (
+                serving(Some(&header)),
+                &["level", "msg", "request_id", "span_id", "trace_id", "ts"],
+            ),
+        ];
+        for (mut ctx, expected) in shapes {
+            let line = written(&mut ctx, "the store said no");
+            let found = keys(&line);
+            let mut wanted: Vec<String> = expected.iter().map(|key| (*key).to_owned()).collect();
+            wanted.sort();
+            assert_eq!(
+                found, wanted,
+                "§ 6: the keys this context has a source for, and no others: {line}"
+            );
+            assert!(
+                !line.contains("\"\""),
+                "and nothing it lacks is written as an empty value: {line}"
+            );
+        }
+    }
+
+    /// The two-key envelope a CLI run still produces, which is what makes
+    /// § 6's four request keys **additive**: no record that had a shape before
+    /// them has a different one now.
+    ///
+    /// Byte for byte rather than by key, because this is also the shape
+    /// [`application_code_and_the_engine_floor_produce_schema_identical_records`]
+    /// compares the engine floor against. A `ts` read off the clock regardless
+    /// of context would pass a key count here and would put the two writers of
+    /// § 6 one key apart, which is the divergence that section forbids.
+    #[test]
+    fn a_cli_runs_record_is_still_level_and_msg_alone() {
+        let mut ctx = Ctx::buffered();
+        assert_eq!(
+            written(&mut ctx, "the store said no"),
+            "{\"level\":\"error\",\"msg\":\"the store said no\"}\n",
+            "§ 6's four request keys have no source outside a request, and a \
+             record that had none of them still has none"
         );
     }
 

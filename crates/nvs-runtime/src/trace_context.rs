@@ -110,6 +110,28 @@ impl TraceContext {
         self.sampled
     }
 
+    /// The trace id in the lower-case hex a `traceparent` writes it in.
+    ///
+    /// Beside [`Self::trace_id`] rather than left to each caller, because § 2
+    /// makes this id Novis's *only* request identifier and a second rendering
+    /// of it is how a `[log]` record's `request_id` and the header a proxy
+    /// logged come to be two spellings of one number. Thirty-two characters,
+    /// always: [`Self::traceparent`] pads through the same helper.
+    #[must_use]
+    pub fn trace_id_hex(&self) -> String {
+        let mut out = String::with_capacity(32);
+        push_hex(&mut out, &self.trace_id);
+        out
+    }
+
+    /// The span id on the same terms, sixteen characters wide.
+    #[must_use]
+    pub fn span_id_hex(&self) -> String {
+        let mut out = String::with_capacity(16);
+        push_hex(&mut out, &self.span_id);
+        out
+    }
+
     /// This context as the header value an outbound call carries — `00-<trace>-<span>-<flags>`.
     #[must_use]
     pub fn traceparent(&self) -> String {
