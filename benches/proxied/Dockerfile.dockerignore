@@ -1,0 +1,47 @@
+# Scoped to this directory's `Dockerfile` alone -- BuildKit reads `<dockerfile>.dockerignore` in
+# preference to the context's own `.dockerignore`, so this list never reaches any other tool that
+# walks the tree.
+#
+# The Dockerfile is named `Dockerfile` and not `Dockerfile.nvs`: `.nvs` is the language's own source
+# extension, and a build file wearing it reads as a Novis program to every editor, every glob in this
+# repository and every person.
+#
+# The context is the repository root because the build stage compiles the workspace. What that costs
+# is entirely decided here: `target/` is tens of gigabytes and `website/node_modules` tens of
+# thousands of files, and sending either takes longer than the compile it feeds.
+
+# Build output, on both sides of the mount.
+target/
+**/target/
+
+# The unattended loop's logs and scratch, neither of which any build reads.
+.loop/
+.agent-tmp/
+
+# Version control and editor state.
+.git/
+.github/
+.vscode/
+.idea/
+
+# The website and its dependency tree -- not part of the workspace `cargo build` walks.
+website/
+editors/*/node_modules/
+
+# Fuzzing corpora and artifacts: large, and regenerated rather than compiled.
+fuzz/corpus/
+fuzz/artifacts/
+
+# The benchmark's own outputs, so a rebuild never carries the previous run in. The staged binary is
+# the one exception and the negation is deliberate: the `prebuilt` stage's whole input is that file,
+# and an ignore rule matching it would make that stage fail with "file not found" for a file that is
+# plainly on disk. Last match wins, so this pair must stay in this order.
+benches/*.json
+benches/proxied/.bin/
+!benches/proxied/.bin/nvs
+
+# Documentation. The build compiles Rust; a doc edit must not invalidate the context layer and cost
+# a rebuild of everything after it.
+docs/
+*.md
+!README.md

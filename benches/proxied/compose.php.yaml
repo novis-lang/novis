@@ -1,0 +1,89 @@
+# The PHP stack: nginx in front of PHP-FPM, which is the only shape FPM has.
+#
+# `benches/proxied/README.md` owns every decision here, including why this is a separate file from
+# `compose.nvs.yaml` rather than a profile in one -- the short version is that the two stacks must
+# never be up at the same time, and two files make "both at once" a deliberate act.
+#
+# The three standing decisions every compose file in this repository follows -- images pinned to a
+# patch version, no data volumes, host ports on `127.0.0.1` and never the standard number -- are
+# `tests/db/compose.yaml`'s header, which is their only home.
+
+name: nvs-bench-php
+
+services:
+  # PHP 8.5.9, matching the `php.exe` on this machine's PATH to the patch so the two legs of this
+  # repository's benchmarking are measuring one PHP rather than two.
+  php:
+    image: php:8.5.9-fpm
+
+    # The budget the whole comparison rests on. `nvs serve` is one core (README § *The one-core
+    # fact*), so the fair arm gives PHP exactly one too, and the deployed arm raises both this and
+    # `pm.max_children` together while Novis stays at one -- which is what that arm exists to price.
+    cpus: ${BACKEND_CPUS:-1}
+
+    working_dir: /app
+    volumes:
+      # The same twin pair `tools/bench.py --serve-vs-fpm` runs, mounted read-only rather than
+      # copied: one case on disk, measured by both legs, and no chance of the two drifting.
+      - ../serve:/app:ro
+      - ./php/opcache.ini:/usr/local/etc/php/conf.d/zz-opcache.ini:ro
+      # Rendered by `tools/bench-proxied.py` from `php/pool.conf.in`, because php-fpm interpolates no
+      # environment variable in a pool file. The driver writes it before every `up`.
+      - ./generated/pool.conf:/usr/local/etc/php-fpm.d/zz-bench.conf:ro
+
+    # Published so arm 4 -- FastCGI with no proxy in the way -- can be driven from the host by the
+    # client in `tools/bench.py`. 19000 rather than 9000 for the reason the header above points at.
+    ports:
+      - "127.0.0.1:19000:9000"
+
+    # A TCP connect, which is all a FastCGI responder can answer without a request being framed.
+    # `php -r` rather than a shell's `/dev/tcp` so this does not depend on which shell the image
+    # happens to ship.
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 2s
+
+  nginx:
+    image: nginx:1.29.3-alpine
+
+    # Fixed, and identical in `compose.nvs.yaml`: the proxy is the one part of the two stacks that
+    # must not vary, or the arms stop being comparable to each other. Four is comfortably more than
+    # the backend budget in either arm, so nginx is not the thing being measured.
+    cpus: 4
+
+    volumes:
+      - ./nginx/php.conf:/etc/nginx/nginx.conf:ro
+
+    ports:
+      - "127.0.0.1:18080:80"
+
+    depends_on:
+      php:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 1s
+
+  # The generator, held behind a profile so `up` never starts it: it is a one-shot run, driven by
+  # `docker compose run --rm oha ...`. Inside the network rather than on the host, so the measured
+  # path does not include Docker Desktop's port publish -- which on Windows is a userland proxy and
+  # would be a cost neither peer pays in production.
+  #
+  # Pinned by digest because upstream publishes no version tag but `latest`; the digest is written
+  # into every record, so a run can always be tied to the generator that produced it.
+  oha:
+    image: ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f
+    profiles: ["gen"]
+    cpus: 4
+    # Deliberately no `depends_on`. The origin arms run with nginx not yet started, and a dependency
+    # here would start it -- turning "measure the origin alone" into "measure the origin with a proxy
+    # idling beside it" without a word in the output. `tools/bench-proxied.py` owns the ordering and
+    # waits for health itself, and passes `--no-deps` so this stays true if the key ever comes back.
+    entrypoint: ["oha"]

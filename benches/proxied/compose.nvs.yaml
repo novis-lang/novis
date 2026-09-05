@@ -1,0 +1,101 @@
+# The Novis stack: nginx in front of `nvs serve`, which is ADR 0097 § 1's proxied production origin.
+#
+# `benches/proxied/README.md` owns every decision here, including why this is a separate file from
+# `compose.php.yaml` rather than a profile in one -- the short version is that the two stacks must
+# never be up at the same time, and two files make "both at once" a deliberate act.
+#
+# The three standing decisions every compose file in this repository follows -- images pinned to a
+# patch version, no data volumes, host ports on `127.0.0.1` and never the standard number -- are
+# `tests/db/compose.yaml`'s header, which is their only home.
+
+name: nvs-bench-nvs
+
+services:
+  nvs:
+    build:
+      # The repository root, because the default stage compiles the workspace.
+      # `Dockerfile.dockerignore` is what keeps that context small enough to send.
+      context: ../..
+      dockerfile: benches/proxied/Dockerfile
+      # `source` builds from this checkout; `prebuilt` takes the binary
+      # `tools/bench-proxied.py --nvs-bin` staged at `.bin/nvs`. The driver sets this.
+      target: ${NVS_STAGE:-source}
+      args:
+        # `.git` is not in the build context, so `build.rs` has no commit to find and its own
+        # override is how the image still knows which source it is.
+        NVS_BUILD_COMMIT: ${NVS_BUILD_COMMIT:-}
+    image: nvs-bench-serve:local
+
+    # The same budget `compose.php.yaml` gives its backend, in both arms -- the driver sets them
+    # from one number. `nvs serve` can use only one core of whatever it is given
+    # (`crates/nvs-cli/src/serve.rs` binds one socket and runs one accept loop), and leaving the
+    # allowance equal anyway is what makes the deployed arm price *that* rather than an inequality
+    # this benchmark created.
+    cpus: ${NVS_CPUS:-1}
+
+    volumes:
+      # The same twin pair `tools/bench.py --serve-vs-fpm` runs, mounted read-only rather than
+      # copied: one case on disk, measured by both legs, and no chance of the two drifting.
+      - ../serve:/app:ro
+
+    # `0.0.0.0` and not the loopback: the listener has to be reachable from the nginx container, and
+    # the container's own network namespace is the isolation here. The image's CMD is this same line
+    # and it is repeated rather than inherited so that what the benchmark runs is legible in the file
+    # that runs it.
+    command: ["serve", "/app/hello.nvs", "--listen", "0.0.0.0:8080"]
+
+    # Published so arm 3 -- the origin with no proxy in the way -- can be driven directly, and so a
+    # failing stack can be poked at by hand without editing this file.
+    ports:
+      - "127.0.0.1:18082:8080"
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 2s
+
+  nginx:
+    image: nginx:1.29.3-alpine
+
+    # Fixed, and identical in `compose.php.yaml`: the proxy is the one part of the two stacks that
+    # must not vary, or the arms stop being comparable to each other. Four is comfortably more than
+    # the backend budget in either arm, so nginx is not the thing being measured.
+    cpus: 4
+
+    volumes:
+      - ./nginx/nvs.conf:/etc/nginx/nginx.conf:ro
+
+    ports:
+      - "127.0.0.1:18081:80"
+
+    depends_on:
+      nvs:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+      start_period: 1s
+
+  # The generator, held behind a profile so `up` never starts it: it is a one-shot run, driven by
+  # `docker compose run --rm oha ...`. Inside the network rather than on the host, so the measured
+  # path does not include Docker Desktop's port publish -- which on Windows is a userland proxy and
+  # would be a cost neither peer pays in production.
+  #
+  # Pinned by digest because upstream publishes no version tag but `latest`; the digest is written
+  # into every record, so a run can always be tied to the generator that produced it. It is the same
+  # digest `compose.php.yaml` pins, and it has to be: one generator across both stacks is the reason
+  # the two numbers can be divided.
+  oha:
+    image: ghcr.io/hatoo/oha@sha256:3ec3dbf549ea197793482d47a6324797411406bbf438c2fe8b91f244ec641a2f
+    profiles: ["gen"]
+    cpus: 4
+    # Deliberately no `depends_on`. The origin arms run with nginx not yet started, and a dependency
+    # here would start it -- turning "measure the origin alone" into "measure the origin with a proxy
+    # idling beside it" without a word in the output. `tools/bench-proxied.py` owns the ordering and
+    # waits for health itself, and passes `--no-deps` so this stays true if the key ever comes back.
+    entrypoint: ["oha"]

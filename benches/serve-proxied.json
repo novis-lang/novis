@@ -1,0 +1,254 @@
+[
+  {
+    "date": "2026-09-05T15:46:21",
+    "commit": "06a78107",
+    "case": "hello",
+    "arm": "fair",
+    "requests": 20000,
+    "concurrency": 8,
+    "reps": 3,
+    "backend_cpus": 1,
+    "php_children": 96,
+    "nginx_cpus": 4,
+    "ratio_shipped": 2.9157,
+    "ratio_origin": 3.6427,
+    "caveats": [
+      "nginx fronts both peers, which is the only deployment either has -- FPM speaks FastCGI and nvs serve is ADR 0097's proxied origin; the proxy's cost is in both numbers",
+      "arm 4 is driven by tools/bench.py's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
+      "this row shares no inputs with benches/serve.json -- different OS, generator, topology and CPU budget -- and no arithmetic between the two files is meaningful",
+      "fair arm: one cpu to each backend container, so the number is runtime against runtime. The PHP pool is 96 workers, sized from the concurrency rather than from the budget, because a FastCGI worker is bound to the keep-alive connection it holds and a pool smaller than the open connections stops rather than slows"
+    ],
+    "arms": {
+      "php-fpm-fcgi-direct": {
+        "kind": "php-fpm-fcgi-direct",
+        "label": "php-fpm (fcgi, no proxy)",
+        "detail": "the FastCGI SAPI, driven as nginx drives it but with nginx removed",
+        "generator": "bench.py",
+        "requests_per_sec": 10108.6,
+        "median_requests_per_sec": 9911.3,
+        "ms_per_request": 0.7914,
+        "latency_ms": null,
+        "success_rate": 1.0,
+        "status_codes": {},
+        "errors": {},
+        "reconnects": 0
+      },
+      "nginx-php-fpm": {
+        "kind": "nginx-php-fpm",
+        "label": "nginx -> php-fpm",
+        "detail": "PHP 8.5.9 FPM with opcache and tracing JIT",
+        "generator": "oha",
+        "requests_per_sec": 10060.7,
+        "median_requests_per_sec": 9917.6,
+        "ms_per_request": 0.7952,
+        "latency_ms": {
+          "min": 0.143,
+          "mean": 0.792,
+          "p50": 0.288,
+          "p95": 0.432,
+          "p99": 0.766,
+          "max": 73.2
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      },
+      "nvs-serve-direct": {
+        "kind": "nvs-serve-direct",
+        "label": "nvs serve (no proxy)",
+        "detail": "the same origin with nginx removed",
+        "generator": "oha",
+        "requests_per_sec": 36822.2,
+        "median_requests_per_sec": 36131.0,
+        "ms_per_request": 0.2173,
+        "latency_ms": {
+          "min": 0.061,
+          "mean": 0.214,
+          "p50": 0.204,
+          "p95": 0.352,
+          "p99": 0.465,
+          "max": 2.511
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      },
+      "nginx-nvs-serve": {
+        "kind": "nginx-nvs-serve",
+        "label": "nginx -> nvs serve",
+        "detail": "ADR 0097's proxied origin, one core",
+        "generator": "oha",
+        "requests_per_sec": 29334.3,
+        "median_requests_per_sec": 29154.5,
+        "ms_per_request": 0.2727,
+        "latency_ms": {
+          "min": 0.097,
+          "mean": 0.269,
+          "p50": 0.25,
+          "p95": 0.398,
+          "p99": 0.541,
+          "max": 17.844
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      }
+    },
+    "images": {
+      "php": "php:8.5.9-fpm",
+      "nginx": "nginx:1.29.3-alpine",
+      "oha": "ghcr.io/hatoo/oha@sha256:3ec3dbf5"
+    },
+    "php_ini": {
+      "opcache.enable": "1",
+      "opcache.memory_consumption": "256",
+      "opcache.validate_timestamps": "0",
+      "opcache.jit": "tracing",
+      "opcache.jit_buffer_size": "128M"
+    },
+    "config_digests": {
+      "benches/proxied/nginx/php.conf": "f39596d751451193",
+      "benches/proxied/nginx/nvs.conf": "4ef1f0aceffb793d",
+      "benches/proxied/php/opcache.ini": "3083c05c449f34c4",
+      "benches/proxied/php/pool.conf.in": "c8177eacd41da1d4"
+    },
+    "nvs_source": "built from this checkout",
+    "host": {
+      "platform": "Windows-10-10.0.26200-SP0",
+      "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+      "cpus": 16
+    }
+  },
+  {
+    "date": "2026-09-05T15:47:08",
+    "commit": "06a78107",
+    "case": "hello",
+    "arm": "deployed",
+    "requests": 20000,
+    "concurrency": 8,
+    "reps": 3,
+    "backend_cpus": 4,
+    "php_children": 96,
+    "nginx_cpus": 4,
+    "ratio_shipped": 1.186,
+    "ratio_origin": 2.6161,
+    "caveats": [
+      "nginx fronts both peers, which is the only deployment either has -- FPM speaks FastCGI and nvs serve is ADR 0097's proxied origin; the proxy's cost is in both numbers",
+      "arm 4 is driven by tools/bench.py's FastCGI client and not by oha, because FPM has no HTTP origin to point a load generator at; origin-against-origin therefore crosses two generators and is the weaker of the two ratios",
+      "this row shares no inputs with benches/serve.json -- different OS, generator, topology and CPU budget -- and no arithmetic between the two files is meaningful",
+      "deployed arm: both containers are given 4 cpus, but nvs serve can use only one of them -- binding a listener across cores is an unlanded slice (crates/nvs-cli/src/serve.rs), while php-fpm's process manager uses the whole budget. This prices that slice; it is not a language comparison"
+    ],
+    "arms": {
+      "php-fpm-fcgi-direct": {
+        "kind": "php-fpm-fcgi-direct",
+        "label": "php-fpm (fcgi, no proxy)",
+        "detail": "the FastCGI SAPI, driven as nginx drives it but with nginx removed",
+        "generator": "bench.py",
+        "requests_per_sec": 14683.8,
+        "median_requests_per_sec": 14119.0,
+        "ms_per_request": 0.5448,
+        "latency_ms": null,
+        "success_rate": 1.0,
+        "status_codes": {},
+        "errors": {},
+        "reconnects": 0
+      },
+      "nginx-php-fpm": {
+        "kind": "nginx-php-fpm",
+        "label": "nginx -> php-fpm",
+        "detail": "PHP 8.5.9 FPM with opcache and tracing JIT",
+        "generator": "oha",
+        "requests_per_sec": 24576.1,
+        "median_requests_per_sec": 23011.9,
+        "ms_per_request": 0.3255,
+        "latency_ms": {
+          "min": 0.155,
+          "mean": 0.322,
+          "p50": 0.296,
+          "p95": 0.486,
+          "p99": 0.65,
+          "max": 3.282
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      },
+      "nvs-serve-direct": {
+        "kind": "nvs-serve-direct",
+        "label": "nvs serve (no proxy)",
+        "detail": "the same origin with nginx removed",
+        "generator": "oha",
+        "requests_per_sec": 38415.0,
+        "median_requests_per_sec": 37872.1,
+        "ms_per_request": 0.2083,
+        "latency_ms": {
+          "min": 0.072,
+          "mean": 0.205,
+          "p50": 0.186,
+          "p95": 0.352,
+          "p99": 0.461,
+          "max": 2.681
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      },
+      "nginx-nvs-serve": {
+        "kind": "nginx-nvs-serve",
+        "label": "nginx -> nvs serve",
+        "detail": "ADR 0097's proxied origin, one core",
+        "generator": "oha",
+        "requests_per_sec": 29146.4,
+        "median_requests_per_sec": 28831.0,
+        "ms_per_request": 0.2745,
+        "latency_ms": {
+          "min": 0.117,
+          "mean": 0.271,
+          "p50": 0.264,
+          "p95": 0.394,
+          "p99": 0.529,
+          "max": 2.971
+        },
+        "success_rate": 1.0,
+        "status_codes": {
+          "200": 60000
+        },
+        "errors": {}
+      }
+    },
+    "images": {
+      "php": "php:8.5.9-fpm",
+      "nginx": "nginx:1.29.3-alpine",
+      "oha": "ghcr.io/hatoo/oha@sha256:3ec3dbf5"
+    },
+    "php_ini": {
+      "opcache.enable": "1",
+      "opcache.memory_consumption": "256",
+      "opcache.validate_timestamps": "0",
+      "opcache.jit": "tracing",
+      "opcache.jit_buffer_size": "128M"
+    },
+    "config_digests": {
+      "benches/proxied/nginx/php.conf": "f39596d751451193",
+      "benches/proxied/nginx/nvs.conf": "4ef1f0aceffb793d",
+      "benches/proxied/php/opcache.ini": "3083c05c449f34c4",
+      "benches/proxied/php/pool.conf.in": "c8177eacd41da1d4"
+    },
+    "nvs_source": "built from this checkout",
+    "host": {
+      "platform": "Windows-10-10.0.26200-SP0",
+      "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+      "cpus": 16
+    }
+  }
+]

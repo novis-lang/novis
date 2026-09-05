@@ -70,4 +70,13 @@ __pycache__/
 # file, never an inline `-m`); never part of the tree it describes.
 /.agent-tmp/
 
+# The proxied benchmark's two derived inputs (benches/proxied/README.md).
+# `.bin/nvs` is a Linux binary staged by `--nvs-bin`, and `generated/pool.conf`
+# is rendered from the committed template because php-fpm interpolates no
+# environment variable in a pool file. Both are outputs of the tool that reads
+# them, and both are digested into every record, so neither is lost by not
+# being here.
+/benches/proxied/.bin/
+/benches/proxied/generated/
+
 a.out
