@@ -5453,6 +5453,19 @@ is why" — is this file.
   machine-applicable replacement with a span. Two build cycles, each of them a full `nvs-config`
   rebuild. Assert a help sentence as `refused.notes.iter().any(...)`; `suggestions` is empty for
   every configuration diagnostic in the tree, none of which offers a span to rewrite.
+- **A `-p nvs-server` test can drive a real upgrade handshake, and one connection can carry the
+  upgradable request *and* an ordinary one after it.** ADR 0083 § 1's offer had to be asserted on
+  both sides — a request `hyper` framed an upgrade for gets a slot, the next request on the same
+  socket does not — and the obvious fear is that `hyper` gives up on a connection whose `Connection:
+  Upgrade` request was answered `200` rather than `101`. It does not: the upgrade simply never
+  happens, the response is framed normally and the keep-alive continues, so
+  `only_an_upgradable_request_is_offered_a_slot` writes both requests down one socket and reads both
+  answers with `read_until`. That matters beyond this case, because two connections cannot be asked
+  for in one of these tests — `serve_on_this_core`'s last argument is `|| ControlFlow::Break(())` and
+  the accept loop ends after the first. The other half of the same lesson: `hyper` leaves an
+  `OnUpgrade` in the request's extensions **only** for a request it framed an upgrade for, so
+  `request.extensions().get::<hyper::upgrade::OnUpgrade>()` is the whole of "can this connection be
+  upgraded" and no test or door needs to re-read `Connection:` for itself.
 
 ## Splitting a file that got too big
 
