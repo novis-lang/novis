@@ -61,7 +61,7 @@
 > guarded**: `never` never `stat`s, one window is one check, a swap publishes, § 3a picks
 > `validate`, 10k cold requests compile once, no stalls. **ADR 0079 §§ 14, 17-18 land**: `--update`
 > splices, a request runs in-process and on a listener, a `db:` test rolls back. Conformance 1548,
-> differential 256, migration 100%; valgrind green.
+> differential 275, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

@@ -5762,6 +5762,16 @@ is why" — is this file.
   `<<'PY'` heredoc collapsed the `\\` of a raw-string regex to a single `\`, so the pattern became
   `Core\[A-Za-z\]+`, found 0 of 259 spellings, and read exactly like a table with no member rows in it.
   AGENTS.md rule 1 is written for this; a scratch audit goes through Write and a file, not a heredoc.
+- **A differential case's output may not carry a lone carriage return, and the failure reads as the
+  member losing it.** Both sides are normalised before comparison
+  (`crates/nvs-test/src/expect.rs:40`), and a `\r` that is not part of a `\r\n` survives on the Novis
+  side and does not on PHP's: a case whose whole body is `echo "a\rb|\n";` on both sides prints
+  `a␍b|` against PHP's `ab|` and fails. So a `trimStart`/`trimEnd`/`lines` case padded with carriage
+  returns fails on a difference the member had nothing to do with. Assert the carriage return by
+  *length* instead — `Core\Str::length(Core\Str::trimStart("\r\rx"))` against
+  `strlen(ltrim("\r\rx"))` — or keep it out of the subject entirely and let a `lines` case consume it
+  as a separator; `tests/differential/core/str-trim-start-and-trim-end-match-ltrim-and-rtrim.nvst` is
+  the shape. This costs nothing to know and about three calls to discover.
 
 ## Splitting a file that got too big
 
