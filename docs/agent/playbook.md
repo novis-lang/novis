@@ -5553,6 +5553,19 @@ is why" — is this file.
   the module's `take(ceiling)` delegating to it, and the test declaring a `static COUNT` of its own.
   The general shape: when a bound lives in a `static`, the *bound* is testable and the *count* is
   not, so name the count wherever a test has to reach a ceiling.
+- **A `-p nvs-server` test cannot ask for a *second* connection, and what forbids it is
+  `run_until_idle` rather than the `|| ControlFlow::Break(())` convention.** A `keep_serving`
+  closure counting to two is one line and looks like the whole of it — the accept loop really does
+  loop — but `nvs_host::run_until_idle` returns as soon as the core has nothing runnable, and an
+  `accept` parked on a client that has not connected yet is exactly that. The first connection
+  works only because it is already in the listen backlog when the scheduler starts. What the second
+  one costs is a **sixty-second hang with no output**, not a failure: the listener is still bound
+  from a closure on a parked coroutine, so the client's `connect` succeeds and its read blocks
+  forever, and the last thing printed is whatever the case was about. Assert what a second
+  connection would have shown through something the *server* side reports instead —
+  `serve_on_this_core`'s tail parks until every connection it spawned has counted itself back out,
+  so a marker pushed after it returns says "the core survived and nothing was left parked" with one
+  socket. `a_connection_whose_isolate_panics_is_contained` is the shape.
 
 ## Splitting a file that got too big
 
