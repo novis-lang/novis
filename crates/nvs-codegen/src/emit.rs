@@ -9,6 +9,18 @@
 //! that `tools/holes.py`'s inventory of what the language still refuses holds
 //! only entries a session could close. [`internal`] is the one spelling.
 //!
+//! # One walk, two `Module`s
+//!
+//! Nothing in this file names a concrete module. The walk takes
+//! `&mut dyn Module`, so the same emission serves the in-process
+//! [`cranelift_jit::JITModule`] and the object product
+//! [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md) § 2 caches: the
+//! object backend is a second `Module` and never a second lowering, because a
+//! second lowering would be a second semantics. Dynamic dispatch is affordable
+//! for the same reason the rest of this walk is — every call through the trait
+//! is a `declare_*` or a `make_signature` on the cold compile path, and none of
+//! them is on a request path at all.
+//!
 //! # Blocks and phis
 //!
 //! [`nvs_ir::ir::InstKind::Phi`] becomes a Cranelift block parameter. The IR
@@ -51,7 +63,6 @@
 //! loop; see `Emitter::emit_int_pow`.
 
 use cranelift::prelude::*;
-use cranelift_jit::JITModule;
 use cranelift_module::{DataDescription, FuncId, Linkage, Module};
 use nvs_ir::Ty;
 use nvs_ir::ids::{BlockId, ValueId};
@@ -109,13 +120,13 @@ fn ctx_word() -> MemFlagsData {
 pub(crate) struct UnitTables<'a> {
     pub sigs: &'a Signatures,
     /// Every function the unit defines, by Novis name — see
-    /// [`crate::Jit::compile_all`] for why it is complete before any body is
+    /// [`crate::UnitBuilder::compile_all`] for why it is complete before any body is
     /// emitted.
     pub functions: &'a FxHashMap<String, FuncId>,
     /// Every class the unit declares — see [`crate::Classes`].
     pub classes: &'a Classes,
     /// Every `static` property the unit declares, by `(declaring class, name)`
-    /// — see [`crate::Jit::statics`].
+    /// — see [`crate::UnitBuilder::statics`].
     pub statics: &'a FxHashMap<(String, String), u32>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     pub literals: &'a mut usize,
@@ -124,7 +135,7 @@ pub(crate) struct UnitTables<'a> {
 /// Emits `f` into `ctx.func`, which the caller has already given the ABI
 /// signature.
 pub(crate) fn emit_function(
-    module: &mut JITModule,
+    module: &mut dyn Module,
     ctx: &mut codegen::Context,
     fn_ctx: &mut FunctionBuilderContext,
     tables: UnitTables<'_>,
@@ -348,15 +359,17 @@ fn reachable_in_reverse_postorder(f: &Function) -> Vec<usize> {
 
 struct Emitter<'a, 'f> {
     b: FunctionBuilder<'f>,
-    module: &'a mut JITModule,
+    /// Whichever `Module` is finalizing this unit — see the module docs for
+    /// why the walk never names a concrete one.
+    module: &'a mut dyn Module,
     sigs: &'a Signatures,
     /// Every function the unit defines, by Novis name — see
-    /// [`crate::Jit::compile_all`] for why it is complete before any body is
+    /// [`crate::UnitBuilder::compile_all`] for why it is complete before any body is
     /// emitted.
     functions: &'a FxHashMap<String, FuncId>,
     /// Every class the unit declares — see [`crate::Classes`].
     classes: &'a Classes,
-    /// Every `static` property the unit declares — see [`crate::Jit::statics`].
+    /// Every `static` property the unit declares — see [`crate::UnitBuilder::statics`].
     statics: &'a FxHashMap<(String, String), u32>,
     literals: &'a mut usize,
     f: &'a Function,
