@@ -27,8 +27,6 @@ modules = [
   "crates/nvs-stdlib/src/bytes.rs",
   # Stages 2-5 -- the band a refusal that names its rule is declared in.
   "crates/nvs-diagnostics/src/lib.rs",
-  # Stage 5 -- the last of the eight keys.
-  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
 ]
 
 # 0122 is the parser and the shared tree; 0024 owns both launderers; 0051 is the tier row; 0019 is the

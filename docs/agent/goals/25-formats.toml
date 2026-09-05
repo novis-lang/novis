@@ -27,8 +27,6 @@ modules = [
   "crates/nvs-diagnostics/src/lib.rs",
   # Stage 3 -- the taint axis a detected type does not launder.
   "crates/nvs-stdlib/src/taint.rs",
-  # Stage 5 -- the list this goal takes three keys off.
-  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
 ]
 
 # 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does

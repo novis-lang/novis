@@ -30,8 +30,6 @@ modules = [
   "crates/nvs-cli/src/info.rs",
   # Stage 4 -- the drain state machine a `Core\Signal` handler enters rather than duplicating.
   "crates/nvs-server/src/control.rs",
-  # Stage 5 -- the eight-key list this goal takes three keys off.
-  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
 ]
 
 # 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
