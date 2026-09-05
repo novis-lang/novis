@@ -16642,11 +16642,12 @@ What a publisher put on the topic, copied across the isolate boundary the way ev
 <a id="core-core-topic"></a>
 ### `Core\Topic`
 
-Keywords: subscribe, unsubscribe
+Keywords: subscribe, publish, unsubscribe
 
 | Member | Signature |
 |---|---|
 | [`Core\Topic::subscribe`](#core-core-topic-subscribe) | `subscribe(string $topic): void` |
+| [`Core\Topic::publish`](#core-core-topic-publish) | `publish(string $topic, mixed $value): uint` |
 | [`Core\Topic::unsubscribe`](#core-core-topic-unsubscribe) | `unsubscribe(string $topic): void` |
 
 <a id="core-core-topic-subscribe"></a>
@@ -16665,6 +16666,24 @@ Joins this connection to `$topic`, so that a value published to it arrives at th
 **Returns** `void` — Nothing. Subscribing twice to one name is one subscription, so a published value arrives once however many times the connection joined.
 
 **Throws** `LogicError` — An empty `$topic`, which no publisher can mean; and a call from a program that is not a connection, which has nothing to deliver to.
+
+<a id="core-core-topic-publish"></a>
+#### `Core\Topic::publish`
+
+```nvs skip
+Core\Topic::publish(string $topic, mixed $value): uint
+```
+
+Copies `$value` to every connection subscribed to `$topic`, and answers how many were reached.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$topic` | `string` (sink) | The topic's name, under the rule `subscribe` reads it under: it is built from checked values or it does not compile. |
+| `$value` | `mixed` | What to publish. Every subscriber is handed its own copy, so nothing is shared with the publisher or between subscribers; a `tainted` value is still `tainted` where it arrives, and a `secret` may not be published at all. |
+
+**Returns** `uint` — How many subscribers the value was queued for, which is `0` for a topic nobody has joined. Publishing needs no connection of its own — an ordinary request may tell the connections that something changed — and a connection publishing to a topic it joined itself is delivered to like any other subscriber.
+
+**Throws** `LogicError` — An empty `$topic`, which no subscriber can be reached by; and a `$value` with no meaning on the other side of a copy boundary — a resource, or a `secret` — which is refused whether or not anybody has joined.
 
 <a id="core-core-topic-unsubscribe"></a>
 #### `Core\Topic::unsubscribe`
