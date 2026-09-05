@@ -2,60 +2,56 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 §§ 1 and 5 are landed as far as the door.** Both cells on the
-request carrier are now offered and both are read: `nvs_runtime::UpgradeSlot` only where
-`hyper` framed an upgrade, `nvs_runtime::SseSlot` to **every** request the server runs
-(`nvs_host::Isolate::offering_sse`, made at `crates/nvs-server/src/serve.rs:729`), and
-`serve_connection` starts whichever one a request filled as a root isolate under the
-connection — the same start, the same `Output::Capture`, the same join after the
-connection future.
+**Goal 6, M7 — ADR 0083 § 2's two entry forms both open a connection now.** A path resolves as
+before; a static method written `Chat::run(...)` prepares through
+`crates/nvs-stdlib/src/socket.rs:399`'s `method_program`, with `args:` bound to the target's
+parameters **by name** under ADR 0006 § *Decision*. The module doc's § *The method form carries its
+names on the value* is the one home of how the two collapse to one prepared `Program`.
 
-**The both-cells contradiction is decided, not deferred.** A request that filled both
-asked for two responses where the connection has one: neither isolate is started, both
-prepared upgrades go back through the new `nvs_runtime::Upgrade::discard` (which owns the
-`unsafe` release `nvs-server`'s `forbid(unsafe_code)` cannot spell), and the peer is
-answered `500`. `serve_connection`'s doc is the one home of that reading;
-`nvs_runtime::SseSlot::fill` already said the decision belonged where the response is
-written.
+**The names ride on the callable, in a third reserved field.** `nvs_ir::lower`'s `FN_PARAM_NAMES`
+writes them at a written `Class::method(...)` and at nothing else, comma-joined in declaration
+order; `nvs_runtime::closure_param_names` reads them back by *name*, so an `fn` literal — whose
+third field is its first capture — answers `None` rather than having a capture read as a parameter
+list. That absence is load-bearing, and `crates/nvs-ir/tests/callable_names.rs` pins both halves.
 
-**The goal's failing acceptance check is closed** —
-`sse_is_a_connection_isolate_with_no_receive` passes, over a plain `GET` with § 1's slot
-absent, and `a_request_that_asks_for_both_hand_overs_is_refused` pins the refusal above.
-The `-p nvs-server` fixtures are parameterised by a `Door` (`crates/nvs-server/src/serve.rs:1859`),
-which decides the opening the client sends, the cell the program fills and the line the
-case reads back together.
+**A connection is armed from the request that prepared it**, because § 1's root isolate is started
+from the connection's own context, which never ran the unit: `nvs_runtime::Ctx::unit_statics` hands
+the recipes over and the program installs them plus the error-class table before it calls, which is
+what a path entry's `install_in` does from inside the resolver's program.
 
-**What § 5 still owes is the response.** `crates/nvs-stdlib/src/sse.rs:47`'s § *What is
-not here yet* is unchanged and now exactly true: an event stream's isolate opens and
-echoes into its own capture buffer, because the `200 text/event-stream` it should be
-writing into does not exist yet and `Core\Sse::current`/`send` are unregistered.
+**The goal's failing acceptance check is one test closer.** `-p nvs-stdlib`'s
+`an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path` passes; its three siblings —
+`receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait`,
+`receive_answers_null_when_the_peer_closes`, `send_throws_on_the_send_timeout_rather_than_waiting` —
+all need § 3's loop, which needs a peer, which needs the framing below. Nothing about them is
+misfiled: they are `Core` members of a class `crates/nvs-stdlib/src/socket.rs` owns.
+
+**What is still open behind the door** is unchanged: `Core\Topic` (§ 4) is unregistered, and
+`crates/nvs-stdlib/src/sse.rs:47`'s § *What is not here yet* still describes § 5's missing response.
 
 ## Next group
 
-**The response half, and the members that write into it.** Items 1 and 2 share
-`crates/nvs-server/src/serve.rs` and `crates/nvs-stdlib/src/sse.rs`; item 3 is the
-sibling hand-over in the first of those.
+**The framing, and the three members it makes reachable.** All three share
+`crates/nvs-server/src/serve.rs` and `crates/nvs-stdlib/src/socket.rs`; the first has to land before
+either of the others can be written, because `receive()` has nothing to wait on without a peer.
 
-- [ ] **§ 5's `200 text/event-stream`** — ADR 0083 § 5. The stream's isolate is started
-      at `crates/nvs-server/src/serve.rs:880` with `Output::Capture` and the request's
-      own response is built by `crates/nvs-server/src/serve.rs:959`'s `answer`; decide
-      there whether the door replaces that response and drains the isolate's capture, or
-      hands the isolate a sink. Read `crates/nvs-server/src/serve.rs:567`'s § *It is not
-      answered `101`* first — the same "decided rather than deferred" shape, and its last
-      paragraph already names this slice.
-- [ ] **`Core\Sse::current` and `send`** — ADR 0083 § 5's two remaining members, whose
-      absence `crates/nvs-stdlib/src/sse.rs:47` names. The rows go in
-      `crates/nvs-stdlib/src/sse.rs:63`'s `CLASS`, the symbol arm at
-      `crates/nvs-stdlib/src/sse.rs:135`, and the five edits are conventions.md's. `send`
-      needs item 1's body to write into, so take it after.
-- [ ] **§ 1's `101` and the socket hand-over** — ADR 0083 § 1 with the goal's standing
-      `tungstenite` decision. `crates/nvs-server/src/serve.rs:567` is the decision to
-      overturn, and the `OnUpgrade` it says is dropped today is the one held in `offered`
-      at `crates/nvs-server/src/serve.rs:865`.
+- [ ] **§ 1's `101` and the socket hand-over** — ADR 0083 § 1, and the goal's standing decision that
+      `tungstenite` is the framing crate over `NvsStream` with no adapter. The `OnUpgrade` is taken
+      and held at `crates/nvs-server/src/serve.rs:715`; `crates/nvs-server/src/serve.rs:573`'s doc
+      names this slice out loud and is what goes stale; the isolate is started at
+      `crates/nvs-server/src/serve.rs:880` and is where the framed socket has to arrive.
+- [ ] **`Core\Socket::current()` and `Socket\Message`** — ADR 0083 § 3's two shapes the loop reads:
+      the connection handle a script asks for, and the `{topic, value, text}` a wait answers with.
+      Rows at `crates/nvs-stdlib/src/socket.rs:191`, cards at `crates/nvs-stdlib/src/socket.rs:223`.
+- [ ] **`receive()`'s one wait and `send()`'s timeout** — ADR 0083 § 3: one suspend over the peer and
+      the subscribed topics, `null` when the peer closed, and a throw on the send timeout under ADR
+      0074's no-unbounded-outbound-wait rule. Same two anchors as above, plus
+      `crates/nvs-stdlib/src/socket.rs:399` for how a connection's own context is reached.
 
 ## Backlog
 
-- ADR 0083 § 3's `receive()` over peer frames and topics — waits on the framing slice.
-- ADR 0083 § 4's `Core\Topic` publish/subscribe and its slow-subscriber close.
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*,
-  narrowed by `docs/plan/m7.md`; a decided-and-recorded call in `Core\Request`'s doc.
+- § 5's `200 text/event-stream` — decide at `crates/nvs-server/src/serve.rs:959`'s `answer` whether
+  the door replaces the response or hands the isolate a sink (ADR 0083 § 5).
+- `Core\Sse::current` and `send` — ADR 0083 § 5's two remaining members, `crates/nvs-stdlib/src/sse.rs`.
+- `Core\Topic::subscribe`/`publish` — ADR 0083 § 4, unregistered; `crates/nvs-stdlib/src/socket.rs`'s
+  module doc owns why.

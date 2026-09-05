@@ -59,9 +59,9 @@
 > bindings, naming and flag. **ADR 0073's ticker fires**: a root isolate, § 6's `overlap` whole;
 > `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse` drains detached; § 7's cap counts
 > trees; ADR 0076: the trace continues, both blocks boot, a core meters § 1's nine under § 7's
-> bound; ADR 0006's method entry binds `args:`; § 1's upgrade opens a root isolate and its member
-> fills the slot; `Core\Sse::upgrade` fills § 5's cell, offered to every request, and both filled is
-> a `500`. Conformance 1524, differential 256, migration 100%; valgrind green.
+> bound; ADR 0006's method entry binds `args:`, at a `Core` row too; § 1's upgrade opens a root
+> isolate; `Core\Sse::upgrade` fills § 5's cell, offered to every request, and both filled is a
+> `500`. Conformance 1524, differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

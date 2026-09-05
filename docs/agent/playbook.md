@@ -1989,6 +1989,20 @@ is why" — is this file.
   each a whole call's worth on their own (`--locate` takes as many symbols as you have,
   windows take as many targets), so ask anchors in one and bodies in the next; do not try
   to save the round trip by mixing them.
+- **A `loop-goal.toml` check can name a test for a feature the tree's own module doc says is
+  *blocked*, and then the check is right, the doc is the specification, and the slice is the one the
+  doc already named.** ADR 0083 §§ 2-3's check named
+  `an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path`, and
+  `crates/nvs-stdlib/src/socket.rs` carried a whole `#` section — *The method form waits on a name* —
+  saying that form throws, plus a `#[test]` pinning the throw. Every sibling bullet's triage says
+  "the check is misfiled": the manifest names the crate, the `[lints]` allow it, the ADR permits the
+  effect. None of that applies here, and the tell that it does not is that the blocked section
+  **names its own repair in a sentence** — "a `CLOSURE_PARAM_NAMES_SLOT` beside the two slots above,
+  written at the literal by `lower_callable_ref`". A doc that can name the fix that precisely has
+  already done the design, so the check is asking for the implementation rather than for a filing
+  correction. Read the module doc's own gap section before reaching for `Cargo.toml`: it answers
+  "impossible", "unwritten" and "decided but unlanded" in one call, and only the third looks like a
+  misfiling from outside.
 
 ## Running things
 

@@ -16515,7 +16515,7 @@ Turns this request into a WebSocket connection running `$entry` as a root isolat
 
 **Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
-**Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request; and a static method entry, which cannot be opened yet.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through.
+**Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through; and, for a static method entry, an `$args` map that omits a parameter the method declares or names one it does not.
 
 <a id="core-core-sse"></a>
 ### `Core\Sse`
@@ -16542,7 +16542,7 @@ Answers this request with an event stream running `$entry` as a root isolate —
 
 **Returns** `void` — Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
-**Throws** `RuntimeError` — A request no server is answering, which is every command-line program and every `spawn script` child; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request; and a static method entry, which cannot be opened yet.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through.
+**Throws** `RuntimeError` — A request no server is answering, which is every command-line program and every `spawn script` child; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through; and, for a static method entry, an `$args` map that omits a parameter the method declares or names one it does not.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
