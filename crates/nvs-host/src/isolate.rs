@@ -623,6 +623,27 @@ fn start_as_task(
         let ended = ended;
         let answer = program(child, args);
         let completion = finish(child, answer, receiving.as_ref());
+        // ADR 0083 § 1: a connection isolate's end **is** the connection's end,
+        // and § 7 asks for a defined code rather than the reset a dropped
+        // descriptor gives. This is the one place that holds both halves — the
+        // socket is a field of this child's context and the answer it ended
+        // with is in hand — so a close written anywhere else would be reading
+        // one of the two through something that outlived it.
+        //
+        // Every isolate but a connection's has no peer and takes this branch
+        // never, which is why it is asked of the context rather than of a flag
+        // this builder would have to carry.
+        if let Some(peer) = child.peer() {
+            peer.close(if completion.ok {
+                nvs_runtime::Closing::Done
+            } else {
+                // Including a `[limits]` budget the connection ran past, which
+                // is what makes this the answer to § 1's "closed with a defined
+                // code": the limit machinery has already torn the isolate down
+                // by here, so the peer is told why instead of reading a reset.
+                nvs_runtime::Closing::Faulted
+            });
+        }
         // ADR 0072 § 6's condition, read off the answer this isolate just
         // produced: a program that threw, exited or was torn down runs none of
         // its after-response work, and `nvs_runtime::deferred`'s module doc
