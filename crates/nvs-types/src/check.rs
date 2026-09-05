@@ -542,9 +542,11 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // no body still has a label, and nothing here needs a body to spell one.
     // See `ExprTypeTable::method_label` for why the definition side of the
     // label is recorded at all.
-    if let Some(class) = ctx.current_class {
-        env.exprs
-            .record_method(m.name, format!("{class}::{}", span_text(env.src, m.name)));
+    let label = ctx
+        .current_class
+        .map(|class| format!("{class}::{}", span_text(env.src, m.name)));
+    if let Some(label) = &label {
+        env.exprs.record_method(m.name, label.clone());
     }
 
     let Some(body) = &m.body else {
@@ -605,6 +607,13 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let entering = crate::response::entering_body(m, ctx, env);
     let outer_writers = std::mem::replace(&mut env.body_writers, entering);
 
+    // ADR 0079 § 14: every inline snapshot the walk below records belongs to
+    // *this* method, and stamping the rows afterwards is how they learn it —
+    // `ExprTypeTable::own_inline_snapshots` owns why the walk is not told
+    // which declaration it is inside. Taken here rather than at the top so a
+    // declaration with no body cannot claim a row.
+    let snapshots = env.exprs.inline_snapshot_mark();
+
     // ADR 0053 § 4: a body containing `yield` is a generator, and everything
     // that follows from that is decided here rather than at each `yield` —
     // the declared return type must be `Iterator<T>`, and `T` is what every
@@ -614,6 +623,9 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         check_every_path_returns(m, body, return_ty, env);
         reject_static_return_of_another_class(m, body, ctx, env);
         env.body_writers = outer_writers;
+        if let Some(label) = label {
+            env.exprs.own_inline_snapshots(snapshots, label);
+        }
         return;
     };
     check_generator_inout_params(m, env);
@@ -633,6 +645,9 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let void = env.interner.void();
     check_block(&body.stmts, &mut live, &mut scope, void, &inner, env);
     env.body_writers = outer_writers;
+    if let Some(label) = label {
+        env.exprs.own_inline_snapshots(snapshots, label);
+    }
 }
 
 /// ADR 0007 § 1, at the one exit a body takes without writing anything: a

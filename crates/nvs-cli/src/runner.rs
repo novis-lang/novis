@@ -239,11 +239,28 @@ struct Case {
     method: String,
     outcome: Outcome,
     elapsed: Duration,
+    /// § 14's inline snapshots this test produced a different rendering for,
+    /// carried out of the isolate beside the verdict because that is the only
+    /// place they exist — the child's context is gone by the time `--update`
+    /// runs. Always collected and never reported: what reads it is
+    /// [`update_snapshots`], and only when the run was asked to.
+    snapshots: Vec<nvs_runtime::SnapshotMismatch>,
 }
 
 /// Compiles `checked` and runs every `#[Test]` it declares that `filter`
 /// selects, reporting in `format`.
-pub(crate) fn run(checked: crate::Checked, format: Format, filter: Option<String>) -> ExitCode {
+///
+/// `update` is ADR 0079 § 14's `nvs test --update`: after the suite, and only
+/// then, each failed snapshot is spliced back into the source that wrote it.
+/// The verdicts are the same either way — a run that rewrote a snapshot still
+/// reports the test that produced it as failed, because it did, and the
+/// re-run is what says the new snapshot is the one the author meant.
+pub(crate) fn run(
+    checked: crate::Checked,
+    format: Format,
+    filter: Option<String>,
+    update: bool,
+) -> ExitCode {
     let unit = match compile(&checked) {
         Ok(unit) => unit,
         Err(error) => {
@@ -260,6 +277,14 @@ pub(crate) fn run(checked: crate::Checked, format: Format, filter: Option<String
     };
     unit.install_in(&mut ctx);
 
+    // Read out before `checked` is moved into the suite's task, which is where
+    // it is dropped: the rows are the compiler's and the run cannot produce
+    // them. Nothing is read at all for a run that was not asked to update, so
+    // an ordinary suite pays one `bool`.
+    let sites = match update {
+        true => snapshot_sites(&checked),
+        false => Vec::new(),
+    };
     let started = Instant::now();
     let (suite, mut ctx) = match run_suite_in_a_task(&unit, ctx, checked, format, filter.as_deref())
     {
@@ -280,6 +305,13 @@ pub(crate) fn run(checked: crate::Checked, format: Format, filter: Option<String
     if let Err(error) = ctx.flush_output() {
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
+    }
+    // § 14's splice, after every test has run and before the summary is
+    // printed, so a reader sees what was rewritten above the counts that made
+    // it necessary. It is the one thing `nvs test` writes to a file, and it
+    // does not touch the verdicts above.
+    if update {
+        update_snapshots(&sites, &cases);
     }
     match format {
         Format::Human => println!(
@@ -572,14 +604,14 @@ fn run_suite(
         for call in calls {
             let (case, label, row) = (call.case, call.label, call.row);
             let began = Instant::now();
-            let outcome = match &unbuilt {
+            let (outcome, snapshots) = match &unbuilt {
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
                 // test is what a report has a line for, and a suite that lost
                 // a whole class silently is what § 20 is written against.
-                Some(FixtureFailure::Exited(code)) => Outcome::Exited(*code),
+                Some(FixtureFailure::Exited(code)) => (Outcome::Exited(*code), Vec::new()),
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
-                    Outcome::Failed(vec![message.clone()])
+                    (Outcome::Failed(vec![message.clone()]), Vec::new())
                 }
                 _ => run_in_isolate(unit, ctx, class, case, row, &fixtures, &routes),
             };
@@ -601,6 +633,7 @@ fn run_suite(
                 method: label,
                 outcome,
                 elapsed,
+                snapshots,
             });
             if exited.is_some() {
                 break;
@@ -850,6 +883,36 @@ fn run_in_isolate(
     row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+) -> (Outcome, Vec<nvs_runtime::SnapshotMismatch>) {
+    // § 14's mismatches cross the boundary the verdict crosses, in a cell of
+    // their own beside it: they are the child's context's and that context is
+    // gone by the time this returns, and they are not part of the verdict —
+    // nothing about a test's outcome depends on whether it was going to be
+    // rewritten. The seam is one cell rather than a second field on [`Outcome`]
+    // so that every early exit below, none of which ran a line of the test,
+    // hands back an empty list without saying so.
+    let snapshots: Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>> =
+        Rc::new(RefCell::new(Vec::new()));
+    let outcome = run_the_test(unit, ctx, class, case, row, fixtures, routes, &snapshots);
+    let taken = std::mem::take(&mut *snapshots.borrow_mut());
+    (outcome, taken)
+}
+
+/// [`run_in_isolate`]'s body, with the cell it fills passed in — everything
+/// this module's docs say about the isolate is about this function.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the caller's seven, plus the one cell § 14's mismatches cross in"
+)]
+fn run_the_test(
+    unit: &Rc<nvs_codegen::Unit>,
+    ctx: &mut nvs_runtime::Ctx,
+    class: &str,
+    case: &nvs_types::testing::TestCase,
+    row: Option<&[Option<ConstArg>]>,
+    fixtures: &nvs_runtime::Fixtures,
+    routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+    snapshots: &Rc<RefCell<Vec<nvs_runtime::SnapshotMismatch>>>,
 ) -> Outcome {
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
@@ -940,6 +1003,7 @@ fn run_in_isolate(
     // gone.
     let filed: Rc<RefCell<Option<Outcome>>> = Rc::new(RefCell::new(None));
     let verdict = Rc::clone(&filed);
+    let recorded = Rc::clone(snapshots);
     let allowance = retry_allowance(case);
     // § 12's clock, resolved on the parent's side so that a malformed `at:` is
     // this test's own reported failure rather than something the child has to
@@ -1044,6 +1108,13 @@ fn run_in_isolate(
         // closure returns the scheduler cancels whatever is left rather than
         // reporting it. `nvs_host::children_still_running` owns why an awaited
         // child is already gone from the count.
+        // § 14's mismatches, taken on the child's own stack for the reason its
+        // ledger is taken there: the record is this test's, and this is the
+        // last frame that holds the context carrying it. Every attempt § 20
+        // allowed is in the list, which is why [`update_snapshots`] reads only
+        // a test that ended failed — a retried test that went on to pass has
+        // the snapshot its last attempt matched.
+        *recorded.borrow_mut() = child.take_snapshot_mismatches();
         *verdict.borrow_mut() =
             Some(outcome.with_tasks_left_running(nvs_host::children_still_running()));
         nvs_runtime::Value::null()
@@ -1754,6 +1825,187 @@ fn xml_text(text: &str, out: &mut String) {
     }
 }
 
+/// One written `Core\Test::assertMatchesInline`, resolved to the file holding
+/// it — [`nvs_types::testing::InlineSnapshot`] with its `SourceId` looked up.
+///
+/// A row whose file was not read from disk (a `--FILE--` section compiled from
+/// text) simply produces no site, which is what makes "nothing else ever
+/// writes to a test's own file" hold for a program that has no file.
+struct SnapshotSite {
+    path: std::path::PathBuf,
+    span: nvs_diagnostics::Span,
+    expected: String,
+    owner: Option<String>,
+}
+
+/// Every § 14 row the compile recorded, with its file resolved.
+///
+/// Read before the suite's task takes ownership of `checked`, which is the
+/// only constraint on where this is called.
+fn snapshot_sites(checked: &crate::Checked) -> Vec<SnapshotSite> {
+    checked
+        .exprs
+        .inline_snapshots()
+        .iter()
+        .filter_map(|row| {
+            let path = checked.map.get(row.span.file)?.path()?.to_path_buf();
+            Some(SnapshotSite {
+                path,
+                span: row.span,
+                expected: row.expected.clone(),
+                owner: row.owner.clone(),
+            })
+        })
+        .collect()
+}
+
+/// ADR 0079 § 14's updater: splices each failed snapshot's produced rendering
+/// into the literal the test wrote, and writes nothing else anywhere.
+///
+/// # The join, and what it refuses
+///
+/// A run knows a snapshot by its *text* — `nvs_stdlib::test`'s helper doc owns
+/// why there is no span at run time — so a mismatch is matched to a site by
+/// the expected text **within the test that produced it**. That second half is
+/// what makes the workflow § 14 describes work at all: it starts every
+/// snapshot at `""`, so a program with two of them has two sites sharing a
+/// join key, and only the method tells them apart.
+///
+/// Where the join is still not one site — two snapshots with the same text in
+/// one method, or a snapshot whose expectation was not a written literal — the
+/// site is **left alone and named**. Rewriting one of two candidates would put
+/// a rendering under a snapshot nobody asserted, which is worse than the
+/// failing test it replaces.
+///
+/// Only a test that ended `Failed` is read. A `Flaky` one passed on its last
+/// attempt, so its snapshot is the one that held, and the mismatch on the
+/// record is an earlier attempt's.
+fn update_snapshots(sites: &[SnapshotSite], cases: &[Case]) {
+    // Keyed by the site, so that two mismatches reaching one literal are
+    // recognised as the ambiguity they are rather than racing to write it.
+    let mut edits: Vec<(usize, String)> = Vec::new();
+    let mut refused: Vec<String> = Vec::new();
+    for case in cases {
+        if !matches!(case.outcome, Outcome::Failed(_)) {
+            continue;
+        }
+        // A `#[TestWith]` row is reported as `method#N` and written as
+        // `method`, the rows being one declaration — `invocations` owns the
+        // label — so the label is cut back to the method the source has.
+        let method = case.method.split('#').next().unwrap_or(&case.method);
+        let owner = format!("{}::{}", case.class, method);
+        for mismatch in &case.snapshots {
+            let mut found = sites.iter().enumerate().filter(|(_, site)| {
+                site.owner.as_deref() == Some(owner.as_str()) && site.expected == mismatch.expected
+            });
+            let (Some((index, _)), None) = (found.next(), found.next()) else {
+                refused.push(format!(
+                    "`{owner}`: its snapshot is written twice with the same text, or is not a \
+                     written literal, so there is no one place to put the new rendering"
+                ));
+                continue;
+            };
+            match edits.iter().find(|(at, _)| *at == index) {
+                Some((_, already)) if *already == mismatch.produced => {}
+                Some(_) => refused.push(format!(
+                    "`{owner}`: one snapshot literal produced two different renderings in this \
+                     run, so neither was written"
+                )),
+                None => edits.push((index, mismatch.produced.clone())),
+            }
+        }
+    }
+    for line in &refused {
+        eprintln!("  not updated: {line}");
+    }
+    for (path, written) in splice(sites, &edits) {
+        match written {
+            Ok(()) => eprintln!("  updated: {}", path.display()),
+            Err(error) => eprintln!("  not updated: {}: {error}", path.display()),
+        }
+    }
+}
+
+/// Applies `edits` to the files their sites are in, one write per file.
+///
+/// Each file's spans are replaced **back to front**, so an earlier edit's
+/// change in length cannot move a later one's offsets — the spans are the
+/// compile's, and nothing re-reads the file between them. The whole of a
+/// file's edits is one `write`: a partial rewrite of a source file is the one
+/// outcome an updater must not have.
+fn splice(
+    sites: &[SnapshotSite],
+    edits: &[(usize, String)],
+) -> Vec<(std::path::PathBuf, std::io::Result<()>)> {
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    for (index, _) in edits {
+        let path = &sites[*index].path;
+        if !files.contains(path) {
+            files.push(path.clone());
+        }
+    }
+    files
+        .into_iter()
+        .map(|path| {
+            let written = splice_one(&path, sites, edits);
+            (path, written)
+        })
+        .collect()
+}
+
+/// One file's edits, applied and written.
+fn splice_one(
+    path: &std::path::Path,
+    sites: &[SnapshotSite],
+    edits: &[(usize, String)],
+) -> std::io::Result<()> {
+    let mut text = std::fs::read_to_string(path)?;
+    let mut mine: Vec<&(usize, String)> = edits
+        .iter()
+        .filter(|(index, _)| sites[*index].path == path)
+        .collect();
+    mine.sort_unstable_by_key(|(index, _)| std::cmp::Reverse(sites[*index].span.start));
+    for (index, produced) in mine {
+        let span = sites[*index].span;
+        let (start, end) = (span.start as usize, span.end as usize);
+        if end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+            // The file changed under the run — the spans are from the compile
+            // that started it. Refusing the whole file is the safe half of
+            // "writes the literal and nothing else".
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "the file changed since it was compiled",
+            ));
+        }
+        text.replace_range(start..end, &novis_literal(produced));
+    }
+    std::fs::write(path, text)
+}
+
+/// `text` as a Novis string literal — **single-quoted**, so what a reviewer
+/// reads in the diff is the rendering itself.
+///
+/// A single-quoted literal has exactly two escapes and no interpolation
+/// (`nvs_syntax`'s lexer, `lex_single_quoted`), so a newline, a `$`, a
+/// backslash run and a `{` all stand for themselves. That is the property
+/// § 14 is written on: the snapshot's whole point is that the diff is read,
+/// and a multi-line rendering folded onto one line behind `\n` escapes is a
+/// diff nobody reads. The double-quoted form would also have to escape `$` and
+/// `{`, either of which appears in an ordinary `Core\Debug::render` of an
+/// object.
+fn novis_literal(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('\'');
+    for ch in text.chars() {
+        if ch == '\'' || ch == '\\' {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out.push('\'');
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Format, Outcome, compile, run_suite_in_a_task};
@@ -1787,7 +2039,7 @@ mod tests {
     ) -> Vec<(String, &'static str, Vec<String>)> {
         // Granting, because one fixture below spawns and ADR 0118 § 1 denies by
         // default — `crate::script::granting_ctx` owns why that helper exists.
-        verdicts_on(name, crate::script::granting_ctx(), filter)
+        verdicts_on(&fixture(name), crate::script::granting_ctx(), filter)
     }
 
     /// [`verdicts_filtered`] over a context the caller built, for the one
@@ -1795,11 +2047,11 @@ mod tests {
     /// `[db.<name>]` block, and a fixture has no `nvs.toml` beside it to carry
     /// one.
     fn verdicts_on(
-        name: &str,
+        path: &std::path::Path,
         mut ctx: nvs_runtime::Ctx,
         filter: Option<&str>,
     ) -> Vec<(String, &'static str, Vec<String>)> {
-        let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
+        let checked = crate::front_end(path).expect("the fixture is a program");
         let unit = compile(&checked).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
@@ -1979,7 +2231,7 @@ mod tests {
         snapshot.config.db.insert("test".to_owned(), block);
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         ctx.set_config(std::sync::Arc::new(snapshot));
-        let verdicts = verdicts_on("db-transaction.nvs", ctx, None);
+        let verdicts = verdicts_on(&fixture("db-transaction.nvs"), ctx, None);
         assert_eq!(
             verdicts
                 .iter()
@@ -2150,5 +2402,72 @@ mod tests {
             left[0].starts_with("it left 1 task(s) still running when it returned"),
             "the failure names the tree it left behind: {left:?}"
         );
+    }
+
+    /// ADR 0079 § 14, both halves in one case because they are one claim: the
+    /// updater writes the produced rendering into the `$expected` literal that
+    /// asked for it, and nothing else in `nvs test` writes to a source file at
+    /// all.
+    ///
+    /// Run over a **copy**, in a directory of this test's own, for the obvious
+    /// reason — and the copy is where the "never otherwise" half is asserted,
+    /// byte for byte, against the run that was not asked to update.
+    ///
+    /// Both snapshots in the fixture start empty, so the expected text alone
+    /// joins a mismatch to two sites; that they still land in their own
+    /// literals is what says the join is narrowed by the method the call is
+    /// written in. The last assertion is the one that says the spliced text is
+    /// a *literal* and not merely bytes: the same suite, recompiled from the
+    /// rewritten file, passes.
+    #[test]
+    fn an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise() {
+        let dir = std::env::temp_dir().join(format!(
+            "nvs-inline-snapshot-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("a directory of this test's own");
+        let program = dir.join("inline-snapshot.nvs");
+        let template = std::fs::read_to_string(fixture("inline-snapshot.nvs"))
+            .expect("the fixture is on disk");
+        std::fs::write(&program, &template).expect("the copy is written");
+
+        // Never otherwise: the shipped entry, with the flag off, over a suite
+        // whose every snapshot fails.
+        let checked = crate::front_end(&program).expect("the copy is a program");
+        let _ = super::run(checked, Format::Json, None, false);
+        assert_eq!(
+            std::fs::read_to_string(&program).expect("the copy is still there"),
+            template,
+            "a run that was not asked to update writes nothing at all"
+        );
+
+        // When asked.
+        let checked = crate::front_end(&program).expect("the copy is a program");
+        let _ = super::run(checked, Format::Json, None, true);
+        let updated = std::fs::read_to_string(&program).expect("the copy is still there");
+        assert_ne!(updated, template, "the update rewrote the source");
+        assert!(
+            updated.contains("Users: 3"),
+            "the summary's own rendering is in the literal that asserted it: {updated}"
+        );
+        assert!(
+            updated.contains("class Snapshots {"),
+            "and nothing outside the two literals moved: {updated}"
+        );
+
+        let verdicts = verdicts_on(&program, crate::script::granting_ctx(), None);
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itRendersTheSummary", "passed"),
+                ("itCountsTheActiveOnes", "passed"),
+            ],
+            "the rewritten snapshots are what the run produces: {verdicts:?}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

@@ -551,6 +551,23 @@ approving a diff they did not read, and a diff inside the test body is one they 
 canonical and ordered, and it redacts `secret` under § 6 — so a snapshot cannot become the place secrets
 get committed.
 
+**The updater is the one thing in `nvs test` that writes to a source file**, and what it writes is the
+`$expected` literal and nothing else. It needs that literal's *span*, which no run holds — a helper is
+called with a value, never with the expression that built it — so the span comes from a compile-time row
+per **written** `assertMatchesInline` call (`nvs_types::ExprTypeTable::inline_snapshots`, carrying the
+literal's file, span and the method it is written in), and a run contributes only the two texts. The join
+is the expected text **within the test that produced the mismatch**: the method is load-bearing, because
+this workflow starts every snapshot at `""` and a program with two of them would otherwise have two sites
+sharing one key. Where the join is still not a single site — two snapshots with the same text in one
+method, or an expectation that was not a written literal — **nothing is written and the run names it**.
+Putting a rendering under a snapshot nobody asserted is worse than the failing test it replaces, and the
+alternative of searching the source for the literal is the same mistake with no table in front of it.
+
+What is written is a **single-quoted** literal, which has two escapes and no interpolation, so a
+multi-line rendering stays multi-line and reads as a diff rather than as one line behind `\n` escapes.
+A run that rewrote a snapshot still reports the test as failed; the re-run is what says the new text is
+the one the author meant.
+
 ### 15. `#[Bench]` reports the deterministic counter stream, shared with 0018 and 0041
 
 Wall-clock is not comparable across machines, which is the whole finding of

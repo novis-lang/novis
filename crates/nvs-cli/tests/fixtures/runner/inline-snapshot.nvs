@@ -1,0 +1,28 @@
+<?nvs
+// ADR 0079 § 14, as the runner sees it: a `Core\Test::assertMatchesInline`
+// holds its expectation in the source, and `nvs test --update` splices the
+// produced rendering into that literal and into nothing else.
+//
+// This fixture is a **template**: the test copies it into a directory of its
+// own and runs the copy, because the whole claim is about a file being
+// rewritten. Both snapshots start out empty and therefore share the only join
+// key a run has — the expected text — so the pair is also what proves the join
+// is narrowed by the method the call is written in.
+
+class Report {
+    public static function summary(): string {
+        return "Users: 3\nActive: 2";
+    }
+}
+
+class Snapshots {
+    #[Core\Test]
+    public function itRendersTheSummary(): void {
+        Core\Test::assertMatchesInline(Report::summary(), '');
+    }
+
+    #[Core\Test]
+    public function itCountsTheActiveOnes(): void {
+        Core\Test::assertMatchesInline(2, '');
+    }
+}

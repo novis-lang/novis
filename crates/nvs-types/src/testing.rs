@@ -1119,3 +1119,83 @@ fn check_retries_state_a_reason(fields: &[ObjectLiteralField], env: &mut Env<'_>
         ),
     );
 }
+
+/// One written `Core\Test::assertMatchesInline(…, "…")`, as § 14's
+/// `nvs test --update` needs it: **where the snapshot literal is**, which is
+/// the one fact nothing at run time can supply.
+///
+/// A helper is called with a value and never with the expression that built
+/// it, so `nvs_runtime::SnapshotMismatch` can only say what the snapshot *was*
+/// and what it should have been. This row is the other half of that join, and
+/// it is collected here rather than searched for in the source afterwards for
+/// § 14's own workflow's sake: a snapshot is written empty and filled by the
+/// updater, and `""` occurs in every file.
+#[derive(Clone, Debug)]
+pub struct InlineSnapshot {
+    /// The `$expected` literal's own span, delimiters included — exactly the
+    /// bytes the updater replaces.
+    pub span: Span,
+    /// What that literal folds to. The join key, because it is the only part
+    /// of the literal a run can see.
+    pub expected: String,
+    /// The `Class::method` this call is written inside, or `None` where it is
+    /// not inside a method at all.
+    ///
+    /// Stamped by [`crate::check::check_method`] once the body has been
+    /// walked, rather than read here: this is an *expression* walk and the
+    /// declaration it is inside is not one of the things it is handed. It
+    /// narrows the join to the test that produced the mismatch, which is what
+    /// keeps two snapshots that both start out `""` tellable apart.
+    pub owner: Option<String>,
+}
+
+/// Records § 14's row for a `Core\Test::assertMatchesInline` whose `$expected`
+/// is a written literal, and does nothing for every other call.
+///
+/// The hook [`crate::expr::calls::infer_static_call`] reaches after the target
+/// has resolved, beside the other rules that read a `Core` call's own written
+/// arguments. A computed expectation records nothing rather than being
+/// refused: the member's contract is a `string` and one built at run time is a
+/// legal — if pointless — way to reach it, so what it loses is only the
+/// ability to be rewritten, which the runner then says out loud.
+pub(crate) fn note_inline_snapshot(
+    owner: &QName,
+    member: &str,
+    args: &nvs_syntax::ast::CallArgs,
+    env: &mut Env<'_>,
+) {
+    if member != "assertMatchesInline"
+        || !owner.is_core()
+        || owner.segments().len() != 2
+        || owner.short_name() != "Test"
+    {
+        return;
+    }
+    let nvs_syntax::ast::CallArgs::List(list) = args else {
+        return;
+    };
+    // `expected:` written by name fills the same parameter, and is read the
+    // same way `crate::capability` reads its one — a spread is not a written
+    // argument at all and leaves this call unrecorded.
+    let named = list.iter().find(|arg| {
+        arg.name
+            .is_some_and(|name| span_text(env.src, name) == "expected")
+    });
+    let Some(arg) = named.or_else(|| {
+        list.iter()
+            .filter(|arg| !arg.spread && arg.name.is_none())
+            .nth(1)
+    }) else {
+        return;
+    };
+    let declared = env.interner.intern(Ty::String);
+    let Some(ConstArg::Str(expected)) = crate::defaults::literal_default(&arg.value, declared, env)
+    else {
+        return;
+    };
+    env.exprs.record_inline_snapshot(InlineSnapshot {
+        span: arg.value.span,
+        expected,
+        owner: None,
+    });
+}

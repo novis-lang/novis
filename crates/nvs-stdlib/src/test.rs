@@ -76,7 +76,8 @@
 //! § 14's `assertMatchesInline` compares `Core\Debug::render`'s text against a
 //! literal in the test body rather than against a `.snap` file beside it. Its
 //! own doc comment owns why the renderer is borrowed rather than grown, and
-//! what `nvs test --update` still needs before it can write into that literal.
+//! which two other crates `nvs test --update` needs to write into that literal
+//! — this one contributes the pair of texts and holds no span for either.
 //!
 //! # The ledger, and the one member that discharges from it
 //!
@@ -764,7 +765,9 @@ const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "expected",
-            desc: "The rendering this value is expected to have, written inline.",
+            desc: "The rendering this value is expected to have, written inline; `nvs test \
+                   --update` writes it here for you, replacing this literal and nothing else in \
+                   the file.",
             shape: &[],
         },
         ParamDoc {
@@ -1409,16 +1412,22 @@ nvs_runtime::nvs_helper! {
     /// any shape has *one* canonical text, and a type variable here would only
     /// name the type of a thing that is about to become a string.
     ///
-    /// **The `--update` half of § 14 has not landed**, and this member is where
-    /// the reason is worth writing down: splicing the produced value back into
-    /// the source needs the *span* of the `$expected` literal, and nothing at
-    /// runtime holds one — a helper is called with a value, not with the
-    /// expression that built it. The material the updater needs is therefore a
-    /// compile-time table beside `nvs_types::ExprTypeTable::tests`, one row per
-    /// written `assertMatchesInline` call carrying its file and the literal's
-    /// span, joined to a run's mismatches by the expected text. Searching the
-    /// source for the literal instead was considered and refused: the workflow
-    /// § 14 describes starts from an empty `""`, which occurs everywhere.
+    /// **The `--update` half of § 14 is split across three crates, and this is
+    /// its runtime end.** Splicing the produced value back into the source
+    /// needs the *span* of the `$expected` literal, and nothing at runtime
+    /// holds one — a helper is called with a value, not with the expression
+    /// that built it. So all this member contributes is the pair of texts
+    /// ([`nvs_runtime::SnapshotMismatch`]); the span comes from
+    /// `nvs_types::ExprTypeTable::inline_snapshots`, a compile-time row per
+    /// *written* call carrying the literal's file, span and enclosing method,
+    /// and `nvs-cli`'s runner joins the two by the expected text within the
+    /// test that produced it. Searching the source for the literal instead was
+    /// considered and refused: the workflow § 14 describes starts from an empty
+    /// `""`, which occurs everywhere.
+    ///
+    /// The record is written on every mismatch, whatever the run was started
+    /// with, for the reason the ledger entry beside it is: a flag may decide
+    /// what is *written to disk* and may not decide what a run observed.
     fn nvs_core_test_assert_matches_inline(ctx, args: [3]) {
         // Unreachable from source: parameter 1 is `CoreTy::Text` in `CLASS`, so
         // a non-string expectation is `E0401` at the checker. Parameter 0 is
@@ -1434,6 +1443,7 @@ nvs_runtime::nvs_helper! {
         if produced == expected {
             return Ok(held(ctx, "assertMatchesInline"));
         }
+        ctx.record_snapshot_mismatch(expected.clone(), produced.clone());
         Err(failed(
             ctx,
             "assertMatchesInline",

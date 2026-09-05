@@ -251,6 +251,16 @@ enum Command {
         /// tree is refused rather than silently ignored.
         #[arg(long, value_name = "FORMAT", default_value = "human")]
         format: runner::Format,
+        /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
+        /// the source that wrote it (ADR 0079 § 14).
+        ///
+        /// This is the only spelling under which `nvs test` writes to a file at
+        /// all, and what it writes is the `$expected` literal and nothing else:
+        /// a run without it never touches the tree, and a run with it never
+        /// touches a passing snapshot. A `.nvst` tree has no snapshot to
+        /// update, so naming it there is refused rather than ignored.
+        #[arg(long)]
+        update: bool,
     },
     /// Produce a build artifact from a checked program.
     ///
@@ -562,7 +572,8 @@ fn main() -> ExitCode {
             filter,
             php,
             format,
-        } => run_test(&paths, filter, php, format),
+            update,
+        } => run_test(&paths, filter, php, format, update),
         Command::Build {
             file,
             openapi,
@@ -1417,6 +1428,7 @@ fn run_test(
     filter: Option<String>,
     php: PathBuf,
     format: runner::Format,
+    update: bool,
 ) -> ExitCode {
     // ADR 0079 § 23's "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
@@ -1429,9 +1441,17 @@ fn run_test(
         // `--filter` reaches both suites, and means the same thing in each:
         // `runner::selected` owns the rule and why it is the `.nvst` tree's.
         return match front_end(path) {
-            Ok(checked) => runner::run(checked, format, filter),
+            Ok(checked) => runner::run(checked, format, filter, update),
             Err(code) => code,
         };
+    }
+    if update {
+        // § 14's updater rewrites a `#[Test]` method's own snapshot literal,
+        // and a `.nvst` case has none: its expectation is the `--EXPECT--`
+        // section, which `nvs_test` compares whole and which nothing here
+        // writes. Refused rather than ignored, for `--format`'s reason below.
+        eprintln!("error: `--update` rewrites a program's inline snapshots, not a `.nvst` tree");
+        return ExitCode::FAILURE;
     }
     if format != runner::Format::Human {
         // § 22's formats report a `#[Test]` run, and § 23 keeps the two suites

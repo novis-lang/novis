@@ -150,7 +150,7 @@ E0401
 
 # nvs test
 
-    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>]
+    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--php <path>] [--update]
 
 One subcommand runs two kinds of test, and which one is meant is read off the path:
 
@@ -198,6 +198,15 @@ final class MathTest {
   tree is refused.
 - `--php <path>` names the PHP binary a case with an `--ORACLE--` section is compared against
   (default `php`).
+- `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
+  wrote it, and is **the only spelling under which `nvs test` writes to a file at all**. It
+  replaces the `$expected` literal and nothing else: a passing snapshot is untouched, and so is
+  every other line of the file. The verdicts do not change — the tests that produced a new
+  snapshot are still reported as failed, and the re-run is what says the new text is the one you
+  meant. Write the snapshot as `''` and let the first run fill it in. Where one method holds two
+  snapshots with the same text, neither is written and the run says so: there is no way to tell
+  which rendering belongs in which literal. Naming it beside a `.nvst` tree is refused — a case's
+  expectation is its `--EXPECT--` section, which nothing rewrites.
 
 A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
 pins), `--FILE--` (the program, run as `nvs run`), `--EXPECT--` (its exact standard output) or

@@ -377,6 +377,11 @@ pub(crate) fn infer_static_call(
         // [`infer_method_call`] has no arm of this hook rather than a missing
         // one. See [`reject_keyless_retry`].
         reject_keyless_retry(owner, name, args, env);
+        // ADR 0079 § 14's updater material, taken at the one site that can see
+        // it: the `$expected` literal's span, which no runtime record holds.
+        // Records rather than refuses, like every other hook here that reads a
+        // written argument. See [`crate::testing::note_inline_snapshot`].
+        crate::testing::note_inline_snapshot(owner, name, args, env);
         // ADR 0112 § 6's roster, over the one member whose argument names a
         // capability — static-only, like the member. See
         // [`crate::capability`], which replaces nothing.

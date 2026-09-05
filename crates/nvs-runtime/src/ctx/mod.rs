@@ -981,6 +981,15 @@ pub struct Ctx {
     /// itself, [`AssertionOutcome::member`] being a `&'static str` the member
     /// names rather than a built string.
     assertions: Vec<AssertionOutcome>,
+    /// § 14's inline snapshots that did not hold, in the order they ran — the
+    /// material `nvs test --update` splices from, and empty for every run that
+    /// asserted no snapshot or whose snapshots all held.
+    ///
+    /// Beside the ledger rather than inside it: an entry here is not a verdict
+    /// and nothing reads it to decide one. What it spends is one pair of
+    /// strings per *failed* snapshot, so an ordinary green run allocates
+    /// nothing at all for it ([`SnapshotMismatch`] owns the rest).
+    snapshot_mismatches: Vec<SnapshotMismatch>,
     /// The isolates this request has started and not yet awaited, by the key
     /// its `Core\Script\Handle` carries — see [`Ctx::hold_started_script`].
     started_scripts: Vec<Option<Box<dyn crate::host::Running>>>,

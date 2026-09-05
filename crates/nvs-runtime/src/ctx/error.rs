@@ -32,6 +32,30 @@ pub struct AssertionOutcome {
     pub failure: Option<String>,
 }
 
+/// One `Core\Test::assertMatchesInline` that did not hold — the material
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 14's
+/// `nvs test --update` splices from.
+///
+/// Both halves are the *text*, because both halves of the join are: the
+/// snapshot the author wrote is what identifies the literal in the compiler's
+/// own table of written call sites, and the rendering is what replaces it. The
+/// runtime holds no span for either — a helper is called with a value, never
+/// with the expression that built it — so this record carries no location at
+/// all and the runner joins it to one.
+///
+/// Recorded on every mismatch rather than only under `--update`, for
+/// [`AssertionOutcome`]'s reason: what a run recorded may not depend on a flag
+/// the run was started with, or the flag becomes a second thing that decides
+/// whether a test failed. What `--update` gates is the *writing*, which is the
+/// runner's and happens after the whole suite.
+#[derive(Clone, Debug)]
+pub struct SnapshotMismatch {
+    /// The snapshot as the source holds it — the join key.
+    pub expected: String,
+    /// What `Core\Debug::render` made of the value instead.
+    pub produced: String,
+}
+
 /// One class descriptor, plus the table that owns it.
 ///
 /// The safe way to hand a [`Ctx`] a descriptor that must outlive it: a
@@ -503,6 +527,23 @@ impl Ctx {
     #[must_use]
     pub fn take_assertions(&mut self) -> Vec<AssertionOutcome> {
         std::mem::take(&mut self.assertions)
+    }
+
+    /// Records ADR 0079 § 14's mismatch — `Core\Test::assertMatchesInline` is
+    /// the one caller, and it calls this beside the failed ledger entry rather
+    /// than instead of it.
+    pub fn record_snapshot_mismatch(&mut self, expected: String, produced: String) {
+        self.snapshot_mismatches
+            .push(SnapshotMismatch { expected, produced });
+    }
+
+    /// Every snapshot mismatch this context recorded, taken — read once, on the
+    /// test's own stack, exactly as [`Self::take_assertions`] is and for its
+    /// reason: the record is one test's, and a context that outlived the test
+    /// must not offer it to the next.
+    #[must_use]
+    pub fn take_snapshot_mismatches(&mut self) -> Vec<SnapshotMismatch> {
+        std::mem::take(&mut self.snapshot_mismatches)
     }
 
     /// Takes the pending failure as an exception object, clearing it — what a

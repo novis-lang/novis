@@ -922,6 +922,7 @@ pub struct ExprTypeTable {
     db_codecs: FxHashMap<String, crate::derive::DerivedCodec>,
     tests: FxHashMap<String, Vec<crate::testing::TestCase>>,
     fixtures: FxHashMap<String, Vec<crate::testing::Fixture>>,
+    inline_snapshots: Vec<crate::testing::InlineSnapshot>,
     property_defaults: FxHashMap<String, Vec<(String, crate::defaults::ConstArg)>>,
     property_types: FxHashMap<String, Vec<(String, TypeId)>>,
     lateinit_properties: FxHashMap<String, Vec<String>>,
@@ -1123,6 +1124,47 @@ impl ExprTypeTable {
     #[must_use]
     pub fn tests(&self, label: &str) -> Option<&[crate::testing::TestCase]> {
         self.tests.get(label).map(Vec::as_slice)
+    }
+
+    /// Records one written `Core\Test::assertMatchesInline` — ADR 0079 § 14's
+    /// updater material, appended as [`crate::testing::note_inline_snapshot`]
+    /// reaches the call.
+    ///
+    /// A `Vec` and not a map: the key a consumer joins on is the snapshot's
+    /// *text*, which is not unique by design — § 14's workflow starts every
+    /// snapshot at `""` — so the table keeps every row and the runner is the
+    /// one place that decides an ambiguous join is not rewritable.
+    pub(crate) fn record_inline_snapshot(&mut self, row: crate::testing::InlineSnapshot) {
+        self.inline_snapshots.push(row);
+    }
+
+    /// How many § 14 rows have been recorded so far — the mark
+    /// [`Self::own_inline_snapshots`] stamps from.
+    pub(crate) fn inline_snapshot_mark(&self) -> usize {
+        self.inline_snapshots.len()
+    }
+
+    /// Names `label` as the owner of every § 14 row recorded at or after
+    /// `mark` — [`crate::check::check_method`]'s one call, made once the body
+    /// has been walked.
+    ///
+    /// Stamped afterwards rather than passed down: the expression walk that
+    /// records a row is threaded a `Ctx` that knows the enclosing *class* and
+    /// not the enclosing method, and a field for it would be one more thing
+    /// every one of that struct's thirteen construction sites has to answer for
+    /// a fact only this table wants.
+    pub(crate) fn own_inline_snapshots(&mut self, mark: usize, label: String) {
+        for row in &mut self.inline_snapshots[mark..] {
+            row.owner = Some(label.clone());
+        }
+    }
+
+    /// Every written `Core\Test::assertMatchesInline` in the program, in the
+    /// order the walk reached them — ADR 0079 § 14's `nvs test --update` is the
+    /// one consumer, and a program that writes no snapshot has none.
+    #[must_use]
+    pub fn inline_snapshots(&self) -> &[crate::testing::InlineSnapshot] {
+        &self.inline_snapshots
     }
 
     /// Records ADR 0079 § 8's `#[Fixture]` roster for the class labelled
