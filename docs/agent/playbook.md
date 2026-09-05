@@ -5569,6 +5569,18 @@ is why" — is this file.
   `serve_on_this_core`'s tail parks until every connection it spawned has counted itself back out,
   so a marker pushed after it returns says "the core survived and nothing was left parked" with one
   socket. `a_connection_whose_isolate_panics_is_contained` is the shape.
+- **In every `-p nvs-server` accept-loop test the drain has already begun before the connection's
+  isolate runs a line**, so anything a connection keys off `Draining::is_draining()` fires on the
+  *first* wait of every one of them. `serve_on_this_core`'s `keep_serving` is `|| ControlFlow::Break(())`
+  in all of these cases — the sibling bullet above says a second connection cannot be asked for — so
+  the loop breaks and calls `draining.begin()` while the child it has just spawned has not run yet,
+  which is the ordering the comment above that call already states for a different reason. A first
+  cut of ADR 0083 § 7's shutdown close that closed at the first `receive()` therefore passed its own
+  new case and broke `a_connection_isolate_reads_and_writes_frames_over_the_upgraded_socket`, whose
+  peer had a frame on the wire the connection never read. What made both true was a *period*: the
+  drain caps the wait and the close is what the timeout becomes, which is what § 7's third bullet
+  asks for anyway. When a connection-side behaviour reads the drain, assume it is on from the first
+  line of every existing case rather than from the moment a shutdown would really begin.
 
 ## Splitting a file that got too big
 

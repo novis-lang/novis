@@ -2,61 +2,67 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 § 7's acceptance check runs three of its six tests.** On disk:
-`every_connection_bound_is_finite_with_nothing_configured` at `crates/nvs-server/src/bounds.rs:197`,
-and now `a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom` and
-`a_connection_whose_isolate_panics_is_contained`, both in `crates/nvs-server/src/serve.rs`'s test
-module. **The previous handoff called the remainder "all three" and it is three *others*:** the
-check's two ADR 0017 tests were never landed either, so the group below is the whole rest of it.
+**Goal 6, M7 — ADR 0083 § 7's acceptance check runs four of its six tests.** On disk:
+`every_connection_bound_is_finite_with_nothing_configured` at `crates/nvs-server/src/bounds.rs:213`,
+`a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom`,
+`a_connection_whose_isolate_panics_is_contained` and now
+`reload_and_shutdown_close_every_connection_after_the_drain`, the last three in
+`crates/nvs-server/src/serve.rs`'s test module.
 
-**A connection over its `[limits]` budget ends 1011, and no mechanism was added for it.** The close
-was already keyed off `Completion::ok`; what was missing was an induction a hand-written program can
-perform. The fixture sets its own ceiling (`Ctx::set_memory_limit`), allocates past it, and then
-makes the two calls `nvs_runtime`'s safepoint poll makes on a memory breach — `Ctx::memory_breach`
-and `Ctx::set_pending` — because a `fn(&mut Ctx) -> String` has no safepoint between two statements
-to make them for it. It releases the hog before reporting, or the teardown breaches again inside
-`run_helper`.
+**The drain's close is the connection's own, taken at its next wait.** Neither way of reaching one
+from outside survives: cancelling the isolate tears its task down at its next safepoint, which is
+the reset § 7 asks to replace, and the socket moved into the isolate at the `101` so there is no
+second handle to write a frame through. So the drain is one more instant in `Framed::arm`'s minimum
+and `Closing::ShuttingDown` — 1001, new in `crates/nvs-runtime/src/peer.rs` — is one more answer in
+`Framed::expiry`'s. `crates/nvs-server/src/socket.rs`'s `receive` is the whole argument, including
+why the period runs from when a connection *sees* the drain. The period is `Connection::drain`,
+1 second, `crates/nvs-server/src/bounds.rs`.
 
-**A panicking connection isolate is deliberately a reset**, and that decision now lives in the
-comment on the close branch in `nvs_host::isolate`. `nvs_runtime::run_task` contains the panic, but
-the unwind leaves through `Ended`'s guard without reaching the close, and moving the close into that
-guard is refused twice over: the guard holds no context to reach a peer through, and a close is a
-*write*, which parks — where a stack being unwound may not.
+**The remaining two tests are ADR 0017's and `-p nvs-server` cannot host them.** That crate has no
+compiled unit at all: `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config`,
+`nvs-runtime` and `jiff`, its door takes a handler closure, and the per-mount unit and its swap live
+in `crates/nvs-cli/src/serve.rs` (module doc line 57, "one compiled unit per mounted entry"). The
+check's `args` is what is wrong, and the group below is that repair plus the two tests.
 
-**Known gap: none of § 7's six bounds has a `[server]` key**, so changing one is a rebuild;
-`nvs_server::bounds`' § *Known gap* names where the keys belong. The wake seam is unchanged and
-still open — `nvs_runtime::Ctx::deliver`'s known gap states it.
+**Known gap: a connection already parked on a read when the drain begins does not see it until that
+read ends**, which is `Connection::idle` away at worst — the same wake seam a topic delivery needs
+(`nvs_runtime::Ctx::deliver`'s known gap), because a parked `Read` ends on its deadline, on
+readiness or on a cancellation and on nothing else. `socket.rs`'s `receive` states it.
 
-**`orient.py` did not print `crates/nvs-host/src/scheduler.rs`**, which is where "is a panic
-contained" is actually answered; `[context] modules` wants a `nvs-host/src/scheduler.rs` pattern.
+**`orient.py` printed ADR 0083 §§ 1-4 but not § 7**, which is the section this item implements, and
+still does not print `crates/nvs-host/src/scheduler.rs`, where cancellation's "dies at its next
+safepoint" is stated. `[context] adrs` wants `0083 § 7`; `[context] modules` wants
+`nvs-host/src/scheduler.rs`.
 
 ## Next group
 
-**The three tests § 7's check still names. One is the drain and two are ADR 0017's swap; the file
-set is `crates/nvs-server/src/serve.rs`, `crates/nvs-server/src/bounds.rs` and
-`crates/nvs-server/Cargo.toml`.** Take the drain first — it is the only one whose mechanism is
-already in this crate.
+**The check's last two tests, and the filing repair they need first. The file set is
+`docs/agent/loop-goal.toml`, `crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/Cargo.toml`.** Take
+the triage first: it decides where the other two are written.
 
-- [ ] **`reload_and_shutdown_close_every_connection_after_the_drain`** — ADR 0083 § 7's third
-      bullet. The drain begins at `crates/nvs-server/src/serve.rs:1371` and parks until `outstanding`
-      reaches zero at `crates/nvs-server/src/serve.rs:1379`; what it never does is *close* what is
-      still open, so a shutdown ends every connection as the reset the panic case above pinned.
-      `crates/nvs-server/src/bounds.rs:132`'s `OPEN` is the only thing that knows how many there
-      are, and `crates/nvs-server/src/socket.rs:343`'s `Framed::close` is what a drain would have to
-      reach — which the accept loop cannot, because the peer moved into the isolate at
-      `crates/nvs-server/src/serve.rs:1016`. Decide whether the drain cancels the connection
-      isolates or whether a `Closing` reaches them another way, and record it where the close lives.
-- [ ] **`an_open_connection_keeps_its_compiled_unit_across_an_edit`** — ADR 0017, and triage before
-      writing a line: `crates/nvs-server/Cargo.toml:1` names `hyper`, `nvs-host`, `nvs-config` and
-      `nvs-runtime` and nothing that compiles or caches a unit, so the check's `-p nvs-server` may be
-      the playbook's misfiling rather than an unlanded slice.
-- [ ] **`a_connection_opened_after_the_swap_runs_the_new_unit`** — the same triage over
-      `crates/nvs-server/Cargo.toml:1` and the same file set; the two are one fixture if either can
-      be hosted here at all.
+- [ ] **Split ADR 0083 § 7's check at `docs/agent/loop-goal.toml:3817`** so the two ADR 0017 tests
+      run where a compiled unit exists. Read `crates/nvs-cli/src/serve.rs:57` (the module doc's
+      "one compiled unit per mounted entry, held for the life of the process"),
+      `crates/nvs-cli/src/serve.rs:294` (the resolve that is a cache hit on the unit) and
+      `crates/nvs-cli/src/serve.rs:347` ("both halves of what the selected unit is") before deciding;
+      `crates/nvs-server/Cargo.toml:12` is the manifest that rules the current filing out. Leave the
+      four landed names on the `-p nvs-server` check and give the two a second `[[check]]`.
+- [ ] **`an_open_connection_keeps_its_compiled_unit_across_an_edit`** — ADR 0083 § 7's second
+      bullet over ADR 0017. A connection isolate started against one unit runs on it after the
+      pointer has been swapped; the swap is `crates/nvs-cli/src/serve.rs:294`'s resolve and the
+      isolate is started from `crates/nvs-server/src/serve.rs:1030`, which takes the program it was
+      handed and never re-resolves.
+- [ ] **`a_connection_opened_after_the_swap_runs_the_new_unit`** — the other half, over the fixture
+      the item above builds: the second connection resolves again at
+      `crates/nvs-cli/src/serve.rs:294` and reaches
+      `crates/nvs-server/src/serve.rs:1030` with the *new* program, so it is that slice's second
+      assertion rather than a second set-up.
 
 ## Backlog
 
-- § 7's six bounds have no `[server]` key — `crates/nvs-server/src/bounds.rs` § *Known gap*.
-- The wake seam — `nvs_runtime::Ctx::deliver`'s known gap.
-- ADR 0083 § 5's event stream has no `200 text/event-stream` response half —
-  `sse_is_a_connection_isolate_with_no_receive`'s own doc comment says so.
+- None of § 7's seven bounds has a `[server]` key — `crates/nvs-server/src/bounds.rs`'s § *Known gap*
+  names where they belong.
+- The wake seam: one slice closes both the drain's reach into a parked read and a topic delivery's
+  (`nvs_runtime::Ctx::deliver`'s known gap).
+- ADR 0083 § 5's `200 text/event-stream` response head is still unwritten — `serve_connection`'s doc
+  says so.
