@@ -1,0 +1,26 @@
+--TEST--
+The entry answering an in-process request reads no listener of its own, so ADR 0079 § 18's two mechanisms do not reach each other
+--FILE--
+<?nvs
+// § 18 has two mechanisms on purpose: the first runs this same entry over a
+// synthetic request with no socket, the second binds one for a
+// `#[Test(server: true)]` case. Neither is the other, and an address armed on
+// the process rather than on a test's own context is exactly what would show
+// up here — the re-entered entry would read one it was never given.
+try {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        // Answering a request, so this `echo` is the response body (ADR 0088
+        // § 3) and is read back below rather than printed here.
+        echo "inside=", Core\Debug::render(Core\Test::serverUrl());
+    }
+} catch (LogicError $notARequest) {
+    // The outer run: nothing is answering anything yet, so the entry is asked
+    // for one request of its own.
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/anything");
+    echo "outside=", Core\Debug::render(Core\Test::serverUrl()), "\n";
+    echo $answered->body(), "\n";
+}
+--EXPECT--
+outside=null
+inside=null

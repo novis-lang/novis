@@ -1,0 +1,18 @@
+--TEST--
+`Core\Test::serverUrl()` answers `null` wherever no `#[Test(server: true)]` bound a listener, which is every context but that one — ADR 0079 § 18
+--FILE--
+<?nvs
+// ADR 0079 § 18's second mechanism arms one string on the *test's* own context
+// and nothing else ever writes one, so a program that is not a test has no
+// address to read. Rendered rather than compared against `null`, because what
+// is being pinned is the reading itself: an empty string would print
+// differently, and a member that invented an address would print that.
+echo Core\Debug::render(Core\Test::serverUrl()), "\n";
+
+// And the answer really is nullable rather than a `string` that happens to be
+// empty: a `??` over a non-nullable left-hand side has an unreachable fallback,
+// so this line is the type stated as an output.
+echo Core\Test::serverUrl() ?? "no listener", "\n";
+--EXPECT--
+null
+no listener

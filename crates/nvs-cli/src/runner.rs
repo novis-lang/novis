@@ -525,6 +525,13 @@ fn run_suite(
     let (mut passed, mut failed, mut skipped, mut flaky) = (0_usize, 0_usize, 0_usize, 0_usize);
     let mut exited = None;
     let mut cases = Vec::new();
+    // ADR 0102 § 1's table, crossed once for the whole suite rather than per
+    // test: it is a product of the compile every isolate already shares, and
+    // [`TestServer`] is the only thing that reads it — a run whose tests declare
+    // no `server:` pays one walk of the program's `#[Route]` rows and nothing
+    // else. `UnderTest` builds its own for § 18's first mechanism, which is
+    // installed a call above this one and holds it for the whole run.
+    let routes = std::sync::Arc::new(crate::runtime_routes(checked.exprs.routes()));
     for class in checked.exprs.test_classes() {
         let tests = checked.exprs.tests(class).unwrap_or_default();
         // The selection is made **before** the class is announced or its
@@ -561,7 +568,7 @@ fn run_suite(
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     Outcome::Failed(vec![message.clone()])
                 }
-                _ => run_in_isolate(unit, ctx, class, case, row, &fixtures),
+                _ => run_in_isolate(unit, ctx, class, case, row, &fixtures, &routes),
             };
             let elapsed = began.elapsed();
             match &outcome {
@@ -829,10 +836,30 @@ fn run_in_isolate(
     case: &nvs_types::testing::TestCase,
     row: Option<&[Option<ConstArg>]>,
     fixtures: &nvs_runtime::Fixtures,
+    routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
 ) -> Outcome {
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
+    // § 18's second mechanism, bound **before** the child exists for the same
+    // reason § 9's row and § 8's copies are: what the test observes of it is one
+    // string on its own context, and a socket cannot be handed across the heap
+    // boundary afterwards. A failure to bind is this test's own failure and
+    // nothing has run.
+    let served = match wants_server(case) {
+        false => None,
+        true => match TestServer::bind(unit, routes) {
+            Ok(server) => Some(server),
+            Err(refused) => {
+                return Outcome::Failed(vec![format!(
+                    "`{class}::{}` declares `server: true`, and no listener could be bound for \
+                     it: {refused}",
+                    case.method
+                )]);
+            }
+        },
+    };
+    let listening = served.as_ref().map(|server| server.url.clone());
     // §§ 8-9's injection: one value per declared parameter, in the order the
     // checker resolved them (`nvs_types::testing::TestCase::params`), so
     // nothing here re-derives which fixture answers which parameter or which
@@ -939,6 +966,13 @@ fn run_in_isolate(
         if let Some(seed) = seed {
             child.set_random_state(seed);
         }
+        // § 18's listener, armed the same way and in the same place as the two
+        // above: the address is the *child's* to read, so a sibling that
+        // declared no `server:` answers `null` and cannot reach a port this
+        // test bound (`nvs_runtime::Ctx::test_server`).
+        if let Some(url) = listening {
+            child.set_test_server(url);
+        }
         // Null here, and discharged anyway: the seam's contract is that
         // whatever crossed becomes the isolate's own root's, and a test's
         // values crossed as § 8's copies instead.
@@ -977,6 +1011,13 @@ fn run_in_isolate(
             )]);
         }
     };
+    // § 2's boundary is around the whole test, and a listener is the one thing
+    // it owns that the child's context does not release for it: the socket was
+    // bound out here, so it is retired out here, after the isolate that could
+    // still have been talking to it has joined.
+    if let Some(server) = served {
+        server.stop();
+    }
     let taken = filed.borrow_mut().take();
     taken.unwrap_or_else(|| {
         // The child never reached its own verdict — it was cancelled, or a
@@ -987,6 +1028,233 @@ fn run_in_isolate(
             |failure| format!("{}: {}", failure.class, failure.message),
         )])
     })
+}
+
+/// Whether this case asked for ADR 0079 § 18's second mechanism.
+///
+/// `server` is a `bool` in `nvs_types::testing`'s roster, so anything else has
+/// already been refused while compiling and reading it back as absent here
+/// would be a second answer to a settled question — the same reading
+/// [`skip_reason`] takes one option over. A written `server: false` is the same
+/// as an unwritten one: the option says whether a listener is wanted, and
+/// nothing downstream distinguishes "no" from "did not ask".
+fn wants_server(case: &nvs_types::testing::TestCase) -> bool {
+    case.options
+        .iter()
+        .any(|(name, value)| name == "server" && matches!(value, ConstArg::Bool(true)))
+}
+
+/// ADR 0079 § 18's second mechanism, bound: one ephemeral listener over the
+/// program under test, and the task accepting on it.
+///
+/// **Why a second mechanism at all**, when § 18's first one already runs a
+/// request through the same entry with no socket: what this one answers is
+/// everything between the two — the [ADR 0074] header set actually arriving on
+/// the wire, chunking, keep-alive, a peer that hangs up mid-body. The in-process
+/// path deliberately never builds a response head, so none of that is a question
+/// it *can* be asked, which is the ADR's "measurably different questions".
+///
+/// **The port is the operating system's**, taken by binding `127.0.0.1:0` and
+/// reading the address back: a fixed port would collide between two `cargo test`
+/// processes on one machine and between two tests of one suite, and there is
+/// nothing for a developer to configure because there is nothing for them to
+/// choose. Loopback and not `0.0.0.0` for the reason that needs no measurement —
+/// a test suite that binds a routable address is a test suite that serves a
+/// program under test to the network.
+///
+/// **The handler holds a [`std::rc::Weak`] of the unit, never an [`Rc`].** The
+/// accept loop parks on a socket nothing will connect to again once the test is
+/// over, and a parked task's closure is dropped when the scheduler reaps it
+/// rather than when [`Self::stop`] asks — so a strong handle here would keep the
+/// whole compiled program alive on a schedule this function does not control.
+/// A request arriving after the test that owns the program has ended finds no
+/// program, which is the same nothing-claims-this a table's own `404` is.
+///
+/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
+struct TestServer {
+    /// What the test reads through `Core\Test::serverUrl()` — `http://` and the
+    /// bound address, with no trailing slash so a path appends directly.
+    url: String,
+    /// The accept loop's own task, which is a **sibling** of the test's isolate
+    /// and a child of the suite's task. Sibling and not child on purpose: § 16
+    /// reads `nvs_host::children_still_running` from inside the test's own task,
+    /// so a server underneath it would be reported as work the test left behind.
+    /// `None` where the scheduler refused the spawn, which leaves a bound socket
+    /// nothing accepts on — a request against it then times out rather than
+    /// silently passing, and [`Self::bind`] reports the refusal instead.
+    task: Option<nvs_host::TaskId>,
+}
+
+impl TestServer {
+    /// Binds the listener and starts accepting on it.
+    ///
+    /// Every policy this loop serves under is the **default** one rather than
+    /// the tree's: a `#[Test(server: true)]` is a claim about what the runtime
+    /// emits with nothing configured (ADR 0074 § 1's set, ADR 0074 § 2's closed
+    /// CORS, ADR 0097 § 5's waits), and reading a deployment's `nvs.toml` here
+    /// would make the test's subject the deployment. `Trusted::of(&[])` is the
+    /// same direction stated once more — no forwarded header is read, so the
+    /// peer is the peer.
+    ///
+    /// # Errors
+    ///
+    /// The message to report against the test: the address could not be bound,
+    /// its own name could not be read back, or there was no task to spawn the
+    /// accept loop onto.
+    fn bind(
+        unit: &Rc<nvs_codegen::Unit>,
+        routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+    ) -> Result<Self, String> {
+        let wanted = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
+        let mut listener = nvs_host::NvsListener::bind(wanted)
+            .map_err(|error| format!("could not listen on {wanted}: {error}"))?;
+        let bound = listener
+            .local_addr()
+            .map_err(|error| format!("the listener bound no readable address: {error}"))?;
+        let held = Rc::downgrade(unit);
+        let carried = std::sync::Arc::clone(routes);
+        let handler = Rc::new(
+            move |request: nvs_server::Request<nvs_server::Incoming>,
+                  origin: nvs_server::Origin| {
+                answer_on_the_wire(&held, &carried, request, origin)
+            },
+        );
+        let serving = nvs_server::Serving::new(
+            std::sync::Arc::new(nvs_server::Admission::new(&nvs_server::Ceiling::of(
+                &nvs_config::server::Capacity {
+                    configured: u64::MAX,
+                    per_request: None,
+                    budget: None,
+                },
+            ))),
+            std::sync::Arc::new(nvs_server::Secure::of(None)),
+            std::sync::Arc::new(nvs_server::Trusted::of(&[]).0),
+            std::sync::Arc::new(nvs_server::Cors::of(None)),
+        );
+        // A `Draining` of this server's own and deliberately not the process's:
+        // `nvs test` is one process running many listeners one after another,
+        // and a shared bit would be a `503` one test could leave armed for the
+        // next.
+        let draining = nvs_server::Draining::detached();
+        let waits = nvs_config::server::Waits::default();
+        let task = nvs_host::spawn_child(
+            nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink),
+            nvs_runtime::TaskRoot::Request,
+            move |_ctx| {
+                // `ControlFlow::Continue` forever, and the loop is ended by
+                // `Self::stop` cancelling this task instead: the flag is only
+                // read between connections, so a server whose test never
+                // connected would never look at one.
+                let served = nvs_server::serve_on_this_core(
+                    &mut listener,
+                    &handler,
+                    waits,
+                    &serving,
+                    &draining,
+                    // Swallowed rather than printed: a note about a connection
+                    // is not a verdict about a test, and stdout under
+                    // `Format::Json` is the document.
+                    |_note| {},
+                    || std::ops::ControlFlow::Continue(()),
+                );
+                drop(served);
+            },
+        );
+        if task.is_none() {
+            return Err(
+                "there is no task to accept on — the runner's own scheduler is gone".into(),
+            );
+        }
+        Ok(Self {
+            url: format!("http://{bound}"),
+            task,
+        })
+    }
+
+    /// Retires the accept loop once the test that asked for it has joined.
+    ///
+    /// Cancellation and not a flag, for the reason [`Self::bind`] states: the
+    /// loop is parked in `accept` and nothing will connect again, so the only
+    /// thing that reaches it is the scheduler. What the cancel buys is the
+    /// listener's file descriptor going back at the next scheduler pass rather
+    /// than at the end of the run — a suite of a hundred `server: true` tests
+    /// would otherwise hold a hundred sockets.
+    fn stop(self) {
+        if let Some(task) = self.task {
+            nvs_host::cancel_task(task);
+        }
+    }
+}
+
+/// One request off the wire, answered by the program under test — the same
+/// shape [`UnderTest::answer`] builds for § 18's first mechanism, over a
+/// carrier `hyper` filled instead of one a `Core` member wrote.
+///
+/// It is a free function rather than a closure body so that the two halves read
+/// side by side: everything about *which* program answers is the same, and
+/// everything about *what arrived* is the door's.
+fn answer_on_the_wire(
+    held: &std::rc::Weak<nvs_codegen::Unit>,
+    routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+    request: nvs_server::Request<nvs_server::Incoming>,
+    origin: nvs_server::Origin,
+) -> nvs_server::Reply {
+    // Ahead of everything, and asked of `nvs_stdlib::request` for `crate::serve`'s
+    // reason: the roster of verbs has one home and the door does not keep a list.
+    if !nvs_stdlib::request::is_known_verb(request.method().as_str()) {
+        return nvs_server::Reply::not_implemented();
+    }
+    let Some(unit) = held.upgrade() else {
+        // The test that owned this program has ended. There is no program to
+        // run and so nothing claims the path — `Self::bind`'s doc owns why the
+        // handle is weak in the first place.
+        return nvs_server::Reply::not_found();
+    };
+    let mut inbound = nvs_runtime::Inbound::new(
+        request.method().as_str(),
+        request.uri().path(),
+        request.uri().query().unwrap_or(""),
+    );
+    for (name, value) in request.headers() {
+        inbound.push_header(name.as_str(), value.as_bytes());
+    }
+    inbound.set_peer(origin.client(), origin.scheme());
+    nvs_server::trace::take(&mut inbound);
+    // ADR 0102 § 1's one match, taken here for the reason `crate::serve` takes
+    // it here: the request and the unit that will answer it are both in hand,
+    // and no application code has run.
+    nvs_server::route::take(routes, &mut inbound);
+    let (head, incoming) = request.into_parts();
+    let supply = match nvs_server::body::of(&head.headers, incoming) {
+        nvs_server::Arrived::Absent => None,
+        nvs_server::Arrived::TooLarge => return nvs_server::Reply::too_large(),
+        nvs_server::Arrived::Streaming(supply, pull) => {
+            inbound.set_body(pull);
+            Some(supply)
+        }
+    };
+    let carried = std::sync::Arc::clone(routes);
+    let program: nvs_runtime::script::Program =
+        Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
+            unit.install_in(ctx);
+            if !carried.rows().is_empty() {
+                ctx.set_routes(std::sync::Arc::clone(&carried));
+            }
+            let Some(entry) = unit.function(crate::SCRIPT) else {
+                ctx.set_pending("the program under test has no script frame");
+                return nvs_runtime::Value::null();
+            };
+            nvs_runtime::call(entry, ctx, &[]).unwrap_or_else(|_| nvs_runtime::Value::null())
+        });
+    nvs_server::Reply::Run(
+        nvs_host::Isolate::new(
+            program,
+            nvs_runtime::Value::null(),
+            nvs_runtime::host::Output::Capture,
+        )
+        .answering(inbound),
+        supply,
+    )
 }
 
 /// One attempt at one test: a fresh instance of `class`, its `method` called
@@ -1497,6 +1765,39 @@ mod tests {
             vec![
                 ("itReachesTheCompiledTableWithNoSocket", "passed"),
                 ("itAnswersAPathTheTableDoesNotClaim", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_test_with_server_true_gets_an_ephemeral_listener() {
+        // ADR 0079 § 18's second mechanism, and the crate that can assert it is
+        // this one for the first mechanism's reason: a listener needs a checked
+        // program and a runtime context in one scope, and `nvs-test` declares no
+        // dependencies at all.
+        //
+        // Two cases in one fixture, because the claim is that the listener is
+        // the *test's* and not the process's. The first reads its own address,
+        // fetches it over a real socket and asserts what the program wrote came
+        // back with a `200`; the second declares no `server:` and reads `null`,
+        // which a runner that armed the URL anywhere above the isolate — on the
+        // suite's own context, say — would fail while passing the first.
+        // Nothing here names a port: the operating system chose it, which is
+        // what makes the case runnable twice at once.
+        let verdicts = verdicts("ephemeral-listener.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itReachesItsOwnListenerOverTheWire", "passed"),
+                ("itHasNoListenerWithoutTheOption", "passed"),
             ],
             "failures: {:?}",
             verdicts

@@ -1,0 +1,45 @@
+<?nvs
+// ADR 0079 § 18's second mechanism, as the runner sees it: a `#[Test(server:
+// true)]` method is given a real listener on a port the operating system chose,
+// and reaches this same program over the wire.
+//
+// The top level is the entry, so it runs once when the suite is loaded — with
+// no request in front of it — and once per request the listener accepts.
+// `Core\Request::route()` is what tells those apart, throwing where there is no
+// request at all (ADR 0012 § 7); this program declares no `#[Route]`, so a real
+// request matches nothing and still gets an answer, which is ADR 0102 § 1's
+// "nothing here dispatches".
+class Wire {
+    #[Core\Test(server: true)]
+    public function itReachesItsOwnListenerOverTheWire(): void {
+        var $url = Core\Test::serverUrl();
+        Core\Test::assertTrue($url != null);
+        if ($url == null) {
+            return;
+        }
+        // A real socket, a real request line and a real response head — which is
+        // the whole of why § 18 has two mechanisms rather than one.
+        var $answered = Core\Http\Client::get($url);
+        Core\Test::assertEquals($answered->status(), 200);
+        Core\Test::assertEquals($answered->text(), "on the wire");
+    }
+
+    #[Core\Test]
+    public function itHasNoListenerWithoutTheOption(): void {
+        // § 2's boundary, stated on the address: a sibling that asked for no
+        // listener cannot read the port the test above bound, because the URL
+        // is on that test's own context and not on the process.
+        Core\Test::assertNull(Core\Test::serverUrl());
+    }
+}
+
+try {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "on the wire";
+    } else {
+        echo "routed";
+    }
+} catch (RuntimeError $notARequest) {
+    // The suite's own load. Nothing to answer, so nothing is written.
+}

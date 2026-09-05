@@ -715,6 +715,28 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and one predictable
     /// not-taken branch per draw.
     random_state: Option<u64>,
+    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
+    /// § 18's second mechanism, as the one thing a test can observe of it: the
+    /// base URL of the ephemeral listener the runner bound for a
+    /// `#[Test(server: true)]` case, or `None` for every other context there
+    /// has ever been.
+    ///
+    /// **Beside [`Self::fixed_clock`] for that field's own reason** — a test
+    /// declares the world its subject runs in and the isolate is what scopes
+    /// the declaration (§ 2), so the address lives on the child's context and
+    /// dies with it. A `thread_local` would outlive the listener it names and
+    /// answer the next test with a port nothing is bound to.
+    ///
+    /// A `String` and not a `SocketAddr`: what a program does with it is write
+    /// it into a URL, this crate has no URL type, and the scheme is a fact the
+    /// runner knows and the address does not carry (§ 18's listener is `http`,
+    /// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 1
+    /// having dropped the TLS listener). `nvs_stdlib::test`'s `serverUrl` is
+    /// the only reader and `nvs_cli::runner` the only writer.
+    ///
+    /// **What it spends:** three words per request, and the URL itself only in
+    /// the tests that asked for a listener.
+    test_server: Option<String>,
     /// [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4's
     /// scripted answer queue: what the next `Core\Cli` prompts read instead of
     /// a terminal, oldest first, and empty for every context outside a test.

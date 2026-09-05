@@ -1,0 +1,27 @@
+--TEST--
+A `spawn script` isolate reads no listener of its parent's, ADR 0079 § 18's address being the isolate's own — ADR 0006
+--FILE nvs.toml--
+# ADR 0118 § 2: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// ADR 0006's isolate shares compiled code and nothing else, and § 18's address
+// is context rather than code — so a child never inherits one however its
+// parent came by it.
+echo "child=", Core\Debug::render(Core\Test::serverUrl()), "\n";
+--FILE--
+<?nvs
+// Both halves, because the child's `null` alone would read the same for a
+// runner that had simply never armed anything: the parent is asked the same
+// question in the same run, and both answer `null` because neither is a
+// `#[Test(server: true)]`.
+var $job = spawn script "child.nvs" with(output: "capture");
+var $result = await $job;
+echo $result->output;
+echo "parent=", Core\Debug::render(Core\Test::serverUrl()), "\n";
+--EXPECT--
+child=null
+parent=null

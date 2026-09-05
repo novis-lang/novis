@@ -130,6 +130,7 @@ impl Ctx {
             trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
             random_state: None,
+            test_server: None,
             scripted_answers: std::collections::VecDeque::new(),
             captures: Vec::new(),
             content_type: None,
@@ -406,6 +407,26 @@ impl Ctx {
     /// (`nvs_stdlib::time`), and both callers check it there before calling.
     pub fn set_fixed_clock(&mut self, nanos: i128) {
         self.fixed_clock = Some(nanos);
+    }
+
+    /// ADR 0079 § 18's ephemeral listener, as the base URL a test reaches it
+    /// at — `None` for every context no `#[Test(server: true)]` armed, which
+    /// is every context but one. See [`Self::test_server`]'s field docs.
+    #[must_use]
+    pub fn test_server(&self) -> Option<&str> {
+        self.test_server.as_deref()
+    }
+
+    /// Names the listener this test's runner bound, before its program runs.
+    ///
+    /// The one caller is `nvs_cli::runner`, arming a `#[Test(server: true)]`
+    /// isolate on the child's own context — the same place and the same moment
+    /// [`Self::set_fixed_clock`] is called from, and for the same reason. There
+    /// is no way to reach this from a program: the member that reads it answers
+    /// `null` where nothing was armed, so a program cannot invent an address
+    /// nothing is listening on.
+    pub fn set_test_server(&mut self, url: String) {
+        self.test_server = Some(url);
     }
 
     /// ADR 0079 § 12's seeded generator's live state, or `None` for a context

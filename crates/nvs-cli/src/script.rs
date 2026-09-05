@@ -490,6 +490,17 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
         script: Some(nvs_config::tree::CapScript {
             spawn: Some(nvs_config::tree::Setting::Bool(true)),
         }),
+        // And ADR 0058's outbound pair, for the fixture that reaches ADR 0079
+        // § 18's ephemeral listener over the wire. Both halves are needed and
+        // that is the rule rather than an inconvenience: `connect` names the
+        // host, and `internal` is the operator's written exception for § 3's
+        // denied loopback range — a `#[Test(server: true)]` in a real program
+        // grants exactly this pair to reach its own listener, which is why the
+        // helper grants it rather than the runner carving a hole for itself.
+        net: Some(nvs_config::tree::CapNet {
+            connect: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
+            internal: Some(nvs_config::tree::Setting::List(vec!["127.0.0.1".into()])),
+        }),
         ..nvs_config::tree::Capabilities::default()
     });
     let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));

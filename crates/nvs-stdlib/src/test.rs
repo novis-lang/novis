@@ -144,10 +144,25 @@
 //! slice's; a body needs a `nvs_runtime::RequestBody` over held bytes, which
 //! nothing in this crate builds today.
 //!
-//! **`#[Test(server: true)]` is a separate mechanism and is not here.** § 18
-//! justifies the two as answering measurably different questions, and the
-//! second one — a real listener on an ephemeral port, for the cases that need
-//! the wire — is the runner's rather than this class's.
+//! **`#[Test(server: true)]` is a separate mechanism, and this class holds one
+//! word of it.** § 18 justifies the two as answering measurably different
+//! questions; the listener itself is the runner's — `nvs_cli::runner`'s
+//! `TestServer` binds it, serves the program under test on it and retires it
+//! with the test — and what is here is [`serverUrl`](CLASS), the address a test
+//! reads it back at. That direction is why the member answers `null` rather
+//! than throwing: it is an ordinary optional reading in every context, so it
+//! can be asked from anywhere, and the positive half is asserted where a
+//! listener can exist at all (`nvs-cli`'s own
+//! `a_test_with_server_true_gets_an_ephemeral_listener`) rather than by a
+//! `.nvst` case, no case ever being inside a `#[Test]`.
+//!
+//! A test reaching its own listener needs ADR 0058's outbound pair granted —
+//! `net.connect` for the host and `net.internal` for § 3's denied loopback
+//! range — because `Core\Http\Client` is the way a program speaks HTTP and
+//! nothing about a listener being the test's own widens that policy. That is a
+//! real cost of the mechanism rather than an oversight; `Core\Test` handing
+//! back an already-pinned `Core\Http\Target` would remove it, and § 18 does
+//! not decide between the two.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
@@ -313,6 +328,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&ADVANCE_DOC),
         },
         CoreMethod {
+            name: "serverUrl",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `Qual::Neutral` and nullable: the text is the runner's own — the
+            // scheme it chose and the port the operating system handed it — so
+            // nothing a peer wrote is in it, and a context no listener was
+            // armed for has no address rather than an empty one.
+            return_ty: CoreTy::Nullable(&CoreTy::Text(Qual::Neutral)),
+            symbol: "nvs_core_test_server_url",
+            doc: Some(&SERVER_URL_DOC),
+        },
+        CoreMethod {
             name: "scriptAnswers",
             names: &["answers"],
             params: &[CoreTy::Array(&CoreTy::Text(Qual::Neutral))],
@@ -422,6 +450,17 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
             desc: "The moved reading lies outside the representable range, about ±9999 years.",
         },
     ],
+};
+
+/// `Core\Test::serverUrl`'s reference card — ADR 0117.
+const SERVER_URL_DOC: MethodDoc = MethodDoc {
+    short: "The base URL of the listener a `#[Test(server: true)]` case was given — a real socket \
+            on a port the operating system chose, for the cases that genuinely need the wire \
+            rather than an in-process request.",
+    params: &[],
+    ret: "`http://127.0.0.1:<port>` with no trailing slash, so a path appends directly; `null` \
+          anywhere no listener was bound, which is every context but a `server: true` test.",
+    errors: &[],
 };
 
 /// `Core\Test::scriptAnswers`'s reference card — ADR 0117.
@@ -948,12 +987,40 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::serverUrl(): ?string` — ADR 0079 § 18's second mechanism,
+    /// as the one thing a test can observe of it.
+    ///
+    /// **`null` rather than a throw for a context with no listener**, which is
+    /// the opposite of the choice `advance` made one member up, and the
+    /// difference is what the two answer. A clock that was never fixed cannot
+    /// be advanced *at all*, so there is nothing to hand back and the mistake
+    /// is worth naming; an address is an ordinary optional reading, and a `null`
+    /// is what lets the member be asked from anywhere — which is what makes its
+    /// conformance cases readings rather than three spellings of one refusal.
+    /// The positive half needs a listener, so `nvs_cli::runner`'s own
+    /// `a_test_with_server_true_gets_an_ephemeral_listener` is where it is
+    /// asserted; no `.nvst` case is ever inside a `#[Test]`.
+    ///
+    /// Nothing here binds anything: the socket was bound on the parent's side,
+    /// before this isolate existed, and what crossed is the text
+    /// (`nvs_runtime::Ctx::test_server`).
+    fn nvs_core_test_server_url(ctx, args: [0]) {
+        let _ = args;
+        match ctx.test_server() {
+            Some(url) => Ok(Value::str(nvs_runtime::NvsStr::new(url.as_bytes()))),
+            None => Ok(Value::null()),
+        }
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
         "nvs_core_test_script_answers" => (nvs_core_test_script_answers as *const ()).cast(),
+        "nvs_core_test_server_url" => (nvs_core_test_server_url as *const ()).cast(),
         "nvs_core_test_assert_same" => (nvs_core_test_assert_same as *const ()).cast(),
         "nvs_core_test_assert_equals" => (nvs_core_test_assert_equals as *const ()).cast(),
         "nvs_core_test_assert_equals_deep" => {
@@ -1917,9 +1984,9 @@ mod tests {
     /// `advance`, which asserts nothing at all and is the fixed clock's
     /// mutator; ADR 0086 § 4's `scriptAnswers`, which is the same kind of
     /// thing as `advance` — a test declaring the world its subject runs in,
-    /// here the answers its prompts read; and § 18's `request`, which is the
-    /// subject rather than a claim about one, and is the only row that answers
-    /// with a value.
+    /// here the answers its prompts read; and § 18's two, `request` and
+    /// `serverUrl`, which are the subject rather than a claim about one and are
+    /// the only rows that answer with a value.
     ///
     /// Named rather than derived, so that adding a member to this class has to
     /// answer "is this an assertion?" here instead of quietly joining or
@@ -1928,7 +1995,7 @@ mod tests {
         CLASS.methods.iter().filter(|method| {
             !matches!(
                 method.name,
-                "expectFailure" | "advance" | "scriptAnswers" | "request"
+                "expectFailure" | "advance" | "scriptAnswers" | "request" | "serverUrl"
             )
         })
     }
@@ -2057,13 +2124,13 @@ mod tests {
             .expect("§ 5's member is registered");
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // It is one of exactly four rows that assert nothing about a subject —
+        // It is one of exactly five rows that assert nothing about a subject —
         // this, § 12's `advance`, ADR 0086 § 4's `scriptAnswers` and § 18's
-        // `request` — and [`asserting_members`] names all four by hand. This
-        // count is what makes adding a member to this class have to answer "is
-        // it an assertion?": a new row joins § 4's shape sweep unless it is
-        // listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 4);
+        // `request` and `serverUrl` — and [`asserting_members`] names all five
+        // by hand. This count is what makes adding a member to this class have
+        // to answer "is it an assertion?": a new row joins § 4's shape sweep
+        // unless it is listed there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 5);
         assert_eq!(equality_members().count(), 3);
     }
 }

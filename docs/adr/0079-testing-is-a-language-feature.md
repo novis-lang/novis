@@ -674,6 +674,26 @@ wire — that the [0074](0074-http-defaults-safe-and-finite.md) security headers
 chunking and keep-alive behave. Two mechanisms are justified here, unlike the two-clock case § 12 refused,
 because they answer measurably different questions.
 
+```nvs
+Core\Test::serverUrl(): ?string        // `http://127.0.0.1:<port>`, or null where none was bound
+```
+
+**The port is the operating system's and the address is loopback**, so two suites on one machine never
+collide and no test suite ever serves the program under test to a network. The listener is a **sibling** of
+the test's isolate rather than a child of it — § 16 reads leftover work off the test's own task, and a
+server underneath it would be reported as work the test left behind — and it is retired when the test that
+asked for it has joined, so a socket does not outlive its case. Every policy it serves under is the
+**default** one rather than the tree's: what a `server: true` case asserts is what the runtime emits with
+nothing configured, and reading a deployment's `nvs.toml` would make the test's subject the deployment.
+
+The address is a `?string` and not a throw, because a member that answers `null` everywhere else can be
+asked from anywhere. What it costs is that a test reaching its own listener has to be granted
+[0058](0058-outbound-request-policy.md)'s outbound pair — `net.connect` for the host and `net.internal` for
+§ 3's denied loopback range — since `Core\Http\Client` is how a program speaks HTTP and nothing about the
+listener being the test's own widens that policy. Handing back an already-pinned `Core\Http\Target` instead
+would remove the grant; that is left open rather than decided here, the wart being visible and the two
+shapes being one member apart.
+
 ### 19. A test sees `private` members declared in the same file, and nowhere else
 
 A `#[Test]` method may reach `private` and `protected` members of classes declared **in the same file**.
