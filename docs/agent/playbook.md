@@ -5912,6 +5912,22 @@ is why" — is this file.
   then counts what the member is holding, which is how a promise about *memory* — § 4's "does not
   buffer" — is asserted without a server. Check the split really can fail: parking a row with the
   displaced one retained turns the count from `[999]` into all thousand indices.
+- **A `.nvst` case's second `foreach` cannot re-declare the first one's loop-local, and the error
+  points at the *first* declaration rather than at the line you just wrote.** A case is top-level
+  statements, which is one `ScriptFrame` (ADR 0008 § 2), and a block is not a storage scope — so two
+  loops each opening with `var $form = …` is `second declaration`, reported against a line ten above
+  the one under the cursor. Rename the second loop's locals. Nothing about the member under test is
+  wrong, and the tell is that the caret sits on a line the edit did not touch.
+- **A pattern letter the grammar refuses is a shared fixture across three trees and a Rust test, and
+  grepping for the *letter* finds only half of them.** Implementing `G` and `Q` broke six cases that
+  had used one of them as their example of "a letter this subset does not carry":
+  `grep -rn "not a pattern letter"` found four, and the two it missed —
+  `tests/conformance/error/a-core-member-throws-a-named-class.nvst` and
+  `tests/differential/core/time-parse-fills-no-field-the-pattern-did-not-name.nvst` — only ever
+  printed the *class* of the refusal, so the letter was in a variable and the message never appeared
+  in the file. Grep for both the message and the pattern string (`"yyyy-` and `format(\"`) before
+  widening a closed grammar, and pick the replacement letter from the ones the module doc's gap 2
+  still names.
 
 ## Splitting a file that got too big
 
