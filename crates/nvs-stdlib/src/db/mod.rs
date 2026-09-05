@@ -61,6 +61,58 @@
 //! member stays "one identifier in, one identifier out" and cannot be handed
 //! something whose halves it did not each check.
 //!
+//! # A statement's `timeout` is a deadline on the socket
+//!
+//! [ADR 0067](/docs/adr/0067-core-db.md) § 4 gives `query`, `queryAs`,
+//! `execute`, `executeMany` and `stream` a `{timeout?: Duration}`, and says
+//! nothing about what bounds it. There were two candidates and this module is
+//! where the choice is recorded, because it is a property of the implementation
+//! rather than of the surface: **it is a deadline on the connection's socket**,
+//! filed through [`nvs_db::Connection::set_deadline`] exactly where
+//! [`nvs_db::PgConn::connect`]'s handshake deadline already goes.
+//!
+//! The alternative was the server's own `statement_timeout` — a `SET` before the
+//! statement, cancelled after it — and it loses on all three counts that matter
+//! here:
+//!
+//! - **It does not bound the failure a timeout exists for.** A server-side
+//!   cancel is a message the server has to be answering to act on. The wait a
+//!   request has to survive is the one where it is not: a network partition, a
+//!   host that froze, a connection the middle of the network dropped. The socket
+//!   deadline bounds that case and the server-side one is silent through it.
+//! - **It is a second statement on a connection § 4 allows one on**, and a round
+//!   trip per statement to set and another to put back. § 1's cache exists to
+//!   make a statement one round trip; this would make every bounded one three.
+//! - **It is spelled four ways and missing once.** PostgreSQL and MySQL have a
+//!   session variable with different semantics, SQL Server's `LOCK_TIMEOUT`
+//!   bounds something else entirely, and SQLite has none — so the portable
+//!   option would mean four different things and, on one backend, nothing.
+//!
+//! The socket deadline holds on the four drivers with a wire. **SQLite is the
+//! one exception and it is answered rather than excused**: it has no socket, and
+//! the only thing a statement of its waits *for* is the write lock, so its arm
+//! is `sqlite3_busy_timeout` — `nvs_db::sqlite`'s `set_busy_timeout` owns that
+//! reasoning. Either way the promise is the same one: the call answers, one way
+//! or the other, by the instant the caller named.
+//!
+//! Three consequences worth stating where a reader meets them:
+//!
+//! - **The bound is the connection's, not the call's**, so every statement path
+//!   files its own — [`bound_connection`] is the one door, and it files a `None`
+//!   for a call that named no timeout so that a statement cannot inherit the
+//!   bound of the one before it. [`warm_connection`] lifts it again before
+//!   § 13's reset, which is the one exchange no program's clock may bound.
+//! - **A statement that runs out of time throws `IOError` and spends the
+//!   connection.** It was given up on part way through a message, so the wire is
+//!   poisoned by ADR 0132 § 4's own rule and the connection does not rejoin the
+//!   pool. That is the honest cost of the bound and the reference cards say so.
+//! - **On `stream` the deadline bounds the walk**, not the call that opens it:
+//!   it stays filed while the portal is open, so it covers every `advance()` up
+//!   to the last row — which is the wait a streaming caller actually takes.
+//!
+//! ADR 0067 § 11's `slow_query` is the neighbour that is neither of these: it
+//! *reports* a statement that took too long and never stops one.
+//!
 //! # Known gaps
 //!
 //! 1. **An `open` describing an endpoint no block describes still takes the
@@ -193,16 +245,13 @@
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
-//! 6. **No statement member declares a `{timeout?: Duration}`, and `stream`
-//!    declares no `{chunk?: uint}` either.** § 4's options are in the spec
-//!    signatures and are deliberately in none of the registry rows, for one
-//!    reason across all of them: a deadline
-//!    on a statement has to reach the socket the way
-//!    [`nvs_db::PgConn::connect`]'s does, and there is no seam for one on the
-//!    statement path yet; a chunk size has to reach the `Execute` that asks for
-//!    a row count, and this driver's walk asks for one row. An option that
-//!    parsed and did nothing would be worse than its absence, which the compiler
-//!    can at least report.
+//! 6. **`stream` declares no `{chunk?: uint}`.** § 4's other option is in the
+//!    spec signature and deliberately in neither of that member's registry rows:
+//!    a chunk size has to reach the `Execute` that asks for a row count, and this
+//!    driver's walk asks for one row. An option that parsed and did nothing would
+//!    be worse than its absence, which the compiler can at least report. Its
+//!    sibling `{timeout?: Duration}` is no longer here — the section above is
+//!    where that landed and what it decided.
 //! 7. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
