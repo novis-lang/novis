@@ -1145,7 +1145,7 @@ impl ExprTypeTable {
     }
 
     /// Names `label` as the owner of every § 14 row recorded at or after
-    /// `mark` — [`crate::check::check_method`]'s one call, made once the body
+    /// `mark` — `crate::check::check_method`'s one call, made once the body
     /// has been walked.
     ///
     /// Stamped afterwards rather than passed down: the expression walk that

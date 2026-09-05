@@ -1141,7 +1141,7 @@ pub struct InlineSnapshot {
     /// The `Class::method` this call is written inside, or `None` where it is
     /// not inside a method at all.
     ///
-    /// Stamped by [`crate::check::check_method`] once the body has been
+    /// Stamped by `crate::check::check_method` once the body has been
     /// walked, rather than read here: this is an *expression* walk and the
     /// declaration it is inside is not one of the things it is handed. It
     /// narrows the join to the test that produced the mismatch, which is what

@@ -1333,7 +1333,7 @@ impl TestServer {
 }
 
 /// One request off the wire, answered by the program under test — the same
-/// shape [`UnderTest::answer`] builds for § 18's first mechanism, over a
+/// shape `UnderTest::answer` builds for § 18's first mechanism, over a
 /// carrier `hyper` filled instead of one a `Core` member wrote.
 ///
 /// It is a free function rather than a closure body so that the two halves read
