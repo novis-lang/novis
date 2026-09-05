@@ -230,6 +230,24 @@ nvs_runtime::nvs_helper! {
                 return Err(unstreamed(other.driver()));
             }
         }
+        // The block name is the *connection's*, read out of its slot by
+        // [`handle_of`] and borrowed for the length of the call like every value
+        // this crate reads out of an argument — and [`crate::instance::build`]
+        // takes a reference over rather than making one. So the walk retains it
+        // here, where it stops being the caller's and becomes this object's.
+        // Without this the stream's release frees the connection's own name a
+        // second time, which is a heap corruption the program never sees: the
+        // right answer is printed and the process exits 127 with nothing on
+        // stderr.
+        #[expect(
+            unsafe_code,
+            reason = "the receiver's slot keeps its own reference for as long as \
+                      the connection is alive, so the copy parked in this object \
+                      needs one of its own"
+        )]
+        unsafe {
+            statement.block.retain();
+        }
         Ok(crate::instance::build(
             &STREAM,
             [
