@@ -1,0 +1,31 @@
+--TEST--
+`Core\Socket::upgrade` refuses the two entry spellings ADR 0006 § *Decision* forbids, at ADR 0083 § 2's second site and with that ADR's own diagnostic
+--FILE--
+<?nvs
+class Chat {
+    public static function run(string $room): void {}
+}
+
+string $room = "lobby";
+
+// ADR 0006 refuses an `fn` literal because the same literal one keyword away
+// in `spawn worker` *does* capture its enclosing scope, and an isolate shares
+// nothing but compiled code -- so one spelling with two meanings is what the
+// refusal exists to prevent. This one reads `$room`, which is exactly the
+// capture that could not cross.
+Core\Socket::upgrade(fn(): string => $room);
+
+// The other spelling, and the one no rule phrased over *types* could tell from
+// the accepted `Chat::run(...)`: `$entry` holds what that reference produces
+// and has the same type, so what separates them is that the compiler can see
+// the function in one and not in the other.
+callable $entry = Chat::run(...);
+Core\Socket::upgrade($entry);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0802]: a `Core\Socket::upgrade` entry is a path or a static method
+%A
+error[E0802]: a `Core\Socket::upgrade` entry is a path or a static method
+%A
+error: aborting due to 2 errors
