@@ -37,13 +37,13 @@ for (; $b <= 255; $b = $b + 1) {
     int $form = 0;
     int $component = 0;
     try {
-        var $byForm = Core\Uri::decodeFormValue($escape);
+        var $byForm = (Core\Uri::decodeFormValue($escape) as string);
         $form = 1;
     } catch (Throwable $formRefused) {
         $form = 0;
     }
     try {
-        var $byComponent = Core\Uri::decodeComponent($escape);
+        var $byComponent = (Core\Uri::decodeComponent($escape) as string);
         $component = 1;
     } catch (Throwable $componentRefused) {
         $component = 0;
@@ -62,12 +62,12 @@ echo "octets 256, decodeFormValue accepted ", $formAccepted,
 // last escape that is a character on its own and `%80` is the first that is
 // not. `%00` is at the other end of the accepted range and is an ordinary
 // character here, the NUL being a byte a `string` can hold.
-echo "[", Esc::of(127), "] length ", Core\Str::length(Core\Uri::decodeFormValue(Esc::of(127))),
-     ", [", Esc::of(0), "] length ", Core\Str::length(Core\Uri::decodeFormValue(Esc::of(0))), "\n";
+echo "[", Esc::of(127), "] length ", Core\Str::length((Core\Uri::decodeFormValue(Esc::of(127)) as string)),
+     ", [", Esc::of(0), "] length ", Core\Str::length((Core\Uri::decodeFormValue(Esc::of(0)) as string)), "\n";
 try {
     // Bound before the `echo`, which writes its earlier operands before a
     // later one throws.
-    var $high = Core\Uri::decodeFormValue(Esc::of(128));
+    var $high = (Core\Uri::decodeFormValue(Esc::of(128)) as string);
     echo "accepted [", $high, "]\n";
 } catch (Throwable $firstRefused) {
     echo "[", Esc::of(128), "] refused\n";
@@ -87,13 +87,13 @@ for (; $second <= 255; $second = $second + 1) {
     int $pairForm = 0;
     int $pairComponent = 0;
     try {
-        var $pairByForm = Core\Uri::decodeFormValue($sequence);
+        var $pairByForm = (Core\Uri::decodeFormValue($sequence) as string);
         $pairForm = 1;
     } catch (Throwable $pairFormRefused) {
         $pairForm = 0;
     }
     try {
-        var $pairByComponent = Core\Uri::decodeComponent($sequence);
+        var $pairByComponent = (Core\Uri::decodeComponent($sequence) as string);
         $pairComponent = 1;
     } catch (Throwable $pairComponentRefused) {
         $pairComponent = 0;
@@ -108,16 +108,16 @@ echo "after the lead %C3, accepted ", $pairAccepted, " of 256, same verdict ",
 
 // The bound of that second sweep, again from both sides, with the accepted row
 // spelling the character it is for.
-echo "[", Core\Uri::decodeFormValue("%C3%A9"), "] [",
-     Core\Uri::decodeFormValue("%C3%BF"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("%C3%A9") as string), "] [",
+     (Core\Uri::decodeFormValue("%C3%BF") as string), "]\n";
 try {
-    var $ascii = Core\Uri::decodeFormValue("%C3%7F");
+    var $ascii = (Core\Uri::decodeFormValue("%C3%7F") as string);
     echo "accepted [", $ascii, "]\n";
 } catch (Throwable $notContinuation) {
     echo "[%C3%7F] refused\n";
 }
 try {
-    var $lead = Core\Uri::decodeFormValue("%C3%C0");
+    var $lead = (Core\Uri::decodeFormValue("%C3%C0") as string);
     echo "accepted [", $lead, "]\n";
 } catch (Throwable $secondLead) {
     echo "[%C3%C0] refused\n";
@@ -127,7 +127,7 @@ try {
 // from the other end: the stream is decoded whole, so a trailing continuation
 // byte with no lead of its own refuses a pair that was otherwise complete.
 try {
-    var $stray = Core\Uri::decodeFormValue("%C3%A9%A9");
+    var $stray = (Core\Uri::decodeFormValue("%C3%A9%A9") as string);
     echo "accepted [", $stray, "]\n";
 } catch (Throwable $strayContinuation) {
     echo "[%C3%A9%A9] refused\n";

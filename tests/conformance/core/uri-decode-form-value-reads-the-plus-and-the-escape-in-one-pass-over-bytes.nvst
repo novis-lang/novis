@@ -24,10 +24,10 @@ array<string> $digits = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 int $leadingDigit = 0;
 int $trailingDigit = 0;
 foreach ($digits as string $digit) {
-    if (Core\Uri::decodeFormValue("%" . $digit . "+") == "%" . $digit . " ") {
+    if ((Core\Uri::decodeFormValue("%" . $digit . "+") as string) == "%" . $digit . " ") {
         $leadingDigit = $leadingDigit + 1;
     }
-    if (Core\Uri::decodeFormValue("%+" . $digit) == "% " . $digit) {
+    if ((Core\Uri::decodeFormValue("%+" . $digit) as string) == "% " . $digit) {
         $trailingDigit = $trailingDigit + 1;
     }
 }
@@ -40,17 +40,17 @@ echo "hex characters ", Core\Arr::count($digits) as int, ", `%<d>+` is a space "
 // the only difference is the byte the `+` became.
 array<string> $mixed = ["%2+0", "%+41", "a%zz+b"];
 foreach ($mixed as string $row) {
-    echo "[", $row, "] -> form [", Core\Uri::decodeFormValue($row),
-         "] component [", Core\Uri::decodeComponent($row), "]\n";
+    echo "[", $row, "] -> form [", (Core\Uri::decodeFormValue($row) as string),
+         "] component [", (Core\Uri::decodeComponent($row) as string), "]\n";
 }
 
 // One pass, not two: the `+` that `%2B` produces is output, not input, so it is
 // not then read as a space. `%252B` is the same statement one level up — the
 // `%25` becomes a `%` and the `2B` behind it stays the two characters it was,
 // rather than being rescanned as the escape it now spells.
-echo "[", Core\Uri::decodeFormValue("a+%2B+b"), "] [",
-     Core\Uri::decodeFormValue("%252B"), "] [",
-     Core\Uri::decodeFormValue("%2B"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("a+%2B+b") as string), "] [",
+     (Core\Uri::decodeFormValue("%252B") as string), "] [",
+     (Core\Uri::decodeFormValue("%2B") as string), "]\n";
 
 // And the third consequence of the pass being over *bytes*: whatever a `+`
 // becomes, it becomes one octet in the stream that UTF-8 validation then reads.
@@ -62,13 +62,13 @@ int $bothRefused = 0;
 foreach ($split as string $broken) {
     int $refusals = 0;
     try {
-        var $byForm = Core\Uri::decodeFormValue($broken);
+        var $byForm = (Core\Uri::decodeFormValue($broken) as string);
         echo "answered [", $byForm, "]\n";
     } catch (Throwable $formBroke) {
         $refusals = $refusals + 1;
     }
     try {
-        var $byComponent = Core\Uri::decodeComponent($broken);
+        var $byComponent = (Core\Uri::decodeComponent($broken) as string);
         echo "answered [", $byComponent, "]\n";
     } catch (Throwable $componentBroke) {
         $refusals = $refusals + 1;
@@ -78,12 +78,12 @@ foreach ($split as string $broken) {
     }
 }
 echo "split sequences ", Core\Arr::count($split) as int, ", both refused ",
-     $bothRefused, ", unsplit [", Core\Uri::decodeFormValue("%C3%A9"), "]\n";
+     $bothRefused, ", unsplit [", (Core\Uri::decodeFormValue("%C3%A9") as string), "]\n";
 
 // The bound on the other side of that: a `+` *beside* a whole sequence rather
 // than inside it is an ordinary space, so it is the splitting that refuses and
 // not the neighbouring byte.
-echo "[", Core\Uri::decodeFormValue("+%C3%A9+"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("+%C3%A9+") as string), "]\n";
 --EXPECT--
 hex characters 22, `%<d>+` is a space 22, `%+<d>` is a space 22
 [%2+0] -> form [%2 0] component [%2+0]

@@ -29,7 +29,7 @@ for (; $b <= 127; $b = $b + 1) {
         // `decodeComponent` leaves the `/` and the `x` alone, so decoding the
         // whole path is the same question as decoding the segment and needs no
         // member to cut one out.
-        if (Core\Uri::decodeComponent($safe->path()) == "/x" . $c) {
+        if ((Core\Uri::decodeComponent($safe->path()) as string) == "/x" . $c) {
             $readBack = $readBack + 1;
         }
     } catch (Throwable $encodedRefused) {
@@ -65,7 +65,7 @@ foreach ($climbers as string $climber) {
     var $loose = Core\Uri::parse("http://h/a" . $climber . "b");
     var $tight = Core\Uri::parse("http://h/a" . Core\Uri::encodeComponent($climber) . "b");
     echo "[", $climber, "] raw path [", $loose->path(), "] tight path [", $tight->path(),
-         "] decoded [", Core\Uri::decodeComponent($tight->path()), "]\n";
+         "] decoded [", (Core\Uri::decodeComponent($tight->path()) as string), "]\n";
 }
 
 // And the query side of the same sentence, which is the other member's job but

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Uri::decodeComponent` at its two edges: a `%` that does not begin a well-formed escape decodes to itself, and a well-formed escape for an octet no `string` can hold is refused — a lone byte, a truncated sequence, a surrogate and an overlong form alike, which is where this member diverges from PHP's `rawurldecode` — spec § 12, ADR 0009
+`Core\Uri::decodeComponent` at its two edges: a `%` that does not begin a well-formed escape decodes to itself, and a well-formed escape for an octet no `string` can hold is answered as the `bytes` it is and refused only by the `as string` a caller wanting text writes — a lone byte, a truncated sequence, a surrogate and an overlong form alike — spec § 12, ADR 0009 § 3
 --FILE--
 <?nvs
 // The neighbouring cases show this member against its encoder, over every
@@ -8,13 +8,20 @@
 // and it answers *octets*, which a `string` then has to be able to hold. Both
 // edges are named here with the value on each side of them.
 //
+// The second edge moved one member along when the decoders came to answer
+// `bytes` (spec § 12): the octets themselves always have an answer, and it is
+// the `as string` every row below writes that refuses the ones no `string` can
+// hold — ADR 0009 § 3's checked conversion, in exactly the place the member's
+// own throw used to land. What is pinned here is the *bound*, and the bound is
+// where it always was.
+//
 // The first edge is textual and PHP agrees with us on it: an escape needs both
 // digits, so a trailing `%`, a one-digit tail and a non-hex pair are each left
 // exactly as written rather than repaired or refused. `%41` on the other side
 // of that line is the same three characters read as `A`.
 array<string> $textual = ["a%", "a%4", "a%zzb", "%41", "%2541"];
 foreach ($textual as string $row) {
-    echo "[", $row, "] -> [", Core\Uri::decodeComponent($row), "]\n";
+    echo "[", $row, "] -> [", (Core\Uri::decodeComponent($row) as string), "]\n";
 }
 
 // The second edge is the one ADR 0009 draws, and it is a real divergence from
@@ -38,7 +45,7 @@ foreach ($octets as string $bad) {
     try {
         // The call is bound before the `echo`, because `echo` writes its
         // earlier operands before a later one throws.
-        var $read = Core\Uri::decodeComponent($bad);
+        var $read = (Core\Uri::decodeComponent($bad) as string);
         echo "accepted [", $read, "]\n";
     } catch (Throwable $notText) {
         $refused = $refused + 1;
@@ -46,11 +53,12 @@ foreach ($octets as string $bad) {
 }
 echo "tried ", $tried, " refused ", $refused, "\n";
 
-// One of them with its message, since the refusal is this member's own and
-// says which byte of the *decoded* octets is the problem rather than which
-// character of the input.
+// One of them with its message, since the refusal names which byte of the
+// *decoded* octets is the problem rather than which character of the input.
+// It is `bytes as string`'s message now, not this member's: the decoder has
+// nothing left to refuse.
 try {
-    echo Core\Uri::decodeComponent("a%FFb"), "\n";
+    echo (Core\Uri::decodeComponent("a%FFb") as string), "\n";
 } catch (Throwable $lone) {
     echo $lone->message, "\n";
 }
@@ -61,8 +69,8 @@ try {
 // hold — is an ordinary character here, so the refusal above is about UTF-8
 // and nothing else. The NUL is measured rather than echoed, a raw NUL in the
 // expected output being a byte no diff can show.
-echo Core\Uri::decodeComponent("%C3%A9"), " ", Core\Uri::decodeComponent("%E2%82%AC"), " ", Core\Uri::decodeComponent("%F0%9F%92%A9"), "\n";
-echo Core\Str::length(Core\Uri::decodeComponent("%00")), " ", Core\Str::length(Core\Uri::decodeComponent("")), "\n";
+echo (Core\Uri::decodeComponent("%C3%A9") as string), " ", (Core\Uri::decodeComponent("%E2%82%AC") as string), " ", (Core\Uri::decodeComponent("%F0%9F%92%A9") as string), "\n";
+echo Core\Str::length((Core\Uri::decodeComponent("%00") as string)), " ", Core\Str::length((Core\Uri::decodeComponent("") as string)), "\n";
 --EXPECT--
 [a%] -> [a%]
 [a%4] -> [a%4]
@@ -70,6 +78,6 @@ echo Core\Str::length(Core\Uri::decodeComponent("%00")), " ", Core\Str::length(C
 [%41] -> [A]
 [%2541] -> [%41]
 tried 5 refused 5
-Core\Uri::decodeComponent(): the decoded octets holds a byte a `string` cannot — byte 1 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 1
 é € 💩
 1 0

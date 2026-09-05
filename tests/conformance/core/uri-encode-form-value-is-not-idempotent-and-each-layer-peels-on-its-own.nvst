@@ -37,10 +37,10 @@ for (; $b <= 127; $b = $b + 1) {
     // One decode undoes one encode and no more — the layers do not collapse,
     // which is what makes a double encode recoverable rather than merely
     // detectable.
-    if (Core\Uri::decodeFormValue($twice) == $once) {
+    if ((Core\Uri::decodeFormValue($twice) as string) == $once) {
         $peelsOneLayer = $peelsOneLayer + 1;
     }
-    if (Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($twice)) == $c) {
+    if ((Core\Uri::decodeFormValue((Core\Uri::decodeFormValue($twice) as string)) as string) == $c) {
         $twoStepRoundTrip = $twoStepRoundTrip + 1;
     }
 }
@@ -67,9 +67,9 @@ foreach ($witnesses as string $witness) {
 string $typed = "50% off + tax";
 string $doubled = Core\Uri::encodeFormValue(Core\Uri::encodeFormValue($typed));
 echo "[", $doubled, "]\n";
-echo "[", Core\Uri::decodeFormValue($doubled), "]\n";
-echo "[", Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($doubled)), "]\n";
-echo "recovered ", (Core\Uri::decodeFormValue(Core\Uri::decodeFormValue($doubled)) == $typed) as string, "|\n";
+echo "[", (Core\Uri::decodeFormValue($doubled) as string), "]\n";
+echo "[", (Core\Uri::decodeFormValue((Core\Uri::decodeFormValue($doubled) as string)) as string), "]\n";
+echo "recovered ", ((Core\Uri::decodeFormValue((Core\Uri::decodeFormValue($doubled) as string)) as string) == $typed) as string, "|\n";
 --EXPECT--
 bytes 128, encoding twice is a fixed point for 65 and changes 63
 one decode peels one layer 128/128, two decodes recover the byte 128/128

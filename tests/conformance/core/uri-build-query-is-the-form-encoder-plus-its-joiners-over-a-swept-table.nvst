@@ -38,6 +38,25 @@ array<string> $subjects = [
     "a~b*c",
     "-_.",
 ];
+// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// has no encoding for one, so the two whole-array comparisons below run
+// through this walk. It converts leaves and nothing else, so the key order it
+// is asserting is untouched.
+class Shape {
+    public static function textual(array<mixed> $values): array<mixed> {
+        array<mixed> $out = [];
+        foreach ($values as string $key => mixed $value) {
+            ?array<mixed> $nested = $value as ?array<mixed>;
+            if ($nested == null) {
+                $out[$key] = $value as bytes as string;
+            } else {
+                $out[$key] = Shape::textual($nested);
+            }
+        }
+        return $out;
+    }
+}
+
 int $rows = 0;
 int $agrees = 0;
 int $placed = 0;
@@ -51,7 +70,7 @@ foreach ($subjects as string $s) {
     if (Core\Uri::buildQuery(["k" => $s]) == "k=" . Core\Uri::encodeFormValue($s)) {
         $placed = $placed + 1;
     }
-    var $one = Core\Uri::parseQuery(Core\Uri::buildQuery([$s => $s]));
+    var $one = Shape::textual(Core\Uri::parseQuery(Core\Uri::buildQuery([$s => $s])));
     if (($one[$s] ?? "!") == $s) {
         $survives = $survives + 1;
     }
@@ -72,7 +91,7 @@ echo $text, "\n";
 // reads them, so a member that sorted by name would change what a signed
 // request signs. `Core\Json::encode` is how two `array<mixed>` are compared as
 // a whole, key order included.
-echo Core\Json::encode(Core\Uri::parseQuery($text)) == Core\Json::encode($whole) ? "same map, same order\n" : "differs\n";
+echo Core\Json::encode(Shape::textual(Core\Uri::parseQuery($text))) == Core\Json::encode($whole) ? "same map, same order\n" : "differs\n";
 
 // The value side is not `as string`: a `bool` is written as PHP writes it in a
 // query string, and a `null` has no spelling at all so its pair is dropped

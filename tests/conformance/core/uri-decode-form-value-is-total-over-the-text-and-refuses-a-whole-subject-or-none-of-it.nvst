@@ -21,7 +21,7 @@ int $rawByte = 0;
 for (; $rawByte <= 127; $rawByte = $rawByte + 1) {
     string $character = Core\Str::fromCodePoint($rawByte as uint);
     try {
-        var $answer = Core\Uri::decodeFormValue($character);
+        var $answer = (Core\Uri::decodeFormValue($character) as string);
         $rawAnswered = $rawAnswered + 1;
     } catch (Throwable $rawRefused) {
         echo "raw byte ", $rawByte, " refused\n";
@@ -44,15 +44,15 @@ for (; $neighbour <= 127; $neighbour = $neighbour + 1) {
     array<string> $arrangements = ["%" . $byte . "Z", "%Z" . $byte];
     foreach ($arrangements as string $row) {
         try {
-            var $byForm = Core\Uri::decodeFormValue($row);
+            var $byForm = (Core\Uri::decodeFormValue($row) as string);
             $malformedAnswered = $malformedAnswered + 1;
-            if ($byForm != Core\Uri::decodeComponent($row)) {
+            if ($byForm != (Core\Uri::decodeComponent($row) as string)) {
                 $decodersDiffer = $decodersDiffer + 1;
             }
         } catch (Throwable $malformedRefused) {
             echo "malformed [", $row, "] refused\n";
         }
-        if (Core\Uri::decodeComponent($row) == $row) {
+        if ((Core\Uri::decodeComponent($row) as string) == $row) {
             $unchangedByComponent = $unchangedByComponent + 1;
         }
     }
@@ -64,7 +64,7 @@ echo "arrangements 256, answered ", $malformedAnswered,
 // Those two are the `+` in each position, which is the previous sentence's own
 // bound: the one byte the form decoder rewrites is rewritten inside a malformed
 // escape too, so it is not the escape scan that spares it.
-echo "[", Core\Uri::decodeFormValue("%+Z"), "] [", Core\Uri::decodeFormValue("%Z+"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("%+Z") as string), "] [", (Core\Uri::decodeFormValue("%Z+") as string), "]\n";
 
 // Third: where the octets *do* refuse, the refusal is the whole subject. A
 // decoder that wrote as it scanned would answer `head` for the second row and
@@ -77,7 +77,7 @@ array<string> $wellFormed = ["%C3%BFtail", "head%C3%BFtail", "head%C3%BF", "a+b%
 int $refused = 0;
 foreach ($positions as string $bad) {
     try {
-        var $partial = Core\Uri::decodeFormValue($bad);
+        var $partial = (Core\Uri::decodeFormValue($bad) as string);
         echo "answered [", $partial, "]\n";
     } catch (Throwable $wholeRefusal) {
         $refused = $refused + 1;
@@ -86,7 +86,7 @@ foreach ($positions as string $bad) {
 int $accepted = 0;
 foreach ($wellFormed as string $good) {
     try {
-        var $whole = Core\Uri::decodeFormValue($good);
+        var $whole = (Core\Uri::decodeFormValue($good) as string);
         $accepted = $accepted + 1;
     } catch (Throwable $unexpected) {
         echo "unexpectedly refused [", $good, "]\n";
@@ -94,7 +94,7 @@ foreach ($wellFormed as string $good) {
 }
 echo "positions 4, refused ", $refused, ", the same positions well formed, accepted ",
      $accepted, "\n";
-echo "[", Core\Uri::decodeFormValue("a+b%C3%BF+c"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("a+b%C3%BF+c") as string), "]\n";
 --EXPECT--
 raw bytes 128, answered 128
 arrangements 256, answered 256, unchanged by decodeComponent 256, the two decoders differ on 2

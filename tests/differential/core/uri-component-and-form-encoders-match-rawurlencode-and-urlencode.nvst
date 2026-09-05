@@ -36,8 +36,8 @@ foreach ($subjects as string $subject) {
 // over every subject above — so the two conventions differ in what they write
 // and agree on what they mean.
 foreach ($subjects as string $subject) {
-    echo "[", Core\Uri::decodeComponent(Core\Uri::encodeComponent($subject)),
-        "|", Core\Uri::decodeFormValue(Core\Uri::encodeFormValue($subject)), "]\n";
+    echo "[", (Core\Uri::decodeComponent(Core\Uri::encodeComponent($subject)) as string),
+        "|", (Core\Uri::decodeFormValue(Core\Uri::encodeFormValue($subject)) as string), "]\n";
 }
 
 // And the decoders read text they did not write, which is where the `+` splits
@@ -52,7 +52,7 @@ array<string> $encoded = [
 ];
 
 foreach ($encoded as string $subject) {
-    echo "[", Core\Uri::decodeComponent($subject), "|", Core\Uri::decodeFormValue($subject), "]\n";
+    echo "[", (Core\Uri::decodeComponent($subject) as string), "|", (Core\Uri::decodeFormValue($subject) as string), "]\n";
 }
 --ORACLE--
 <?php

@@ -24,13 +24,13 @@ echo $n, "\n";
 // `carries_tainted` reads the tainted arm the atom question cannot see, which
 // is what stops the admission above from laundering by union. The refusal that
 // pins this is `a-union-carrying-tainted-still-refuses-where-the-atom-does`.
-tainted string $decoded = Core\Uri::decodeComponent($chosen);
-echo $decoded, "\n";
+tainted bytes $decoded = Core\Uri::decodeComponent($chosen);
+echo $decoded as string, "\n";
 
 // The union is a property of the value, not of the call: with both arms plain,
 // the same three calls answer exactly what they answer for a bare `string`.
 var $plain = "host.example";
-string $twice = Core\Uri::decodeComponent(Core\Uri::encodeComponent($plain));
+string $twice = Core\Uri::decodeComponent(Core\Uri::encodeComponent($plain)) as string;
 echo $twice, "\n";
 --EXPECT--
 host.example

@@ -32,9 +32,10 @@ echo $component, " ", $formValue, "\n";
 
 // The contrast that makes it a classification rather than a class-wide rule:
 // `Core\Uri::decodeComponent` sits in the same class and is contagious, so its
-// answer carries the qualifier and no plain `string` may be declared for it.
-tainted string $decoded = Core\Uri::decodeComponent($t);
-echo $decoded, "\n";
+// answer carries the qualifier and no unqualified type may be declared for it.
+// Its answer is `bytes` -- spec § 12 -- so the qualifier lands on that.
+tainted bytes $decoded = Core\Uri::decodeComponent($t);
+echo $decoded as string, "\n";
 --EXPECT--
 a\.b c
 y

@@ -19,7 +19,7 @@ string $resolved = Core\IO::within($chosen, "child.txt");
 Core\Uri $uri = Core\Uri::parse($chosen);
 
 // And the contagion the admission implies is really set: `decodeComponent`
-// takes the union, so its answer is `tainted string` and not the `string` its
+// takes the union, so its answer is `tainted bytes` and not the `bytes` its
 // row declares. This is the line that would silently pass if `carries_contagion`
 // asked the atom question about a union.
 string $decoded = Core\Uri::decodeComponent($chosen);
@@ -33,7 +33,7 @@ error[E0401]: expected `string`, found `string|tainted string`
 error[E0401]: expected `string`, found `string|tainted string`
    --> case.nvs:16:33
 %A
-error[E0401]: expected `string`, found `tainted string`
+error[E0401]: expected `string`, found `tainted bytes`
    --> case.nvs:22:19
 %A
 error: aborting due to 3 errors

@@ -23,6 +23,29 @@ array<string> $queries = [
     "a[b][c][d][e]=x",
     "",
 ];
+// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// has no encoding for one, so every comparison of two whole arrays below runs
+// through this walk. It converts leaves and nothing else, so the nesting and
+// the key order — which are what is being compared — are untouched.
+class Shape {
+    public static function of(string $query): string {
+        return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
+    }
+
+    public static function textual(array<mixed> $values): array<mixed> {
+        array<mixed> $out = [];
+        foreach ($values as string $key => mixed $value) {
+            ?array<mixed> $nested = $value as ?array<mixed>;
+            if ($nested == null) {
+                $out[$key] = $value as bytes as string;
+            } else {
+                $out[$key] = Shape::textual($nested);
+            }
+        }
+        return $out;
+    }
+}
+
 int $rows = 0;
 int $stable = 0;
 int $idempotent = 0;
@@ -33,7 +56,7 @@ foreach ($queries as string $q) {
     // `Core\Json::encode` is how two `array<mixed>` are compared as a whole:
     // it renders the nesting and the key order in one string, where reading
     // the arrays element by element would stop at the first level.
-    if (Core\Json::encode(Core\Uri::parseQuery($text)) == Core\Json::encode($once)) {
+    if (Shape::of($text) == Core\Json::encode(Shape::textual($once))) {
         $stable = $stable + 1;
     }
     if (Core\Uri::buildQuery(Core\Uri::parseQuery($text)) == $text) {
@@ -57,7 +80,7 @@ echo Core\Uri::buildQuery(Core\Uri::parseQuery("z=1&m=2&a=3")), "\n";
 // `http_build_query`/`parse_str` pair loses the same key the same way; the
 // wire has one bracket, not two.
 echo Core\Uri::buildQuery(["a[b]" => "v"]), "\n";
-echo Core\Json::encode(Core\Uri::parseQuery(Core\Uri::buildQuery(["a[b]" => "v"]))), "\n";
+echo Shape::of(Core\Uri::buildQuery(["a[b]" => "v"])), "\n";
 
 // The other one: an empty name is written — the pair is a `=` with nothing to
 // its left — and then dropped on the way back, because a pair whose name
@@ -65,7 +88,7 @@ echo Core\Json::encode(Core\Uri::parseQuery(Core\Uri::buildQuery(["a[b]" => "v"]
 // refused: `buildQuery` answers text a reader accepts, and the reader is where
 // the pair goes.
 echo "[", Core\Uri::buildQuery(["" => "v"]), "]\n";
-echo Core\Json::encode(Core\Uri::parseQuery(Core\Uri::buildQuery(["" => "v"]))), "\n";
+echo Shape::of(Core\Uri::buildQuery(["" => "v"])), "\n";
 
 // An empty *value* is not the empty case: it keeps its pair, at every depth,
 // which is what makes the `x=&y` row above round-trip rather than shrink.

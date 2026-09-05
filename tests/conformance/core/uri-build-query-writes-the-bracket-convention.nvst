@@ -7,15 +7,37 @@
 // bracket path, with the indexes spelled out and the structural brackets
 // percent-encoded like any other byte — which is what `http_build_query`
 // writes and what `parseQuery` reads back.
+//
+// `parseQuery` answers a value as `bytes` (spec § 12) and `Core\Json::encode`
+// has no encoding for one, so the round trip below is rendered through this
+// walk. `buildQuery` itself takes the octets straight, which is what keeps the
+// two inverse.
+class Shape {
+    public static function of(string $query): string {
+        return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
+    }
+
+    public static function textual(array<mixed> $values): array<mixed> {
+        array<mixed> $out = [];
+        foreach ($values as string $key => mixed $value) {
+            ?array<mixed> $nested = $value as ?array<mixed>;
+            if ($nested == null) {
+                $out[$key] = $value as bytes as string;
+            } else {
+                $out[$key] = Shape::textual($nested);
+            }
+        }
+        return $out;
+    }
+}
+
 echo Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v")), "\n";
 echo Core\Uri::buildQuery(Core\Uri::parseQuery("a[b][c]=d&a[b][e][]=f")), "\n";
 
 // The round trip is the assertion that matters: not the same text, since a
 // query string has several spellings for one set of parameters, but the same
 // array back.
-echo Core\Json::encode(
-    Core\Uri::parseQuery(Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&c[k]=v")))
-), "\n";
+echo Shape::of(Core\Uri::buildQuery(Core\Uri::parseQuery("a=1&b[]=2&c[k]=v"))), "\n";
 
 // Both halves are form-encoded: a space is `+`, and `+` and `~` are escaped.
 echo Core\Uri::buildQuery(["a b" => "x y", "c~d" => "e+f"]), "\n";

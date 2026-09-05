@@ -4,31 +4,56 @@
 <?nvs
 // docs/spec/01-core-library.md § 12: `a[]=1&a[]=2` builds a list under one
 // key, `a[b]=c` builds a map, and the two nest to any depth. Every value is
-// therefore a `string` *or* a nested array, which is why the row is
+// therefore a `bytes` *or* a nested array, which is why the row is
 // `array<mixed>`; `Core\Json::encode` is what lets a case see the whole shape
 // at once, since an element is `mixed` and cannot be indexed into.
-echo Core\Json::encode(Core\Uri::parseQuery("a=1&b[]=2&b[]=3&c[k]=v")), "\n";
-echo Core\Json::encode(Core\Uri::parseQuery("a[b][c]=d&a[b][e][]=f")), "\n";
+//
+// A `bytes` has no JSON encoding — which encoding its octets are in is a
+// decision, ADR 0009 § 3 — so the walk below converts each leaf on the way,
+// and the octets a leaf can carry are the neighbouring decoder cases' subject
+// rather than this one's. This case is about the *shape*.
+class Shape {
+    public static function of(string $query): string {
+        return Core\Json::encode(Shape::textual(Core\Uri::parseQuery($query)));
+    }
+
+    public static function textual(array<mixed> $values): array<mixed> {
+        array<mixed> $out = [];
+        foreach ($values as string $key => mixed $value) {
+            ?array<mixed> $nested = $value as ?array<mixed>;
+            if ($nested == null) {
+                $out[$key] = $value as bytes as string;
+            } else {
+                $out[$key] = Shape::textual($nested);
+            }
+        }
+        return $out;
+    }
+}
+
+echo Shape::of("a=1&b[]=2&b[]=3&c[k]=v"), "\n";
+echo Shape::of("a[b][c]=d&a[b][e][]=f"), "\n";
 
 // A repeated name without brackets keeps the last value, and a scalar and a
 // list each replace the other — the three rows of PHP's last-write-wins.
-echo Core\Json::encode(Core\Uri::parseQuery("a=1&a=2")), "\n";
-echo Core\Json::encode(Core\Uri::parseQuery("a=1&a[]=2")), "\n";
-echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a=2")), "\n";
+echo Shape::of("a=1&a=2"), "\n";
+echo Shape::of("a=1&a[]=2"), "\n";
+echo Shape::of("a[]=1&a=2"), "\n";
 
 // `[]` takes the next key after the highest integer one already written, which
 // is the counter `nvs_runtime`'s arrays keep and PHP calls nNextFreeElement.
-echo Core\Json::encode(Core\Uri::parseQuery("a[]=1&a[3]=x&a[]=y")), "\n";
+echo Shape::of("a[]=1&a[3]=x&a[]=y"), "\n";
 
 // Both halves of a pair are read with the form decoder: `+` is a space, and
 // brackets a client percent-encoded still name the structure they name.
-echo Core\Json::encode(Core\Uri::parseQuery("a%5Bb%5D=c&d=x+y")), "\n";
+echo Shape::of("a%5Bb%5D=c&d=x+y"), "\n";
 
 // The answer is an ordinary array with ordinary `string` keys, so `Core\Arr`
-// reads it and a top-level scalar converts with `as`.
+// reads it and a top-level value converts with `as` — through `bytes`, which
+// is what the value is.
 var $query = Core\Uri::parseQuery("one=1&two[]=2");
 echo Core\Str::join(Core\Arr::keys($query), ","), "\n";
-echo ($query["one"] as string), "\n";
+echo ($query["one"] as bytes as string), "\n";
 --EXPECT--
 {"a":"1","b":["2","3"],"c":{"k":"v"}}
 {"a":{"b":{"c":"d","e":["f"]}}}

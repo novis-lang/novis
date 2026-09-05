@@ -24,7 +24,7 @@ for (; $code <= 126; $code = $code + 1) {
     $swept = $swept + 1;
 
     // The byte itself, handed to both decoders unescaped.
-    if (Core\Uri::decodeComponent($c) == Core\Uri::decodeFormValue($c)) {
+    if ((Core\Uri::decodeComponent($c) as string) == (Core\Uri::decodeFormValue($c) as string)) {
         $agree = $agree + 1;
     } else {
         $differing = $differing . $c;
@@ -35,10 +35,10 @@ for (; $code <= 126; $code = $code + 1) {
     // means the same thing to both decoders, `%2B` included, which is why a
     // form value can still carry a literal `+`.
     string $escaped = Core\Uri::encodeComponent($c);
-    if (Core\Uri::decodeComponent($escaped) == Core\Uri::decodeFormValue($escaped)) {
+    if ((Core\Uri::decodeComponent($escaped) as string) == (Core\Uri::decodeFormValue($escaped) as string)) {
         $escapedAgree = $escapedAgree + 1;
     }
-    if (Core\Uri::decodeFormValue($escaped) == $c) {
+    if ((Core\Uri::decodeFormValue($escaped) as string) == $c) {
         $escapedRoundTrip = $escapedRoundTrip + 1;
     }
 }
@@ -50,8 +50,8 @@ echo "[", Core\Uri::encodeComponent("+"), "] [", Core\Uri::encodeFormValue(" "),
 // escape to the form decoder too, which is what makes it the right reader for a
 // query string written by something that followed RFC 3986 rather than the form
 // encoding.
-echo "[", Core\Uri::decodeFormValue("a+b%2Bc%20d"), "] [",
-     Core\Uri::decodeComponent("a+b%2Bc%20d"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("a+b%2Bc%20d") as string), "] [",
+     (Core\Uri::decodeComponent("a+b%2Bc%20d") as string), "]\n";
 
 // The twin's other half: a `%` is an escape only when two hex digits follow,
 // and a malformed one decodes to itself rather than throwing or being dropped.
@@ -61,10 +61,10 @@ array<string> $malformed = ["a%", "a%4", "a%zzb", "%", "%%41", "100%"];
 int $sameAsComponent = 0;
 int $unchanged = 0;
 foreach ($malformed as string $row) {
-    if (Core\Uri::decodeFormValue($row) == Core\Uri::decodeComponent($row)) {
+    if ((Core\Uri::decodeFormValue($row) as string) == (Core\Uri::decodeComponent($row) as string)) {
         $sameAsComponent = $sameAsComponent + 1;
     }
-    if (Core\Uri::decodeFormValue($row) == $row) {
+    if ((Core\Uri::decodeFormValue($row) as string) == $row) {
         $unchanged = $unchanged + 1;
     }
 }
@@ -74,7 +74,7 @@ echo "malformed rows ", Core\Arr::count($malformed) as int, ", same as decodeCom
 // Five of those six, not six: `%%41` is the row where a literal `%` is followed
 // by an escape that *is* well formed, so the scan does not give up at the first
 // `%` and resume — it steps one byte and reads the next `%41` as the `A` it is.
-echo "[", Core\Uri::decodeFormValue("%%41"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("%%41") as string), "]\n";
 
 // And the refusals agree too. ADR 0009 makes a `string` UTF-8 by construction,
 // so an escape sequence that is not UTF-8 has nothing to decode *to* — five
@@ -85,12 +85,12 @@ int $bothRefused = 0;
 foreach ($invalid as string $bad) {
     int $refusals = 0;
     try {
-        echo Core\Uri::decodeFormValue($bad), "\n";
+        echo (Core\Uri::decodeFormValue($bad) as string), "\n";
     } catch (Throwable $form) {
         $refusals = $refusals + 1;
     }
     try {
-        echo Core\Uri::decodeComponent($bad), "\n";
+        echo (Core\Uri::decodeComponent($bad) as string), "\n";
     } catch (Throwable $component) {
         $refusals = $refusals + 1;
     }
@@ -100,17 +100,19 @@ foreach ($invalid as string $bad) {
 }
 echo "both refused ", $bothRefused, " of ", Core\Arr::count($invalid) as int, "\n";
 
-// The message names the member that was called, so the two are not literally
-// the same string — this is `decodeFormValue`'s, pinned once.
+// The message is the one `bytes as string` gives, and it is the same for both
+// decoders now: neither member refuses anything, so the refusal a caller
+// wanting text meets belongs to ADR 0009 § 3's conversion rather than to the
+// member. Pinned once, here.
 try {
-    echo Core\Uri::decodeFormValue("%FF"), "\n";
+    echo (Core\Uri::decodeFormValue("%FF") as string), "\n";
 } catch (Throwable $pinned) {
     echo $pinned->message, "\n";
 }
 
 // The accepting side of the same boundary: a well-formed multi-byte sequence
 // decodes to the one character it spells, `+` and all.
-echo "[", Core\Uri::decodeFormValue("caf%C3%A9+au+lait"), "]\n";
+echo "[", (Core\Uri::decodeFormValue("caf%C3%A9+au+lait") as string), "]\n";
 --EXPECT--
 swept 95, raw agreement 94 differing on [+], escaped agreement 95, escaped round trip 95
 [%2B] [+]
@@ -118,5 +120,5 @@ swept 95, raw agreement 94 differing on [+], escaped agreement 95, escaped round
 malformed rows 6, same as decodeComponent 6, decoded to themselves 5
 [%A]
 both refused 5 of 5
-Core\Uri::decodeFormValue(): the decoded octets holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+cannot convert `bytes` to `string`: not well-formed UTF-8 at byte 0
 [café au lait]
