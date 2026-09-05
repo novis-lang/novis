@@ -17,6 +17,7 @@ So this script prints the same kinds of thing, selected by the goal's own `[cont
     the goal's standing decisions                   always -- this is what keeps a run off BLOCKED
     the ground-rule bullets for the named ADRs      [context] rules
     the named ADR sections, sliced live             [context] adrs
+    the named spec sections, sliced live            [context] spec
     the map lines for the named modules             [context] modules
     the convention shapes the goal will write       [context] shapes
     the playbook traps, narrowed twice              [context] playbook, then the item's own paths
@@ -71,6 +72,7 @@ except ModuleNotFoundError:  # Python < 3.11
 ROOT = Path(__file__).resolve().parent.parent
 AGENT = ROOT / "docs" / "agent"
 ADR_DIR = ROOT / "docs" / "adr"
+SPEC_DIR = ROOT / "docs" / "spec"
 
 GOAL_TOML = AGENT / "loop-goal.toml"
 GOAL_MD = AGENT / "loop-goal.md"
@@ -319,7 +321,7 @@ class Manifest:
     rather than everything, because a goal that forgot to name its modules should print a short
     pack and a loud warning, not the whole repository."""
 
-    FIELDS = ("modules", "rules", "adrs", "shapes", "playbook", "plan", "milestones")
+    FIELDS = ("modules", "rules", "adrs", "spec", "shapes", "playbook", "plan", "milestones")
 
     def __init__(self, spec: dict):
         ctx = spec.get("context") or {}
@@ -327,6 +329,7 @@ class Manifest:
         self.modules = list(ctx.get("modules", []))
         self.rules = [str(r) for r in ctx.get("rules", [])]
         self.adrs = [str(a) for a in ctx.get("adrs", [])]
+        self.spec = [str(s) for s in ctx.get("spec", [])]
         self.shapes = list(ctx.get("shapes", []))
         self.playbook = list(ctx.get("playbook", []))
         self.plan = list(ctx.get("plan", ["Open now", "Blocking"]))
@@ -795,6 +798,48 @@ def run_adrs(m: Manifest) -> None:
         emit(body)
 
 
+def spec_path(number: str) -> Path | None:
+    matches = sorted(SPEC_DIR.glob(f"{number}-*.md"))
+    return matches[0] if matches else None
+
+
+def run_spec(m: Manifest) -> None:
+    """The spec sections the goal names, sliced out of `docs/spec/` the way `run_adrs` slices an ADR.
+
+    An entry is a file number and a section -- `"01 §15"`, `"02 §3"` -- because the spec is three
+    numbered files and one of them is 1,200 lines. A whole file is spelled with no section, and it
+    is almost always the wrong thing to ask for.
+
+    This field exists because two consecutive sessions writing differential cases each spent three
+    calls hand-slicing § 1's *Replaces* column, wrote "the pack prints no spec section" in the
+    handoff, and had nowhere to put the fix: `[context]` had no field for it, so the manifest could
+    not be corrected the way a missing module or ADR section is.
+    """
+    if not m.spec:
+        return
+    section("THE SPEC SECTIONS IN SCOPE", "docs/spec/*.md, sliced live -- never a copy")
+    emit("The member rosters and the PHP twins they replace. Same rule as the ADRs above: if you")
+    emit("need a section this did not print, add it to [context] spec rather than slicing it twice.")
+    for entry in m.spec:
+        parts = entry.replace("§", " ").split()
+        if not parts:
+            continue
+        number, wanted = parts[0], " ".join(parts[1:])
+        path = spec_path(number)
+        if path is None:
+            warn(f"[context] spec names {number}, and docs/spec/ has no {number}-*.md")
+            continue
+        text = read(path)
+        body = slice_head(text) if not wanted else slice_section(text, wanted)
+        if body is None:
+            warn(f"{rel(path)} has no section matching {wanted!r} -- it was renamed or renumbered")
+            continue
+        emit()
+        emit(f"---- {rel(path)}" + (f"  §{wanted}" if wanted else "  (In short)"))
+        emit()
+        emit(body)
+
+
 def run_map(m: Manifest) -> None:
     section(
         "THE MAP, SCOPED",
@@ -1202,6 +1247,7 @@ def main() -> int:
     run_standing_decisions()
     run_rules(m)
     run_adrs(m)
+    run_spec(m)
     run_map(m)
     run_named_sections(
         "THE SHAPES YOU ARE ABOUT TO WRITE", CONVENTIONS, m.shapes, "shapes"
