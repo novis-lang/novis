@@ -9013,3 +9013,22 @@ every session. Nothing below was reworded on the way.
   itself the clue. `git log -S "<a flag only that job passes>" -- .github/workflows/ci.yml` finds the
   commit that added the job, and running the failing test *there* settles it in one build — cheapest as
   the first question, not the last.
+- **A test that hands a trust-checked path straight out of `std::env::temp_dir()` passes on Windows and
+  cannot pass on Unix.** `nvs_config::trust::check` reads the path *and its parent*, and a Unix `/tmp` is
+  mode `1777` — so a cache, socket or config directory created one level under the temp dir is refused
+  before the test reaches its own subject, with a `Breach` naming `/tmp` rather than anything the test
+  wrote. Nest two levels: a per-process root under the temp dir, then the directory under test inside it.
+  Windows shows none of this, because its temp dir is per-user.
+- **A `#[cfg(feature = "…")]` module inside a test file is compiled only by the CI leg that turns the
+  feature on.** `perf_guards.rs`'s `wasm_guards` used a helper from its parent without importing it and
+  nothing local ever noticed: `cargo build --all-targets`, `verify.py` and clippy all compile the file
+  with the module cfg'd out. The tell is a compile error from a job whose name mentions the feature, in a
+  file that has been green for months — check the module's own `use` list before suspecting anything else.
+- **A generated file can be current on the machine that wrote it and stale everywhere else.**
+  `docs/novis.md` embeds `nvs meta --json`, which answers for the platform the binary was built on, so
+  `Core\Env::OS` and `Core\Env::EOL` made a Windows-generated file permanently stale on CI while
+  `reference.py --check` passed locally. `--check` says only *stale*, never what differs; the way to see
+  it is to regenerate on the other platform — `wsl.exe -- bash -lc "cd /mnt/d/mwl && python3
+  tools/reference.py --no-examples"` after copying a Linux `nvs` into `target/debug/` — and read the
+  `git diff`. `PLATFORM_VALUES` in that tool is where a newly platform-varying constant gets pinned to
+  one spelling.
