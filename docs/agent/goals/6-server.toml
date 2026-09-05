@@ -4008,15 +4008,29 @@ tests = [
 # that the escapes somebody thought of are refused; this proves the set is closed.
 # ---------------------------------------------------------------------------------------------------
 
+# m7.md's core requirement is filed here rather than under `nvs-server`, and that is not a slip being
+# tidied: ADR 0017's unit table is `crates/nvs-cli/src/script.rs` and there is no other in-memory cache of
+# compiled units in the tree, so `-p nvs-server` could never have run either of these -- that crate's
+# `Cargo.toml` names no crate that compiles a path, because the server is handed a program rather than
+# resolving one. m7.md asks for the claim to be asserted "via a compile counter", which settles it: the
+# test has to be able to see a compile, and only the crate holding the cache can.
+[[check]]
+kind = "cargo-named"
+stage = "9 the claims"
+name = "nvs-cli (the hot-reload claims)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # The number the hot-reload design exists to make true, and the stall it must not buy it with.
+  "ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once",
+  "no_request_stalls_while_the_file_is_compiled",
+]
+
 [[check]]
 kind = "cargo-named"
 stage = "9 the claims"
 name = "nvs-server (the load-bearing assertions)"
 args = ["test", "-p", "nvs-server"]
 tests = [
-  # m7.md's core requirement, and the number the hot-reload design exists to make true.
-  "ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once",
-  "no_request_stalls_while_the_file_is_compiled",
   # Item 25 -- a PARAMETERISATION, not a second suite. If it is two suites, item 2 was not done.
   "the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary",
   # Item 26 -- the governing rule, as a set equality.
