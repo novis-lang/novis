@@ -122,6 +122,7 @@ Conventions the whole file uses:
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Session`](#core-core-session) |  |
 | [`Core\Socket`](#core-core-socket) |  |
+| [`Core\Sse`](#core-core-sse) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -16515,6 +16516,33 @@ Turns this request into a WebSocket connection running `$entry` as a root isolat
 **Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
 **Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request; and a static method entry, which cannot be opened yet.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through.
+
+<a id="core-core-sse"></a>
+### `Core\Sse`
+
+Keywords: upgrade
+
+| Member | Signature |
+|---|---|
+| [`Core\Sse::upgrade`](#core-core-sse-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+
+<a id="core-core-sse-upgrade"></a>
+#### `Core\Sse::upgrade`
+
+```nvs skip
+Core\Sse::upgrade(string $entry, mixed $args = null): void
+```
+
+Answers this request with an event stream running `$entry` as a root isolate — its own arena, its own budget and its own grants, sharing nothing with the request that opened it but the values `$args` copied in.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$entry` | `string` (sink) | What the stream runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Feed::run(...)`. Never a closure — an isolate shares nothing but compiled code, so a capture would cross the boundary the isolate exists to be. |
+| `$args` | `mixed` (default `null`) | The values the stream starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a `secret` may not cross and a `tainted` value stays `tainted` on the other side. |
+
+**Returns** `void` — Nothing. Calling it opens the stream — this is not a response value a handler hands back, because nothing interprets a handler's return.
+
+**Throws** `RuntimeError` — A request no server is answering, which is every command-line program and every `spawn script` child; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request; and a static method entry, which cannot be opened yet.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
