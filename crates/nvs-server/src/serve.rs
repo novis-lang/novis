@@ -3616,6 +3616,591 @@ mod tests {
         );
     }
 
+    /// A handler whose program reads its body to the end and reports what it
+    /// **weighed** rather than what it read: the byte count, the last bytes to
+    /// arrive, and the high-water mark of everything this thread held while the
+    /// body was crossing.
+    ///
+    /// Nothing here accumulates the body, and that is the whole difference from
+    /// [`echo_the_body`], which appends every chunk to a string: a program
+    /// written that way holds the body whole by itself, so the reading it took
+    /// would be its own and never the door's.
+    ///
+    /// `ceiling` is [`Ctx::set_memory_limit`], the way an isolate holding no
+    /// configuration gets the `[limits] memory` a configured request reads from
+    /// its snapshot — and [`Ctx::memory_breach`] afterwards is the same
+    /// arithmetic `nvs_runtime`'s safepoint poll makes, which a hand-written
+    /// program has no safepoint to make for it.
+    fn weigh_the_body(ceiling: usize) -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let mut inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let (head, incoming) = request.into_parts();
+            let supply = match crate::body::of(&head.headers, incoming) {
+                crate::body::Arrived::Streaming(supply, pull) => {
+                    inbound.set_body(pull);
+                    Some(supply)
+                }
+                crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+            };
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                /// The last bytes kept — room for the closing boundary and no
+                /// more, because a program holding the tail of a body this size
+                /// would be answering its own question.
+                const TAIL: usize = 64;
+
+                child.set_memory_limit(ceiling);
+                let base = nvs_runtime::budget::live_bytes();
+                let mut peak = base;
+                let mut carried = 0_usize;
+                let mut tail: Vec<u8> = Vec::new();
+                let mut failed = None;
+                {
+                    let inbound = child
+                        .inbound_mut()
+                        .expect("the isolate ran with no request in front of it");
+                    let body = inbound.body().expect("the request carried no body");
+                    loop {
+                        match body.next_chunk() {
+                            Ok(Some(chunk)) => {
+                                carried += chunk.len();
+                                tail.extend_from_slice(chunk);
+                                if tail.len() > TAIL {
+                                    tail.drain(..tail.len() - TAIL);
+                                }
+                                // Sampled here rather than after the loop: what
+                                // the door holds is at its highest *during* the
+                                // crossing, and a reading taken once the body
+                                // has ended is a reading of nothing.
+                                peak = peak.max(nvs_runtime::budget::live_bytes());
+                            }
+                            Ok(None) => break,
+                            Err(message) => {
+                                failed = Some(message.to_string());
+                                break;
+                            }
+                        }
+                    }
+                }
+                // A breach is a `FATAL` and never a throw — ADR 0020 § 1, which
+                // `Ctx::memory_breach`'s own doc names — so the other arm is
+                // here to be exhaustive rather than because it can happen.
+                let breach = match (failed, child.memory_breach()) {
+                    (Some(message), _) => format!("failed: {message}"),
+                    (None, Some(nvs_runtime::Fault::Fatal(message))) => message.to_string(),
+                    (None, Some(other)) => format!("{other:?}"),
+                    (None, None) => "none".to_owned(),
+                };
+                // `tail` last, because it is the only field carrying bytes the
+                // client chose: everything a case parses is left of it.
+                let said = format!(
+                    "carried={carried} held={held} breach={breach} tail={}",
+                    String::from_utf8_lossy(&tail),
+                    held = peak - base,
+                );
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
+        })
+    }
+
+    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+    /// load-bearing case, in M7's own words: a multipart body far larger than
+    /// any in-memory bound is received **in full at bounded resident memory**,
+    /// asserted against a high-water mark rather than against the request
+    /// merely succeeding.
+    ///
+    /// **The high-water mark is the case.** A door that read the whole 32 MiB
+    /// into one buffer and handed it over answers `200` with the same byte
+    /// count, so every assertion but the peak is one a buffering server passes.
+    /// What is sampled is [`nvs_runtime::budget::live_bytes`] *inside the pull
+    /// loop* — the same reading
+    /// [`the_upgrading_requests_arena_is_released_while_the_connection_is_open`]
+    /// takes, which is per thread and so counts `hyper`'s own read buffer
+    /// beside the isolate's arena. Both halves of
+    /// [`crate::body`]'s cell are on this one thread by construction, so
+    /// nothing the crossing holds is outside the number.
+    ///
+    /// **The `[limits]` ceiling is the second half, and it is the one an
+    /// operator writes.** The request is held to 4 MiB and receives 32 MiB
+    /// inside it: [`Ctx::memory_breach`] is what a configured request's
+    /// safepoint poll would have raised, and it stays `None`.
+    ///
+    /// **The body is a real multipart message and the parse is deliberately not
+    /// here.** `nvs-stdlib` is not a dependency of this crate, so
+    /// `Core\Request::files()` cannot be reached from a `-p nvs-server` test at
+    /// all; what this crate owns is the crossing, and what the shape buys is
+    /// that the bytes asserted at the end are the closing boundary rather than
+    /// a hundredth megabyte of filler. The parse's own bounded-memory case
+    /// belongs beside `nvs_stdlib::multipart`.
+    #[test]
+    fn a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory() {
+        /// The file part's payload — far past both the ceiling below and
+        /// anything `hyper` buffers, so a door that held the body whole crosses
+        /// the bound by an order of magnitude rather than by a margin.
+        const PAYLOAD: usize = 32 << 20;
+        /// One `write_all` of the client's. Nothing depends on the size: the
+        /// door reads what the wire gives it, and this only keeps the client
+        /// from building 32 MiB of its own to send.
+        const BLOCK: usize = 64 * 1024;
+        /// The request's `[limits] memory`, roomy in absolute terms and a
+        /// thirty-second of the body.
+        const CEILING: usize = 4 << 20;
+        /// What the crossing may hold at its peak. Measured at **90 KiB** here
+        /// — a 371st of the body — and the bound is far above that on purpose:
+        /// `hyper`'s h1 read buffer is the largest thing inside the reading and
+        /// its own ceiling is 400 KiB, so a platform whose reads fill it, and a
+        /// realloc holding both halves while it grows, must stay inside a bound
+        /// this case is not otherwise about. It is still a sixteenth of the
+        /// body, which is the claim.
+        const BOUND: isize = 2 << 20;
+
+        let boundary = "novis-multipart-boundary";
+        let opening = format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; \
+             filename=\"big.bin\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+        );
+        let closing = format!("\r\n--{boundary}--\r\n");
+        let length = opening.len() + PAYLOAD + closing.len();
+
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let sent = closing.clone();
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    format!(
+                        "POST /upload HTTP/1.1\r\nHost: localhost\r\n\
+                         Content-Type: multipart/form-data; boundary={boundary}\r\n\
+                         Content-Length: {length}\r\nConnection: close\r\n\r\n{opening}"
+                    )
+                    .as_bytes(),
+                )
+                .expect("the write failed");
+            let block = vec![b'n'; BLOCK];
+            for _ in 0..PAYLOAD / BLOCK {
+                socket.write_all(&block).expect("a payload write failed");
+            }
+            socket.write_all(sent.as_bytes()).expect("the tail failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let handler = weigh_the_body(CEILING);
+        let answer = served_by(listener, &handler, client);
+
+        assert!(
+            answer.contains(&format!("carried={length}")),
+            "the body did not reach the program in full: {} bytes were sent",
+            length
+        );
+        assert!(
+            answer.ends_with(&closing),
+            "the bytes the program saw last were not the closing boundary: {answer}"
+        );
+        assert!(
+            answer.contains("breach=none"),
+            "receiving the body crossed the request's own memory ceiling: {answer}"
+        );
+
+        let held: isize = answer
+            .split("held=")
+            .nth(1)
+            .and_then(|rest| rest.split(' ').next())
+            .expect("the program reported no high-water mark")
+            .parse()
+            .expect("the high-water mark was not a number");
+        assert!(
+            held <= BOUND,
+            "the crossing held {held} bytes at its peak while carrying {length}, \
+             which is past the {BOUND} this body is streamed inside"
+        );
+    }
+
+    /// One row of M7's state-bleed suite: a kind of state a run can leave
+    /// behind, and what the run after it can see of it.
+    ///
+    /// The two halves are `fn` pointers rather than closures on purpose — a row
+    /// that captured anything would be able to carry the state itself, and the
+    /// suite would then be asserting its own fixture.
+    struct Bleed {
+        /// What is being asked about, and the left half of the answer line.
+        what: &'static str,
+        /// Run in the first run — the one that must leave no trace.
+        plant: fn(&mut Ctx),
+        /// Run in the second. [`NOTHING`] is the only passing answer, and
+        /// anything else is reported verbatim because *what* bled says more
+        /// than a bool does.
+        probe: fn(&mut Ctx) -> String,
+    }
+
+    /// The marker the suite plants, distinctive enough that finding it anywhere
+    /// in the second run's answer is itself the failure.
+    const BLED: &str = "bled-c0ffee";
+
+    /// What the planting run leaves in its own response buffer — [`BLED`] plus
+    /// a suffix, so a client reading until the first run's *body* cannot stop
+    /// on the header carrying the same marker.
+    const BLED_OUTPUT: &str = "bled-c0ffee-output";
+
+    /// The only passing answer, for every row and both boundaries.
+    const NOTHING: &str = "nothing";
+
+    /// M7's state-bleed rows: the per-request state a program can reach, one
+    /// row per kind, each planted by a run that then ends.
+    ///
+    /// **Memory is deliberately not a row here.** A run's arena is the one
+    /// piece of state a child isolate shares by design —
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s "spends its
+    /// parent's budget" — so a row asserting a fresh reading would fail the
+    /// isolate arm for obeying the ADR. What must not survive is the *finished*
+    /// run's arena, and that is
+    /// [`the_upgrading_requests_arena_is_released_while_the_connection_is_open`]
+    /// beside
+    /// [`a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory`].
+    const SUITE: &[Bleed] = &[
+        Bleed {
+            what: "the request carrier",
+            // Planted by the door rather than by the run: a program cannot put
+            // a query or a header on its own carrier, which is exactly what
+            // makes this the row a shared `Inbound` would fail.
+            plant: |_run| {},
+            probe: |run| {
+                let Some(inbound) = run.inbound() else {
+                    return NOTHING.to_owned();
+                };
+                let mut seen = String::new();
+                if inbound.path().contains(BLED) {
+                    seen.push_str(" path");
+                }
+                if inbound.query().contains(BLED) {
+                    seen.push_str(" query");
+                }
+                if inbound
+                    .headers()
+                    .any(|(_name, value)| String::from_utf8_lossy(value).contains(BLED))
+                {
+                    seen.push_str(" header");
+                }
+                if seen.is_empty() {
+                    NOTHING.to_owned()
+                } else {
+                    format!("the first run's{seen}")
+                }
+            },
+        },
+        Bleed {
+            what: "the request body",
+            // Read to the end rather than left: `serve_connection`'s docs say a
+            // body no program reads is never drained, so a planting run that
+            // ignored it would leave the *wire* dirty and the next request on
+            // this connection would never be framed at all — a different
+            // failure wearing this one's clothes.
+            plant: |run| {
+                let Some(inbound) = run.inbound_mut() else {
+                    return;
+                };
+                let Some(body) = inbound.body() else {
+                    return;
+                };
+                while let Ok(Some(_chunk)) = body.next_chunk() {}
+            },
+            probe: |run| {
+                let Some(inbound) = run.inbound_mut() else {
+                    return NOTHING.to_owned();
+                };
+                if !inbound.has_body() {
+                    return NOTHING.to_owned();
+                }
+                let mut carried = 0_usize;
+                if let Some(body) = inbound.body() {
+                    while let Ok(Some(chunk)) = body.next_chunk() {
+                        carried += chunk.len();
+                    }
+                }
+                format!("a carrier holding one, with {carried} byte(s) still to read")
+            },
+        },
+        Bleed {
+            what: "the declared response head",
+            plant: |run| {
+                run.declare_status(418);
+                run.declare_content_type("text/x-bled");
+                run.declare_header("x-bled", BLED);
+            },
+            probe: |run| {
+                let mut seen = String::new();
+                if let Some(status) = run.take_status() {
+                    seen.push_str(&format!(" status {status}"));
+                }
+                if let Some(media) = run.take_content_type() {
+                    seen.push_str(&format!(" type {media}"));
+                }
+                // Counted rather than printed: `DeclaredHeader` is the door's
+                // shape and this row is about how many crossed, not which.
+                match run.take_headers().len() {
+                    0 => {}
+                    headers => seen.push_str(&format!(" {headers} header(s)")),
+                }
+                if seen.is_empty() {
+                    NOTHING.to_owned()
+                } else {
+                    format!("the first run's{seen}")
+                }
+            },
+        },
+        Bleed {
+            what: "the response buffer",
+            plant: |run| {
+                run.write_output(BLED_OUTPUT.as_bytes()).expect("a buffer");
+            },
+            probe: |run| match run.take_buffered_output() {
+                Some(bytes) if !bytes.is_empty() => format!("{} byte(s) of it", bytes.len()),
+                _ => NOTHING.to_owned(),
+            },
+        },
+    ];
+
+    /// Every row's `plant`, in order — the whole of what the first run does.
+    fn plant_the_suite(run: &mut Ctx) {
+        for row in SUITE {
+            (row.plant)(run);
+        }
+    }
+
+    /// Every row's `probe`, one answer line each, in the same order.
+    fn probe_the_suite(run: &mut Ctx) -> String {
+        let mut said = String::new();
+        for row in SUITE {
+            let answer = (row.probe)(run);
+            said.push_str(&format!("{}: {answer}\n", row.what));
+        }
+        said
+    }
+
+    /// The request the planting run is given: the marker in the query, in a
+    /// header and in a body, which is the state no program could plant for
+    /// itself. Shared by both arms, so the two differ only in what runs second.
+    fn planting_request() -> String {
+        format!(
+            "POST /bleed?leak={BLED} HTTP/1.1\r\nHost: localhost\r\nX-Leak: {BLED}\r\n\
+             Content-Length: {}\r\n\r\n{BLED}",
+            BLED.len()
+        )
+    }
+
+    /// The carrier and the connection's half of the body, built the one way
+    /// every handler in this module builds them.
+    fn carrying(request: Request<Incoming>) -> (nvs_runtime::Inbound, Option<Supply>) {
+        let mut inbound = nvs_runtime::Inbound::new(
+            request.method().as_str(),
+            request.uri().path(),
+            request.uri().query().unwrap_or(""),
+        );
+        let (head, incoming) = request.into_parts();
+        for (name, value) in &head.headers {
+            inbound.push_header(name.as_str(), value.as_bytes());
+        }
+        let supply = match crate::body::of(&head.headers, incoming) {
+            crate::body::Arrived::Streaming(supply, pull) => {
+                inbound.set_body(pull);
+                Some(supply)
+            }
+            crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+        };
+        (inbound, supply)
+    }
+
+    /// The suite across a **request** boundary: the planting run is one
+    /// request, the probing run is the next one down the same connection.
+    ///
+    /// Returns the second response, whose body is the answer lines.
+    fn across_a_request_boundary() -> String {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(planting_request().as_bytes())
+                .expect("the write failed");
+            // Until the planting run's own body, so nothing of the first
+            // response is still on the socket when the second is asked for.
+            let mut planted = String::new();
+            read_until(&mut socket, BLED_OUTPUT, &mut planted);
+            socket
+                .write_all(b"GET /clean HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the second write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let served = Rc::new(Cell::new(0_usize));
+        let handler = Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying(request);
+            let first = served.get() == 0;
+            served.set(served.get() + 1);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                if first {
+                    plant_the_suite(child);
+                } else {
+                    let said = probe_the_suite(child);
+                    child.write_output(said.as_bytes()).expect("a buffer");
+                }
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
+        });
+        served_by(listener, &handler, client)
+    }
+
+    /// The same suite across an **isolate** boundary: the planting run is the
+    /// request, and the probing run is a child [`Isolate`] it starts before it
+    /// ends — [ADR 0006](/docs/adr/0006-isolated-script-execution.md)'s
+    /// `spawn script`, which is the same type the door built the request from.
+    ///
+    /// Returns the response, whose body is the child's answer lines and
+    /// nothing else.
+    fn across_an_isolate_boundary() -> String {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            let planting = planting_request().replace("\r\n\r\n", "\r\nConnection: close\r\n\r\n");
+            socket
+                .write_all(planting.as_bytes())
+                .expect("the write failed");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            answer
+        });
+
+        let handler = Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let (inbound, supply) = carrying(request);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                plant_the_suite(child);
+                let probing: Program = Box::new(|inner: &mut Ctx, _args| {
+                    let said = probe_the_suite(inner);
+                    inner.write_output(said.as_bytes()).expect("a buffer");
+                    Value::null()
+                });
+                let done = Isolate::new(probing, Value::null(), Output::Capture)
+                    .run(child)
+                    .expect("the child isolate refused an argument it was not given");
+                // The bytes this run planted are its own and were never a
+                // bleed. Dropping them is what leaves both arms' responses
+                // carrying the answer lines alone.
+                let _planted = child.take_buffered_output();
+                child.write_output(&done.output).expect("a buffer");
+                Value::null()
+            });
+            Reply::Run(
+                Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                supply,
+            )
+        });
+        served_by(listener, &handler, client)
+    }
+
+    /// The answer lines of a response, which is its body: one line per row.
+    fn answer_lines(answer: &str) -> &str {
+        answer
+            .split_once("\r\n\r\n")
+            .map(|(_head, body)| body)
+            .unwrap_or_else(|| panic!("the response had no body at all: {answer}"))
+    }
+
+    /// M7's acceptance paragraph, its second clause: **a state-bleed suite
+    /// proves nothing leaks between requests, and the same suite runs across an
+    /// isolate boundary.**
+    ///
+    /// **It is one suite run twice, and the plan says so in the same breath**:
+    /// "which the shared `Isolate` makes a parameterisation rather than a
+    /// second suite". [`SUITE`] is the rows; the two arms differ only in what
+    /// the second run *is* — the next request on the connection, or a child
+    /// isolate the request starts before it ends. Both runs are the same
+    /// [`Isolate`] type either way, which is the property being spent: a second
+    /// isolation path would make one of these arms say nothing about the other.
+    ///
+    /// **Every row answers a string rather than a bool**, so a failure names
+    /// what crossed. And the count is asserted beside the answers, because a
+    /// row that silently stopped running would otherwise pass by not
+    /// contradicting anything — the row table is the assertion, not the four
+    /// lines a reader can see.
+    ///
+    /// **The first run's marker is on the wire, not in the fixture.** Its
+    /// query, its header and its body all carry [`BLED`], which is state the
+    /// door builds and hands over; a run that could only plant what a program
+    /// can reach would leave the carrier — the thing a request-scoped design
+    /// is most likely to share — untested.
+    #[test]
+    fn the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary() {
+        for (boundary, answer) in [
+            (
+                "the next request on the connection",
+                across_a_request_boundary(),
+            ),
+            (
+                "a child isolate inside the request",
+                across_an_isolate_boundary(),
+            ),
+        ] {
+            let lines = answer_lines(&answer);
+            assert_eq!(
+                lines.lines().count(),
+                SUITE.len(),
+                "{boundary}: {} rows ran, and the suite has {}: {lines}",
+                lines.lines().count(),
+                SUITE.len()
+            );
+            // Collected rather than asserted row by row, so a failure reports
+            // every row that bled instead of only the first one in the table.
+            let bled: Vec<&str> = SUITE
+                .iter()
+                .filter(|row| {
+                    let clean = format!("{}: {NOTHING}", row.what);
+                    !lines.lines().any(|line| line == clean)
+                })
+                .map(|row| row.what)
+                .collect();
+            assert!(
+                bled.is_empty(),
+                "{boundary}: {} bled across it, and the answers were:\n{lines}",
+                bled.join(", ")
+            );
+        }
+    }
+
     /// A handler whose program says which sink it is writing through, so the
     /// response body *is* the carrier's class name.
     fn echo_the_sink() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
