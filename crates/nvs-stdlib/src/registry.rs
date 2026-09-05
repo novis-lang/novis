@@ -1469,6 +1469,9 @@ pub const CLASSES: &[CoreClass] = &[
     // member answers `void` where the ADR writes a returned response, and why
     // three of § 2's four options are absent rather than accepted.
     crate::socket::CLASS,
+    // ADR 0083 § 3's message, immediately after the class whose `receive`
+    // is the only thing that produces one.
+    crate::socket::MESSAGE,
     // ADR 0083 § 5, and beside `Core\Socket` because the two are one model with
     // two doors: the same root isolate, reached through the cell the hand-over
     // needs. [`crate::sse`] owns why that is a second cell rather than a second
@@ -4102,8 +4105,23 @@ mod tests {
     /// thing it answers with. Two have left this list, both the same way:
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
+    ///
+    /// The other exception is the mirror image, and there is exactly one: a
+    /// class with members and **no slots**, because its receiver's whole state
+    /// is the *context*'s rather than the object's. `Core\Socket` is it — ADR
+    /// 0083 § 1 gives a connection isolate one peer and § 3 makes `current()`
+    /// a handle onto it, so the socket and the topic queue are
+    /// `nvs_runtime::Ctx` fields that outlive every value a program makes from
+    /// them. A slot holding a copy of any of that would be a second owner of a
+    /// descriptor, which is the one thing [`crate::instance`]'s first decision
+    /// refuses. This list may only grow for that same reason — a class here
+    /// has to be able to say which context field is its state.
     #[test]
     fn a_class_with_slots_has_instance_members_and_the_reverse() {
+        /// A class whose state is its context's, so it has members and no
+        /// slots — the doc above owns why there is exactly one.
+        const CONTEXTUAL: &[&str] = &[crate::socket::NAME];
+
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",
             nvs_runtime::CARRIER_CLI_TEXT,
@@ -4125,6 +4143,14 @@ mod tests {
                 assert!(
                     !class.slots.is_empty() && class.instance.is_empty(),
                     "{} is listed as a handle but is not one",
+                    class.name
+                );
+                continue;
+            }
+            if CONTEXTUAL.contains(&class.name) {
+                assert!(
+                    class.slots.is_empty() && !class.instance.is_empty(),
+                    "{} is listed as contextual but is not one",
                     class.name
                 );
                 continue;

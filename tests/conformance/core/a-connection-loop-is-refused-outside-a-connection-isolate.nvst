@@ -1,0 +1,48 @@
+--TEST--
+ADR 0083 § 3's connection loop compiles as written, and `Core\Socket::current()` is the one place a program that is not a connection isolate is refused — ADR 0083 §§ 1, 3
+--FILE--
+<?nvs
+// § 1 gives a connection its own root isolate and moves the socket into it, so
+// the peer belongs to the isolate and not to any value a program holds. § 3's
+// script reads it back through `current()`, which is therefore the one member
+// that can tell a connection from everything else: an ordinary request, a
+// `spawn script` child and this command-line run all reach the same refusal,
+// because none of them was handed a socket.
+//
+// The loop below is § 3's, written out so that its *shape* is pinned by a case
+// that can run anywhere -- `receive()` answers one message from either source,
+// `topic()` is what tells a bus delivery from a peer frame, and `text()`,
+// `bytes()` and `value()` are what each of the two kinds carries.
+class Chat {
+    public static function describe(Core\Socket\Message $msg): string {
+        if ($msg->topic() != null) {
+            return "a delivery";
+        }
+        if ($msg->value() != null) {
+            return "carrying a value";
+        }
+        if ($msg->text() != null) {
+            return "a text frame";
+        }
+        if ($msg->bytes() != null) {
+            return "a binary frame";
+        }
+        return "an empty frame";
+    }
+}
+
+try {
+    var $conn = Core\Socket::current();
+    var $msg = $conn->receive();
+    while ($msg != null) {
+        echo Chat::describe($msg), "\n";
+        $conn->send("ack");
+        $conn->sendBytes("ack" as bytes);
+        $msg = $conn->receive();
+    }
+    echo "the peer closed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+`Core\Socket::current` needs a connection and this program is not one: only a script `Core\Socket::upgrade` opened runs inside a connection isolate

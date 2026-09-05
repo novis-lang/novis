@@ -5524,6 +5524,15 @@ is why" — is this file.
   because the `ResolveError::Refused` arm is eight lines further down. Put the comment on the
   arm. The other half worth knowing: the gate names the message prefix rather than the line, so
   two arms formatting the same prefix are one entry and go green together.
+- **A `.nvst` case cannot annotate a `var` and cannot declare a bare function**, and both failures
+  read as parser noise rather than as the rule they are. `var $msg: ?Core\Socket\Message = …`
+  produces five `E0101`/`E0102`s pointing at the colon, because `var` infers from its initializer
+  and there is no annotation slot at all; a top-level `function describe(…)` is `E0215` ("a
+  function must be a method", ADR 0011 § 1). So a case that needs to *name* a `Core` class — which
+  is what `Attribution::holders` in `crates/nvs-stdlib/tests/corpus/mod.rs` reads to attribute an
+  `->member(` call to a class — names it in a `public static function`'s parameter list inside a
+  `class` block. That is also the cheapest way to get a case's arrows counted against a class no
+  member can produce a value of yet.
 
 ## Splitting a file that got too big
 
@@ -7755,6 +7764,18 @@ sibling in the same namespace unqualified.
   (`proto::h1::dispatch`'s `in_flight: Pin<Box<Option<S::Future>>>`), so the `!Unpin` `async` block
   the service returns never makes the connection `!Unpin`. Reading those two lines of `hyper` first
   is cheaper than believing the `Send` bound is a fact about upgrades.
+- **A `CoreTy::Union` parameter carries no qualifier classification, so a text-like union is a
+  `tainted`-refusing sink by accident.** `Core\Socket::send` was first written
+  `params: &[CoreTy::Union(&[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)])]`, which
+  reads as "either payload kind, neither classified as a sink" and compiles and passes every
+  registry gate. It then refused ADR 0083 § 3's own loop: `CoreTy::classification` answers `Some`
+  only for `Text`/`Blob`/`SecretBlob`/`Entry`, so a union answers `None`, and
+  `nvs_types::expr::quals::admits_tainted_argument` maps `None` to `false` exactly as it does a
+  declared sink — `expected string|bytes, found tainted string`, with nothing in the message about
+  qualifiers. The repair is two classified parameters (`send`/`sendBytes`) rather than one union,
+  and the general shape is that a `Qual` lives on a *leaf* variant: any wrapper — a union today,
+  anything nested tomorrow — silently drops the classification the row thought it wrote. The tell
+  is a refusal naming a qualified type at a parameter whose row spells `Qual::Neutral`.
 
 ## Divergences and refusals already pinned
 

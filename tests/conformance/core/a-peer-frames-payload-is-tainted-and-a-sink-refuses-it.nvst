@@ -1,0 +1,52 @@
+--TEST--
+What a peer sent arrives `tainted`, so it reaches no sink without laundering while `Core\Socket`'s own two sends still forward it — ADR 0083 § 3, ADR 0024 § 3
+--FILE--
+<?nvs
+// § 3 marks a received frame's payload `tainted`: it is untrusted input off a
+// network, exactly like a request body, and `Core\Validate` is the only way to
+// launder it. What that costs is asserted here on both sides of one value, so
+// a reader can tell the qualifier is on the payload rather than on the member
+// that answered it.
+//
+// Forwarding it is accepted -- a frame is not an instruction on this side of
+// the wire, so both sends classify their payload neutrally and § 3's own loop
+// can hand back what the peer sent. Reaching a path with it is refused,
+// because a path *is* an instruction (ADR 0088 § 1), and the expression is the
+// same one in both places.
+class Chat {
+    public static function relay(Core\Socket $conn, Core\Socket\Message $msg): void {
+        if ($msg->topic() != null || $msg->value() != null) {
+            return;
+        }
+        var $binary = $msg->bytes();
+        if ($binary != null) {
+            $conn->sendBytes($binary);
+            return;
+        }
+        var $payload = $msg->text();
+        if ($payload != null) {
+            $conn->send($payload);
+            Core\IO::read($payload);
+        }
+    }
+}
+
+try {
+    var $conn = Core\Socket::current();
+    var $msg = $conn->receive();
+    if ($msg != null) {
+        Chat::relay($conn, $msg);
+    }
+} catch (LogicError $refused) {
+    echo "unreachable\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:26:27
+   |
+26 |             Core\IO::read($payload);
+   |                           ^^^^^^^^ this is `tainted string`
+
+error: aborting due to 1 error

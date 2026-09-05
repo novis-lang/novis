@@ -249,7 +249,15 @@ fn descriptors() -> &'static ClassTable {
             .iter()
             .chain(INTERNAL_CLASSES.iter().copied())
         {
-            if class.slots.is_empty() {
+            // A **namespace** class is what is skipped here, and declaring no
+            // slots is not on its own what makes one: `Core\Socket` has
+            // instance members and no slots, because a connection's whole
+            // state is its isolate's — the peer and the topic queue are
+            // [`nvs_runtime::Ctx`] fields, so the receiver is a handle and
+            // there is nothing for it to carry. The question is whether the
+            // class has instances at all, which is either roster being
+            // non-empty.
+            if class.slots.is_empty() && class.instance.is_empty() {
                 continue;
             }
             // No parents: a `Core` class is not part of any hierarchy, so
@@ -493,14 +501,18 @@ pub(crate) fn slot(receiver: *mut ObjHeader, index: usize) -> Value {
 mod tests {
     use super::*;
 
-    /// Every registered class with slots gets a descriptor of the right width,
-    /// and asking twice on one core answers with the same address — which is
-    /// what makes a descriptor's address an identity rather than a per-call
-    /// accident.
+    /// Every registered class with instances gets a descriptor of the right
+    /// width, and asking twice on one core answers with the same address —
+    /// which is what makes a descriptor's address an identity rather than a
+    /// per-call accident.
+    ///
+    /// The skip is [`descriptors`]'s own, so a slotless class with instance
+    /// members — `Core\Socket` — is covered here rather than silently passed
+    /// over.
     #[test]
     fn one_descriptor_per_instance_class_per_core() {
         for class in registry::CLASSES {
-            if class.slots.is_empty() {
+            if class.slots.is_empty() && class.instance.is_empty() {
                 continue;
             }
             let first = descriptor(class);

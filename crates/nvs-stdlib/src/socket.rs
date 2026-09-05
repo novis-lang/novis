@@ -189,42 +189,127 @@
 //! § 3), and a connection's output is the socket.
 
 use nvs_runtime::script::{Program, ResolveError};
-use nvs_runtime::{Ctx, Fault, ThrownClass, Upgrade, Value, copy_graph};
+use nvs_runtime::{
+    Ctx, Delivery, Fault, NvsStr, PeerFrame, ThrownClass, Upgrade, Value, copy_graph,
+};
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-/// `Core\Socket`'s registry rows — ADR 0083 § 2's `upgrade`, and so far
-/// nothing else. See [`crate::registry::CLASSES`].
+/// `Core\Socket`'s fully-qualified name, in one place so the row and every
+/// message quoting it cannot drift apart.
+pub(crate) const NAME: &str = r"Core\Socket";
+
+/// `Core\Socket`'s registry rows — ADR 0083 § 2's `upgrade` at the door, and
+/// § 3's three inside. See [`crate::registry::CLASSES`].
+///
+/// # It is a namespace class and an instance class at once
+///
+/// `upgrade` is called on the class from the *request*, and `receive`/`send`
+/// are called on a value inside the *connection*: two rosters, one name,
+/// because § 2 and § 3 are two ends of one thing and a program that had to
+/// learn a second class name for the far end would be learning the boundary
+/// twice.
+///
+/// **The instance carries no slots**, which is [`CLASS`]'s one unusual
+/// property and the reason [`crate::instance`]'s descriptor table stopped
+/// keying on slots alone. A connection's state — the peer, and § 3's second
+/// source — lives on [`nvs_runtime::Ctx`], because it is the *isolate* that
+/// holds a socket and the isolate outlives every value a program makes from
+/// it. So `current()` answers a handle, and two calls to it answer two objects
+/// that are not identical: identity is `Core\Socket`'s wrong question, since
+/// there is exactly one connection per isolate and no second one to tell it
+/// from.
 pub(crate) const CLASS: CoreClass = CoreClass {
-    name: r"Core\Socket",
-    methods: &[CoreMethod {
-        name: "upgrade",
-        names: &["entry", "args"],
-        // [`CoreTy::Entry`] is § 2's "0006's operand", as the one mark that
-        // carries that ADR's whole rule to a call site: a path or a static
-        // method written `Chat::run(...)`, and never a `callable` in a
-        // variable. It classifies as a sink for the reason a path always does
-        // — its content becomes the instruction "execute this file", ADR 0088
-        // § 1's definition, and
-        // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-        // § 2 is the same rule written for the server, a filesystem path never
-        // derived from a URL at request time. `args` takes no expected type at
-        // all, for the reason the sibling site takes none: ADR 0023 § 2's walk
-        // decides what may cross, and that is a run-time question for
-        // everything a declared type does not already settle.
-        params: &[CoreTy::Entry, CoreTy::Mixed],
-        defaults: &[Const::Null],
-        return_ty: CoreTy::Void,
-        symbol: UPGRADE_SYMBOL,
-        doc: Some(&UPGRADE_DOC),
-    }],
-    instance: &[],
+    name: NAME,
+    methods: &[
+        CoreMethod {
+            name: "upgrade",
+            names: &["entry", "args"],
+            // [`CoreTy::Entry`] is § 2's "0006's operand", as the one mark that
+            // carries that ADR's whole rule to a call site: a path or a static
+            // method written `Chat::run(...)`, and never a `callable` in a
+            // variable. It classifies as a sink for the reason a path always does
+            // — its content becomes the instruction "execute this file", ADR 0088
+            // § 1's definition, and
+            // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
+            // § 2 is the same rule written for the server, a filesystem path never
+            // derived from a URL at request time. `args` takes no expected type at
+            // all, for the reason the sibling site takes none: ADR 0023 § 2's walk
+            // decides what may cross, and that is a run-time question for
+            // everything a declared type does not already settle.
+            params: &[CoreTy::Entry, CoreTy::Mixed],
+            defaults: &[Const::Null],
+            return_ty: CoreTy::Void,
+            symbol: UPGRADE_SYMBOL,
+            doc: Some(&UPGRADE_DOC),
+        },
+        CoreMethod {
+            name: "current",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: CURRENT_SYMBOL,
+            doc: Some(&CURRENT_DOC),
+        },
+    ],
+    instance: &[
+        CoreMethod {
+            name: "receive",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Instance(MESSAGE_NAME)),
+            symbol: RECEIVE_SYMBOL,
+            doc: Some(&RECEIVE_DOC),
+        },
+        // RFC 6455's two payload kinds are two members and not one parameter
+        // spelled `string|bytes`, and the reason is the qualifier rather than
+        // taste: [`CoreTy::classification`] answers `None` for a
+        // [`CoreTy::Union`], and a text-like parameter carrying no
+        // classification refuses a `tainted` argument — so the union spelling
+        // would have made `send` a sink by accident, and § 3's own loop, which
+        // forwards what the peer sent, would not compile. Two classified
+        // parameters say what a union cannot.
+        CoreMethod {
+            name: "send",
+            names: &["frame"],
+            // [`Qual::Neutral`] because a frame is not an instruction on this
+            // side of the wire — ADR 0088 § 1's test — and because `send`
+            // answers `void`, so there is no result for the argument's
+            // qualifier to reach.
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: SEND_SYMBOL,
+            doc: Some(&SEND_DOC),
+        },
+        CoreMethod {
+            name: "sendBytes",
+            names: &["frame"],
+            params: &[CoreTy::Blob(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: SEND_BYTES_SYMBOL,
+            doc: Some(&SEND_BYTES_DOC),
+        },
+    ],
     slots: &[],
     constants: &[],
 };
 
 /// The symbol [`CLASS`]'s `upgrade` row is reached through.
 const UPGRADE_SYMBOL: &str = "nvs_core_socket_upgrade";
+
+/// The symbol [`CLASS`]'s `current` row is reached through.
+const CURRENT_SYMBOL: &str = "nvs_core_socket_current";
+
+/// The symbol [`CLASS`]'s `receive` row is reached through.
+const RECEIVE_SYMBOL: &str = "nvs_core_socket_receive";
+
+/// The symbols [`CLASS`]'s two `send` rows are reached through.
+const SEND_SYMBOL: &str = "nvs_core_socket_send";
+const SEND_BYTES_SYMBOL: &str = "nvs_core_socket_send_bytes";
 
 /// `Core\Socket::upgrade`'s reference card — ADR 0117.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
@@ -268,11 +353,225 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Socket::current`'s reference card — ADR 0117.
+const CURRENT_DOC: MethodDoc = MethodDoc {
+    short: "This connection, inside the isolate the upgrade opened — the first line of every \
+            script a `Core\\Socket::upgrade` runs.",
+    params: &[],
+    ret: "The connection, whose `receive` and `send` are the whole of what a program does with \
+          one. Two calls answer two objects rather than the same one: there is exactly one \
+          connection per isolate, so a handle carries no state and identity has nothing to \
+          distinguish.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not a connection isolate — an ordinary request, a `spawn script` \
+               child and a command each get this, because none of them was handed a socket.",
+    }],
+};
+
+/// `Core\Socket::receive`'s reference card — ADR 0117.
+const RECEIVE_DOC: MethodDoc = MethodDoc {
+    short: "Waits for the next thing from either side — a frame the peer sent, or a value \
+            published to a topic this connection subscribed to — and answers it as one message.",
+    params: &[],
+    ret: "The next message, or `null` once the peer has closed, which is what ends the \
+          `while (var $msg = $conn->receive())` loop a connection script is written as. A peer \
+          frame's payload is `tainted`; a delivery carries the published value and the topic's \
+          name, which is how the loop tells the two apart.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "This program is not a connection isolate, so there is no peer to wait on.",
+    }],
+};
+
+/// `Core\Socket::send`'s reference card — ADR 0117.
+const SEND_DOC: MethodDoc = MethodDoc {
+    short: "Sends one text frame to the peer, suspending until it is buffered.",
+    params: &[ParamDoc {
+        name: "frame",
+        desc: "The payload, which goes out as RFC 6455's text frame. A `tainted` one is accepted \
+               — a frame is not an instruction on this side of the wire — so forwarding what a \
+               peer sent needs no laundering that would change none of the bytes.",
+        shape: &[],
+    }],
+    ret: "Nothing, once the frame is buffered for the peer.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not a connection isolate, so there is no peer to send to.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The socket failed, or the send wait expired — a peer that has stopped reading \
+                   is a throw at the call site and never an unbounded wait.",
+        },
+    ],
+};
+
+/// `Core\Socket::sendBytes`'s reference card — ADR 0117.
+const SEND_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Sends one binary frame to the peer, suspending until it is buffered — `send`'s twin \
+            for the other payload kind RFC 6455 has.",
+    params: &[ParamDoc {
+        name: "frame",
+        desc: "The payload, which goes out as a binary frame and is not checked for anything.",
+        shape: &[],
+    }],
+    ret: "Nothing, once the frame is buffered for the peer.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not a connection isolate, so there is no peer to send to.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The socket failed, or the send wait expired, exactly as for a text frame.",
+        },
+    ],
+};
+
+/// `Core\Socket\Message`'s fully-qualified name, as [`CoreTy::Instance`] spells
+/// it.
+pub(crate) const MESSAGE_NAME: &str = r"Core\Socket\Message";
+
+/// [`MESSAGE`]'s slots, in the order [`message_of_frame`] and
+/// [`message_of_delivery`] fill them.
+const MESSAGE_TOPIC: usize = 0;
+const MESSAGE_TEXT: usize = 1;
+const MESSAGE_BYTES: usize = 2;
+const MESSAGE_VALUE: usize = 3;
+
+/// ADR 0083 § 3's message: the one shape both of `receive`'s sources answer in.
+///
+/// # One class, not two, and `topic` is what tells them apart
+///
+/// § 3's loop is written `if ($msg->topic() != null)`, so the discrimination is
+/// a reader on the message rather than a type the caller matches on. Two
+/// classes would make the loop a type switch and would give `receive` a union
+/// return, which is a second control-flow style for the one member § 3 exists
+/// to keep straight-line.
+///
+/// # Four readers, and each answers `null` for what it is not
+///
+/// A peer frame fills exactly one of `text` and `bytes` — RFC 6455 has two
+/// payload kinds and the framing layer has already decided which arrived
+/// ([`nvs_runtime::PeerFrame`]) — and a delivery fills `topic` and `value`.
+/// `bytes` is not in § 3's example and is here because the seam underneath
+/// already carries binary frames: leaving it out would make a binary payload
+/// unreachable from Novis while the peer is free to send one, which is the
+/// silent wrong answer [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// refuses. A reader answering `null` is the honest report that this message is
+/// the other kind, and it costs a caller the `?` it was already writing around
+/// `receive`.
+///
+/// **`text` and `bytes` are `tainted` and `value` is not.** § 3 marks a
+/// received frame's payload as untrusted input, which is what those two carry;
+/// a delivery's value came from another isolate on this side of the wire and
+/// crossed by ADR 0023 § 2's copy, so it arrives with whatever qualifiers it
+/// already had and this row may not add one.
+pub(crate) const MESSAGE: CoreClass = CoreClass {
+    name: MESSAGE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "topic",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: MESSAGE_TOPIC_SYMBOL,
+            doc: Some(&MESSAGE_TOPIC_DOC),
+        },
+        CoreMethod {
+            name: "text",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: MESSAGE_TEXT_SYMBOL,
+            doc: Some(&MESSAGE_TEXT_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
+            symbol: MESSAGE_BYTES_SYMBOL,
+            doc: Some(&MESSAGE_BYTES_DOC),
+        },
+        CoreMethod {
+            name: "value",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Mixed,
+            symbol: MESSAGE_VALUE_SYMBOL,
+            doc: Some(&MESSAGE_VALUE_DOC),
+        },
+    ],
+    slots: &["topic", "text", "bytes", "value"],
+    constants: &[],
+};
+
+/// The symbols [`MESSAGE`]'s four readers are reached through.
+const MESSAGE_TOPIC_SYMBOL: &str = "nvs_core_socket_message_topic";
+const MESSAGE_TEXT_SYMBOL: &str = "nvs_core_socket_message_text";
+const MESSAGE_BYTES_SYMBOL: &str = "nvs_core_socket_message_bytes";
+const MESSAGE_VALUE_SYMBOL: &str = "nvs_core_socket_message_value";
+
+/// `Core\Socket\Message::topic`'s reference card — ADR 0117.
+const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
+    short: "The topic this value was published to, and the one question that tells a bus \
+            delivery from a frame the peer sent.",
+    params: &[],
+    ret: "The topic's name for a delivery, `null` for a peer frame. It is the name this \
+          connection subscribed under and not anything the peer chose, so it is not `tainted`.",
+    errors: &[],
+};
+
+/// `Core\Socket\Message::text`'s reference card — ADR 0117.
+const MESSAGE_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "A text frame's payload, as the peer sent it.",
+    params: &[],
+    ret: "The payload, `tainted` because it is untrusted input arriving over a network exactly \
+          as a request body is — `Core\\Validate` is the only way to launder it. `null` for a \
+          binary frame and for a bus delivery, which carry `bytes` and `value` instead.",
+    errors: &[],
+};
+
+/// `Core\Socket\Message::bytes`'s reference card — ADR 0117.
+const MESSAGE_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "A binary frame's payload, unchecked bytes as the peer sent them.",
+    params: &[],
+    ret: "The payload, `tainted` for `text`'s reason. `null` for a text frame and for a bus \
+          delivery.",
+    errors: &[],
+};
+
+/// `Core\Socket\Message::value`'s reference card — ADR 0117.
+const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "What a publisher put on the topic, copied across the isolate boundary the way every \
+            other value crosses one.",
+    params: &[],
+    ret: "The published value for a delivery, `null` for a peer frame. It is a copy and never a \
+          shared reference, so writing to it changes nothing the publisher can see.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         UPGRADE_SYMBOL => (nvs_core_socket_upgrade as *const ()).cast(),
+        CURRENT_SYMBOL => (nvs_core_socket_current as *const ()).cast(),
+        RECEIVE_SYMBOL => (nvs_core_socket_receive as *const ()).cast(),
+        SEND_SYMBOL => (nvs_core_socket_send as *const ()).cast(),
+        SEND_BYTES_SYMBOL => (nvs_core_socket_send_bytes as *const ()).cast(),
+        MESSAGE_TOPIC_SYMBOL => (nvs_core_socket_message_topic as *const ()).cast(),
+        MESSAGE_TEXT_SYMBOL => (nvs_core_socket_message_text as *const ()).cast(),
+        MESSAGE_BYTES_SYMBOL => (nvs_core_socket_message_bytes as *const ()).cast(),
+        MESSAGE_VALUE_SYMBOL => (nvs_core_socket_message_value as *const ()).cast(),
         _ => return None,
     })
 }
@@ -557,12 +856,497 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The refusal every § 3 member makes on a context that was handed no socket.
+///
+/// One helper rather than three messages, because the three are the same fact
+/// about the same context and a program reading two of them should not have to
+/// notice they were worded differently. `LogicError` rather than a
+/// `RuntimeError`: nothing about the environment could have made this call
+/// work, so it is the call that is wrong — the same reading `Core\Request`'s
+/// members outside a request take.
+fn no_connection(member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "`Core\\Socket::{member}` needs a connection and this program is not one: only a \
+             script `Core\\Socket::upgrade` opened runs inside a connection isolate"
+        ),
+    )
+}
+
+/// One [`MESSAGE`] built out of a frame the peer sent.
+///
+/// Exactly one of the two payload slots is filled and `topic` is `null`, which
+/// is the class doc's "each reader answers `null` for what it is not" written
+/// as the one place that decides it.
+fn message_of_frame(frame: PeerFrame) -> Value {
+    let (text, bytes) = match frame {
+        PeerFrame::Text(payload) => (Value::str(NvsStr::new(payload.as_bytes())), Value::null()),
+        PeerFrame::Binary(payload) => (Value::null(), Value::bytes(NvsStr::new(&payload))),
+    };
+    crate::instance::build(&MESSAGE, [Value::null(), text, bytes, Value::null()])
+}
+
+/// One [`MESSAGE`] built out of a value the bus delivered.
+///
+/// The topic is read before the value is taken, because taking it consumes the
+/// delivery — [`Delivery`] hands its one owned reference on rather than
+/// copying it, and the slot is where that reference comes to rest.
+fn message_of_delivery(delivery: Delivery) -> Value {
+    let topic = Value::str(NvsStr::new(delivery.topic().as_bytes()));
+    let value = delivery.into_value();
+    crate::instance::build(&MESSAGE, [topic, Value::null(), Value::null(), value])
+}
+
+/// The half both `send` rows share: the receiver check, the peer, and the one
+/// throw a failed write is.
+///
+/// The two differ only in which [`PeerFrame`] they built, which is the whole
+/// of what RFC 6455's two payload kinds are — so the wait, the refusal outside
+/// a connection and the wording of a failure are written once.
+///
+/// # Errors
+///
+/// [`no_connection`] on a context with no peer, and a `RuntimeError` naming
+/// what the framing layer reported — which is ADR 0083 § 3's "throws on the
+/// send timeout rather than waiting forever", the timeout itself being the
+/// implementation's under ADR 0074.
+fn send_frame(
+    ctx: &mut Ctx,
+    receiver: Value,
+    frame: PeerFrame,
+    member: &str,
+) -> Result<Value, Fault> {
+    crate::instance::receiver(receiver, &CLASS, member)?;
+    let peer = ctx.peer().ok_or_else(|| no_connection(member))?;
+    // No case can reach this: a `.nvst` case runs a script that was handed no
+    // socket, so it never gets past the refusal above.
+    // `send_throws_on_the_send_timeout_rather_than_waiting` is the `#[test]`
+    // that asserts it instead.
+    peer.send(frame).map_err(|failed| {
+        Fault::thrown(format!(
+            "`Core\\Socket::{member}` failed on the connection: {}",
+            failed.message()
+        ))
+    })?;
+    Ok(Value::null())
+}
+
+/// What one of [`MESSAGE`]'s four readers answers: the slot the message was
+/// built with, retained for the caller.
+///
+/// One helper rather than four bodies, for `crate::request`'s `part_slot`
+/// reason — none of them spells a slot index itself.
+///
+/// # Errors
+///
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce.
+fn message_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &MESSAGE, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot is owned by the receiver, which the argument slot holds a \
+                  reference to for the length of the call, so the copy handed back to \
+                  Novis code needs a reference of its own"
+    )]
+    // SAFETY: the receiver is live for the length of this call, so its slot is.
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket::current(): Core\Socket` — ADR 0083 § 3's first line.
+    ///
+    /// The handle carries nothing, so this allocates an object with no slots
+    /// and the *context* is what every member on it reads. [`CLASS`]'s own doc
+    /// owns why that is the right shape rather than a slot holding a socket.
+    ///
+    /// The question it asks is `has_peer`, which is the one thing that
+    /// separates a connection isolate from every other kind of context — an
+    /// ordinary request, a `spawn script` child and a CLI program all answer
+    /// `false`, so there is no list of hosts here to keep in step with
+    /// anything.
+    fn nvs_core_socket_current(ctx, _args: [0]) {
+        if !ctx.has_peer() {
+            return Err(no_connection("current"));
+        }
+        Ok(crate::instance::build(&CLASS, []))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket::receive(): ?Core\Socket\Message` — ADR 0083 § 3's one
+    /// wait, over both sources.
+    ///
+    /// **The bus is drained before the socket is read**, and that order is the
+    /// whole of the select this member can make today: a queued delivery is
+    /// answered without touching the peer, and only an empty queue parks on
+    /// the socket. What it does not do yet is wake a park that is already
+    /// running — `nvs_runtime::Ctx::deliver`'s own known gap says so, and § 4's
+    /// bus is where the wake seam belongs, since nothing can publish until it
+    /// exists.
+    ///
+    /// Draining first rather than last is not arbitrary: the peer's read is
+    /// the operation that blocks, so checking it first would make a delivery
+    /// wait for a frame that may never come, which is the one ordering a
+    /// program could observe as a hang.
+    fn nvs_core_socket_receive(ctx, args: [1]) {
+        crate::instance::receiver(args[0], &CLASS, "receive")?;
+        if !ctx.has_peer() {
+            return Err(no_connection("receive"));
+        }
+        if let Some(delivery) = ctx.take_delivery() {
+            return Ok(message_of_delivery(delivery));
+        }
+        let received = ctx
+            .peer()
+            .expect("`has_peer` answered above and nothing since could have taken it")
+            .receive();
+        match received {
+            // § 3's `null`, and the condition the connection loop ends on. Not
+            // an error: an orderly close is how every connection finishes.
+            Ok(None) => Ok(Value::null()),
+            Ok(Some(frame)) => Ok(message_of_frame(frame)),
+            // No case can reach this: a `.nvst` case runs a script that was
+            // handed no socket, so it never gets past the refusal above.
+            // `receive_reports_a_failed_socket_as_a_throw` is the `#[test]`
+            // that asserts it instead.
+            Err(failed) => Err(Fault::thrown(format!(
+                "`Core\\Socket::receive` failed on the connection: {}",
+                failed.message()
+            ))),
+        }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket::send(string|bytes $frame): void` — ADR 0083 § 3's send,
+    /// which throws on the send timeout rather than waiting forever.
+    ///
+    /// The timeout is the implementation's, under
+    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s rule that
+    /// no outbound wait has an unbounded spelling: this body cannot name a
+    /// duration, because the wait happens inside the codec that owns the
+    /// descriptor. What it owes is that the failure arrives as a throw at the
+    /// call site rather than as a fatal error, so a connection script can log
+    /// it and close — which is `Fault::thrown` and nothing more.
+    ///
+    fn nvs_core_socket_send(ctx, args: [2]) {
+        // Unreachable from source: the row declares `string`, so `E0401`
+        // refuses every other spelling before this body runs.
+        let text = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "`Core\\Socket::send` expected a `string`, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        send_frame(ctx, args[0], PeerFrame::Text(text.to_owned()), "send")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket::sendBytes(bytes $frame): void` — [`nvs_core_socket_send`]'s
+    /// twin for RFC 6455's other payload kind, and the same wait.
+    fn nvs_core_socket_send_bytes(ctx, args: [2]) {
+        // Unreachable from source: the row declares `bytes`, so `E0401`
+        // refuses every other spelling before this body runs.
+        let octets = args[1].as_bytes().ok_or_else(|| {
+            Fault::fatal(format!(
+                "`Core\\Socket::sendBytes` expected a `bytes`, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        send_frame(ctx, args[0], PeerFrame::Binary(octets.to_vec()), "sendBytes")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket\Message::topic(): ?string` — the topic a delivery arrived
+    /// on, and `null` for a frame the peer sent.
+    fn nvs_core_socket_message_topic(_ctx, args: [1]) {
+        message_slot(args, MESSAGE_TOPIC, "topic")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket\Message::text(): ?tainted string` — a text frame's
+    /// payload.
+    fn nvs_core_socket_message_text(_ctx, args: [1]) {
+        message_slot(args, MESSAGE_TEXT, "text")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket\Message::bytes(): ?tainted bytes` — a binary frame's
+    /// payload.
+    fn nvs_core_socket_message_bytes(_ctx, args: [1]) {
+        message_slot(args, MESSAGE_BYTES, "bytes")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Socket\Message::value(): mixed` — what a publisher put on the
+    /// topic, already copied across the boundary.
+    fn nvs_core_socket_message_value(_ctx, args: [1]) {
+        message_slot(args, MESSAGE_VALUE, "value")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::script::{Installed, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, UpgradeSlot, Value};
 
-    use super::{nvs_core_socket_upgrade, release_crossed};
+    use nvs_runtime::{Delivery, PeerError, PeerFrame, PeerSocket};
+
+    use super::{
+        CLASS, nvs_core_socket_current, nvs_core_socket_message_bytes,
+        nvs_core_socket_message_text, nvs_core_socket_message_topic, nvs_core_socket_message_value,
+        nvs_core_socket_receive, nvs_core_socket_send, nvs_core_socket_send_bytes,
+        nvs_core_socket_upgrade, release_crossed,
+    };
+
+    /// A peer whose answers are scripted and whose sends are recorded.
+    ///
+    /// The framing is `nvs_server::socket`'s and none of it is reachable from
+    /// this crate — `nvs-stdlib` names `nvs-runtime` and not the server — so
+    /// what these cases assert is the *seam*: which source a wait took its
+    /// answer from, and what a program sees when the socket says no. A
+    /// `PeerSocket` is exactly two operations wide, which is what makes that a
+    /// complete double rather than a partial one.
+    #[derive(Debug, Default)]
+    struct Script {
+        /// What successive `receive` calls answer, in order; an exhausted
+        /// queue answers `Ok(None)`, which is the peer having closed.
+        incoming: std::collections::VecDeque<Result<Option<PeerFrame>, PeerError>>,
+        /// Every frame the program sent, in order.
+        sent: Vec<PeerFrame>,
+        /// What a `send` fails with, if it fails — ADR 0074's finite wait, in
+        /// the wording the framing layer would report it with.
+        refuse_send: Option<String>,
+    }
+
+    /// A handle onto one [`Script`], so the case can read what was sent after
+    /// the context has taken the socket.
+    #[derive(Clone, Debug, Default)]
+    struct Peer(std::rc::Rc<std::cell::RefCell<Script>>);
+
+    impl PeerSocket for Peer {
+        fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
+            self.0.borrow_mut().incoming.pop_front().unwrap_or(Ok(None))
+        }
+
+        fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError> {
+            let mut script = self.0.borrow_mut();
+            if let Some(failure) = script.refuse_send.clone() {
+                return Err(PeerError::new(failure));
+            }
+            script.sent.push(frame);
+            Ok(())
+        }
+
+        fn close(&mut self) {}
+    }
+
+    /// A context that is a connection's: ADR 0083 § 1's isolate with the
+    /// socket already moved onto it, which is what `nvs_server::socket` does
+    /// for a real one.
+    fn connected(peer: &Peer) -> Ctx {
+        let mut ctx = Ctx::buffered();
+        ctx.set_peer(Box::new(peer.clone()));
+        ctx
+    }
+
+    /// Gives back one reference a `call` handed this frame.
+    #[expect(
+        unsafe_code,
+        reason = "the case owns every reference `nvs_runtime::call` answered \
+                  with, and this is the only place it gives one back"
+    )]
+    fn dropped(value: Value) {
+        // SAFETY: the reference released is the one the call answered with,
+        // and nothing else in the case points at it.
+        unsafe { value.release() };
+    }
+
+    /// One `receive()` on a connection whose peer answers `script`.
+    fn receive_on(ctx: &mut Ctx, conn: Value) -> Value {
+        nvs_runtime::call(nvs_core_socket_receive, ctx, &[conn]).expect("the wait answered")
+    }
+
+    /// ADR 0083 § 3's one wait is one member over two sources, so a connection
+    /// holding a queued delivery *and* a frame from the peer answers both from
+    /// the same call site — which is the whole reason § 3 refuses a second
+    /// `Core\Topic::receive()`.
+    ///
+    /// The bus is drained first, and the case pins that order: the peer's read
+    /// is the operation that blocks, so a delivery behind it would wait for a
+    /// frame that may never come.
+    #[test]
+    fn receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait() {
+        let peer = Peer::default();
+        peer.0
+            .borrow_mut()
+            .incoming
+            .push_back(Ok(Some(PeerFrame::Text("hello".to_owned()))));
+        let mut ctx = connected(&peer);
+        ctx.deliver(Delivery::new("room:lobby", Value::int(7)));
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+
+        let delivery = receive_on(&mut ctx, conn);
+        let topic = nvs_runtime::call(nvs_core_socket_message_topic, &mut ctx, &[delivery])
+            .expect("a delivery names its topic");
+        assert_eq!(topic.as_text(), Some("room:lobby"));
+        let carried = nvs_runtime::call(nvs_core_socket_message_value, &mut ctx, &[delivery])
+            .expect("a delivery carries its value");
+        assert_eq!(carried.as_int(), Some(7));
+
+        let frame = receive_on(&mut ctx, conn);
+        let text = nvs_runtime::call(nvs_core_socket_message_text, &mut ctx, &[frame])
+            .expect("a text frame carries its payload");
+        assert_eq!(text.as_text(), Some("hello"));
+        let no_topic = nvs_runtime::call(nvs_core_socket_message_topic, &mut ctx, &[frame])
+            .expect("a peer frame answers its topic");
+        assert!(
+            no_topic.as_text().is_none(),
+            "a peer frame was reported as a delivery"
+        );
+        let no_bytes = nvs_runtime::call(nvs_core_socket_message_bytes, &mut ctx, &[frame])
+            .expect("a text frame answers `bytes`");
+        assert!(
+            no_bytes.as_bytes().is_none(),
+            "a text frame answered on the binary reader too"
+        );
+
+        for value in [
+            topic, carried, text, no_topic, no_bytes, delivery, frame, conn,
+        ] {
+            dropped(value);
+        }
+    }
+
+    /// § 3's `null`: an orderly close ends the loop rather than throwing, which
+    /// is what makes `while (var $msg = $conn->receive())` the whole of a
+    /// connection script's control flow.
+    #[test]
+    fn receive_answers_null_when_the_peer_closes() {
+        let peer = Peer::default();
+        peer.0.borrow_mut().incoming.push_back(Ok(None));
+        let mut ctx = connected(&peer);
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+        let closed = receive_on(&mut ctx, conn);
+        assert!(
+            closed.as_text().is_none() && closed.obj_ptr().is_none(),
+            "a closed peer answered with a message"
+        );
+        dropped(conn);
+    }
+
+    /// § 3's "throws on the send timeout rather than waiting forever", which is
+    /// ADR 0074's rule that no outbound wait has an unbounded spelling. The
+    /// wait itself is the framing layer's, so what this crate owes is that the
+    /// failure arrives as a *throw* at the call site — catchable, with the
+    /// connection still the program's to close — and never as a fatal error.
+    #[test]
+    fn send_throws_on_the_send_timeout_rather_than_waiting() {
+        let peer = Peer::default();
+        peer.0.borrow_mut().refuse_send =
+            Some("the send wait of 10s expired with the frame unbuffered".to_owned());
+        let mut ctx = connected(&peer);
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+        let payload = Value::str(NvsStr::new(b"ack"));
+        nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, payload])
+            .expect_err("a send that could not buffer is a throw");
+        let reported = ctx
+            .pending()
+            .expect("the throw is on the context")
+            .into_owned();
+        assert!(
+            reported.contains("expired") && reported.contains("Core\\Socket::send"),
+            "the throw did not name the wait that expired: {reported}"
+        );
+        assert!(
+            peer.0.borrow().sent.is_empty(),
+            "a refused send buffered a frame anyway"
+        );
+
+        // The binary twin takes the same wait and reports it the same way,
+        // which is what says the two rows are one operation and not two.
+        let octets = Value::bytes(NvsStr::new(b"ack"));
+        nvs_runtime::call(nvs_core_socket_send_bytes, &mut ctx, &[conn, octets])
+            .expect_err("a binary send that could not buffer is a throw");
+
+        dropped(payload);
+        dropped(octets);
+        dropped(conn);
+    }
+
+    /// A socket that failed under a wait is a throw as well, and for the same
+    /// reason: § 3 tears a connection down through ADR 0020's ladder, so the
+    /// script gets to see what happened before the isolate ends.
+    #[test]
+    fn receive_reports_a_failed_socket_as_a_throw() {
+        let peer = Peer::default();
+        peer.0.borrow_mut().incoming.push_back(Err(PeerError::new(
+            "the peer sent a frame RFC 6455 forbids",
+        )));
+        let mut ctx = connected(&peer);
+
+        let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect("a connection isolate answers `current()`");
+        nvs_runtime::call(nvs_core_socket_receive, &mut ctx, &[conn])
+            .expect_err("a failed socket is a throw");
+        let reported = ctx
+            .pending()
+            .expect("the throw is on the context")
+            .into_owned();
+        assert!(
+            reported.contains("RFC 6455"),
+            "the throw did not carry what the framing layer said: {reported}"
+        );
+        dropped(conn);
+    }
+
+    /// Every § 3 member refuses a context that was handed no socket, and all
+    /// three say so the same way — an ordinary request, a `spawn script` child
+    /// and a command each reach this, because none of them is a connection.
+    #[test]
+    fn the_connection_members_refuse_a_context_with_no_peer() {
+        let mut ctx = Ctx::buffered();
+        nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
+            .expect_err("a program that is not a connection has no socket");
+        let reported = ctx
+            .pending()
+            .expect("the throw is on the context")
+            .into_owned();
+        assert!(
+            reported.contains("needs a connection"),
+            "the refusal did not name what was missing: {reported}"
+        );
+
+        // The other two are reached with a handle built by hand, which is the
+        // shape a program holds after a `current()` on the connection it
+        // really is — the refusal is about the *context* and not about the
+        // receiver.
+        let conn = crate::instance::build(&CLASS, []);
+        nvs_runtime::call(nvs_core_socket_receive, &mut ctx, &[conn])
+            .expect_err("there is no peer to wait on");
+        let payload = Value::str(NvsStr::new(b"ack"));
+        nvs_runtime::call(nvs_core_socket_send, &mut ctx, &[conn, payload])
+            .expect_err("there is no peer to send to");
+        dropped(payload);
+        dropped(conn);
+    }
 
     /// A resolver answering with the length of the path it was asked for.
     ///

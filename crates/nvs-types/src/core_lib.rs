@@ -1188,7 +1188,20 @@ mod tests {
     /// captures of the mount serving the request, and its sibling `prefix()`
     /// is the same pairing read the other way again: every mount row was
     /// expanded against the disk at boot, so the prefix is the operator's text
-    /// while which row a request selects is the peer's choice.
+    /// while which row a request selects is the peer's choice. The
+    /// twenty-first and twenty-second are `Core\Socket\Message`'s two payload
+    /// readers, and they are spec § 15's sentence read once more one layer
+    /// out: a WebSocket frame is untrusted input off a network exactly as a
+    /// request body is, which
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 3
+    /// states outright. They are the only rows here whose answer is
+    /// *nullable*, because a message carries one payload kind and answers
+    /// `null` for the other; the mark is on the arm that can carry one. Their
+    /// siblings `topic()` and `value()` are deliberately absent, and that is
+    /// the same test read the other way twice — a topic name is the one this
+    /// connection subscribed under, and a delivery's value crossed an isolate
+    /// boundary carrying whatever qualifiers it already had, which this row
+    /// may not add to.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1272,14 +1285,25 @@ mod tests {
                     "params",
                     "array<uint|int|decimal|tainted string|Core\\Uuid>".to_owned(),
                 ),
+                (
+                    r"Core\Socket\Message",
+                    "bytes",
+                    "null|tainted bytes".to_owned(),
+                ),
+                (
+                    r"Core\Socket\Message",
+                    "text",
+                    "null|tainted string".to_owned(),
+                ),
             ]),
-            "the roster of members whose *answer* is qualified `tainted` is closed at twenty — \
-             a verified claim, an outbound reply's body, the two environment reads, the two \
-             prompts that answer what a person typed, the words the program was started \
-             with, everything attached to its standard input, the five reads of the request \
-             being answered, the three declarations one of its uploaded parts made, the \
-             bytes of that part held whole, the two readers of the captures the matched \
-             route filled, and the captures of the mount serving the request. \
+            "the roster of members whose *answer* is qualified `tainted` is closed at \
+             twenty-two — a verified claim, an outbound reply's body, the two environment \
+             reads, the two prompts that answer what a person typed, the words the program \
+             was started with, everything attached to its standard input, the five reads of \
+             the request being answered, the three declarations one of its uploaded parts \
+             made, the bytes of that part held whole, the two readers of the captures the \
+             matched route filled, the captures of the mount serving the request, and the \
+             two payloads a connection's peer sent. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \
