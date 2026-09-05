@@ -1,0 +1,32 @@
+<?nvs
+// ADR 0067 §§ 13 and 18's streaming read, at constant memory, over the
+// PostgreSQL `tests/db/compose.yaml` brings up.
+//
+// This is a stand-in. `Core\Db\Connection::stream`, `streamAs` and `close` are
+// spec § 18 rows with no registry row behind them yet — `nvs_stdlib::db`'s own
+// module doc, gap 5, is where that is recorded — so the program the acceptance
+// check freezes cannot be written against the tree as it stands. The file is
+// here rather than absent because `tools/loop.py`'s `begin` walks the goal's
+// `files` list before it builds anything and returns on the first path that is
+// not on disk, so a missing fixture is not one failing check: it is the whole
+// acceptance run producing no measurement at all.
+//
+// What replaces this, when those three rows land, is the program the check's
+// three frozen lines describe:
+//
+//   1. `stream` walks ten thousand rows to the end — the count proves the walk
+//      reached it — while at most one row is held at a time, which is what
+//      distinguishes a stream from `query` plus a loop and is the whole reason
+//      the member exists.
+//   2. The held count is read from the connection rather than from the program,
+//      so a driver that quietly buffered the result set fails here even though
+//      its row count is right.
+//   3. A second statement issued while the stream is still open is a
+//      `LogicError` and not an `IOError`: the connection is busy by the
+//      protocol's rules, and § 18 makes that the program's mistake rather than
+//      the network's.
+//
+// Until then this prints what is true, so the run is measured and this stage's
+// `exact` check is the one thing that fails.
+
+echo "examples/stream.nvs: Core\\Db::stream is not on the registry yet", "\n";

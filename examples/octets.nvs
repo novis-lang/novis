@@ -1,0 +1,30 @@
+<?nvs
+// docs/spec/01-core-library.md § 12's decoders, answering octets rather than
+// text, and ADR 0102's route capture decoded the same way.
+//
+// This is a stand-in, for the reason `examples/stream.nvs` states in full:
+// `tools/loop.py`'s `begin` walks the goal's `files` list before it builds
+// anything, so a fixture that is not on disk costs the whole acceptance run its
+// measurement rather than one check.
+//
+// The rows this is written against are `Core\Uri`'s two decoders. They answer
+// `string` today, so a percent-escape that is not valid UTF-8 has no answer
+// they can give: `%ff%fe%fd` is three octets and not text, and ADR 0009 § 1
+// guarantees a `string` is valid UTF-8 by construction. The decided shape is
+// that both rows answer `bytes` and a caller wanting text writes `as string`,
+// which is ADR 0009 § 3's checked conversion and throws exactly where the
+// member throws now — so no program is denied an answer it could have used.
+// `encodeComponent` and `encodeFormValue` are untouched: they take text and
+// answer text, and they are this class's two `Qual::Launder` rows.
+//
+// What replaces this, when the rows change type, is the program the check's
+// three frozen lines describe:
+//
+//   1. `%ff%fe%fd` decodes to the three octets it names, printed as hex, which
+//      is an answer only a `bytes` return can carry.
+//   2. A query string's name and its value go through the same decoder, so a
+//      form field carrying octets survives being read as one.
+//   3. A route capture spelled `%20` reaches the handler as a space — the
+//      capture is decoded once, at the door, and the handler sees text.
+
+echo "examples/octets.nvs: Core\\Uri's decoders still answer string", "\n";
