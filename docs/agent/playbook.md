@@ -5693,6 +5693,28 @@ is why" — is this file.
   relative `"tests/db/ca.crt"` resolves against whatever directory `cargo test` chose and the handshake
   fails with a missing-bundle error that names no test. Build it from `CARGO_MANIFEST_DIR`. The same
   applies to `path` on a `sqlite` block, for the same reason and with the same fix.
+- **A socket fixture that half-closes after writing makes every "exactly one response" assertion
+  vacuous, and the tell is that the *control* row fails.** A smuggling case asserts a count — the peer
+  got one response, not two — so the fixture has to leave the connection open long enough for a second
+  one to be possible. Half-closing the write side is the obvious way to make `read_to_string` return,
+  and it looks harmless because `hyper` still answers the request it already framed; measured, a
+  genuinely pipelined pair written down one socket and then half-closed read back **one** response, so
+  the count was one whatever the door did. The repair is a bounded wait instead of an EOF:
+  `set_read_timeout` a few hundred milliseconds, read until the server closes or the wait runs out, and
+  let the absence of the second response be what the wait proves. Always write the pipelined pair as a
+  control row — it is the only thing that tells a door that answers once from a fixture that can only
+  read once.
+- **An isolate that parks on something the connection cannot fail wedges the whole core, and the
+  failure is a silent three-minute hang rather than an assertion.** Writing "the request is still
+  running when the client disconnects" as a program that parks forever — a `nvs_host::channel` receiver
+  whose sender the same closure holds, so nothing disconnects it and nothing sends — is the obvious
+  construction, and it makes the case about cancellation by design. It does not come back:
+  `crates/nvs-server/src/serve.rs:446`'s `Peer::drop` abandons with cancel-*then-wait*, and neither that
+  wait nor `run_until_idle` unwedged a task parked that way. Park on the **body** instead: a request
+  whose head promises a hundred bytes and whose client sends four and closes leaves the program inside
+  `next_chunk`, which is a park the connection can fail — the supply dies with the connection, the read
+  answers `Err`, and the isolate ends through its own frame. That is also the more faithful case, since
+  the body is where a disconnect is noticed at all.
 
 ## Splitting a file that got too big
 
