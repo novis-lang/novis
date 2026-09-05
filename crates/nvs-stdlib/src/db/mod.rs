@@ -245,13 +245,23 @@
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
-//! 6. **`stream` declares no `{chunk?: uint}`.** § 4's other option is in the
-//!    spec signature and deliberately in neither of that member's registry rows:
-//!    a chunk size has to reach the `Execute` that asks for a row count, and this
-//!    driver's walk asks for one row. An option that parsed and did nothing would
-//!    be worse than its absence, which the compiler can at least report. Its
-//!    sibling `{timeout?: Duration}` is no longer here — the section above is
-//!    where that landed and what it decided.
+//! 6. **`stream` declares no `{chunk?: uint}`, and that is a refusal rather
+//!    than an unlanded option.** § 4's other option is in the spec signature and
+//!    deliberately in neither of that member's registry rows, because there is
+//!    no read for a size to reach. `nvs_db`'s `open_portal` writes its `Execute`
+//!    with a row count of **`0` — every row** — and the walk then reads one
+//!    `DataRow` off the wire per `advance()`, which is why that driver never has
+//!    to answer a `PortalSuspended` at all. So a streamed result set already
+//!    crosses on one round trip while the client holds a single row: § 4's
+//!    constant memory at the best case the protocol has. A chunk size could only
+//!    turn that one `Execute` into one per chunk, each resuming a suspended
+//!    portal — **latency spent (AGENTS.md's priority 3) to buy nothing**, since
+//!    the memory the option exists to bound is already one row. An option that
+//!    parsed and did nothing would be worse than its absence, which the compiler
+//!    can at least report. What would reopen it is a driver whose protocol
+//!    delivers a result set eagerly rather than as a readable stream, and none
+//!    of the five is one. Its sibling `{timeout?: Duration}` is no longer here —
+//!    the section above is where that landed and what it decided.
 //! 7. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
