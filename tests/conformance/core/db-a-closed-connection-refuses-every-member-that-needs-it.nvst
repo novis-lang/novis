@@ -1,0 +1,54 @@
+--TEST--
+Spec § 18's `close` is the boundary every other `Core\Db\Connection` member is on the far side of: a statement and `driver()` both throw `LogicError` afterwards, while `isOpen()` still answers and a second `close` does nothing — ADR 0067 §§ 4 and 13
+--FILE--
+<?nvs
+// The connection is real (SQLite), so the statement below is refused by the
+// member and not by a signature check — the refusal is the one the running
+// program would meet.
+var $db = Core\Db::connect("main");
+var $made = $db->execute("create table t (id integer primary key)", []);
+echo "created ", $made->affected(), "\n";
+
+$db->close();
+
+// A statement on a released connection is the program's mistake and not the
+// network's, so it is a `LogicError` and never an `IOError`: nothing was
+// attempted on a wire.
+try {
+    $db->query("select id from t", []);
+    echo "query: not refused\n";
+} catch (LogicError $refused) {
+    echo "query: refused\n";
+}
+
+// `driver()` reaches for the connection too, so it is on the same side of the
+// boundary as the statement is — the member is readonly, not connectionless.
+try {
+    $db->driver();
+    echo "driver: not refused\n";
+} catch (LogicError $refused) {
+    echo "driver: refused\n";
+}
+
+// `isOpen()` is the exception, and deliberately: a member that asks whether
+// the connection is gone cannot be one that throws because it is.
+echo "isOpen: ", $db->isOpen() ? "yes" : "no", "\n";
+
+// And `close` is idempotent, which is the same rule read from the other end —
+// it asks for a state that already holds.
+$db->close();
+echo "closed twice: ", $db->isOpen() ? "yes" : "no", "\n";
+--FILE nvs.toml--
+# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+created 0
+query: refused
+driver: refused
+isOpen: no
+closed twice: no

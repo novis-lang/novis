@@ -168,8 +168,16 @@
 //!    socket's.
 //! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
 //!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
-//!    `stream` and `streamAs` are owed whole, and so are
-//!    `close` and § 18's three readonly properties on `Connection`. On
+//!    `stream` and `streamAs` are owed whole. Of § 18's four rows beyond the
+//!    interface, `close`, `driver` and `isOpen` land — the first over
+//!    [`nvs_runtime::Ctx::close_open_connection`], which is § 13's release
+//!    reached early for one connection — and **`serverVersion` is owed for a
+//!    reason that is not this crate's**: no driver keeps the server's own
+//!    version string. `nvs_db::mysql` parses one into a `(u16, u16, u16)` for
+//!    its own capability decisions and the other four keep nothing, so the
+//!    member cannot be written until PostgreSQL's `server_version`
+//!    `ParameterStatus`, MariaDB's greeting, TDS's `LOGINACK` and SQLite's
+//!    library version are each held on the connection. On
 //!    the result side [`ROWS`] owes nothing: all six of § 18's members are
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
@@ -440,6 +448,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_connection_transaction" => {
             (nvs_core_db_connection_transaction as *const ()).cast()
         }
+        "nvs_core_db_connection_close" => (nvs_core_db_connection_close as *const ()).cast(),
+        "nvs_core_db_connection_driver" => (nvs_core_db_connection_driver as *const ()).cast(),
+        "nvs_core_db_connection_is_open" => (nvs_core_db_connection_is_open as *const ()).cast(),
         "nvs_core_db_transaction_roll_back" => {
             (nvs_core_db_transaction_roll_back as *const ()).cast()
         }

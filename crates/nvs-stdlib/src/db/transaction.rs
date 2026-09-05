@@ -716,7 +716,8 @@ mod tests {
     /// body reached through either handle and a second body would agree on
     /// name and arity on the day it was written and on nothing afterwards.
     /// `stream` and `streamAs` are owed on both and so are outside the sweep
-    /// by construction.
+    /// by construction; [`BEYOND_QUERYABLE`] is the one set that is outside it
+    /// on purpose, and the sweep checks that list from both ends first.
     #[test]
     fn a_transaction_is_a_closure_and_transaction_is_a_queryable() {
         assert_eq!(TRANSACTION_ROW.name, "transaction");
@@ -772,9 +773,27 @@ mod tests {
             );
         }
 
+        // § 18's second table — the rows `Connection` has *beyond* `Queryable`
+        // — is the only thing outside the sweep, and it is asserted from both
+        // ends here so that naming a row there cannot quietly excuse one from
+        // the comparison below. [`BEYOND_QUERYABLE`] owns why the exception is
+        // a list rather than a weaker check.
+        for name in BEYOND_QUERYABLE {
+            assert!(
+                CONNECTION.instance.iter().any(|row| row.name == *name),
+                "`{name}` is named as a connection-only row and is not a row at all"
+            );
+            assert!(
+                !TRANSACTION.instance.iter().any(|row| row.name == *name),
+                "`{name}` is named as a connection-only row and `{}` carries it",
+                TRANSACTION.name
+            );
+        }
+
         let declared: Vec<String> = CONNECTION
             .instance
             .iter()
+            .filter(|row| !BEYOND_QUERYABLE.contains(&row.name))
             .map(|row| format!("{row:?}"))
             .collect();
         let forwarded: Vec<String> = TRANSACTION

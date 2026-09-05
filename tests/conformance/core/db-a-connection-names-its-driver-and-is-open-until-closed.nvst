@@ -1,0 +1,44 @@
+--TEST--
+`Core\Db\Connection`'s two readonly members answer the connection and not the block that named it: `driver()` is the `Core\Db\Driver` case the `[db.<name>]` block wrote, and `isOpen()` is `true` right up to the `close` that ends it — ADR 0067 §§ 2, 13 and spec § 18
+--FILE--
+<?nvs
+// SQLite needs no server, so this is a connection that really opened — which
+// is what makes `driver()` a fact read off the thing that was opened rather
+// than off the configuration key. `db-a-sqlite-block-opens-a-file-and-runs-
+// statements-over-it.nvst` is the case that argues why that distinction is
+// worth a running database.
+var $db = Core\Db::connect("main");
+
+// § 18's `driver()`. The answer is the enum and not its name: a case is a
+// value (ADR 0010), so a program compares rather than parses.
+echo "driver ", $db->driver() == Core\Db\Driver::Sqlite ? "is sqlite" : "is something else", "\n";
+
+// It is the connection's own driver, so it does not change under it. Asking
+// twice is asked here because the value is read out of the connection each
+// time rather than cached in the handle.
+echo "still ", $db->driver() == Core\Db\Driver::Sqlite ? "sqlite" : "something else", "\n";
+
+// § 18's `isOpen()`, before and after. It is bookkeeping about the request's
+// own table and never a round trip, which is why a program may write it in a
+// condition.
+echo "open before close: ", $db->isOpen() ? "yes" : "no", "\n";
+
+// ADR 0067 § 13's release, reached early: the connection goes back to this
+// core's pool here instead of at the end of the request.
+$db->close();
+
+echo "open after close: ", $db->isOpen() ? "yes" : "no", "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it and there is no address to grant.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+driver is sqlite
+still sqlite
+open before close: yes
+open after close: no

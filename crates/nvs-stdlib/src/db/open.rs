@@ -37,6 +37,13 @@ pub(super) const EXECUTE: &str = r"Core\Db\Connection::execute";
 /// [`EXECUTE`] for why both spellings travel together.
 pub(super) const EXECUTE_MANY: &str = r"Core\Db\Connection::executeMany";
 
+/// `Core\Db\Connection::driver`, as the one refusal it has spells it: the
+/// `LogicError` [`crate::db::pool::filed_connection`] raises for a connection
+/// spec § 18's `close` has already released. `close` and `isOpen` need no
+/// spelling of their own — neither reaches for the connection, so neither has
+/// a message that holds a class.
+pub(super) const DRIVER_MEMBER: &str = r"Core\Db\Connection::driver";
+
 /// `transaction`'s own name for a refusal, spelled on the connection because
 /// that is the class that declares the row — a nested call on a
 /// [`TRANSACTION`] reaches the same helper and so names the same member, which
@@ -1063,6 +1070,83 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// One [`nvs_db::Driver`] as the [`DRIVER`] case a program compares against.
+///
+/// [`crate::db::column::column_type_value`]'s shape and for its reason: an enum
+/// is its ordinal at run time ([ADR 0010](/docs/adr/0010-enums-are-a-value-type.md)),
+/// and the ordinal is looked up in the registered roster rather than written
+/// out here, so the two cannot drift apart. Exhaustive on purpose — a sixth
+/// backend arrives as a non-exhaustive `match` rather than as a connection that
+/// names the wrong driver.
+fn driver_value(of: nvs_db::Driver) -> Value {
+    let case = match of {
+        nvs_db::Driver::MySql => "MySql",
+        nvs_db::Driver::MariaDb => "MariaDb",
+        nvs_db::Driver::Postgres => "Postgres",
+        nvs_db::Driver::Sqlite => "Sqlite",
+        nvs_db::Driver::SqlServer => "SqlServer",
+    };
+    let (_, ordinal) = DRIVER
+        .cases
+        .iter()
+        .find(|(name, _)| *name == case)
+        .expect("every `nvs_db::Driver` names a case `DRIVER` registers");
+    Value::int(*ordinal)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$c->close(): void` — spec § 18's `Connection` row, over
+    /// [`nvs_runtime::Ctx::close_open_connection`].
+    ///
+    /// **The work is the runtime's, and deliberately all of it.** ADR 0067
+    /// § 13's release is one piece of code — the two lines a request's teardown
+    /// runs over every connection it still holds — and a `close` is that code
+    /// reached early for one of them. Writing the release again here would be a
+    /// second answer to "where does a connection go", and the pool's bounds are
+    /// counted against the lease this consumes.
+    ///
+    /// Nothing is refused. A `close` of a connection already closed is the
+    /// state the caller asked for, and a handle whose key this request never
+    /// filed cannot be built by a program — [`connection_of`] has already said
+    /// so with a `Fault::fatal` before this line.
+    fn nvs_core_db_connection_close(ctx, args: [1]) {
+        let (key, _) = connection_of(args[0], "close")?;
+        ctx.close_open_connection(key);
+        Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$c->driver(): Core\Db\Driver` — which backend this connection speaks
+    /// to.
+    ///
+    /// Read off the connection rather than off the `[db.<name>]` block in the
+    /// receiver's second slot, because a `Core\Db::open` has no block: the
+    /// driver a settings literal named is a field of the thing that was opened,
+    /// and that is the one place both entry points agree.
+    fn nvs_core_db_connection_driver(ctx, args: [1]) {
+        let (key, _) = connection_of(args[0], "driver")?;
+        let driver = crate::db::pool::filed_connection(ctx, key, DRIVER_MEMBER)?.driver();
+        Ok(driver_value(driver))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$c->isOpen(): bool` — whether a statement may still run on this
+    /// connection.
+    ///
+    /// **The one member that reads the table without asking it for the
+    /// connection**, which is what lets it answer after a `close` where
+    /// everything else throws. It is a question about the request's own
+    /// bookkeeping and never about the socket: a server that has gone away is
+    /// discovered by the statement that fails, since asking the wire would mean
+    /// a round trip on a member a program writes in a condition.
+    fn nvs_core_db_connection_is_open(ctx, args: [1]) {
+        let (key, _) = connection_of(args[0], "isOpen")?;
+        Ok(Value::bool(ctx.open_connection_mut(key).is_some()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1230,6 +1314,95 @@ mod tests {
             ctx.memoized_connection("main"),
             Some(first),
             "and the name still resolves to the connection the first call opened"
+        );
+    }
+
+    /// Spec § 18's `close`, asserted as the pair of facts it is: the request
+    /// stops holding the connection, and every member that needs one then
+    /// refuses.
+    ///
+    /// **The refusal is asked of [`crate::db::pool::filed_connection`] rather
+    /// than of `query`.** That helper is where every statement-running member
+    /// reaches the table, so asking it is asking all four at once; asking
+    /// `query` instead would need a server behind the handle to get past the
+    /// bind, and would still be testing this one line.
+    ///
+    /// **A `LogicError` and not the `Fault::fatal` next to it.** Those two
+    /// answers are one `None` from
+    /// [`nvs_runtime::Ctx::open_connection_mut`] and they mean opposite things
+    /// — a program that closed its own connection, and a key this crate wrote
+    /// into a handle slot wrongly — so the case pins the class as well as the
+    /// refusal.
+    ///
+    /// **`isOpen` is called through the ABI**, because it is the one member
+    /// whose whole job is to still answer here, and calling the body directly
+    /// would not prove the registered symbol reaches it.
+    #[test]
+    fn close_releases_the_connection_and_a_later_member_refuses() {
+        /// The same stand-in [`a_named_connection_is_memoized_for_the_request`]
+        /// files, and for the same reason: what a `close` does to the request's
+        /// table is decided without asking the connection anything.
+        #[derive(Debug)]
+        struct Opened;
+
+        impl nvs_runtime::HeldConnection for Opened {
+            fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+                self
+            }
+
+            fn into_any(self: Box<Self>) -> Box<dyn std::any::Any> {
+                self
+            }
+        }
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let key = ctx.hold_open_connection(Some("main".to_owned()), None, Box::new(Opened));
+        let handle = crate::instance::build(
+            &CONNECTION,
+            [Value::uint(key), Value::str(NvsStr::new(b"main"))],
+        );
+
+        let before = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
+            .expect("`isOpen` answers a `bool` and refuses nothing");
+        assert_eq!(
+            before.as_bool(),
+            Some(true),
+            "a connection the request is holding is open"
+        );
+
+        nvs_runtime::call(nvs_core_db_connection_close, &mut ctx, &[handle])
+            .expect("§ 18's `close` answers `void`");
+
+        let after = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
+            .expect("`isOpen` is the member a closed connection still answers");
+        assert_eq!(
+            after.as_bool(),
+            Some(false),
+            "the handle is still a handle, and it names nothing"
+        );
+        assert_eq!(
+            ctx.memoized_connection("main"),
+            None,
+            "§ 2 memoizes a connection, so a name whose connection has gone is \
+             free for the next `connect` to open"
+        );
+
+        let refused = filed_connection(&mut ctx, key, QUERY)
+            .expect_err("a statement needs the connection this program released");
+        let Fault::Thrown(ThrownClass::Logic, message) = refused else {
+            panic!("using a closed connection is the program's mistake, not the wire's")
+        };
+        assert!(
+            message.contains("has been closed"),
+            "the refusal says which of the two `None`s it was: {message}"
+        );
+
+        nvs_runtime::call(nvs_core_db_connection_close, &mut ctx, &[handle])
+            .expect("a second `close` asks for a state that already holds");
+        assert!(
+            !ctx.close_open_connection(key),
+            "and it releases nothing a second time, which is what keeps the \
+             pool's count of this lease at one"
         );
     }
 

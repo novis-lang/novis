@@ -60,7 +60,7 @@
 > `nvs service unit` prints § 5's. **ADR 0017 is guarded**: `never` never `stat`s, one window is one
 > check, a swap publishes, § 3a picks `validate`, 10k cold requests compile once, no stalls. **ADR
 > 0079 §§ 14, 17-18 land**: `--update` splices, a request runs in-process and on a listener, a `db:`
-> test rolls back. Conformance 1548, differential 275, migration 100%; valgrind green. Serve: 2.78x
+> test rolls back. Conformance 1551, differential 275, migration 100%; valgrind green. Serve: 2.78x
 > php-cgi, recorded.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

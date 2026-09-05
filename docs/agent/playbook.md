@@ -5820,6 +5820,16 @@ is why" — is this file.
   `strlen(ltrim("\r\rx"))` — or keep it out of the subject entirely and let a `lines` case consume it
   as a separator; `tests/differential/core/str-trim-start-and-trim-end-match-ltrim-and-rtrim.nvst` is
   the shape. This costs nothing to know and about three calls to discover.
+- **A `close`d SQLite `:memory:` connection is handed straight back by the pool, so a case cannot
+  assert that a reconnect is a fresh database.** A case written to prove ADR 0067 § 2's memo is
+  released — `connect`, create a table, `close`, `connect` again, expect the table to be gone —
+  prints `table: found`, because § 13's release put the connection in this core's pool and the second
+  `connect` acquired the very same one, in-memory database and all. That is pooling working, not a
+  bug, and the case is the thing to change: assert what is true of the two *handles* (the closed one
+  is still refused, the new one runs a statement) and say in the case why it asserts nothing about
+  which connection it got. Worth the bullet because `:memory:` reads as "per connection" and the pool
+  is invisible from the program's side —
+  `tests/conformance/core/db-a-closed-name-is-free-for-the-next-connect.nvst` carries the note.
 
 ## Splitting a file that got too big
 
@@ -8083,6 +8093,18 @@ sibling in the same namespace unqualified.
   both of that function's exits. Two lines, no signature moves, and it reaches a call written inside
   a closure inside the method for free. The shape generalises to any per-declaration fact an
   expression-level table wants.
+- **Adding a row to `Core\Db\Connection` fails a test in `db::transaction`, and the failure names
+  neither the class nor the member you added.** ADR 0043's delegation is asserted as a *sweep* —
+  `a_transaction_is_a_closure_and_transaction_is_a_queryable` formats every `CONNECTION.instance`
+  row with `{:?}` and compares the vector against `TRANSACTION`'s — so a `close` landing on the
+  connection alone arrives as an eight-element-versus-five-element `Vec<String>` diff of debug-printed
+  `CoreMethod`s, with the `close`/`driver`/`isOpen` rows buried in it. The sweep is right and the
+  repair is not to weaken it to a member-by-member check: spec § 18's *second* table is the rows
+  `Connection` has beyond `Queryable`, so the exception is a named list —
+  `crates/nvs-stdlib/src/db/registry.rs`'s `BEYOND_QUERYABLE` — and the case asserts it from both
+  ends before sweeping, so a name on it that stops being a connection-only row fails there. The
+  general shape: a guard written as "these two rosters are identical" needs its exception set spelled
+  as data the guard also checks, or the first legitimate exception turns it into a weaker guard.
 
 ## Divergences and refusals already pinned
 

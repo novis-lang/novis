@@ -247,16 +247,29 @@ pub(super) fn rendering_of(
 /// second place holding the two `Fault::fatal`s that say the request's own
 /// table is wrong.
 ///
+/// **This is where spec § 18's `close` is enforced for every other member.**
+/// A closed handle still names its entry — [`nvs_runtime::Ctx::connection_is_filed`]
+/// is what says so — and every member that needs the connection refuses here
+/// rather than each carrying its own guard, because "the connection is gone" is
+/// one fact and reaching it is what every one of them has in common.
+///
 /// # Errors
 ///
-/// A [`Fault::fatal`] for a key the request's table does not hold, and another
-/// for an entry that is not this crate's — both this crate's paste error rather
+/// A thrown `LogicError` for a connection the program has already closed. A
+/// [`Fault::fatal`] for a key the request's table never held, and another for
+/// an entry that is not this crate's — both this crate's paste error rather
 /// than a program's.
 pub(super) fn filed_connection<'a>(
     ctx: &'a mut nvs_runtime::Ctx,
     key: u64,
     named: &str,
 ) -> Result<&'a mut nvs_db::Connection, Fault> {
+    if ctx.open_connection_mut(key).is_none() && ctx.connection_is_filed(key) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("{named}: the connection has been closed"),
+        ));
+    }
     let filed = ctx.open_connection_mut(key).ok_or_else(|| {
         Fault::fatal(format!(
             "{named}: no connection is filed under the key {key}"

@@ -211,8 +211,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`query`, `execute`, `executeMany` and `transaction` are
 /// `Core\Db\Queryable`'s landed members, `queryAs` is declared with its body
-/// owed (this module's gap 8), and the rest are owed whole**: `stream` and
-/// `streamAs`, plus `close` and § 18's three readonly properties.
+/// owed (this module's gap 8), and `stream` and `streamAs` are owed whole.**
+/// Beyond the interface, § 18's own three rows land here: `close`, `driver`
+/// and `isOpen`, the second and third of which are the two readonly properties
+/// a connection can answer without a round trip. `serverVersion` is the third
+/// and is owed, because no driver keeps the server's own version string —
+/// this module's gap 5 is the inventory.
+///
+/// **`close` is the only one of these on this class alone.** A
+/// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing
+/// else, and closing the connection out from under the `transaction()` call
+/// that is still running is not something § 18 gives a spelling for.
 /// ADR 0043 makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
@@ -297,9 +306,96 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             doc: Some(&EXECUTE_MANY_DOC),
         },
         TRANSACTION_ROW,
+        CoreMethod {
+            name: "close",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_db_connection_close",
+            doc: Some(&CLOSE_DOC),
+        },
+        CoreMethod {
+            name: "driver",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // § 18's `Driver`, which is the same enum a `Core\Db::open`
+            // settings literal names first — [`DRIVER`]. A connection is the
+            // one place the answer is a fact rather than a request, since a
+            // `connect` reads it out of the block the operator wrote.
+            return_ty: CoreTy::Enum(DRIVER_NAME),
+            symbol: "nvs_core_db_connection_driver",
+            doc: Some(&DRIVER_MEMBER_DOC),
+        },
+        CoreMethod {
+            name: "isOpen",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_db_connection_is_open",
+            doc: Some(&IS_OPEN_DOC),
+        },
     ],
     slots: &[HANDLE_SLOT, CONNECTION_NAME_SLOT],
     constants: &[],
+};
+
+/// The [`CONNECTION`] rows that are **not** `Core\Db\Queryable`'s, and so are
+/// not delegated to a [`TRANSACTION`] — spec § 18's second table, which gives
+/// `Connection` members "beyond `Queryable`".
+///
+/// It exists so that the delegation sweep in
+/// [`crate::db::transaction`]'s `a_transaction_is_a_closure_and_transaction_is_a_queryable`
+/// stays a sweep. That case compares the two rosters row for row, which is what
+/// catches a member added to one and not the other; a `close` that is *meant*
+/// to be on one alone would have to weaken it to a member-by-member check, so
+/// the exception is named here instead and the case asserts this list from both
+/// ends — every name on it is a row [`CONNECTION`] has and [`TRANSACTION`] does
+/// not. A row that stops being either fails there rather than going stale.
+///
+/// `stream` and `streamAs` will not join it: § 18 puts both on `Queryable`, so
+/// each lands on both classes.
+///
+/// `#[cfg(test)]` because the running language never asks this question — a
+/// call is resolved against the class the receiver is, and neither class needs
+/// to know what the other declares. It sits here rather than in the case's own
+/// module so that it is beside the rows it names.
+#[cfg(test)]
+pub(super) const BEYOND_QUERYABLE: &[&str] = &["close", "driver", "isOpen"];
+
+/// `Core\Db\Connection::close`'s reference card — ADR 0117.
+const CLOSE_DOC: MethodDoc = MethodDoc {
+    short: "Releases the connection to this core's pool, ahead of the request that opened it. \
+            Every other member of this connection then throws; `isOpen` answers `false`, and a \
+            second `close` does nothing.",
+    params: &[],
+    ret: "Nothing. A connection is released for its effect on the pool, and the pool is not \
+          something a program holds.",
+    errors: &[],
+};
+
+/// `Core\Db\Connection::driver`'s reference card — ADR 0117.
+const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
+    short: "Which backend this connection speaks to, as the `Core\\Db\\Driver` case the \
+            `[db.<name>]` block or the `open` settings named.",
+    params: &[],
+    ret: "The connection's own `Core\\Db\\Driver` case.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The connection has been closed.",
+    }],
+};
+
+/// `Core\Db\Connection::isOpen`'s reference card — ADR 0117.
+const IS_OPEN_DOC: MethodDoc = MethodDoc {
+    short: "Whether this connection is still usable — `true` until `close`, and `false` after \
+            it. It is the one member a closed connection still answers.",
+    params: &[],
+    ret: "`true` for a connection a statement may still run on, `false` for one `close` has \
+          released.",
+    errors: &[],
 };
 
 /// ADR 0067 § 7's `{isolation?, readOnly?, retries?}` — the bag

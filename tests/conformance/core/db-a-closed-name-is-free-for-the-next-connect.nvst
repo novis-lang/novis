@@ -1,0 +1,53 @@
+--TEST--
+ADR 0067 § 2 memoizes a connection and not a name, so a `Core\Db::connect` after that connection's `close` answers a usable handle again — while the closed handle stays closed and stays refused — ADR 0067 §§ 2, 13 and spec § 18
+--FILE--
+<?nvs
+// § 2: two `connect("main")` calls in one request are one connection, so the
+// second call below is only reached because the first connection has been
+// released — a name whose connection has gone is a name the memo no longer
+// answers for.
+var $first = Core\Db::connect("main");
+$first->execute("create table t (id integer primary key)", []);
+$first->close();
+echo "first: ", $first->isOpen() ? "open" : "closed", "\n";
+
+var $second = Core\Db::connect("main");
+echo "second: ", $second->isOpen() ? "open" : "closed", "\n";
+echo "second driver ", $second->driver() == Core\Db\Driver::Sqlite ? "is sqlite" : "is something else", "\n";
+
+// The new handle is usable, which is the half `isOpen()` alone does not say:
+// a statement runs on it.
+var $wrote = $second->execute("insert into t (id) values (?)", [1]);
+echo "second wrote ", $wrote->affected(), "\n";
+
+// **This case deliberately asserts nothing about which connection that is.**
+// § 13 releases a `close`d connection to this core's pool, so the second
+// `connect` may well be handed the very one the first gave up — pooling is
+// exactly that, and a case pinning "a different database" would be pinning the
+// absence of the pool.
+//
+// What it does assert is that the two *handles* are separate: closing one is
+// not a statement about the block, and the closed one is still refused.
+try {
+    $first->query("select id from t", []);
+    echo "first: not refused\n";
+} catch (LogicError $refused) {
+    echo "first: still refused\n";
+}
+echo "first still: ", $first->isOpen() ? "open" : "closed", "\n";
+$second->close();
+--FILE nvs.toml--
+# § 3: `db.connect` covers a SQLite block, whose path is configuration.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+first: closed
+second: open
+second driver is sqlite
+second wrote 1
+first: still refused
+first still: closed
