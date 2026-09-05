@@ -2485,6 +2485,250 @@ mod tests {
         );
     }
 
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// "closed with a defined code": a connection that ran past one of the
+    /// `[limits]` values § 1 gives it its own budget of is **told** why, and
+    /// what the peer reads is RFC 6455's 1011 rather than the reset a process
+    /// killed for the memory it was holding leaves behind. That contrast is
+    /// what "not OOM" names — `nvs_runtime::Closing::Faulted`'s own doc is
+    /// where it is argued, and this is it asserted from the client's side.
+    ///
+    /// **The breach is induced rather than compiled**, and the two halves are
+    /// separate on purpose. The close itself is landed and keyed off
+    /// `Completion::ok`, so what a fixture owes is a connection isolate that
+    /// ends *not ok* for the reason § 1 names: this one sets its own ceiling —
+    /// `Ctx::set_memory_limit`, the way an isolate holding no configuration
+    /// gets one — allocates past it, and then makes the two calls
+    /// `nvs_runtime`'s safepoint poll makes on a memory breach. A hand-written
+    /// program has no safepoint between two statements to make them for it, and
+    /// `Ctx::memory_breach` is the same arithmetic either way, so what is
+    /// pinned here is the teardown rather than the poll.
+    ///
+    /// The hog is released before the report for the reason the compiled path
+    /// gets for free: a fatal takes the arena with it, and a fixture still
+    /// holding 32 MiB would breach again inside the teardown's own helper calls
+    /// (`nvs_runtime::run_helper`) instead of asserting this close.
+    #[test]
+    fn a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom() {
+        /// The ceiling this connection is held to. Roomy in absolute terms, so
+        /// that only the hog below can cross it: everything the isolate
+        /// allocates for itself is measured against this same number.
+        const CEILING: usize = 4 << 20;
+        /// And what it is asked to hold — far enough past the ceiling that no
+        /// profile's inlining decides the answer.
+        const HOG: usize = 32 << 20;
+
+        fn allocate_past_its_ceiling(conn: &mut Ctx) -> String {
+            conn.set_memory_limit(CEILING);
+            // Behind a `black_box` because an allocation nothing else reads is
+            // one the optimizer is allowed to remove, and the whole of what
+            // this program does is hold bytes.
+            let hog = std::hint::black_box(vec![0_u8; HOG]);
+            let breach = conn.memory_breach();
+            drop(hog);
+            let Some(nvs_runtime::Fault::Fatal(message)) = breach else {
+                return "stayed inside its ceiling".to_owned();
+            };
+            // ADR 0020 § 1's tier-1 handler is the other line the poll makes,
+            // and there is none registered here — a connection that registered
+            // one is that section's case rather than this one's.
+            conn.set_pending(message);
+            "held past its ceiling".to_owned()
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            // Nothing is sent from here: the connection isolate never reaches a
+            // `receive`, so the only frame this socket will ever carry is the
+            // close the server chose to send.
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            let closed = match peer.read() {
+                Ok(tungstenite::Message::Close(Some(frame))) => u16::from(frame.code).to_string(),
+                Ok(tungstenite::Message::Close(None)) => "a close carrying no code".to_owned(),
+                Ok(other) => format!("a frame rather than a close: {other:?}"),
+                Err(error) => format!("no close at all: {error}"),
+            };
+            (head, closed)
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                allocate_past_its_ceiling,
+            );
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (head, closed) = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols"),
+            "the peer was not answered RFC 6455's handshake, so nothing here is \
+             about a connection: {head}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "the connection isolate did not run, so no budget was spent: {said:?}"
+        );
+        assert_eq!(
+            said[1], "connection held past its ceiling",
+            "the fixture did not put the connection over its own ceiling, so \
+             the close below would say nothing: {said:?}"
+        );
+        assert_eq!(
+            closed, "1011",
+            "a connection over its budget did not end in ADR 0083 § 1's defined \
+             code — a reset here is the OOM kill the code exists to say did not \
+             happen: {closed}"
+        );
+    }
+
+    /// The other end of the case above: a connection isolate that fails in a
+    /// way [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) has no ladder
+    /// for — a panic in the engine itself — costs its own connection and
+    /// **nothing else**. `nvs_runtime::run_task` is the boundary that contains
+    /// it, and what this case reads back is the state on the far side: the core
+    /// survives, and the accept loop reaches its own end.
+    ///
+    /// **That last line is the claim rather than a formality.**
+    /// [`serve_on_this_core`]'s tail parks until every connection it spawned
+    /// has counted itself back out, so a loop that *returns* is one whose
+    /// panicking connection's task finished as well — the guard in
+    /// `nvs_host::isolate` fired, the waiter it woke took a cancelled
+    /// completion, and nothing was left parked on a child that would never
+    /// answer. A second connection would say the same thing less directly and
+    /// cannot be asked for here in any case; the playbook owns why.
+    ///
+    /// **What the panicking peer reads is a reset, and that is decided rather
+    /// than missing.** `nvs_host::isolate`'s close sits after `finish`, so an
+    /// unwind leaves through [`Ended`]'s guard without reaching it; the comment
+    /// on that branch is the home of why the close may not move into the guard,
+    /// and this case is that decision asserted from outside. A reset here is
+    /// therefore not the failure `Closing::Faulted` exists to rule out — that
+    /// one is a *process* killed under a connection, and this process is still
+    /// answering on the next line.
+    #[test]
+    fn a_connection_whose_isolate_panics_is_contained() {
+        fn panic_instead_of_running(_conn: &mut Ctx) -> String {
+            panic!("a connection isolate's own bug, which is nobody else's");
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            let read = match peer.read() {
+                Ok(frame) => Some(format!("{frame:?}")),
+                Err(_) => None,
+            };
+            (head, read)
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let loop_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                panic_instead_of_running,
+            );
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+            // Reported to the same place both isolates report to, and last: the
+            // drain above it is what makes this line mean the connection's own
+            // task ended rather than only that the accept stopped.
+            loop_said
+                .borrow_mut()
+                .push("the accept loop drained and returned".to_owned());
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (head, read) = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols"),
+            "the peer was not answered RFC 6455's handshake, so nothing here is \
+             about a connection: {head}"
+        );
+        assert!(
+            read.is_none(),
+            "a panicking isolate sent its peer a frame, where the close it \
+             would have sent sits after `finish` and the unwind never reaches \
+             it: {read:?}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "the request isolate did not run, or the connection isolate \
+             returned rather than panicking: {said:?}"
+        );
+        assert_eq!(
+            said[1], "the accept loop drained and returned",
+            "the panic was not contained to its own connection — the core \
+             never reached the end of the loop that spawned it: {said:?}"
+        );
+    }
+
     /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5:
     /// "the isolate is the same; the door is not". An event stream opens the
     /// same root isolate the three cases above assert of § 1 — its own context,
