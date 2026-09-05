@@ -10,6 +10,10 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 
 ## What it is trying to be
 
+- **Injection and secret leakage are compile errors.** Untrusted input carries a `tainted` type from the
+  moment it enters, credentials carry `secret`, and every sink that could leak either one refuses them — so
+  the whole class fails the build instead of a scan afterwards
+  ([why, and how the other web languages compare](docs/why-tainted-and-secret.md)).
 - **No build step.** Edit a `.nvs` file and run it. Compilation happens on load and is cached.
 - **Actually compiled.** Cranelift emits native code. There is no interpreter tier.
 - **Parallel in-language.** `async`/`await` for overlapping I/O plus isolated workers for real multicore
