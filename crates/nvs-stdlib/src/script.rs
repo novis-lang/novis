@@ -614,6 +614,14 @@ nvs_runtime::nvs_helper! {
 /// entry declares is a key of the map, and the map holds no key the entry does
 /// not declare. `Err` carries the message the throw is worded with.
 ///
+/// `site` is the whole spelling a refusal names — `spawn script Chat::run` for
+/// the construct, `Core\Socket::upgrade` for
+/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2's
+/// door — because the rule is ADR 0006's and the two entry forms it governs
+/// are written at three sites now. `crate::socket` is the other caller and the
+/// one home of why a connection asks this question here rather than in the
+/// child.
+///
 /// Judged on the **parent's** map rather than on the child's copy, because the
 /// two hold the same keys — ADR 0023's graph copy preserves them — and only
 /// this side still has a frame for the ADR's "reported … at the spawn" to
@@ -623,7 +631,7 @@ nvs_runtime::nvs_helper! {
 /// A value that is not an array at all names no parameter, so it reads here as
 /// a map with no keys: `null` is what a spawn with no `args:` passes, and
 /// anything else is a value only `Core\Script::args()` could have wanted.
-fn entry_names_agree(label: &str, names: &[String], map: Value) -> Result<(), String> {
+pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Result<(), String> {
     let keys = match map.array_ptr() {
         Some(ptr) => crate::arr::borrowed(ptr).keys(),
         None => Vec::new(),
@@ -635,7 +643,7 @@ fn entry_names_agree(label: &str, names: &[String], map: Value) -> Result<(), St
         .collect();
     if !missing.is_empty() {
         return Err(format!(
-            "`spawn script {label}`: `args:` has no entry for parameter(s) `{}`",
+            "`{site}`: `args:` has no entry for parameter(s) `{}`",
             missing.join("`, `")
         ));
     }
@@ -646,7 +654,7 @@ fn entry_names_agree(label: &str, names: &[String], map: Value) -> Result<(), St
         .collect();
     if !unknown.is_empty() {
         return Err(format!(
-            "`spawn script {label}`: `args:` holds `{}`, which the entry does not declare",
+            "`{site}`: `args:` holds `{}`, which the entry does not declare",
             unknown.join("`, `")
         ));
     }
@@ -665,7 +673,7 @@ fn entry_names_agree(label: &str, names: &[String], map: Value) -> Result<(), St
 /// A name with no entry cannot arrive — [`entry_names_agree`] refused the spawn
 /// at the parent — and reads as `null`, which the parameter's own tag then
 /// refuses rather than a slot nobody filled.
-fn bound_arguments(names: &[String], map: Value) -> Vec<Value> {
+pub(crate) fn bound_arguments(names: &[String], map: Value) -> Vec<Value> {
     let Some(ptr) = map.array_ptr() else {
         return Vec::new();
     };
@@ -750,7 +758,7 @@ nvs_runtime::nvs_helper! {
         // temporaries stack when `emit_fallible` builds this call's fault edge
         // (`nvs_ir::lower`'s `forget_transferred_since`), so the frame releases
         // it on every edge this helper returns `Err` through.
-        if let Err(message) = entry_names_agree(&label, &names, args[1]) {
+        if let Err(message) = entry_names_agree(&format!("spawn script {label}"), &names, args[1]) {
             return Err(Fault::thrown_as(ThrownClass::Logic, message));
         }
         // ADR 0118 § 2's door for this form. The path form's is inside

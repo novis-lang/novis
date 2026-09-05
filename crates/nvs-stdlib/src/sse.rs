@@ -117,13 +117,14 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "A request no server is answering, which is every command-line program and \
                    every `spawn script` child; an `$entry` path `script.spawn` does not grant or \
-                   that does not compile; a second call on one request; and a static method \
-                   entry, which cannot be opened yet.",
+                   that does not compile; a second call on one request.",
         },
         ErrorDoc {
             error: "LogicError",
             desc: "An `$args` value with no meaning on the other side of an isolate boundary — a \
-                   resource, or a `secret` the call site could not see through.",
+                   resource, or a `secret` the call site could not see through; and, for a static \
+                   method entry, an `$args` map that omits a parameter the method declares or \
+                   names one it does not.",
         },
     ],
 };
@@ -163,7 +164,7 @@ nvs_runtime::nvs_helper! {
                      method are not requests",
                 )
             })?;
-        let program = entry_program(ctx, args[0], "Core\\Sse::upgrade")?;
+        let program = entry_program(ctx, args[0], args[1], "Core\\Sse::upgrade")?;
         // No case can reach this, for the sibling's reason: it stands after the
         // cell, and a `.nvst` case runs a script no server is answering. The
         // crossing itself is `crate::socket`'s, and

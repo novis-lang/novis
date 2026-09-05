@@ -16,8 +16,9 @@
 //! connection to start. What is still missing behind it is the framing — RFC
 //! 6455 over the socket, and the `101` that would precede it — so an upgrade
 //! prepared here opens a root isolate with no peer attached to it yet.
-//! `Core\Topic` (§ 4) is unregistered for that reason and is this module's
-//! other known gap, alongside *the method form waits on a name* below.
+//! `Core\Topic` (§ 4) is unregistered for that reason and is this module's one
+//! known gap, together with the `current()`/`receive()`/`send()` loop § 3
+//! describes, which is the same missing framing read from inside the isolate.
 //!
 //! `Core\Sse` (§ 5) is [`crate::sse`], and it is a module of its own rather
 //! than a second class here because what § 5 splits is the **door** and never
@@ -83,35 +84,31 @@
 //! keep in step. A path is the resolver's program unchanged, and that is the
 //! form the body below prepares.
 //!
-//! # The method form waits on a name
+//! # The method form carries its names on the value
 //!
 //! A method arrives as a **first-class callable value** — the entry interns as
 //! `mixed`, so `Chat::run(...)` reaches this body as the closure `nvs_ir`'s
-//! `lower_callable_ref` built — and that value is where the form stops being
-//! preparable today. ADR 0006 § *Decision* binds `args:` to the entry's
-//! parameters **by name**, and a closure carries neither: `CLOSURE_ARITY_SLOT`
-//! is its arity and `CLOSURE_PARAM_TAGS_SLOT` its parameter tags, a
-//! `nvs_runtime::MethodRow` carries the same two, and nothing in either is a
-//! name. The sibling construct does not have the problem because it never asks
-//! a value: `nvs_ir::lower`'s `spawn_method_entry` writes the names into the
-//! call as a constant, and `crate::script`'s `entry_names_agree` and
-//! `bound_arguments` read that constant. A `Core` call has no such constant,
-//! because its entry is one ordinary argument.
+//! `lower_callable_ref` built. ADR 0006 § *Decision* binds `args:` to the
+//! entry's parameters **by name**, and the sibling construct has those names as
+//! a constant its lowering wrote into the call (`nvs_ir::lower`'s
+//! `spawn_method_entry`, read by `crate::script`'s `entry_names_agree` and
+//! `bound_arguments`). A `Core` call has no such constant, because its entry is
+//! one ordinary argument — so the names ride on the value instead, in a third
+//! reserved field beside the arity and the parameter tags:
+//! `nvs_ir::lower`'s `FN_PARAM_NAMES` writes it and
+//! [`nvs_runtime::closure_param_names`] reads it back.
 //!
-//! So the body **throws** for this form rather than binding by position, which
-//! is the one repair available to it and is the wrong one: `{room: …, userId:
-//! …}` binding correctly because the program happened to write the map in
-//! declaration order is by-name spelling over by-position meaning, and it fails
-//! silently the first time somebody reorders a literal. The slice that closes
-//! it carries the names to the value — a `CLOSURE_PARAM_NAMES_SLOT` beside the
-//! two slots above, written at the literal by `lower_callable_ref` — which is
-//! the general fix rather than this member's, and serves `Core\Sse::upgrade`
-//! and every later `CoreTy::Entry` row the same way.
+//! Binding by *position* was the alternative and is the wrong one: `{room: …,
+//! userId: …}` binding correctly because the program happened to write the map
+//! in declaration order is by-name spelling over by-position meaning, and it
+//! fails silently the first time somebody reorders a literal. The field is the
+//! general fix rather than this member's, and serves `Core\Sse::upgrade` and
+//! every later `CoreTy::Entry` row the same way.
 //!
-//! What is *already* decided about that form, and does not change when the
-//! names land: its program is a closure over the retained callable, beside the
-//! statics recipes and the class table the request's context is holding, and it
-//! arms the child itself exactly as a path entry's `install_in` does.
+//! [`method_program`] is what it buys, and how that form differs from a path's:
+//! its program is a closure over the retained callable, beside the statics
+//! recipes and the class table the request's context is holding, and it arms
+//! the child itself exactly as a path entry's `install_in` does.
 //! `nvs_host::Isolate`'s own method entry is *not* what a connection uses, and
 //! that is the same fact from the other end: that builder re-materializes the
 //! recipes off the **spawning** context, which for a connection is a context
@@ -252,12 +249,14 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             error: "RuntimeError",
             desc: "A request that arrived on no connection a server could upgrade; an `$entry` \
                    path `script.spawn` does not grant or that does not compile; a second call on \
-                   one request; and a static method entry, which cannot be opened yet.",
+                   one request.",
         },
         ErrorDoc {
             error: "LogicError",
             desc: "An `$args` value with no meaning on the other side of an isolate boundary — a \
-                   resource, or a `secret` the call site could not see through.",
+                   resource, or a `secret` the call site could not see through; and, for a static \
+                   method entry, an `$args` map that omits a parameter the method declares or \
+                   names one it does not.",
         },
     ],
 };
@@ -285,25 +284,34 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// `Core\Sse::upgrade` — because a refusal names the member a program wrote and
 /// the two doors share this body.
 ///
+/// `args` is the **parent's** `args:` map, judged here rather than in the
+/// child for `crate::script`'s `entry_names_agree` reason: this frame is the
+/// call ADR 0006 names as where a named-argument mismatch is reported, and it
+/// is the last one that still has a `catch` above it. It is *only* judged —
+/// what crosses is the caller's own copy, made after this returns.
+///
 /// # Errors
 ///
 /// Everything [`nvs_runtime::script::resolve`] refuses, in `spawn script`'s own
-/// wording with `member` in front of it, plus the method form's refusal the
-/// module doc's *the method form waits on a name* owns.
-pub(crate) fn entry_program(ctx: &Ctx, entry: Value, member: &str) -> Result<Program, Fault> {
+/// wording with `member` in front of it; ADR 0006's named-argument mismatch for
+/// a method entry; and a `callable` recording no parameter names, which the
+/// checker refuses at every spelling that could produce one.
+pub(crate) fn entry_program(
+    ctx: &Ctx,
+    entry: Value,
+    args: Value,
+    member: &str,
+) -> Result<Program, Fault> {
     // No case can reach this, and no case can reach any refusal below it: every
     // one of them stands *after* the slot, and a `.nvst` case runs a script
     // nothing offered a connection to, so the missing slot is the only report
     // that ever arrives from a corpus run. The `#[test]`s that assert them
-    // instead are `a_static_method_entry_is_refused_where_the_slot_is_the_one_thing_present`
-    // for this one and `an_entry_a_resolver_refuses_is_a_throw_the_program_catches`
+    // instead are `an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path`
+    // and `a_method_entry_whose_args_do_not_name_its_parameters_is_refused` for
+    // the method form, and `an_entry_a_resolver_refuses_is_a_throw_the_program_catches`
     // for the two below.
     let Some(path) = entry.as_text() else {
-        return Err(Fault::thrown(format!(
-            "`{member}` cannot open a connection on a static method entry yet: a `callable` \
-             carries its arity and its parameter tags but not its parameter names, and ADR 0006 \
-             binds `args:` by name. Name the file the connection runs instead"
-        )));
+        return method_program(ctx, entry, args, member);
     };
     // ADR 0118 § 2's door is inside `resolve` and not here, exactly as it is
     // for the sibling construct: a `Program` is what a spawn was after, so the
@@ -328,6 +336,126 @@ pub(crate) fn entry_program(ctx: &Ctx, entry: Value, member: &str) -> Result<Pro
         // § 5), so it is thrown as written rather than framed twice.
         ResolveError::Denied(message) => Fault::thrown_as(ThrownClass::Runtime, message),
     })
+}
+
+/// The callable a method entry's program runs, owning the one reference that
+/// keeps it alive from the request that prepared the upgrade to the connection
+/// that starts it.
+///
+/// A [`Program`] is a boxed closure, and a [`Value`] captured in one is sixteen
+/// plain bytes: dropping the box would drop the handle and release nothing. So
+/// the reference [`retained`] took is held *by a type with a destructor*, which
+/// is what makes both endings correct with no rule to remember — the connection
+/// runs the program and the drop at the end of the call releases it, or
+/// [`nvs_runtime::Upgrade::discard`] drops the program unrun and the same drop
+/// releases it. The second ending is the reachable one: a request that filled
+/// both cells is refused with neither isolate started
+/// (`nvs_server::serve_connection` owns that reading), and a leak there would
+/// be one object per refused request.
+struct HeldCallable(Value);
+
+impl Drop for HeldCallable {
+    #[expect(
+        unsafe_code,
+        reason = "this type exists to own exactly the reference `retained` \
+                  took, and nothing else points at it by the time it drops"
+    )]
+    fn drop(&mut self) {
+        // SAFETY: the one reference `retained` answered with, held by this
+        // value for its whole life and released exactly once here.
+        unsafe { self.0.release() };
+    }
+}
+
+/// ADR 0083 § 2's **method entry**, prepared: the callable the request is
+/// holding, the names its target declares, and the recipes that arm the child.
+///
+/// The connection's context is not this one's child — § 1 makes it a *root*
+/// isolate started from the connection's own context, which never ran the unit
+/// — so `nvs_runtime::Ctx::method_isolate`, which re-materializes off the
+/// spawning context, has nothing to work from at the far end. What replaces it
+/// is this: the recipes and the error-class table are taken **here**, where the
+/// unit is in hand, and the program arms the child with them before it calls,
+/// which is exactly what a path entry's `install_in` does from inside the
+/// resolver's program. `nvs_runtime::Ctx::unit_statics` is the one home of why
+/// that handle exists.
+///
+/// The child is armed with a **fresh** store materialized from those recipes,
+/// never the parent's slots, so ADR 0006's unshared class statics hold whichever
+/// form named the entry — the same rule `method_isolate` keeps for a `spawn
+/// script`.
+///
+/// **What it spends:** one retained reference to a thunk object for the length
+/// of the connection's preparation, plus one materialized slot per static
+/// property the unit declares, released with the connection. The thunk is the
+/// object `lower_callable_ref` built and holds no capture — § 2's entry rule
+/// admits only a *static* method, so there is no receiver field and nothing of
+/// the request's heap rides across inside it.
+///
+/// # Errors
+///
+/// A `callable` recording no parameter names at all, and ADR 0006's
+/// named-argument mismatch between the target's parameters and `args`.
+fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<Program, Fault> {
+    // `None` is a closure with no `fn#names` field, which is an `fn` literal:
+    // `nvs_types::expr::isolate` refuses one where an entry is expected, so
+    // this is a compiler disagreement rather than a program's — but it is
+    // reported as a throw and not a fatal, because a wrong refusal is
+    // recoverable and a wrong `FATAL` ends the request.
+    let Some(names) = nvs_runtime::closure_param_names(entry)? else {
+        return Err(Fault::thrown(format!(
+            "`{member}` was handed a `callable` that records no parameter names, so ADR 0006's \
+             `args:` binding has nothing to bind by. Name a static method — `Chat::run(...)` — \
+             or the file the connection runs"
+        )));
+    };
+    if let Err(message) = crate::script::entry_names_agree(member, &names, args) {
+        return Err(Fault::thrown_as(ThrownClass::Logic, message));
+    }
+    let held = HeldCallable(retained(entry));
+    let statics = ctx.unit_statics();
+    let errors = ctx.class_table();
+    Ok(Box::new(move |child: &mut Ctx, argument: Value| {
+        // Before the call and before the binding, in the order a path entry's
+        // `install_in` runs in: a `static` the entry touches is read out of the
+        // store this arms, and a throw raised by the call needs the tree to
+        // build an object from.
+        if let Some(defaults) = statics {
+            child.install_statics(defaults);
+        }
+        if let Some(class) = errors {
+            child.set_runtime_error_class(class);
+        }
+        // Ownership discharged into the isolate's own root, exactly as a path
+        // entry's program does it, and **before** the binding — which is what
+        // makes every value that binding reads live for the length of the call:
+        // the root owns the map, and the map owns them.
+        child.set_isolate_argument(argument);
+        let bound = crate::script::bound_arguments(&names, child.isolate_argument());
+        match nvs_runtime::call_closure(child, held.0, &bound) {
+            Ok(value) => value,
+            // The judgement `call_closure` makes on this frame's behalf — an
+            // argument whose tag the parameter does not admit, ADR 0006's
+            // "typed at the boundary". There is no frame above it inside the
+            // connection, so it is recorded as the isolate's pending throw.
+            Err(Fault::Thrown(class, message)) => {
+                child.set_pending_as(class, message);
+                Value::null()
+            }
+            // A thunk that is not callable at the arity it recorded: an engine
+            // fault at the far end, and the connection is the unit a fatal
+            // tears down (§ 3's escalation). Recorded rather than panicked,
+            // because a connection may not end the process.
+            Err(Fault::Fatal(message)) => {
+                child.set_pending(message);
+                Value::null()
+            }
+            // The remaining `Err` is `Fault::Pending`, which means the throw is
+            // already on this context — where `nvs_host::Isolate`'s `finish`
+            // reads it from.
+            Err(_) => Value::null(),
+        }
+    }))
 }
 
 /// One more reference to `value`, for the crossing below to consume.
@@ -395,7 +523,7 @@ nvs_runtime::nvs_helper! {
                      one",
                 )
             })?;
-        let program = entry_program(ctx, args[0], "Core\\Socket::upgrade")?;
+        let program = entry_program(ctx, args[0], args[1], "Core\\Socket::upgrade")?;
         // No case can reach this: it stands after the slot, and a `.nvst` case
         // runs a script no connection offered one to.
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`
@@ -502,6 +630,100 @@ mod tests {
         let mut map = NvsArray::new();
         map.set(NvsStr::new(b"room"), Value::int(7));
         Value::array(map)
+    }
+
+    /// The object `nvs_ir::lower`'s `lower_callable_ref` builds for a written
+    /// `Chat::run(...)`: the two reserved fields every closure carries, plus
+    /// the third only a first-class callable has — ADR 0006's parameter names,
+    /// comma-joined in declaration order.
+    ///
+    /// Built by hand rather than compiled, because there is no compiler on this
+    /// side of the seam and the *writing* side is asserted where it is written,
+    /// by `nvs-ir`'s `a_first_class_callable_records_its_targets_parameter_names`.
+    /// What is pinned here is what this member does with one.
+    ///
+    /// The class is leaked, exactly as the playbook's `closure_of` leaks its
+    /// table: the descriptor has to outlive the object, which is `NvsObj::new`'s
+    /// whole obligation.
+    fn a_callable(names: &str, invoke: nvs_runtime::NvsFn) -> Value {
+        let declared: Vec<&str> = names.split(',').filter(|n| !n.is_empty()).collect();
+        let mut table = nvs_runtime::ClassTable::new();
+        let id = table.define(
+            "Chat$fcc0",
+            &["fn#arity", "fn#params", nvs_runtime::CLOSURE_PARAM_NAMES],
+            &[],
+        );
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                // `call_closure` reads the arity and the tags off the object's
+                // own slots below rather than off this row — see
+                // `nvs_runtime::MethodRow`.
+                arity: 0,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { nvs_runtime::NvsObj::new(table.desc(id)) };
+        object.set_field(
+            nvs_runtime::CLOSURE_ARITY_SLOT,
+            Value::int(i64::try_from(declared.len()).expect("a small arity")),
+        );
+        let mut tags: u64 = 0;
+        for parameter in 0..declared.len() {
+            tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+        }
+        object.set_field(
+            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
+        );
+        object.set_field(
+            nvs_runtime::CLOSURE_PARAM_NAMES_SLOT,
+            Value::str(NvsStr::new(names.as_bytes())),
+        );
+        Value::object(object)
+    }
+
+    /// A one-parameter entry answering with the `int` it was passed, after the
+    /// exit sweep a compiled callee performs.
+    ///
+    /// The sweep is not decoration: `call_closure` retains the receiver and
+    /// every argument on the way in *because* the callee releases them, so a
+    /// fixture that skipped it would leak one reference per call and the
+    /// valgrind leg would report it against this member rather than against the
+    /// test.
+    ///
+    /// # Safety
+    ///
+    /// The callee half of `nvs_runtime::NvsFn`'s contract, which `call_closure`
+    /// satisfies: `args` points at the receiver plus one live retained value,
+    /// and `out` is writable.
+    #[expect(
+        unsafe_code,
+        reason = "this is a compiled callee's own contract, discharged where a \
+                  compiled callee would discharge it"
+    )]
+    unsafe extern "C" fn echoes_room(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        // SAFETY: the receiver and one argument, both live for this call.
+        let room = unsafe { *args.add(1) }.as_int().unwrap_or(-1);
+        for slot in 0..2 {
+            // SAFETY: each is a reference `call_closure` retained for this
+            // callee to release, which is what a compiled exit sweep does.
+            unsafe { (*args.add(slot)).release() };
+        }
+        // SAFETY: the caller's `out` is one writable `Value`.
+        unsafe { *out = Value::int(room) };
+        nvs_runtime::OK
     }
 
     /// ADR 0083 § 1 gives the connection the slot and § 2's member fills it, so
@@ -653,42 +875,119 @@ mod tests {
         release_crossed(path);
     }
 
-    /// The module doc's § *The method form waits on a name*, as the one thing
-    /// that reads it back: an entry that is not a path is refused **after** the
-    /// slot is in hand, so the gap is a throw a program catches rather than a
-    /// connection opened with `args:` bound by position.
+    /// ADR 0083 § 2's two written entry forms, prepared side by side and
+    /// asserted to differ **only** in what the connection runs.
     ///
-    /// The entry stands in for the closure `lower_callable_ref` builds, and it
-    /// is not one: what this branch reads is that the value is not text, which
-    /// is every non-path entry `nvs_types::expr::isolate` admits. Building a
-    /// real callable here would pin the fixture rather than the rule — the
-    /// playbook's `closure_of` is that shape, and it would answer the same
-    /// question at ten times the size.
+    /// § 2's rule is that the target is `spawn script`'s operand — a path or a
+    /// static method — and § 1's is that either one opens the same kind of
+    /// thing. A member that grew a second hand-over for the method form would
+    /// pass a test that only asked whether each form worked, so what is
+    /// asserted here is the *sameness*: the same cell filled, the same crossing
+    /// (a copy, never the request's own graph), the same argument reaching the
+    /// connection's ownership root, and the answer being each entry's own and
+    /// nothing else.
+    ///
+    /// The method form's answer is `room` read back out of its **first
+    /// positional slot**, which is ADR 0006 § *Decision*'s by-name binding
+    /// arriving as a positional call. A member that bound by position would
+    /// give the same answer here for a one-parameter entry, which is why
+    /// `a_method_entry_whose_args_do_not_name_its_parameters_is_refused`
+    /// stands beside this one.
     #[test]
-    fn a_static_method_entry_is_refused_where_the_slot_is_the_one_thing_present() {
+    fn an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path() {
+        let _resolver = resolving();
+
+        let mut by_path = granting();
+        let path_slot = UpgradeSlot::new();
+        upgradable(&mut by_path, &path_slot);
+        let path = Value::str(NvsStr::new(b"sockets/chat.nvs"));
+        let path_args = a_room();
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut by_path, &[path, path_args])
+            .expect("a path entry fills the slot");
+
+        let mut by_method = granting();
+        let method_slot = UpgradeSlot::new();
+        upgradable(&mut by_method, &method_slot);
+        let entry = a_callable("room", echoes_room);
+        let method_args = a_room();
+        nvs_runtime::call(
+            nvs_core_socket_upgrade,
+            &mut by_method,
+            &[entry, method_args],
+        )
+        .expect("a static method entry fills the same slot");
+
+        // 16 is the `Fixed` resolver's answer for the written path; 7 is the
+        // `room` the entry was bound with. Each is its own entry's, and every
+        // other fact below is asserted to be identical.
+        for (form, slot, mine, answer) in [
+            ("a path", &path_slot, path_args, 16),
+            ("a static method", &method_slot, method_args, 7),
+        ] {
+            let (program, crossed) = slot
+                .take()
+                .unwrap_or_else(|| panic!("{form} left the connection nothing to start"))
+                .into_parts();
+            assert_ne!(
+                crossed.array_ptr(),
+                mine.array_ptr(),
+                "{form} handed the connection the request's own array rather than a copy"
+            );
+
+            let mut connection = Ctx::buffered();
+            assert_eq!(
+                program(&mut connection, crossed).as_int(),
+                Some(answer),
+                "{form} ran something other than the entry that was written"
+            );
+            assert_eq!(
+                connection.isolate_argument().array_ptr(),
+                crossed.array_ptr(),
+                "{form} did not leave the crossed argument in the connection's own root"
+            );
+            release_crossed(mine);
+        }
+
+        release_crossed(entry);
+    }
+
+    /// ADR 0006 § *Decision* binds `args:` **by name**, so a map that names
+    /// something the entry does not declare — or omits something it does — is
+    /// the ordinary named-argument error, reported at the call while there is
+    /// still a `catch` above it.
+    ///
+    /// The `LogicError` and the untouched slot are the two halves: a member
+    /// that judged the names inside the connection would have filled the cell
+    /// first, and the program would already have been handed over by the time
+    /// anything could refuse.
+    #[test]
+    fn a_method_entry_whose_args_do_not_name_its_parameters_is_refused() {
         let _resolver = resolving();
         let mut ctx = granting();
         let slot = UpgradeSlot::new();
         upgradable(&mut ctx, &slot);
 
-        nvs_runtime::call(
-            nvs_core_socket_upgrade,
-            &mut ctx,
-            &[Value::int(3), Value::null()],
-        )
-        .expect_err("an entry that is not a path cannot be prepared yet");
+        // The entry declares `userId`; the map names `room`, which is both a
+        // parameter with no entry and an entry naming no parameter.
+        let entry = a_callable("userId", echoes_room);
+        let mine = a_room();
+        nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &[entry, mine])
+            .expect_err("`args:` that does not name the entry's parameters is refused");
         let reported = ctx
             .pending()
             .expect("the throw is on the context")
             .into_owned();
         assert!(
-            reported.contains("static method entry"),
-            "the refusal did not name the entry form: {reported}"
+            reported.contains("userId") && reported.contains("Core\\Socket::upgrade"),
+            "the refusal named neither the parameter nor the member: {reported}"
         );
         assert!(
             !slot.is_filled(),
             "a refused entry still left something for the connection to start"
         );
+
+        release_crossed(entry);
+        release_crossed(mine);
     }
 
     /// `nvs_runtime::UpgradeSlot::fill` refuses a second upgrade, and this is
