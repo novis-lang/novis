@@ -4046,11 +4046,15 @@ tests = [
 
 # ADR 0116 § 2's teardown sweep, under load -- item 31, added 2026-09-01. The whole memory story in one
 # assertion: a request's cycles die with the request, so live bytes track in-flight work, never traffic.
+# Filed `-p nvs-host` and not `-p nvs-server`, corrected 2026-09-05: a request IS the isolate, and the
+# arena whose teardown this asserts is `nvs_host::isolate`'s child -- but the cycle has to be built by
+# hand, `NvsObj::new` is `unsafe`, and `crates/nvs-server` inherits the workspace's `unsafe_code =
+# "forbid"`, which no `#[expect]` can open. The two tests' own doc comments carry this.
 [[check]]
 kind = "cargo-named"
 stage = "9 the claims"
-name = "nvs-server (the memory floor)"
-args = ["test", "-p", "nvs-server"]
+name = "nvs-host (the memory floor)"
+args = ["test", "-p", "nvs-host"]
 tests = [
   "live_bytes_are_flat_across_a_cycle_building_soak",
   "a_request_that_builds_cycles_returns_its_bytes_at_teardown",
