@@ -2181,7 +2181,7 @@ is why" — is this file.
   scratch run, which is exactly where a session is trying to find out whether a shape lowers.
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works from
   PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe` ever
-  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/<drive>/<repo>/tools/
+  sees it, so the documented command arrives as `bash: C:/Program Files/Git/mnt/…/tools/
   leak-check.sh: No such file or directory` — a path no document mentions, which reads as a missing
   script rather than as the MSYS path translation it is. And the call still exits 0, which reads as a
   clean leak check on a fixture that was never run. The script's own header shows the
@@ -2393,13 +2393,13 @@ is why" — is this file.
   own field and dropping the local frees nothing. The fixture now breaks both rings by hand before it
   ends. A leak stack whose top frame is an object allocation is the shape to suspect — grep the `.nvs`
   for a cycle before opening the Rust.
-- **`<repo>` grants `Authenticated Users` modify, so this repository's own `nvs.toml` fails ADR 0103
-  § 6.** The check is right and the drive is what is unusual: a non-system Windows drive's root carries
-  that ACE by default and everything under it inherits it, which is the hole § 6 closes. Nothing reads
+- **A checkout on a non-system Windows drive grants `Authenticated Users` modify, so this repository's own
+  `nvs.toml` fails ADR 0103 § 6.** The check is right and the drive is what is unusual: such a drive's root
+  carries that ACE by default and everything under it inherits it, which is the hole § 6 closes. Nothing reads
   the tree through `Files::trust` yet — no crate depends on `nvs-config` — so nothing refuses today, but
   the session that wires the snapshot into `nvs run` will find every run in this checkout stopped by
   `E0607`. The fix is on the machine, not in the code: `icacls <path> /inheritance:d` then
-  `icacls <path> /remove:g "<the account>"` for `<repo>\nvs.toml` **and** for `<repo>` itself, since the
+  `icacls <path> /remove:g "<the account>"` for the checkout's `nvs.toml` **and** for its root itself, since the
   containing directory carries the same rule. Account names are localized — `icacls <path>` prints the
   spelling this machine uses. Ask the user before changing a machine's ACLs; a scratch tree under
   `%TEMP%` passes the check as it is, which is where `crates/nvs-config/tests/trust.rs` works.
@@ -2764,6 +2764,18 @@ is why" — is this file.
   `Content-Length`, so a reader that frames by content-length alone hands back `b""` and an
   agreement gate then reports a `DIFF` that is the client's bug and not the server's — read to EOF
   when a response carries neither header, and count the reopen rather than hiding it.
+- **A `cargo test` failure whose panic is inside `cranelift-jit`'s `compiled_blob.rs` —
+  `` called `Result::unwrap()` on an `Err` value: TryFromIntError(NegOverflow) `` — is the machine,
+  not the tree, and re-running is the whole diagnosis.** It is a relocation whose target landed more
+  than 2 GB from the JIT buffer, so it depends on where Windows mapped that buffer and therefore on
+  what else the box is holding: `verify.py` failed three of `nvs-cli`'s `script::tests` on one run
+  and one of them on the next, with no edit in between, while `cargo test -p nvs-cli --bin nvs`
+  passed all 53 every time. **Nondeterminism across runs of the same binaries is the tell** — a real
+  regression fails the same test every time — and the load that provoked it here was
+  `tests/db/compose.yaml`'s five containers plus a parallel build. Two facts save the bisect: the
+  failing test is always a JIT-heavy one (`ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once`),
+  and the panic frame names a crates.io path rather than anything under `crates/`. Re-run
+  `verify.py --no-cache` before touching a line.
 
 ## Writing a test case
 
@@ -5830,6 +5842,18 @@ is why" — is this file.
   which connection it got. Worth the bullet because `:memory:` reads as "per connection" and the pool
   is invisible from the program's side —
   `tests/conformance/core/db-a-closed-name-is-free-for-the-next-connect.nvst` carries the note.
+- **A `Core` member declared on two classes owes the conformance floor twice, and a case reaching it
+  through the wrong receiver counts for neither.** `conformance_coverage.rs`'s floor is per class,
+  and `corpus::Attribution` attributes a case's `->member(` to every class the case *mentions* (or
+  provably holds) — so three cases writing `$db->stream(` left `Core\Db\Transaction::stream` at
+  zero, and the failure names only the second class, several minutes into a full `verify.py`. ADR
+  0043's delegation is where this bites: `Core\Db\Queryable`'s rows are declared on `Connection` and
+  on `Transaction` under one symbol, so every one of them needs three cases that write
+  `Core\Db\Transaction` somewhere in the file. Cheapest close is usually a `$db->transaction(fn
+  (Core\Db\Transaction $tx) => …)` half added to a case you were writing anyway — which is also the
+  honest question, the delegated row being a second place the rule has to hold. Run `cargo test -p
+  nvs-stdlib --test conformance_coverage` before the full gate when a new member lands on a
+  delegating interface.
 
 ## Splitting a file that got too big
 
@@ -6626,8 +6650,8 @@ sibling in the same namespace unqualified.
   printed the right link, and every test passed: a leak is invisible to the program that causes
   it, so the only leg that saw it was the driver's `examples/` valgrind sweep, three stages after
   the code landed. `wsl.exe -- bash tools/leak-check.sh <fixture>` is the one-fixture form — and
-  from the Bash tool it needs `MSYS_NO_PATHCONV=1` in front, or Git Bash rewrites `/mnt/d/...`
-  into `C:/Program Files/Git/mnt/d/...` and the script is simply not found. The general shape:
+  from the Bash tool it needs `MSYS_NO_PATHCONV=1` in front, or Git Bash rewrites the `/mnt/...`
+  argument into `C:/Program Files/Git/mnt/...` and the script is simply not found. The general shape:
   wherever lowering hand-rolls what a shared helper normally does, the accounting is the half that
   gets dropped, and `crates/nvs-ir/src/lower/tests.rs`'s
   `a_resolved_route_link_releases_its_params_array` is the assertion shape that pins one — find
@@ -8105,6 +8129,19 @@ sibling in the same namespace unqualified.
   ends before sweeping, so a name on it that stops being a connection-only row fails there. The
   general shape: a guard written as "these two rosters are identical" needs its exception set spelled
   as data the guard also checks, or the first legitimate exception turns it into a weaker guard.
+- **A `Core` member that answers a *walk* returns a **registered** memberless class, never
+  [`crate::cursor`]'s unregistered one — and a handoff item saying otherwise reads exactly right
+  until you try to compile it.** ADR 0067 § 4's `stream` answers something a `foreach` drives whose
+  next element does not exist yet, so "a second internal class beside `Core\Cursor`, on
+  `instance::INTERNAL_CLASSES`" is the obvious shape and it cannot work: `registry`'s
+  `every_instance_type_names_a_registered_class` requires a `CoreTy::Instance` return type to name a
+  row of `CLASSES`, and `CoreTy::Iterated` is parameter position only, so there is no other spelling
+  for `Iterable<T>` in *return* position. The shape that does work is `Core\IO\Lines`': a `CLASSES`
+  row with slots and no members, an `ITERABLES` row giving the element type, a `HANDLES` entry in
+  that same test file, and — for a walk that is its own iterator, as `Core\Request\Files` is — all
+  three of `iterate`/`advance`/`current` on `instance`'s dispatch roster rather than a cursor handed
+  back. `crate::cursor` is only for a member handing back a *snapshot* it is already holding, which
+  is why `Core\Db\Rows::iterate` uses it and `Core\Db\Stream` cannot.
 
 ## Divergences and refusals already pinned
 
