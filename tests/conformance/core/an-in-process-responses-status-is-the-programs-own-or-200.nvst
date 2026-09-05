@@ -1,0 +1,32 @@
+--TEST--
+an in-process response carries the status the program declared, and `200` where it declared none, asserted on both sides in one run — ADR 0079 § 18
+--FILE--
+<?nvs
+// A bound named on both sides: the last value the program chose and the first
+// one it did not. A `Core\Test\Response` that only ever reported what was
+// declared would answer `0` for the program that declared nothing, and one
+// that only ever reported `200` would lose the `201` -- either half alone
+// prints plausibly, so both are asked in the same run.
+//
+// Two requests through the same program, told apart by the path they arrived
+// with, which is also what pins that the *target* crosses and not only the
+// match: the second path is claimed by no route, so the child is reading
+// `Core\Request::path()` rather than a route row.
+//
+// The `catch` is the child, as in the two sibling cases.
+try {
+    var $declared = Core\Test::request(Core\Http\Method::Get, "/declares");
+    echo "declared ", $declared->status(), " ", $declared->body(), "\n";
+    var $silent = Core\Test::request(Core\Http\Method::Get, "/silent");
+    echo "silent ", $silent->status(), " ", $silent->body(), "\n";
+} catch (RuntimeError $refused) {
+    if (Core\Str::endsWith(Core\Request::path(), "/declares")) {
+        Core\Response::setStatus(201);
+        echo "made";
+    } else {
+        echo "said nothing";
+    }
+}
+--EXPECT--
+declared 201 made
+silent 200 said nothing

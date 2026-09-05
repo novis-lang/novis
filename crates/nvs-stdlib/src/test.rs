@@ -128,6 +128,26 @@
 //!   against a roster compiles nothing and executes nothing. The spelling a
 //!   call uses is `Core\Test\Failure::class`, which folds to a constant, so a
 //!   qualified argument does not arise in practice either.
+//!
+//! # § 18's in-process request, and what of it is still owed
+//!
+//! `request` runs a synthetic request through the program under test with no
+//! socket and no port, and [`RESPONSE`]'s two accessors are what it answers
+//! with. The mechanism is [`nvs_runtime::inproc`]'s and that module's doc is
+//! the one home of it; what is recorded here is the gap.
+//!
+//! **A synthetic request carries no headers and no body yet.** § 18's worked
+//! example passes a `{headers: ...}` bag, and its second paragraph says the
+//! body and parameters arrive `tainted` exactly as a real request's would —
+//! true of the path's query, which crosses on the carrier, and vacuous for the
+//! other two, which have no spelling to arrive through. The bag is the next
+//! slice's; a body needs a `nvs_runtime::RequestBody` over held bytes, which
+//! nothing in this crate builds today.
+//!
+//! **`#[Test(server: true)]` is a separate mechanism and is not here.** § 18
+//! justifies the two as answering measurably different questions, and the
+//! second one — a real listener on an ephemeral port, for the cases that need
+//! the wire — is the runner's rather than this class's.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
@@ -301,11 +321,84 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_test_script_answers",
             doc: Some(&SCRIPT_ANSWERS_DOC),
         },
+        CoreMethod {
+            name: "request",
+            names: &["method", "path"],
+            // The path is `Qual::Neutral` and not a sink: what it selects is a
+            // row of a table compiled from the program's own `#[Route]`
+            // declarations, so nothing it says becomes an instruction, and the
+            // answer — a status and the bytes the program wrote — carries none
+            // of the argument's qualifier back out.
+            params: &[
+                CoreTy::Enum(crate::router::METHOD_NAME),
+                CoreTy::Text(Qual::Neutral),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(RESPONSE_NAME),
+            symbol: "nvs_core_test_request",
+            doc: Some(&REQUEST_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
     constants: &[],
 };
+
+/// `Core\Test\Response`'s fully-qualified name, written once for the same
+/// reason [`NAME`] is.
+pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
+
+/// What one in-process request answered with — ADR 0079 § 18.
+///
+/// A `Core`-owned instance rather than an [ADR 0036] shape, which is the one
+/// place this surface departs from § 18's worked example's `$rs->status`. A
+/// shape would be the smaller surface, and `Core\Script\Result` is the
+/// precedent for spelling a result as one; what decides it the other way is
+/// that there is no registry spelling for a *returned* shape at all —
+/// [`CoreTy::Shape`] is a parameter's arms, flattened at the call site into one
+/// ABI argument per field, and a shape value crosses back only from a
+/// construct the checker types itself (`nvs_types::expr::isolate`). Inventing
+/// one for a single member would put a second shape-typing path in
+/// `nvs-types` beside the one that already exists, which is a larger change
+/// than the two accessors below, and `Core\Script\ExitReport` is the shape a
+/// `Core`-owned result already takes here.
+///
+/// [ADR 0036]: /docs/adr/0036-anonymous-object-shapes.md
+pub(crate) const RESPONSE: CoreClass = CoreClass {
+    name: RESPONSE_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "status",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_test_response_status",
+            doc: Some(&RESPONSE_STATUS_DOC),
+        },
+        CoreMethod {
+            name: "body",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // Not `tainted`: the bytes are what the *program under test* wrote,
+            // which is its own output and not the peer's input. ADR 0024's
+            // qualifier travels with what arrived, and nothing that arrived
+            // reaches this without the program having put it there.
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_test_response_body",
+            doc: Some(&RESPONSE_BODY_DOC),
+        },
+    ],
+    slots: &["status", "body"],
+    constants: &[],
+};
+
+/// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
+const STATUS_SLOT: usize = 0;
+/// [`RESPONSE`]'s second slot: the bytes the program wrote.
+const BODY_SLOT: usize = 1;
 
 /// `Core\Test::advance`'s reference card — ADR 0117.
 const ADVANCE_DOC: MethodDoc = MethodDoc {
@@ -345,6 +438,53 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     }],
     ret: "Nothing. The lines join the tail of the queue, so scripting a flow in two calls reads \
           in one order; what no prompt drained is discarded with the test.",
+    errors: &[],
+};
+
+/// `Core\Test::request`'s reference card — ADR 0117.
+const REQUEST_DOC: MethodDoc = MethodDoc {
+    short: "Runs one request through the program under test in this process — the compiled route \
+            table and the real handler chain, with no socket and no port — and answers with what \
+            the program wrote.",
+    params: &[
+        ParamDoc {
+            name: "method",
+            desc: "The verb the synthetic request carries, matched against the table exactly as \
+                   an arrived one is.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "path",
+            desc: "The path to ask for, mount prefix already stripped — what a handler's \
+                   `#[Route]` is declared against. A `?` and everything after it is the query.",
+            shape: &[],
+        },
+    ],
+    ret: "The status the program declared and the bytes it wrote. A path the table does not claim \
+          is still answered: nothing here dispatches, so the program decides what a miss means.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "There is no program under test — the call is outside a `nvs test` or `nvs run` \
+               invocation — or the call is already inside an in-process request, which is \
+               refused because the program answering one is the program that asked.",
+    }],
+};
+
+/// `Core\Test\Response::status`'s reference card — ADR 0117.
+const RESPONSE_STATUS_DOC: MethodDoc = MethodDoc {
+    short: "The status the program under test declared for this request.",
+    params: &[],
+    ret: "The declared code, or `200` where the program declared none — the same default the \
+          server writes for a program that only echoed.",
+    errors: &[],
+};
+
+/// `Core\Test\Response::body`'s reference card — ADR 0117.
+const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
+    short: "The bytes the program under test wrote while answering this request.",
+    params: &[],
+    ret: "Everything the program echoed, in order, and an empty string for a program that wrote \
+          nothing. A program that threw still answers with whatever it had written first.",
     errors: &[],
 };
 
@@ -831,6 +971,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_test_assert_does_not_throw as *const ()).cast()
         }
         "nvs_core_test_expect_failure" => (nvs_core_test_expect_failure as *const ()).cast(),
+        "nvs_core_test_request" => (nvs_core_test_request as *const ()).cast(),
+        "nvs_core_test_response_status" => (nvs_core_test_response_status as *const ()).cast(),
+        "nvs_core_test_response_body" => (nvs_core_test_response_body as *const ()).cast(),
         _ => return None,
     })
 }
@@ -838,6 +981,121 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // ============================================================================
 // The members
 // ============================================================================
+
+/// The wire token one [`crate::router::METHOD`] ordinal spells.
+///
+/// The reverse of that module's `method_case`, and it reads the same roster
+/// rather than a second copy of the eight names: an enum case's own spelling
+/// upper-cased *is* the token, which is why there is no table here.
+fn verb_of(ordinal: i64) -> Option<String> {
+    crate::router::METHOD
+        .cases
+        .iter()
+        .find(|(_, value)| *value == ordinal)
+        .map(|(case, _)| case.to_ascii_uppercase())
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response`
+    /// — ADR 0079 § 18's in-process request.
+    ///
+    /// **Neither the match nor the dispatch happens here.** ADR 0102 § 1's
+    /// match is taken on the far side of `nvs_runtime::inproc`, whose
+    /// `Answering::answer` owns why: the table is a compile product of the unit
+    /// under test, and a `#[Test]` method's own isolate shares compiled code
+    /// with that unit and nothing else, so matching against *this* context's
+    /// table would match against nothing. The dispatch is nobody's — ADR 0102
+    /// § 9 is why the matched handler is not called from anywhere: routes do
+    /// not share a signature, so invoking one would be pre-binding converted
+    /// parameters, which is dispatch. What runs is the program's own entry,
+    /// exactly as a served request runs it.
+    ///
+    /// **Known gap, ADR 0079 § 18's second sentence:** the worked example's
+    /// `{headers: ...}` bag and a synthetic body are not here yet, so nothing a
+    /// synthetic request carries arrives `tainted` because it carries nothing.
+    /// The module doc's own gap list is the home of that.
+    fn nvs_core_test_request(ctx, args: [2]) {
+        let ordinal = args[0].as_int().unwrap_or(-1);
+        let Some(verb) = verb_of(ordinal) else {
+            // Unreachable from source — the parameter is `CoreTy::Enum`, so
+            // `E0401` refuses anything but a case of the eight — and a fatal
+            // rather than a throw for that reason: what it catches is a
+            // lowering that put something else in the slot.
+            return Err(Fault::fatal(format!(
+                "Core\\Test::request expected a Core\\Http\\Method case, got {ordinal}"
+            )));
+        };
+        let Some(target) = args[1].as_text() else {
+            // Unreachable from source, exactly as the arm above is: the row's
+            // second parameter is `CoreTy::Text`, so `E0401` refuses anything
+            // that is not a string before any of this runs.
+            return Err(Fault::fatal(
+                "Core\\Test::request expected a string for its path".to_owned(),
+            ));
+        };
+        // Split exactly as the door does: everything after the first `?` is the
+        // query, undecoded, and a target with none has an empty one rather than
+        // no query at all.
+        let (path, query) = target.split_once('?').unwrap_or((target, ""));
+        let inbound = nvs_runtime::Inbound::new(&verb, path, query);
+        let mut completion = match nvs_runtime::inproc::answer(ctx, Box::new(inbound)) {
+            Ok(completion) => completion,
+            Err(refusal) => return Err(Fault::thrown(format!(
+                "Core\\Test::request could not run the request: {refusal}"
+            ))),
+        };
+        // Nobody reads what the program's script frame returned — a response is
+        // its status and its bytes — so the reference is discharged rather than
+        // leaked (`Completion::discard_value`).
+        completion.discard_value();
+        // Spec § 15's default, applied here rather than left `null`: a program
+        // that only echoed answered `200`, and making a test say so would be
+        // making every test say so.
+        let status = i64::from(completion.status.unwrap_or(200));
+        Ok(crate::instance::build(
+            &RESPONSE,
+            [
+                Value::int(status),
+                Value::str(nvs_runtime::NvsStr::new(&completion.output)),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::status(): uint` — the code the program declared.
+    fn nvs_core_test_response_status(_ctx, args: [1]) {
+        response_slot(args, STATUS_SLOT, "status")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::body(): string` — the bytes the program wrote.
+    fn nvs_core_test_response_body(_ctx, args: [1]) {
+        response_slot(args, BODY_SLOT, "body")
+    }
+}
+
+/// One [`RESPONSE`] slot, handed to the caller with a reference of its own.
+///
+/// `Core\Script\ExitReport`'s `slot_of` one class over, and the accounting is
+/// the same: the slot's reference belongs to the receiver, and a value crossing
+/// out of a member needs one that does not.
+fn response_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(args[0], &RESPONSE, member)?;
+    let held = crate::instance::slot(receiver, index);
+    #[expect(
+        unsafe_code,
+        reason = "the slot's reference belongs to the receiver, which is live for \
+                  the length of the call, and this value is being handed to the \
+                  caller — which is exactly `Value::retain`'s obligation"
+    )]
+    // SAFETY: the receiver owns the slot's reference and outlives this call.
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertSame(T $actual, T $expected, {message?: string}): void`
@@ -1654,21 +1912,25 @@ mod tests {
         })
     }
 
-    /// Every assertion — every row but the three that are not one: § 5's
+    /// Every assertion — every row but the four that are not one: § 5's
     /// `expectFailure`, which takes a body rather than a subject; § 12's
     /// `advance`, which asserts nothing at all and is the fixed clock's
-    /// mutator; and ADR 0086 § 4's `scriptAnswers`, which is the same kind of
+    /// mutator; ADR 0086 § 4's `scriptAnswers`, which is the same kind of
     /// thing as `advance` — a test declaring the world its subject runs in,
-    /// here the answers its prompts read.
+    /// here the answers its prompts read; and § 18's `request`, which is the
+    /// subject rather than a claim about one, and is the only row that answers
+    /// with a value.
     ///
     /// Named rather than derived, so that adding a member to this class has to
     /// answer "is this an assertion?" here instead of quietly joining or
     /// quietly escaping § 4's shape rules.
     fn asserting_members() -> impl Iterator<Item = &'static CoreMethod> {
-        CLASS
-            .methods
-            .iter()
-            .filter(|method| !matches!(method.name, "expectFailure" | "advance" | "scriptAnswers"))
+        CLASS.methods.iter().filter(|method| {
+            !matches!(
+                method.name,
+                "expectFailure" | "advance" | "scriptAnswers" | "request"
+            )
+        })
     }
 
     /// § 4's order, which is the opposite of the one every migrated test suite
@@ -1795,13 +2057,13 @@ mod tests {
             .expect("§ 5's member is registered");
         assert!(matches!(member.params, [CoreTy::Callable]));
         assert!(matches!(member.return_ty, CoreTy::Void));
-        // It is one of exactly three rows that assert nothing about a subject —
-        // this, § 12's `advance` and ADR 0086 § 4's `scriptAnswers` — and
-        // [`asserting_members`] names all three by hand. This count is what
-        // makes adding a member to this class have to answer "is it an
-        // assertion?": a new row joins § 4's shape sweep unless it is listed
-        // there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 3);
+        // It is one of exactly four rows that assert nothing about a subject —
+        // this, § 12's `advance`, ADR 0086 § 4's `scriptAnswers` and § 18's
+        // `request` — and [`asserting_members`] names all four by hand. This
+        // count is what makes adding a member to this class have to answer "is
+        // it an assertion?": a new row joins § 4's shape sweep unless it is
+        // listed there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 4);
         assert_eq!(equality_members().count(), 3);
     }
 }

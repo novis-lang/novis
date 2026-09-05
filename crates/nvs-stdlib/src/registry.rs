@@ -1340,6 +1340,11 @@ pub const CLASSES: &[CoreClass] = &[
     // § 4's assertion surface rather than a spec § of its own: testing is a
     // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
     crate::test::CLASS,
+    // § 18's in-process request, as the thing one answers with — a class beside
+    // `Core\Test` for the reason `Core\Script\ExitReport` sits beside
+    // `Core\Script`, and [`crate::test`]'s own doc on it owns why it is a
+    // `Core`-owned instance rather than the shape § 18's example writes.
+    crate::test::RESPONSE,
     // ADR 0072 § 1's `Core\Task`, and no spec § of its own either: structured
     // concurrency is a language surface over the `nvs-host` scheduler. The
     // signature is here and the body is a placeholder — [`crate::task`] owns

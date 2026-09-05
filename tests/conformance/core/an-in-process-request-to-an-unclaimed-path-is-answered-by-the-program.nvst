@@ -1,0 +1,36 @@
+--TEST--
+an in-process request to a path the compiled table does not claim still runs the program, which decides for itself what a miss means — ADR 0079 § 18, ADR 0102 § 1
+--FILE--
+<?nvs
+// The boundary of the sibling case: there, the table claimed the path and the
+// match crossed; here it claims nothing and the request is answered anyway.
+// ADR 0102 § 1 is why -- the match is a computation and never a dispatch, so a
+// `null` route is a fact the program reads rather than a `404` anything sends.
+// A door that refused a miss would refuse every request of a program declaring
+// no `#[Route]` at all, which is ADR 0077 § 5's opt-in rule inverted.
+//
+// The `catch` is the child, for the reason the sibling case's comment states
+// in full: an in-process request may not be made from inside one.
+class Api {
+    #[Core\Route(path: "/claimed", method: Core\Http\Method::Get, name: "Api::claimed")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function claimed(): string { return "claimed"; }
+}
+
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        // The program's own answer to a miss, chosen here and by nobody else.
+        Core\Response::setStatus(404);
+        echo "the table claimed nothing";
+    } else {
+        echo "unexpectedly matched ", $matched->name() ?? "unnamed";
+    }
+}
+--EXPECT--
+status 404
+body the table claimed nothing

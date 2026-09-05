@@ -322,6 +322,10 @@ fn run_suite_in_a_task(
     filter: Option<&str>,
 ) -> Result<(Suite, nvs_runtime::Ctx), String> {
     let mut sched = nvs_host::Scheduler::new();
+    // Built before `checked` is moved into the task below, which is the only
+    // reason it is here rather than beside the resolver: both are installed
+    // over the same `run_until_idle`.
+    let under_test = UnderTest::new(unit, &checked);
     let filed: Rc<RefCell<Option<Suite>>> = Rc::new(RefCell::new(None));
     let collected = Rc::clone(&filed);
     let suite_unit = Rc::clone(unit);
@@ -352,7 +356,12 @@ fn run_suite_in_a_task(
     // and a run that reads no configuration is exactly what that constructor
     // means. Nothing edits a file mid-suite, so the policy chooses nothing.
     let compiler = crate::script::Compiler::default();
-    let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
+    // And ADR 0079 § 18's unit under test, over the same run: a `Core\Test`
+    // member reaches it the way a `spawn script` reaches the resolver, so the
+    // two guards nest rather than either one being a special case.
+    let ran = nvs_runtime::script::scoped(&compiler, || {
+        nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
+    });
     drop(installed);
     ran.map_err(|error| format!("the scheduler stopped: {error}"))?;
 
@@ -376,6 +385,101 @@ fn run_suite_in_a_task(
         .take()
         .ok_or_else(|| "internal error: the suite's task ran nothing".to_owned())?;
     Ok((suite, finished.ctx))
+}
+
+/// The program `Core\Test::request` answers a synthetic request with — ADR
+/// 0079 § 18, and the far side of [`nvs_runtime::inproc::Answering`].
+///
+/// It lives here rather than in `nvs-stdlib` for that seam's stated reason: a
+/// `Core` member may not hold a compiled unit, `nvs-codegen` being above the
+/// runtime, and this binary is the one place a checked program and a runtime
+/// context are in the same scope. It is also why the *test runner* owns it
+/// rather than `serve`: what a `#[Test]` method asks for is the program under
+/// test, which is a unit this run compiled, where a served request's program is
+/// whichever entry the mount table selected.
+pub(crate) struct UnderTest {
+    /// The unit the suite is running, whose script frame is the entry a
+    /// synthetic request runs — the same frame a served request would run,
+    /// which is what makes § 18's "the real chain" true rather than a mock.
+    unit: Rc<nvs_codegen::Unit>,
+    /// ADR 0102 § 1's table, installed on the child so that a handler reading
+    /// its own route reads the same one the door matched against.
+    routes: std::sync::Arc<nvs_runtime::routes::Routes>,
+}
+
+impl std::fmt::Debug for UnderTest {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // The unit has no rendering and would not be worth one here: what a
+        // reader of a seam's `Debug` wants is which program is installed, and
+        // the route count is the only thing about it that distinguishes two.
+        formatter
+            .debug_struct("UnderTest")
+            .field("routes", &self.routes.rows().len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl UnderTest {
+    /// The unit under test for this run, with ADR 0102 § 1's table already
+    /// crossed into the runtime's shape.
+    pub(crate) fn new(unit: &Rc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
+        Self {
+            unit: Rc::clone(unit),
+            routes: std::sync::Arc::new(crate::runtime_routes(checked.exprs.routes())),
+        }
+    }
+}
+
+impl nvs_runtime::inproc::Answering for UnderTest {
+    fn answer(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        mut inbound: Box<nvs_runtime::Inbound>,
+    ) -> Result<nvs_runtime::host::Completion, String> {
+        // ADR 0102 § 1's one match, here because this is the side holding the
+        // table and the last point before application code exists to have run.
+        // A program with no `#[Route]` has an empty table and claims nothing,
+        // which is ADR 0077 § 5's opt-in rule and leaves the route `null`.
+        if let Some(matched) = self.routes.match_request(inbound.method(), inbound.path()) {
+            inbound.set_route(matched);
+        }
+        let unit = Rc::clone(&self.unit);
+        let routes = std::sync::Arc::clone(&self.routes);
+        // The same program `crate::script::program_over` builds for a `spawn
+        // script`, over this run's own unit instead of a resolved one: the
+        // child's statics and its error class are armed from inside, because
+        // ADR 0006's isolate shares compiled code and nothing else.
+        let program: nvs_runtime::script::Program =
+            Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
+                unit.install_in(ctx);
+                if !routes.rows().is_empty() {
+                    ctx.set_routes(std::sync::Arc::clone(&routes));
+                }
+                let Some(entry) = unit.function(crate::SCRIPT) else {
+                    // Not reachable for a unit that compiled, and a failure
+                    // value rather than a panic for `program_over`'s reason: a
+                    // child may not end its parent.
+                    ctx.set_pending("the program under test has no script frame");
+                    return nvs_runtime::Value::null();
+                };
+                nvs_runtime::call(entry, ctx, &[]).unwrap_or_else(|_| nvs_runtime::Value::null())
+            });
+        // `Isolate` and not `Host::start_isolate`: the seam's operation takes no
+        // request, and the request is exactly what decides the child's sink —
+        // an isolate answering one writes to a response body under ADR 0088
+        // § 3, and a `Core` member reaching the host through the trait could
+        // not have said so. `nvs_host::Isolate::answering` is the one spelling
+        // of that, and it is this crate's to reach.
+        let running = nvs_host::Isolate::new(
+            program,
+            nvs_runtime::Value::null(),
+            nvs_runtime::host::Output::Capture,
+        )
+        .answering(*inbound)
+        .start(ctx)
+        .map_err(|error| error.to_string())?;
+        Ok(running.join(ctx))
+    }
 }
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of
@@ -1366,6 +1470,40 @@ mod tests {
                 (case.method, case.outcome.verdict(), failures)
             })
             .collect()
+    }
+
+    #[test]
+    fn test_request_dispatches_in_process_through_the_compiled_route_table() {
+        // ADR 0079 § 18's first mechanism, asserted where it lives: `nvs-test`
+        // holds the `.nvst` format and declares no dependencies at all, so the
+        // crate that can build both halves of this — a checked program and a
+        // runtime context in one scope — is this one.
+        //
+        // Two cases in one fixture, because the claim is about the *table* and
+        // not about one row of it. The first asks a path the fixture's own
+        // `#[Route]` declares and reads the match back inside the program that
+        // answered, which is the whole of "through the compiled route table";
+        // the second asks a path no route claims and still gets an answer,
+        // which is ADR 0102 § 1's "nothing here dispatches" — a runner that
+        // sent a `404` of its own would pass the first and fail the second.
+        // Neither opens a socket: the fixture is answered by an isolate over
+        // this run's own unit (`UnderTest`).
+        let verdicts = verdicts("in-process-request.nvs");
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itReachesTheCompiledTableWithNoSocket", "passed"),
+                ("itAnswersAPathTheTableDoesNotClaim", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
     }
 
     #[test]

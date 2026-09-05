@@ -1,0 +1,40 @@
+<?nvs
+// ADR 0079 § 18's in-process request, as the runner sees it: a `#[Test]` method
+// asks for a path, and what answers is this same program's entry with ADR 0102
+// § 1's match already on the carrier.
+//
+// The top level is the entry, so it runs twice for two different reasons: once
+// when the suite is loaded, with no request in front of it, and once per
+// synthetic request. `Core\Request::route()` is what tells those apart — it
+// throws where there is no request at all, which is ADR 0012 § 7.
+class Api {
+    #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "shown"; }
+
+    #[Core\Test]
+    public function itReachesTheCompiledTableWithNoSocket(): void {
+        var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");
+        Core\Test::assertEquals($answered->status(), 201);
+        Core\Test::assertEquals($answered->body(), "Api::show");
+    }
+
+    #[Core\Test]
+    public function itAnswersAPathTheTableDoesNotClaim(): void {
+        var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");
+        Core\Test::assertEquals($answered->status(), 200);
+        Core\Test::assertEquals($answered->body(), "unclaimed");
+    }
+}
+
+try {
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "unclaimed";
+    } else {
+        Core\Response::setStatus(201);
+        echo $matched->name() ?? "unnamed";
+    }
+} catch (RuntimeError $notARequest) {
+    // The suite's own load. Nothing to answer, so nothing is written.
+}

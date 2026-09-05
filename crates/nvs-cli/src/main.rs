@@ -1073,6 +1073,11 @@ fn run_run(
             return ExitCode::FAILURE;
         }
     };
+    // Shared rather than owned outright, because ADR 0079 § 18's in-process
+    // request runs this same unit's script frame as a child isolate and the
+    // seam holding it outlives no part of this run — `runner::UnderTest` is the
+    // one holder, and an `Rc` is what lets the run and the seam both name it.
+    let unit = std::rc::Rc::new(unit);
     let Some(entry) = unit.function(SCRIPT) else {
         eprintln!("internal error: the script frame was not compiled");
         return ExitCode::FAILURE;
@@ -1190,6 +1195,12 @@ fn run_run(
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
     unit.install_in(&mut ctx);
+    // ADR 0079 § 18's unit under test, built here because this is the last
+    // point at which the unit and the checked program are both in hand. A CLI
+    // run has one, and it is this program: `Core\Test::request` inside a `nvs
+    // run` asks the same entry a served request would, which is what lets a
+    // conformance case reach the member at all.
+    let under_test = runner::UnderTest::new(&unit, &checked);
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
@@ -1328,7 +1339,12 @@ fn run_run(
     // owns why the seam's `&'static` does not oblige a `Box::leak`, and the unit
     // cache goes down with it here.
     let compiler = script::Compiler::new(&for_compiler.config);
-    let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
+    // ADR 0079 § 18's seam nests inside the resolver's for the same length and
+    // on the same terms — `runner::UnderTest` owns why the program under test
+    // is this crate's to hold.
+    let ran = nvs_runtime::script::scoped(&compiler, || {
+        nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
+    });
     drop(installed);
     if let Err(error) = ran {
         eprintln!("error: the scheduler stopped: {error}");

@@ -641,13 +641,29 @@ microseconds per test. It exercises the actual routing rather than a mock of it.
 ```nvs
 #[Test]
 public function itReturnsTheUser(): void {
-    var $rs = Core\Test::request(Http\Method::Get, "/users/1",
+    var $rs = Core\Test::request(Core\Http\Method::Get, "/users/1",
         {headers: {"Accept": "application/json"}});
 
-    Core\Test::assertEquals($rs->status, 200);
-    Core\Test::assertEquals(Core\Json::decodeAs<User>($rs->body)->name, "ada");
+    Core\Test::assertEquals($rs->status(), 200);
+    Core\Test::assertEquals(Core\Json::decodeAs<User>($rs->body())->name, "ada");
 }
 ```
+
+**`Core\Test\Response` is a `Core`-owned instance and its two readings are members**, which is why
+the example writes `$rs->status()` rather than a property: a `Core` class lays out its own slots and
+a program can only receive one from a member that returns it ([0051](0051-standard-library-tiers.md)
+§ 1's tier-0 shape), so there is no property to read. An [0036](0036-anonymous-object-shapes.md) shape would
+have been the smaller surface — `Core\Script\Result` is one — but a shape crosses back only from a
+construct the checker types itself, and there is no registry spelling for a member that returns one;
+`Core\Script\ExitReport` is the shape a `Core`-owned result already takes.
+
+**What answers the request is the program's own entry**, run as an isolate over the unit under test
+with the match already on its carrier — never the matched handler, which
+[0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9
+forbids anything to invoke, routes not sharing a signature. **An in-process request may not be made
+from inside one**: the entry answering it is the same entry that asked, so a second one would answer
+itself forever, and the refusal is at the door rather than at [0020](0020-error-escalation-ladder.md)
+§ 1's depth ceiling, which would report an engine limit instead of the mistake.
 
 The synthetic request's body and parameters arrive **`tainted`**, exactly as a real request's would
 ([0024](0024-taint-tracking-for-injection-sinks.md)). A handler that forgets to launder therefore fails its

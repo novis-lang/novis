@@ -1,0 +1,21 @@
+--TEST--
+an in-process request made from inside one is refused at the door, naming why — ADR 0079 § 18
+--FILE--
+<?nvs
+// The edge of the sibling cases: what answers a synthetic request is the
+// program's own entry, so a top level that asks for one is also the code that
+// runs to answer it. Without this refusal a program would answer its own
+// request forever, and ADR 0020 § 1's script-depth ceiling would report an
+// engine limit rather than the mistake.
+//
+// The message crosses the boundary the long way round, which is the point: the
+// child catches the refusal and writes it as its response body, so the parent
+// -- whose own call succeeded -- reads out what its child was told.
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/anything");
+    echo $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message;
+}
+--EXPECT--
+Core\Test::request could not run the request: an in-process request may not be made from inside one — the program answering it is the same program that asked, so a second request would answer itself
