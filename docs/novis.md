@@ -18432,11 +18432,11 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driv
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
-| [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
-| [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
-| [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
-| [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params): Core\Db\Stream` |
+| [`Core\Db\Connection->query`](#core-core-db-connection-query) | `query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>` |
+| [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>` |
+| [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
+| [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
+| [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
 | [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
@@ -18446,7 +18446,7 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driv
 #### `Core\Db\Connection->query`
 
 ```nvs skip
-$connection->query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>
+$connection->query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>
 ```
 
 Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
@@ -18455,16 +18455,17 @@ Runs one statement with its values bound, and reads every row it answers into me
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-queryas"></a>
 #### `Core\Db\Connection->queryAs`
 
 ```nvs skip
-$connection->queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>
+$connection->queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>
 ```
 
 Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
@@ -18473,6 +18474,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
 
@@ -18482,7 +18484,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 #### `Core\Db\Connection->execute`
 
 ```nvs skip
-$connection->execute(string $sql, array<mixed> $params): Core\Db\Write
+$connection->execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write
 ```
 
 Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
@@ -18491,16 +18493,17 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings — `query`'s rule exactly, since both members bind through the same rewriter. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-executemany"></a>
 #### `Core\Db\Connection->executeMany`
 
 ```nvs skip
-$connection->executeMany(string $sql, array<array<mixed>> $sets): uint
+$connection->executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint
 ```
 
 Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
@@ -18509,16 +18512,17 @@ Runs one statement once per set of values and answers how many rows the whole ba
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, written once and bound once per set. It is a sink exactly as `execute`'s is, and the batch gives it no second spelling: there is one text for every set. |
 | `$sets` | `array<array<mixed>>` | One `$params` array per execution, each keyed the way `execute` requires and all of them binding the same number of values — a set whose `inList` is a different width is a different statement, not another row of this one. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
-**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-stream"></a>
 #### `Core\Db\Connection->stream`
 
 ```nvs skip
-$connection->stream(string $sql, array<mixed> $params): Core\Db\Stream
+$connection->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream
 ```
 
 Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
@@ -18527,10 +18531,11 @@ Runs one statement and walks its rows one at a time, holding the connection open
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take. The bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk; the statement gives up with an `IOError` when it passes, and the connection is spent. Omitted, the walk waits as long as the server takes. |
 
 **Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-connection-transaction"></a>
 #### `Core\Db\Connection->transaction`
@@ -18594,11 +18599,11 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>` |
-| [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
-| [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
-| [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
-| [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params): Core\Db\Stream` |
+| [`Core\Db\Transaction->query`](#core-core-db-transaction-query) | `query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>` |
+| [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>` |
+| [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write` |
+| [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint` |
+| [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream` |
 | [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
 
@@ -18606,7 +18611,7 @@ Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
 #### `Core\Db\Transaction->query`
 
 ```nvs skip
-$transaction->query(string $sql, array<mixed> $params): Core\Db\Rows<Core\Db\Row>
+$transaction->query(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<Core\Db\Row>
 ```
 
 Runs one statement with its values bound, and reads every row it answers into memory before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no `prepare` step because every statement is prepared. The connection is free again the moment this returns; `stream` is the one that holds it.
@@ -18615,16 +18620,17 @@ Runs one statement with its values bound, and reads every row it answers into me
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings. A `Core\Db::inList` element expands into a run of placeholders at its own position, and nothing else expands. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Rows<Core\Db\Row>` — A `Core\Db\Rows<Core\Db\Row>` holding every row the statement answered, in the server's order. A statement that answers none — an `update`, a `create table` — is an empty one rather than a refusal.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message, or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-queryas"></a>
 #### `Core\Db\Transaction->queryAs`
 
 ```nvs skip
-$transaction->queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>
+$transaction->queryAs<T>(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Rows<T>
 ```
 
 Runs one statement exactly as `query` does and answers its rows as the class written at the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the mapping generated from the class's own declared properties by `#[Db\Derive]` rather than matched up by hand.
@@ -18633,6 +18639,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, under `query`'s own rule — one array, list-keyed for `?` and string-keyed for `:name`. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Rows<T>` — A `Core\Db\Rows<T>` holding one `T` per row, in the server's order. A row is built when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is only counted constructs nothing.
 
@@ -18642,7 +18649,7 @@ Runs one statement exactly as `query` does and answers its rows as the class wri
 #### `Core\Db\Transaction->execute`
 
 ```nvs skip
-$transaction->execute(string $sql, array<mixed> $params): Core\Db\Write
+$transaction->execute(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Write
 ```
 
 Runs one statement that answers counts rather than rows — an `insert`, an `update`, a `delete`, a `create table` — and answers what it did: `PDO::exec`, `PDOStatement::execute` and `lastInsertId` in one call, with the values bound the same way `query` binds them.
@@ -18651,16 +18658,17 @@ Runs one statement that answers counts rather than rows — an `insert`, an `upd
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, with a `?` for each value or a `:name` for each — never a value written into the text. It is a sink, so a `tainted` string is refused while compiling and there is no escaper to launder one with. |
 | `$params` | `array<mixed>` | The values to bind: list-keyed for `?` and string-keyed for `:name`, one array and never both spellings — `query`'s rule exactly, since both members bind through the same rewriter. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `Core\Db\Write` — A `Core\Db\Write` carrying how many rows were affected, that count as the server reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer are read to the end and discarded, so the connection is free when this returns; `query` is the member that keeps them.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form — an array, an object that is not an `inList` — or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused the statement — a syntax error, a constraint, a permission — carrying its own `SQLSTATE` and message.; `IOError` — The connection failed while the statement was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-executemany"></a>
 #### `Core\Db\Transaction->executeMany`
 
 ```nvs skip
-$transaction->executeMany(string $sql, array<array<mixed>> $sets): uint
+$transaction->executeMany(string $sql, array<array<mixed>> $sets, {timeout?: Core\Time\Duration}): uint
 ```
 
 Runs one statement once per set of values and answers how many rows the whole batch wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with one prepare and one round trip instead of one of each per set.
@@ -18669,16 +18677,17 @@ Runs one statement once per set of values and answers how many rows the whole ba
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, written once and bound once per set. It is a sink exactly as `execute`'s is, and the batch gives it no second spelling: there is one text for every set. |
 | `$sets` | `array<array<mixed>>` | One `$params` array per execution, each keyed the way `execute` requires and all of them binding the same number of values — a set whose `inList` is a different width is a different statement, not another row of this one. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long this statement may take. It bounds the whole exchange — the prepare, the execution and every row of the answer — and not one read of it: when it passes the statement gives up with an `IOError` and the connection is spent, since it was given up on part way through a message. Omitted, the statement waits as long as the server takes. |
 
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
-**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight — or `timeout` passed with it still in flight — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-stream"></a>
 #### `Core\Db\Transaction->stream`
 
 ```nvs skip
-$transaction->stream(string $sql, array<mixed> $params): Core\Db\Stream
+$transaction->stream(string $sql, array<mixed> $params, {timeout?: Core\Time\Duration}): Core\Db\Stream
 ```
 
 Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
@@ -18687,10 +18696,11 @@ Runs one statement and walks its rows one at a time, holding the connection open
 |---|---|---|
 | `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
 | `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+| `{timeout: …}` | `Core\Time\Duration` (default `null`) | How long the whole walk may take. The bound stays on the connection while the cursor is open, so it covers every row read and not just the call that opens the walk; the statement gives up with an `IOError` when it passes, and the connection is spent. Omitted, the walk waits as long as the server takes. |
 
 **Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
 
-**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight, which leaves it unusable for the rest of the request.
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight — or `timeout` passed with the walk still open — which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-transaction"></a>
 #### `Core\Db\Transaction->transaction`
