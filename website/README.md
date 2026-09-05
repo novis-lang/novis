@@ -8,7 +8,8 @@ by a human (or an agent that was asked to)**:
 
 ```sh
 npm run sync     # pull ADRs + the Core reference from the repository
-npm run build    # build the static site into dist/
+npm run build    # build the static site into dist/ 
+npx astro build --base /novis/ # build with a custom base
 ```
 
 ## Commands
