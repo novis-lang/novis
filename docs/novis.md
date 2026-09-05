@@ -121,6 +121,7 @@ Conventions the whole file uses:
 | [`Core\Request\PartContent`](#core-core-request-partcontent) |  |
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Session`](#core-core-session) |  |
+| [`Core\Socket`](#core-core-socket) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
 | [`Core\Taint`](#core-core-taint) | the one way a value loses the `tainted` qualifier when no sink-named launderer fits — a call that says so by name and carries a written reason |
@@ -16487,6 +16488,33 @@ Forgets the record in the store and closes the session on this request, which is
 **Returns** `void` — Nothing. Afterwards this request has no session at all, so every member of this class throws again until `start()` opens one — the same answer they give before the first `start()`, because it is the same state.
 
 **Throws** `RuntimeError` — This request has not called `start()`, so there is no session to forget; or the shared store is unconfigured or refused by capability.; `IOError` — The configured store cannot be reached, so the record is still there. It throws rather than closing the session quietly, because a program told the sign-out succeeded would stop trying.
+
+<a id="core-core-socket"></a>
+### `Core\Socket`
+
+Keywords: upgrade
+
+| Member | Signature |
+|---|---|
+| [`Core\Socket::upgrade`](#core-core-socket-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+
+<a id="core-core-socket-upgrade"></a>
+#### `Core\Socket::upgrade`
+
+```nvs skip
+Core\Socket::upgrade(string $entry, mixed $args = null): void
+```
+
+Turns this request into a WebSocket connection running `$entry` as a root isolate — its own arena, its own budget and its own grants, sharing nothing with the request that opened it but the values `$args` copied in.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$entry` | `string` (sink) | What the connection runs: a file path, resolved and root-checked exactly as `spawn script`'s operand is, or a static method written `Chat::run(...)`. Never a closure — an isolate shares nothing but compiled code, so a capture would cross the boundary the isolate exists to be. |
+| `$args` | `mixed` (default `null`) | The values the connection starts with, bound to the entry's parameters by name. They cross by the graph copy an isolate boundary already uses, so what arrives is a value and never a shared reference; a `secret` may not cross and a `tainted` value stays `tainted` on the other side. |
+
+**Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
+
+**Throws** `RuntimeError` — Always, so far: the root isolate a connection runs in is not built, and this member reports that rather than answering as though a peer were attached.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
