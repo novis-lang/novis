@@ -1981,6 +1981,14 @@ is why" — is this file.
   just been rejected, which is what identifies the parser rather than the fragment. So: one pair per
   wrap, and if the field's byte ceiling needs a trim to afford an addition, make the trim part of
   the *same* contiguous run rather than a second pair.
+- **`peek.py --locate` is a *mode*, not an addition: a call that also names file windows
+  prints only the anchors.** `python tools/peek.py crates/nvs-runtime/src/host.rs:1-120
+  --locate Host upgrade` answered with the `file:line` list alone and said nothing about
+  the window it dropped, so the read it was batched with has to be issued again — which
+  is one call spent to learn that two questions do not share this call. The two forms are
+  each a whole call's worth on their own (`--locate` takes as many symbols as you have,
+  windows take as many targets), so ask anchors in one and bodies in the next; do not try
+  to save the round trip by mixing them.
 
 ## Running things
 
