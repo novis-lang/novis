@@ -380,6 +380,19 @@ pub enum Closing {
     /// for [`Self::Idle`]'s reason, and the reason text is what tells the two
     /// apart in a log.
     Expired,
+    /// ADR 0083 § 7's third bullet: this server is shutting down or reloading,
+    /// and the drain it began has reached this connection. 1001 for
+    /// [`Self::Idle`]'s reason — the peer did nothing wrong and reconnecting is
+    /// the correct response — and a separate variant because the *action* is
+    /// not [`Self::Idle`]'s: a client told this one should reconnect to
+    /// whatever replaces this process, where an idle close says its own
+    /// connection went quiet. The reason text is what carries that difference
+    /// into a log. 1012, *service restart*, is deliberately not used even
+    /// though it names this case exactly: this enum's own taxonomy is the three
+    /// *answers* a client can give, a restart's answer is "reconnect now", and
+    /// that is 1001 — a fourth code with no fourth answer behind it would only
+    /// be a code half the client libraries in the world have no name for.
+    ShuttingDown,
     /// ADR 0083 § 7's per-process ceiling: this process already holds
     /// `nvs_server::bounds::Connection::max_open` connections, so this one is
     /// closed before its isolate is started. 1013, *try again later*, which is
@@ -410,7 +423,7 @@ impl Closing {
         match self {
             Self::Done => 1000,
             Self::SlowSubscriber => 1008,
-            Self::Idle | Self::Expired => 1001,
+            Self::Idle | Self::Expired | Self::ShuttingDown => 1001,
             Self::AtCapacity => 1013,
             Self::Faulted => 1011,
         }
@@ -424,6 +437,7 @@ impl Closing {
             Self::SlowSubscriber => "subscriber too slow to keep up with its topics",
             Self::Idle => "idle for longer than this connection is allowed to be",
             Self::Expired => "open for longer than a connection may stay open",
+            Self::ShuttingDown => "this server is shutting down; reconnect",
             Self::AtCapacity => "this server already holds as many connections as it may",
             Self::Faulted => "this connection's isolate ended in a failure",
         }

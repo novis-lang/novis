@@ -584,6 +584,14 @@ impl Drop for Peer {
 /// writes one, an event stream's isolate runs with `Output::Capture` and its
 /// bytes reach its own buffer rather than a body.
 ///
+/// **`draining` is carried through rather than read here.** No part of an HTTP
+/// request's life asks it — the probe's `503` is [`Reply::health`]'s, and this
+/// function is never the one holding a probe — but ADR 0083 § 7's shutdown
+/// close is a connection's *own*, taken at its next `receive`, so the handle
+/// travels with the socket into [`crate::socket::Framed`]. That module's
+/// `receive` is where it is argued why the close is taken there and not from
+/// the accept loop.
+///
 /// # Errors
 ///
 /// `hyper`'s own for this connection: a peer that spoke something other than
@@ -599,6 +607,7 @@ pub fn serve_connection<H>(
     handler: &H,
     waits: Waits,
     serving: &Serving,
+    draining: &Draining,
 ) -> hyper::Result<()>
 where
     H: Fn(Request<Incoming>, Origin) -> Reply,
@@ -999,6 +1008,11 @@ where
             // `crate::bounds`' own § *Known gap* is where it is recorded that
             // no `[server]` key overrides one yet.
             crate::bounds::Connection::default(),
+            // § 7's third bullet: this server's drain, handed to the object
+            // that acts on it. The close a shutdown sends is taken by the
+            // connection's own loop, and [`crate::socket`]'s `receive` is
+            // where that is argued.
+            draining.clone(),
         );
         // § 7's per-process ceiling, and the ordering is the whole of what it
         // buys: a connection the process has no room for is told 1013 and
@@ -1316,6 +1330,11 @@ where
         // connection clones is shared by every core rather than by every
         // connection on this one.
         let serving = serving.clone();
+        // Cloned beside it for the same reason and used by neither this
+        // function's own tail nor the request path: ADR 0083 § 7's shutdown
+        // close is taken by a connection isolate's own loop, so what the drain
+        // needs is a handle on the far side of the hand-over.
+        let draining_here = draining.clone();
         // Counted in *here* rather than inside the body, so that a connection
         // handed over is already outstanding by the time the shutdown below can
         // look; `Served`'s `Drop` is what counts it back out, and it is a drop
@@ -1345,6 +1364,7 @@ where
                 handler.as_ref(),
                 waits,
                 &serving,
+                &draining_here,
             ));
         });
         if spawned.is_none() {
@@ -2726,6 +2746,138 @@ mod tests {
             said[1], "the accept loop drained and returned",
             "the panic was not contained to its own connection — the core \
              never reached the end of the loop that spawned it: {said:?}"
+        );
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+    /// third bullet: a graceful shutdown and a `nvs ctl reload` "close
+    /// connections with a defined code after a drain period, so a client's
+    /// reconnect logic sees a clean close rather than a reset".
+    ///
+    /// **One case for both spellings, because there is one mechanism.**
+    /// [`Draining::begin`] is the door a stopping process and a reload that
+    /// needs one both go through — this loop's tail is the only writer, which
+    /// [`Draining`]'s own docs own — and what a connection reads is the bit
+    /// behind it. The close is then the connection isolate's *own*, taken at
+    /// its next wait rather than reached in from here;
+    /// [`crate::socket::Framed`]'s `receive` is where that is argued and why
+    /// the two alternatives are refused.
+    ///
+    /// The isolate is § 3's loop with nothing to say: it waits for a frame that
+    /// never comes, which is exactly the connection the bullet is about — one
+    /// doing nothing when its server stops still has to be *told*, and the
+    /// drain period is what it is told after. **What makes the case
+    /// deterministic** is the ordering the drain already has: `keep_serving`
+    /// breaks before this connection's child has run at all, so the bit is set
+    /// before the isolate's first `receive` and the period is measured from
+    /// there.
+    ///
+    /// The last line into `said` is the other half of the claim. The accept
+    /// loop's tail parks until every connection has counted itself out, so a
+    /// drain that returned while this connection was still open would either
+    /// never reach that line or reach it before the connection's own — and the
+    /// case would fail on the order rather than pass on the close.
+    #[test]
+    fn reload_and_shutdown_close_every_connection_after_the_drain() {
+        fn wait_for_a_frame_that_never_comes(conn: &mut Ctx) -> String {
+            let Some(peer) = conn.peer() else {
+                return "no peer".to_owned();
+            };
+            let mut heard = 0_usize;
+            loop {
+                match peer.receive() {
+                    Ok(Some(_)) => heard += 1,
+                    Ok(None) => return format!("the loop ended after {heard} frames"),
+                    Err(error) => return format!("receive {error}"),
+                }
+            }
+        }
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(upgrade_request("/chat").as_bytes())
+                .expect("the write failed");
+            let mut head = String::new();
+            read_until(&mut socket, "\r\n\r\n", &mut head);
+            let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
+                socket,
+                tungstenite::protocol::Role::Client,
+                None,
+            );
+            // Nothing is sent: this peer is the client that connected and then
+            // had nothing to say, which is the one the drain has to reach.
+            let closed = match peer.read() {
+                Ok(tungstenite::Message::Close(Some(frame))) => {
+                    Ok((u16::from(frame.code), frame.reason.to_string()))
+                }
+                other => Err(format!("{other:?}")),
+            };
+            (head, closed)
+        });
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let loop_said = Rc::clone(&said);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            let handler = upgrade_leaving(
+                Door::Socket,
+                String::new(),
+                handler_said,
+                wait_for_a_frame_that_never_comes,
+            );
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+            loop_said
+                .borrow_mut()
+                .push("the accept loop drained and returned".to_owned());
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        let (head, closed) = client.join().expect("the client thread panicked");
+
+        assert!(
+            head.contains("101 Switching Protocols"),
+            "the peer was not answered RFC 6455's handshake, so nothing here is \
+             about a connection: {head}"
+        );
+        assert_eq!(
+            closed,
+            Ok((1001, nvs_runtime::Closing::ShuttingDown.reason().to_owned())),
+            "the drain did not leave the peer RFC 6455's `going away`, which is \
+             the clean close § 7 asks for in place of a reset"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            3,
+            "the connection isolate did not end its own loop, or the accept \
+             loop never came out of its drain: {said:?}"
+        );
+        assert_eq!(
+            said[1], "connection the loop ended after 0 frames",
+            "the close reached the peer without `receive` answering § 3's \
+             `null`, so the program's loop was not what ended: {said:?}"
+        );
+        assert_eq!(
+            said[2], "the accept loop drained and returned",
+            "the drain returned before the connection it was draining: {said:?}"
         );
     }
 

@@ -72,6 +72,7 @@ use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{Role, WebSocket};
 
 use crate::bounds::{Connection, Slot};
+use crate::serve::Draining;
 
 /// RFC 6455's `Sec-WebSocket-Accept` for the key the opening carried.
 ///
@@ -157,6 +158,18 @@ pub struct Framed {
     /// connection the process had no room for. Held here so the count falls
     /// exactly when the descriptor does.
     slot: Option<Slot>,
+    /// The drain of the server that accepted this connection — § 7's third
+    /// bullet, read by [`PeerSocket::receive`] and by nothing else here.
+    ///
+    /// A handle on the *server's* bit rather than the process's, because a
+    /// process may run more than one accept loop and only the one that took
+    /// this connection is entitled to end it
+    /// ([`nvs_runtime::drain`] owns that distinction).
+    draining: Draining,
+    /// When the drain closes this connection, filled in the first time the
+    /// drain above is seen and `None` for every connection on a server still
+    /// accepting.
+    closing_at: Option<Instant>,
 }
 
 impl Framed {
@@ -180,7 +193,12 @@ impl Framed {
     /// caller a raw descriptor and no way to say why it is closing, and § 7
     /// asks for a defined code rather than a reset.
     #[must_use]
-    pub fn new(stream: NvsTcp, already_read: Vec<u8>, bounds: Connection) -> Self {
+    pub fn new(
+        stream: NvsTcp,
+        already_read: Vec<u8>,
+        bounds: Connection,
+        draining: Draining,
+    ) -> Self {
         let prefixed = Prefixed {
             read: std::io::Cursor::new(already_read),
             stream,
@@ -193,6 +211,8 @@ impl Framed {
             bounds,
             expires_at: Instant::now() + bounds.lifetime,
             slot: Slot::take(bounds.max_open),
+            draining,
+            closing_at: None,
         }
     }
 
@@ -219,24 +239,48 @@ impl Framed {
         self.close(Closing::AtCapacity);
     }
 
-    /// Bounds the next wait by `window`, or by the lifetime where that is
-    /// sooner.
+    /// Bounds the next wait by `window`, by the lifetime where that is sooner,
+    /// and by `until` where *that* is.
     ///
-    /// The cap is what makes [`Connection::lifetime`] a bound at all: a
-    /// connection that speaks every minute would otherwise re-arm the idle
-    /// window forever and never reach its own expiry.
-    fn arm(&mut self, window: std::time::Duration) {
-        let at = (Instant::now() + window).min(self.expires_at);
+    /// The lifetime cap is what makes [`Connection::lifetime`] a bound at all:
+    /// a connection that speaks every minute would otherwise re-arm the idle
+    /// window forever and never reach its own expiry. `until` is the drain's
+    /// deadline and only a read passes one — a `send` capped by it would
+    /// **throw** at a program on the way out of a shutdown, where § 3 makes a
+    /// send timeout the one failure a program has to see, and telling it the
+    /// server is going away is [`PeerSocket::receive`]'s job rather than a
+    /// half-written frame's.
+    fn arm(&mut self, window: std::time::Duration, until: Option<Instant>) {
+        let at = (Instant::now() + window)
+            .min(self.expires_at)
+            .min(until.unwrap_or(self.expires_at));
         self.socket.get_mut().set_deadline(at);
     }
 
-    /// Which of § 7's two clocks a `TimedOut` was, or `None` for an error that
-    /// is not one.
+    /// When this connection is closed for the drain, taken the first time the
+    /// drain is seen and unchanged after that.
     ///
-    /// Read off the *lifetime* rather than off which window was armed, because
+    /// `None` until then, which is every connection on a server that is still
+    /// accepting. [`PeerSocket::receive`]'s docs own why the period runs from
+    /// here rather than from the drain itself.
+    fn drain_deadline(&mut self) -> Option<Instant> {
+        if self.closing_at.is_none() && self.draining.is_draining() {
+            self.closing_at = Some(Instant::now() + self.bounds.drain);
+        }
+        self.closing_at
+    }
+
+    /// Which of § 7's three clocks a `TimedOut` was, or `None` for an error
+    /// that is not one.
+    ///
+    /// Read off the *deadlines* rather than off which window was armed, because
     /// [`Self::arm`] hands the stream one instant and the stream reports one
     /// kind — so the question "was that the lifetime" is answered by asking the
     /// lifetime, and everything else is the idle window by construction.
+    ///
+    /// The drain is asked first where two are true at once: a peer told its
+    /// connection was too old learns nothing it can act on if the server it
+    /// would reconnect to is the one going away.
     fn expiry(&self, error: &tungstenite::Error) -> Option<Closing> {
         let tungstenite::Error::Io(io) = error else {
             return None;
@@ -244,7 +288,10 @@ impl Framed {
         if io.kind() != std::io::ErrorKind::TimedOut {
             return None;
         }
-        Some(if Instant::now() >= self.expires_at {
+        let now = Instant::now();
+        Some(if self.closing_at.is_some_and(|at| now >= at) {
+            Closing::ShuttingDown
+        } else if now >= self.expires_at {
             Closing::Expired
         } else {
             Closing::Idle
@@ -278,9 +325,49 @@ impl PeerSocket for Framed {
     /// member answers `None`, so a program's loop ends exactly as it does on an
     /// ordinary disconnect. A connection closed on the clock is not a fault of
     /// the program's, and there is nothing for it to catch.
+    ///
+    /// # § 7's shutdown, and why it is a close taken here
+    ///
+    /// **A drained server's connections are closed by their own loops, and not
+    /// by the accept loop that spawned them.** § 7's third bullet asks a
+    /// shutdown and a `nvs ctl reload` to leave the peer "a clean close rather
+    /// than a reset", and both ways of reaching one from outside are refused.
+    /// Cancelling the connection isolate tears its task down at its next
+    /// safepoint (`nvs_host::scheduler::cancel_task`), which is the path a
+    /// panicking isolate already takes and which `nvs_host::isolate`'s close
+    /// branch records as giving the peer exactly the reset this bullet exists
+    /// to replace. And there is no second handle to write a frame through: the
+    /// socket moved into the isolate at the `101`, and on one core the only
+    /// task that may touch it is the one holding it. What is left is the shape
+    /// § 7's *other* time bounds already have — a deadline the connection's own
+    /// wait is capped by — so the drain is one more instant in
+    /// [`Framed::arm`]'s minimum, and [`Closing::ShuttingDown`] is one more
+    /// answer in [`Framed::expiry`]'s.
+    ///
+    /// **The period is [`Connection::drain`], and it starts when this
+    /// connection first sees the drain rather than when the drain began.** A
+    /// bit is the whole of what `nvs_runtime::Drain` carries, so an instant
+    /// read off it would be a second thing for a process-wide atomic to hold
+    /// and to be read consistently — where per-connection it is a field of the
+    /// object that is about to act on it. What the two spellings differ by is
+    /// bounded by the wait that was already in flight, which is the gap below
+    /// and not a second one. Until the deadline the connection is served
+    /// normally: frames keep arriving and keep being answered, which is what
+    /// makes this a drain rather than a stop.
+    ///
+    /// **A connection already parked on a read when the drain begins does not
+    /// see it until that read ends**, which is [`Connection::idle`] away at
+    /// worst. Waking it early needs the same seam a topic delivery needs
+    /// (`nvs_runtime::Ctx::deliver`'s known gap): a `Read` parked on the
+    /// reactor ends on its deadline, on readiness or on a cancellation and on
+    /// nothing else, and a wake is only a hint that sends the caller back round
+    /// its own retry loop (`nvs_host::net`'s *Rule 2*). The bound that holds
+    /// today is therefore `idle` and not `drain`, and closing that gap is one
+    /// slice for both readers.
     fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
         loop {
-            self.arm(self.bounds.idle);
+            let closing_at = self.drain_deadline();
+            self.arm(self.bounds.idle, closing_at);
             return match self.socket.read() {
                 Ok(Message::Text(text)) => Ok(Some(PeerFrame::Text(text.as_str().to_owned()))),
                 Ok(Message::Binary(bytes)) => Ok(Some(PeerFrame::Binary(bytes.to_vec()))),
@@ -320,7 +407,7 @@ impl PeerSocket for Framed {
             PeerFrame::Text(text) => Message::Text(text.into()),
             PeerFrame::Binary(bytes) => Message::Binary(bytes.into()),
         };
-        self.arm(self.bounds.send);
+        self.arm(self.bounds.send, None);
         self.socket.send(message).map_err(|error| failed(&error))
     }
 

@@ -16,8 +16,12 @@
 //!
 //! Six, and they are the six the framing layer arms: [`crate::socket::Framed`]
 //! reads this struct once at the `101` and every wait, every frame and every
-//! message on that descriptor is inside it from there. The other two are named
-//! by § 7 and owned elsewhere on purpose:
+//! message on that descriptor is inside it from there.
+//! [`Connection::drain`] is a seventh field and not a seventh of the eight — it
+//! is § 7's *third* bullet, the period after which a draining server closes a
+//! connection, and it lives here because it is one more instant the same
+//! framing layer arms a wait by. The other two of the eight are named by § 7
+//! and owned elsewhere on purpose:
 //!
 //! - **Connections per process** is [`Slot`], counted here because the resource
 //!   is the process's rather than a core's, and taken at the moment the socket
@@ -35,7 +39,7 @@
 //!
 //! # What it spends, and what it costs a program
 //!
-//! Nothing per connection: the struct is seven words copied into
+//! Nothing per connection: the struct is seven fields copied into
 //! [`crate::socket::Framed`] at the `101`, and the deadline it arms is the one
 //! `nvs_host::NvsStream` already carries for every wait. The cost is paid in
 //! *behaviour* instead, and it is worth stating plainly because it is
@@ -48,7 +52,7 @@
 //!
 //! § 7 asks for finite, not for configurable, so this module answers § 7 in
 //! full. What it does not yet answer is an operator who wants a different
-//! number: `nvs_config::tree::Server` has no key for any of the six, so
+//! number: `nvs_config::tree::Server` has no key for any of the seven, so
 //! changing one is a rebuild. The keys are the obvious follow-on and belong
 //! beside [`nvs_config::server::waits_for`]'s four, which is where a `[server]`
 //! duration is already parsed, refused at zero and given an origin note.
@@ -78,6 +82,11 @@ pub struct Connection {
     /// How long one `send` may take before it throws, which is § 3's "throws on
     /// the send timeout rather than waiting forever".
     pub send: Duration,
+    /// § 7's third bullet: how long a connection keeps being served after its
+    /// server has begun draining, before it is closed with
+    /// [`nvs_runtime::Closing::ShuttingDown`]. `crate::socket`'s `receive` owns
+    /// when the period starts and why the close is the connection's own.
+    pub drain: Duration,
     /// § 4's per-subscriber delivery queue, restated here so that "every bound"
     /// has one place to be read off. The number is
     /// [`nvs_runtime::INBOX_CAP`]'s and this field is a copy of it, because the
@@ -106,6 +115,16 @@ impl Default for Connection {
     /// connections older than a deploy. § 7's own drain closes them sooner on
     /// any host that reloads, so this bound is what catches the host that never
     /// does.
+    ///
+    /// [`drain`](Connection::drain) is the other number no ADR writes, and a
+    /// second is picked for what the period is *for*: a connection has no
+    /// in-flight request to finish — that is what separates it from the drain
+    /// ADR 0097 § 5 gives an HTTP connection — so what the period buys is the
+    /// frame already on the wire and the answer to it, which is one round trip
+    /// on any network an origin is proxied over. Longer would hold a deploy
+    /// open for clients that are going to reconnect to the next instance
+    /// anyway, and the connection is served normally throughout it, so the cost
+    /// of the second is a second of shutdown and nothing else.
     fn default() -> Self {
         Self {
             max_open: 10_000,
@@ -114,6 +133,7 @@ impl Default for Connection {
             idle: Duration::from_secs(5 * 60),
             lifetime: Duration::from_secs(24 * 60 * 60),
             send: Duration::from_secs(30),
+            drain: Duration::from_secs(1),
             subscriber_queue: nvs_runtime::INBOX_CAP,
         }
     }
@@ -188,8 +208,10 @@ mod tests {
     ///
     /// Destructured rather than read field by field, so that a bound added to
     /// [`Connection`] without a default fails this test by failing to compile —
-    /// which is the only way a list of eight stays a list of eight. Two of § 7's
-    /// eight are not fields and are asserted beside them: the process ceiling is
+    /// which is the only way a list of eight stays a list of eight, and how
+    /// § 7's drain period joined it as a field the moment it existed. Two of
+    /// § 7's eight are not fields and are asserted beside them: the process
+    /// ceiling is
     /// [`Slot`]'s and is exercised here at a ceiling of one, and the per-tenant
     /// bound is ADR 0075's rate limit on the upgrade request, which is an
     /// application's declaration and not a number this server holds.
@@ -202,6 +224,7 @@ mod tests {
             idle,
             lifetime,
             send,
+            drain,
             subscriber_queue,
         } = Connection::default();
 
@@ -214,6 +237,14 @@ mod tests {
         assert!(!idle.is_zero(), "an idle bound of zero closes on arrival");
         assert!(!lifetime.is_zero(), "a connection allowed no lifetime");
         assert!(!send.is_zero(), "a send that may never be attempted");
+        // Finite in the other direction as well, which is the half a `Duration`
+        // makes easy to forget: a drain longer than the idle window would be no
+        // bound at all, the connection being closed on the idle clock first.
+        assert!(
+            !drain.is_zero() && drain < idle,
+            "a drain period of {drain:?} is not a bound a shutdown reaches, \
+             against an idle window of {idle:?}"
+        );
         assert_eq!(
             subscriber_queue,
             nvs_runtime::INBOX_CAP,
