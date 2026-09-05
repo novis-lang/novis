@@ -1,0 +1,31 @@
+--TEST--
+`Core\Socket::upgrade` accepts ADR 0006's second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0083 § 2 makes the operand `spawn script`'s, and ADR 0006 § *Decision*
+// gives that operand two spellings: a file path, and a static method whose
+// parameters `args:` binds by name. This case is the accepted half of the rule
+// at this second site; `an-upgrade-refuses-an-entry-it-cannot-see-the-function-
+// behind.nvst` is the refused half, and the two together are the whole of it.
+class Chat {
+    public static function run(string $room): void {
+        echo "ran ", $room, "\n";
+    }
+}
+
+// § 1's root isolate is not built, so what says the entry was *accepted* is
+// that the member reaches its own body and reports from there — byte for byte
+// the report the path form gets, never a diagnostic and never a silent `void`.
+try {
+    Core\Socket::upgrade(Chat::run(...), args: {room: "lobby"});
+    echo "upgraded\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The entry is *named*, not called: `ran lobby` is nowhere above, because the
+// isolate § 1 opens is the only place that body ever runs.
+echo "not run here\n";
+--EXPECT--
+`Core\Socket::upgrade` cannot open a connection yet: the root isolate a WebSocket connection runs in is not built, so there is nothing to hand this connection to
+not run here
