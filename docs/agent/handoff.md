@@ -2,57 +2,60 @@
 
 ## State
 
-**Goal 22 stage 2 is half landed: the descriptor half of the keystone.** `nvs-codegen` no longer
-bakes a class-descriptor address in as an `iconst`. All three sites go through one helper,
-`Emitter::class_desc_value` (`crates/nvs-codegen/src/emit.rs:2172`), which declares a
-`Linkage::Import` data symbol and emits `symbol_value` — an import is undefined by this unit, so
-every use of it leaves the relocation record ADR 0042 § 2's object payload needs. Under `JITModule`
-the symbol resolves through a `symbol_lookup_fn` closure `Jit::new` installs over `Jit::desc_symbols`,
-which `compile_all` fills from `Classes::descriptors()` before any body is emitted. `is_pic` is off,
-so a symbol value is the same absolute `movabs` the `iconst` was: **the whole `-p nvs-codegen` suite
-passes unchanged**, which is the hot-path claim's evidence. `Classes`' own doc comment
-(`crates/nvs-codegen/src/lib.rs:534`) is the one home for why.
+**Goal 22 stage 2 is complete: all five of its named checks are green.** `nvs-codegen` now has one
+lowering walk and two `Module`s. `emit.rs` names no concrete module at all — `emit_function` and
+`Emitter.module` take `&mut dyn Module` (`crates/nvs-codegen/src/emit.rs:137`,
+`crates/nvs-codegen/src/emit.rs:362`), and the file's own `# One walk, two Module`s` section is the
+home for why dynamic dispatch is affordable here.
 
-**`method_address` was never a third site.** Its statically resolved target is already a `func_addr`
-against a `FuncId` (`crates/nvs-codegen/src/emit.rs:2142`), which is a relocation whichever `Module`
-finalizes it. Nothing there needs changing — only the check that names it, which is worth writing
-where an object product's relocation table can be read rather than guessed at.
+`Jit` is now `UnitBuilder<M>` (`crates/nvs-codegen/src/lib.rs:529`), because it is no longer only a
+JIT: `UnitBuilder<JITModule>::new`/`finish` is the in-process backend and
+`UnitBuilder<ObjectModule>::for_object`/`finish_object` writes ADR 0042 § 2's relocatable object,
+while `compile_all`, `compile_function` and every table are shared code on `impl<M: Module>`.
+`pub fn compile_object(&Program) -> Vec<u8>` (`crates/nvs-codegen/src/lib.rs:489`) is the entry point
+stage 3 will read from. `host_isa(is_pic)` (`crates/nvs-codegen/src/lib.rs:1045`) is the single home
+for the ISA and its flags; `is_pic` is the only one the two backends disagree about, and the object
+gets no symbol table of any kind — that is what leaves every helper and every `nvs_class_desc_*`
+undefined.
 
-Two of stage 2's five named checks are green:
-`a_class_descriptor_address_is_a_relocation_not_an_immediate` and
-`an_instanceof_target_is_a_relocation_not_an_immediate`, both `-p nvs-codegen` lib unit tests,
-because they assert on `Jit`'s private tables and nothing outside `src/lib.rs` can reach those.
-Nothing is blocked.
+Five unit tests in `src/lib.rs`'s `mod tests` carry stage 2, sharing one `BOTH_BACKENDS` fixture
+list. `cranelift-object` and a `read`-only `object` dev-dependency are the only new crates; the lock
+gained one package. Nothing is blocked.
 
 ## Next group
 
-**Stage 2's remaining half: the second `Module`.** One file set — `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-codegen/src/emit.rs`, `Cargo.toml`, `crates/nvs-codegen/Cargo.toml`.
+**Stage 3: the warm hit, and the ADR fold stage 2 has now earned.** One file set —
+`docs/adr/0042-on-disk-artifact-cache-format.md`, `crates/nvs-cli/src/cache.rs`,
+`crates/nvs-codegen/src/lib.rs`.
 
-- [ ] **The lowering walk becomes generic over `M: Module`** — the goal's standing decision forbids a
-      second lowering, so this is the whole keystone. Three concrete signatures hold `JITModule`:
-      `crates/nvs-codegen/src/emit.rs:351` (`Emitter.module`),
-      `crates/nvs-codegen/src/emit.rs:127` (`compile_function`'s parameter) and
-      `crates/nvs-codegen/src/lib.rs:1288` (`Signatures::new`). Everything they call —
-      `declare_data`, `declare_data_in_func`, `declare_func_in_func`, `make_signature` — is on the
-      `Module` trait already, so this is a parameter change, not a redesign. `&mut dyn Module` is the
-      cheaper spelling if a generic bound turns viral.
-- [ ] **`cranelift-object` behind that same walk** — add `cranelift-object = "0.135"` beside its four
-      siblings in the workspace manifest's `[workspace.dependencies]` (the four `cranelift*` lines,
-      `rg -n 'cranelift-jit' Cargo.toml`) and at `crates/nvs-codegen/Cargo.toml:17`, then an `ObjectModule`
-      built with the *same* ISA flags as `crates/nvs-codegen/src/lib.rs:998` except that `is_pic`
-      must be **on** for a relocatable object, and with no `symbol_lookup_fn`: leaving every
-      `nvs_class_desc_*` undefined is the entire point of the previous slice. Pins
-      `the_object_module_emits_every_program_the_jit_module_does`.
-- [ ] **The two remaining named checks** — `a_statically_resolved_call_target_is_a_relocation_not_an_immediate`
-      reads the object product's relocations for the callee symbol, and
-      `the_two_modules_answer_the_same_for_every_lowering_fixture` walks the same fixtures both ways.
-      Both want the object module first; `crates/nvs-codegen/src/lib.rs:1500` is where the JIT-side
-      helpers already sit.
+- [ ] **Fold the amendment into ADR 0042 §§ 2-3's own bodies** — the goal's standing decision says
+      this goal opens no ADR number and folds into these two sections. § 2 must state that the
+      payload is what `nvs_codegen::compile_object` writes — a host-format relocatable object whose
+      undefined symbols are the runtime helpers and `nvs_class_desc_*` — and § 3 that a reader
+      relocates a private writable mapping before `mprotect`, which is the amendment
+      `crates/nvs-cli/src/cache.rs`'s *Known gaps* still owes.
+      `docs/adr/0042-on-disk-artifact-cache-format.md:113` and
+      `docs/adr/0042-on-disk-artifact-cache-format.md:124`.
+- [ ] **`class_desc_symbol` becomes `pub`, and `cache.rs`'s writer stores a real payload** — the
+      loader resolving a descriptor relocation lives in another crate and derives the same name.
+      `crates/nvs-codegen/src/lib.rs:1623`, `crates/nvs-cli/src/cache.rs:147`.
+- [ ] **Stage 3's read path**, `-p nvs-cli`: map private writable, relocate, then make the pages
+      executable, and a failed verification is a miss and never an error. Six named tests, the first
+      being `a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`
+      (`docs/agent/loop-goal.toml:4273`). `crates/nvs-cli/src/cache.rs:115`,
+      `crates/nvs-cli/src/cache.rs:259`, `crates/nvs-cli/src/cache.rs:970`.
+
+The orientation pack sliced only ADR 0042's *In short*; the group above needs its §§ 2-3, so add
+`0042` §§ 2 and 3 to `[context] adrs` in `docs/agent/loop-goal.toml`.
 
 ## Backlog
 
-- Stage 3's warm-hit read path relocates a private writable mapping — `crates/nvs-cli/src/cache.rs`'s
-  "Known gaps" states the amendment ADR 0042 § 3 still owes.
-- The ADR 0042 §§ 2-3 fold itself, once stage 2 proves reachable — the goal's standing decisions.
-- `class_desc_symbol` is `pub(crate)`; the stage-3 loader in `nvs-cli` will need it public.
+- Stage 4's `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` — the bench that
+  names the margin, `docs/agent/loop-goal.toml:4293`.
+- A JIT call between two functions of one unit is colocated, so it is PC-relative and
+  `cranelift-jit` *panics* if the two land over 2 GB apart — seen once under the 10k-concurrent
+  compile test, playbook § *Running things*. Nothing owns this yet; ADR 0042's loader will have to
+  answer the same question for a mapped artifact.
+- `UnitBuilder<ObjectModule>` binds no method tables: a `MethodRow` holds a code address and there is
+  none until a loader places one — `finish_object`'s own doc comment says so, and stage 3 is where it
+  becomes a question.

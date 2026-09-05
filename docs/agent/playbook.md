@@ -2820,6 +2820,18 @@ is why" — is this file.
   `revalidation_is_lazy_and_rate_capped`, both of which the plan lists as green, and both passed
   immediately on `cargo test -p nvs-cli --bin nvs`. Re-run the crate before believing a JIT panic
   whose message names a `cargo` registry path rather than a file in this tree.
+- **`-p nvs-cli`'s `ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` can fail
+  with a panic from inside `cranelift-jit`, and it is address layout, not your change.** The message
+  is `called Result::unwrap() on an Err value: TryFromIntError(NegOverflow)` at
+  `cranelift-jit-0.135.0/src/compiled_blob.rs:142`, which is the `X86PCRel4 | X86CallPCRel4` arm
+  narrowing `target - site` to an `i32`. A call between two functions of the same unit is colocated
+  and therefore PC-relative, so it panics — rather than erroring — if the JIT's allocator ever places
+  the two more than 2 GB apart, which 10,000 concurrent compiles in one process can do and one
+  compile never does. It passed on the next two runs, in isolation and in the full binary, at the
+  same commit. Re-run before you go looking: nothing in `nvs-codegen` that leaves the emitted code
+  byte-identical can have caused it, and `--dump-asm` settles that quickly — a class descriptor and
+  every runtime helper reach the code as `load_ext_name`, which is `movabs` and an `Abs8` under
+  `is_pic = false`, so neither is the relocation that overflowed.
 
 ## Writing a test case
 
@@ -8317,6 +8329,15 @@ sibling in the same namespace unqualified.
   touched>` and one `cargo test -p nvs-cli --bin nvs` is the whole bisect, and it is much cheaper
   than reading the panic. The repair is to test the cheap `&str` half of the roster row first and
   stringify only after it matches.
+- **A backend flag in `nvs-codegen` is pinned by a *source grep*, not by a symbol, so a refactor can
+  unpin a memory-safety policy while every test stays green.**
+  `crates/nvs-codegen/tests/backend_policy.rs` reads `crates/nvs-codegen/src/lib.rs` as text and
+  asserts it contains the literal `("enable_probestack", "true")` — a flag leaves no trace in a
+  compiled unit that a test could read back, so the pin is at the source. Goal 22 moved that whole
+  flag list out of `UnitBuilder::new` into `host_isa(is_pic)` and the test stayed green only because
+  the tuple's *spelling* survived the move. Rewriting the row as `("enable_probestack", probes)` — or
+  splitting the list per backend — compiles, runs, and silently unpins the stack-clash guarantee.
+  Grep `tests/backend_policy.rs` for the flag before touching that list.
 
 ## Divergences and refusals already pinned
 
