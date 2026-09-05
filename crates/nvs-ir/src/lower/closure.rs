@@ -523,6 +523,25 @@ pub(crate) struct PendingCallable {
 /// The receiver is a borrowed read out of a field, so it is retained before
 /// it is passed. The closure object itself is bound under [`FN_SELF`], which
 /// is what makes [`Lowering::release_all_locals`] release it at every exit.
+///
+/// # What a `void` target hands back
+///
+/// Nothing, by the same seal every other `void` frame uses — a
+/// `Terminator::Return(None)`, as `lower_method` writes when a body runs out
+/// of statements. A `void` call *defines* no value, [`Ty::Void`] having no
+/// register representation at all (`nvs_codegen::ty::clif_ty`), so returning
+/// the call's result names an operand nothing defines; the split is the one
+/// [`super::call`]'s delegation thunk already makes.
+///
+/// The caller still receives a value, and it is `null`:
+/// `nvs_runtime::abi::call` pre-sets the `out` slot it hands a compiled
+/// function, and a frame that returns nothing leaves it as it found it. So
+/// `$f()` over a `void` target answers `null` — what calling that method
+/// directly in a value position would answer — rather than a second
+/// representation for a caller to test for. Returning an explicit
+/// `InstKind::ConstNull` instead would produce the same value through an
+/// instruction, and would make this the one thunk whose shape differs from
+/// the method it names.
 pub(crate) fn lower_callable(
     pending: &PendingCallable,
     src: &SourceFile,
@@ -691,7 +710,9 @@ pub(crate) fn lower_callable(
     };
 
     low.release_all_locals(cur, &env, None);
-    low.seal(cur, Terminator::Return(Some(value)));
+    // A `void` target defines no value to return — see this function's own
+    // doc comment for why the caller still sees `null`.
+    low.seal(cur, Terminator::Return((ret != Ty::Void).then_some(value)));
 
     let (blocks, stmt_spans, edge_spans) = low.finish();
     (
