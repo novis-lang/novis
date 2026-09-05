@@ -225,7 +225,8 @@ what this adds.
 
 ## Acceptance
 
-**The checks live in [`6-server.toml`](6-server.toml), and only there.**
+**This goal is retired: its checks are the floor stage of [the live goal](../loop-goal.toml)**, carried
+there by the switch that left it and folded forward at every switch since.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 

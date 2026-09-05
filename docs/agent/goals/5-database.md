@@ -171,7 +171,8 @@ tests are all mocks, and that is the one shape ADR 0067's *Verification* refuses
 
 ## Acceptance
 
-**The checks live in [`5-database.toml`](5-database.toml), and only there.** Four of the five drivers are
+**This goal is retired: its checks are the floor stage of [the live goal](../loop-goal.toml)**, carried
+there by the switch that left it and folded forward at every switch since. Four of the five drivers are
 verified against real servers in containers, brought up once per run and memoized against `crates/nvs-db`
 like the WSL leg already is.
 

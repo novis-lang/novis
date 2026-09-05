@@ -150,7 +150,8 @@ rather than a follow-up to it. Neither is a new tool:
 
 ## Acceptance
 
-**The checks live in [`3-governance.toml`](3-governance.toml), and only there.**
+**This goal is retired: its checks are the floor stage of [the live goal](../loop-goal.toml)**, carried
+there by the switch that left it and folded forward at every switch since.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 

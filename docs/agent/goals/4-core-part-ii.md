@@ -287,7 +287,8 @@ it already does, not a second walk. m8.md names it as CI infrastructure rather t
 
 ## Acceptance
 
-**The checks live in [`4-core-part-ii.toml`](4-core-part-ii.toml), and only there.**
+**This goal is retired: its checks are the floor stage of [the live goal](../loop-goal.toml)**, carried
+there by the switch that left it and folded forward at every switch since.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 

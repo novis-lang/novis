@@ -250,8 +250,10 @@ not an example to read for inspiration.
 
 ## Acceptance
 
-**The checks live in [`1-core-depth.toml`](1-core-depth.toml), and only there.** Read it, or
-`python tools/loop.py --list`.
+**This goal is retired, and its checks are the floor stage of the live goal** —
+[`../loop-goal.toml`](../loop-goal.toml), where `python tools/loop.py --list` reads them. Every switch
+since has folded them forward again, which is what let `chain.py --retire` delete the copy that used to
+be here.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
