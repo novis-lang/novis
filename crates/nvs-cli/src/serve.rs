@@ -459,7 +459,17 @@ pub(crate) fn run(
     // the boot. `nvs_server::arm` is where that refusal and its reason live; a
     // tree with no `[[schedule]]` arms nothing and spawns no ticker, which is why
     // this costs a boot-time walk of an empty vector and no task at all.
-    let mut armed = nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), |note| {
+    //
+    // `None` for ADR 0073 § 3's lease, and this binary is the one place that
+    // answer can be given: `nvs-server` names no `nvs-stdlib`, so the store a
+    // fleet entry would be held in is reachable from here and nowhere else.
+    // What is missing is the operation rather than the store — `Core\Cache`'s
+    // shared tier is `put` and `get` (ADR 0059 § 2) and neither is a
+    // set-if-absent — so there is nothing to implement `nvs_server::Leases`
+    // with yet, and § 3's fallback holds: every fleet entry is left unarmed and
+    // named. The moment that tier gains a compare-and-set, the implementation
+    // is a few lines here and no change at all in the ticker.
+    let mut armed = nvs_server::arm(&snapshot.config.schedule, &Zoned::now(), None, |note| {
         eprintln!("note: {note}");
     });
     if !armed.is_empty() {
@@ -479,9 +489,10 @@ pub(crate) fn run(
             // `Zoned::now` and not a fixed instant: § 6's missed interval is
             // skipped rather than replayed, which is the ticker asking the clock
             // for every fire and never counting from the last one.
-            let ticked = nvs_server::tick_on_this_core(&mut armed, &fires, Zoned::now, || {
-                ControlFlow::Continue(())
-            });
+            let ticked =
+                nvs_server::tick_on_this_core(&mut armed, &fires, None, Zoned::now, || {
+                    ControlFlow::Continue(())
+                });
             if let Err(error) = ticked {
                 eprintln!("error: the schedule ticker stopped: {error}");
             }
