@@ -3939,17 +3939,63 @@ tests = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the testing surface the server unlocks. ADR 0079 §§ 14, 17, 18.
+#
+# All four of these were filed `-p nvs-test` and not one of them could ever have run there:
+# `crates/nvs-test/Cargo.toml` declares NO dependencies at all, on purpose -- a test runner that
+# fails is indistinguishable from the thing it is testing failing -- so that crate holds the
+# `.nvst` format and nothing that could build a request, a listener or a database. What
+# implements all three ADR sections is `nvs_cli::runner`, which its own module doc calls the one
+# place that can reach both halves at once: a checked program and a runtime context in one scope.
+# Split into four so the ledger names which feature is still open rather than only the first.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
 stage = "8 test surface"
-name = "nvs-test (request, db, server, snapshots)"
-args = ["test", "-p", "nvs-test"]
+name = "nvs-cli (a test's in-process request)"
+args = ["test", "-p", "nvs-cli"]
 tests = [
+  # ADR 0079 § 18: `Core\Test::request(...)` builds a request and runs it through ADR 0077's
+  # compiled table and the real middleware chain -- no socket, no port. The synthetic request's
+  # body and parameters arrive `tainted`, exactly as a real request's would.
   "test_request_dispatches_in_process_through_the_compiled_route_table",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 test surface"
+name = "nvs-cli (a test's transaction)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # ADR 0079 § 17: `#[Test(db: "test")]` opens a transaction on the named connection before the
+  # test and rolls it back after, so a transaction opened INSIDE the test is a savepoint. Needs
+  # the same reachable PostgreSQL goals 4 and 5 need.
   "a_test_with_db_runs_inside_a_transaction_that_is_rolled_back",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 test surface"
+name = "nvs-cli (a test's ephemeral listener)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # ADR 0079 § 18's second mechanism: `#[Test(server: true)]` starts a real listener on an
+  # ephemeral port for the cases that genuinely need the wire. Two mechanisms are justified
+  # there and the ADR says why, so this is not the row above under another name.
   "a_test_with_server_true_gets_an_ephemeral_listener",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "8 test surface"
+name = "nvs-cli (an inline snapshot's updater)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # ADR 0079 § 14. The ASSERTION half has landed -- `Core\Test::assertMatchesInline` is a
+  # registry row over `Core\Debug::render`'s text, with three `.nvst` cases. What this check
+  # names is the UPDATER: `nvs test --update` splices the produced value into the source
+  # literal, and nothing else ever writes to a test's own file. It needs the literal's SPAN,
+  # which no runtime record holds -- `nvs_stdlib::test`'s helper doc comment owns the design.
   "an_inline_snapshot_updates_its_own_source_when_asked_and_never_otherwise",
 ]
 
