@@ -19,11 +19,10 @@ not an install; § *Picking up where the last machine left off* is the order to 
 git clone https://github.com/novis-lang/novis
 ```
 
-`origin` is a self-hosted git server rather than GitHub, so the clone wants that host's credentials; on
-Windows a personal access token used as the HTTP password is the least painful form. **Where the tree lands
-does not matter.** Nothing under `tools/` hardcodes a path: `tools/loop.py` derives the WSL side's
-`/mnt/<drive>/…` from wherever the repo actually is. Keep it on the Windows filesystem rather than inside
-the distro — the native leg is the primary one, and the distro reaches it over the 9p mount.
+**Where the tree lands does not matter.** Nothing in the repository hardcodes a checkout path: every tool
+that needs the WSL side's `/mnt/<drive>/…` derives it from wherever the repo actually is. Keep it on the
+Windows filesystem rather than inside the distro — the native leg is the primary one, and the distro
+reaches it over the 9p mount.
 
 ## Every platform
 
@@ -53,7 +52,7 @@ The primary development platform, and the only one with real setup:
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
 
-One-time setup inside the distro, which mounts the repo at `/mnt/<drive>/<repo>`:
+One-time setup inside the distro, which reaches the repo over its `/mnt/<drive>/…` mount:
 
 ```sh
 sudo apt-get update && sudo apt-get install -y build-essential clang valgrind

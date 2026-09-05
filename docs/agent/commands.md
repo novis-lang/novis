@@ -332,6 +332,24 @@ already known, and the rest handoff, playbook, `git add`, `git commit`, `status.
 to run *before* writing the wrap file: it reports plan fields whose prose names a count the tree
 contradicts, whether the handoff still matches its contract, and what is uncommitted.
 
+## Releasing
+
+**A release is a person's, always** — the same rule as a dependency sweep, and for the same reason. No
+session, loop or cron job may cut one; `.github/workflows/release.yml` has exactly one trigger and it is a
+human pressing `Run workflow`. An agent that notices the tree is due a release says so and carries on.
+
+The procedure and the one-time GitHub setup are [docs/release.md](../release.md); the version scheme is
+[ADR 0068](../adr/0068-dependency-currency-and-the-version-contract.md) § 3 and is not plain SemVer below
+1.0. The one command worth knowing here is the local preview, which needs no runner and no credentials and
+writes nothing:
+
+```sh
+python tools/release.py --preview minor     # the exact version and notes a dispatch would produce
+```
+
+`python tools/release.py --check` is the gate CI's `docs` job runs: the workspace version, the fourteen
+`[workspace.dependencies]` pins that restate it, the newest tag and `CHANGELOG.md` all agree.
+
 `session.py` is not loop-only. Steps 4 and 5 are the same steps in an interactive session, and `## status`
 simply reports itself skipped when there is no `.loop/` directory.
 
@@ -491,13 +509,13 @@ if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forev
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
 ([ADR 0026](../adr/0026-performance-measurement-methodology.md)) has no native Windows build at all — do
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
-distro, which mounts the repo at `/mnt/<drive>/<repo>`. What that distro must have installed — and why PHP goes in
+distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
 
-**Build from `/mnt/d`; do not clone into the distro to "fix" the 9p mount.** Per file operation 9p is
+**Build over the `/mnt` mount; do not clone into the distro to "fix" it.** Per file operation 9p is
 50–100× slower, but the base is too small to show: the workspace is 1,412 files, 190 of them `.rs`,
 dependencies compile out of `~/.cargo` on ext4 either way, and the target directory is already off the
-mount. Measured on this workspace — a cold `cargo build -p nvs-cli` is 31.6s from `/mnt/d` against 32.2s
+mount. Measured on this workspace — a cold `cargo build -p nvs-cli` is 31.6s from the mount against 32.2s
 from an ext4 copy of the same tree, a no-op rebuild is 0.31s, and one touched file rebuilds in 0.75s. A
 synced Linux-side clone buys under a second per acceptance check and costs a stale-copy failure mode.
 
@@ -507,7 +525,7 @@ again on the next call, so a target directory in `/tmp` is gone after any idle g
 pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 24.04 ships its
 `q /var/tmp` line commented out.
 
-From `/mnt/<drive>/<repo>` (not `fuzz/` itself — cargo-fuzz expects the parent directory):
+From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
 for 60s on every push.
 

@@ -42,6 +42,16 @@ LIVE = ROOT / "docs" / "agent" / "loop-goal.toml"
 MARKER = "# <<< goal-switch: floor checks are inserted below this line >>>"
 FLOOR_STAGE = "1 floor"
 
+
+def rel_to_root(path):
+    """The path as the repository names it, so a banner this writes into a committed file records
+    `docs/agent/loop-goal.toml` rather than whichever absolute checkout the loop ran from."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(ROOT).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
 # A `[[check]]` block starts at its own header line and runs to the next top-level table header or
 # the end of the file. Comments immediately above a header belong to that block, not to the one
 # before it -- a comment saying what a check guards is worthless attached to its neighbour.
@@ -179,7 +189,7 @@ def main():
         new_text = merged
 
     banner = (
-        f"# {len(floor)} check(s) carried from {live_path.as_posix()} by tools/goal-switch.py.\n"
+        f"# {len(floor)} check(s) carried from {rel_to_root(live_path)} by tools/goal-switch.py.\n"
         f"# They are the previous goal's acceptance list VERBATIM, relabelled to stage "
         f'"{opts.stage}".\n'
         "# Do not edit them to make something pass: a floor that has been adjusted is not a floor.\n"

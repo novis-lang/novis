@@ -20,7 +20,9 @@
 # quoting, so this is a file passed by path instead. AGENTS.md says why.
 set -u
 
-cd /mnt/<drive>/<repo> || exit 1
+# The repo root, derived from this script's own path rather than named: the checkout is wherever the
+# machine put it, and docs/setup.md promises nothing here hardcodes one.
+cd "$(dirname "$0")/.." || exit 1
 # /var/tmp, not /tmp: systemd clears /tmp at every WSL boot, and WSL boots again
 # after every idle gap -- a target directory there costs a cold build every run.
 export CARGO_TARGET_DIR=/var/tmp/nvs-linux
