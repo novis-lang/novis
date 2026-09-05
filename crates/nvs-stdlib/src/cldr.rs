@@ -6,7 +6,8 @@
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
 //! ones — and [ADR 0082](/docs/adr/0082-the-first-party-framework.md)
 //! § 2's `Core\Cldr::pluralCategory`, the cardinal plural rules a message
-//! catalog selects a form with.
+//! catalog selects a form with, and `Core\Cldr::ordinalCategory` beside it for
+//! the forms a *place* takes.
 //!
 //! # Why this is written here rather than taken from a crate
 //!
@@ -35,11 +36,19 @@
 //!
 //! | Letter | Meaning | Counts |
 //! |---|---|---|
+//! | `G` | era | 1–3 `AD`/`BC`, `GGGG` full, `GGGGG` narrow — read off the year's sign |
 //! | `y` | year | `yy` is two digits, any other count zero-pads |
+//! | `u` | extended year | the same year, and the only letter that reads a sign back |
+//! | `Q` | quarter | 1–2 numeric, `QQQ` is `Q1`, `QQQQ` full, `QQQQQ` narrow |
 //! | `M` | month | 1–2 numeric, `MMM` short name, `MMMM` full, `MMMMM` narrow |
+//! | `L` | standalone month | `M`'s counts; the root locale spells both alike |
 //! | `d` | day of month | numeric, zero-padded to the count |
 //! | `D` | day of year | numeric |
+//! | `w` | week of year | ISO 8601's numbering, zero-padded to the count |
+//! | `W` | week of month | the same rule inside a month, and `0` for a short leading week |
+//! | `F` | weekday ordinal in month | numeric — `1` for the first Friday of the month |
 //! | `E` | weekday name | 1–3 short, `EEEE` full, `EEEEE` narrow, `EEEEEE` two-letter |
+//! | `c` | standalone weekday | `c` is the day's number, 3–6 are `E`'s names |
 //! | `a` | AM/PM | any count |
 //! | `h` | hour 1–12 | numeric |
 //! | `H` | hour 0–23 | numeric |
@@ -53,6 +62,26 @@
 //! | `VV` | the zone's IANA identifier | `VV` only |
 //!
 //! A `'…'` run is a literal, and `''` is one apostrophe — CLDR's own quoting.
+//!
+//! **`y` is the signed proleptic year here, and CLDR's year-of-era is not
+//! carried.** CLDR distinguishes `y` (the year *within* an era, always
+//! positive, needing a `G` to be unambiguous) from `u` (the signed proleptic
+//! year); this subset writes the proleptic year for both, so `y` on a date
+//! before year 1 renders `-0043` rather than `0044`. That keeps
+//! `format("yyyy-MM-dd")` sortable and reversible over the whole
+//! `-9999..=9999` range a `Core\Time\Date` accepts, which is what every caller
+//! of it in this repository depends on, and it makes `G` a *rendering* of the
+//! sign rather than a second half of the year. The two letters still differ on
+//! the way back in: `u` reads a leading `-` and `y` reads digits only, so a
+//! date before year 1 round-trips through `u` alone.
+//!
+//! **The week rule is ISO 8601's, for `w` and `W` alike**: a week starts on
+//! Monday, and week 1 is the first one with at least four days in the period.
+//! CLDR states that rule per *territory* rather than per language, which is
+//! exactly the locale data the section above refuses to carry — so one rule is
+//! written here, it is the one the majority of that table names, and a `W`
+//! whose month opens with a short partial week answers `0`, as ICU's own
+//! week-of-month does.
 //!
 //! # The plural rules, and why they are a closed roster
 //!
@@ -92,6 +121,28 @@
 //! `many` arms that read it in the published rules are written at `e = 0`,
 //! which is the millions rule `ca`, `es`, `fr`, `it` and `pt` share.
 //!
+//! # The ordinal rules, and the one place they answer where the cardinal ones
+//! refuse
+//!
+//! CLDR's ordinal rules are a second table — the forms `1st`, `2nd`, `3rd`,
+//! `4th` take, rather than the forms `1 file`/`2 files` take — and
+//! [`ORDINAL_CATEGORY`]'s member reads it. They answer with the same six
+//! categories, so no second enum is registered: `Two` is Welsh's `2il` here and
+//! Welsh's two-thing form there, and which one a program meant is which member
+//! it called.
+//!
+//! **[`ORDINALS`] holds only the languages that mark a form**, and a language
+//! [`RULES`] carries but this table does not answers `Other`. That is a
+//! deliberate difference from the cardinal member's refusal, and the reason is
+//! that the two absences are not the same fact. A cardinal rule CLDR does not
+//! publish is unknown, and guessing one mistranslates a count the caller can
+//! name; an ordinal rule it does not publish is *published as nothing* — CLDR's
+//! own ordinal data files every language with no marked form into one bucket,
+//! and `Other` is the unmarked form that bucket names. So the roster is the
+//! languages that differ from it, which is how CLDR writes the same data.
+//! A language neither table carries is still refused, by [`rules_for`], which
+//! is the boundary both members share.
+//!
 //! # Known gaps
 //!
 //! 1. **A pattern is compiled per call.** [ADR 0057](/docs/adr/0057-intrinsic-literal-folding.md)
@@ -101,20 +152,31 @@
 //!    then be a compile error rather than the throw [`compile`] returns
 //!    today. Nothing about this module changes when that lands — it gains a
 //!    second caller.
-//! 2. **Era, quarter, week-of-year and the standalone forms (`G`, `Q`, `w`,
-//!    `W`, `L`, `c`, `F`, `u`) are refused**, each naming itself. They are
-//!    additions to the table above rather than a different design; `Q` is the
-//!    only one § 4 names elsewhere, as a `Unit` case rather than a pattern
-//!    letter.
-//! 3. **[`RULES`] is a roster, not all of CLDR.** It carries the languages
-//!    whose published cardinal rules are transcribed here; every other one
-//!    throws, per the section above. `be`, `he`, `mt`, `dsb`, `hsb`, `gd`,
-//!    `br`, `kw`, `gv`, `is`, `mk`, `tzm`, `shi`, `si`, `ak`, `bh`, `guw`,
-//!    `nso`, `wa` and `naq` are the named absences — each has a rule shape no
-//!    arm here already has, so each is an arm rather than a row.
-//! 4. **Ordinal rules are absent**, and `Core\Cldr` has no member for them.
-//!    They are a separate CLDR table with its own categories per language, and
-//!    nothing in the framework's § 3 half asks for one.
+//! 2. **The letters still refused are the ones needing data or a second
+//!    calendar** — `Y` and `e` (week-based year and local weekday number, both
+//!    of which read the per-territory week data this module does not carry),
+//!    `U` and `r` (a cyclic calendar's year), `B` and `b` (flexible day
+//!    periods, which are locale data), `A` (milliseconds in the day), `g`
+//!    (modified Julian day), and the four zone spellings `z`, `Z`, `O` and
+//!    `v`, which name a zone the way `X`, `x` and `VV` already do. Each names
+//!    itself rather than emitting a literal. `Y` is the one with a caller
+//!    waiting, since a week-based year beside `w` is the pair ISO 8601 writes.
+//! 3. **[`RULES`] is a roster, not all of CLDR**, and it names no absence.
+//!    It carries the languages whose published cardinal rules are transcribed
+//!    here; every other one throws, per the section above. The twenty this
+//!    note used to name — `be`, `he`, `mt`, `dsb`, `hsb`, `gd`, `br`, `kw`,
+//!    `gv`, `is`, `mk`, `tzm`, `shi`, `si`, `ak`, `bh`, `guw`, `nso`, `wa`,
+//!    `naq` — are carried, as fifteen arms between them, and `da`, `fil`,
+//!    `tl` and `ceb` went in beside them because a roster that answers for
+//!    `af` and refuses Danish is a roster with a hole rather than a boundary.
+//!    `every_language_named_absent_in_the_gap_note_now_has_a_rule` is what
+//!    holds this paragraph to the table.
+//! 4. **[`ORDINALS`] is the languages that mark a form, and a language that
+//!    marks one but is missing from it answers `Other` silently** — which is
+//!    the cost of the default the section above argues for, stated plainly.
+//!    The cardinal roster has no such failure mode: a missing row there
+//!    throws. Widening this one is a row, and an arm only where the published
+//!    rule is a shape no arm has.
 
 use std::cmp::Ordering;
 use std::ops::RangeInclusive;
@@ -164,6 +226,24 @@ pub(crate) enum Field {
     Offset,
     /// `VV`
     ZoneId,
+    /// `G` — AD or BC.
+    Era,
+    /// `u` — the same year [`Self::Year`] renders, and the one letter that
+    /// reads its sign back.
+    ExtendedYear,
+    /// `Q`
+    Quarter,
+    /// `w` — ISO 8601's week of the year.
+    WeekOfYear,
+    /// `W` — the same rule inside one month.
+    WeekOfMonth,
+    /// `L` — the standalone month, which the root locale spells as `M` does.
+    StandaloneMonth,
+    /// `c` — the standalone weekday, whose count 1 is a number where `E`'s is
+    /// a name.
+    StandaloneWeekday,
+    /// `F` — which weekday of the month this is: 1 for the first Friday.
+    DayOfWeekInMonth,
 }
 
 impl Field {
@@ -187,6 +267,14 @@ impl Field {
             b'X' => Self::OffsetZ,
             b'x' => Self::Offset,
             b'V' => Self::ZoneId,
+            b'G' => Self::Era,
+            b'u' => Self::ExtendedYear,
+            b'Q' => Self::Quarter,
+            b'w' => Self::WeekOfYear,
+            b'W' => Self::WeekOfMonth,
+            b'L' => Self::StandaloneMonth,
+            b'c' => Self::StandaloneWeekday,
+            b'F' => Self::DayOfWeekInMonth,
             _ => return None,
         })
     }
@@ -218,11 +306,13 @@ impl Field {
 
     /// Whether this field says something about the **calendar** — the other
     /// half of the same split, and the one [`time_fields_only`] refuses.
+    ///
+    /// Written as the complement rather than as a third roster: the three
+    /// predicates partition the letters, and a roster here is one a letter
+    /// added to the table above can be left out of silently — which is a
+    /// `Core\Time\TimeOfDay` rendering a year it does not have.
     fn is_calendar(self) -> bool {
-        matches!(
-            self,
-            Self::Year | Self::Month | Self::Day | Self::DayOfYear | Self::Weekday
-        )
+        !self.is_time_of_day() && !self.is_zonal()
     }
 }
 
@@ -253,6 +343,15 @@ const MONTHS: [(&str, &str, &str); 12] = [
     ("November", "Nov", "N"),
     ("December", "Dec", "D"),
 ];
+
+/// English root-locale era names, full then short then narrow, indexed by
+/// [`Field::Era`]'s own order: AD first, because a proleptic year above zero is
+/// the ordinary case.
+const ERAS: [(&str, &str, &str); 2] = [("Anno Domini", "AD", "A"), ("Before Christ", "BC", "B")];
+
+/// English root-locale quarter names, indexed by quarter − 1. Only `QQQQ`
+/// spells one out; the shorter counts are `Q1` and the bare number.
+const QUARTERS: [&str; 4] = ["1st quarter", "2nd quarter", "3rd quarter", "4th quarter"];
 
 /// English root-locale weekday names, full then short then narrow then
 /// two-letter, indexed Monday-first.
@@ -530,8 +629,8 @@ fn render_placed(pieces: &[Piece], at: civil::DateTime, offset: Offset, zone: &s
 #[expect(
     clippy::cast_sign_loss,
     reason = "every component read here is non-negative by construction but \
-              typed `i8`/`i16` by `jiff`; the year is the one that can be \
-              negative, and it takes its absolute value first"
+              typed `i8`/`i16` by `jiff`; the extended year is the one that \
+              can be negative, and it takes its absolute value first"
 )]
 fn render_field(
     out: &mut String,
@@ -542,19 +641,74 @@ fn render_field(
     zone: &str,
 ) {
     match field {
-        Field::Year => {
+        Field::Year | Field::ExtendedYear => {
+            // One arm for both, because this subset's `y` is already the signed
+            // proleptic year the module doc argues for — `yy`'s two-digit
+            // window is the only thing that separates them here.
             let year = at.year();
             if year < 0 {
                 out.push('-');
             }
             let magnitude = u32::from(year.unsigned_abs());
-            if count == 2 {
+            if count == 2 && field == Field::Year {
                 pad(out, u64::from(magnitude % 100), 2);
             } else {
                 pad(out, u64::from(magnitude), count);
             }
         }
-        Field::Month => match count {
+        Field::Era => {
+            let names = ERAS[usize::from(at.year() <= 0)];
+            out.push_str(match count {
+                4 => names.0,
+                5 => names.2,
+                _ => names.1,
+            });
+        }
+        Field::Quarter => {
+            let quarter = at.month().unsigned_abs().div_ceil(3);
+            match count {
+                3 => {
+                    out.push('Q');
+                    pad(out, u64::from(quarter), 1);
+                }
+                4 => out.push_str(QUARTERS[usize::from(quarter) - 1]),
+                5 => pad(out, u64::from(quarter), 1),
+                _ => pad(out, u64::from(quarter), count),
+            }
+        }
+        Field::WeekOfYear => pad(
+            out,
+            at.date().iso_week_date().week().unsigned_abs().into(),
+            count,
+        ),
+        Field::WeekOfMonth => {
+            // The weekday the month opened on, derived rather than looked up:
+            // today's weekday walked back over the days already elapsed.
+            let day = i64::from(at.day());
+            let today = i64::from(at.date().weekday().to_monday_zero_offset());
+            let opened = (today - (day - 1)).rem_euclid(7);
+            // ISO's minimum of four days, applied to the month: a leading week
+            // shorter than that is week 0 rather than week 1.
+            let first_is_whole = u64::from(7 - opened >= 4);
+            let week = u64::try_from(day + opened - 1).expect("a day of month is one or more") / 7;
+            pad(out, week + first_is_whole, count);
+        }
+        Field::DayOfWeekInMonth => pad(out, u64::from(at.day().unsigned_abs() - 1) / 7 + 1, count),
+        Field::StandaloneWeekday => {
+            let index = at.date().weekday().to_monday_zero_offset() as usize;
+            let names = WEEKDAYS[index];
+            match count {
+                3 => out.push_str(names.1),
+                4 => out.push_str(names.0),
+                5 => out.push_str(names.2),
+                6 => out.push_str(names.3),
+                // CLDR's `c` counts the local day of the week, which is
+                // Monday-first in the root locale — the same order [`WEEKDAYS`]
+                // is indexed in, so it is the index plus one.
+                _ => pad(out, index as u64 + 1, count),
+            }
+        }
+        Field::Month | Field::StandaloneMonth => match count {
             3 => out.push_str(MONTHS[at.month() as usize - 1].1),
             4 => out.push_str(MONTHS[at.month() as usize - 1].0),
             5 => out.push_str(MONTHS[at.month() as usize - 1].2),
@@ -738,15 +892,70 @@ fn read_field(
             };
             fields.year = Some(i16::try_from(year).map_err(|_| "year out of range".to_owned())?);
         }
-        Field::Month if count >= 3 => {
-            let index = name_index(bytes, at, "month", |index| {
-                let names = MONTHS[index];
+        Field::ExtendedYear => {
+            // The one field that reads a sign, which is the whole of what `u`
+            // is for here: `y` reads digits, so a date before year 1 comes back
+            // through this letter and no other.
+            let negative = bytes.get(*at) == Some(&b'-');
+            if negative {
+                *at += 1;
+            }
+            let value = number(bytes, at, 1, count.max(4), "year")?;
+            let year = if negative { -value } else { value };
+            fields.year = Some(i16::try_from(year).map_err(|_| "year out of range".to_owned())?);
+        }
+        Field::Era => {
+            // Read and discarded, for [`Field::DayOfYear`]'s reason: the era of
+            // a signed proleptic year is a function of its sign, so the text
+            // can only agree with it or contradict it.
+            name_index(bytes, at, "era", ERAS.len(), |index| {
+                let names = ERAS[index];
                 [names.0, names.1, names.2]
             })?;
+        }
+        Field::Quarter if count == 4 => {
+            // One name per quarter rather than three, so the roster is written
+            // as the shape [`name_index`] takes with its alternatives spent.
+            name_index(bytes, at, "quarter", QUARTERS.len(), |index| {
+                [QUARTERS[index], QUARTERS[index], QUARTERS[index]]
+            })?;
+        }
+        Field::Quarter if count == 3 => {
+            if bytes
+                .get(*at)
+                .is_none_or(|byte| !byte.eq_ignore_ascii_case(&b'Q'))
+            {
+                return Err(format!("expected a quarter at offset {at}"));
+            }
+            *at += 1;
+            number(bytes, at, 1, 1, "quarter")?;
+        }
+        // Read and discarded, for [`Field::DayOfYear`]'s reason: each is a
+        // function of the date the other fields name, so the text can only
+        // agree with it or contradict it.
+        Field::Quarter | Field::WeekOfYear | Field::WeekOfMonth | Field::DayOfWeekInMonth => {
+            number(bytes, at, 1, count.max(2), "week")?;
+        }
+        Field::StandaloneWeekday if count >= 3 => {
+            name_index(bytes, at, "weekday", WEEKDAYS.len(), |index| {
+                let names = WEEKDAYS[index];
+                [names.0, names.1, names.3]
+            })?;
+        }
+        Field::StandaloneWeekday => {
+            small(bytes, at, count, "weekday")?;
+        }
+        Field::Month | Field::StandaloneMonth if count >= 3 => {
+            let index = name_index(bytes, at, "month", MONTHS.len(), |index| {
+                let names = MONTHS[index];
+                [names.0, names.1, names.2]
+            })? + 1;
             fields.month =
                 Some(i8::try_from(index).expect("a month index is between one and twelve"));
         }
-        Field::Month => fields.month = Some(small(bytes, at, count, "month")?),
+        Field::Month | Field::StandaloneMonth => {
+            fields.month = Some(small(bytes, at, count, "month")?);
+        }
         Field::Day => fields.day = Some(small(bytes, at, count, "day")?),
         Field::DayOfYear => {
             // Read and discarded: a day-of-year beside a month and a day would
@@ -758,7 +967,7 @@ fn read_field(
             // Read and discarded for the reason above: the weekday of a civil
             // date is a function of the date, so the text can only agree or
             // contradict, and PHP's own parser ignores it too.
-            name_index(bytes, at, "weekday", |index| {
+            name_index(bytes, at, "weekday", WEEKDAYS.len(), |index| {
                 let names = WEEKDAYS[index];
                 [names.0, names.1, names.3]
             })?;
@@ -843,16 +1052,21 @@ fn number(
     Ok(value)
 }
 
-/// Matches one of the names `names` gives for each index, longest first so
-/// that `"June"` is not read as the short `"Jun"` with a stray `e` after it.
+/// Matches one of the names `names` gives for each of `roster` indices, longest
+/// first so that `"June"` is not read as the short `"Jun"` with a stray `e`
+/// after it.
+///
+/// The answer is the **zero-based** index; a caller wanting a one-based
+/// component adds the one itself, which is the month and nothing else.
 fn name_index(
     bytes: &[u8],
     at: &mut usize,
     what: &str,
+    roster: usize,
     names: impl Fn(usize) -> [&'static str; 3],
 ) -> Result<usize, String> {
     let mut best: Option<(usize, usize)> = None;
-    for index in 0..if what == "month" { 12 } else { 7 } {
+    for index in 0..roster {
         for name in names(index) {
             let matched = bytes
                 .get(*at..*at + name.len())
@@ -864,7 +1078,7 @@ fn name_index(
     }
     let (index, length) = best.ok_or_else(|| format!("expected a {what} name at offset {at}"))?;
     *at += length;
-    Ok(index + usize::from(what == "month"))
+    Ok(index)
 }
 
 // ============================================================================
@@ -877,8 +1091,14 @@ pub(crate) const NAME: &str = r"Core\Cldr";
 /// [`PLURAL_CATEGORY`]'s name, spelled once.
 pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr\PluralCategory";
 
-/// ADR 0082 § 2's row, and the whole of the class: one member, no capability,
-/// no instance and no constant.
+/// The cardinal member's name, as its own refusals spell it.
+const PLURAL_MEMBER: &str = r"Core\Cldr::pluralCategory";
+
+/// The ordinal member's name, likewise.
+const ORDINAL_MEMBER: &str = r"Core\Cldr::ordinalCategory";
+
+/// ADR 0082 § 2's row and the ordinal table beside it, and the whole of the
+/// class: two members, no capability, no instance and no constant.
 ///
 /// It declares no capability for the reason [`crate::storage`] declares none
 /// and a stronger one: nothing here reaches outside the process at all. The
@@ -887,18 +1107,32 @@ pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr\PluralCategory";
 /// § 1 has no door to put a check at.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
-    methods: &[CoreMethod {
-        name: "pluralCategory",
-        names: &["count", "locale"],
-        params: &[
-            CoreTy::Union(crate::math::NUMBER),
-            CoreTy::Text(Qual::Neutral),
-        ],
-        defaults: &[],
-        return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
-        symbol: "nvs_core_cldr_plural_category",
-        doc: Some(&PLURAL_CATEGORY_MEMBER_DOC),
-    }],
+    methods: &[
+        CoreMethod {
+            name: "pluralCategory",
+            names: &["count", "locale"],
+            params: &[
+                CoreTy::Union(crate::math::NUMBER),
+                CoreTy::Text(Qual::Neutral),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
+            symbol: "nvs_core_cldr_plural_category",
+            doc: Some(&PLURAL_CATEGORY_MEMBER_DOC),
+        },
+        CoreMethod {
+            name: "ordinalCategory",
+            names: &["count", "locale"],
+            params: &[
+                CoreTy::Union(crate::math::NUMBER),
+                CoreTy::Text(Qual::Neutral),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
+            symbol: "nvs_core_cldr_ordinal_category",
+            doc: Some(&ORDINAL_CATEGORY_MEMBER_DOC),
+        },
+    ],
     instance: &[],
     slots: &[],
     constants: &[],
@@ -930,6 +1164,43 @@ const PLURAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
             error: "LogicError",
             desc: "The tag carries no language subtag, or names a language whose rules are not \
                    among those compiled in — a locale is never given another language's rules.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$count` is a `float` that is not finite, or one that prints more digits than \
+                   the rules can be evaluated over.",
+        },
+    ],
+};
+
+/// `Core\Cldr::ordinalCategory`'s reference card — ADR 0117.
+const ORDINAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
+    short: "Answers which form `$count` takes as a *place* rather than as an amount — English's \
+            `1st`, `2nd`, `3rd`, `4th` — so a template writes the suffix its locale marks.",
+    params: &[
+        ParamDoc {
+            name: "count",
+            desc: "The place the message is about. CLDR states its ordinal rules over whole \
+                   numbers, so a count showing a fraction is outside all of them and answers \
+                   `Other` — except in the two languages whose rules read the integer part \
+                   alone, Macedonian and Georgian.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "locale",
+            desc: "A BCP 47 tag, read exactly as `pluralCategory` reads it: only the language \
+                   subtag, and case is ignored.",
+            shape: &[],
+        },
+    ],
+    ret: "The category the language's ordinal rules put `$count` in — `Other` for every count in \
+          a language that marks no ordinal form, which is most of them.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The tag carries no language subtag, or names a language neither table carries \
+                   rules for. A language carried for cardinals but marking no ordinal form is not \
+                   this case: it answers `Other`.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -1067,6 +1338,12 @@ impl Operands {
         self.n().is_some_and(|n| range.contains(&n))
     }
 
+    /// CLDR's `n = a,b,c` — the ordinal rules' commonest shape, where the
+    /// cardinal ones mostly write ranges and moduli.
+    fn n_any(self, values: &[u128]) -> bool {
+        self.n().is_some_and(|n| values.contains(&n))
+    }
+
     /// CLDR's `n % modulus = value`.
     fn n_mod_is(self, modulus: u128, value: u128) -> bool {
         self.n().is_some_and(|n| n % modulus == value)
@@ -1075,6 +1352,12 @@ impl Operands {
     /// CLDR's `n % modulus = low..high`.
     fn n_mod_in(self, modulus: u128, range: RangeInclusive<u128>) -> bool {
         self.n().is_some_and(|n| range.contains(&(n % modulus)))
+    }
+
+    /// CLDR's `n % modulus = a,b,c` — the published alternative to a range,
+    /// which Breton and Cornish write and no other carried rule does.
+    fn n_mod_any(self, modulus: u128, values: &[u128]) -> bool {
+        self.n().is_some_and(|n| values.contains(&(n % modulus)))
     }
 
     /// The `many` arm `ca`, `es`, `fr`, `it` and `pt` share: a whole number of
@@ -1142,6 +1425,54 @@ enum RuleSet {
     Slovenian,
     /// Irish, whose categories are four contiguous bands.
     Irish,
+    /// Belarusian: [`Self::EastSlavic`]'s three bands read off `n` rather than
+    /// off `i`, so a count showing a fraction falls out of all of them into
+    /// `Other` instead of being read by its integer part.
+    Belarusian,
+    /// Hebrew, whose `one` also takes a count with no integer part at all
+    /// (`0.5`), and which distinguishes two and nothing beyond it.
+    Hebrew,
+    /// Maltese, whose `few` starts at zero and whose `many` is the teens.
+    Maltese,
+    /// Lower and Upper Sorbian: [`Self::Slovenian`]'s three bands with the
+    /// same test applied to the fraction digits, as [`Self::SerboCroatian`]
+    /// does to [`Self::EastSlavic`]'s.
+    Sorbian,
+    /// Scottish Gaelic, whose first three bands each repeat once in the teens.
+    ScottishGaelic,
+    /// Breton, which excludes three whole tens-bands from each of its first
+    /// three categories and keeps a millions `many` behind them.
+    Breton,
+    /// Cornish, the widest published rule carried here: five categories, four
+    /// moduli and a range inside one of them.
+    Cornish,
+    /// Manx, whose `many` is any visible fraction and whose `few` is the even
+    /// twenties.
+    Manx,
+    /// Icelandic: [`Self::EastSlavic`]'s `one` test on `i`, with every count
+    /// showing a non-zero fraction joining `one` rather than leaving it.
+    Icelandic,
+    /// Macedonian: [`Self::SerboCroatian`]'s `one` with no `few` behind it.
+    Macedonian,
+    /// Central Atlas Tamazight, whose `one` is two disjoint bands.
+    Tamazight,
+    /// Tachelhit, which is [`Self::ZeroOrExactlyOne`]'s `one` with a `few`
+    /// behind it.
+    Tachelhit,
+    /// Sinhala, whose `one` takes `0.1` and no other fraction.
+    Sinhala,
+    /// `one: n = 0..1` — Akan, Bihari, Gun, Northern Sotho, Walloon. Unlike
+    /// [`Self::IntegerZeroOrOne`] this reads `n`, so `1.5` is `Other` here and
+    /// `One` there.
+    ZeroToOne,
+    /// Nama, which distinguishes one and two and nothing else.
+    OneAndTwo,
+    /// Danish, whose `one` takes any count below two that shows a fraction —
+    /// `0.5` and `1.5` alike, which no other carried set does.
+    Danish,
+    /// Filipino, Tagalog and Cebuano, whose `one` is stated as three
+    /// alternatives over the last digit rather than as a band.
+    Filipino,
 }
 
 impl RuleSet {
@@ -1305,6 +1636,150 @@ impl RuleSet {
             Self::Irish if at.n_in(3..=6) => Few,
             Self::Irish if at.n_in(7..=10) => Many,
             Self::Irish => Other,
+
+            // one:  n % 10 = 1 and n % 100 != 11
+            // few:  n % 10 = 2..4 and n % 100 != 12..14
+            // many: n % 10 = 0 or n % 10 = 5..9 or n % 100 = 11..14
+            Self::Belarusian if at.n_mod_is(10, 1) && !at.n_mod_is(100, 11) => One,
+            Self::Belarusian if at.n_mod_in(10, 2..=4) && !at.n_mod_in(100, 12..=14) => Few,
+            Self::Belarusian
+                if at.n_mod_is(10, 0) || at.n_mod_in(10, 5..=9) || at.n_mod_in(100, 11..=14) =>
+            {
+                Many
+            }
+            Self::Belarusian => Other,
+
+            // one: i = 1 and v = 0 or i = 0 and v != 0 / two: i = 2 and v = 0
+            Self::Hebrew if (at.i == 1 && at.v == 0) || (at.i == 0 && at.v != 0) => One,
+            Self::Hebrew if at.i == 2 && at.v == 0 => Two,
+            Self::Hebrew => Other,
+
+            // one: n = 1 / two: n = 2 / few: n = 0 or n % 100 = 3..10
+            // many: n % 100 = 11..19
+            Self::Maltese if at.n_is(1) => One,
+            Self::Maltese if at.n_is(2) => Two,
+            Self::Maltese if at.n_is(0) || at.n_mod_in(100, 3..=10) => Few,
+            Self::Maltese if at.n_mod_in(100, 11..=19) => Many,
+            Self::Maltese => Other,
+
+            // one: v = 0 and i % 100 = 1 or f % 100 = 1
+            // two: v = 0 and i % 100 = 2 or f % 100 = 2
+            // few: v = 0 and i % 100 = 3..4 or f % 100 = 3..4
+            Self::Sorbian if (at.v == 0 && at.i % 100 == 1) || at.f % 100 == 1 => One,
+            Self::Sorbian if (at.v == 0 && at.i % 100 == 2) || at.f % 100 == 2 => Two,
+            Self::Sorbian
+                if (at.v == 0 && (3..=4).contains(&(at.i % 100)))
+                    || (3..=4).contains(&(at.f % 100)) =>
+            {
+                Few
+            }
+            Self::Sorbian => Other,
+
+            // one: n = 1,11 / two: n = 2,12 / few: n = 3..10,13..19
+            Self::ScottishGaelic if at.n_is(1) || at.n_is(11) => One,
+            Self::ScottishGaelic if at.n_is(2) || at.n_is(12) => Two,
+            Self::ScottishGaelic if at.n_in(3..=10) || at.n_in(13..=19) => Few,
+            Self::ScottishGaelic => Other,
+
+            // one:  n % 10 = 1 and n % 100 != 11,71,91
+            // two:  n % 10 = 2 and n % 100 != 12,72,92
+            // few:  n % 10 = 3..4,9 and n % 100 != 10..19,70..79,90..99
+            // many: n != 0 and n % 1000000 = 0
+            Self::Breton if at.n_mod_is(10, 1) && !at.n_mod_any(100, &[11, 71, 91]) => One,
+            Self::Breton if at.n_mod_is(10, 2) && !at.n_mod_any(100, &[12, 72, 92]) => Two,
+            Self::Breton
+                if (at.n_mod_in(10, 3..=4) || at.n_mod_is(10, 9))
+                    && !(at.n_mod_in(100, 10..=19)
+                        || at.n_mod_in(100, 70..=79)
+                        || at.n_mod_in(100, 90..=99)) =>
+            {
+                Few
+            }
+            Self::Breton if !at.n_is(0) && at.n_mod_is(1_000_000, 0) => Many,
+            Self::Breton => Other,
+
+            // zero: n = 0 / one: n = 1
+            // two:  n % 100 = 2,22,42,62,82
+            //       or n % 1000 = 0 and n % 100000 = 1000..20000,40000,60000,80000
+            //       or n != 0 and n % 1000000 = 100000
+            // few:  n % 100 = 3,23,43,63,83
+            // many: n != 1 and n % 100 = 1,21,41,61,81
+            Self::Cornish if at.n_is(0) => Zero,
+            Self::Cornish if at.n_is(1) => One,
+            Self::Cornish
+                if at.n_mod_any(100, &[2, 22, 42, 62, 82])
+                    || (at.n_mod_is(1_000, 0)
+                        && (at.n_mod_in(100_000, 1_000..=20_000)
+                            || at.n_mod_any(100_000, &[40_000, 60_000, 80_000])))
+                    || (!at.n_is(0) && at.n_mod_is(1_000_000, 100_000)) =>
+            {
+                Two
+            }
+            Self::Cornish if at.n_mod_any(100, &[3, 23, 43, 63, 83]) => Few,
+            Self::Cornish if !at.n_is(1) && at.n_mod_any(100, &[1, 21, 41, 61, 81]) => Many,
+            Self::Cornish => Other,
+
+            // one: v = 0 and i % 10 = 1 / two: v = 0 and i % 10 = 2
+            // few: v = 0 and i % 100 = 0,20,40,60,80 / many: v != 0
+            Self::Manx if at.v == 0 && at.i % 10 == 1 => One,
+            Self::Manx if at.v == 0 && at.i % 10 == 2 => Two,
+            Self::Manx if at.v == 0 && matches!(at.i % 100, 0 | 20 | 40 | 60 | 80) => Few,
+            Self::Manx if at.v != 0 => Many,
+            Self::Manx => Other,
+
+            // one: t = 0 and i % 10 = 1 and i % 100 != 11 or t != 0
+            // `t` is `f` with its trailing zeros dropped, so `t != 0` is
+            // `f != 0` — the equivalence [`Operands`]'s doc states.
+            Self::Icelandic if at.f != 0 || (at.i % 10 == 1 && at.i % 100 != 11) => One,
+            Self::Icelandic => Other,
+
+            // one: v = 0 and i % 10 = 1 and i % 100 != 11
+            //      or f % 10 = 1 and f % 100 != 11
+            Self::Macedonian
+                if (at.v == 0 && at.i % 10 == 1 && at.i % 100 != 11)
+                    || (at.f % 10 == 1 && at.f % 100 != 11) =>
+            {
+                One
+            }
+            Self::Macedonian => Other,
+
+            // one: n = 0..1 or n = 11..99
+            Self::Tamazight if at.n_in(0..=1) || at.n_in(11..=99) => One,
+            Self::Tamazight => Other,
+
+            // one: i = 0 or n = 1 / few: n = 2..10
+            Self::Tachelhit if at.i == 0 || at.n_is(1) => One,
+            Self::Tachelhit if at.n_in(2..=10) => Few,
+            Self::Tachelhit => Other,
+
+            // one: n = 0,1 or i = 0 and f = 1
+            Self::Sinhala if at.n_is(0) || at.n_is(1) || (at.i == 0 && at.f == 1) => One,
+            Self::Sinhala => Other,
+
+            // one: n = 0..1
+            Self::ZeroToOne if at.n_in(0..=1) => One,
+            Self::ZeroToOne => Other,
+
+            // one: n = 1 / two: n = 2
+            Self::OneAndTwo if at.n_is(1) => One,
+            Self::OneAndTwo if at.n_is(2) => Two,
+            Self::OneAndTwo => Other,
+
+            // one: n = 1 or t != 0 and i = 0,1
+            Self::Danish if at.n_is(1) || (at.f != 0 && at.i <= 1) => One,
+            Self::Danish => Other,
+
+            // one: v = 0 and i = 1,2,3
+            //      or v = 0 and i % 10 != 4,6,9
+            //      or v != 0 and f % 10 != 4,6,9
+            Self::Filipino
+                if (at.v == 0 && (1..=3).contains(&at.i))
+                    || (at.v == 0 && !matches!(at.i % 10, 4 | 6 | 9))
+                    || (at.v != 0 && !matches!(at.f % 10, 4 | 6 | 9)) =>
+            {
+                One
+            }
+            Self::Filipino => Other,
         }
     }
 }
@@ -1321,6 +1796,7 @@ impl RuleSet {
 /// are the second kind.
 static RULES: &[(&str, RuleSet)] = &[
     ("af", RuleSet::ExactlyOne),
+    ("ak", RuleSet::ZeroToOne),
     ("am", RuleSet::ZeroOrExactlyOne),
     ("ar", RuleSet::Arabic),
     ("ars", RuleSet::Arabic),
@@ -1328,22 +1804,28 @@ static RULES: &[(&str, RuleSet)] = &[
     ("asa", RuleSet::ExactlyOne),
     ("ast", RuleSet::Unit),
     ("az", RuleSet::ExactlyOne),
+    ("be", RuleSet::Belarusian),
     ("bem", RuleSet::ExactlyOne),
     ("bez", RuleSet::ExactlyOne),
     ("bg", RuleSet::ExactlyOne),
+    ("bh", RuleSet::ZeroToOne),
     ("bn", RuleSet::ZeroOrExactlyOne),
     ("bo", RuleSet::NoDistinction),
+    ("br", RuleSet::Breton),
     ("brx", RuleSet::ExactlyOne),
     ("bs", RuleSet::SerboCroatian),
     ("ca", RuleSet::UnitAndMillions),
     ("ce", RuleSet::ExactlyOne),
+    ("ceb", RuleSet::Filipino),
     ("cgg", RuleSet::ExactlyOne),
     ("chr", RuleSet::ExactlyOne),
     ("ckb", RuleSet::ExactlyOne),
     ("cs", RuleSet::Czech),
     ("cy", RuleSet::Welsh),
+    ("da", RuleSet::Danish),
     ("de", RuleSet::Unit),
     ("doi", RuleSet::ZeroOrExactlyOne),
+    ("dsb", RuleSet::Sorbian),
     ("dv", RuleSet::ExactlyOne),
     ("dz", RuleSet::NoDistinction),
     ("ee", RuleSet::ExactlyOne),
@@ -1356,18 +1838,24 @@ static RULES: &[(&str, RuleSet)] = &[
     ("fa", RuleSet::ZeroOrExactlyOne),
     ("ff", RuleSet::IntegerZeroOrOne),
     ("fi", RuleSet::Unit),
+    ("fil", RuleSet::Filipino),
     ("fo", RuleSet::ExactlyOne),
     ("fr", RuleSet::IntegerZeroOrOneAndMillions),
     ("fur", RuleSet::ExactlyOne),
     ("fy", RuleSet::Unit),
     ("ga", RuleSet::Irish),
+    ("gd", RuleSet::ScottishGaelic),
     ("gl", RuleSet::Unit),
     ("gsw", RuleSet::ExactlyOne),
     ("gu", RuleSet::ZeroOrExactlyOne),
+    ("guw", RuleSet::ZeroToOne),
+    ("gv", RuleSet::Manx),
     ("ha", RuleSet::ExactlyOne),
     ("haw", RuleSet::ExactlyOne),
+    ("he", RuleSet::Hebrew),
     ("hi", RuleSet::ZeroOrExactlyOne),
     ("hr", RuleSet::SerboCroatian),
+    ("hsb", RuleSet::Sorbian),
     ("hu", RuleSet::ExactlyOne),
     ("hy", RuleSet::IntegerZeroOrOne),
     ("ia", RuleSet::Unit),
@@ -1375,6 +1863,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("ig", RuleSet::NoDistinction),
     ("ii", RuleSet::NoDistinction),
     ("io", RuleSet::Unit),
+    ("is", RuleSet::Icelandic),
     ("it", RuleSet::UnitAndMillions),
     ("ja", RuleSet::NoDistinction),
     ("jbo", RuleSet::NoDistinction),
@@ -1397,6 +1886,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("ks", RuleSet::ExactlyOne),
     ("ksb", RuleSet::ExactlyOne),
     ("ku", RuleSet::ExactlyOne),
+    ("kw", RuleSet::Cornish),
     ("ky", RuleSet::ExactlyOne),
     ("lb", RuleSet::ExactlyOne),
     ("lg", RuleSet::ExactlyOne),
@@ -1407,13 +1897,16 @@ static RULES: &[(&str, RuleSet)] = &[
     ("lv", RuleSet::Latvian),
     ("mas", RuleSet::ExactlyOne),
     ("mgo", RuleSet::ExactlyOne),
+    ("mk", RuleSet::Macedonian),
     ("ml", RuleSet::ExactlyOne),
     ("mn", RuleSet::ExactlyOne),
     ("mo", RuleSet::Romanian),
     ("mr", RuleSet::ExactlyOne),
     ("ms", RuleSet::NoDistinction),
+    ("mt", RuleSet::Maltese),
     ("my", RuleSet::NoDistinction),
     ("nah", RuleSet::ExactlyOne),
+    ("naq", RuleSet::OneAndTwo),
     ("nb", RuleSet::ExactlyOne),
     ("nd", RuleSet::ExactlyOne),
     ("ne", RuleSet::ExactlyOne),
@@ -1423,6 +1916,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("no", RuleSet::ExactlyOne),
     ("nqo", RuleSet::NoDistinction),
     ("nr", RuleSet::ExactlyOne),
+    ("nso", RuleSet::ZeroToOne),
     ("ny", RuleSet::ExactlyOne),
     ("nyn", RuleSet::ExactlyOne),
     ("om", RuleSet::ExactlyOne),
@@ -1449,6 +1943,8 @@ static RULES: &[(&str, RuleSet)] = &[
     ("ses", RuleSet::NoDistinction),
     ("sg", RuleSet::NoDistinction),
     ("sh", RuleSet::SerboCroatian),
+    ("shi", RuleSet::Tachelhit),
+    ("si", RuleSet::Sinhala),
     ("sk", RuleSet::Czech),
     ("sl", RuleSet::Slovenian),
     ("sn", RuleSet::ExactlyOne),
@@ -1468,10 +1964,12 @@ static RULES: &[(&str, RuleSet)] = &[
     ("th", RuleSet::NoDistinction),
     ("tig", RuleSet::ExactlyOne),
     ("tk", RuleSet::ExactlyOne),
+    ("tl", RuleSet::Filipino),
     ("tn", RuleSet::ExactlyOne),
     ("to", RuleSet::NoDistinction),
     ("tr", RuleSet::ExactlyOne),
     ("ts", RuleSet::ExactlyOne),
+    ("tzm", RuleSet::Tamazight),
     ("ug", RuleSet::ExactlyOne),
     ("uk", RuleSet::EastSlavic),
     ("ur", RuleSet::Unit),
@@ -1480,6 +1978,7 @@ static RULES: &[(&str, RuleSet)] = &[
     ("vi", RuleSet::NoDistinction),
     ("vo", RuleSet::ExactlyOne),
     ("vun", RuleSet::ExactlyOne),
+    ("wa", RuleSet::ZeroToOne),
     ("wae", RuleSet::ExactlyOne),
     ("wo", RuleSet::NoDistinction),
     ("xh", RuleSet::ExactlyOne),
@@ -1491,20 +1990,257 @@ static RULES: &[(&str, RuleSet)] = &[
     ("zu", RuleSet::ZeroOrExactlyOne),
 ];
 
+/// One CLDR **ordinal** rule set, named for a language that uses it.
+///
+/// A second enum rather than more [`RuleSet`] arms because the two tables are
+/// separate in CLDR and disagree for the same language: English marks `2nd` and
+/// makes no cardinal distinction at 2, and Russian is the reverse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum OrdinalSet {
+    /// No marked ordinal form — the bucket the module doc calls the default,
+    /// and what a language absent from [`ORDINALS`] answers.
+    Unmarked,
+    /// English: `1st`, `2nd`, `3rd`, and `4th` for everything else.
+    English,
+    /// Swedish, whose first two forms are one and which drops the teens.
+    Swedish,
+    /// Ukrainian, whose one marked form is the third.
+    Ukrainian,
+    /// Belarusian, whose one marked form covers the second and the third.
+    Belarusian,
+    /// Italian, Sardinian and Sicilian: four counts and nothing else.
+    Italian,
+    /// French, Armenian, Filipino, Tagalog: the first and nothing else.
+    FirstOnly,
+    /// Hungarian, which marks the first and the fifth.
+    Hungarian,
+    /// Nepali, which marks the first four.
+    Nepali,
+    /// Catalan, whose `one` is two disjoint counts.
+    Catalan,
+    /// Marathi, which is [`Self::Hindi`] without the sixth.
+    Marathi,
+    /// Hindi and Gujarati.
+    Hindi,
+    /// Assamese and Bengali, whose `one` is six counts.
+    Bengali,
+    /// Odia: [`Self::Bengali`] without the tenth.
+    Odia,
+    /// Azerbaijani, the widest ordinal rule carried here.
+    Azerbaijani,
+    /// Albanian, whose `many` is the fourth of every ten but the fourteenth.
+    Albanian,
+    /// Kazakh, whose one marked form is a set of last digits.
+    Kazakh,
+    /// Welsh, which marks all five and is the only ordinal set with a `zero`.
+    Welsh,
+    /// Macedonian, which reads `i` where the sets above read `n`.
+    Macedonian,
+    /// Georgian, whose `many` is a range of hundreds-remainders.
+    Georgian,
+    /// Turkmen.
+    Turkmen,
+}
+
+impl OrdinalSet {
+    /// CLDR's own ordinal rule for this set, in the order the categories are
+    /// published in — [`RuleSet::select`]'s shape, over the second table.
+    fn select(self, at: Operands) -> Category {
+        use Category::{Few, Many, One, Other, Two, Zero};
+        match self {
+            Self::Unmarked => Other,
+
+            // one: n % 10 = 1 and n % 100 != 11
+            // two: n % 10 = 2 and n % 100 != 12
+            // few: n % 10 = 3 and n % 100 != 13
+            Self::English if at.n_mod_is(10, 1) && !at.n_mod_is(100, 11) => One,
+            Self::English if at.n_mod_is(10, 2) && !at.n_mod_is(100, 12) => Two,
+            Self::English if at.n_mod_is(10, 3) && !at.n_mod_is(100, 13) => Few,
+            Self::English => Other,
+
+            // one: n % 10 = 1,2 and n % 100 != 11,12
+            Self::Swedish if at.n_mod_any(10, &[1, 2]) && !at.n_mod_any(100, &[11, 12]) => One,
+            Self::Swedish => Other,
+
+            // few: n % 10 = 3 and n % 100 != 13
+            Self::Ukrainian if at.n_mod_is(10, 3) && !at.n_mod_is(100, 13) => Few,
+            Self::Ukrainian => Other,
+
+            // few: n % 10 = 2,3 and n % 100 != 12,13
+            Self::Belarusian if at.n_mod_any(10, &[2, 3]) && !at.n_mod_any(100, &[12, 13]) => Few,
+            Self::Belarusian => Other,
+
+            // many: n = 11,8,80,800
+            Self::Italian if at.n_any(&[8, 11, 80, 800]) => Many,
+            Self::Italian => Other,
+
+            // one: n = 1
+            Self::FirstOnly if at.n_is(1) => One,
+            Self::FirstOnly => Other,
+
+            // one: n = 1,5
+            Self::Hungarian if at.n_any(&[1, 5]) => One,
+            Self::Hungarian => Other,
+
+            // one: n = 1..4
+            Self::Nepali if at.n_in(1..=4) => One,
+            Self::Nepali => Other,
+
+            // one: n = 1,3 / two: n = 2 / few: n = 4
+            Self::Catalan if at.n_any(&[1, 3]) => One,
+            Self::Catalan if at.n_is(2) => Two,
+            Self::Catalan if at.n_is(4) => Few,
+            Self::Catalan => Other,
+
+            // one: n = 1 / two: n = 2,3 / few: n = 4
+            Self::Marathi if at.n_is(1) => One,
+            Self::Marathi if at.n_any(&[2, 3]) => Two,
+            Self::Marathi if at.n_is(4) => Few,
+            Self::Marathi => Other,
+
+            // one: n = 1 / two: n = 2,3 / few: n = 4 / many: n = 6
+            Self::Hindi if at.n_is(1) => One,
+            Self::Hindi if at.n_any(&[2, 3]) => Two,
+            Self::Hindi if at.n_is(4) => Few,
+            Self::Hindi if at.n_is(6) => Many,
+            Self::Hindi => Other,
+
+            // one: n = 1,5,7,8,9,10 / two: n = 2,3 / few: n = 4 / many: n = 6
+            Self::Bengali if at.n_any(&[1, 5, 7, 8, 9, 10]) => One,
+            Self::Bengali if at.n_any(&[2, 3]) => Two,
+            Self::Bengali if at.n_is(4) => Few,
+            Self::Bengali if at.n_is(6) => Many,
+            Self::Bengali => Other,
+
+            // one: n = 1,5,7..9 / two: n = 2,3 / few: n = 4 / many: n = 6
+            Self::Odia if at.n_any(&[1, 5, 7, 8, 9]) => One,
+            Self::Odia if at.n_any(&[2, 3]) => Two,
+            Self::Odia if at.n_is(4) => Few,
+            Self::Odia if at.n_is(6) => Many,
+            Self::Odia => Other,
+
+            // one:  n % 10 = 1,2,5,7,8 or n % 100 = 20,50,70,80
+            // few:  n % 10 = 3,4 or n % 1000 = 100,200,300,400,500,600,700,800,900
+            // many: n = 0 or n % 10 = 6 or n % 100 = 40,60,90
+            Self::Azerbaijani
+                if at.n_mod_any(10, &[1, 2, 5, 7, 8]) || at.n_mod_any(100, &[20, 50, 70, 80]) =>
+            {
+                One
+            }
+            Self::Azerbaijani
+                if at.n_mod_any(10, &[3, 4])
+                    || at.n_mod_any(1_000, &[100, 200, 300, 400, 500, 600, 700, 800, 900]) =>
+            {
+                Few
+            }
+            Self::Azerbaijani
+                if at.n_is(0) || at.n_mod_is(10, 6) || at.n_mod_any(100, &[40, 60, 90]) =>
+            {
+                Many
+            }
+            Self::Azerbaijani => Other,
+
+            // one: n = 1 / many: n % 10 = 4 and n % 100 != 14
+            Self::Albanian if at.n_is(1) => One,
+            Self::Albanian if at.n_mod_is(10, 4) && !at.n_mod_is(100, 14) => Many,
+            Self::Albanian => Other,
+
+            // many: n % 10 = 6 or n % 10 = 9 or n % 10 = 0 and n != 0
+            Self::Kazakh if at.n_mod_any(10, &[6, 9]) || (at.n_mod_is(10, 0) && !at.n_is(0)) => {
+                Many
+            }
+            Self::Kazakh => Other,
+
+            // zero: n = 0,7,8,9 / one: n = 1 / two: n = 2 / few: n = 3,4
+            // many: n = 5,6
+            Self::Welsh if at.n_any(&[0, 7, 8, 9]) => Zero,
+            Self::Welsh if at.n_is(1) => One,
+            Self::Welsh if at.n_is(2) => Two,
+            Self::Welsh if at.n_any(&[3, 4]) => Few,
+            Self::Welsh if at.n_any(&[5, 6]) => Many,
+            Self::Welsh => Other,
+
+            // one:  i % 10 = 1 and i % 100 != 11
+            // two:  i % 10 = 2 and i % 100 != 12
+            // many: i % 10 = 7,8 and i % 100 != 17,18
+            Self::Macedonian if at.i % 10 == 1 && at.i % 100 != 11 => One,
+            Self::Macedonian if at.i % 10 == 2 && at.i % 100 != 12 => Two,
+            Self::Macedonian if matches!(at.i % 10, 7 | 8) && !matches!(at.i % 100, 17 | 18) => {
+                Many
+            }
+            Self::Macedonian => Other,
+
+            // one: i = 1 / many: i = 0 or i % 100 = 2..20,40,60,80
+            Self::Georgian if at.i == 1 => One,
+            Self::Georgian
+                if at.i == 0
+                    || (2..=20).contains(&(at.i % 100))
+                    || matches!(at.i % 100, 40 | 60 | 80) =>
+            {
+                Many
+            }
+            Self::Georgian => Other,
+
+            // few: n % 10 = 6,9 or n = 10
+            Self::Turkmen if at.n_mod_any(10, &[6, 9]) || at.n_is(10) => Few,
+            Self::Turkmen => Other,
+        }
+    }
+}
+
+/// Every language that marks an ordinal form, by its language subtag,
+/// **sorted** so [`ordinal_rules_for`] can bisect it — [`RULES`]'s two
+/// properties, held by the same test.
+///
+/// Shorter than [`RULES`] on purpose: this is the set of languages that differ
+/// from `Other`, which is how CLDR's own ordinal data is written. The module
+/// doc's ordinal section is the home of why the absence answers rather than
+/// throws, and `an_ordinal_category_is_answered_for_every_language_with_a_published_table`
+/// is what holds every row here to a row there.
+static ORDINALS: &[(&str, OrdinalSet)] = &[
+    ("as", OrdinalSet::Bengali),
+    ("az", OrdinalSet::Azerbaijani),
+    ("be", OrdinalSet::Belarusian),
+    ("bn", OrdinalSet::Bengali),
+    ("ca", OrdinalSet::Catalan),
+    ("cy", OrdinalSet::Welsh),
+    ("en", OrdinalSet::English),
+    ("fil", OrdinalSet::FirstOnly),
+    ("fr", OrdinalSet::FirstOnly),
+    ("gu", OrdinalSet::Hindi),
+    ("hi", OrdinalSet::Hindi),
+    ("hu", OrdinalSet::Hungarian),
+    ("hy", OrdinalSet::FirstOnly),
+    ("it", OrdinalSet::Italian),
+    ("ka", OrdinalSet::Georgian),
+    ("kk", OrdinalSet::Kazakh),
+    ("mk", OrdinalSet::Macedonian),
+    ("mr", OrdinalSet::Marathi),
+    ("ne", OrdinalSet::Nepali),
+    ("or", OrdinalSet::Odia),
+    ("sc", OrdinalSet::Italian),
+    ("scn", OrdinalSet::Italian),
+    ("sq", OrdinalSet::Albanian),
+    ("sv", OrdinalSet::Swedish),
+    ("tk", OrdinalSet::Turkmen),
+    ("tl", OrdinalSet::FirstOnly),
+    ("uk", OrdinalSet::Ukrainian),
+];
+
 /// The language subtag of a BCP 47 tag — everything before the first separator.
 ///
 /// A tag's other subtags are deliberately dropped rather than tried first:
 /// CLDR's cardinal rules are language-level data, so `pt-BR` and `pt-PT` share
 /// one rule set and looking for a region-specific one would be a lookup that
 /// can never hit.
-fn subtag_of(tag: &str) -> Result<&str, Fault> {
+fn subtag_of<'tag>(tag: &'tag str, member: &str) -> Result<&'tag str, Fault> {
     let subtag = tag.split(['-', '_']).next().unwrap_or("");
     if subtag.is_empty() || !subtag.bytes().all(|byte| byte.is_ascii_alphabetic()) {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
-                "Core\\Cldr::pluralCategory read no language subtag from the locale `{tag}`: a \
-                 tag begins with letters"
+                "{member} read no language subtag from the locale `{tag}`: a tag begins with \
+                 letters"
             ),
         ));
     }
@@ -1521,7 +2257,7 @@ fn compare_folded(carried: &str, given: &str) -> Ordering {
 }
 
 /// The rules for a language subtag, or the refusal the module doc argues for.
-fn rules_for(subtag: &str) -> Result<RuleSet, Fault> {
+fn rules_for(subtag: &str, member: &str) -> Result<RuleSet, Fault> {
     RULES
         .binary_search_by(|(carried, _)| compare_folded(carried, subtag))
         .map(|index| RULES[index].1)
@@ -1529,7 +2265,7 @@ fn rules_for(subtag: &str) -> Result<RuleSet, Fault> {
             Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
-                    "Core\\Cldr::pluralCategory carries no plural rules for the language \
+                    "{member} carries no plural rules for the language \
                      `{subtag}`: a language is never given another one's rules, because a \
                      catalog written against the wrong forms reads correctly for one count and \
                      wrongly for the rest"
@@ -1545,10 +2281,10 @@ fn rules_for(subtag: &str) -> Result<RuleSet, Fault> {
 /// splitting it at the point is the whole of the parse — and the two counts it
 /// refuses are the two it cannot hold: an integer part past `u128`, and a
 /// denormal's several hundred fraction digits.
-fn operands_of_float(value: f64) -> Result<Operands, Fault> {
+fn operands_of_float(value: f64, member: &str) -> Result<Operands, Fault> {
     if !value.is_finite() {
         return Err(Fault::thrown(format!(
-            "Core\\Cldr::pluralCategory has no category for the count `{value}`: it is not a \
+            "{member} has no category for the count `{value}`: it is not a \
              finite number"
         )));
     }
@@ -1556,7 +2292,7 @@ fn operands_of_float(value: f64) -> Result<Operands, Fault> {
     let (whole, fraction) = printed.split_once('.').unwrap_or((printed.as_str(), ""));
     let too_wide = || {
         Fault::thrown(format!(
-            "Core\\Cldr::pluralCategory cannot classify the count `{value}`: it prints more \
+            "{member} cannot classify the count `{value}`: it prints more \
              digits than the plural rules are evaluated over"
         ))
     };
@@ -1577,7 +2313,7 @@ fn operands_of_float(value: f64) -> Result<Operands, Fault> {
 /// A `uint` is accepted for [`crate::math`]'s reason: it reaches a union
 /// parameter through the same tagged slot, and refusing it would be a `FATAL`
 /// for a value with an exact answer.
-fn operands_at(args: &[Value], slot: usize) -> Result<Operands, Fault> {
+fn operands_at(args: &[Value], slot: usize, member: &str) -> Result<Operands, Fault> {
     if let Some(int) = args[slot].as_int() {
         return Ok(Operands {
             i: u128::from(int.unsigned_abs()),
@@ -1606,14 +2342,14 @@ fn operands_at(args: &[Value], slot: usize) -> Result<Operands, Fault> {
         });
     }
     if let Some(float) = args[slot].as_float() {
-        return operands_of_float(float);
+        return operands_of_float(float, member);
     }
     // A fatal rather than a throw, because nothing may catch a broken ABI: the
     // row's parameter is `CoreTy::Union(NUMBER)`, so `E0401` refuses anything
     // outside `int|uint|float|decimal` before a single instruction of this
     // body runs, which makes the message below unreachable from source.
     Err(Fault::fatal(format!(
-        "Core\\Cldr::pluralCategory expected a number at argument {slot}, got tag {}",
+        "{member} expected a number at argument {slot}, got tag {}",
         args[slot].tag_byte()
     )))
 }
@@ -1636,7 +2372,7 @@ nvs_runtime::nvs_helper! {
     /// An enum answers as its ordinal, exactly as a user-declared enum does
     /// (ADR 0010).
     fn nvs_core_cldr_plural_category(_ctx, args: [2]) {
-        let operands = operands_at(args, 0)?;
+        let operands = operands_at(args, 0, PLURAL_MEMBER)?;
         // Unreachable from source for the reason `operands_at`'s own fatal
         // states: the row's second parameter is `CoreTy::Text`, so `E0401`
         // refuses anything that is not a `string` before this body runs.
@@ -1646,14 +2382,52 @@ nvs_runtime::nvs_helper! {
                 args[1].tag_byte()
             ))
         })?;
-        let rules = rules_for(subtag_of(tag)?)?;
+        let rules = rules_for(subtag_of(tag, PLURAL_MEMBER)?, PLURAL_MEMBER)?;
         Ok(Value::int(rules.select(operands).ordinal()))
     }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Cldr::ordinalCategory(int|float|decimal $count, string $locale):
+    /// Cldr\PluralCategory` — the second table, over the first member's shape.
+    ///
+    /// Everything about the signature is `pluralCategory`'s and for its
+    /// reasons: the count first, the locale `Qual::Neutral`, and the same six
+    /// categories answered as an ordinal. What differs is only which table is
+    /// read, which is why this is a second member rather than a third argument
+    /// — a `kind:` option would make the two rosters' different treatment of an
+    /// absent language a runtime surprise instead of a member you did not call.
+    fn nvs_core_cldr_ordinal_category(_ctx, args: [2]) {
+        let operands = operands_at(args, 0, ORDINAL_MEMBER)?;
+        // Unreachable from source, for `pluralCategory`'s own reason.
+        let tag = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ORDINAL_MEMBER} expected a `string` locale, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        let rules = ordinal_rules_for(subtag_of(tag, ORDINAL_MEMBER)?, ORDINAL_MEMBER)?;
+        Ok(Value::int(rules.select(operands).ordinal()))
+    }
+}
+
+/// The ordinal rules for a language subtag: its own row, `Unmarked` for a
+/// language [`RULES`] carries and this table does not, and [`rules_for`]'s
+/// refusal for one neither carries.
+///
+/// The module doc's ordinal section is the home of why the middle case answers
+/// rather than throws.
+fn ordinal_rules_for(subtag: &str, member: &str) -> Result<OrdinalSet, Fault> {
+    if let Ok(index) = ORDINALS.binary_search_by(|(carried, _)| compare_folded(carried, subtag)) {
+        return Ok(ORDINALS[index].1);
+    }
+    rules_for(subtag, member).map(|_| OrdinalSet::Unmarked)
 }
 
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_cldr_plural_category" => (nvs_core_cldr_plural_category as *const ()).cast(),
+        "nvs_core_cldr_ordinal_category" => (nvs_core_cldr_ordinal_category as *const ()).cast(),
         _ => return None,
     })
 }
@@ -1739,7 +2513,7 @@ mod tests {
             "2024 at 14h"
         );
         assert_eq!(render(&compile("''yy''").unwrap(), &value), "'24'");
-        assert!(compile("yyyy Q").unwrap_err().contains("`Q` is not"));
+        assert!(compile("yyyy Y").unwrap_err().contains("`Y` is not"));
         assert!(compile("yyyy 'unclosed").unwrap_err().contains("closes"));
         assert!(compile("V").unwrap_err().contains("`VV`"));
     }
@@ -1825,6 +2599,90 @@ mod tests {
         assert_eq!(read(&pieces, "69-01-01", &zone).unwrap().year(), 1969);
     }
 
+    /// The module doc's gap 2 used to name eight letters this subset refused.
+    /// It names none of them now: each renders, each reads back, and the two
+    /// that carry something a civil date does not already hold — the era and
+    /// the signed proleptic year — reach the value rather than being consumed
+    /// and dropped.
+    #[test]
+    fn the_eight_refused_pattern_letters_format_and_parse() {
+        let zone = utc();
+        // A Friday, in ISO week 9, in a month that opens on a three-day week.
+        let value = at(2024, 3, 1, 14, 0, 0, 0);
+        let show = |pattern: &str| render(&compile(pattern).unwrap(), &value);
+
+        assert_eq!(show("G GGGG GGGGG"), "AD Anno Domini A");
+        assert_eq!(show("Q QQ QQQ QQQQ QQQQQ"), "1 01 Q1 1st quarter 1");
+        assert_eq!(show("w ww"), "9 09");
+        assert_eq!(show("L LL LLL LLLL LLLLL"), "3 03 Mar March M");
+        assert_eq!(show("c cc ccc cccc ccccc cccccc"), "5 05 Fri Friday F Fr");
+        assert_eq!(show("F"), "1", "1 March 2024 is the month's first Friday");
+        assert_eq!(show("u uuuu"), "2024 2024");
+
+        // `W`'s bound, on both sides: March 2024 opens on a Friday, so its
+        // first three days are a week too short to be week 1 and the Monday
+        // after them starts it. A rule without the four-day minimum answers 1
+        // and 2 for these two and reads plausibly.
+        assert_eq!(show("W"), "0");
+        assert_eq!(
+            render(&compile("W").unwrap(), &at(2024, 3, 4, 0, 0, 0, 0)),
+            "1"
+        );
+
+        // `y` and `u` render the same signed proleptic year — the module doc's
+        // own deviation from CLDR, and what keeps `yyyy-MM-dd` sortable over
+        // the whole range a `Core\Time\Date` accepts. `G` renders that sign as
+        // a word, and on the way back it is read and discarded, so it can
+        // neither complete nor contradict the year beside it.
+        let bc = at(-43, 3, 15, 12, 0, 0, 0);
+        assert_eq!(render(&compile("yyyy G").unwrap(), &bc), "-0043 BC");
+        assert_eq!(render(&compile("uuuu G").unwrap(), &bc), "-0043 BC");
+        assert_eq!(render(&compile("yyyy G").unwrap(), &value), "2024 AD");
+        assert_eq!(
+            read(&compile("uuuu G").unwrap(), "-0043 BC", &zone)
+                .unwrap()
+                .year(),
+            -43,
+            "`u` is the letter that reads a sign back"
+        );
+        assert_eq!(
+            read(&compile("uuuu GGGG").unwrap(), "-0043 Anno Domini", &zone)
+                .unwrap()
+                .year(),
+            -43,
+            "and the era beside it changes nothing, because it is discarded"
+        );
+        assert!(
+            read(&compile("yyyy").unwrap(), "-0043", &zone).is_err(),
+            "`y` reads digits, which is the difference the two letters have"
+        );
+
+        // The standalone month reaches the value the way `M` does, and the
+        // five derived letters are read and discarded — so a pattern carrying
+        // all of them reads back the date its `y`, `M` and `d` named.
+        assert_eq!(
+            read(&compile("LLLL d yyyy").unwrap(), "March 4 2024", &zone)
+                .unwrap()
+                .month(),
+            3
+        );
+        let every = compile("yyyy-MM-dd QQQ 'w'w 'W'W F ccc").unwrap();
+        let written = render(&every, &value);
+        assert_eq!(written, "2024-03-01 Q1 w9 W0 1 Fri");
+        let back = read(&every, &written, &zone).unwrap();
+        assert_eq!((back.year(), back.month(), back.day()), (2024, 3, 1));
+
+        // All eight are calendar fields, so the three narrowing guards place
+        // them the same way they place `y` and `M`: a `Date` renders them, a
+        // `TimeOfDay` does not, and a parse pattern may name them.
+        for letter in ["G", "Q", "w", "W", "L", "c", "F", "u"] {
+            let pieces = compile(letter).unwrap();
+            assert!(date_fields_only(&pieces).is_ok(), "`{letter}` on a date");
+            assert!(time_fields_only(&pieces).is_err(), "`{letter}` on a clock");
+            assert!(civil_fields_only(&pieces).is_ok(), "`{letter}` in a parse");
+        }
+    }
+
     // ---------------------------------------------------- the plural rules
 
     use nvs_runtime::Decimal;
@@ -1832,8 +2690,16 @@ mod tests {
     /// The category a language puts a count in, through the member's own path
     /// from argument value to answer.
     fn category(count: Value, locale: &str) -> Category {
-        let operands = operands_at(&[count], 0).unwrap();
-        rules_for(subtag_of(locale).unwrap())
+        let operands = operands_at(&[count], 0, PLURAL_MEMBER).unwrap();
+        rules_for(subtag_of(locale, PLURAL_MEMBER).unwrap(), PLURAL_MEMBER)
+            .unwrap()
+            .select(operands)
+    }
+
+    /// [`category`]'s ordinal twin, through the second table.
+    fn place(count: i64, locale: &str) -> Category {
+        let operands = operands_at(&[Value::int(count)], 0, ORDINAL_MEMBER).unwrap();
+        ordinal_rules_for(subtag_of(locale, ORDINAL_MEMBER).unwrap(), ORDINAL_MEMBER)
             .unwrap()
             .select(operands)
     }
@@ -1842,6 +2708,12 @@ mod tests {
     /// hand it.
     fn whole(count: i64, locale: &str) -> Category {
         category(Value::int(count), locale)
+    }
+
+    /// A written count, which is the only kind that carries a scale — and so
+    /// the only kind that can show `v` and `f` to a rule that reads them.
+    fn dec(written: &str) -> Decimal {
+        Decimal::parse(written).unwrap()
     }
 
     /// ADR 0082 § 2's row, over the table this module carries: the six
@@ -1916,21 +2788,325 @@ mod tests {
         assert_eq!(whole(2, "RU"), Few);
         assert_eq!(whole(2, "pt-BR"), Other);
 
-        // A language whose rules are not carried is refused rather than given
-        // another language's — the module doc argues why, and the message
-        // names the subtag so the gap reads as one.
-        let refused = rules_for(subtag_of("tlh-Piqd").unwrap()).unwrap_err();
+        // A count that is not finite has no category, and neither does one
+        // whose digits outrun the operands.
+        assert!(operands_at(&[Value::float(f64::NAN)], 0, PLURAL_MEMBER).is_err());
+        assert!(operands_at(&[Value::float(1e300)], 0, PLURAL_MEMBER).is_err());
+    }
+
+    /// The module doc's gap 3 used to name twenty languages the roster did not
+    /// carry. It names none now, and this is what holds it to that: every one
+    /// of the twenty answers, and answers with its *own* published rule rather
+    /// than with a neighbour's.
+    ///
+    /// Asserted as a disagreement rather than as a category per language: each
+    /// count below is one CLDR puts in a different place for the named
+    /// language than for the set it would most plausibly have been filed
+    /// under, so a row pointing at the wrong arm fails here while still
+    /// answering plausibly on its own line.
+    #[test]
+    fn every_language_named_absent_in_the_gap_note_now_has_a_rule() {
+        use Category::{Few, Many, One, Other, Two, Zero};
+
+        let named = [
+            "be", "he", "mt", "dsb", "hsb", "gd", "br", "kw", "gv", "is", "mk", "tzm", "shi", "si",
+            "ak", "bh", "guw", "nso", "wa", "naq",
+        ];
+        for subtag in named {
+            assert!(
+                rules_for(subtag, PLURAL_MEMBER).is_ok(),
+                "`{subtag}` is still absent, and the module doc's gap 3 says it is not"
+            );
+        }
+
+        // Belarusian reads `n` where Russian reads `i`, so the two agree on
+        // every whole count and part company at the first fraction: 1.5 is
+        // outside every Belarusian band and inside Russian's `Other` too —
+        // the disagreement is at 5.5, which `many`'s `n % 10 = 5` takes.
+        assert_eq!(
+            [1, 2, 5, 11, 21].map(|n| whole(n, "be")),
+            [One, Few, Many, Many, One]
+        );
+        assert_eq!(category(Value::decimal(dec("5.5")), "be"), Other);
+        assert_eq!(category(Value::decimal(dec("5.5")), "ru"), Other);
+
+        // Hebrew: `one` also takes a count with no integer part, which is the
+        // clause no other carried set has.
+        assert_eq!([1, 2, 3].map(|n| whole(n, "he")), [One, Two, Other]);
+        assert_eq!(category(Value::decimal(dec("0.5")), "he"), One);
+        assert_eq!(category(Value::decimal(dec("1.0")), "he"), Other);
+
+        // Maltese: zero is `few` rather than a `zero`, and the teens are
+        // `many` at 11 and at 111 alike.
+        assert_eq!(
+            [0, 1, 2, 3, 111, 200].map(|n| whole(n, "mt")),
+            [Few, One, Two, Few, Many, Other]
+        );
+
+        // Sorbian is Slovenian's `i % 100` bands with the fraction digits read
+        // the same way, so `0.1` is `one` there and `few` in Slovenian.
+        assert_eq!(
+            [1, 2, 3, 5, 101].map(|n| whole(n, "dsb")),
+            [One, Two, Few, Other, One]
+        );
+        assert_eq!(whole(2, "hsb"), Two);
+        assert_eq!(category(Value::decimal(dec("0.1")), "dsb"), One);
+        assert_eq!(category(Value::decimal(dec("0.1")), "sl"), Few);
+
+        // Scottish Gaelic repeats its first three bands once in the teens,
+        // which Irish — the set it sits nearest — does not.
+        assert_eq!(
+            [1, 11, 2, 12, 13, 19, 20].map(|n| whole(n, "gd")),
+            [One, One, Two, Two, Few, Few, Other]
+        );
+        assert_eq!([11, 12].map(|n| whole(n, "ga")), [Other, Other]);
+
+        // Breton excludes 71 and 91 from `one` and keeps a millions `many`.
+        assert_eq!(
+            [1, 71, 2, 72, 3, 9, 10].map(|n| whole(n, "br")),
+            [One, Other, Two, Other, Few, Few, Other]
+        );
+        assert_eq!(whole(2_000_000, "br"), Many);
+
+        // Cornish reaches all six, and its `two` is a modulus rather than the
+        // count — 22 and 42 are `two` where 21 and 41 are `many`.
+        assert_eq!(
+            [0, 1, 22, 42, 3, 23, 21, 41, 5].map(|n| whole(n, "kw")),
+            [Zero, One, Two, Two, Few, Few, Many, Many, Other]
+        );
+
+        // Manx: `many` is any visible fraction at all, and `few` is the even
+        // twenties rather than a band.
+        assert_eq!(
+            [1, 2, 20, 40, 3].map(|n| whole(n, "gv")),
+            [One, Two, Few, Few, Other]
+        );
+        assert_eq!(category(Value::decimal(dec("1.5")), "gv"), Many);
+
+        // Icelandic is the opposite reading of a fraction: 1.5 joins `one`
+        // rather than leaving it, which is what `t != 0` says.
+        assert_eq!(
+            [1, 11, 21, 2].map(|n| whole(n, "is")),
+            [One, Other, One, Other]
+        );
+        assert_eq!(category(Value::decimal(dec("1.5")), "is"), One);
+        assert_eq!(category(Value::decimal(dec("2.5")), "is"), One);
+
+        // Macedonian is Serbo-Croatian's `one` with nothing behind it, so 2 to
+        // 4 are `other` here and `few` there.
+        assert_eq!(
+            [1, 21, 11, 3].map(|n| whole(n, "mk")),
+            [One, One, Other, Other]
+        );
+        assert_eq!(whole(3, "sr"), Few);
+
+        // Tamazight's `one` is two disjoint bands, so it reopens at 11.
+        assert_eq!(
+            [0, 1, 2, 11, 99, 100].map(|n| whole(n, "tzm")),
+            [One, One, Other, One, One, Other]
+        );
+
+        // Tachelhit has a `few` behind an `i = 0 or n = 1` singular.
+        assert_eq!(
+            [0, 1, 2, 10, 11].map(|n| whole(n, "shi")),
+            [One, One, Few, Few, Other]
+        );
+        assert_eq!(category(Value::decimal(dec("0.5")), "shi"), One);
+
+        // Sinhala's `one` takes exactly one fraction, `0.1`.
+        assert_eq!([0, 1, 2].map(|n| whole(n, "si")), [One, One, Other]);
+        assert_eq!(category(Value::decimal(dec("0.1")), "si"), One);
+        assert_eq!(category(Value::decimal(dec("0.2")), "si"), Other);
+
+        // The five on `n = 0..1` agree with each other and disagree with
+        // `i = 0,1` at 1.5, which is the whole reason they are a second arm.
+        for subtag in ["ak", "bh", "guw", "nso", "wa"] {
+            assert_eq!([0, 1, 2].map(|n| whole(n, subtag)), [One, One, Other]);
+            assert_eq!(category(Value::decimal(dec("1.5")), subtag), Other);
+        }
+        assert_eq!(category(Value::decimal(dec("1.5")), "hy"), One);
+
+        // Nama distinguishes one and two and nothing else.
+        assert_eq!([1, 2, 3].map(|n| whole(n, "naq")), [One, Two, Other]);
+
+        // The four that went in beside the twenty, for the same reason a
+        // roster with a hole in it is worse than a small one.
+        assert_eq!([1, 2].map(|n| whole(n, "da")), [One, Other]);
+        assert_eq!(category(Value::decimal(dec("0.5")), "da"), One);
+        assert_eq!(category(Value::decimal(dec("2.5")), "da"), Other);
+        for subtag in ["fil", "tl", "ceb"] {
+            assert_eq!(
+                [1, 2, 3, 5, 4, 6, 9].map(|n| whole(n, subtag)),
+                [One, One, One, One, Other, Other, Other]
+            );
+        }
+    }
+
+    /// The refusal survives the roster's widening: a language CLDR has no
+    /// published rule for is still refused rather than given English's, and
+    /// the message still names it.
+    ///
+    /// Its own test rather than a line in the sweep above, because the roster
+    /// growing is exactly the change that would quietly turn the refusal into
+    /// a fallback.
+    #[test]
+    fn a_language_with_no_published_rule_still_throws_naming_itself() {
+        let refused =
+            rules_for(subtag_of("tlh-Piqd", PLURAL_MEMBER).unwrap(), PLURAL_MEMBER).unwrap_err();
         assert!(
             format!("{refused:?}").contains("tlh"),
             "the refusal has to name the language it could not answer for"
         );
-        assert!(subtag_of("").is_err());
-        assert!(subtag_of("-GB").is_err());
+        // A subtag that is a prefix of a carried row is not that row: `e` is
+        // not `en`, and a bisection that answered it would be a fallback with
+        // no one to notice it.
+        assert!(rules_for("e", PLURAL_MEMBER).is_err());
+        assert!(rules_for("zzz", PLURAL_MEMBER).is_err());
+        assert!(subtag_of("", PLURAL_MEMBER).is_err());
+        assert!(subtag_of("-GB", PLURAL_MEMBER).is_err());
+        // The ordinal member draws the same boundary, and names itself doing
+        // it — the fallback below is for a language the *cardinal* table
+        // carries, never for one it does not.
+        let ordinal = ordinal_rules_for("tlh", ORDINAL_MEMBER).unwrap_err();
+        assert!(format!("{ordinal:?}").contains("ordinalCategory"));
+    }
 
-        // A count that is not finite has no category, and neither does one
-        // whose digits outrun the operands.
-        assert!(operands_at(&[Value::float(f64::NAN)], 0).is_err());
-        assert!(operands_at(&[Value::float(1e300)], 0).is_err());
+    /// Gap 4's second table: every language [`RULES`] carries has an ordinal
+    /// answer, every row of [`ORDINALS`] answers its own published rule, and
+    /// the default the module doc argues for is the one a language off that
+    /// roster gets.
+    #[test]
+    fn an_ordinal_category_is_answered_for_every_language_with_a_published_table() {
+        use Category::{Few, Many, One, Other, Two, Zero};
+
+        // Every ordinal row is a cardinal row too, so the fallback below is
+        // the only way to reach `Unmarked` and no row is unreachable through
+        // the member's own lookup.
+        for (subtag, rules) in ORDINALS {
+            assert_eq!(
+                ordinal_rules_for(&subtag.to_ascii_uppercase(), ORDINAL_MEMBER).unwrap(),
+                *rules
+            );
+            assert!(
+                rules_for(subtag, PLURAL_MEMBER).is_ok(),
+                "`{subtag}` marks an ordinal form and is not in the cardinal roster"
+            );
+        }
+        // Counted rather than read off a line: the six categories are all
+        // reachable through this table, which is what registering no second
+        // enum for it rests on.
+        let reached: std::collections::BTreeSet<Category> = ORDINALS
+            .iter()
+            .flat_map(|(_, rules)| {
+                (0..=900u128).map(move |i| rules.select(Operands { i, v: 0, f: 0 }))
+            })
+            .collect();
+        assert_eq!(
+            reached.len(),
+            6,
+            "the ordinal table reaches only {reached:?}"
+        );
+
+        // And every language the cardinal roster carries is answered, which is
+        // the claim the default exists to make: a message that writes `1st`
+        // never has to ask whether its locale is on a second list.
+        for (subtag, _) in RULES {
+            assert!(ordinal_rules_for(subtag, ORDINAL_MEMBER).is_ok());
+        }
+
+        assert_eq!(
+            [1, 2, 3, 4, 11, 12, 13, 21].map(|n| place(n, "en")),
+            [One, Two, Few, Other, Other, Other, Other, One]
+        );
+        assert_eq!(
+            [1, 2, 11, 12, 21, 22].map(|n| place(n, "sv")),
+            [One, One, Other, Other, One, One]
+        );
+        assert_eq!([3, 13, 23].map(|n| place(n, "uk")), [Few, Other, Few]);
+        assert_eq!(
+            [2, 3, 12, 13, 22].map(|n| place(n, "be")),
+            [Few, Few, Other, Other, Few]
+        );
+        assert_eq!(
+            [1, 8, 11, 80, 800, 8_000].map(|n| place(n, "it")),
+            [Other, Many, Many, Many, Many, Other]
+        );
+        assert_eq!(place(8, "scn"), Many);
+        assert_eq!([1, 2].map(|n| place(n, "fr")), [One, Other]);
+        assert_eq!([1, 5, 2].map(|n| place(n, "hu")), [One, One, Other]);
+        assert_eq!([1, 4, 5].map(|n| place(n, "ne")), [One, One, Other]);
+        assert_eq!(
+            [1, 3, 2, 4, 5].map(|n| place(n, "ca")),
+            [One, One, Two, Few, Other]
+        );
+        assert_eq!(
+            [1, 2, 3, 4, 6].map(|n| place(n, "mr")),
+            [One, Two, Two, Few, Other]
+        );
+        assert_eq!(
+            [1, 2, 3, 4, 6, 5].map(|n| place(n, "hi")),
+            [One, Two, Two, Few, Many, Other]
+        );
+        assert_eq!(
+            [1, 5, 10, 2, 4, 6, 11].map(|n| place(n, "bn")),
+            [One, One, One, Two, Few, Many, Other]
+        );
+        assert_eq!([9, 10].map(|n| place(n, "or")), [One, Other]);
+        assert_eq!(
+            [1, 20, 3, 100, 0, 6, 40, 9].map(|n| place(n, "az")),
+            [One, One, Few, Few, Many, Many, Many, Other]
+        );
+        assert_eq!(
+            [1, 4, 14, 24].map(|n| place(n, "sq")),
+            [One, Many, Other, Many]
+        );
+        assert_eq!(
+            [6, 9, 10, 0, 1].map(|n| place(n, "kk")),
+            [Many, Many, Many, Other, Other]
+        );
+        assert_eq!(
+            [0, 1, 2, 3, 5, 10].map(|n| place(n, "cy")),
+            [Zero, One, Two, Few, Many, Other]
+        );
+        assert_eq!(
+            [1, 11, 2, 7, 17].map(|n| place(n, "mk")),
+            [One, Other, Two, Many, Other]
+        );
+        assert_eq!(
+            [1, 0, 2, 20, 40, 21].map(|n| place(n, "ka")),
+            [One, Many, Many, Many, Many, Other]
+        );
+        assert_eq!(
+            [6, 9, 10, 1].map(|n| place(n, "tk")),
+            [Few, Few, Few, Other]
+        );
+
+        // The default, and the disagreement that is the whole reason this is a
+        // second table: German and Japanese mark no ordinal form, and English
+        // and Russian read 2 the opposite way round from each other.
+        for subtag in ["de", "ja", "ru", "pl"] {
+            assert_eq!(
+                [1, 2, 3, 4].map(|n| place(n, subtag)),
+                [Other, Other, Other, Other]
+            );
+        }
+        assert_eq!((place(2, "en"), whole(2, "en")), (Two, Other));
+        assert_eq!((place(2, "ru"), whole(2, "ru")), (Other, Few));
+
+        // A fraction is outside every rule stated over `n`, and inside the two
+        // stated over `i`.
+        assert_eq!(
+            ordinal_rules_for("en", ORDINAL_MEMBER)
+                .unwrap()
+                .select(Operands { i: 1, v: 1, f: 5 }),
+            Other
+        );
+        assert_eq!(
+            ordinal_rules_for("ka", ORDINAL_MEMBER)
+                .unwrap()
+                .select(Operands { i: 1, v: 1, f: 5 }),
+            One
+        );
     }
 
     /// [`RULES`] is bisected and folded against, so both properties it is read
@@ -1955,8 +3131,26 @@ mod tests {
         );
         // Every row is reachable through the member's own lookup, folded.
         for (name, rules) in RULES {
-            assert_eq!(rules_for(&name.to_ascii_uppercase()).unwrap(), *rules);
+            assert_eq!(
+                rules_for(&name.to_ascii_uppercase(), PLURAL_MEMBER).unwrap(),
+                *rules
+            );
         }
+        // The ordinal table is bisected and folded the same way, so it owes
+        // the same two properties.
+        assert!(
+            ORDINALS.windows(2).all(|pair| pair[0].0 < pair[1].0),
+            "{:?} is out of order",
+            ORDINALS
+                .windows(2)
+                .find(|pair| pair[0].0 >= pair[1].0)
+                .map(|pair| (pair[0].0, pair[1].0))
+        );
+        assert!(
+            ORDINALS
+                .iter()
+                .all(|(name, _)| name.bytes().all(|byte| byte.is_ascii_lowercase()))
+        );
     }
 
     /// The ordinal a helper hands back is the case a program compares against,

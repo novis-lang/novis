@@ -117,11 +117,11 @@ fn a_literal_date_format_is_validated_while_checking() {
     // letters, and the only two rows whose written argument positions differ:
     // `$d->format(…)`'s pattern is written argument 0, while `Core\Time::parse`
     // puts the text being parsed first (ADR 0063 R1) and its pattern second.
-    // `Q` is a real CLDR letter this closed subset does not carry, which is
-    // exactly the case the module's own refusal names.
+    // `Y` — CLDR's week-based year — is a real letter this closed subset does
+    // not carry, which is exactly the case the module's own refusal names.
     let rendered = check_call(
         "    Core\\Time\\DateTime $d = Core\\Time::now()->in(Core\\Time\\Zone::UTC);\n    \
-         echo $d->format(\"yyyy-QQ\");\n",
+         echo $d->format(\"yyyy-YY\");\n",
     );
     assert!(
         reported(&rendered, code::E_INTRINSIC_LITERAL_MALFORMED),
@@ -146,7 +146,7 @@ fn a_literal_date_format_is_validated_while_checking() {
     // does not — gap 3 in `intrinsics.rs` owns why, and this line moves to the
     // refusals above only when the table grows a column for it.
     let fine = check_call(
-        "    string $p = \"yyyy-QQ\";\n    \
+        "    string $p = \"yyyy-YY\";\n    \
          Core\\Time\\DateTime $d = Core\\Time::now()->in(Core\\Time\\Zone::UTC);\n    \
          echo $d->format(\"EEEE, d MMMM yyyy\");\n    \
          echo $d->format($p);\n    \

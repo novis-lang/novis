@@ -17,14 +17,14 @@ var $when = Core\Time::at(2026, 8, 28, $utc);
 
 // `Core\Time\DateTime::format`, argument 0 — a CLDR pattern letter no library
 // carries.
-var $badDate = "yyyy-QQQQQQ";
-var $foldedDate = $when->format("yyyy-QQQQQQ");
+var $badDate = "yyyy-YYYYYY";
+var $foldedDate = $when->format("yyyy-YYYYYY");
 var $runtimeDate = $when->format($badDate);
 
 // `Core\Time::parse`, argument *1* — the subject is the text being read, so the
 // pattern is not at position 0 (ADR 0063 R1).
-var $badParse = "yyyy-QQQQQQ";
-var $foldedParsed = Core\Time::parse("2026-08-28", "yyyy-QQQQQQ", $utc);
+var $badParse = "yyyy-YYYYYY";
+var $foldedParsed = Core\Time::parse("2026-08-28", "yyyy-YYYYYY", $utc);
 var $runtimeParsed = Core\Time::parse("2026-08-28", $badParse, $utc);
 
 // `Core\Regex::compile`, argument 0 — a group neither engine can close.
@@ -54,9 +54,9 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0769]: this literal is not one this member can read: `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+error[E0769]: this literal is not one this member can read: `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
 %A
-error[E0769]: this literal is not one this member can read: `Q` is not a pattern letter this library carries; quote it as `'Q'` to emit it literally
+error[E0769]: this literal is not one this member can read: `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
 %A
 error[E0769]: this literal is not one this member can read: `^order-(\d+$` is not a pattern either engine can compile:%A
 error[E0769]: this literal is not one this member can read: `%%q` is not one of the conversions the template grammar allows (`%%s %%d %%u %%f %%e %%g %%x %%X %%o %%b %%%%`)
