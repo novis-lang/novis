@@ -125,7 +125,8 @@ peers disagree about how many handshakes a run needs, and that difference is not
 compared. Both bodies must match byte for byte before either number is reported, for the reason the
 suite's own agreement gate exists.
 
-`--record PATH` appends one object to a JSON array -- `benches/serve.json` is the path M7 names. The
+`--record PATH` appends one object to a JSON array -- `benches/serve.json` is the path M7 names, and
+`write_serve_record` says why the loop's own sweep points it somewhere else instead. The
 whole run is one object: both peers, both versions, the concurrency, the request count and the
 caveats that applied, because a requests/sec figure with no peer written beside it measures nothing.
 
@@ -947,9 +948,14 @@ def write_serve_record(path: Path, record: dict) -> None:
     opens to read a headline number should parse as a whole.
 
     The history is capped at `SERVE_HISTORY` runs, oldest dropped, because the loop driver's
-    acceptance check appends one every iteration -- an uncapped artifact rewritten in every
-    commit is a diff nobody reads, and the run that matters is the most recent one on a given
-    box. A figure worth keeping past that belongs in a doc that cites it.
+    acceptance check appends one every iteration -- an uncapped artifact is a diff nobody reads,
+    and the run that matters is the most recent one on a given box. A figure worth keeping past
+    that belongs in a doc that cites it.
+
+    Where the caller points this is what makes the artifact. The loop's sweep records into the
+    ignored `benches/results/`, because a row appended after a session's commits is a change no
+    slice owns and nothing stages; `benches/serve.json` is tracked, so a row there is a figure
+    published by hand. `docs/agent/commands.md` § *The server's throughput* is that split's home.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     history: list = []

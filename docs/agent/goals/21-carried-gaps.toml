@@ -3960,11 +3960,17 @@ tests = [
   "a_request_that_builds_cycles_returns_its_bytes_at_teardown",
 ]
 
+# `--record` points at the IGNORED `benches/results/`, not at the tracked `benches/serve.json`.
+# This check runs after the session's commits, so a row appended to a tracked file is a change no
+# slice owns, nothing ever stages it, and it sat in the working tree from goal 6 onwards -- long
+# enough that the driver's own "path(s) left uncommitted" report counted a clean session as dirty.
+# The tracked artifact is the figure a human records deliberately; docs/agent/commands.md
+# § *The server's throughput* is the home for that split.
 [[check]]
 kind = "command"
 stage = "1 floor"
 name = "throughput against PHP 8.5 + FPM + opcache, recorded"
-argv = ["python", "tools/bench.py", "--serve-vs-fpm", "--record", "benches/serve.json"]
+argv = ["python", "tools/bench.py", "--serve-vs-fpm", "--record", "benches/results/serve.json"]
 want = ["requests/sec", "recorded"]
 
 # The eight claims a request has to answer, as `.nvst` cases. Seven were drafted under a

@@ -353,6 +353,7 @@ suite is that ADR's § 3 secondary figure, in runnable form.
 
 ```sh
 python tools/bench.py --serve-vs-fpm --record benches/serve.json      # Windows-native, no proxy
+python tools/bench.py --serve-vs-fpm --record benches/results/serve.json  # what the loop's sweep runs
 python tools/bench-proxied.py --record benches/serve-proxied.json     # nginx in front of both, in Docker
 python tools/bench-proxied.py --arm deployed --backend-cpus 8         # PHP's pool against our one core
 python tools/bench-proxied.py --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
@@ -367,6 +368,12 @@ front of both peers because that is the only deployment either has, two compose 
 time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually names. Their inputs
 differ in every dimension, so the two files are separate and a row from one is never a baseline for the
 other.
+
+**Where `--record` is pointed is what makes the artifact.** `benches/serve.json` is tracked, so a run
+recorded there is a figure someone chose to publish — record it by hand. The loop's acceptance sweep runs
+the same leg every iteration and points `--record` at `benches/results/`, which `.gitignore` covers,
+because the sweep runs *after* the session's commits: a row appended to a tracked file there is a change
+no slice owns, so nothing stages it and it stays in the working tree for good.
 
 `tools/bench.py`'s `## The serve-versus-FPM leg` and that README are the two homes; neither restates the
 other, and this block is only the commands.
