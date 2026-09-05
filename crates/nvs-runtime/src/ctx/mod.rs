@@ -168,6 +168,9 @@ mod wiring;
 // line at all: everything in them is a method on `Ctx`, found through the
 // type rather than through a module path.
 pub(crate) use self::current::*;
+// The one item of that module a host needs: `nvs_host`'s stack switch is what
+// carries the pair off the thread and back — see [`CurrentStack`].
+pub use self::current::CurrentStack;
 pub use self::error::*;
 pub use self::held::*;
 pub use self::inbound::*;

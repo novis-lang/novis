@@ -327,7 +327,7 @@ pub use closure::{
     closure_param_names,
 };
 pub use ctx::{
-    AssertionOutcome, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx,
+    AssertionOutcome, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx, CurrentStack,
     DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DebugFlags, DeclaredHeader, ErrorClass, FaultSite,
     HOT_LINE_BYTES, HeldConnection, Inbound, Limit, LogChannel, OutputSink, RequestBody,
     SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET,

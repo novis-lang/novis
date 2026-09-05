@@ -1346,6 +1346,12 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// — and travels out in the suspension rather than being asked for afterwards,
 /// when the scheduler is standing on its own stack and the count is somebody
 /// else's.
+///
+/// **Every per-stack thread-local this runtime keeps is taken and put back
+/// here, and there are three.** [`RUNNING`], the helper-frame count, and
+/// [`nvs_runtime::CurrentStack`]'s pair — that last one because it is the only
+/// one whose stale value is a *dangling pointer* rather than a wrong number,
+/// which is what its own doc records.
 fn yield_on(raw: *const (), waiting: Waiting) -> Resumed {
     // SAFETY: a non-null erased yielder is written in exactly one place —
     // `Scheduler::spawn`'s coroutine body, from `&Yielder` — into the task's
@@ -1369,10 +1375,18 @@ fn yield_on(raw: *const (), waiting: Waiting) -> Resumed {
     // running. A task that never comes back leaves it at zero, and its own
     // guards saturate against that as they drop.
     let frames = nvs_runtime::HelperFrame::take();
+    // The context this stack is running a compiled frame of, off the thread
+    // beside the two above and for the reason
+    // [`nvs_runtime::CurrentStack`] owns: the guard that installed it is on
+    // *this* stack, so a task that installs while this one is parked would
+    // otherwise save these words and write them back after this context has
+    // been dropped.
+    let current = nvs_runtime::CurrentStack::take();
     let resume = yielder.suspend(Suspended {
         waiting,
         unwindable: frames == 0,
     });
+    current.restore();
     nvs_runtime::HelperFrame::restore(frames);
     RUNNING.set(running);
     match resume {
@@ -1420,6 +1434,59 @@ mod tests {
             "a task's entry closure is {size} bytes against a limit of {CORO_TRANSFER_LIMIT} \
              — near enough to it that the next per-task field is a breach rather than a \
              cost. Put the state behind a pointer, as the context already is."
+        );
+    }
+
+    /// A compiled frame that hands the core back once and returns, which is
+    /// the only shape that arms [`nvs_runtime::CurrentStack`] from a test:
+    /// `nvs_runtime::call` is what installs the pair, and it installs it
+    /// around a call into compiled code.
+    ///
+    /// Nothing is written to `out` because `nvs_runtime::call` initialises the
+    /// slot to null and null is this frame's result.
+    #[expect(
+        unsafe_code,
+        reason = "an `NvsFn` is the compiled ABI's own signature; this body \
+                  dereferences none of its three pointers"
+    )]
+    unsafe extern "C" fn parks_once(
+        _ctx: *mut Ctx,
+        _args: *const nvs_runtime::Value,
+        _out: *mut nvs_runtime::Value,
+    ) -> i32 {
+        suspend_current(Waiting::Yielded);
+        nvs_runtime::OK
+    }
+
+    #[test]
+    fn a_task_that_parks_leaves_no_context_on_the_thread_for_the_next_one() {
+        // The use-after-free `nvs_runtime::CurrentStack` exists to stop,
+        // written as the interleaving that produces it. Two tasks each park
+        // inside a compiled frame, so both hold a `CurrentCtx` guard across a
+        // switch: A installs and parks, B installs and parks, A resumes and
+        // *ends* — dropping its context — and only then does B's guard drop.
+        //
+        // Before `yield_on` carried the pair, B's guard had saved A's two words
+        // on the way in and wrote them back here, putting a freed `Ctx` and a
+        // freed live list on the thread; the next object allocated on this core
+        // linked itself onto a list that was gone. The assertion is on the
+        // pointer being absent rather than on it being stale, because reading
+        // through the stale one is the very thing that was undefined.
+        let mut sched = Scheduler::new();
+        for _ in 0..2 {
+            sched.spawn(ctx(), TaskRoot::Request, |ctx| {
+                nvs_runtime::call(parks_once, ctx, &[]).expect("the frame returns");
+            });
+        }
+        sched.run();
+
+        let after = nvs_runtime::CurrentStack::take();
+        let armed = after.is_armed();
+        after.restore();
+        assert!(
+            !armed,
+            "a core with no task running carries no context; this one is holding the \
+             one the first task installed, whose allocation is already gone"
         );
     }
 
