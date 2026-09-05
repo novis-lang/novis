@@ -957,6 +957,37 @@ impl Connection {
         self.set_state(State::Poisoned);
     }
 
+    /// Bounds this connection's next exchange by `at`, or lifts the bound —
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `{timeout?: Duration}`.
+    ///
+    /// **One clock per connection, on the thing that waits**, which is the same
+    /// clock [`PgConn::connect`] and its four siblings already file for the
+    /// handshake. It bounds a whole *conversation* and not a syscall: a
+    /// statement is a prepare, an execute and every row of the answer over one
+    /// socket, and it is the statement a caller asked to bound.
+    ///
+    /// The bound belongs to the connection and outlives the call that set it, so
+    /// every statement path files its own — `None` included — and
+    /// `nvs_stdlib::db`'s release lifts it before § 13's reset, which is the one
+    /// exchange no program's clock may bound.
+    ///
+    /// # Errors
+    ///
+    /// Only the SQLite arm can fail, and only as `sqlite3_busy_timeout` fails:
+    /// the other four write a field on their own socket. See
+    /// [`crate::sqlite::set_busy_timeout`] for why that arm bounds a lock wait
+    /// where the others bound a read.
+    pub fn set_deadline(&mut self, at: Option<std::time::Instant>) -> std::io::Result<()> {
+        match self {
+            Connection::Postgres(c) => c.wire.set_deadline(at),
+            Connection::MySql(c) => c.wire.set_deadline(at),
+            Connection::MariaDb(c) => c.wire.set_deadline(at),
+            Connection::SqlServer(c) => c.wire.set_deadline(at),
+            Connection::Sqlite(c) => return crate::sqlite::set_busy_timeout(c, at),
+        }
+        Ok(())
+    }
+
     /// Whether a new statement may be written now — ADR 0067 § 4.
     #[must_use]
     pub fn may_start_statement(&self) -> bool {

@@ -217,6 +217,41 @@ impl<S: Source> NvsStream<S> {
     }
 }
 
+/// The clock a wait is bounded by, reached through whatever the socket has been
+/// wrapped in.
+///
+/// [`NvsStream::set_deadline`] above is the whole of the mechanism and this
+/// trait adds nothing to it. What it adds is **reach**: a caller that wants to
+/// bound one exchange holds the socket under a wrapper or two — a `rustls`
+/// session, and on SQL Server a framing tunnel underneath that session — and
+/// only the innermost stream ever waits. Without a trait, each layer's own
+/// crate would have to name the layer below it, which is exactly the coupling
+/// [`crate::tls`]'s generic transport parameter exists to avoid.
+///
+/// The inherent methods stay where they are: they are what a caller holding the
+/// socket, or a plain `NvsTls<NvsTcp>`, already writes. This is the same two
+/// methods, forwarded down a stack whose shape the forwarder does not know.
+pub trait Deadline {
+    /// Bounds every wait underneath this wrapper by `at`, or lifts the bound.
+    ///
+    /// Takes effect from the next wait, exactly as [`NvsStream::set_deadline`]
+    /// does — the bound belongs to the stream and not to a call.
+    fn set_deadline(&mut self, at: Option<Instant>);
+
+    /// The instant every wait underneath it is bounded by, if any.
+    fn deadline(&self) -> Option<Instant>;
+}
+
+impl<S: Source> Deadline for NvsStream<S> {
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        self.deadline = at;
+    }
+
+    fn deadline(&self) -> Option<Instant> {
+        self.deadline
+    }
+}
+
 impl NvsStream<mio::net::TcpStream> {
     /// Takes over a `std` socket, switching it to non-blocking first.
     ///

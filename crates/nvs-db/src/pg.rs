@@ -386,6 +386,25 @@ impl<S: Read + Write> Wire<S> {
         &self.stream
     }
 
+    /// Bounds every wait on this wire by `at`, or lifts the bound.
+    ///
+    /// ADR 0067 § 4's statement deadline, filed exactly where
+    /// [`PgConn::connect`]'s handshake deadline already is — one clock, on the
+    /// thing that waits. It bounds the *conversation* and not a call: a
+    /// statement is a prepare, an execute and every row of the answer over one
+    /// socket, so a caller sets the deadline before that exchange and lifts it
+    /// after.
+    ///
+    /// The bound is on the method rather than on [`Wire`] itself because the
+    /// exchanges here are asserted against a scripted stream that never waits,
+    /// and a stream that never waits has no clock to keep.
+    pub(crate) fn set_deadline(&mut self, at: Option<std::time::Instant>)
+    where
+        S: nvs_host::net::Deadline,
+    {
+        self.stream.set_deadline(at);
+    }
+
     /// Writes everything buffered in `out`, empties it, and flushes.
     ///
     /// One function because a half-written message is the shape ADR 0132 § 4

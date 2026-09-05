@@ -527,6 +527,20 @@ impl<S: Read + Write> Wire<S> {
         }
     }
 
+    /// Bounds every wait on this wire by `at`, or lifts the bound.
+    ///
+    /// [`crate::pg`]'s `set_deadline` exactly, for ADR 0067 § 4's statement
+    /// deadline and with the same two properties: the bound is the socket's, so
+    /// it covers a whole `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` conversation
+    /// rather than one syscall, and it is on the method rather than the type so
+    /// a scripted stream that never waits needs no clock.
+    pub(crate) fn set_deadline(&mut self, at: Option<std::time::Instant>)
+    where
+        S: nvs_host::net::Deadline,
+    {
+        self.stream.set_deadline(at);
+    }
+
     /// The same conversation over an encrypted stream.
     ///
     /// Takes the codec and the inbox across with it — see the field. `wrap`

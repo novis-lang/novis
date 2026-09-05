@@ -231,6 +231,24 @@ impl NvsTls<NvsTcp> {
     }
 }
 
+/// The socket's clock, reached through however many wrappers are between this
+/// session and it.
+///
+/// The inherent pair above is `NvsTls<NvsTcp>`'s and stays that way — it is what
+/// every caller in the tree writes, and it needs no bound. This impl is for the
+/// tunnelled case: SQL Server's session sits on `nvs-db`'s framing adapter,
+/// which sits on the socket, and neither this crate nor that one can see the
+/// whole stack from where it stands.
+impl<T: Read + Write + crate::net::Deadline> crate::net::Deadline for NvsTls<T> {
+    fn set_deadline(&mut self, at: Option<Instant>) {
+        self.inner.sock.set_deadline(at);
+    }
+
+    fn deadline(&self) -> Option<Instant> {
+        self.inner.sock.deadline()
+    }
+}
+
 impl<T: Read + Write> Read for NvsTls<T> {
     /// Plaintext out of the session, decrypting whole records and parking for
     /// the rest of a record that has not arrived.

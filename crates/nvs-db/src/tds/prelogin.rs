@@ -315,6 +315,24 @@ pub(super) fn take_front(held: &mut Vec<u8>, buf: &mut [u8]) -> usize {
     take
 }
 
+/// The socket's clock, forwarded past the framing.
+///
+/// This adapter buffers but never waits: every wait a tunnelled handshake takes
+/// is the stream underneath issuing a syscall, so the deadline belongs there and
+/// this is the one hop that lets [`crate::tds`]'s session name it. It is what
+/// makes `NvsTls<Tunnel<NvsTcp>>` bound its exchanges like the other four
+/// drivers' `NvsTls<NvsTcp>` does, rather than being the one connection ADR 0067
+/// § 4's statement deadline could not reach.
+impl<S: Read + Write + nvs_host::net::Deadline> nvs_host::net::Deadline for Tunnel<S> {
+    fn set_deadline(&mut self, at: Option<std::time::Instant>) {
+        self.stream.set_deadline(at);
+    }
+
+    fn deadline(&self) -> Option<std::time::Instant> {
+        self.stream.deadline()
+    }
+}
+
 impl<S: Read + Write> Read for Tunnel<S> {
     /// Packet payloads while the tunnel frames, and the socket itself
     /// afterwards.

@@ -950,6 +950,37 @@ fn step(
     })
 }
 
+/// ADR 0067 § 4's statement deadline, spelled as the only wait this backend
+/// takes.
+///
+/// The other four drivers file the instant on the socket, because a statement
+/// there is a conversation and every leg of it is a read that can hang. There is
+/// no socket here: once this connection has the database the statement runs to
+/// completion on `nvs-host`'s blocking pool, and the one thing it *waits* for
+/// first is the write lock another connection is holding. `sqlite3_busy_timeout`
+/// is exactly the bound on that wait, so the option means the same thing it
+/// means everywhere else — the call answers, one way or the other, rather than
+/// blocking a request-serving core until someone else commits.
+///
+/// `None` restores SQLite's own default, which is to answer `SQLITE_BUSY` at
+/// once rather than to wait unboundedly: an unbounded lock wait is not a shape
+/// this backend has, and it is not one ADR 0074 would allow if it did.
+///
+/// # Errors
+///
+/// Whatever `sqlite3_busy_timeout` reported.
+pub(crate) fn set_busy_timeout(
+    conn: &crate::conn::SqliteConn,
+    at: Option<std::time::Instant>,
+) -> io::Result<()> {
+    let waiting = at.map_or(std::time::Duration::ZERO, |deadline| {
+        deadline.saturating_duration_since(std::time::Instant::now())
+    });
+    lock(&conn.handle)
+        .busy_timeout(waiting)
+        .map_err(server_error)
+}
+
 /// The connection's handle, with a poisoned lock read through rather than
 /// panicked on.
 ///

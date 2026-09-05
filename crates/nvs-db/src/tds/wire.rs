@@ -86,6 +86,20 @@ impl<S: Read + Write> Wire<S> {
         })
     }
 
+    /// Bounds every wait on this wire by `at`, or lifts the bound.
+    ///
+    /// [`crate::pg`]'s `set_deadline` for ADR 0067 § 4's statement deadline, and
+    /// the one driver where the forwarding is two hops rather than one: this
+    /// session sits on a [`Tunnel`](super::prelogin::Tunnel), which sits on the
+    /// socket, and `nvs_host::net::Deadline` is what carries the instant down
+    /// both of them.
+    pub fn set_deadline(&mut self, at: Option<std::time::Instant>)
+    where
+        S: nvs_host::net::Deadline,
+    {
+        self.stream.set_deadline(at);
+    }
+
     /// The open transaction's descriptor, for the `ALL_HEADERS` of the request
     /// about to go out — zero where no transaction is open.
     #[must_use]
