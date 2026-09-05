@@ -173,10 +173,9 @@ impl Outcome {
     /// when it returned turn any verdict a report could call green into a
     /// failure naming them.
     ///
-    /// A skip never ran and an `exit(n)` ended the whole program rather than
-    /// the test, so neither is an outcome this can say anything about; every
-    /// other one gains the line, a flaky test included — a test that leaks a
-    /// task is not one retrying made honest.
+    /// A flaky test gains the line like any other — a test that leaks a task is
+    /// not one retrying made honest — and which outcomes are left alone is
+    /// [`Self::and_failed`]'s.
     fn with_tasks_left_running(self, running: usize) -> Self {
         if running == 0 {
             return self;
@@ -186,6 +185,20 @@ impl Outcome {
              fails a test whose task tree outlives it — `Core\\Task::all` and `::map` \
              return with nothing still running, and a `spawn script` is finished by `await`"
         );
+        self.and_failed(named)
+    }
+
+    /// This outcome with one more failure folded into it — what the runner
+    /// itself found wrong *around* the test, rather than what the test's own
+    /// ledger recorded.
+    ///
+    /// [`Self::with_tasks_left_running`] is § 16's caller and this is § 17's,
+    /// which is why the fold is here once rather than at each: a verdict a
+    /// report could call green becomes a failure, a failure gains a line, and a
+    /// skip or an `exit(n)` is untouched — a test that never ran cannot have
+    /// left a transaction open, and an `exit(n)` ended the program rather than
+    /// the test.
+    fn and_failed(self, named: String) -> Self {
         match self {
             Self::Passed => Self::Failed(vec![named]),
             Self::Failed(mut failures) | Self::Flaky { mut failures, .. } => {
@@ -943,6 +956,15 @@ fn run_in_isolate(
         }
     };
     let seed = random_seed(case);
+    // § 17's block name, read on the parent's side with every other option and
+    // owned because the closure outlives this frame — but *opened* inside the
+    // child, which is the one decision this mechanism makes. A connection is
+    // memoized on the context it was opened on, so a transaction begun out here
+    // would be on a connection the test's own `Core\Db::connect` could never
+    // reach, and § 17's "a transaction opened inside the test is a savepoint"
+    // would be two transactions on two connections deadlocking on each other.
+    // `nvs_stdlib::db::begin_test_transaction` is the one home of that reading.
+    let transacted = wants_db(case).map(str::to_owned);
     let child_unit = Rc::clone(unit);
     let class_name = class.to_owned();
     let method = case.method.clone();
@@ -980,7 +1002,43 @@ fn run_in_isolate(
         // Both owners go down with the isolate, after the call that borrowed
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
-        let outcome = run_with_retries(&child_unit, child, &class_name, &method, &args, allowance);
+        let outcome = match transacted.as_deref() {
+            None => run_with_retries(&child_unit, child, &class_name, &method, &args, allowance),
+            // § 17, around the whole allowance rather than around one attempt:
+            // `retries:` exists for a test that is flaky against something
+            // outside the database, and a retry that started from a pristine
+            // database would be a second rule about what a retry re-runs —
+            // § 20 says only that the method is called again. A test whose
+            // second attempt has to unsee its first attempt's writes has
+            // written a test the rollback cannot fix.
+            Some(name) => match nvs_stdlib::db::begin_test_transaction(child, name) {
+                Err(refused) => Outcome::Failed(vec![format!(
+                    "`{class_name}::{method}` declares `db: \"{name}\"`, and no transaction \
+                     could be opened on it: {refused}"
+                )]),
+                Ok(key) => {
+                    let outcome = run_with_retries(
+                        &child_unit,
+                        child,
+                        &class_name,
+                        &method,
+                        &args,
+                        allowance,
+                    );
+                    match nvs_stdlib::db::roll_back_test_transaction(child, key) {
+                        Ok(()) => outcome,
+                        // Reported and never swallowed: a rollback that did not
+                        // happen is a test that left rows behind, and the next
+                        // test reading them would fail somewhere with nothing
+                        // to say about why.
+                        Err(refused) => outcome.and_failed(format!(
+                            "`{class_name}::{method}` declares `db: \"{name}\"`, and its \
+                             transaction could not be rolled back: {refused}"
+                        )),
+                    }
+                }
+            },
+        };
         // § 16, read off the tree from inside the test's own task and nowhere
         // else: a child spawned here is a child of *this* task, and once this
         // closure returns the scheduler cancels whatever is left rather than
@@ -1042,6 +1100,23 @@ fn wants_server(case: &nvs_types::testing::TestCase) -> bool {
     case.options
         .iter()
         .any(|(name, value)| name == "server" && matches!(value, ConstArg::Bool(true)))
+}
+
+/// The `[db.<name>]` block this case asked to run inside a transaction of —
+/// ADR 0079 § 17 — or `None` for a test that names none.
+///
+/// `db` is a `string` in `nvs_types::testing`'s roster, so a non-text value has
+/// already been refused while compiling and reading it back as absent here
+/// would be a second answer to a settled question — [`wants_server`]'s reading
+/// of its own option, over a different type. An empty name is *not* special
+/// cased: `[db.]` is a block nobody can write, so it reaches the same "nothing
+/// sets that up" refusal every other unwritten name does, worded about the name
+/// the test actually declared.
+fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
+    case.options.iter().find_map(|(name, value)| match value {
+        ConstArg::Str(block) if name == "db" => Some(block.as_str()),
+        _ => None,
+    })
 }
 
 /// ADR 0079 § 18's second mechanism, bound: one ephemeral listener over the
@@ -1710,11 +1785,22 @@ mod tests {
         name: &str,
         filter: Option<&str>,
     ) -> Vec<(String, &'static str, Vec<String>)> {
-        let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
-        let unit = compile(&checked).expect("the fixture compiles");
         // Granting, because one fixture below spawns and ADR 0118 § 1 denies by
         // default — `crate::script::granting_ctx` owns why that helper exists.
-        let mut ctx = crate::script::granting_ctx();
+        verdicts_on(name, crate::script::granting_ctx(), filter)
+    }
+
+    /// [`verdicts_filtered`] over a context the caller built, for the one
+    /// fixture whose configuration is more than a grant: ADR 0079 § 17 needs a
+    /// `[db.<name>]` block, and a fixture has no `nvs.toml` beside it to carry
+    /// one.
+    fn verdicts_on(
+        name: &str,
+        mut ctx: nvs_runtime::Ctx,
+        filter: Option<&str>,
+    ) -> Vec<(String, &'static str, Vec<String>)> {
+        let checked = crate::front_end(&fixture(name)).expect("the fixture is a program");
+        let unit = compile(&checked).expect("the fixture compiles");
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
@@ -1798,6 +1884,112 @@ mod tests {
             vec![
                 ("itReachesItsOwnListenerOverTheWire", "passed"),
                 ("itHasNoListenerWithoutTheOption", "passed"),
+            ],
+            "failures: {:?}",
+            verdicts
+                .iter()
+                .flat_map(|(_, _, failures)| failures.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// `[db.test]` over the compose PostgreSQL `nvs.toml`'s `[db.main]` names,
+    /// or `None` where this machine has no such server.
+    ///
+    /// **The block is built here rather than read from a file**, which is the
+    /// same call `crate::script::granting_ctx` makes for a capability: a fixture
+    /// is one `.nvs` under `tests/fixtures/runner/` with no configuration tree
+    /// beside it, and giving one a tree would make every fixture's ambient
+    /// configuration a question. What that costs is that the boot-time
+    /// resolution `nvs_config::db` performs is skipped, so the CA bundle is
+    /// named absolutely here — a relative path would resolve against whatever
+    /// directory `cargo test` chose.
+    ///
+    /// **`None` is a skip and not a failure.** The bundle is issued by
+    /// `tests/db/compose.yaml`'s own `certs` service into a Docker volume and is
+    /// not in git, so a checkout with no servers up cannot reach the database
+    /// this asserts about at all. `tools/loop.py` brings both up for the
+    /// acceptance sweep, which is where the assertion below actually runs.
+    fn compose_postgres() -> Option<nvs_config::tree::Database> {
+        let bundle = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("tests")
+            .join("db")
+            .join("ca.crt");
+        if !bundle.is_file() {
+            return None;
+        }
+        let address = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 15432));
+        // A plain TCP probe and not a handshake: what it answers is *is there a
+        // server here*, and every other question — TLS, the login, the schema —
+        // is one this test is meant to fail on rather than skip over.
+        std::net::TcpStream::connect_timeout(&address, std::time::Duration::from_millis(500))
+            .ok()?;
+        Some(nvs_config::tree::Database {
+            driver: Some("postgres".to_owned()),
+            host: Some("127.0.0.1".to_owned()),
+            port: Some(15432),
+            user: Some("novis".to_owned()),
+            password: Some("Novis-Test-Pw1".to_owned()),
+            database: Some("novis_test".to_owned()),
+            tls_ca_file: Some(bundle.to_string_lossy().into_owned()),
+            ..nvs_config::tree::Database::default()
+        })
+    }
+
+    #[test]
+    fn a_test_with_db_runs_inside_a_transaction_that_is_rolled_back() {
+        // ADR 0079 § 17, and the crate that can assert it is this one for the
+        // reason the two mechanisms above are asserted here: the transaction is
+        // opened around a test's isolate, which needs a checked program and a
+        // runtime context in one scope.
+        //
+        // Four cases in one fixture, in declaration order, because no single
+        // one of them is the claim. The first commits a table because it names
+        // no `db:`; the second writes a row inside the runner's transaction and
+        // proves its own nested `transaction()` is a savepoint rather than a
+        // second connection; the third is the assertion — the row is gone, with
+        // no cleanup written anywhere — and the fourth drops the table again, so
+        // a run leaves the database as it found it. A runner that opened a
+        // transaction for every test would roll the *table* away and fail the
+        // second; one that opened none would fail the third.
+        let Some(block) = compose_postgres() else {
+            // Printed rather than silent: a green line for a test that reached
+            // no database is exactly the outcome that should be legible.
+            eprintln!(
+                "skipped: no PostgreSQL on 127.0.0.1:15432, or no `tests/db/ca.crt` — \
+                 `docker compose -f tests/db/compose.yaml up -d --wait` is what this needs"
+            );
+            return;
+        };
+        let mut snapshot = nvs_config::Snapshot::default();
+        // ADR 0067 § 3's grant, for the one name the fixture opens. `net.*` is
+        // deliberately not granted beside it: a `[db.<name>]` endpoint is
+        // operator-written and so is pre-approved against ADR 0058's denied
+        // ranges (`nvs_config::tree::CapDb`), and a test that granted both could
+        // not tell which of the two the connection went through.
+        snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {
+            db: Some(nvs_config::tree::CapDb {
+                connect: Some(nvs_config::tree::Setting::List(vec!["test".into()])),
+                open: None,
+            }),
+            ..nvs_config::tree::Capabilities::default()
+        });
+        snapshot.config.db.insert("test".to_owned(), block);
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        let verdicts = verdicts_on("db-transaction.nvs", ctx, None);
+        assert_eq!(
+            verdicts
+                .iter()
+                .map(|(method, verdict, _)| (method.as_str(), *verdict))
+                .collect::<Vec<_>>(),
+            vec![
+                ("itPreparesATableOutsideAnyTransaction", "passed"),
+                ("itWritesInsideTheRunnersTransaction", "passed"),
+                ("itSeesNothingTheLastTestWrote", "passed"),
+                ("itDropsTheTableOutsideAnyTransaction", "passed"),
             ],
             "failures: {:?}",
             verdicts

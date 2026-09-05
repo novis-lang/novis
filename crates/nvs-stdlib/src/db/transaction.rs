@@ -609,6 +609,91 @@ pub(super) fn owned(value: Value) -> Value {
     value
 }
 
+/// What [`begin_test_transaction`] and [`roll_back_test_transaction`] are
+/// worded as when they read a `[db.<name>]` block or file a connection —
+/// [`CONNECT`]'s slot, filled by the mechanism rather than by a member, since
+/// no `Core` member is on the stack when either of these runs.
+const TEST_TRANSACTION: &str = "ADR 0079 § 17's transaction";
+
+/// A [`Fault`] as the one line a caller outside this crate reports it on.
+///
+/// The runner has no `catch` to hand a fault to and no context to record one
+/// against — the connection is opened *around* a test rather than inside it —
+/// so the two functions below answer a `String` and this is where a fault
+/// becomes one. Every variant renders as its own message; a
+/// [`Fault::Pending`] carries none, and cannot arise here anyway, no Novis
+/// code running between the `BEGIN` and this call.
+fn refusal(fault: &Fault) -> String {
+    match fault {
+        Fault::Thrown(_, message)
+        | Fault::ThrownWithSlots(_, message, _)
+        | Fault::Fatal(message) => message.to_string(),
+        _ => "the connection could not be reached".to_owned(),
+    }
+}
+
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 17's
+/// outer transaction: `[db.<name>]` opened on `ctx` and left inside a `BEGIN`,
+/// answering the key it is filed under.
+///
+/// **It is `ctx` that makes this § 17 rather than a second `Core\Db`.** The
+/// connection is memoized on the context it is opened on
+/// ([`open_named`]), so a `Core\Db::connect` the test *itself* makes under the
+/// same name reaches this very connection — and therefore this open
+/// transaction. That is the whole of § 17's second sentence: the test's own
+/// `Core\Db::transaction` sees a non-zero [`nvs_db::PgConn::depth`] and opens a
+/// `SAVEPOINT` instead of a `BEGIN`, with no special case anywhere for it. The
+/// caller passes the *test's* context and not the suite's, which is why
+/// `nvs-cli`'s runner arms this from inside the isolate's own program.
+///
+/// **What it spends:** one pooled connection for the length of one test, held
+/// by that test's context and released to [`nvs_runtime::pool`] when it ends —
+/// the same connection a test that called `connect` itself would have held, so
+/// § 17 costs a `db:` test nothing beyond the two round trips of its `BEGIN`
+/// and its `ROLLBACK`.
+///
+/// # Errors
+///
+/// The message to report against the test: no `[db.<name>]` block, a block that
+/// cannot be opened, or a `BEGIN` the server refused.
+pub fn begin_test_transaction(ctx: &mut nvs_runtime::Ctx, name: &str) -> Result<u64, String> {
+    let key =
+        open_named(ctx, name, true, None, TEST_TRANSACTION).map_err(|fault| refusal(&fault))?;
+    transacting(ctx, key, TEST_TRANSACTION)
+        .map_err(|fault| refusal(&fault))?
+        .begin(None, false)
+        .map_err(|error| format!("`[db.{name}]` refused the transaction: {error}"))?;
+    Ok(key)
+}
+
+/// § 17's other half: every level open on the connection filed under `key`,
+/// rolled back, so the test's writes are gone and the connection is poolable.
+///
+/// **A loop and not one `ROLLBACK`, because the depth is not this function's to
+/// assume.** § 7's closure closes its own level on every path out of it, so the
+/// depth is back to the one [`begin_test_transaction`] opened for every test
+/// that returned or threw — but a test that ended by cancellation or by a
+/// contained panic is a test whose closure did not return, and a connection
+/// left one level in is one [`nvs_runtime::pool`] closes rather than reuses.
+/// The loop terminates because a `ROLLBACK` that the driver accepted is what
+/// lowers the depth (`nvs_db::pg`'s `roll_back`), and a refused one returns
+/// here.
+///
+/// # Errors
+///
+/// The message to report against the test: the key names no connection, or the
+/// server refused a `ROLLBACK`.
+pub fn roll_back_test_transaction(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<(), String> {
+    loop {
+        let mut open = transacting(ctx, key, TEST_TRANSACTION).map_err(|fault| refusal(&fault))?;
+        if open.depth() == 0 {
+            return Ok(());
+        }
+        open.roll_back()
+            .map_err(|error| format!("the transaction refused its rollback: {error}"))?;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
