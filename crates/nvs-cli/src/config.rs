@@ -172,6 +172,52 @@ pub(crate) fn boot_origins(
     Ok((snapshot, resolved.origins))
 }
 
+/// The `[capabilities]` block the machine that is **compiling** reads — ADR 0067
+/// § 10's second sentence, which is what makes a literal `Core\Db::open` host
+/// matching no `db.open` grant a check-time diagnostic rather than only a
+/// refusal at the door.
+///
+/// The tree is resolved exactly as [`boot_snapshot`] resolves it for a run: § 1's
+/// roots in the same order, § 3's later-wins, and ADR 0104 § 2's `[[app]]` blocks
+/// folded for this entry file — so the answer `nvs check` gives is the one this
+/// deployment would give the same program. A tree that does not resolve is
+/// reported here and stops the check, because a capability question answered
+/// against half a tree is worse than one not asked.
+///
+/// **An empty tree answers `None`, and `None` is not an empty grant set.**
+/// `nvs_types::check_program_granted`'s own doc owns that distinction: a program
+/// checked outside any project root has no configuration to be measured against,
+/// and refusing it would make deny-by-default mean "deny with nothing written".
+/// A tree that *was* read and simply grants nothing is the other case — the
+/// operator wrote a configuration and it says no — so it answers
+/// `Some(Capabilities::default())`.
+///
+/// § 7's advisories are deliberately not printed here. They are an audit of the
+/// tree, which is `nvs config check`'s subject; this call's subject is the
+/// program, and the tree is only being asked one question.
+///
+/// # Errors
+///
+/// The exit code to return when the tree does not resolve. The diagnostic is
+/// rendered before it comes back, against the source map this call owns.
+pub(crate) fn grants(
+    config: &[PathBuf],
+    entry: &Path,
+) -> Result<Option<nvs_config::tree::Capabilities>, ExitCode> {
+    let mut sources = SourceMap::new();
+    let snapshot = match boot_snapshot(config, entry, &mut sources) {
+        Ok(snapshot) => snapshot,
+        Err(diagnostic) => {
+            let mut diags = Diagnostics::new();
+            diags.report(diagnostic);
+            render_diagnostics(&mut diags, &sources);
+            return Err(ExitCode::FAILURE);
+        }
+    };
+    Ok((!snapshot.files.is_empty())
+        .then(|| snapshot.config.capabilities.clone().unwrap_or_default()))
+}
+
 /// `nvs config check [<file>...]` — resolve the tree and report what it holds,
 /// exiting non-zero on any refusal.
 ///

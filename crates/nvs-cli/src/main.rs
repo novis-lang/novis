@@ -549,7 +549,7 @@ fn main() -> ExitCode {
 
     match command {
         Command::Ast { file } => run_ast(&file),
-        Command::Check { file, autoload_map } => run_check(&file, autoload_map),
+        Command::Check { file, autoload_map } => run_check(&cli.config, &file, autoload_map),
         Command::Run {
             file,
             dump_ir,
@@ -715,6 +715,37 @@ impl Checked {
 /// `Err` is the exit code to return: a read failure, or at least one error
 /// diagnostic. Warnings are rendered and do not stop anything.
 fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
+    front_end_granted(path, None)
+}
+
+/// [`front_end`] with the deployment's `[capabilities]` block in front of it —
+/// ADR 0067 § 10's check-time question, asked of the `nvs.toml` this machine
+/// resolves.
+///
+/// `config` is the `--config` list when the caller wants that question asked and
+/// `None` when it does not, which mirrors `nvs_types::check_program` and
+/// `check_program_granted` because it is the same distinction one layer up.
+///
+/// **`nvs check` is the caller that asks, and `nvs run` is deliberately not.**
+/// § 10 is titled for `check` and means it: at run time the refusal is
+/// `nvs_runtime::capability::require`'s, and ADR 0118 § 5 makes that a denial the
+/// program is still running underneath and may catch. Hoisting it into `run`
+/// would turn a catchable denial into a refusal to start, which is a different
+/// language rather than an earlier answer — `tests/conformance/core/
+/// db-open-asks-the-grant-about-the-host-and-then-the-address.nvst` is that
+/// behaviour pinned. So `check` is the offline audit that says what this
+/// deployment's configuration would refuse, and it is allowed to be the stricter
+/// of the two.
+///
+/// The tree is read **before the program is parsed**, so a `nvs.toml` that does
+/// not resolve fails the check as the configuration error it is rather than as
+/// whatever the program's own diagnostics happen to be. That is this goal's
+/// § *Standing decisions* item 6, and it answers `nvs_types::intrinsics`' gap 6:
+/// checking now has a configuration in front of it.
+fn front_end_granted(
+    path: &std::path::Path,
+    config: Option<&[std::path::PathBuf]>,
+) -> Result<Checked, ExitCode> {
     let mut map = SourceMap::new();
     let id = match map.load(path) {
         Ok(id) => id,
@@ -722,6 +753,14 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
             eprintln!("error: could not read {}: {err}", path.display());
             return Err(ExitCode::FAILURE);
         }
+    };
+
+    // Read after the entry file and before anything is parsed: a missing program
+    // is still "could not read", and a broken `nvs.toml` is the configuration
+    // error rather than the first thing the parser noticed.
+    let grants = match config {
+        Some(config) => config::grants(config, path)?,
+        None => None,
     };
 
     let mut diags = Diagnostics::new();
@@ -753,8 +792,14 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
                 stmts: &file.stmts,
             })
             .collect();
-        let enums =
-            nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+        let enums = nvs_types::check_program_granted(
+            &files,
+            &module,
+            grants.as_ref(),
+            &mut interner,
+            &mut exprs,
+            &mut diags,
+        );
 
         if diags.has_errors() {
             render_diagnostics(&mut diags, &map);
@@ -786,8 +831,17 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 /// partial map beside a wall of errors would be read as the whole of it.
 /// Paths are shown relative to the entry point's own directory, which is what
 /// `autoload`'s literals are written against (§ 1).
-fn run_check(path: &std::path::Path, autoload_map: bool) -> ExitCode {
-    match front_end(path) {
+///
+/// This is the one front end that reads the configuration
+/// ([`front_end_granted`]), so `nvs check` answers ADR 0067 § 10's question
+/// about a literal `Core\Db::open` host and reports a `nvs.toml` that does not
+/// resolve as the configuration error it is.
+fn run_check(
+    config: &[std::path::PathBuf],
+    path: &std::path::Path,
+    autoload_map: bool,
+) -> ExitCode {
+    match front_end_granted(path, Some(config)) {
         Ok(checked) => {
             if autoload_map {
                 let base = match path.parent() {
