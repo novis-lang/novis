@@ -31,6 +31,10 @@ owed, with nobody editing a list.
     python tools/dossier.py --record-perf [--group G]  measure and append to the ledger
     python tools/dossier.py --perf-report            regenerate docs/perf/members.md from the ledger
 
+    python tools/dossier.py --partition --group G    cut one group into worker briefs, or refuse. See below
+    python tools/dossier.py --brief '<feature>'      one feature's brief, as a worker is handed it
+    python tools/dossier.py --findings [--clear]     what the workers hit, collated for one batch fix
+
     python tools/dossier.py --no-perf …              drop the perf proof entirely, for any command above
     python tools/dossier.py --emit-goals             write the whole loop chain under docs/agent/goals/dossier/
     python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml
@@ -65,6 +69,32 @@ afford to run is a check nobody runs:
   reach a different verdict, which is the argument `verify.py` and `loop.py` both already make for
   their own caches. So a re-run with an unchanged binary costs the walk; a re-run after a rebuild
   costs the programs. `--no-cache` forces the long way, and a failure is never cached.
+
+## Running one group's features at once
+
+Three of the four proofs are attributed by **position** -- the example, attack and bench trees all
+use the same relative path, derived from the feature's own id -- so two features' proofs cannot name
+the same file. That, and not a hope, is why this work runs wide: `--partition` cuts a group into
+worker briefs and **refuses** if any two workers would write the same path.
+
+    python tools/dossier.py --partition --group 'Core\\Str'
+
+writes one brief per worker under `.loop/dossier-fanout/` and prints the lanes. A brief is
+self-contained: hand a worker its *path* and it reads it in its own window, so the parent's window
+holds the table and nothing else. What a worker may not touch is in every brief and is the whole of
+the safety argument -- **no `crates/`, no `git`, no `cargo`, no ledger, no policy file, no
+`--record-perf`, no `--run hostile`** -- because each of those is either shared by the goal's whole
+batch or has exactly one writer, and a second writer arriving in parallel fails silently.
+
+The two things a worker hands back rather than writing are the Rust `#[test]` half of the `tests`
+proof, which lands in the `mod tests` of an implementing file all eighteen of a goal's features
+share, and any bug a proof found. The parent splices the first in one `tools/splice.py --patch`,
+collects the second with `--findings`, and fixes them as one batch. Then, and only after every
+worker has stopped, it runs `--run all`, `--record-perf` -- a figure measured while eight workers
+are running is not a measurement -- and `tools/verify.py`, and commits.
+
+`FANOUT_WORKERS` below is the width and carries how it was derived. It is not `machine.jobs()`: a
+worker waits on an API, not on a core.
 
 ## How a proof is attributed to a feature
 
@@ -167,6 +197,30 @@ CALIBRATION = BENCHES / "_calibration"
 #: Green verdicts from `--run`, keyed on the bytes that produced them. Under `.loop/` with every
 #: other run-time artefact, and gitignored with it.
 GREEN = ROOT / ".loop" / "dossier-green.json"
+
+#: Where `--partition` writes a worker's brief, and where a worker drops a finding. Under `.loop/`
+#: beside `dossier-green.json` for the same reason: a brief restates what the roster already says
+#: and is worthless the moment the roster moves, and a finding is state that lives until the batch
+#: fix lands. Neither is ever committed.
+FANOUT = ROOT / ".loop" / "dossier-fanout"
+FINDINGS = ROOT / ".loop" / "dossier-findings"
+
+#: No worker writes under one of these, and `partition()` refuses a lane that would. Every entry is
+#: either shared by a goal's whole batch -- `crates/` holds the `mod tests` all eighteen of its
+#: features append to -- or is a ledger with exactly one writer. A second writer arriving in
+#: parallel is how both of those fail silently instead of loudly.
+RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "fuzz/", ".loop/")
+
+#: How many workers a fan-out runs. Deliberately not `machine.jobs()`: a worker is an agent waiting
+#: on an API, not a process waiting on a core, and the only machine-bound thing it does is bless an
+#: example's `.out` in milliseconds. The number comes from the serial tail instead. Measured on
+#: 2026-09-05 over 68 loop sessions: a session's startup floor is 71,941 tokens against a
+#: subagent's 12,600, and the sweeps are free (`--gate` 2.6s, 17 examples in 0.1s), so what a goal
+#: cannot parallelise -- orient, the batch fix, `--record-perf`, `verify.py`, the wrap -- is 25-35
+#: of its 60-110 minutes. Against a tail that size 4 workers buy 2.2x, 6 buy 2.6x, 8 buy 2.8x and
+#: 12 buy 3.1x of a 3.8x ceiling: eight is 90% of everything there is, and past it the tail is the
+#: thing to attack rather than the width. `--workers N` and `NVS_DOSSIER_WORKERS` override it.
+FANOUT_WORKERS = 8
 
 #: What each kind of feature owes. `tests` counts proofs from either side -- a `.nvst` case or a
 #: Rust `#[test]` -- and `rust` is how many of them must be the Rust half; `examples` and `hostile`
@@ -1241,6 +1295,344 @@ def print_owed(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         print(f"  ... and {len(rows) - limit} more (--limit 0 for all)")
 
 
+# ------------------------------------------------------------------------------ fanning out
+
+
+def owned_paths(entry: Entry) -> list[str]:
+    """The paths one worker holding `entry` may write. There are no others.
+
+    Three of the four proofs are attributed **by position**, so this is derived rather than
+    declared, and two workers holding different features cannot name the same path. That is the
+    entire argument for running this work wide, and `partition()` asserts it on every run instead
+    of trusting this comment.
+
+    The Rust half of the `tests` proof is deliberately absent. It lands in the `#[cfg(test)] mod
+    tests` of the *implementing* file, and a goal is batched by shared implementing file, so all
+    eighteen of its features want the same `crates/nvs-stdlib/src/str.rs`. It comes back as text
+    and one hand splices the lot.
+    """
+    return [rel(entry.examples_dir), rel(entry.hostile_dir), rel(entry.bench_file)]
+
+
+def worker_owed(missing: dict[str, str]) -> dict[str, str]:
+    """The subset of what a feature owes that a *worker* can close.
+
+    There is one exception and it is the perf proof. A figure goes stale when the implementing file
+    moves, and what closes that is `--record-perf` in the parent on a quiet machine -- no file
+    anybody writes. A feature owing nothing else therefore gets no lane: handing a worker a brief
+    with no work in it also prices the split wrong, because the lane looks full."""
+    out = dict(missing)
+    if "perf" in out and not out["perf"].startswith("no bench"):
+        del out["perf"]
+    return out
+
+
+def case_home(p: Proofs) -> str:
+    """Where a new `.nvst` for this feature most likely belongs.
+
+    The corpus is one case per file in a flat per-subsystem directory, so a new case is a new
+    *file* and collides with nothing -- but its name is a sentence the worker writes, and two
+    workers cannot check each other's unwritten name. Naming the directory its existing credited
+    cases already sit in is what keeps the sentences apart in practice; the parent's `--gate` is
+    the backstop, and this one race is the only thing the scheme does not close by construction.
+    """
+    dirs = [f.rsplit("/", 1)[0] for f in p.nvst if f.endswith(".nvst")]
+    return max(set(dirs), key=dirs.count) if dirs else "tests/conformance/core"
+
+
+WORKER_RULES = """\
+## Stay in your lane
+
+Other workers are writing proofs for other features in this same working tree **right now**. These
+are not style rules: breaking one silently destroys their work or the parent's.
+
+- **Create only the paths this brief names, for your own features.** Every one is derived from the
+  feature's id, so no other worker can name it.
+- **Never edit a file under `crates/`** -- not to add the Rust `#[test]`, not to fix a bug. Up to
+  68 features share one implementing file and your neighbour is holding it.
+- **Never run `git`, `cargo`, `tools/verify.py`, `--record-perf`, `--run`, or anything that writes
+  `docs/perf/members.ndjson`, `tools/data/dossier-policy.toml` or `.loop/`.** The parent runs every
+  one of those, once, after every worker has stopped. A benchmark measured while eight workers are
+  running is not a measurement.
+- **Do not commit.** The parent commits.
+- **Do not run your hostile program.** It is written to exhaust the machine, and there are seven
+  other workers on it. The parent runs the whole attack tree at a width it controls.
+- **You may run your own example programs**, and only to create their `.out`:
+  `python tools/dossier.py --bless <the .nvs you just wrote>`. Read what it prints -- a blessed
+  output is a claim. Nothing else of yours executes.
+
+## What each proof is
+
+- **example** -- three small, self-contained programs a reader learns from, each printing, each a
+  *different* use, and the third the thing somebody actually does at work. No framework, no
+  database, no socket. One plain sentence of comment; no ADR numbers and no internal vocabulary.
+  `docs/examples/README.md` is the shape.
+- **hostile** -- the file you write when you are trying to make the runtime come apart. It has no
+  expected output: it passes if nothing panicked, aborted, hung or leaked. Throwing is a pass; a
+  limit stopping it cleanly is a pass. Unbounded input, deep nesting, one element either side of a
+  documented limit. `tests/hostile/README.md` is the contract.
+- **perf** -- one program that measures this feature and nothing else, chaining its inputs so no
+  optimiser can hoist the loop, declaring `// bench: iterations N`.
+  `benches/members/README.md` is the shape. You write it; you do **not** measure it.
+- **tests** -- a `.nvst` case carrying `// covers: <the feature id>` in its `--FILE--` block, in a
+  NEW file under the directory this brief names, plus (for a `Core` member) a Rust `#[test]` you
+  **hand back as text and do not write**.
+
+## When a proof finds a bug
+
+It will, and that is the program working. **Do not fix it and do not weaken the proof** -- not a
+softened attack, not an `.out` re-blessed to whatever the binary now prints. Write one file to
+`.loop/dossier-findings/<worker>-<feature-slug>.md` saying which feature, which proof, what you
+expected, what happened, and where you think it lives. One file per finding, so no two workers ever
+append to the same one. Then carry on with your next feature. The parent collects them with
+`python tools/dossier.py --findings` and fixes them as one batch, because the fix lands in a crate
+file your neighbour is waiting on.
+
+## What to hand back
+
+One block per feature, and nothing else -- no excerpts, no restated file contents:
+
+    <feature id>
+      wrote: <every path you created, one per line>
+      rust:  <the whole `#[test]` fn with its `// covers:` line, or `none owed`>
+      found: <the finding file you wrote, or `nothing`>
+"""
+
+
+def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: dict) -> str:
+    want = policy[e.kind]
+    where = "documented at" if e.anchor.startswith("docs/") else "implemented at"
+    lines = [f"### {i}. `{e.id}`   [{e.kind}]"]
+    if e.summary:
+        lines.append(f"{e.summary.strip()}")
+    if e.anchor:
+        lines.append(f"{where} `{e.anchor}`")
+    if e.twin:
+        lines.append(f"replaces PHP `{'`, `'.join(e.twin[:4])}` -- its oracle case goes in "
+                     f"`tests/differential/` and needs no frozen output")
+    lines.append("")
+    if "examples" in missing:
+        n = want["examples"] - len(p.examples)
+        lines.append(f"- **examples** -- write {n}: "
+                     f"`{rel(e.examples_dir)}/NN-slug.nvs`, and `--bless` each one.")
+        if p.examples:
+            lines.append(f"  Already there: {', '.join(f.rsplit('/', 1)[-1] for f in p.examples)}")
+    if "hostile" in missing:
+        n = want["hostile"] - len(p.hostile)
+        lines.append(f"- **hostile** -- write {n}: `{rel(e.hostile_dir)}/NN-slug.nvs`. No `.out`.")
+    if "perf" in missing:
+        lines.append(f"- **perf** -- write `{rel(e.bench_file)}`. Write it only; the parent")
+        lines.append("  measures the whole group at once, on a machine with nothing else on it.")
+    if "tests" in missing:
+        need = max(0, want["tests"] - len(p.nvst) - len(p.rust))
+        if need:
+            lines.append(f"- **tests** -- write {need} NEW `.nvst` under `{case_home(p)}/`, named "
+                         f"as a sentence, carrying `// covers: {e.id}`.")
+        if want.get("rust") and not p.rust:
+            lines.append(f"- **tests (Rust)** -- hand back one `#[test]` for the `mod tests` of")
+            lines.append(f"  `{e.impl_file or 'its implementing file'}`, carrying "
+                         f"`// covers: {e.id}`.")
+            lines.append("  **Do not write it** -- every feature in this goal wants that same file.")
+        if p.nvst:
+            lines.append(f"  {len(p.nvst)} case(s) already credit it, e.g.")
+            lines.append(f"  `{p.nvst[0]}` -- read one before adding")
+            lines.append("  another, so yours pins something the corpus does not.")
+    if p.gaps:
+        lines.append(f"- **known gap** -- {len(p.gaps)} proof here already found a bug nobody has "
+                     f"fixed: {', '.join(p.gaps)}")
+    return "\n".join(lines) + "\n"
+
+
+def worker_brief(n: int, total: int, label: str, lane: list[tuple[Entry, dict]],
+                 proofs: dict[str, Proofs], policy: dict) -> str:
+    head = [
+        f"# Fan-out worker {n} of {total} -- {label}",
+        "",
+        f"You are writing ADR 0134's proofs for the {len(lane)} feature(s) below. **One feature at",
+        "a time, all of its proofs together** -- never one proof across many features. The expensive",
+        "thing is understanding what the feature does at its edges, and the example, the attack, the",
+        "bench and the test all spend that same understanding.",
+        "",
+        f"`python tools/dossier.py --id '<feature>'` re-prints any of this. `--brief '<feature>'`",
+        "prints one of the blocks below on its own.",
+        "",
+        WORKER_RULES,
+        "## Your features",
+        "",
+        "",
+    ]
+    body = [feature_block(i, e, m, proofs[e.id], policy) for i, (e, m) in enumerate(lane, 1)]
+    return "\n".join(head) + "\n".join(body)
+
+
+def wrapped(ids: list[str], indent: str, width: int = 96) -> list[str]:
+    """`ids` as few lines as they fit on. The parent reads this table and nothing else of the
+    split, so one line per feature would charge its window forty lines to say what eight say."""
+    out, line = [], indent
+    for name in ids:
+        piece = name + ("," if name != ids[-1] else "")
+        if len(line) + len(piece) + 1 > width and line != indent:
+            out.append(line)
+            line = indent
+        line += (" " if line != indent else "") + piece
+    return out + ([line] if line.strip() else [])
+
+
+def lanes_for(todo: list[tuple[Entry, dict]], workers: int) -> list[list[tuple[Entry, dict]]]:
+    """Split the worklist into balanced lanes, heaviest feature first.
+
+    Longest-processing-time-first, priced in proofs owed: a feature owing all four is four times a
+    feature owing one, and a lane holding the four heaviest is what makes a fan-out wait on one
+    worker while seven idle."""
+    lanes: list[list[tuple[Entry, dict]]] = [[] for _ in range(workers)]
+    load = [0] * workers
+    for entry, missing in sorted(todo, key=lambda r: (-len(r[1]), r[0].id)):
+        i = load.index(min(load))
+        lanes[i].append((entry, missing))
+        load[i] += len(missing)
+    return [lane for lane in lanes if lane]
+
+
+def partition(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dict,
+              workers: int, label: str) -> int:
+    """Cut a scope into worker briefs, or refuse to.
+
+    The refusal is the point. Everything else here is arithmetic; what makes fanning this work out
+    safe rather than hopeful is that two lanes are checked for a shared path before a brief is
+    written, and that no lane may name anything under `RESERVED`. A partition that cannot be run
+    wide writes nothing and says which two features collide."""
+    todo: list[tuple[Entry, dict]] = []
+    parent_only: list[Entry] = []
+    for entry in scope:
+        missing = owed(entry, proofs[entry.id], policy, skips)
+        if not missing:
+            continue
+        mine = worker_owed(missing)
+        (todo.append((entry, mine)) if mine else parent_only.append(entry))
+    if not todo:
+        print(f"dossier: nothing for a worker in {label}"
+              + (f" -- {len(parent_only)} feature(s) owe a re-measurement only, which is "
+                 f"`--record-perf` in the parent." if parent_only else " -- nothing owed."))
+        return 0
+
+    forced = workers or machine.override("NVS_DOSSIER_WORKERS") or FANOUT_WORKERS
+    lanes = lanes_for(todo, max(1, min(forced, len(todo))))
+
+    owner: dict[str, int] = {}
+    refusals: list[str] = []
+    for i, lane in enumerate(lanes):
+        for entry, _ in lane:
+            for path in owned_paths(entry):
+                if path.startswith(RESERVED):
+                    refusals.append(f"{entry.id} would write {path}, which is shared by the batch "
+                                    f"or has exactly one writer")
+                if owner.get(path, i) != i:
+                    refusals.append(f"worker {owner[path] + 1} and worker {i + 1} would both write "
+                                    f"{path} ({entry.id})")
+                owner[path] = i
+    if refusals:
+        print(f"dossier: REFUSED -- this partition is not safe to run wide. "
+              f"{len(refusals)} collision(s), nothing written:")
+        for line in refusals[:20]:
+            print(f"  {line}")
+        if len(refusals) > 20:
+            print(f"  ... and {len(refusals) - 20} more")
+        print("  A collision here is a defect in `owned_paths()` or in the roster's paths, never "
+              "in the lane split -- run these features serially until it is fixed.")
+        return 1
+
+    out = FANOUT / slugify(label)
+    out.mkdir(parents=True, exist_ok=True)
+    for stale in out.glob("w*.md"):
+        stale.unlink()
+    written = []
+    for i, lane in enumerate(lanes, 1):
+        path = out / f"w{i:02d}.md"
+        path.write_text(worker_brief(i, len(lanes), label, lane, proofs, policy),
+                        encoding="utf-8", newline="\n")
+        written.append((path, lane))
+
+    owed_total = sum(len(m) for _, m in todo)
+    print(f"== FAN-OUT  {label}: {len(todo)} feature(s), {owed_total} proof(s) owed, "
+          f"{len(lanes)} worker(s)")
+    print(f"-- {len(owner)} owned path(s), no two workers share one. Hand each worker the BRIEF")
+    print("-- path below and launch them in one message; each reads its own in its own window.")
+    print()
+    for path, lane in written:
+        proofs_owed = sum(len(m) for _, m in lane)
+        print(f"  {rel(path):40} {len(lane):>2} feature(s), {proofs_owed:>2} proof(s)")
+        for line in wrapped([e.id for e, _ in lane], " " * 8):
+            print(safe(line))
+    if parent_only:
+        print()
+        print(f"  {len(parent_only)} feature(s) have no lane -- they owe a stale figure and nothing")
+        print(f"  a worker writes. `--record-perf` in step 4 closes them: "
+              f"{', '.join(safe(e.id) for e in parent_only[:4])}"
+              + (f" and {len(parent_only) - 4} more" if len(parent_only) > 4 else ""))
+    print()
+    print("Then, in the parent and only after every worker has stopped, in this order:")
+    print("  1. python tools/dossier.py --findings          # fix what they hit, as one batch")
+    print("  2. python tools/splice.py --patch <file>       # every handed-back #[test], one call")
+    print(f"  3. python tools/dossier.py --run all --group '{label}'")
+    # Only where a figure is actually owed: `types:enum` and every other kind `POLICY` excuses
+    # would send a session to measure a scope with no bench in it, and a step that does nothing is
+    # a step the next session learns to skip.
+    if any("perf" in m for _, m in todo) or parent_only:
+        print(f"  4. python tools/dossier.py --record-perf --group '{label}'   # nothing else running")
+    print("  5. python tools/verify.py, then the wrap. One commit per feature still.")
+    return 0
+
+
+def print_brief(fid: str, entries: list[Entry], proofs: dict[str, Proofs], policy: dict,
+                skips: dict) -> int:
+    match = next((e for e in entries if e.id == fid), None)
+    if match is None:
+        near = [e.id for e in entries if fid.lower() in e.id.lower()][:8]
+        print(f"dossier: no feature {fid!r}." + (f" Near: {', '.join(near)}" if near else ""))
+        return 1
+    missing = owed(match, proofs[match.id], policy, skips)
+    if not missing:
+        print(f"dossier: {match.id} is complete -- nothing to brief.")
+        return 0
+    mine = worker_owed(missing)
+    if not mine:
+        print(f"dossier: {match.id} owes only a re-measurement "
+              f"({missing['perf']}), which is `--record-perf` in the parent. Nothing to brief.")
+        return 0
+    print(safe(WORKER_RULES))
+    print(safe(feature_block(1, match, mine, proofs[match.id], policy)))
+    return 0
+
+
+def print_findings(clear: bool) -> int:
+    """What the workers hit, collated. One file per finding is what makes this safe to write while
+    eight of them are running; collating is what makes it one batch to fix."""
+    files = sorted(FINDINGS.glob("*.md")) if FINDINGS.is_dir() else []
+    if not files:
+        print(f"dossier: no findings -- {rel(FINDINGS)} is empty. Either every proof the workers "
+              f"wrote passed, or none has been run yet.")
+        return 0
+    print(f"== WHAT THE WORKERS FOUND  ({len(files)} finding(s))")
+    print("-- fix these as ONE batch: they cluster in the implementing file a goal's whole batch")
+    print("-- shares, which is the reason no worker was allowed to touch it. Fixing, and then the")
+    print("-- proof that found it, land in the same commit -- or the bug goes in that crate's")
+    print("-- `# Known gaps` with a `// dossier: known-gap <file> -- <what breaks>` on the proof.")
+    print()
+    for path in files:
+        print(f"-- {rel(path)}")
+        for line in read(path).rstrip().split("\n"):
+            print(f"   {safe(line)}")
+        print()
+    if clear:
+        done = FINDINGS / "applied"
+        done.mkdir(parents=True, exist_ok=True)
+        for path in files:
+            path.replace(done / path.name)
+        print(f"dossier: moved {len(files)} finding(s) into {rel(done)}. Archived, not deleted -- "
+              f"a fix that turns out to be wrong needs what was written.")
+    return 0
+
+
 # ------------------------------------------------------------------------------ goal writing
 
 
@@ -1362,7 +1754,8 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         split = bool(re.search(r"\(\d+/\d+\)$", label))
         if not dry_run:
             (out_dir / f"{slug}.md").write_text(
-                goal_prose(n, label, members, proofs, policy, skips),
+                goal_prose(n, label, members, proofs, policy, skips,
+                           [e.id for e in members] if split else None),
                 encoding="utf-8", newline="\n")
             (out_dir / f"{slug}.toml").write_text(
                 goal_toml(n, label, groups, anchors, no_perf,
@@ -1612,8 +2005,22 @@ def append_to_chain(chain_path: Path, written: list[tuple[int, str, str]], where
     return 0
 
 
+def partition_command(members: list[Entry], only: list[str] | None) -> str:
+    """The `--partition` line for one goal, scoped exactly the way its own check is.
+
+    A class larger than `--per-goal` is split across several goals, and every one of them gates on
+    its own features rather than on the class. The fan-out has to be cut the same way or goal 1/3
+    hands its workers the whole class -- so a split goal names both: `--group` for the lane
+    directory's name, `--only` for what is actually in scope."""
+    group = members[0].group if members else ""
+    line = f"python tools/dossier.py --partition --group '{group}'"
+    if only:
+        line += " --only " + " ".join(f"'{i}'" for i in only)
+    return line
+
+
 def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proofs], policy: dict,
-               skips: dict) -> str:
+               skips: dict, only: list[str] | None = None) -> str:
     lines = [
         f"# Dossier goal {n} — {label}",
         "",
@@ -1646,6 +2053,36 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
             lines.append(f"   Replaces PHP `{'`, `'.join(e.twin[:4])}` — so its oracle case goes in")
             lines.append("   `tests/differential/` and needs no frozen output.")
     lines += [
+        "",
+        "## Running this goal wide",
+        "",
+        "**This is one of the few goals where a session may hand *writing* to subagents.** The",
+        "standing rule in `docs/agent/session-prompt.md` — a subagent searches and never writes —",
+        "holds everywhere else, and the carve-out is this program and no other, because dossier work",
+        "is the one shape that earns it: three of the four proofs are attributed by a path derived",
+        "from the feature's own id, so two workers cannot name the same file; nothing here is a",
+        "design decision; and `dossier.py --verify --group` judges the result mechanically.",
+        "",
+        "    " + partition_command(members, only),
+        "",
+        "writes one brief per worker under `.loop/dossier-fanout/` and **refuses** if any two would",
+        "write the same path. Hand each worker its brief *path* — it reads it in its own window, so",
+        "yours holds the table and nothing else — and launch them in one message so they run at",
+        "once. A worker's own brief carries what it may not touch; you do not repeat it.",
+        "",
+        "Then, in this session and only after every worker has stopped, in this order:",
+        "",
+        "1. `python tools/dossier.py --findings` — what they hit. Fix it as **one batch**, because",
+        "   the fixes cluster in the implementing file this whole goal shares.",
+        "2. Splice every Rust `#[test]` they handed back into its `mod tests`, in one",
+        "   `python tools/splice.py --patch`. No worker writes under `crates/` for exactly this",
+        "   reason: all of this goal's features want the same file.",
+        "3. `--run all` and then `--record-perf`, over that same scope — the `--partition` run",
+        "   prints both lines back with the scope already in them. A figure taken while eight",
+        "   workers are running is not a measurement, so nothing else may be in flight.",
+        "5. `python tools/verify.py`, then the wrap. One commit per feature still.",
+        "",
+        "Nothing in that list is optional, and none of it may overlap the fan-out.",
         "",
         "## Standing decisions",
         "",
@@ -1938,6 +2375,17 @@ def main() -> int:
     ap.add_argument("--perf-report", action="store_true", help="regenerate docs/perf/members.md")
     ap.add_argument("--bless", nargs="+", metavar="FILE",
                     help="write an example's .out from what it prints, and show it")
+    ap.add_argument("--partition", action="store_true",
+                    help="cut the scope into worker briefs under .loop/dossier-fanout/, or refuse "
+                         "naming the two workers that would write the same path")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="with --partition: how many lanes (default FANOUT_WORKERS, see --help)")
+    ap.add_argument("--brief", metavar="ID",
+                    help="one feature's brief and the worker rules, as a worker is handed them")
+    ap.add_argument("--findings", action="store_true",
+                    help="what the workers hit, collated for one batch fix")
+    ap.add_argument("--clear", action="store_true",
+                    help="with --findings: archive them under applied/ once the fix has landed")
     ap.add_argument("--emit-goals", action="store_true", help="write the loop chain")
     ap.add_argument("--out", default=str(GOALS_OUT), help="where --emit-goals writes")
     ap.add_argument("--append-chain", metavar="CHAIN",
@@ -1959,6 +2407,10 @@ def main() -> int:
     # with no build still owes an answer about whether its generated goals are walkable.
     if args.check_goals:
         return check_goals(Path(args.out).resolve())
+    # Reads one directory and executes nothing, like --check-goals: the parent asks this in the
+    # middle of a fan-out, when a build may not have happened for an hour.
+    if args.findings:
+        return print_findings(args.clear)
 
     nvs = binary(args.nvs)
     if nvs is None:
@@ -1991,6 +2443,12 @@ def main() -> int:
                   f"re-run --emit-goals: {', '.join(unknown[:5])}")
             return 1
     proofs = collect(entries)
+
+    if args.brief:
+        return print_brief(args.brief, entries, proofs, policy, skips)
+    if args.partition:
+        return partition(scope, proofs, policy, skips, args.workers,
+                         scope_label(args) or "the whole roster")
 
     if args.record_perf:
         rc = record_perf(nvs, scope, args.reps, args.note, proofs, policy, skips, args.force)
