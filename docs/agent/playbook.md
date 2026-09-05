@@ -2022,6 +2022,19 @@ is why" — is this file.
   too and confirmed nothing. Both now read `^(\d+[a-z]?)`. The general shape: a section slice that
   comes back plausible is not evidence the selector matched — check the heading line the slicer
   printed against the one you asked for, because every other check in the loop trusts that pack.
+- **A chain-switch failure in `.loop/log.md` numbers its check in the *folded* goal, not in the goal
+  file you will open — and the reason may already be fixed.** The run that closed goal 6 ended on
+  `chain: 21 carried-gaps's acceptance list is not runnable -- check 252, the durable gap list exists
+  and every entry names an owner [2 owned keys]: a command check needs `argv``, and
+  `docs/agent/goals/21-carried-gaps.toml` holds **17** checks whose command check does carry `argv`,
+  so the message reads as a lie about a file anyone can open. It is not: `loop.py`'s `install_next`
+  validates twice — `spec_error` on the goal file before anything moves, then `Goal(...)` on the live
+  copy *after* `goal-switch.py` has folded the previous goal's ~250 floor checks in **above** the
+  entry's own — and only the second numbering reaches 252. Subtract the floor count, which
+  `goal-switch.py` prints on its first line, to get the index in the file you can edit. The other
+  half is that a by-hand commit had fixed it an hour before the session read the ledger: run
+  `python tools/chain.py --check`, which validates every queued entry in one call, before spending
+  anything on what the message says.
 
 ## Running things
 

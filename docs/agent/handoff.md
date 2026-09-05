@@ -2,52 +2,51 @@
 
 ## State
 
-**Goal 6, M7 — stage 9's last check is green.** `python tools/bench.py --serve-vs-fpm --record
-benches/serve.json` prints `requests/sec` and `recorded` in about 2.3 s, so the `command` row at
-`docs/agent/loop-goal.toml:4063` is satisfied. Stage 9 is the last of the ten stages and the whole
-goal is 250 checks; whether anything *else* is open is the driver's next acceptance run to say, not
-this session's.
+**Goal 6, M7 is green.** The driver logged `## goal reached: 6 server -- every check in its
+acceptance list passes` after run 14:24's session 0001, and this session found nothing left for it in
+the ledger. The next clean acceptance run switches the chain to **goal 21, carried-gaps**, which
+overwrites this file with `docs/agent/goals/21-carried-gaps.handoff.md` — so everything below matters
+only if the run stays on goal 6.
 
-**On this box: `nvs serve` 29,518 requests/sec against `php-cgi`'s 10,620 — 2.78x, at concurrency
-1.** The decision behind those numbers is recorded in `tools/bench.py`'s module doc, § *The
-serve-versus-FPM leg*, which is its only home: the generator is that file rather than `wrk` because
-no generator is installed here; the peer is `php-cgi -b` driven over FastCGI with opcache, which is
-not a stand-in for FPM but **the same SAPI**, and it pays no HTTP parse and no proxy hop while `nvs
-serve` pays both, so the comparison is biased towards PHP; `php -S` and no-baseline-at-all are
-fallbacks, reachable on a box that has the strong peer through `--serve-baseline
-{fcgi,builtin,none}` so that neither branch is code nobody has run. Concurrency defaults to 1
-because neither Windows peer answers a second connection at all — at `--concurrency 4` the FastCGI
-peer simply never replies, and the leg now says so by name instead of timing out silently.
+**The chain's own blocker is gone.** The 14:24 run ended on `21 carried-gaps's acceptance list is not
+runnable -- ... a command check needs `argv``; commits `fd8cdc52` and `5e3b8ce6` fixed that class of
+authoring error by hand at 15:09, and `python tools/chain.py --check` now reports **29 entries, all
+walkable** (one cosmetic note about entry 7 sitting below 22 in the `--list` order). The playbook
+bullet added this session is why the message looked like it named a file that disagreed with it.
+
+**The status line is `CONTINUE`, not `DONE`, deliberately.** `loop.py:4171` only reads a session's
+`DONE` on the branch where the acceptance check *failed*, where it stops the run as a false claim; on
+a passing check the driver advances the chain and never looks at the line. `CONTINUE` is therefore
+the same outcome when the goal is green and the safe one when it is not.
+
+**`orient.py` has a `[context] spec` field now** (`tools/orient.py:801`), slicing `docs/spec/*.md`
+by `"01 §15"` exactly as `adrs` slices an ADR. No goal names it yet — that is the first item below.
+It is the fix for the "the pack prints no spec section" line two handoffs in a row carried.
 
 **`benches/serve.json` is a JSON array capped at 100 runs**, and the driver's acceptance check
-appends one every iteration. A session will therefore find it dirty without having written it:
-committing the newer measurement or checking it out are both fine, and neither is a regression.
-
-**Five migration members are still owed**, listed in
-`crates/nvs-stdlib/tests/migration-members-outstanding.txt`. The list only shrinks.
-
-**`orient.py` still prints no spec section**, and the `[context]` manifest at
-`docs/agent/loop-goal.toml:74` still has no `spec` field — carried from the previous handoff because
-it is still true and still costs three calls a session that writes a differential case.
+appends one every iteration. A session will find it dirty without having written it: committing the
+newer measurement or checking it out are both fine, and neither is a regression.
 
 ## Next group
 
-**Closing the goal, and the two docs this leg leaves behind.** File set:
-`docs/agent/loop-goal.toml`, `docs/plan/m7.md`.
+**The manifest field this session landed, and the ratchet it was bought for.** File set:
+`docs/agent/goals/21-carried-gaps.toml`, `crates/nvs-stdlib/tests/migration-members-outstanding.txt`,
+`crates/nvs-stdlib/src/registry.rs`.
 
-- [ ] **Take whatever the driver's ledger names, and if it names nothing, write `DONE`.** The check
-      this session closed is `docs/agent/loop-goal.toml:4063`; stage 9 is the last stage, so a clean
-      acceptance run means the goal in `docs/agent/loop-goal.md` is met.
-- [ ] **Reconcile M7's *Verify* sentence with what was measured** — `docs/plan/m7.md:105` still asks
-      for `wrk`/`oha` against PHP-FPM. Say what stands in and point at `tools/bench.py`'s § *The
-      serve-versus-FPM leg* rather than restating it; `python tools/plan.py --amend M7` is the tool,
-      and whether it takes a `M7:verify` selector is the first thing to find out.
-- [ ] **Add a `spec` field to the goal's `[context]`** — `docs/agent/loop-goal.toml:74` — slicing
-      `docs/spec/01-core-library.md` §§ 1-3, whose *Replaces* column names a member's PHP twin. Two
-      sessions have now paid three calls each to read it by hand.
+- [ ] **Name `spec` in the incoming goal's `[context]`** — `docs/agent/goals/21-carried-gaps.toml:17`.
+      The field is live and unused; `docs/agent/loop-authoring.md`'s § 2 table row is the spelling and
+      the way to get it wrong. Pick sections, never a whole file: `01-core-library.md` is 1,200 lines.
+- [ ] **`Core\Os` is specified and unwritten** — `crates/nvs-stdlib/tests/migration-members-outstanding.txt:23`
+      names `hostname`, `memoryUsage` and `pid` against a class with no module in the crate at all.
+      The five-edit shape is `docs/agent/conventions.md`; the roster is
+      `crates/nvs-stdlib/src/registry.rs:1255`. The list only shrinks.
+- [ ] **`Core\Process::spawn`** — `crates/nvs-stdlib/tests/migration-members-outstanding.txt:30`. The
+      class is registered and `run` is on it; the streaming half `proc_open`/`popen` point at is the
+      last of the five owed keys.
 
 ## Backlog
 
-- A second serve case beyond `hello`: today's figure is request overhead only — `benches/serve/`.
-- `Core\Db\Queryable::stream` and four more — `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
-- `--concurrency` past 1 needs a box with a real FPM pool — `tools/bench.py` § *The serve-versus-FPM leg*.
+- The `--list` order note from `chain.py --check`: entry 7 is numbered below the entry before it —
+  legal, since a number is an identity tag, `docs/agent/goals/chain.toml`.
+- Goal 6's own `[context]` never gained a `spec` entry; the live `loop-goal.toml` is about to be
+  replaced, so the durable half is the tool and the authoring-doc row, both landed.
