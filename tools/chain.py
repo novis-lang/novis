@@ -9,6 +9,7 @@
     python tools/chain.py --move 18 --after 19
     python tools/chain.py --renumber 21 --to 22       # or --retitle 21 --to unix-sockets
     python tools/chain.py --remove 21 --delete-files
+    python tools/chain.py --retire 6                 # walked: drop the acceptance list it already folded on
     python tools/chain.py --check
 
 `docs/agent/goals/chain.toml` is the schedule the driver walks, and adding an entry to it is five
@@ -23,7 +24,7 @@ run, `[[goal]]` block) and written back as the same lines, and everything the to
 deliberately change is byte-for-byte what it was. `--check` re-renders the file it just read and
 says so if that is ever untrue.
 
-Two rules are enforced rather than documented, because both fail silently:
+Three rules are enforced rather than documented, because all three fail silently:
 
 * **The walked prefix is frozen.** `.loop/chain.json` is an index into this list, and every switch
   has folded one walked entry's checks into the next as its floor (`goal-switch.py`). An entry at or
@@ -33,6 +34,16 @@ Two rules are enforced rather than documented, because both fail silently:
   dossier: `dossier.py` numbers what it appends from `max(number) + 1`, so a hand-written entry that
   takes 51 collides with a generated one. `--new` picks the next free number below 50 and `--check`
   says so when something is sitting in the emitter's range.
+* **A walked entry is retired, never removed.** `--retire N` deletes goal N's `.toml` and
+  `.handoff.md` and marks the entry `retired = "<date>"`; the `[[goal]]` block and the `.md` stay,
+  so no position shifts and nothing that cites the prose breaks. It is refused unless every
+  `[[check]]` of that goal is *provably* in the live goal already -- which is the whole safety
+  argument, and the reason this is a check rather than a note in a doc. See `--retire` below.
+
+Retirement exists because the fold is cumulative: goal 1's 80 checks are in goal 2's file, and its
+267-deep descendant is the live goal today. Six walked `.toml`s were 830K of text that no tool reads
+and every `grep` over `docs/` hits eight times. The driver retires each entry as it leaves it, so the
+93 goals `dossier.py` appends cost that once each instead of forever.
 
 What this deliberately does not do: rewrite the prose that *cites* a goal. `--renumber` and
 `--retitle` move the files and fix the two headers that carry the number mechanically, then print
@@ -49,6 +60,7 @@ import subprocess
 import sys
 import textwrap
 import tomllib
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -59,6 +71,11 @@ GOALS = ROOT / "docs" / "agent" / "goals"
 CHAIN = GOALS / "chain.toml"
 README = GOALS / "README.md"
 STATE = ROOT / ".loop" / "chain.json"
+
+#: The goal the driver is actually running. `--retire` proves a walked entry's checks are in here
+#: before deleting the file they came from; every switch since that entry left has folded them
+#: forward one more time, so this is where all of them end up.
+LIVE_GOAL = ROOT / "docs" / "agent" / "loop-goal.toml"
 
 #: `goal-switch.py` inserts the previous goal's whole acceptance list at this line and refuses the
 #: switch outright when it is missing -- which stops a run rather than degrading it. Every scaffold
@@ -72,8 +89,10 @@ DOSSIER_NUM = 50
 
 #: The keys a `[[goal]]` may carry, in the order they are written. `loop.py`'s `Chain._load`
 #: requires the first four; `preflight` is optional and `milestone` is what `plan.py` derives every
-#: `Carried by` cell from.
-KEYS = ("name", "md", "toml", "handoff", "milestone", "preflight")
+#: `Carried by` cell from. `retired` is the date a walked entry's acceptance list was dropped, and
+#: it is the one key whose PRESENCE removes two others -- a retired entry names no `toml` and no
+#: `handoff`, because there are none.
+KEYS = ("name", "md", "toml", "handoff", "milestone", "preflight", "retired")
 
 WIDTH = 100
 
@@ -138,6 +157,16 @@ class Entry:
         """A goal `dossier.py` wrote, which is edited in the emitter and never here."""
         return ("GENERATED" in "\n".join(self.lead).upper()
                 or (self.num is not None and self.num > DOSSIER_NUM))
+
+    @property
+    def retired(self):
+        """The date this entry's acceptance list was dropped, or `""` while it still has one."""
+        return self.get("retired")
+
+    @property
+    def files(self):
+        """The keys naming a file that must be on disk -- two fewer once the entry is retired."""
+        return ("md",) if self.retired else ("md", "toml", "handoff")
 
     # -- writing -------------------------------------------------------------------------------
 
@@ -312,13 +341,16 @@ def cmd_list(entries, show_all):
         if e not in shown:
             continue
         state = "walked" if i < live else "LIVE" if i == live else "ahead"
-        missing = [k for k in ("md", "toml", "handoff") if not (ROOT / e.get(k)).is_file()]
+        if e.retired:
+            state += f", retired {e.retired}"
+        missing = [k for k in e.files if not (ROOT / e.get(k)).is_file()]
         if missing:
             state += f"  !! {', '.join(missing)} missing"
         print(f"  {i + 1:>3}  {e.name:<26} {e.get('milestone'):<12} "
               f"{e.get('preflight'):<9} {state}")
     print()
     print("  An entry at or before the live one is frozen: its checks are already somebody's floor.")
+    print("  A retired one has had that list dropped -- it is in the live goal, not in its own file.")
     return 0
 
 
@@ -327,11 +359,12 @@ def cmd_show(entries, num):
     live = live_index()
     pos = entries.index(e)
     print(f"chain: position {pos + 1} of {len(entries)} -- "
-          f"{'walked' if pos < live else 'LIVE' if pos == live else 'ahead of the run'}")
+          f"{'walked' if pos < live else 'LIVE' if pos == live else 'ahead of the run'}"
+          + (f", retired {e.retired} (its checks are the live goal's floor)" if e.retired else ""))
     print()
     print(e.text)
     print()
-    for key in ("md", "toml", "handoff"):
+    for key in e.files:
         path = ROOT / e.get(key)
         mark = " " if path.is_file() else "!"
         head = ""
@@ -762,6 +795,87 @@ def cmd_remove(text, head, entries, opts):
     return 0
 
 
+def check_ids(path):
+    """Every `[[check]]` in a goal TOML, as `(kind, name-or-file)` -- the pair the ledger prints.
+
+    Identity and not text, because the floor is carried verbatim and then *lived in*: a session may
+    raise a `min_passing`, add a test name to a `cargo-named` block or fix a fixture path, and all
+    three are legitimate. What may never happen is a check going missing, which is exactly what a
+    set difference over this key sees and a text comparison would drown in noise.
+    """
+    spec = tomllib.loads(path.read_text(encoding="utf-8"))
+    return {(c.get("kind", "?"), c.get("name") or c.get("file") or "?")
+            for c in spec.get("check", [])}
+
+
+def cmd_retire(text, head, entries, opts):
+    """Drop a walked entry's acceptance list, keeping its block and its prose.
+
+    The deletion is safe for one reason and it is checked rather than asserted: `goal-switch.py`
+    folded every `[[check]]` of this goal into the next one at the switch, and each switch since
+    folded that forward again, so the live goal holds them all. This proves that before unlinking
+    anything, and the proof is not `--force`-able -- a floor that has gone missing is the one thing
+    retirement must never hide, and `--force` is for a run whose position bookkeeping is stale.
+    """
+    # Every other command here is run by a person who reads the diff. This one is run by the driver
+    # at every switch, so a file that does not round-trip would be reformatted unreviewed, in a
+    # commit nobody opened. Refuse instead, and let `--check` say what is wrong with it.
+    if render(head, entries) != text:
+        return die(f"{rel(CHAIN)} does not round-trip through this tool's parser, so retiring an "
+                   f"entry would reformat lines nobody touched -- `--check` says what is wrong")
+    e = find(entries, opts.retire)
+    pos, live = entries.index(e), live_index()
+    if e.retired:
+        return die(f"goal {e.num} ({e.name}) was already retired on {e.retired}")
+    if pos >= live and not opts.force:
+        where = ("is the live goal -- its `.toml` is the file the driver runs" if pos == live else
+                 "is ahead of the run" if live >= 0 else
+                 f"cannot be retired: {rel(STATE)} says no run has installed an entry")
+        return die(f"goal {e.num} ({e.name}) {where}. Only an entry the run has LEFT may be "
+                   f"retired, because leaving it is what folded its checks forward.\n"
+                   f"       Pass --force if the run is over and this position is stale.")
+
+    toml_path, live_path = ROOT / e.get("toml", "x"), LIVE_GOAL
+    if not toml_path.is_file():
+        return die(f"goal {e.num} names {e.get('toml')}, which is not on disk -- nothing to prove "
+                   f"a fold against. Fix the entry before retiring it.")
+    if not live_path.is_file():
+        return die(f"{rel(live_path)} does not exist, so there is nothing to prove the fold into")
+    lost = sorted(check_ids(toml_path) - check_ids(live_path))
+    if lost:
+        die(f"goal {e.num} ({e.name}) holds {len(lost)} check(s) that {rel(live_path)} does not, "
+            f"so its acceptance list was NOT folded all the way forward:")
+        for kind, name in lost[:12]:
+            print(f"       [{kind}] {name}", file=sys.stderr)
+        if len(lost) > 12:
+            print(f"       ... and {len(lost) - 12} more", file=sys.stderr)
+        print("       Retiring it would delete a floor nothing else carries. Refusing.",
+              file=sys.stderr)
+        return 2
+
+    victims = [ROOT / e.get(k) for k in ("toml", "handoff")]
+    freed = sum(p.stat().st_size for p in victims if p.is_file())
+    if opts.dry_run:
+        print(f"chain: --dry-run -- would retire goal {e.num} ({e.name}): every one of its "
+              f"{len(check_ids(toml_path))} distinct checks is in {rel(live_path)}, so "
+              f"{', '.join(rel(p) for p in victims)} ({freed // 1024}K) would go")
+        return 0
+
+    e.set("toml", None)
+    e.set("handoff", None)
+    e.set("retired", date.today().isoformat())
+    CHAIN.write_text(render(head, entries), encoding="utf-8", newline="\n")
+    print(f"chain: goal {e.num} ({e.name}) retired -- its whole acceptance list is in "
+          f"{rel(live_path)}")
+    for path in victims:
+        if path.is_file():
+            path.unlink()
+            print(f"       deleted {rel(path)}")
+    print(f"       {freed // 1024}K freed. {rel(ROOT / e.get('md'))} stays: {rel(README)}, the "
+          f"plan and the milestone files cite it.")
+    return 0
+
+
 def cmd_rename(text, head, entries, opts):
     """`--renumber N --to M` and `--retitle N --to slug`: the same move, two halves of one name."""
     num = opts.renumber if opts.renumber is not None else opts.retitle
@@ -882,10 +996,27 @@ def cmd_check(text, head, entries):
         if not e.get("milestone"):
             problems.append(f"{where}: names no milestone -- `plan.py --check` derives every "
                             f"`Carried by` cell from that key")
-        for key in ("name", "md", "toml", "handoff"):
+        for key in ("name", *e.files):
             if not e.get(key):
                 problems.append(f"{where}: has no `{key}` -- loop.py refuses the whole chain")
-        for key in ("md", "toml", "handoff"):
+        if e.retired:
+            # Both halves, because either one alone is a lie the driver would act on: an entry that
+            # still names a deleted file stops the chain loading, and one marked retired while its
+            # list is still on disk is a floor nobody folded pretending it was folded.
+            for key, suffix in (("toml", "toml"), ("handoff", "handoff.md")):
+                if e.get(key):
+                    problems.append(f"{where}: is retired but still names `{key}` -- a retired "
+                                    f"entry has no acceptance list and no seed")
+                elif (GOALS / f"{e.num}-{e.slug}.{suffix}").is_file():
+                    notes.append(f"{where}: retired, but {e.num}-{e.slug}.{suffix} is still on "
+                                 f"disk -- `--retire` deletes it and something put it back")
+            # `live` is -1 in a tree with no `.loop/chain.json` at all, which is every fresh clone
+            # and every CI job: a retired entry there is history, not a contradiction.
+            if live >= 0 and i >= live:
+                problems.append(f"{where}: is retired but the run stands at position {live + 1} -- "
+                                f"only an entry the run has LEFT may be retired, since retiring is "
+                                f"what says its checks are already somebody's floor")
+        for key in e.files:
             path = ROOT / e.get(key, "x")
             if not path.is_file():
                 problems.append(f"{where}: names {e.get(key)}, which does not exist")
@@ -970,6 +1101,8 @@ def main(argv=None):
                    help="print or rewrite the comment above goal N (with --text or --from)")
     p.add_argument("--move", type=int, metavar="N", help="reorder goal N (with --after/--before)")
     p.add_argument("--remove", type=int, metavar="N", help="drop goal N from the chain")
+    p.add_argument("--retire", type=int, metavar="N",
+                   help="walked goal N: delete its .toml and .handoff.md, keep its block and .md")
     p.add_argument("--renumber", type=int, metavar="N", help="give goal N a new number (--to M)")
     p.add_argument("--retitle", type=int, metavar="N", help="give goal N a new slug (--to SLUG)")
     p.add_argument("--check", action="store_true", help="every entry is one the driver can walk")
@@ -1015,6 +1148,8 @@ def main(argv=None):
         return cmd_move(text, head, entries, opts)
     if opts.remove is not None:
         return cmd_remove(text, head, entries, opts)
+    if opts.retire is not None:
+        return cmd_retire(text, head, entries, opts)
     if opts.renumber is not None or opts.retitle is not None:
         if not opts.to:
             return die("--renumber/--retitle needs --to")
