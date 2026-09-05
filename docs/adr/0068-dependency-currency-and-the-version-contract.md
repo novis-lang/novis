@@ -12,7 +12,7 @@
   versions, which live in [the plan](../implementation-plan.md)'s status block § *Toolchain* and in
   [Cargo.toml](../../Cargo.toml); and package management for Novis *user* code (`nvs pkg`, M10).
 - **Amends:** none.
-- **Amended by:** 0081
+- **Amended by:** 0081, 0143
 
 > **In short:** Novis runs on **current** dependencies — being behind is a defect with a date on it, not a
 > neutral state, because the alternative is one enormous forced migration under a security deadline. Until
@@ -233,10 +233,12 @@ defect: it gets a hold with a date and a reason, or it gets updated.
 
 ## Verification
 
-- `cargo deny check` and `python tools/gen-attribution.py --check` run in CI on every push and are what make
-  §§ 5.5 and 7 enforceable rather than aspirational.
+- `cargo deny check` and `python tools/gen-attribution.py --check` run in CI on every push that can change
+  their answer — one touching a manifest, `deny.toml`, the notice file or the generator — and
+  unconditionally nightly and at release ([0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md)
+  § 2). They are what make §§ 5.5 and 7 enforceable rather than aspirational.
 - The guard tests in [benches/abi-probe/](../../benches/abi-probe/) are the mechanism behind § 7's first
-  rule; they run on all three platforms on every push.
+  rule; they run on all three platforms, on any push that touches a crate whose cost they measure.
 - Nothing checks § 4's classification, § 8's one-bump-one-commit, or a hold's expiry date. They are addressed
   to whoever runs the sweep, and the sweep's report (docs/agent/dependency-update.md § *The report*) is where
   they become visible.

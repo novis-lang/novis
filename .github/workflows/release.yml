@@ -162,12 +162,16 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
-  # 2. The full suite, as the definition every push already runs. Not a copy of it.
+  # 2. The full suite, as the definition every push already runs a slice of. Not a copy of it.
   # ---------------------------------------------------------------------------
   test:
     name: verify
     needs: plan
     uses: ./.github/workflows/ci.yml
+    # Every gate in that file forced on. A push runs the lane its own diff needs (ADR 0143); a
+    # release runs all of it, out of the same definition, so the two cannot drift apart.
+    with:
+      full: true
     permissions:
       contents: read
 

@@ -449,3 +449,5 @@ spellings rejected, and the reasoning.
   to break it; the roster of features is derived from `nvs meta --json` and the reference chapters rather
   than kept anywhere, and `python tools/dossier.py` is the whole mechanism
   ([0134](0134-every-shipped-feature-owes-four-proofs.md)).
+- A push runs only the jobs its diff can break; everything else runs nightly and at release, and no
+  job exists in two workflows ([0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md)).

@@ -527,7 +527,9 @@ pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 
 
 From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
-for 60s on every push.
+for 300s nightly and at release, carrying the corpus between runs -- not per push, because 60s against a
+corpus that starts empty every time is the same 60s repeated
+([ADR 0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) § 5).
 
 For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.

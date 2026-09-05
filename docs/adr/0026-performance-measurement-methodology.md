@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Amended by:** 0079, 0100
+- **Amended by:** 0079, 0100, 0143
 - **Scope:** how Novis's *own implementation* is measured and compared over time and across contributor
   machines/OSes — a historical performance dashboard, distinct from the existing per-PR regression guards in
   `benches/abi-probe/tests/perf_guards.rs` (unchanged by this ADR) and from
@@ -22,7 +22,8 @@
 > **In short:** two mechanisms, kept deliberately separate because they answer different questions. The
 > existing per-PR CI regression guards in `perf_guards.rs` are unchanged: self-relative wall-clock
 > ratios/slopes (deep chain vs shallow chain, throw vs return, process vs task), already proven cross-platform-
-> safe by the comments already in that file, running on every push, every platform, no new tooling. On top
+> safe by the comments already in that file, every platform, and on any push that touches a crate whose
+> cost they measure ([0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) § 2), no new tooling. On top
 > of that, a **historical dashboard** now exists for the separate goal of comparing Novis's performance
 > across releases *and across whoever's machine happened to build it*: on every merge to `main`, a dedicated,
 > non-shared Linux/WSL runner compiles a fixed benchmark workload and runs it under
@@ -68,9 +69,12 @@
 ### 1. Two mechanisms, kept separate
 
 - **CI regression guards** (`benches/abi-probe/tests/perf_guards.rs`, and its future equivalents as
-  milestones add runnable Novis code): **unchanged**. Self-relative wall-clock ratios/slopes, every push,
-  every CI platform, no new tooling, loose order-of-magnitude thresholds as already documented in that
-  file's own header comment. This answers "did this commit regress," which needs no cross-machine
+  milestones add runnable Novis code): **unchanged**. Self-relative wall-clock ratios/slopes, every CI
+  platform, no new tooling, loose order-of-magnitude thresholds as already documented in that file's own
+  header comment. They run on a push that touched `nvs-runtime`, `nvs-codegen`, `nvs-stdlib`, `nvs-host`
+  or the probes themselves, and unconditionally in the nightly and release lanes
+  ([0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) § 2) — a baseline cannot move without
+  one of those moving, and the run is a second compile of the workspace in release profile. This answers "did this commit regress," which needs no cross-machine
   comparability because each comparison happens on one run, one machine.
 - **Historical performance dashboard** (new, this ADR): answers "is Novis's own implementation getting
   faster or slower, in a sense comparable across whichever machine and OS produced each data point."

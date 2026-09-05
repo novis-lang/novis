@@ -215,6 +215,7 @@ so you never have to open this file to route a topic.
 | OpenAPI, Swagger, an API contract, `#[Api]`, generated docs, or detecting a breaking API change | [0085](0085-openapi-is-generated-from-the-route-table.md) |
 | Connection pooling, a reused database connection, what a connection reset must remove, `cores × max` sizing | [0067](0067-core-db.md) § 13 |
 | What the language should *do* beyond the two spec files | unwritten. `docs/spec/` holds `00-overview.md` and `01-core-library.md` and nothing else — say so rather than inferring semantics. |
+| why CI skipped the Windows leg, why a check says *Skipped*, what a push runs versus a release, the nightly run, adding a job to ci.yml, `tools/ci-changes.py` | [ci.yml](../../.github/workflows/ci.yml), with the lane table in [tools/ci-changes.py](../../tools/ci-changes.py) |
 
 **Adding a decision.** `python tools/adr.py --draft > .agent-tmp/adr.md`, fill in the prose, then
 `python tools/adr.py --new .agent-tmp/adr.md`. That does steps 1, 2, 4, 5 and 7 below and half of 3 —
@@ -392,6 +393,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md) | a connection future is driven by the coroutine that owns it, and a waker is one wake | Accepted |
 | [0139](0139-a-session-is-a-record-its-store-issued.md) | A session is a record its store issued, and its backend is never the local tier | Accepted |
 | [0142](0142-a-configured-store-is-authorized-by-its-configuring.md) | A store an operator configured is authorized by the configuring, and may be a Unix socket | Accepted |
+| [0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) | A push runs the lane its diff needs; the nightly and the release run all of it | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 
