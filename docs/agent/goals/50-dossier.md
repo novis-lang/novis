@@ -51,8 +51,8 @@ pass is **backward**-looking: it undoes drift the last twenty-five sessions caus
 **forward**-looking, and its evidence is not a measurement of what happened but the 93 files you just
 wrote. Read menu item 8 there before you start; it is the item this stage put on the menu.
 
-**Three findings are already on the table**, measured on 2026-09-04 against the emission that motivated
-this goal. Confirm each against your own tree — the numbers move — and then decide. They are a floor for
+**Four findings are already on the table**, measured on 2026-09-04 and 2026-09-05 against the emission
+that motivated this goal. Confirm each against your own tree — the numbers move — and then decide. They are a floor for
 this stage, not its ceiling.
 
 - [ ] **14 of the 93 goals name a `[context] modules` entry `orient.py` cannot map.** Every `lang:` and
@@ -65,12 +65,22 @@ this stage, not its ceiling.
       commit. What is *not* open is where the fix goes — `goal_toml()`, then re-emit.
 - [ ] **The repetitive part is file creation, not thinking.** A feature owes ~6 files at paths derived
       from its id (`docs/examples/core/Str/at/`, `tests/hostile/core/Str/at/`,
-      `benches/members/core/Str/at.nvs`), and 794 features is ~4,600 files. `--bless` already writes an
-      example's `.out`. Decide whether a `--scaffold '<id>'` that creates the directories and the stub
-      files earns its place, using `python tools/loop-stats.py --attribute` on the sessions you have:
-      **if the Write/Edit share of a session is not where the cost is, do not build it** — say so in the
-      report and move on. This is the one item most likely to be worth building and most likely to be
-      built on a guess.
+      `benches/members/core/Str/at.nvs`), and 830 features is ~6,700 files. `--bless` already writes an
+      example's `.out`. **Measured on 2026-09-05 and the answer came back no**: `loop-stats.py
+      --attribute` charges 28% of a session to `writing`, and that share is the file *contents* — a
+      stub still needs the Write that fills it, and a directory costs nothing to create. So a
+      `--scaffold '<id>'` was not built. Confirm the share against your own run before you accept
+      that; overturning it means naming what a stub removes that `--bless` and `--partition` do not.
+- [ ] **The fan-out landed before this goal ran, and its width is the thing to confirm.** ADR 0134's
+      work is file-disjoint by construction — three of the four proofs are attributed by a path derived
+      from the feature's id — so `dossier.py --partition` cuts a group into worker briefs and refuses
+      when two lanes would write the same path, and every generated goal's prose § *Running this goal
+      wide* drives it. `FANOUT_WORKERS` is 8, derived from a serial tail of 25–35 minutes against a
+      session floor of 71,941 tokens and a subagent's 12,600 (both measured over the 68 sessions in
+      `.loop/logs` on 2026-09-05). **That tail is an estimate until a goal has actually run wide**, and
+      you are the session that can price it: fan one group out, put the real numbers in the report, and
+      move `FANOUT_WORKERS` only if they say so. The two things it cannot make safe are named in
+      `tools/dossier.py` § *Running one group's features at once* and neither is optional.
 - [ ] **The acceptance sweep grows, the pack does not.** Each generated goal adds one
       `dossier.py --verify --group` check to the floor, so the last goal's sweep runs ~330 checks where
       today's runs 239. That cost is **wall clock, not context** — the checks are read by `loop.py` and
@@ -78,7 +88,7 @@ this stage, not its ceiling.
       sweep asking last session's failing check first). Measure one sweep before deciding it is a
       problem; a slow sweep that is correct is not drift.
 
-**Then look for what these three did not name.** You have the 93 goals, `loop-stats.py`,
+**Then look for what these four did not name.** You have the 93 goals, `loop-stats.py`,
 `loop-stats.py --attribute`, `orient.py --audit --goal <a generated goal>`, and the emitter that wrote
 all of them. Anything you change in `dossier.py` costs one commit and lands in 93 files; anything you
 change in one generated file is discarded by the next emission.

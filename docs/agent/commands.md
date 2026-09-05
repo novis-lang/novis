@@ -418,6 +418,9 @@ python tools/dossier.py --record-perf --group G  # measure, append to docs/perf/
 python tools/dossier.py --no-perf …              # any of the above, with the perf proof switched off
 python tools/dossier.py --emit-goals             # write the unattended loop that produces what is owed
 python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml   # ... onto a live chain
+python tools/dossier.py --partition --group G    # cut a group into worker briefs, or refuse
+python tools/dossier.py --brief 'Core\Str::at'   # one feature's brief, as a worker is handed it
+python tools/dossier.py --findings [--clear]     # what the workers hit, collated for one batch fix
 ```
 
 [ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) is why four proofs and not some other
@@ -439,6 +442,15 @@ Re-running it is how the chain stays current; a group that owes nothing is left 
 writes the chain that is left rather than the one that was. With `--append-chain` the generated files
 drop their ordinal prefix — `core-str.md`, not `001-core-str.md` — because a later emission renumbers,
 and an entry already on a chain must keep pointing at its own group's files.
+
+`--partition` is the one place in this repository where a session hands **writing** to subagents. The rule
+in [session-prompt.md](session-prompt.md) — a subagent searches and never writes — holds everywhere else,
+and the carve-out is this program alone because dossier work is the one shape that earns it: three of the
+four proofs are attributed by a path derived from the feature's own id, so two workers cannot name the
+same file, nothing in the goal is a design decision, and `--verify --group` judges the result
+mechanically. The tool asserts the first of those on every run rather than trusting it, and writes nothing
+when two lanes collide. `tools/dossier.py`'s § *Running one group's features at once* owns the protocol,
+`FANOUT_WORKERS` owns the width and how it was measured, and an emitted goal's own prose repeats neither.
 
 ## How wide anything runs
 

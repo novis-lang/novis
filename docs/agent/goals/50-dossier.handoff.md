@@ -27,11 +27,17 @@ stage 2 with headroom left.
 - [ ] **Any fix goes in `goal_toml()` / `goal_prose()` in `tools/dossier.py`**, then re-emit. A hand-edit
       to a generated file is lost at the next emission.
 - [ ] **Two commits**: the generator fix, if there was one, and the generated tree.
-- [ ] **Then stage 3**, which the goal prose owns in full. Three findings are already named there and
-      measured — 14 goals whose `[context] modules` `orient.py` cannot map, whether a `--scaffold` is
-      worth building, and what the growing floor actually costs — plus whatever those three did not
-      name. `python tools/dossier.py --check-goals` is the one mechanical gate; the rest of the stage
-      lands in `.loop/optimization/report.md`, and its *Proposals* section is the valuable half.
+- [ ] **Then stage 3**, which the goal prose owns in full. Four findings are already named there and
+      measured — 14 goals whose `[context] modules` `orient.py` cannot map, the `--scaffold` question
+      (answered: no, with the figure), what the growing floor actually costs, and the fan-out's width —
+      plus whatever those four did not name. `python tools/dossier.py --check-goals` is the one
+      mechanical gate; the rest of the stage lands in `.loop/optimization/report.md`, and its
+      *Proposals* section is the valuable half.
+- [ ] **The fan-out is already built and every emitted goal already drives it.** `dossier.py
+      --partition --group G` writes the worker briefs, `--brief` prints one, `--findings` collates what
+      they hit for one batch fix. Read `tools/dossier.py` § *Running one group's features at once*
+      before stage 3 — the width is the one number in it that is still an estimate, and this session is
+      where it stops being one.
 
 ## Backlog
 
