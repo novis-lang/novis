@@ -627,11 +627,17 @@ mod tests {
     use super::*;
 
     /// A private directory for one test, removed first so a crashed run does not poison the next.
+    ///
+    /// **Two levels below the temp dir, not one**, and that is what makes these tests runnable at
+    /// all: ADR 0042 § 5's check reads the directory *and its parent*, and a Unix `/tmp` is mode
+    /// `1777`, so a cache placed directly in it is refused before any test's own subject is
+    /// reached. The per-process root this nests under is created by this process and carries the
+    /// umask's ordinary bits, so it is the parent the check is meant to see.
     fn scratch(name: &str) -> PathBuf {
         static NEXT: AtomicU32 = AtomicU32::new(0);
         let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("nvs-cache-{}-{unique}-{name}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("nvs-cache-{}", std::process::id()));
+        let dir = root.join(format!("{unique}-{name}"));
         drop(fs::remove_dir_all(&dir));
         fs::create_dir_all(&dir).expect("a scratch directory under the temp dir is creatable");
         dir
