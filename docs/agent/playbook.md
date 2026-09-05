@@ -7785,6 +7785,15 @@ sibling in the same namespace unqualified.
   and the general shape is that a `Qual` lives on a *leaf* variant: any wrapper — a union today,
   anything nested tomorrow — silently drops the classification the row thought it wrote. The tell
   is a refusal naming a qualified type at a parameter whose row spells `Qual::Neutral`.
+- **A `[`Ctx`]` intra-doc link resolves in most of `nvs-runtime` and not in the module you just
+  wrote, and `verify.py` is not what tells you.** `crates/nvs-runtime/src/peer.rs`'s module doc
+  named `[`Ctx`]` where its siblings write `[`Ctx`](crate::Ctx)`, and the difference is only that
+  those modules `use` the type — a module doc that reaches for a crate-root type it does not import
+  is `error: unresolved link` under `-D rustdoc::broken-intra-doc-links`. The reason it survives a
+  session is that the doc gate is **not** part of `python tools/verify.py` (that tool says why), so
+  a green session leaves it red and the driver reports it every iteration afterwards. `python
+  tools/verify.py --doc` is the whole check and it names the file and column; run it once when a
+  session writes a module doc that links a type from another module.
 
 ## Divergences and refusals already pinned
 
