@@ -7740,6 +7740,21 @@ sibling in the same namespace unqualified.
   member in sight, so a fixture that hands one to a member picks a target that returns a value, or
   fixes this first. It surfaced while writing a case for `Core\Socket::upgrade(Chat::run(...))`,
   where the entry method returning `void` is the natural shape.
+- **`hyper`'s `with_upgrades()` cannot drive a connection this server accepts, and the way back to
+  the socket is `http1::Connection::into_parts`.** The obvious route to ADR 0083 § 1's hand-over is
+  the documented one — take the `OnUpgrade` out of the request's extensions, call
+  `serve_connection(...).with_upgrades()`, `await` the upgrade and downcast it back to your IO. It
+  does not compile here and it never will: `with_upgrades` is bounded `I: Send + 'static`, and
+  `crate::io::ConnectionIo` holds an `Rc` and a socket registered on the core that accepted it,
+  which is the whole point of it. What works instead has no bound at all — `Connection::into_parts`
+  is a plain `self` method giving back `io` **and** `read_buf`, and the plain `Future for
+  Connection` ends at a `101` without shutting the socket down (its `Dispatched::Upgrade` arm calls
+  `pending.manual()` and stops). The one thing to know to reach it: drive the connection through
+  `Pin::new(&mut conn)` in a `poll_fn` rather than moving it into `block_on`, which is sound because
+  `Connection` is `Unpin` — `hyper` already boxes the service future in its own dispatcher
+  (`proto::h1::dispatch`'s `in_flight: Pin<Box<Option<S::Future>>>`), so the `!Unpin` `async` block
+  the service returns never makes the connection `!Unpin`. Reading those two lines of `hyper` first
+  is cheaper than believing the `Send` bound is a fact about upgrades.
 
 ## Divergences and refusals already pinned
 
