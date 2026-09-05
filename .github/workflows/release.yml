@@ -242,10 +242,11 @@ jobs:
         with:
           python-version: '3.x'
 
-      # rust-toolchain.toml pins the version; this only honours it.
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      # rust-toolchain.toml pins the version, the components and the targets, and a bare
+      # `rustup toolchain install` installs exactly what it names. The release target below
+      # is added on top, because it is a matrix value the file cannot know.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
 
       - name: Add the release target
         shell: bash

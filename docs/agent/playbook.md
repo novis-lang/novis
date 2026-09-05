@@ -8978,3 +8978,10 @@ every session. Nothing below was reworded on the way.
   *"Unable to include"* and no key named, which is why `benches/proxied/php/pool.conf.in` is rendered by
   the driver rather than parameterised. `php -d opcache.enable_cli=1 -r '…opcache_get_status()…'` is how
   to prove the ini actually took, since `enable_cli=0` makes the obvious check return `false`.
+- **`toolchain: none` is not how `dtolnay/rust-toolchain` honours `rust-toolchain.toml` — the action has
+  no such case.** It hands the literal word to `rustup toolchain install`, which answers *"invalid value
+  'none' for '[TOOLCHAIN]...'"* and takes every Rust job on every platform down in about eight seconds.
+  A bare `rustup toolchain install --no-self-update` is the honest form: the `[TOOLCHAIN]` argument is
+  optional and defaults to the active toolchain, so the file stays the one home for the version, the
+  components *and* the targets. The tell is a wholly red pipeline whose only green jobs are the ones
+  that never wanted a compiler.

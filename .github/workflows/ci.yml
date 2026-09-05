@@ -110,11 +110,12 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      # rust-toolchain.toml pins the version; this action just honours it.
+      # rust-toolchain.toml pins the version, the components and the targets, and a bare
+      # `rustup toolchain install` installs exactly what it names. Passing `toolchain: none`
+      # to dtolnay/rust-toolchain does not mean "read the file" -- the action has no such
+      # case and hands the literal word to rustup, which rejects it.
       - name: Install toolchain
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+        run: rustup toolchain install --no-self-update
 
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
@@ -157,9 +158,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           key: wasm-probe
@@ -182,10 +182,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
-          components: rustfmt, clippy
+      # rustfmt and clippy are in rust-toolchain.toml's `components`; naming them here too
+      # would be a second home for the same fact.
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - name: rustfmt
         run: cargo fmt --all --check
@@ -214,9 +214,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: EmbarkStudios/cargo-deny-action@b66acf5e9fe20f8aba065be86778a8a4c846f902 # v2
         with:
           command: check
@@ -237,9 +236,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.x'
@@ -283,9 +281,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
         with:
           key: reference
@@ -344,9 +341,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch
-        with:
-          toolchain: none
+      - name: Install toolchain
+        run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
       - name: Install cargo-geiger
         run: cargo install cargo-geiger --locked
