@@ -5480,6 +5480,18 @@ is why" — is this file.
   `run_until_idle` *returns* — where the `Scheduler` itself is dropped — falls to a few
   hundred bytes. Anything asserting a release before then has to drain the list first, and
   under a server nobody does, which is the bug rather than the workaround.
+- **A difference of two `nvs_runtime::budget::live_bytes()` readings never comes out as the
+  payload exactly, and the shortfall belongs to whoever reads *second*.**
+  `the_upgrading_requests_arena_is_released_while_the_connection_is_open` puts two mebibytes of
+  query on the upgrading request's carrier and compares the request's reading with the connection
+  isolate's; the gap came back 585 bytes short of the query, which is the connection's own context
+  standing where the request's was. The counter is one thread-local fed by the global allocator
+  (`crates/nvs-runtime/src/budget.rs:124`), so it counts *everything* live on that thread — the
+  fixture's own copy of the payload included, which is why a reading is only ever meaningful
+  against another reading. Name an allowance for the second reader's own footprint rather than
+  loosening the payload: 64 KiB against a 2 MiB signal still fails a retained arena by three
+  orders of magnitude, where an assertion tuned to the exact number is a false failure the first
+  time either isolate grows a field.
 
 ## Splitting a file that got too big
 

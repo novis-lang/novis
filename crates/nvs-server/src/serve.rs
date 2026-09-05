@@ -1872,22 +1872,88 @@ mod tests {
         );
     }
 
-    // `the_upgrading_requests_arena_is_released_while_the_connection_is_open` is
-    // **not here, and it is not writable yet.** It was written, and it fails on
-    // something no door can fix: `nvs_host::Scheduler` pushes every task that
-    // returns onto its `finished` list *with the context it ran under*, and
-    // nothing in a server drains that list — `nvs_host::run_until_idle` only
-    // reads the ids for ADR 0115 § 2's reactor deregistration, and the two
-    // `take_finished` callers are `nvs-cli`'s, after the whole run. So the
-    // upgrading request's carrier is still alive while the connection isolate
-    // runs, and the measurement it would assert on — two readings of
-    // `nvs_runtime::budget::live_bytes`, two mebibytes of query on the request's
-    // carrier — comes back within 16 KiB of itself however long the connection
-    // sleeps first. `said`'s `request <balance>` line above is the first of
-    // those two readings, left in place for the case that can be written once
-    // the retention is fixed. The retention is also ADR 0004's "O(in-flight)
-    // rather than O(requests served)" in the other direction, which is why it is
-    // the next group's first item rather than a note here.
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// cost half: "the connection is not a suspended request, does not hold the
+    /// request's arena". [`serve_connection`]'s doc states the same thing as an
+    /// ordering — the request is joined before the connection's isolate is
+    /// built — and this is the reading that says the ordering had the effect it
+    /// is claimed for.
+    ///
+    /// **Two readings of one thread's live bytes**, taken by the two isolates
+    /// in the order they ran: the request's, with its carrier at its peak, and
+    /// the connection's, with the request over. The gap between them has to be
+    /// the query the request carried, less what the connection holds for its
+    /// own reasons — which is under a kilobyte, against a query of two
+    /// mebibytes, so the allowance below is three orders of magnitude short of
+    /// hiding a failure: a connection that inherited, or that merely outlived,
+    /// the request's context reads within kilobytes of the *first* number
+    /// rather than two mebibytes below it.
+    ///
+    /// What the reading does not include is the handler's own copy of the
+    /// query, which this fixture holds for the length of the run and the
+    /// server never has — the assertion is about the carrier the request was
+    /// answered from and nothing else.
+    ///
+    /// This is the case that ADR 0004's "O(in-flight) rather than O(requests
+    /// served)" is asserted by on the request path: it failed for as long as
+    /// `nvs_host::Scheduler` filed *every* task's context on its `finished`
+    /// list, which under a server is every request ever served, and
+    /// [`nvs_host::Finished`] is now the home of why only a root files one.
+    #[test]
+    fn the_upgrading_requests_arena_is_released_while_the_connection_is_open() {
+        /// Two mebibytes of query on the request's carrier — far more than
+        /// anything either isolate holds for its own reasons.
+        const CARRIED: usize = 2 * 1024 * 1024;
+
+        fn say_the_balance(_conn: &mut Ctx) -> String {
+            nvs_runtime::budget::live_bytes().to_string()
+        }
+
+        /// The number one of `said`'s lines reports, which is the whole of what
+        /// either isolate had to say.
+        fn balance(line: &str, whose: &str) -> isize {
+            line.strip_prefix(whose)
+                .unwrap_or_else(|| panic!("{whose} never reported a balance: {line}"))
+                .parse()
+                .unwrap_or_else(|_| panic!("{whose} reported no number: {line}"))
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || {
+                upgrade_leaving(
+                    format!("q={}", "x".repeat(CARRIED)),
+                    handler_said,
+                    say_the_balance,
+                )
+            },
+            "/chat",
+        );
+
+        assert!(
+            seen.contains("/chat upgraded"),
+            "the upgrading request did not reach its own end: {seen}"
+        );
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "one of the two isolates did not run: {said:?}"
+        );
+        /// The connection isolate's own context and output buffer, which are
+        /// live at its reading and were not at the request's.
+        const CONNECTIONS_OWN: isize = 64 * 1024;
+
+        let peak = balance(&said[0], "request ");
+        let open = balance(&said[1], "connection ");
+        assert!(
+            peak - open >= CARRIED.cast_signed() - CONNECTIONS_OWN,
+            "the upgrading request's arena was still held while the connection \
+             ran: {peak} bytes live under the request, {open} under the \
+             connection, and the query alone is {CARRIED}"
+        );
+    }
 
     /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
     /// security property: the connection "cannot see the request's session,
