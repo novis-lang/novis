@@ -1,273 +1,262 @@
-# Loop goal 6 — the server, and the parity program's last gate
+# Loop goal 21 — The gaps no goal owned
 
-Finish **M7** — [docs/plan/m7.md](../plan/m7.md) is the scope and this file does not restate it.
-`nvs serve` accepts a request, dispatches it into a **root isolate of a request tree** — the same
-`Isolate` goal 2 built, not a second isolation path — and answers it.
+Every gap in this goal is one a shipped feature already carries, written down in the module that owns
+it, and claimed by **no entry on the chain** — so nothing but this goal would ever have closed it.
+When it is green a grant an operator wrote is a grant the compiler and the runtime both read, a cycle
+closed through an array is reclaimed rather than retained for the life of the process, a log line can
+be jumped to from a trace, a `fleet` schedule entry actually fires, `Core\Db` answers spec § 18's
+whole roster, and the two rules that were waiting on a full diagnostic band are enforced.
 
-This is goal 6 of the chain and the **last goal of the parity program**
-([goals/README.md](goals/README.md)). Everything the request-facing half of `Core` was waiting on now exists,
-and `python tools/check-migration.py` reaching **100% classified** is this goal's final stage and the
-program's stop condition.
+It sits directly after goal 6 because **that is where the orphans are made.** A goal's unclosed items
+are not carried by `tools/goal-switch.py`; only its `[[check]]` blocks are. So the moment goal 6 goes
+green its handoff's `## Backlog` is overwritten by goal 7's seed and everything on it stops existing —
+which is how `§18 stream`'s owner comment came to name goal 5, six goals after goal 5 closed. Running
+this entry first is what stops that list being written a second time.
 
-## Two things every session must hold
-
-**`hyper`, and how it runs with no async runtime.** `hyper` with `default-features = false, features =
-["http1", "server"]` depends on `http`, `http-body`, `bytes`, `futures-core` and `pin-project-lite` — and,
-measured rather than assumed, on `tokio` as well: 1.11 takes it unconditionally at `features = ["sync"]` for
-one `oneshot` in its upgrade path, which is a channel library and not a runtime. **No `rt`, no `net`, no
-`time`, no executor, no `spawn`**, so ADR 0072's rule holds and the workspace `Cargo.toml`'s comment above
-the dependency owns that reading. h1 requires no `Executor` and `serve_connection` spawns nothing, so the connection future is
-driven by a **`block_on` on the coroutine that owns the connection** — a waker that marks the coroutine
-ready, poll, park on `Pending` — over `hyper::rt::Read`/`Write` adapters wrapping goal 2's parking stream.
-That is one polled future per connection and not a second scheduler, so ADR 0072's rejection of tokio's
-task primitives is untouched. Hand-rolling h1 was weighed and refused: `docs/plan/design.md` gives the
-reason about FCGI and it applies here — framing is where request smuggling lives, and it is not a parser
-to own.
-
-**A filesystem path is never derived from a URL at request time.**
-[ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 2 is the server's governing rule, and
-§ 4's five-step resolution is how it is kept: a request selects a **mount** from a table whose globs were
-expanded against disk **at boot**. The test that says the rule holds is not a traversal fixture — it is the
-assertion that **the set of paths the server can execute after boot equals the expanded mount table**, and
-that is stated in Stage 9 rather than left to a suite of attempted escapes.
+Goal 6's whole acceptance list is this goal's floor, and it is never traded.
 
 ## Stage 0 — the catch-up
 
-Nothing. Every deferred half this goal picks up — `Core\Router::match`, `Core\Session`, `Core\Metrics`,
-`[http.*]`'s runtime behaviour, `nvs ctl` — was deferred *to* this goal by name, in the goal that deferred
-it, and is work rather than debt.
+Nothing. No fixture predates a rule this goal changes, because this goal changes no rule that a
+fixture could have been written against — every item is a hole rather than a different answer. The one
+exception is stage 10, whose spec amendment changes two return types; the fixtures that call them are
+listed in that stage and rewritten as part of it, not before it.
 
 ## Stage 1 — the floor
 
-M4's and goals 1–5's whole acceptance lists — five goals deep, **never traded.** This is the goal where
-that matters most: a listener is where an old assumption about isolation, capabilities or the graph copy
-gets its first adversarial traffic.
+Goal 6's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded for
+anything above it.
 
-## Stage 2 — the keystone: one connection, one request, one isolate
+## Stage 2 — the keystone: an outstanding key names a goal that is still on the chain
 
-1. **`crates/nvs-server` exists, and `nvs serve` answers one request.** Per-core accept and dispatch, a
-   connection on a coroutine, `hyper` h1 over the `block_on` above. **No mount table, no routing, no
-   response policy yet** — just the path from a socket to a root isolate and back.
-2. **The request is the root isolate of a request tree**, and it is goal 2's `Isolate`. m7.md says "not a
-   second isolation path" and that is the item: if this stage grows its own isolation, the state-bleed
-   suite in Stage 9 is testing two mechanisms and proving neither.
-3. **`Core\Request` and `Core\Server`, populated from it** — [ADR 0012](../adr/0012-no-superglobals.md)'s
-   replacement for `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`. **Every value originating outside the
-   process is `tainted`** ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)), and that is
-   not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.
-4. **The shapes that are rules, not fields.** `method` reports `Get` for a `HEAD` request so a `Get`-only
-   route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` resolve from the
-   socket peer **unless a peer in `[server] trusted_proxies` asserted otherwise** (ADR 0097 § 6); `path` is
-   the request path with the matched mount's prefix **removed**, and `mount()` is what was removed.
+The mechanism that would have caught most of this goal, and the reason it is the keystone rather than
+an item: **without it, the same orphans are made again by the next goal switch.**
 
-## Stage 3 — the mount table
+`crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` and
+`spec-classes-part-two-outstanding.txt` already list every spec §§ 14–19 member and class the registry
+does not declare, and the list only ever shrinks — which is a *ratchet*, not a schedule. A key sits
+there green forever, and the prose above each group names the goal that will strike it in a comment no
+program reads. `§18 stream` and `§18 streamAs` are grouped under "goal 5's"; goal 5 closed on
+2026-08-31.
 
-5. **The mount table, expanded at boot** — ADR 0097 § 3, and § 4's five-step resolution over it. This is
-   what makes several entry points under one document root, and vhost-per-module, cost one line each.
-6. **Prefix stripping and the relocatable module it buys**, and **static-file serving as one policy in both
-   modes** — the development server and the proxied origin differ in what they serve, not in how they
-   decide.
-7. **The `[server]` block**, § 5: four finite idle timeouts, `max_in_flight` with its pre-allocation `503`,
-   the optional health path, and `Core\Server::isDraining()`. `max_in_flight` is **the result of an
-   arithmetic against the memory budget** rather than a number someone picked — ADR 0106 amended § 5 to say
-   so, and picking a number is the regression.
-8. **A mount routes and carries nothing else; policy is the per-app block's** — § 10. A mount that grows a
-   limit or a grant has re-implemented goal 3's `[[app]]`.
+1. **A key carries its owner, in a column rather than in a comment** —
+   `§18 stream  # 21` — and `crates/nvs-stdlib/tests/spec_registry_coverage.rs:@…` parses it.
+   `crates/nvs-stdlib/tests/spec-members-outstanding.txt` gains the same column and needs no keys,
+   being empty.
+2. **The test fails on a key whose owner is not a live `[[goal]]`** — read out of
+   `docs/agent/goals/chain.toml`, which is the one home of what is scheduled. An owner that has gone
+   green and left the key behind is exactly the orphan this goal exists to close, and it now stops a
+   run instead of a reader.
+3. **A key with no owner at all is the same failure**, so the seeding pass is where every one of the
+   fifteen keys gets read and assigned. Two of them are this goal's; five are goal 17's
+   (`Request::clientIp`/`host`/`scheme` by that goal's own § 2, `Response::html`/`sendFile`); the
+   eight §§ 16–17 classes have no owner on the chain at all and are **recorded in
+   `docs/agent/carried-gaps.md` and assigned there**, never invented here.
+4. **`docs/agent/carried-gaps.md` is the durable list beside it**, on
+   `docs/agent/carried-refusals.md`'s precedent and for its reason: a fact that survives a goal switch
+   may not live in a file the switch overwrites. This goal's own entries are struck from it as they
+   land, and `docs/agent/session-prompt.md` § *the handoff's shape* and
+   `docs/agent/loop-authoring.md` § 8 both point at it, so a session that finds a gap off its path has
+   somewhere to put it that goal 22 will still be able to read.
 
-## Stage 4 — the response
+Files: `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, the three `spec-*-outstanding.txt` lists,
+`docs/agent/carried-gaps.md`.
 
-9. **`Core\Response`'s body surface is five typed members** — `html`, `json`, `text`, `bytes`, `sendFile` —
-   each setting its own `Content-Type`, with `echo` the **HTML-only sixth path** and **mixing the two a
-   compile error** ([ADR 0088](../adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 4).
-   This is where a JSON body stops being an `echo` the auto-escape sink would corrupt.
-10. **The `echo` binding table is enforced from here** — § 3. The HTML sink is attached **by a request and
-    by nothing else**, so a scheduled script's and an isolate's `echo` take the terminal sink's
-    neutralization instead. Goal 4 built that terminal sink; this is what decides which one is attached.
-11. **The response policy applies with nothing configured** —
-    [ADR 0074](../adr/0074-http-defaults-safe-and-finite.md) §§ 1–4: secure headers, closed CORS,
-    `Secure; HttpOnly; SameSite=Lax` cookies, every directive `Runtime` so a request may change it for
-    itself and `setHeader` still wins. Goal 3 landed the *boot-time* refusals; this is the runtime half.
+## Stage 3 — a grant an operator wrote is a grant something reads
 
-## Stage 5 — routing, sessions, uploads
+One file set: `crates/nvs-config/src/capability.rs`, `crates/nvs-cli/src/main.rs`,
+`crates/nvs-types/src/check.rs` and `crates/nvs-types/src/intrinsics.rs`. Both items are
+[ADR 0067](../adr/0067-core-db.md) § 3 and § 10, and both are *priority 1* — a capability that
+silently does nothing is the failure mode the whole grant system exists to prevent.
 
-12. **`Core\Router::match`, over the table goal 1 compiled**, plus `methodsFor` and `urlAbsolute`. ADR 0102
-    § 1: **the match happens once, before the handler, and travels on the request** as
-    `Core\Request::route()` — which is what the CSRF check and the `route` metric label read rather than
-    matching again. § 2: a missing path and a refused verb are different answers (empty ⇒ 404, else 405 +
-    `Allow:`).
-13. **§ 7's mount captures are how one table serves many tenants**, and § 8's split: CSRF is the server's,
-    the access decision is the dispatcher's.
-14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — ADR 0059 § 4 names it as
-    a hole that tier must not fill, and a session that vanishes because a core evicted it is an
-    authentication bug.
-15. **Uploads** — [ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-    whole: `files()` is a lazy iterator and **the only way to receive an uploaded file**; a part is a file
-    part iff `Content-Disposition` carries `filename`; three ways to consume one; goal 4's
-    `Core\IO::writeStream` is where it reaches disk; **there is still no temp file and no
-    `move_uploaded_file`**. Its two caps, `request_body` and `upload_total`, are new rows in goal 3's
-    `[limits]`/`[limits.hard]` pair, and `upload_total` is refused **pre-dispatch** when `Content-Length`
-    already exceeds it.
-16. **`bodyStream()` is the raw-body alternative to `body`**, exclusive with it and with `files` on one
-    request (ADR 0097 §§ 3, 6, 7, 8).
+5. **`db.open`'s host grant learns the leading-label wildcard the ADR writes.**
+   `crates/nvs-config/src/capability.rs:269`'s `host_granted` is
+   `entry.eq_ignore_ascii_case(host)` and nothing else, so ADR 0067 § 3's own worked configuration —
+   `db.open = ["*.tenants.internal"]`, line 116 of that ADR — matches no host at all. It fails
+   *closed*, so this is a config an operator writes in good faith that denies everything, not a hole
+   something gets through. The rule is in that stage's standing decisions below;
+   `Capabilities::allows_host` at `:311` and `allows` at `:289` are the two callers and both go
+   through the one predicate, so there is one place to change.
+   `crates/nvs-types/src/intrinsics.rs`'s known gap 7 is struck when it lands.
+6. **`nvs check` reads the configuration, so § 10's host diagnostic fires for somebody.**
+   `crates/nvs-cli/src/main.rs:623`'s `front_end` builds no `nvs_types::Env::grants`, so
+   `run_check` at `:695` calls `check_program` with `None` and
+   `crates/nvs-types/src/check.rs:108`'s `check_program_granted` — which is written, correct and
+   tested — has no caller outside `crates/nvs-types/tests/`. ADR 0067's *Verification* names
+   "an `open` host matching no grant" as an **M8 `nvs check` acceptance item**, and M8's four goals
+   have all been written without it. `crates/nvs-types/src/intrinsics.rs`'s known gap 6 is struck when
+   it lands.
 
-## Stage 6 — what runs beside a request
+## Stage 4 — a cycle closed through an array is swept
 
-17. **The `[[schedule]]` ticker** — [ADR 0073](../adr/0073-scheduled-work-is-config.md): each entry
-    fires as a **root** isolate through goal 2's `Isolate`, with the fleet lease over goal 4's shared
-    store. Goal 3 landed its boot-time validation; this is the runtime half.
-18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
-    max_concurrent` — ADR 0072 §§ 6–7. Goal 2 built the member under compiled-in defaults; this is where
-    the connection actually ends while the tree does not.
-19. **The observability export** — [ADR 0076](../adr/0076-observability-export.md): `Core\Metrics`, the
-    default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
-    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to ADR
-    0018's measured path**. Goal 4 built the outbound half; this closes the loop.
+One file: `crates/nvs-runtime/src/object.rs`, with `examples/cycles.nvs` as the fixture goal 4 already
+wrote and the WSL valgrind leg as the check.
 
-## Stage 6b — persistent connections
+7. **`object_fields` tallies references held in array elements, not only in field slots.**
+   `crates/nvs-runtime/src/object.rs:1816` returns a member's `Tag::Object` *field* slots and nothing
+   else, so `sweep` at `:1658` reads an object reachable only through an array as externally held and
+   leaves it — and a cycle whose only closing edge is inside an `array<T>` therefore survives a
+   context's teardown. [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)
+   § *Consequences* is the reason this is not a footprint question but a correctness one: it argues
+   the sweep into existence with "in the server, a leak growing with requests served, which is what
+   made the sweep an obligation rather than an option", and that sentence is still true of this
+   shape. AGENTS.md's priority ordering says the same thing in one line — growth with total traffic
+   is a leak, not a trade-off.
 
-[ADR 0083](../adr/0083-persistent-connections-are-isolates.md) whole. [m7.md](../plan/m7.md) places
-it in this milestone and no stage above carries it. A connection is a **root isolate** opened by a request
-that then ends normally, so this stage adds a lifetime, not an isolation path — and item 25's state-bleed
-suite gains connections as its third parameterisation rather than a second suite.
+## Stage 5 — `Core\Db` answers spec § 18's whole roster
 
-19a. **The upgrade seam.** `hyper`'s `on_upgrade` hands back the `Upgraded` io, which downcasts to the
-    coroutine's own `NvsStream`; RFC 6455 framing is `tungstenite` over that stream — it is a plain
-    `Read + Write`, so the sync crate fits with no adapter — with its `max_frame_size` and
-    `max_message_size` set from § 7's caps. Framing is not owned, for the reason h1 is not: it is where the
-    smuggling-class bugs live. The connection isolate is goal 2's `Isolate` with the socket moved in, and
-    **the upgrading request's arena is released while the connection is open** — the memory probe in the
-    ADR's *Verification*, and the claim that a connection is not a held request.
-19b. **`Core\Socket::upgrade` and the entry rule it shares with `spawn script`.** `upgrade` takes ADR 0006's
-    operand — a file path, or a static method — and 0006's options as ordinary named arguments (`args:`,
-    `limits:`, `grants:`, `on:`), and returning it is what performs it. The operand's method half lands
-    **first at `spawn script`**: the parser, the type check that binds `args:` to the entry's parameters by
-    name and refuses an `fn` literal or a `callable`-typed variable with a diagnostic naming the method
-    form, and a function→`Program` arm beside `program_over` in `crates/nvs-cli/src/script.rs`; `upgrade`
-    then reuses all three rather than growing a check of its own.
-19c. **`Core\Socket::current`, `Socket\Message`, `send`, `receive`, `close`** — ADR 0083 § 3. `receive()`
-    is **the one wait**, over the peer *and* the connection's subscribed topics, answering a peer frame
-    (payload `tainted`) or a topic delivery (the copied value and the topic's name); there is no
-    `Core\Topic::receive()` and no two-task scaffold in a connection script. `send` suspends until the frame
-    is buffered and throws on the send timeout.
-19d. **`Core\Topic`** — § 4, the one place thread-per-core is crossed on purpose. A publish serialises
-    once with Stage 5's byte carrier (goal 2 item 16) and each subscriber unserialises into its own arena;
-    the wake across cores is `Reactor::remote_wake`; the per-subscriber queue is bounded and **overflow
-    closes that subscriber with a defined code**, never blocking the publisher. A `tainted` topic name and
-    a `secret` value are compile errors, the fixtures goal 4's qualifier suite already has a shape for.
-19e. **`Core\Sse::upgrade`** — § 5: the same isolate with no `receive`, and the line it draws — a stream
-    that ends with its request is a streaming response (Stage 4) and stays in the request isolate.
-19f. **Bounds and lifetimes** — § 7: connections per process, frame and message size, idle, lifetime and
-    send timeouts, subscriber queue depth — every one finite with nothing configured, on the timer table
-    goal 2 built, asserted the way ADR 0074's defaults are. A connection exceeding its memory, CPU or
-    lifetime budget closes with the defined code and reports as that, never as an out-of-memory.
-19g. **Reload and drain** — § 7, over items 20 and 22: an open connection keeps the compiled unit it began
-    with and one opened after the swap runs the new one; `nvs ctl reload` and graceful shutdown close every
-    connection with the defined code after the drain period, and none outlives it.
+One file set: `crates/nvs-stdlib/src/db/`, `crates/nvs-db/src/`, `crates/nvs-config/src/db.rs`.
 
-## Stage 7 — the operator's surface
+8. **`stream` and `streamAs` at constant memory, and the connection-busy `LogicError`.**
+   Spec § 18's two remaining rows, the last two keys of stage 2's part-two list, and
+   [ADR 0067](../adr/0067-core-db.md)'s own *Verification* names them in its per-driver M8 bullet:
+   "large-result streaming at constant memory, and the connection-busy `LogicError`". They answer an
+   `Iterable<…>`, so `nvs_stdlib::cursor` and `nvs_stdlib::instance`'s dispatch roster are the shape,
+   not a new one — `crates/nvs-stdlib/src/db/mod.rs`'s known gap 5 is the inventory.
+9. **`Connection::close` and § 18's three readonly properties**, from the same gap 5. Neither is a
+   key on stage 2's list, because § 18 states them as bullets rather than as table rows — which is
+   its own small finding and is why stage 2 reads the section rather than the table.
+10. **`[db.<name>.pool]`, and `pool = false` reaching a program-opened connection.**
+    `crates/nvs-stdlib/src/db/mod.rs`'s known gap 1: `max`, `idle`, `lifetime` and `acquire` are
+    `PoolBounds::DEFAULT` for an `open`, because a settings literal has no `[db.<name>.pool]` table to
+    read them from, and § 13's `pool = false` is written per block and so cannot reach an `open` at
+    all. The deployment that notices is the audited one that needs every connection to map to one
+    request: it can switch off every block an operator wrote and not the connections a program opens
+    for itself. That module says outright this is "an ADR 0067 § 13 question and not a shape this
+    module may pick on its own" — so it is answered in the standing decisions below and folded into
+    ADR 0067 § 13.
+11. **`{timeout?: Duration}` on `query` and `execute`**, gap 6 of the same module: the option is in
+    both spec signatures and deliberately in neither registry row, because a deadline on a statement
+    has to reach the socket the way `nvs_db::PgConn::connect`'s does and there is no seam for one on
+    the statement path. The seam is this item; it rides here because it is the same file set and the
+    same five drivers as items 8–10.
 
-20. **The control socket and `nvs ctl`** — [ADR 0078](../adr/0078-config-reload-and-control-socket.md)
-    §§ 3, 6: a local unix socket (named pipe on Windows), created `0600`, **refused if its directory is
-    world-writable**, speaking HTTP so a network listener would later be a second `bind` rather than a
-    second protocol. `nvs ctl reload` is its **only** operation and there is **no control port in either
-    direction of configuration**. Goal 3 built the snapshot this swaps.
-21. **`nvs service`** — [ADR 0093](../adr/0093-a-service-is-one-stored-argv-and-the-installer-is-a-sink.md),
-    the only copy. SCM registration on Windows with the hosted argv in a quoted absolute `ImagePath`, a
-    per-service virtual account, `STOP_PENDING` from the graceful drain and `PARAMCHANGE` into the reload;
-    a printed hardened systemd unit on Linux, written to disk only on an explicit `--install`. **The
-    installer is a sink and fails closed**: a closed `serve`/`run` allowlist, no relative path, no install
-    whose output would go nowhere, no password on a command line, and a refusal to install from an ADR 0048
-    bundle.
-22. **Hot-reload of the compiled-unit cache** — [ADR 0017](../adr/0017-hot-reload-without-restart.md),
-    the only copy: a per-path pointer over goal 3's content-addressed cache, revalidated lazily and
-    rate-capped, **swapped without ever blocking a request-serving core**, with `validate`'s startup default
-    selected by the run mode. This is what makes "no restart to see an edit" true of a running server.
+## Stage 6 — a log line can be jumped to from a trace
 
-## Stage 8 — the testing surface the server unlocks
+One file set: `crates/nvs-stdlib/src/log.rs`, `crates/nvs-runtime/src/ctx/`,
+`crates/nvs-server/src/trace.rs`.
 
-23. **`Core\Test::request`'s in-process dispatch through the compiled route table**, `#[Test(db:)]`'s
-    rolled-back transaction, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their
-    source updater — [ADR 0079](../adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18. Each waited
-    for a capability that now exists, and `#[Test(db:)]` waited for goal 5.
+12. **`ts`, `request_id`, `trace_id` and `span_id` on the record envelope.**
+    [ADR 0076](../adr/0076-observability-export.md) § 6 lists four fields beside `level` and `msg`
+    and `crates/nvs-stdlib/src/log.rs:46` carries none of them. The reason that module recorded — "no
+    request, no trace and no clock" — stopped being true inside goal 6, which landed the server,
+    `nvs_server::trace`'s context and the whole `[trace]` block. `trace_id`/`span_id` on a record is
+    the entire mechanism by which a log line reaches the trace it belongs to, so tracing is a
+    half-delivered feature until this lands, and § 6's last paragraph is the home of the rule.
+    § 6 already says a field with no value is **omitted rather than empty**, which is what makes this
+    additive: a CLI run with no request keeps today's two-key envelope byte for byte.
 
-## Stage 9 — the load-bearing assertions, and the program's last gate
+## Stage 7 — a `fleet` schedule entry fires
 
-24. **10k concurrent cold requests for the same file compile it exactly once**, asserted via a compile
-    counter, with no stalled requests. This is m7.md's *core requirement* and it is the one number the
-    whole hot-reload design exists to make true.
-25. **A state-bleed suite proves nothing leaks between requests, and the same suite runs across an isolate
-    boundary** — which the shared `Isolate` makes a *parameterisation* rather than a second suite. If it is
-    two suites, item 2 was not done.
-26. **The set of paths the server can execute after boot equals the expanded mount table.** ADR 0097's
-    governing rule, stated as a test rather than as a suite of attempted escapes.
-27. **A multipart body far larger than any in-memory bound is received in full at bounded resident
-    memory**, asserted against a high-water mark — ADR 0105's load-bearing case.
-28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
-    are still running when the client disconnects leaves none of them behind.
-31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
-    each building object cycles, holds a flat live-byte measure across the run — the server-side proof of
-    [ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md) § 2's teardown sweep, which goal
-    4's stage 11 lands. Added 2026-09-01, when the drain-only teardown was found to retain cycles for the
-    life of the process; numbered out of sequence because item 30 was already written as the program's
-    last gate and stays it.
-29. **`wrk`/`oha` throughput against PHP 8.5 + FPM + opcache, recorded in `benches/`.** A number, committed.
-30. **`python tools/check-migration.py` reports 100% classified.** Every one of the oracle build's 1151
-    functions and 253 types is a `member`, `language` or `dropped` row; every `member` row's member is
-    registered; every one of them has a conformance case. **This is the parity program's stop condition**
-    and the last check in the chain.
+One file set: `crates/nvs-server/src/schedule.rs`, `crates/nvs-stdlib/src/cache.rs`.
 
-## The harness this goal owes
+13. **`scope = "fleet"` is armed, under [ADR 0073](../adr/0073-scheduled-work-is-config.md)
+    § 3's lease.** `crates/nvs-server/src/schedule.rs:232`'s `arm` skips a fleet entry and prints a
+    note saying so (`:241`), so a directive an operator wrote parses, boots, and does nothing. § 3
+    makes a fleet-scoped interval exactly one run across the deployment held by a lease, and what is
+    missing is a compare-and-set on the shared tier. The named test the handoff has carried since
+    goal 4 —`a_fleet_scoped_entry_fires_once_across_the_fleet_under_its_lease` — is this item's check
+    and is written here rather than invented.
 
-**`python tools/bench.py --serve-vs-fpm --record benches/serve.json`** — item 29. m7.md asks for the
-number to be *recorded*, not merely produced, so the flag writes it and the check asserts it was written.
-PHP 8.5 is already on this machine and in the WSL distro as the differential oracle; FPM and opcache are
-what this adds.
+## Stage 8 — the two rules a full diagnostic band was blocking
 
-## Acceptance
+One file set: `crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-types/`,
+`crates/nvs-stdlib/src/html.rs`, `crates/nvs-stdlib/src/db/`.
 
-**The checks live in [`6-server.toml`](goals/6-server.toml), and only there.**
+14. **ADR 0133 § 3's `$reason` must be a source literal, refused where it is written.**
+    `crates/nvs-stdlib/src/html.rs`'s known gap says the rule "waits on a decision about the band
+    layout" because `E0499` and `E0799` are both full. That decision was taken: the `E08xx` band is
+    open at `crates/nvs-diagnostics/src/lib.rs:2953` and holds one code, `E0801`. The blocker is
+    gone and nobody went back, which is the whole of why this item exists.
+15. **`queryAs<T>`'s three run-time refusals move to the call site**, from
+    `crates/nvs-stdlib/src/db/mod.rs`'s known gap 8 and for the same reason: a `T` carrying no
+    `#[Db\Derive]` codec, a `queryAs<array<C>>` whose list form means nothing, and a field the derive
+    pass erased to `CodecTy::Opaque` are each a property of the call site or of the class alone, and
+    each is refused per row today because "both bands the checker would take a code from are full".
 
-## Standing decisions — pre-authorized, do not stop the loop for these
+## Stage 9 — the rosters that throw
 
-- **Decide and record; never `BLOCKED` for a design call.**
-- **One ADR slot: the `block_on` seam** (Stage 2, item 1), and it is that stage's first slice. How a
-  `hyper` connection future is driven from a coroutine, what the waker does, what happens when the future
-  wakes on a core other than the one that parked it, and why this is not an executor. Every other design in
-  this goal is already argued — 0012, 0017, 0072, 0073, 0074, 0076, 0077, 0078, 0079, 0088, 0093, 0097,
-  0102, 0105.
-- **`hyper` stays, and h1 only.** No TLS listener and no h2c — ADR 0097 § 1 dropped both, and a proxy
-  terminates TLS. If a capability appears to need h2, that is Backlog, not a scope decision.
-- **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
-  meaningless, which is why item 2 is stated as an item rather than assumed.
-- **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
-- **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under ADR 0051
-  § 4's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
-- **`receive()` selects over both sources** — ADR 0083 § 3 — and an isolate's entry is a path or a
-  static method with `args:` bound to its parameters — ADR 0006. Both are decided in those bodies; a
-  session that wants a `Core\Topic::receive()`, an `fn` literal entry or a capturing closure has found the
-  decision, not a gap.
-- **`Core\Session` may not use the local cache tier.** ADR 0059 § 4.
-- **A mount routes and carries nothing else.** Policy is the per-app block's, which goal 3 built.
-- **`nvs ctl reload` is the socket's only operation**, and there is no network-reachable control surface in
-  either direction of configuration. ADR 0078 § 6.
-- **No session installs a service, and item 21's checks are deliberately not end-to-end.** Registering
-  with the SCM needs administrator rights the loop does not have and should not be given, and a systemd
-  unit written to disk on an unattended box is a change nobody asked for. What is checked is what can be
-  checked without either: **every refusal** — the closed `serve`/`run` allowlist, a relative path, a
-  password on a command line, an install whose output would go nowhere, an ADR 0048 bundle — plus the
-  *shape* of what would be installed: a quoted absolute `ImagePath` on Windows, a printed unit on Linux
-  with `--install` withheld. That is the whole of ADR 0093's *Verification* that does not require a
-  privileged machine, and a session that finds the coverage thin has found this decision rather than a
-  gap. Real installation is a manual gate, fired by the user on a machine they chose.
-- **Raw/unparsed body access for an arbitrary content-type is an open gap**, flagged by ADR 0024's
-  *Revisiting* and narrowed by m7.md to what `body()` and `bodyStream()` do not already answer. If a
-  session finds it genuinely needed, that is a decided-and-recorded call in `Core\Request`'s module doc —
-  not a new ADR and not a `BLOCKED`.
-- **Picking every dependency but the two the user named** stays pre-authorized under ADR 0051 § 4.
+One file: `crates/nvs-stdlib/src/cldr.rs`.
 
-## What this goal does not touch
+16. **The twenty named plural-rule absences**, gap 3 of that module — `be`, `he`, `mt`, `dsb`, `hsb`,
+    `gd`, `br`, `kw`, `gv`, `is`, `mk`, `tzm`, `shi`, `si`, `ak`, `bh`, `guw`, `nso`, `wa` and `naq`
+    each throw today, and each is an arm rather than a row because its rule shape is one `RULES`
+    (`crates/nvs-stdlib/src/cldr.rs:1322`) does not already have.
+17. **Ordinal rules, and the `Core\Cldr` member for them**, gap 4: a separate CLDR table with its own
+    categories per language, which nothing in the framework's § 3 half asks for and which no other
+    entry on the chain will ever add.
+18. **The eight refused pattern letters** — `G`, `Q`, `w`, `W`, `L`, `c`, `F`, `u` — gap 2, each an
+    addition to the existing table rather than a different design.
 
-The extension system (M9), `nvs fmt` and the editor (M4B and M10), the transpiler (M11), packages (M15)
-and the `nvs/web` package (M16). `Web\Migration` stays blocked by ADR 0082 § 7. A session that reaches one
-of these puts it in `## Backlog` and moves on — and when the last check here goes green, the parity
-program is finished and the chain has no next goal.
+## Stage 10 — a percent-decoder answers octets, and a route capture is decoded once
+
+One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`,
+`docs/spec/01-core-library.md` § 12. The order inside the stage is fixed: item 19 first, because item
+20 calls what it changes.
+
+19. **`decodeComponent` and `parseQuery` answer `bytes`.**
+    `crates/nvs-stdlib/src/uri.rs`'s known gap 2 states the case and calls it "a spec question":
+    percent-decoding is defined over octets, a client may send any of them, and a `string` answer
+    means `decodeComponent("%FF")` throws rather than answering. It is the one place that module
+    diverges from PHP, whose strings are byte strings. The amendment is in the standing decisions.
+20. **A route capture is decoded where it crosses into the program.**
+    `crates/nvs-runtime/src/routes.rs`'s known gap 3: a capture's value is the segment as it arrived,
+    still percent-encoded, and that module is right that a second decoder next to the matcher is the
+    two-that-agree-today failure the laundering rules exist to prevent. So the decode goes through
+    `nvs_stdlib::uri`'s one decoder at the crossing, which is `Core\Request::route()` and the handler
+    binding, and `nvs-runtime` gains no decoder of its own. A `uint` capture is unaffected — no digit
+    has an encoded spelling.
+
+## Standing decisions
+
+- **This goal opens no new ADR number.** It may fold an amendment into
+  [ADR 0067](../adr/0067-core-db.md) § 13 (item 10's pool bounds),
+  [ADR 0067](../adr/0067-core-db.md) § 3 (item 5's wildcard, if the ADR's own wording needs
+  sharpening to match what lands) and `docs/spec/01-core-library.md` § 12 (item 19), and no others.
+  Everything else is decided-and-recorded in the module doc that already owns the gap.
+- **Item 5's wildcard rule, decided here.** A grant entry beginning `*.` matches a host whose name
+  ends with the entry's remainder **at a label boundary** — `*.tenants.internal` matches
+  `a.tenants.internal` and `a.b.tenants.internal` and does **not** match `tenants.internal` itself or
+  `evil-tenants.internal`. Matching stays case-insensitive because DNS is. `*` alone is **not** a
+  spelling: `Grant::All` already means "every host" and a second way to write it is exactly the
+  reachable-two-ways R20 forbids. The wildcard is `Cap::DbOpen`'s only —
+  `Cap::NetConnect` is asked of a *resolved address* (`capability.rs:87`), where a name has already
+  gone, so a wildcard there would be a widening with nothing to match against. Recorded in
+  `capability.rs`'s own module doc.
+- **Item 6's configuration question, decided here.** `nvs check` resolves `nvs.toml` exactly as
+  `nvs run` does, and a malformed one makes `nvs check` fail with that config error rather than with a
+  program diagnostic — a command that reads configuration is a command a broken configuration can
+  fail, which is the answer `crates/nvs-types/src/intrinsics.rs`'s gap 6 asked for and left open. No
+  configuration found means no grants, which is today's behaviour and stays silent.
+- **Item 7's safe direction is unchanged.** The sweep still frees only what it can *show* is
+  unreachable; widening the tally to array elements may only ever move an object from "left alone" to
+  "shown unreachable", never the reverse. If a walk turns out not to be able to prove an element edge
+  — a nested `array<array<T>>`, a shared copy-on-write buffer — the element is treated as an external
+  hold and the object is left, exactly as today. A `debug_assertions` assertion pins it and
+  `examples/cycles.nvs` gains an array-closed cycle under the WSL valgrind leg.
+- **Item 10's pool answer, decided here.** An `open`'s bounds come from the `[db.<name>.pool]` table
+  of the block whose *settings hash* the connection was opened under when there is one, and from
+  `PoolBounds::DEFAULT` when there is not; `pool = false` becomes a directive an operator may write
+  **unscoped** as well as per block, and unscoped it reaches every connection including a program's
+  own — which is the audited deployment's whole requirement. Folded into ADR 0067 § 13.
+- **Item 12 is additive and stays additive.** A field with no value is omitted, per ADR 0076 § 6, so
+  no existing record changes shape. A fixture asserts the *keys* a served request produces and the
+  two-key envelope a CLI run produces; it never freezes a timestamp or an id.
+- **Item 13's fallback.** A shared store that cannot compare-and-set leaves a fleet entry unarmed and
+  says so at boot — today's behaviour, kept deliberately as the fallback rather than replaced by a
+  best-effort arm that would fire the entry on every host. The lease is a set-if-absent with an
+  expiry on the shared tier, not a new `Core\Cache` member.
+- **Item 19's amendment, decided here.** Spec § 12's two decoder rows answer `bytes`; a caller that
+  wants text writes `as string`, which is ADR 0009 § 3's checked row and throws in exactly the place
+  the member throws today, so no program is denied an answer it could have used. `encodeComponent` and
+  `encodeFormValue` are untouched — they take text and answer text, and they are the class's two
+  `Qual::Launder` rows. Every fixture calling a decoder is listed in the stage and corrected as source,
+  never as expected output.
+- **What this goal does not take, and where it went instead.** The on-disk artifact cache is
+  goal 22's, whole: it needs a second `nvs-codegen` `Module` and a named symbol for every host address
+  the JIT bakes in, which is a subsystem rather than a gap. The eight spec §§ 16–17 classes
+  (`Core\Metrics`, `Core\Net`, `Core\Os`, `Core\Signal`, `Core\Compress`, `Core\Mime`, `Core\Xml`,
+  `Core\Zip`) have no owner on the chain and are **not** invented one here — stage 2 item 3 records
+  them in `docs/agent/carried-gaps.md` and they are the user's to schedule. ADR 0116's optional
+  in-flight cycle collector for a long-running CLI script stays an open *decision*, which that ADR's
+  *Consequences* already says; item 7 is the leak, not the collector.
