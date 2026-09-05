@@ -201,6 +201,7 @@ pub(crate) fn emit_function(
         phi_counts,
         frefs: FxHashMap::default(),
         callee_refs: FxHashMap::default(),
+        desc_globals: FxHashMap::default(),
         ctx_p,
         args_p,
         out_p,
@@ -368,6 +369,11 @@ struct Emitter<'a, 'f> {
     frefs: FxHashMap<&'static str, codegen::ir::FuncRef>,
     /// The same cache as `frefs`, for the unit's *own* functions.
     callee_refs: FxHashMap<String, codegen::ir::FuncRef>,
+    /// The same cache again, for the class descriptors this function
+    /// relocates against — see [`Self::class_desc_value`]. A `GlobalValue` is
+    /// a declaration rather than a definition, so unlike the `Value` a
+    /// `symbol_value` produces it is valid in every block and can be cached.
+    desc_globals: FxHashMap<String, codegen::ir::GlobalValue>,
     ctx_p: Value,
     args_p: Value,
     out_p: Value,
@@ -1423,7 +1429,7 @@ impl Emitter<'_, '_> {
     /// trapping input.
     ///
     /// The exception is built by [`nvs_runtime::nvs_raise_new`] from a
-    /// descriptor address baked in as an `iconst` — see [`crate::Classes`] —
+    /// descriptor address relocated in — see [`crate::Classes`] —
     /// rather than by a helper's `Fault`, which could only ever name
     /// `RuntimeError`.
     fn emit_int_mod(
@@ -1863,7 +1869,7 @@ impl Emitter<'_, '_> {
     /// divisors and the four overflow rows — and none of them goes through a
     /// helper's `Fault`, which could only ever name `RuntimeError`. The
     /// exception is built by [`nvs_runtime::nvs_raise_new`] from a descriptor
-    /// address baked in as an `iconst`, see [`crate::Classes`].
+    /// address relocated in, see [`crate::Classes`].
     ///
     /// The caller has already switched to the block this terminates, and must
     /// switch to its own continuation afterwards.
@@ -2139,17 +2145,45 @@ impl Emitter<'_, '_> {
         Ok(self.b.inst_results(call)[0])
     }
 
-    /// The class descriptor address for a label named in the IR, as one
-    /// `iconst` — see [`crate::Classes`] for why a JIT can bake one in.
+    /// The class descriptor address for a label named in the IR, as a
+    /// relocation — see [`crate::Classes`] for why it is not an immediate.
     fn class_desc_const(&mut self, class: &str) -> Result<Value, CodegenError> {
-        let desc = self.classes.desc(class).ok_or_else(|| {
-            CodegenError::Unsupported(format!(
+        if self.classes.desc(class).is_none() {
+            return Err(CodegenError::Unsupported(format!(
                 "a reference to class `{class}`, which this unit declares no descriptor for"
-            ))
-        })?;
-        let address = i64::try_from(desc.addr())
-            .map_err(|_| internal("a class descriptor above i64::MAX"))?;
-        Ok(self.b.ins().iconst(types::I64, address))
+            )));
+        }
+        self.class_desc_value(class)
+    }
+
+    /// One descriptor address, as a `symbol_value` against the imported symbol
+    /// [`crate::class_desc_symbol`] names.
+    ///
+    /// The import is what carries the relocation: an address this unit
+    /// *defined* would be resolved at emit time and leave no record, which is
+    /// exactly the record ADR 0042 § 2's object payload needs. The declaration
+    /// is idempotent — `cranelift-module` merges a repeated one — so every
+    /// site that wants a descriptor calls this, and the `GlobalValue` is
+    /// cached per function the way [`Self::callee_ref`] caches an import.
+    ///
+    /// The caller checks that the unit declares the class. This does not: it
+    /// is reached from three lowerings whose refusals name three different
+    /// things, and a symbol name is derivable either way.
+    fn class_desc_value(&mut self, class: &str) -> Result<Value, CodegenError> {
+        if let Some(global) = self.desc_globals.get(class) {
+            return Ok(self.b.ins().symbol_value(types::I64, *global));
+        }
+        let name = crate::class_desc_symbol(class);
+        let data = self
+            .module
+            .declare_data(&name, Linkage::Import, false, false)
+            .map_err(|source| CodegenError::Cranelift {
+                function: self.f.name.clone(),
+                source: Box::new(source),
+            })?;
+        let global = self.module.declare_data_in_func(data, self.b.func);
+        self.desc_globals.insert(class.to_owned(), global);
+        Ok(self.b.ins().symbol_value(types::I64, global))
     }
 
     /// The call itself, shared by [`Self::emit_call`] and the constructor
@@ -2250,8 +2284,8 @@ impl Emitter<'_, '_> {
     /// the receiver is retained before the call, exactly the retain
     /// `nvs_ir::lower` inserts at an ordinary `$obj->m()` site.
     ///
-    /// The descriptor address is an `iconst`: see [`crate::Classes`] for why a
-    /// JIT can bake one in.
+    /// The descriptor address is a relocation against a named symbol: see
+    /// [`crate::Classes`] for why it is not the immediate a JIT could bake in.
     fn emit_new(
         &mut self,
         cur: Block,
@@ -2315,7 +2349,8 @@ impl Emitter<'_, '_> {
     /// while a descriptor is an *identity* one, a descriptor's address being
     /// its identity (`nvs_runtime::object`).
     ///
-    /// `select` rather than a branch per candidate: every arm is an `iconst`,
+    /// `select` rather than a branch per candidate: every arm is a single
+    /// materialized address ([`Self::class_desc_value`]),
     /// so there is nothing a branch would guard and no block to build, and the
     /// miss falls out for free as the zero the chain starts from.
     /// `nvs_ir::lower` turns that zero into ADR 0007 § 2's throw.
@@ -2323,10 +2358,8 @@ impl Emitter<'_, '_> {
         let (subject, subject_ty) = self.value(subject)?;
         let candidates = self.classes.conforming_to(base);
         let mut answer = self.b.ins().iconst(types::I64, 0);
-        for (label, desc) in candidates {
-            let address = i64::try_from(desc.addr())
-                .map_err(|_| internal("a class descriptor above i64::MAX"))?;
-            let candidate = self.b.ins().iconst(types::I64, address);
+        for (label, _) in candidates {
+            let candidate = self.class_desc_value(label)?;
             let hit = match subject_ty {
                 Ty::Str => {
                     let name = self.emit_immortal_str(label.as_bytes())?;
@@ -2348,8 +2381,9 @@ impl Emitter<'_, '_> {
 
     /// `$x instanceof C` and ADR 0125 § 4's `$x instanceof $cls` — the same
     /// runtime call either way, differing only in where the descriptor comes
-    /// from: an `iconst` of the address this unit laid the written class out
-    /// at, or the [`Ty::ClassDesc`] the class reference already holds. See
+    /// from: a relocation against the written class's descriptor symbol
+    /// ([`Self::class_desc_value`]), or the [`Ty::ClassDesc`] the class
+    /// reference already holds. See
     /// [`nvs_ir::ir::TestedClass`].
     fn emit_instanceof(
         &mut self,
@@ -2358,14 +2392,12 @@ impl Emitter<'_, '_> {
     ) -> Result<Value, CodegenError> {
         let desc = match class {
             TestedClass::Named(class) => {
-                let desc = self.classes.desc(class).ok_or_else(|| {
-                    CodegenError::Unsupported(format!(
+                if self.classes.desc(class).is_none() {
+                    return Err(CodegenError::Unsupported(format!(
                         "`instanceof {class}`, whose class this unit declares no descriptor for"
-                    ))
-                })?;
-                let address = i64::try_from(desc.addr())
-                    .map_err(|_| internal("a class descriptor above i64::MAX"))?;
-                self.b.ins().iconst(types::I64, address)
+                    )));
+                }
+                self.class_desc_value(class)?
             }
             TestedClass::Descriptor(desc) => self.value(*desc)?.0,
         };

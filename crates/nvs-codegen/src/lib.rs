@@ -204,6 +204,8 @@
 mod emit;
 mod ty;
 
+use std::sync::{Arc, Mutex, PoisonError};
+
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, ModuleError};
@@ -520,6 +522,17 @@ struct Jit {
     statics: FxHashMap<(String, String), u32>,
     /// The same table's initializers, in slot order — see [`Unit::statics`].
     static_defaults: Vec<Option<nvs_runtime::FieldDefault>>,
+    /// Every class descriptor's address, under the symbol name compiled code
+    /// relocates against — [`class_desc_symbol`]'s spelling, and the third
+    /// symbol table [`Jit::new`] gives the module.
+    ///
+    /// Shared with the closure that reads it, because the two happen at
+    /// opposite ends of a compile: `JITBuilder::symbol` takes an address
+    /// *now* and the descriptors do not exist until [`Jit::compile_all`]
+    /// builds them, while a `symbol_lookup_fn` is not called until
+    /// `finalize_definitions` relocates. The `Mutex` is what makes that
+    /// closure `Send`, which `cranelift-jit` requires; it is uncontended.
+    desc_symbols: Arc<Mutex<FxHashMap<String, usize>>>,
     /// One entry per emitted `ConstStr`, so data-object names stay unique.
     literals: usize,
     entries: Vec<(String, cranelift_module::FuncId)>,
@@ -534,13 +547,24 @@ struct Jit {
 /// take, and the field-slot index a `FieldGet`/`FieldSet` turns into an
 /// offset through [`nvs_runtime::field_offset`].
 ///
-/// # Why the descriptor address is baked in as a constant
+/// # Why the descriptor address is a relocation rather than a constant
 ///
 /// A JIT compiles at run time, so it *knows* the address of a runtime object
-/// it has already built — there is nothing to relocate and no registry to
-/// consult. `new Foo()` therefore emits one `iconst` and one call, which is
-/// why `nvs_runtime::ClassDesc` needs no `#[repr(C)]` and no layout compiled
-/// code agrees on: it is an opaque token.
+/// it has already built, and for four milestones it baked that address in as
+/// an `iconst`. It no longer does. The address reaches the code as a
+/// relocation against the name [`class_desc_symbol`] mints, because ADR 0042
+/// § 2's payload is this same lowering walk emitted into an object file, and a
+/// host address written into an object file is wrong the moment another
+/// process reads it — the descriptors it names were allocated by the process
+/// that compiled, not by the one that will run.
+///
+/// **Nothing on the hot path changes.** `is_pic` is off (see [`Jit::new`]), so
+/// a symbol value lowers to the same absolute `movabs` an `iconst` did, with
+/// an `Abs8` relocation attached; under [`JITModule`] that relocation resolves
+/// through the lookup closure [`Jit::new`] installs, to the very address this
+/// table holds. The descriptor is still an opaque token — `nvs_runtime::ClassDesc`
+/// needs no `#[repr(C)]` and no layout compiled code agrees on — and the only
+/// thing the change adds is a *record* of where the address came from.
 ///
 /// The [`Unit`] that owns the table must outlive that code — see its own
 /// `_classes` field.
@@ -785,6 +809,15 @@ impl Classes {
         out
     }
 
+    /// Every class this unit declares, as `(label, descriptor address)` — what
+    /// [`Jit::compile_all`] publishes under [`class_desc_symbol`]'s names so a
+    /// relocation against one of them resolves.
+    fn descriptors(&self) -> impl Iterator<Item = (&str, *const nvs_runtime::ClassDesc)> {
+        self.by_label
+            .iter()
+            .map(|(label, entry)| (label.as_str(), entry.desc))
+    }
+
     /// The descriptor address for `label`, or `None` if the unit declares no
     /// such class.
     fn desc(&self, label: &str) -> Option<*const nvs_runtime::ClassDesc> {
@@ -1023,6 +1056,19 @@ impl Jit {
         {
             builder.symbol(name, address);
         }
+        // The third table, and the one that cannot be filled here: a class
+        // descriptor is built by `compile_all`, long after this builder is
+        // consumed, so its address is published through a lookup closure the
+        // module calls at relocation time instead. See `Classes`' own docs for
+        // why the address is a relocation at all.
+        let desc_symbols: Arc<Mutex<FxHashMap<String, usize>>> = Arc::default();
+        let published = Arc::clone(&desc_symbols);
+        builder.symbol_lookup_fn(Box::new(move |name| {
+            let table = published.lock().unwrap_or_else(PoisonError::into_inner);
+            table
+                .get(name)
+                .map(|address| std::ptr::with_exposed_provenance(*address))
+        }));
 
         let module = JITModule::new(builder);
         let sigs = Signatures::new(&module);
@@ -1034,6 +1080,7 @@ impl Jit {
             functions: FxHashMap::default(),
             shapes: FxHashMap::default(),
             classes: Classes::default(),
+            desc_symbols,
             statics: FxHashMap::default(),
             static_defaults: Vec::new(),
             literals: 0,
@@ -1052,6 +1099,21 @@ impl Jit {
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.classes = Classes::build(&program.classes);
+        // Publish every descriptor before any body is emitted, for the same
+        // reason the function declarations below come first: a lowering may
+        // name a class declared further down, and by relocation time every
+        // name a body relocated against has to resolve or the JIT panics.
+        // `expose_provenance` rather than `addr`, because this address is
+        // about to be written into machine code and dereferenced there.
+        {
+            let mut symbols = self
+                .desc_symbols
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            for (label, desc) in self.classes.descriptors() {
+                symbols.insert(class_desc_symbol(label), desc.expose_provenance());
+            }
+        }
         // The slot number *is* the position in `Program::statics`, which
         // `nvs_ir::lower` already sorted; nothing here reorders it, because
         // the vector handed to `nvs_runtime::Ctx::install_statics` has to be
@@ -1433,6 +1495,28 @@ impl Signatures {
 ///
 /// Not a mangling scheme: [`Jit::compile_function`]'s index already supplies
 /// uniqueness, so this only has to keep the name readable in a disassembly.
+/// The symbol name a class descriptor's address is relocated against.
+///
+/// **This is a mangling scheme, unlike [`sanitize`]**, and it has to be: both
+/// ends of the relocation derive the name from the label alone — the emitter
+/// declaring the import, and whoever resolves it, which under `JITModule` is
+/// [`Jit::compile_all`]'s table and under an object backend is the loader
+/// reading the file in another process. There is no index to disambiguate
+/// with, so two different labels must never collide. `sanitize` would collide
+/// `Foo\Bar` with `Foo_Bar`; escaping every non-alphanumeric byte as `_xx`
+/// cannot, because an escape's introducer is itself escaped.
+pub(crate) fn class_desc_symbol(label: &str) -> String {
+    let mut out = String::from("nvs_class_desc_");
+    for byte in label.bytes() {
+        if byte.is_ascii_alphanumeric() {
+            out.push(char::from(byte));
+        } else {
+            out.push_str(&format!("_{byte:02x}"));
+        }
+    }
+    out
+}
+
 fn sanitize(name: &str) -> String {
     name.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
@@ -1442,8 +1526,131 @@ fn sanitize(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cranelift_module::FuncOrDataId;
+    use nvs_diagnostics::{Diagnostics, SourceMap};
     use nvs_ir::Ty;
     use nvs_ir::lower::FN_PARAM_TAG_ANY;
+
+    /// The whole front end over `source`, lowered but not compiled.
+    ///
+    /// `tests/common/mod.rs` has the same helper for the end-to-end binaries.
+    /// This copy exists because the tests below assert on [`Jit`]'s *private*
+    /// tables — what the module declared, and what a symbol resolves to — and
+    /// nothing outside this file can reach those.
+    fn lower(source: &str) -> Program {
+        let mut map = SourceMap::new();
+        let id = map.add("test.nvs", source);
+        let src = map.file(id);
+
+        let mut diags = Diagnostics::new();
+        let stmts = nvs_syntax::parse_file(src, &mut diags);
+        let module = nvs_hir::resolve_file(&stmts, src, &mut diags);
+        let mut interner = nvs_types::TypeInterner::new();
+        let mut exprs = nvs_types::ExprTypeTable::new();
+        let files = [nvs_types::ProgramFile { src, stmts: &stmts }];
+        let enums =
+            nvs_types::check_program(&files, &module, &mut interner, &mut exprs, &mut diags);
+        assert!(
+            !diags.has_errors(),
+            "the fixture does not type-check: {:?}",
+            diags.iter().map(|d| d.message.clone()).collect::<Vec<_>>()
+        );
+
+        let layouts = nvs_types::build_class_layouts(&files, &module.graph);
+        nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
+    }
+
+    /// Compiles `source` and hands back the JIT with its tables intact —
+    /// stopping short of [`Jit::finish`], which consumes them.
+    fn compiled(source: &str) -> Jit {
+        let program = lower(source);
+        let mut jit = Jit::new(None).expect("this host has a Cranelift backend");
+        jit.compile_all(&program).expect("the fixture compiles");
+        jit
+    }
+
+    /// Asserts that `label`'s descriptor reached the code as a relocation, and
+    /// that the relocation resolves to the address the table holds.
+    ///
+    /// The first half is the property: an **imported** symbol is one this unit
+    /// declared and did not define, so every use of it leaves a relocation
+    /// record — which is the whole of what ADR 0042 § 2's object payload needs
+    /// and the whole of what an `iconst` immediate destroys. The second is the
+    /// promise that came with it: under `JITModule` the record resolves to the
+    /// address that used to be baked, so nothing on the hot path moved.
+    fn assert_relocated(jit: &Jit, label: &str) {
+        let name = class_desc_symbol(label);
+        let Some(FuncOrDataId::Data(id)) = jit.module.declarations().get_name(&name) else {
+            panic!("no code relocated against `{name}`, so `{label}`'s address was baked in");
+        };
+        assert_eq!(
+            jit.module.declarations().get_data_decl(id).linkage,
+            Linkage::Import,
+            "`{name}` is defined by this unit, so its uses carry no relocation"
+        );
+
+        let published = jit
+            .desc_symbols
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let expected = jit
+            .classes
+            .desc(label)
+            .expect("the unit declares the class")
+            .expose_provenance();
+        assert_eq!(
+            published.get(&name).copied(),
+            Some(expected),
+            "`{name}` does not resolve to `{label}`'s descriptor, so the JIT path moved"
+        );
+    }
+
+    #[test]
+    fn two_class_labels_never_share_a_descriptor_symbol() {
+        // Both ends of the relocation derive the name from the label and
+        // nothing else, so a collision is not a readability problem: it is one
+        // class resolving to another's descriptor. `sanitize` collides these
+        // two; the escape does not, and the escaped `_` is why.
+        assert_eq!(class_desc_symbol("Foo\\Bar"), "nvs_class_desc_Foo_5cBar");
+        assert_eq!(class_desc_symbol("Foo_Bar"), "nvs_class_desc_Foo_5fBar");
+        assert_eq!(class_desc_symbol("Point"), "nvs_class_desc_Point");
+    }
+
+    #[test]
+    fn a_class_descriptor_address_is_a_relocation_not_an_immediate() {
+        let jit = compiled(
+            "<?nvs
+class Point {
+    public int $x = 1;
+}
+
+var $p = new Point();
+echo $p->x;
+",
+        );
+        assert_relocated(&jit, "Point");
+    }
+
+    #[test]
+    fn an_instanceof_target_is_a_relocation_not_an_immediate() {
+        // `Circle` is never constructed here, so the `instanceof` is the only
+        // lowering that could have asked for its descriptor: the import below
+        // is that site's relocation and no other's.
+        let jit = compiled(
+            "<?nvs
+class Shape {
+    public int $sides = 0;
+}
+
+class Circle extends Shape {
+}
+
+var $s = new Shape();
+if ($s instanceof Circle) { echo \"circle\"; }
+",
+        );
+        assert_relocated(&jit, "Circle");
+    }
 
     /// The row a descriptor carries describes what a **call site** writes, and
     /// `nvs_ir::ir::Function::params` describes what the *callee* declares —
