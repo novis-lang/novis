@@ -5751,6 +5751,17 @@ is why" — is this file.
   property itself and not a weaker reading of it.
   `a-session-survives-a-request-on-another-core.nvst` and
   `an-after-response-tree-outlives-its-connection.nvst` are the two shapes.
+- **A `Core\X::member` spelling does not survive either of the two splitters you would reach for, and
+  both failures are silent rather than loud.** `spec_registry_coverage.rs`'s `cells()` reads a `\` as a
+  cell escape and re-emits it *twice* — `Core\Str::trim` comes back as `Core\\Str::trim` — because it
+  serves 01-core-library.md's `int\|string` unions, where the escape is real. A member regex over its
+  output therefore matches nothing at all, and a walk that counts rows separately from spellings reports
+  520 rows and 0 members and passes every assertion vacuously. `docs/spec/02-php-migration.md` is parsed
+  by `tools/check-migration.py`'s own row regex instead, and the Rust walk over it transcribes that one
+  rather than reusing `cells`. The same character is why an audit script may not go through a shell: a
+  `<<'PY'` heredoc collapsed the `\\` of a raw-string regex to a single `\`, so the pattern became
+  `Core\[A-Za-z\]+`, found 0 of 259 spellings, and read exactly like a table with no member rows in it.
+  AGENTS.md rule 1 is written for this; a scratch audit goes through Write and a file, not a heredoc.
 
 ## Splitting a file that got too big
 
