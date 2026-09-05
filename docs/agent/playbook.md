@@ -1969,6 +1969,18 @@ is why" — is this file.
   round trip, and the reflex it teaches is the wrong one (split into two calls, which is what this
   tool exists to stop). Pick the one window the widest target needs and let the narrow ones overshoot;
   an extra twenty lines of a file you were going to open anyway is cheaper than the second call.
+- **A `## plan-edit:` section takes exactly ONE `--- old`/`--- new` pair, and a second one makes the
+  tool report the *first* fragment as missing — with a hint that looks like your fragment and is
+  not.** The wrap skeleton's own comment says "Repeat the pair per place the field moved", so three
+  pairs read as sanctioned; `session.py --wrap` refused with "the `--- old` fragment is not in that
+  field" and quoted `**Goal 6 — the built-in server, M7 — is running.** **`crates/nvs-db`'s`, which
+  is the *field's opening* offered as an example of how it reads, not the fragment it could not
+  find. Two calls went into byte-matching that quote — including one to `plan.py --get`, which
+  showed the field keeps a **double** space where the hint prints a single one, so matching the hint
+  makes it worse. Collapsing to one pair applied first time with the same `--- old` text that had
+  just been rejected, which is what identifies the parser rather than the fragment. So: one pair per
+  wrap, and if the field's byte ceiling needs a trim to afford an addition, make the trim part of
+  the *same* contiguous run rather than a second pair.
 
 ## Running things
 
