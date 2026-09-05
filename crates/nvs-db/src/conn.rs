@@ -672,6 +672,32 @@ pub struct PgConn {
     /// without being able to ask whether it is in one. `pg.rs`'s `begin` is
     /// where the depth decides which command goes out.
     pub(crate) depth: Cell<u32>,
+    /// The read state of a statement whose rows a *held cursor* is walking,
+    /// parked here rather than lent out inside a borrow of this connection.
+    ///
+    /// ADR 0067 § 4's buffered members drain their rows inside the one call
+    /// that started the statement, so [`crate::PgRows`] can keep this beside a
+    /// borrow of the connection and let the borrow checker be what refuses a
+    /// second statement. `Core\Db\Connection::stream` cannot borrow anything: a
+    /// cursor is an object the program holds and advances from a *later* call,
+    /// with nothing of this connection borrowed in between, so the columns, the
+    /// tag, the last id and the span have to sit where that later call can find
+    /// them from the connection alone. [`State::Streaming`] is still what
+    /// refuses the second statement — the same refusal, read off the state
+    /// rather than off a lifetime. `crate::pg::PgCursor` is that state and owns
+    /// the rest of the reasoning.
+    ///
+    /// `None` for a connection that has never streamed. It stays `Some` after a
+    /// stream ends, holding what the statement finished with, until the next
+    /// `stream` replaces it or `end_stream` drops it — and § 13's reset drops it
+    /// too, because "no open cursor" is one of the properties that reset has to
+    /// establish before another request may have this connection.
+    ///
+    /// **What it spends:** one row description and one command tag per
+    /// connection that has streamed, held until the next statement replaces
+    /// them. That is O(pooled connections) rather than O(requests served), and
+    /// § 13's `max` per core is the cap on it.
+    pub(crate) reading: Option<crate::pg::PgCursor>,
 }
 
 /// A MySQL connection: `mysql_common`'s codec plus the handshake, `COM_STMT_*`

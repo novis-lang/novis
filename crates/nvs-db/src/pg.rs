@@ -87,6 +87,13 @@
 //! early is the ordinary abandonment case rather than an error: its `Drop`
 //! drains to the same `ReadyForQuery`.
 //!
+//! A statement whose rows a *held* cursor walks cannot be a borrow — the
+//! program advances it from a later call, with nothing borrowed in between — so
+//! its read state is parked on the connection instead ([`PgConn::stream`]) and
+//! [`State::Streaming`] is what refuses the second statement. [`PgCursor`] is
+//! that state, both paths carry one, and [`next_row_of`] is the single place a
+//! `DataRow` is read.
+//!
 //! # Parameters and results are in text format
 //!
 //! Both format lists in `Bind` are empty, which is the protocol's spelling for
@@ -491,6 +498,7 @@ impl PgConn {
             // gone by then — see the field.
             time_zone: target.time_zone,
             depth: Cell::new(0),
+            reading: None,
         })
     }
 
@@ -532,6 +540,90 @@ impl PgConn {
     /// connection idle and poolable, or a wire failure, which poisons it.
     pub fn query(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<PgRows<'_>> {
         start_statement(&mut self.wire, &self.state, &mut self.cache, sql, params)
+    }
+
+    /// Runs one statement and leaves its portal open, **borrowing nothing**:
+    /// the read state is parked on this connection and the rows come off it one
+    /// [`Self::stream_next_row`] at a time.
+    ///
+    /// The wire half of ADR 0067 § 4's `stream`. It is the same batch
+    /// [`Self::query`] sends and reaches [`State::Streaming`] the same way; the
+    /// only difference is where the state a row is read against lives, and
+    /// [`PgCursor`] owns why that has to be here rather than in a borrow. The
+    /// answer is what the portal described, empty for a statement returning no
+    /// rows, and [`Self::stream_columns`] hands the same slice back to the later
+    /// calls that decode against it.
+    ///
+    /// A second statement is refused while this one is open — that is § 4's
+    /// `LogicError`, and it is [`State::Streaming`] that says so rather than a
+    /// lifetime. [`Self::end_stream`] is the abandonment [`PgRows`] gets from
+    /// `Drop`; a stream read to its end needs no call at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::query`].
+    pub fn stream(&mut self, sql: &str, params: &[Option<&[u8]>]) -> io::Result<&[PgColumn]> {
+        let reading = open_portal(&mut self.wire, &self.state, &mut self.cache, sql, params)?;
+        Ok(&self.reading.insert(reading).columns)
+    }
+
+    /// What the parked stream's portal described, or `None` for a connection
+    /// that has not streamed since its last reset.
+    ///
+    /// It outlives the rows on purpose: the decode of the last row happens after
+    /// the walk that produced it, and § 9's type map is read off these.
+    #[must_use]
+    pub fn stream_columns(&self) -> Option<&[PgColumn]> {
+        Some(&self.reading.as_ref()?.columns)
+    }
+
+    /// The next row of the parked stream, or `None` once it has ended — and
+    /// `None` too for a connection with no stream parked on it at all.
+    ///
+    /// Ending it returns the connection to [`State::Idle`], exactly as
+    /// [`PgRows::next_row`] does. The state itself stays parked, holding the tag
+    /// and the span the statement finished with, until the next
+    /// [`Self::stream`] replaces it or [`Self::end_stream`] drops it.
+    ///
+    /// # Errors
+    ///
+    /// As [`PgRows::next_row`].
+    pub fn stream_next_row(&mut self) -> io::Result<Option<PgRow>> {
+        let Some(reading) = self.reading.as_mut() else {
+            return Ok(None);
+        };
+        next_row_of(&mut self.wire, &self.state, reading)
+    }
+
+    /// ADR 0067 § 11's trace event for the parked stream, or `None` where there
+    /// is none — [`PgRows::span`] for what a caller reading one mid-stream gets.
+    #[must_use]
+    pub fn stream_span(&self) -> Option<&QuerySpan> {
+        Some(&self.reading.as_ref()?.span)
+    }
+
+    /// Names the `[db.<name>]` block the parked stream is running on, and does
+    /// nothing where there is no stream — [`PgRows::name_connection`] owns why
+    /// the driver cannot work the name out for itself.
+    pub fn name_stream_connection(&mut self, connection: &str) {
+        if let Some(reading) = self.reading.as_mut() {
+            reading.span.name(connection);
+        }
+    }
+
+    /// Abandons the parked stream: drains to the `ReadyForQuery` its `Sync`
+    /// guaranteed and forgets what it read.
+    ///
+    /// This is [`PgRows`]' `Drop` written as a call, and for the same reason —
+    /// a cursor a program stopped walking is ordinary, and draining is what
+    /// keeps the connection poolable instead of poisoned. Best effort by the
+    /// same argument `Drop` makes: a read that fails on the way poisons the
+    /// connection through `drain_to_ready`, and the pool refuses it there.
+    pub fn end_stream(&mut self) {
+        if self.state.get() == State::Streaming {
+            drop(drain_to_ready(&mut self.wire, &self.state));
+        }
+        self.reading = None;
     }
 
     /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `executeMany`: one
@@ -658,6 +750,10 @@ impl PgConn {
         // closed by the time this returns — including the savepoints inside
         // one, which do not outlive the transaction that held them.
         self.depth.set(0);
+        // "No open cursor" is one of the properties § 13 states the reset has to
+        // establish, and a stream parked here is one request's statement shape
+        // and command tag: the next request must not be able to read either.
+        self.reading = None;
         Ok(self)
     }
 }
@@ -2280,6 +2376,36 @@ fn hex_digit(byte: u8) -> Option<u8> {
     }
 }
 
+/// A statement's read state: what the portal described, what ended it, and the
+/// event it is being timed by — everything a row needs that is not the wire.
+///
+/// It is a type of its own because ADR 0067 § 4's rows are reached two ways and
+/// only one of them can hold a borrow:
+///
+/// - The **buffered** members drain their rows inside the call that started the
+///   statement, so [`PgRows`] keeps this beside a borrow of the connection and
+///   the borrow checker is what refuses a second statement.
+/// - **`Core\Db\Connection::stream`** hands a cursor back to the program and is
+///   advanced by a *later* call, with nothing of the connection borrowed in
+///   between. A borrow cannot span that, so its copy of this state is parked on
+///   the connection ([`PgConn::stream`]) and [`State::Streaming`] is what
+///   refuses the second statement instead — the same refusal ADR 0132 § 4 gives
+///   every driver, read off the state rather than off a lifetime.
+///
+/// Both drive [`next_row_of`], which is the one place in this driver a
+/// `DataRow` is read, so the two paths cannot disagree about what ends a stream
+/// or about what `lastId` saw on the way past.
+#[derive(Debug)]
+pub(crate) struct PgCursor {
+    columns: Vec<PgColumn>,
+    tag: Option<String>,
+    last_id: Option<u64>,
+    /// ADR 0067 § 11's trace event for this statement, opened when it went out
+    /// and ended by whatever ends the stream — [`crate::span`] owns why it is
+    /// built from the SQL and never from the parameters.
+    span: QuerySpan,
+}
+
 /// A statement's result stream, and the connection it is borrowed from.
 ///
 /// Alive, this is [`State::Streaming`]: the wire holds messages belonging to
@@ -2293,20 +2419,16 @@ fn hex_digit(byte: u8) -> Option<u8> {
 pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
-    columns: Vec<PgColumn>,
-    tag: Option<String>,
-    last_id: Option<u64>,
-    /// ADR 0067 § 11's trace event for this statement, opened when it went out
-    /// and ended by whatever ends the stream — [`crate::span`] owns why it is
-    /// built from the SQL and never from the parameters.
-    span: QuerySpan,
+    /// Everything about this stream that is not the borrow — [`PgCursor`] owns
+    /// why that is a split rather than five fields here.
+    reading: PgCursor,
 }
 
 impl<S: Read + Write> std::fmt::Debug for PgRows<'_, S> {
     /// The shape of the result and where the wire is, and nothing that arrived.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PgRows")
-            .field("columns", &self.columns.len())
+            .field("columns", &self.reading.columns.len())
             .field("state", &self.state.get())
             .finish_non_exhaustive()
     }
@@ -2366,7 +2488,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// returns none.
     #[must_use]
     pub fn columns(&self) -> &[PgColumn] {
-        &self.columns
+        &self.reading.columns
     }
 
     /// The server's `CommandComplete` tag — `INSERT 0 3`, `SELECT 2` — once the
@@ -2378,7 +2500,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// statement did something other than what its caller expected.
     #[must_use]
     pub fn command_tag(&self) -> Option<&str> {
-        self.tag.as_deref()
+        self.reading.tag.as_deref()
     }
 
     /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s affected-row count,
@@ -2396,7 +2518,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// against.
     #[must_use]
     pub fn affected(&self) -> Option<u64> {
-        affected_rows(self.tag.as_deref()?)
+        affected_rows(self.reading.tag.as_deref()?)
     }
 
     /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `lastId`: the first
@@ -2419,7 +2541,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// value is not an id either and is `None` with them.
     #[must_use]
     pub fn last_id(&self) -> Option<u64> {
-        self.last_id
+        self.reading.last_id
     }
 
     /// [ADR 0067 § 11](/docs/adr/0067-core-db.md)'s trace event for
@@ -2432,13 +2554,13 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// for.
     #[must_use]
     pub fn span(&self) -> &QuerySpan {
-        &self.span
+        &self.reading.span
     }
 
     /// Names the `[db.<name>]` block this statement ran on, for the layer that
     /// resolved it — [`QuerySpan::name`] owns why the driver cannot.
     pub fn name_connection(&mut self, connection: &str) {
-        self.span.name(connection);
+        self.reading.span.name(connection);
     }
 
     /// The next row, or `None` once the stream has ended.
@@ -2454,57 +2576,79 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// The server's own error, which still ends the stream cleanly and leaves
     /// the connection idle, or a wire failure, which poisons it.
     pub fn next_row(&mut self) -> io::Result<Option<PgRow>> {
-        // The state is the only bookkeeping: anything that ended this stream —
-        // a completion, a server error, a poisoning — has already left it.
-        if self.state.get() != State::Streaming {
-            return Ok(None);
-        }
+        next_row_of(self.wire, self.state, &mut self.reading)
+    }
+}
 
-        loop {
-            match read_or_poison(self.wire, self.state)? {
-                backend::Message::DataRow(body) => {
-                    let row = PgRow { body };
-                    // § 4's `lastId`, taken as the row goes past: the last row
-                    // is the answer, and a row borrows the wire's buffer, so
-                    // once the next one has arrived there is nothing left to
-                    // read it out of.
-                    let id = returned_id(&self.columns, &row);
-                    self.last_id = id;
-                    self.span.row();
-                    return Ok(Some(row));
-                }
-                backend::Message::CommandComplete(body) => {
-                    let tag = body
-                        .tag()
-                        .inspect_err(|_| self.state.set(State::Poisoned))?
-                        .to_owned();
-                    self.span.finished(affected_rows(&tag));
-                    self.tag = Some(tag);
-                    drain_to_ready(self.wire, self.state)?;
-                    return Ok(None);
-                }
-                // `Bind` on an empty query string. Not an error: it is what a
-                // caller that built its SQL from an empty template sent.
-                backend::Message::EmptyQueryResponse => {
-                    self.span.finished(None);
-                    drain_to_ready(self.wire, self.state)?;
-                    return Ok(None);
-                }
-                backend::Message::ErrorResponse(body) => {
-                    let error = server_error(&body);
-                    // A refused statement is still a statement that took time,
-                    // and § 11 gives a span no success field to lose: the rows
-                    // it reports are the ones that did arrive, and the error is
-                    // the caller's own return value.
-                    self.span.finished(None);
-                    drain_to_ready(self.wire, self.state)?;
-                    return Err(error);
-                }
-                backend::Message::NoticeResponse(_)
-                | backend::Message::ParameterStatus(_)
-                | backend::Message::NotificationResponse(_) => {}
-                _ => return Err(out_of_sequence(self.state)),
+/// One row off a live stream, or `None` once it has ended — the whole of
+/// [`PgRows::next_row`], and of [`PgConn::stream_next_row`] with it.
+///
+/// Free, and generic in the stream, for two reasons that point the same way.
+/// The streamed path has no `PgRows` to call a method on: its state is parked
+/// on the connection and its wire is reached through a fresh borrow per row.
+/// And a `PgConn`'s own `wire` is at the default type parameter, so anything
+/// reachable only through an inherent method on it needs a socket and a
+/// certificate to reach at all — written here, the sequencing is assertable
+/// against a scripted server instead.
+///
+/// # Errors
+///
+/// As [`PgRows::next_row`].
+fn next_row_of<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
+    reading: &mut PgCursor,
+) -> io::Result<Option<PgRow>> {
+    // The state is the only bookkeeping: anything that ended this stream —
+    // a completion, a server error, a poisoning — has already left it.
+    if state.get() != State::Streaming {
+        return Ok(None);
+    }
+
+    loop {
+        match read_or_poison(wire, state)? {
+            backend::Message::DataRow(body) => {
+                let row = PgRow { body };
+                // § 4's `lastId`, taken as the row goes past: the last row
+                // is the answer, and a row borrows the wire's buffer, so
+                // once the next one has arrived there is nothing left to
+                // read it out of.
+                let id = returned_id(&reading.columns, &row);
+                reading.last_id = id;
+                reading.span.row();
+                return Ok(Some(row));
             }
+            backend::Message::CommandComplete(body) => {
+                let tag = body
+                    .tag()
+                    .inspect_err(|_| state.set(State::Poisoned))?
+                    .to_owned();
+                reading.span.finished(affected_rows(&tag));
+                reading.tag = Some(tag);
+                drain_to_ready(wire, state)?;
+                return Ok(None);
+            }
+            // `Bind` on an empty query string. Not an error: it is what a
+            // caller that built its SQL from an empty template sent.
+            backend::Message::EmptyQueryResponse => {
+                reading.span.finished(None);
+                drain_to_ready(wire, state)?;
+                return Ok(None);
+            }
+            backend::Message::ErrorResponse(body) => {
+                let error = server_error(&body);
+                // A refused statement is still a statement that took time,
+                // and § 11 gives a span no success field to lose: the rows
+                // it reports are the ones that did arrive, and the error is
+                // the caller's own return value.
+                reading.span.finished(None);
+                drain_to_ready(wire, state)?;
+                return Err(error);
+            }
+            backend::Message::NoticeResponse(_)
+            | backend::Message::ParameterStatus(_)
+            | backend::Message::NotificationResponse(_) => {}
+            _ => return Err(out_of_sequence(state)),
         }
     }
 }
@@ -2547,13 +2691,13 @@ impl<S: Read + Write> Drop for PgRows<'_, S> {
 /// # Errors
 ///
 /// As [`PgConn::query`].
-fn start_statement<'a, S: Read + Write>(
-    wire: &'a mut Wire<S>,
-    state: &'a Cell<State>,
+fn open_portal<S: Read + Write>(
+    wire: &mut Wire<S>,
+    state: &Cell<State>,
     cache: &mut StatementCache,
     sql: &str,
     params: &[Option<&[u8]>],
-) -> io::Result<PgRows<'a, S>> {
+) -> io::Result<PgCursor> {
     if !state.get().may_start_statement() {
         return Err(second_statement(state));
     }
@@ -2660,13 +2804,33 @@ fn start_statement<'a, S: Read + Write>(
     }
 
     state.set(State::Streaming);
-    Ok(PgRows {
-        wire,
-        state,
+    Ok(PgCursor {
         columns,
         tag: None,
         last_id: None,
         span,
+    })
+}
+
+/// [`open_portal`] with the read state lent out beside a borrow of the
+/// connection: the shape every buffered member of ADR 0067 § 4 wants, and the
+/// one `Core\Db\Connection::stream` is the single caller that cannot use.
+///
+/// # Errors
+///
+/// As [`PgConn::query`].
+fn start_statement<'a, S: Read + Write>(
+    wire: &'a mut Wire<S>,
+    state: &'a Cell<State>,
+    cache: &mut StatementCache,
+    sql: &str,
+    params: &[Option<&[u8]>],
+) -> io::Result<PgRows<'a, S>> {
+    let reading = open_portal(wire, state, cache, sql, params)?;
+    Ok(PgRows {
+        wire,
+        state,
+        reading,
     })
 }
 
@@ -3345,8 +3509,8 @@ mod tests {
 
     use super::{
         BlockError, CancelKey, PgColumn, PgConn, PgDate, PgScalar, PgTarget, PgTime, State, Wire,
-        affected_rows, authenticate, execute_many, oid, posix_time_zone, request_tls,
-        start_statement,
+        affected_rows, authenticate, execute_many, next_row_of, oid, open_portal, posix_time_zone,
+        request_tls, start_statement,
     };
     use crate::conn::{ColumnType, DbErrorKind, Driver, Isolation, ServerError};
     use crate::sql::{DEFAULT_STATEMENT_CACHE, StatementCache};
@@ -4207,6 +4371,53 @@ mod tests {
             "the second execution parsed a statement the server was already holding"
         );
         assert_eq!(cache.len(), 1);
+    }
+
+    /// The parked form of a stream, which is the whole point of splitting the
+    /// read state off the borrow: the cursor is a local of its own, and every
+    /// row is read through a **fresh** borrow of the wire and the state.
+    ///
+    /// The compiler is half the assertion. A `PgRows` cannot express this shape
+    /// at all — its borrow would have to span the calls between the rows — and
+    /// that is exactly what a `Core\Db\Connection` holding a cursor across
+    /// `advance()` calls needs, because the connection goes back to the request
+    /// in between. The other half is the run: the same two rows arrive, in
+    /// order, and the stream still drains to `ReadyForQuery`, so the connection
+    /// this was read off is poolable at the end of it.
+    #[test]
+    fn a_parked_cursor_reads_every_row_through_a_fresh_borrow() {
+        let state = Cell::new(State::Idle);
+        let mut wire = Wire::new(Peer::new(|_: &[u8]| {
+            one_statement(vec![
+                data_row(&[Some(b"first")]),
+                data_row(&[Some(b"second")]),
+            ])
+        }));
+
+        let mut reading = open_portal(&mut wire, &state, &mut no_cache(), "select greeting", &[])
+            .expect("the portal described itself");
+        assert_eq!(state.get(), State::Streaming);
+        assert_eq!(reading.columns.len(), 1);
+
+        let mut seen = Vec::new();
+        while let Some(row) =
+            next_row_of(&mut wire, &state, &mut reading).expect("the stream advanced")
+        {
+            seen.push(
+                row.column(0)
+                    .expect("a column this row has")
+                    .expect("a value that is not null")
+                    .to_vec(),
+            );
+        }
+
+        assert_eq!(seen, vec![b"first".to_vec(), b"second".to_vec()]);
+        assert_eq!(
+            state.get(),
+            State::Idle,
+            "a drained stream left the connection unpoolable"
+        );
+        assert_eq!(reading.tag.as_deref(), Some("SELECT 2"));
     }
 
     /// Every `Bind` in one flush, as the pair of names it carries: the portal
