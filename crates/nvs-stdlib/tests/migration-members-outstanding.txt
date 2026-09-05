@@ -1,0 +1,30 @@
+# Every `Core\X::member` spelling a `member` row of `docs/spec/02-php-migration.md`
+# names that `nvs_stdlib::registry::CLASSES` does not declare yet. One key per
+# line, spelled exactly as the table's Novis cell spells it.
+#
+# `tests/spec_registry_coverage.rs` owns this file, and its module doc says why it
+# exists rather than the test simply failing. The list **only shrinks**: adding a
+# member and striking its line here are one edit, and the test fails on a stale
+# line as loudly as on an unlisted one. When this file holds no keys, every member
+# the migration table promises a migrating program exists — which, with the
+# table's own `Complete:` header at `yes`, is the parity program's stop condition.
+#
+# A key here is a member that is **owed**, never one that is refused: a PHP name
+# with no Novis answer is a `dropped` or an `open` row in that table, not a
+# `member` row with a spelling nothing backs.
+
+# `mysqli_use_result`'s cursor. § 18's interface declares `stream`, no `Core\Db`
+# class registers it, and `spec-members-part-two-outstanding.txt` already carries
+# it as `§18 stream` -- the two lines are struck by the same slice.
+Core\Db\Queryable::stream
+
+# `Core\Os` has no module in this crate at all -- `php_uname`, `gethostname`,
+# `memory_get_usage` and `getmypid` are pointed at a class that is specified and
+# unwritten.
+Core\Os::hostname
+Core\Os::memoryUsage
+Core\Os::pid
+
+# `Core\Process` is registered and `run` is on it; `spawn` -- the streaming half
+# `proc_open` and `popen` are pointed at -- is not.
+Core\Process::spawn
