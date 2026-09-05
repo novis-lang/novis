@@ -59,9 +59,9 @@
 > isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse` drains
 > detached; § 7's cap counts trees; ADR 0076: the trace continues, both blocks boot, a core meters §
 > 1's nine under § 7's bound; ADR 0006's method entry binds `args:`, at a `Core` row too; § 1's
-> `101` frames a socket into a root isolate and § 3's four members read it back; `Core\Sse` fills §
-> 5's cell, offered to every request, and both is a `500`. Conformance 1527, differential 256,
-> migration 100%; valgrind green.
+> `101` frames a socket into a root isolate, § 3's members read it back, § 4's topics subscribe;
+> `Core\Sse` fills § 5's cell, offered to every request, and both is a `500`. Conformance 1530,
+> differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

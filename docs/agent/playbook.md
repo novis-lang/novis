@@ -5533,6 +5533,15 @@ is why" — is this file.
   `->member(` call to a class — names it in a `public static function`'s parameter list inside a
   `class` block. That is also the cheapest way to get a case's arrows counted against a class no
   member can produce a value of yet.
+- **A second `#[cfg(test)]` item in an `nvs-stdlib` module fails a test in another file, and the
+  message is about a *scan* rather than about the item you wrote.**
+  `crates/nvs-stdlib/tests/capability.rs`'s `nvs_stdlib_reaches_the_os_only_through_the_gate` reads
+  each module up to its first `#[cfg(test)]` and refuses a file that has two —
+  "`…/topic.rs` has more than one `#[cfg(test)]`, so this scan can no longer stop at the first one" —
+  so a test-only helper written beside the state it reads, rather than inside `mod tests`, turns a
+  green crate red at a file that names neither the module's members nor the helper. Every test-only
+  item goes inside the module's own `mod tests` and reaches private state through `super::`, which
+  costs one `use` and nothing else.
 
 ## Splitting a file that got too big
 
