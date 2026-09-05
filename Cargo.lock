@@ -2040,6 +2040,7 @@ dependencies = [
  "jiff",
  "nvs-config",
  "nvs-host",
+ "nvs-render",
  "nvs-runtime",
  "toml",
  "tungstenite",
