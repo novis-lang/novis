@@ -23,6 +23,16 @@
 //! it is here rather than on a completion or on the context is
 //! `nvs_stdlib::socket`'s module doc, § *Decision: this member spawns nothing,
 //! and the connection starts it*.
+//!
+//! **There are two such cells and not one.** ADR 0083 § 5 is the home of why:
+//! a WebSocket upgrade *takes the socket*, so its isolate starts once the
+//! request's own future has ended, while an SSE connection takes nothing and
+//! writes into the body of an ordinary `200` the connection is still sending.
+//! Two hand-overs arriving at two moments, so two types — [`SseSlot`] is the
+//! second, and the door offers it to **every** request a server answers rather
+//! than to an upgradable one. That is the same fail-closed rule read against a
+//! different hand-over: what still has no cell, and so still throws, is
+//! everything that is not a served request.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -338,6 +348,17 @@ pub struct Inbound {
     /// running on an upgradable connection — one small allocation the connection
     /// holds the other reference to.
     upgrade: Option<UpgradeSlot>,
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's
+    /// SSE cell, for a request a server offered one to, and `None` for every
+    /// other carrier — [`Self::offer_sse`] owns which is which and [`SseSlot`]
+    /// owns why it is a second cell rather than a second use of the first.
+    ///
+    /// The other field here that is not a fact about what arrived.
+    ///
+    /// **What it spends:** what the field above spends, on every request the
+    /// server runs rather than only on an upgradable one — one pointer, plus
+    /// one small allocation the connection holds the other reference to.
+    sse: Option<SseSlot>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -357,6 +378,7 @@ impl std::fmt::Debug for Inbound {
             .field("body", &self.body.is_some())
             .field("parts", &self.parts.is_some())
             .field("upgrade", &self.upgrade.is_some())
+            .field("sse", &self.sse.is_some())
             .finish()
     }
 }
@@ -397,6 +419,11 @@ impl Inbound {
             // carrier says until a connection that can be upgraded says
             // otherwise — and is why `Core\Socket::upgrade` throws on one.
             upgrade: None,
+            // And nothing has offered it § 5's cell either, which a CLI program
+            // and a `spawn script` child both say for good — a server answering
+            // a request is what offers one, and this is why `Core\Sse::upgrade`
+            // refuses off everything else.
+            sse: None,
         }
     }
     /// Records who the request came from, as ADR 0097 § 6's walk decided it.
@@ -667,6 +694,27 @@ impl Inbound {
     pub fn upgrade_slot(&self) -> Option<&UpgradeSlot> {
         self.upgrade.as_ref()
     }
+    /// Offers ADR 0083 § 5's SSE cell to this request: the slot
+    /// `Core\Sse::upgrade` writes a prepared connection isolate into, which the
+    /// connection starts against the response body it is still sending.
+    ///
+    /// **Called for every request a server answers**, and not only for one an
+    /// upgrade could be framed out of — that is § 5's own sentence and the
+    /// whole difference between this door and [`Self::offer_upgrade`]'s, since
+    /// an event stream needs nothing of the connection but the response the
+    /// request already has.
+    pub fn offer_sse(&mut self, slot: SseSlot) {
+        self.sse = Some(slot);
+    }
+    /// The cell [`Self::offer_sse`] left, and `None` for a carrier no server
+    /// offered one to.
+    ///
+    /// A shared borrow, for [`Self::upgrade_slot`]'s reason: the cell is what
+    /// serialises the two halves, so writing into it takes `&self` too.
+    #[must_use]
+    pub fn sse_slot(&self) -> Option<&SseSlot> {
+        self.sse.as_ref()
+    }
 }
 
 /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
@@ -780,6 +828,75 @@ impl UpgradeSlot {
         self.0.borrow_mut().take()
     }
     /// Whether an upgrade has been recorded, without taking it.
+    #[must_use]
+    pub fn is_filled(&self) -> bool {
+        self.0.borrow().is_some()
+    }
+}
+
+/// The place a prepared [`Upgrade`] is left for a connection that is **still
+/// sending the response** —
+/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's SSE
+/// hand-over, and the second of the carrier's two cells.
+///
+/// **A separate type rather than a second [`UpgradeSlot`]**, because the two
+/// hand-overs are different objects arriving at different moments: a WebSocket
+/// upgrade takes the socket and starts after the request's future has ended,
+/// while an SSE isolate writes into the body of an ordinary `200
+/// text/event-stream` the connection has not finished sending. § 5 refuses the
+/// one slot that carried both, and this type is the whole of that refusal: a
+/// connection reading a shared slot would have to ask it a *kind* before it
+/// could use it, which is a tag standing in for a distinction the types
+/// already make.
+///
+/// What the two do share is the payload. An [`Upgrade`] is what either
+/// `upgrade` member prepared — a root isolate's program and its argument — and
+/// says nothing about which door it came through, which is why there is one of
+/// those and two of these.
+///
+/// Everything else about the cell is [`UpgradeSlot`]'s, unchanged: both halves
+/// name it, [`Self::fill`] refuses a second, and a cell nobody filled costs one
+/// allocation on a request that asked for no event stream.
+#[derive(Clone, Debug, Default)]
+pub struct SseSlot(Rc<RefCell<Option<Upgrade>>>);
+
+impl SseSlot {
+    /// An empty cell, whose other half is a [`Clone`] of it.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Records the prepared isolate.
+    ///
+    /// `&self` for [`UpgradeSlot::fill`]'s reason: both halves are shared
+    /// handles and the cell is what serialises them.
+    ///
+    /// # Errors
+    ///
+    /// The upgrade handed back, unchanged, where one is already recorded — a
+    /// program that called `Core\Sse::upgrade` twice on one request. It is
+    /// returned rather than dropped so that the argument is released where
+    /// there is still a context to release it with.
+    ///
+    /// **A request that filled both cells is not refused here.** One cell knows
+    /// nothing of the other by construction, and asking for a socket and an
+    /// event stream at once is a contradiction about the *response* — decided
+    /// where the response is written, not in a cell that cannot see it.
+    pub fn fill(&self, upgrade: Upgrade) -> Result<(), Upgrade> {
+        let mut slot = self.0.borrow_mut();
+        if slot.is_some() {
+            return Err(upgrade);
+        }
+        *slot = Some(upgrade);
+        Ok(())
+    }
+    /// Takes what was recorded, leaving the cell empty — the connection's half,
+    /// and `None` for a request that asked for no event stream.
+    #[must_use]
+    pub fn take(&self) -> Option<Upgrade> {
+        self.0.borrow_mut().take()
+    }
+    /// Whether an isolate has been recorded, without taking it.
     #[must_use]
     pub fn is_filled(&self) -> bool {
         self.0.borrow().is_some()
@@ -1046,5 +1163,71 @@ mod tests {
         let (second, _) = refused.into_parts();
         second(&mut ctx, Value::null());
         assert_eq!(marker.get(), 2);
+    }
+
+    /// ADR 0083 § 5's second cell, and the one thing that separates it from the
+    /// first: it reaches a request no upgrade could have been framed out of.
+    /// Asserted as the pair the door will write — a plain `GET` carrying an SSE
+    /// cell and no upgrade slot — because "offered to every request" is a claim
+    /// about the two fields being independent and about nothing else.
+    #[test]
+    fn the_sse_cell_is_offered_to_a_request_that_could_not_be_upgraded() {
+        let mut inbound = Inbound::new("GET", "/events", "");
+        assert!(inbound.sse_slot().is_none());
+
+        // The connection's half, and the request's: one cell, two names.
+        let connection = SseSlot::new();
+        inbound.offer_sse(connection.clone());
+        assert!(inbound.upgrade_slot().is_none());
+
+        let marker = Rc::new(std::cell::Cell::new(0));
+        let slot = inbound.sse_slot().expect("the door offered one");
+        assert!(!slot.is_filled());
+        assert!(slot.fill(prepared(&marker, 3)).is_ok());
+
+        // The request is over, and the connection — still sending the response
+        // this isolate writes into — reads what it left.
+        drop(inbound);
+        assert!(connection.is_filled());
+        let (program, args) = connection
+            .take()
+            .expect("the request filled it")
+            .into_parts();
+        assert_eq!(args.tag(), Some(crate::Tag::Null));
+        assert!(!connection.is_filled());
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        program(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 3);
+    }
+
+    /// The two cells are independent, which is what makes them two: filling one
+    /// leaves the other empty, and each refusal is its own. The single slot § 5
+    /// refuses — one place carrying both hand-overs — passes every assertion in
+    /// the test above this one and fails this one on its second line.
+    #[test]
+    fn each_cell_refuses_only_its_own_second_and_leaves_the_other_empty() {
+        let socket = UpgradeSlot::new();
+        let events = SseSlot::new();
+        let marker = Rc::new(std::cell::Cell::new(0));
+
+        assert!(events.fill(prepared(&marker, 1)).is_ok());
+        assert!(!socket.is_filled());
+        assert!(socket.fill(prepared(&marker, 2)).is_ok());
+        assert!(events.is_filled());
+
+        let refused = events
+            .fill(prepared(&marker, 3))
+            .expect_err("one request opens one event stream");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (first, _) = events.take().expect("the first fill stands").into_parts();
+        first(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 1);
+
+        // And the refused one is intact, for [`UpgradeSlot::fill`]'s reason.
+        let (third, _) = refused.into_parts();
+        third(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 3);
     }
 }
