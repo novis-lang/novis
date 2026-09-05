@@ -137,6 +137,11 @@ pub(crate) fn infer_method_call(
     // reports and replaces nothing.
     if let Some((owner, name, _)) = &resolved {
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+        // ADR 0133 § 3's written reason, at the same point and matched the same
+        // way — the one pass that refuses an argument *for* being dynamic. See
+        // [`crate::reasons`], whose module doc owns why that is not the rule
+        // above read backwards.
+        crate::reasons::check_call(owner, name, args, ctx, env);
     }
     // ADR 0036 § 4's deferral, and the one receiver the refusal above
     // deliberately leaves alone: `mixed` is ADR 0007 § 2's one unchecked
@@ -390,6 +395,10 @@ pub(crate) fn infer_static_call(
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+        // ADR 0133 § 3's written reason — `Core\Html::toSource` is a static
+        // call, so this is the arm that actually reports it. See
+        // [`crate::reasons`].
+        crate::reasons::check_call(owner, name, args, ctx, env);
         // A member that opens an isolate, which its row says by marking an
         // entry parameter — ADR 0083 § 2's `Core\Socket::upgrade`. Its entry
         // takes ADR 0006 § *Decision*'s operand rule and its other arguments

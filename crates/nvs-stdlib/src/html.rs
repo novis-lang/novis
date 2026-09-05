@@ -32,14 +32,15 @@
 //! existing at all.
 //!
 //! ADR 0133 § 3 asks two things of [`nvs_core_html_to_source`]'s `$reason` and
-//! only one of them is enforced. **An empty reason is refused**, at run time,
-//! by the body. **A computed one is not yet refused**: "the reason is a source
-//! literal" is a compile-time judgement and needs a diagnostic code, and both
-//! type bands are full — `E0499` and `E0799` — so the rule waits on a decision
-//! about the band layout rather than on a line here. The gap costs less than it
-//! looks: § 3's argument is that the hatch be *greppable and justified*, and a
-//! `const REASON` holding the text still leaves the call site readable, which
-//! is `Core\Secret::reveal`'s own position on the same question
+//! each is enforced in the one place that can answer it. **A computed reason is
+//! refused where it is written**, by `nvs_types::reasons` under `E0805` — that
+//! is a judgement about the *source*, and there is nothing the body could read
+//! to make it. **An empty one is the body's**, below, because emptiness is a
+//! property of the text and the checker gains nothing by racing it there; that
+//! pass's own module doc is the home of the split. A `const REASON` holding
+//! the text still compiles, because § 3's argument is that the hatch be
+//! *greppable and justified* rather than inline, which is
+//! `Core\Secret::reveal`'s own position on the same question
 //! ([`crate::secret`]).
 //!
 //! [`MARKUP`] is registered *and* reachable: ADR 0024 § 5's three ways to

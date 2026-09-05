@@ -222,6 +222,7 @@ pub(crate) mod links;
 pub mod locals;
 pub mod lower;
 pub(crate) mod program;
+pub(crate) mod reasons;
 pub(crate) mod response;
 pub(crate) mod retrieval;
 pub(crate) mod returns;
@@ -443,6 +444,11 @@ pub(crate) struct Env<'a> {
     /// differently from one that names an earlier one. See
     /// [`crate::derive::resolve_field_types`].
     pub codec_sites: &'a mut Vec<crate::derive::CodecFieldSite>,
+    /// Every `queryAs<T>` this run has walked past, for exactly
+    /// [`Self::codec_sites`]' reason one layer out: the row class a call names
+    /// is routinely declared in a later file than the call. See
+    /// [`crate::derive::check_row_sites`].
+    pub row_sites: &'a mut Vec<crate::derive::RowSite>,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many ADR 0031 `fn` closure literals this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

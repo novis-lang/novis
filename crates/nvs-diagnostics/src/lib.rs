@@ -3096,6 +3096,42 @@ pub mod code {
     // is the ordinary named-argument error the ADR names, raised at the spawn.
     // It went the way `E0703` and `E0803` did.
 
+    /// A written reason that is not a source literal, at a member whose reason
+    /// exists to be read by the next person —
+    /// [ADR 0133](/docs/adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md)
+    /// § 3's second sentence, which `nvs_types::reasons` owns the roster of.
+    ///
+    /// **Only the half a compiler can answer.** The same sentence also refuses
+    /// an *empty* reason, and that stays the member's own throw: emptiness is a
+    /// property of the text, which the body reads whatever the site wrote, and
+    /// a second refusal here would only make the throw unreachable.
+    /// `nvs_types::reasons`' module doc is the home of the split.
+    ///
+    /// A `const` **is** a source literal here, deliberately: it folds, so the
+    /// text is still in the source and still greppable, and pulling a long
+    /// justification out to a named constant is the shape this hatch wants
+    /// rather than the one it refuses.
+    pub const E_REASON_NOT_A_SOURCE_LITERAL: Code = Code::new("E0805");
+
+    /// A `Core\Db\…::queryAs<T>` whose `T` no row can be hydrated into —
+    /// [ADR 0067](/docs/adr/0067-core-db.md) § 9's type map, asked at the call
+    /// rather than at a declaration.
+    ///
+    /// One code for the three ways a written `T` fails that question, because
+    /// they are one rule read at one site: the type is a **list**
+    /// (`array<Row>`, where § 4 already answers `Core\Db\Rows` of one), the
+    /// class carries no `#[Db\Derive]` and so has no mapping at all, or it
+    /// carries one whose mapped fields cannot fill its `constructor` — a
+    /// property `#[Db\Field(skip: true)]` took off the mapping is the shape
+    /// that reaches this, and `nvs_types::derive`'s own doc says why that
+    /// refusal cannot be made where the class is declared.
+    ///
+    /// Deliberately not [`E_DERIVE_FIELD_NOT_CODEC_REACHABLE`], which is the
+    /// declaration's own refusal and fires whether or not anything ever calls
+    /// `queryAs`: this one is about a *call*, and the class it names may be
+    /// perfectly well formed for every other purpose it has.
+    pub const E_QUERY_AS_NOT_A_ROW_CLASS: Code = Code::new("E0806");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

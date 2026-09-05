@@ -286,3 +286,84 @@ fn markup_does_not_convert_to_string() {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+#[test]
+fn a_computed_to_source_reason_is_refused_at_the_call() {
+    // ADR 0133 § 3's second sentence, which `nvs_types::reasons` owns: the
+    // reason is what makes this hatch safe, so a computed one is refused where
+    // it is written rather than left to a run time that would accept any
+    // string at all.
+    let computed = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $why = \"cached fragment\";\n\
+         string $s = Core\\Html::toSource($m, $why);\n",
+    );
+    assert!(
+        computed
+            .iter()
+            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+        "{computed:?}"
+    );
+
+    // Concatenation is the same refusal and the interesting half of it: half
+    // the text is in the source, and a reason that is *partly* written is one
+    // nobody wrote.
+    let joined = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $who = \"the cache\";\n\
+         string $s = Core\\Html::toSource($m, \"stored by \" . $who);\n",
+    );
+    assert!(
+        joined
+            .iter()
+            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+        "{joined:?}"
+    );
+
+    // The other half of § 3's sentence is *not* this pass's, asserted here so
+    // that widening it fails a test rather than a conformance case: an empty
+    // literal is written text, and `to-source-refuses-an-empty-reason-….nvst`
+    // pins the body's throw over it.
+    let empty = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $s = Core\\Html::toSource($m, \"   \");\n",
+    );
+    assert!(!empty.has_errors(), "{empty:?}");
+
+    // A `name:` argument is read where it was written, not where it was
+    // declared — the gap `nvs_types::reasons` closes and `crate::links`' own
+    // gap 1 leaves open.
+    let named = check_in_method(
+        "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
+         string $why = \"cached fragment\";\n\
+         string $s = Core\\Html::toSource(reason: $why, markup: $m);\n",
+    );
+    assert!(
+        named
+            .iter()
+            .any(|d| d.code == Some(code::E_REASON_NOT_A_SOURCE_LITERAL)),
+        "{named:?}"
+    );
+}
+
+#[test]
+fn a_const_reason_is_a_source_literal_and_compiles() {
+    // The refusal above is "not in the source", not "not a string literal
+    // token". A `const` folds, so the justification is still greppable and
+    // still readable at the site — which is the shape a long reason wants, and
+    // `Core\Secret::reveal`'s own position on the same question
+    // (`nvs_stdlib::html`'s module doc).
+    let diags = check_src(
+        "<?nvs
+class Fragments {
+    const string WHY = \"the cache stores rendered bytes, not the guarantee\";
+
+    public function store(Core\\Html\\Markup $m): string
+    {
+        return Core\\Html::toSource($m, Fragments::WHY);
+    }
+}
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
