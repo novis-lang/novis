@@ -5594,6 +5594,22 @@ is why" — is this file.
   decided-but-unlanded mechanism leaves exactly that fingerprint — the ADR's types and directives
   present, no production caller — and it is cheaper to find than to read the module that would use them,
   whose doc may state the missing behaviour as settled policy rather than as a gap. This one did.
+- **Every name in a `cargo-named` check has to *run* on the platform the driver runs `cargo` on,
+  so the `#[cfg(unix)]` that a permission claim naturally wants is the one shape that fails the
+  check forever.** ADR 0078 § 3's `the_control_socket_is_created_0600` and
+  `a_world_writable_socket_directory_refuses_the_socket` are both about mode bits, and
+  `crates/nvs-config/tests/trust.rs` — the nearest landed precedent, and the file you would copy —
+  puts exactly those two shapes under `#[cfg(unix)]` with a module doc explaining that only the
+  portable refusals are asserted. Copying that reads as green locally and leaves the driver
+  reporting `did not run` on Windows, which is indistinguishable from unwritten work. Two repairs,
+  and both are usually needed: **split the claim so the wiring is portable and the platform half is
+  not** — take the verdict as a parameter (`bind(name, guard)`), inject a `Breach` on every
+  platform to pin "refused before anything was created", and run the *real* check against a real
+  directory under `#[cfg(unix)]` — and **assert the platform's own spelling of the same claim** on
+  the other side, which for "no other account may reach it" is a mode on Unix and
+  `nvs_config::trust::exposure` reading a DACL on Windows. `crates/nvs-cli/src/cache.rs`'s
+  `open_to_the_world` is the portable *positive* fixture when a real directory is what you need:
+  a `chmod` on Unix and an `icacls` grant for `S-1-1-0` on Windows.
 
 ## Splitting a file that got too big
 

@@ -2,26 +2,31 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0017's swap has landed, and ADR 0083 § 7's two `-p nvs-cli` names are green.**
-`crates/nvs-cli/src/script.rs`'s `Compiler` is now § *Decision*'s five steps: a `PathEntry`
-(digest, `mtime`/size stamp, `last_checked`) in front of a table keyed by
-`nvs_config::cache::UnitKey`, resolved at `crates/nvs-cli/src/script.rs:235`. That module doc owns
-what one core collapses — no compile pool, no `Compiling` state, no single-flight broadcast, and a
-step 4 whose "unless a fresher revalidation won" is unreachable rather than relaxed — and what
-survives: a `Failed` entry, so a request storm against a broken edit costs one compile.
+**Goal 6, M7 — stage 7's `nvs-server (the control socket)` check is green.** All five of ADR 0078's
+names run and pass under `cargo test -p nvs-server`; the driver's next failure will be the
+`nvs-server (hot reload)` check at `docs/agent/loop-goal.toml:3905`, which is the group below and
+was this session's original item.
 
-**`[opcache] validate` and `revalidate_freq` are read**, into `nvs_config::cache::Revalidation`
-(`crates/nvs-config/src/cache.rs:267`), whose defaults are decided at
-`crates/nvs-config/src/cache.rs:244` — `mtime`, capped at 2s, PHP's own pair. `Compiler::new` takes
-a `Config`; `nvs serve` and `nvs run` pass the booted snapshot's, `nvs test` keeps `default()`
-because it resolves no tree on that path.
+**The surface is split across two crates, and the split is the point.**
+`crates/nvs-config/src/control.rs` owns the endpoint, because "no account but this one may reach
+it" is a mode on Unix and a DACL on Windows and `nvs_config::trust` already owns both spellings:
+`Address::of` reads `[control] socket` (absent or `false` is `Disabled`, and `E0629` refuses
+anything network-shaped), `Endpoint::create` makes an `AF_UNIX` socket at mode `0600` or a named
+pipe under a `D:P` DACL naming this account, `SYSTEM` and `Administrators`, `boundary`/`bind` put
+§ 3's directory rule in front of it, and `reload` publishes a snapshot and returns § 5's `Report`.
+`crates/nvs-server/src/control.rs` owns the wire surface — `Operation::of`, which is `POST /reload`
+and nothing else — and re-exports the rest so the server's control surface is one name.
 
-**Neither directive is refused at boot.** An unspelled `validate` falls back to the default;
-`Validate::of` is where a check would read the word and `E0629` is free.
+**What is not there is the transport.** Nothing accepts on the endpoint, no `hyper` connection is
+served over it, `nvs serve` does not create one, and `nvs ctl` has no client. § 3's `ctl config`
+(ADR 0103 § 9) is deliberately not an operation yet and `control.rs`'s module doc says so.
+
+**`orient.py` did not print ADR 0078** — the `[context] adrs` list has no entry for it, so §§ 3, 5
+and 6 were sliced by hand. Add `0078` with those three sections.
 
 ## Next group
 
-**Stage 7's `nvs-server (hot reload)` check, which the swap unblocks. The file set is
+**Stage 7's `nvs-server (hot reload)` check, which ADR 0017's landed swap unblocks. The file set is
 `docs/agent/loop-goal.toml`, `crates/nvs-cli/src/script.rs` and `crates/nvs-config/src/cache.rs`.**
 All three of its names are misfiled `-p nvs-server`: two are this cache's and one is
 `nvs_config::mode`'s, and the check is at `docs/agent/loop-goal.toml:3905`.
@@ -49,8 +54,10 @@ All three of its names are misfiled `-p nvs-server`: two are this cache's and on
 
 ## Backlog
 
+- The control endpoint has no accept loop, no `hyper` connection over it and no `nvs ctl` client —
+  `crates/nvs-config/src/control.rs`'s module doc owns what exists; ADR 0078 § 3 owns the rest.
 - No boot refusal for `[opcache] validate` / `revalidate_freq` — `crates/nvs-config/src/cache.rs`'s
-  module doc records it as owed; `nvs_config::log::validate` is the shape and `E0629` is free.
+  module doc records it as owed; `nvs_config::log::validate` is the shape and `E0630` is now free.
 - `nvs test` compiles a `spawn script` under the default policy — `crates/nvs-cli/src/runner.rs:351`
   says why; closing it means resolving a tree on that path.
 - The unit table keeps at most two entries per path, so a *reverted* edit recompiles rather than

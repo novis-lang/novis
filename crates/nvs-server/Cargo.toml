@@ -41,6 +41,15 @@ jiff.workspace = true
 # synchronous codec is the one that fits a parking stream.
 tungstenite.workspace = true
 
+[dev-dependencies]
+# Test-only, and it stays that way: `src/control.rs`'s reload case builds the two snapshots a swap
+# is between, and a snapshot carries both its typed tree and the `toml::Table` that tree was
+# derived from -- `nvs_config::snapshot::Current::publish` compares the untyped half key by key, so
+# a case that wrote only the typed one would be comparing a table that was never written. Nothing
+# in this crate's own code names a TOML value; the configuration reaches it as
+# `nvs_config::snapshot::Snapshot` and never as a document.
+toml.workspace = true
+
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to
 # fill `hyper`'s `ReadBufCursor` is to hand the socket its uninitialised bytes
