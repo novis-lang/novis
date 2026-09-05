@@ -50,7 +50,13 @@ use super::*;
 /// is a pool that quietly stops pooling, which nothing observable would report.
 pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db::Connection> {
     let held = nvs_runtime::pool::take(lease, std::time::Instant::now())?;
-    let connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
+    let mut connection = held.into_any().downcast::<nvs_db::Connection>().ok()?;
+    // § 4's statement deadline belongs to the statement that named it, and this
+    // connection is carrying whatever the last one on it did. The reset below is
+    // the one exchange no program's clock may bound — a `RESET ALL` given up on
+    // because a previous request asked for a 50ms query would destroy a healthy
+    // connection and read, from here, as a pool that quietly stopped pooling.
+    connection.set_deadline(None).ok()?;
     match *connection {
         nvs_db::Connection::Postgres(postgres) => {
             Some(nvs_db::Connection::Postgres(postgres.reset().ok()?))

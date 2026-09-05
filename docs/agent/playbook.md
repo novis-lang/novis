@@ -8223,6 +8223,17 @@ sibling in the same namespace unqualified.
   directory as its working directory, so ADR 0103 § 1 step 2 finds that file exactly as a user's
   would. The general shape: hoisting a runtime refusal to compile time is a language change wherever
   the runtime one is catchable, and the corpus is where that gets noticed.
+- **A `Core\Db` statement member is declared *twice*, under one symbol, and changing its arity
+  means changing both rows.** `nvs_stdlib::db::registry` gives `query`, `queryAs`, `execute`,
+  `executeMany` and `stream` a row on `CONNECTION` and a second row on `TRANSACTION` — ADR 0043
+  makes a transaction delegate `Core\Db\Queryable` to its connection, and the delegation is *one
+  body reached through either handle*, so both rows carry the same `symbol`. Adding § 4's
+  `{timeout?: Duration}` to the connection's five and not the transaction's five would have left
+  the same helper declared at two arities, which is a runtime panic in `nvs_helper!`'s `args: [N]`
+  check and nothing a build would report. The tell that saved it was `splice.py` refusing an
+  ambiguous anchor — "block 5 appears 2 times" — which is worth reading as *two rosters* rather
+  than as a bad anchor. `grep -c 'name: "<member>"' crates/nvs-stdlib/src/db/registry.rs` before
+  editing any of these five, and expect `2`.
 
 ## Divergences and refusals already pinned
 

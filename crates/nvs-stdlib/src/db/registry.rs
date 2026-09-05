@@ -229,6 +229,28 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// ADR 0043 makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
+/// ADR 0067 § 4's `{timeout?: Duration}`, the one option every statement member
+/// carries.
+///
+/// One constant rather than ten copies of it: § 4 gives `query`, `queryAs`,
+/// `execute`, `executeMany` and `stream` the same bag, and [`TRANSACTION`]
+/// declares all five a second time — ten spellings of one option are ten places
+/// for a default to drift apart. What the instant reaches is
+/// `nvs_db::Connection::set_deadline` — the socket on the four drivers with a
+/// wire, and the lock wait on SQLite — so the option means one thing across the
+/// roster rather than one thing per backend.
+///
+/// **`chunk` is deliberately not here.** `stream`'s second option in § 18 has to
+/// reach the `Execute` that asks for a row count, and this driver's walk asks for
+/// one row; [`crate::db`]'s gap 6 is where that stays recorded.
+const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
+    name: "timeout",
+    ty: CoreTy::Instance(crate::time::DURATION_NAME),
+    // `connect`'s default and for `connect`'s reason: no `Duration` means
+    // "unbounded", so the absence of the option is the absence itself.
+    default: Const::Null,
+}];
+
 pub(crate) const CONNECTION: CoreClass = CoreClass {
     name: CONNECTION_NAME,
     methods: &[],
@@ -242,6 +264,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 // it at all and the bound parameters below accept one freely.
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
             // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
@@ -259,10 +282,14 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
         CoreMethod {
             name: "queryAs",
             names: &["sql", "params"],
-            // `query`'s two parameters exactly: § 4 makes this the same
-            // statement, read the same way, and the only difference is what
-            // each row becomes.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            // `query`'s parameters exactly, bag and all: § 4 makes this the same
+            // statement, read the same way and bounded the same way, and the
+            // only difference is what each row becomes.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             // § 18's `Rows<T>` at the `T` the call site wrote — the whole
             // reason [`CoreTy::Written`] descends into a
@@ -276,11 +303,15 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
         CoreMethod {
             name: "execute",
             names: &["sql", "params"],
-            // The same two [`CoreTy`]s `query` above declares, for the same
+            // The same [`CoreTy`]s `query` above declares, for the same
             // reasons — § 4's Q column marks both members' statement text a sink,
             // and a write is exactly where a `tainted` value most wants to reach
             // one.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Instance(WRITE_NAME),
             symbol: "nvs_core_db_connection_execute",
@@ -300,6 +331,10 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
                 // set is read by [`statement_of`] and gains no binding rule of
                 // its own.
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
+                // § 4's bag bounds the *batch*: the sets are one statement run N
+                // times over one connection, and there is no per-set answer for
+                // a per-set clock to belong to.
+                CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
             // A bare `uint` and not a [`WRITE`]: § 4 gives the batch a sum and
@@ -315,10 +350,16 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // `query`'s two exactly: § 4 gives this member the same statement
             // and the same binding rule, and the only difference is where the
             // rows are when it answers. § 18's `{timeout?, chunk?: uint}` is
-            // absent for [`crate::db`]'s known gap 6 reason, which `chunk`
-            // joins — a size that reached no read would be an option that
-            // parsed and did nothing.
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            // here at its `timeout` alone: on this member the deadline stays
+            // filed while the portal is open, so it bounds every `advance()` up
+            // to the last row rather than the call that opens the walk.
+            // [`crate::db`]'s gap 6 keeps `chunk` — a size that reached no read
+            // would be an option that parsed and did nothing.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             // § 18's `Iterable<Db\Row>`, spelled as the class that *is* the
             // walk — [`CoreTy::Iterated`] is parameter position only, so
@@ -523,7 +564,14 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
         CoreMethod {
             name: "query",
             names: &["sql", "params"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            // [`CONNECTION`]'s parameters, bag included and for the reason its
+            // symbol is shared: one body reads either handle, so a bag declared
+            // on one class and not the other would be one arity at two spellings.
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             // § 18's `Rows<Row>` — [`ROWS`] at the one concrete argument an
             // unhydrated result set has, and `queryAs<T>` is the same class at
@@ -540,7 +588,11 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
         CoreMethod {
             name: "queryAs",
             names: &["sql", "params"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             // [`CONNECTION`]'s row, written out for the reason its `query`
             // sibling is: this is the class `tools/gaps.py` attributes a case
@@ -554,7 +606,11 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
         CoreMethod {
             name: "execute",
             names: &["sql", "params"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             return_ty: CoreTy::Instance(WRITE_NAME),
             symbol: "nvs_core_db_connection_execute",
@@ -566,6 +622,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             params: &[
                 CoreTy::Text(Qual::Sink),
                 CoreTy::Array(&CoreTy::Array(&CoreTy::Mixed)),
+                CoreTy::Options(STATEMENT_OPTIONS),
             ],
             defaults: &[],
             return_ty: CoreTy::Uint,
@@ -575,7 +632,11 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
         CoreMethod {
             name: "stream",
             names: &["sql", "params"],
-            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            params: &[
+                CoreTy::Text(Qual::Sink),
+                CoreTy::Array(&CoreTy::Mixed),
+                CoreTy::Options(STATEMENT_OPTIONS),
+            ],
             defaults: &[],
             // [`CONNECTION`]'s row under [`CONNECTION`]'s symbol, for its
             // `queryAs` sibling's reason — and § 4's connection-busy rule is
@@ -1686,6 +1747,7 @@ pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
                    placeholders at its own position, and nothing else expands.",
             shape: &[],
         },
+        TIMEOUT_PARAM_DOC,
     ],
     ret: "A `Core\\Db\\Rows<Core\\Db\\Row>` holding every row the statement answered, in the \
           server's order. A statement that answers none — an `update`, a `create table` — is an \
@@ -1706,10 +1768,27 @@ pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement was in flight, which leaves it \
-                   unusable for the rest of the request.",
+            desc: "The connection failed while the statement was in flight — or `timeout` passed \
+                   with it still in flight — which leaves it unusable for the rest of the \
+                   request.",
         },
     ],
+};
+
+/// The `timeout` option's entry, shared by the four buffered statement members.
+///
+/// One constant for the same reason [`STATEMENT_OPTIONS`] is one: the option is
+/// one option, and a card per member repeating it in its own words is four
+/// descriptions free to drift. `stream` writes its own because the bound means
+/// something different there — it covers the walk rather than the call.
+const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
+    name: "timeout",
+    desc: "How long this statement may take. It bounds the whole exchange — the prepare, the \
+           execution and every row of the answer — and not one read of it: when it passes the \
+           statement gives up with an `IOError` and the connection is spent, since it was given \
+           up on part way through a message. Omitted, the statement waits as long as the server \
+           takes.",
+    shape: &[],
 };
 
 /// `Core\Db\Connection::queryAs`'s reference card — ADR 0117.
@@ -1731,6 +1810,7 @@ pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
                    and string-keyed for `:name`.",
             shape: &[],
         },
+        TIMEOUT_PARAM_DOC,
     ],
     ret: "A `Core\\Db\\Rows<T>` holding one `T` per row, in the server's order. A row is built \
           when it is handed out — by `all`, by `first` or by a `foreach` — so a result that is \
@@ -1774,6 +1854,7 @@ pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
                    through the same rewriter.",
             shape: &[],
         },
+        TIMEOUT_PARAM_DOC,
     ],
     ret: "A `Core\\Db\\Write` carrying how many rows were affected, that count as the server \
           reported it, and the id a `RETURNING` clause handed back. Rows the statement did answer \
@@ -1794,8 +1875,9 @@ pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement was in flight, which leaves it \
-                   unusable for the rest of the request.",
+            desc: "The connection failed while the statement was in flight — or `timeout` passed \
+                   with it still in flight — which leaves it unusable for the rest of the \
+                   request.",
         },
     ],
 };
@@ -1820,6 +1902,7 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
                    different width is a different statement, not another row of this one.",
             shape: &[],
         },
+        TIMEOUT_PARAM_DOC,
     ],
     ret: "The sum of what each execution reported, with a command whose tag carries no count \
           contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a \
@@ -1840,8 +1923,8 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the batch was in flight, which leaves it unusable \
-                   for the rest of the request.",
+            desc: "The connection failed while the batch was in flight — or `timeout` passed with \
+                   it still in flight — which leaves it unusable for the rest of the request.",
         },
     ],
 };
@@ -1863,6 +1946,14 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
             name: "params",
             desc: "The values to bind, read exactly as `query` reads them — list-keyed for `?`, \
                    string-keyed for `:name`, one array and never both spellings.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "timeout",
+            desc: "How long the whole walk may take. The bound stays on the connection while the \
+                   cursor is open, so it covers every row read and not just the call that opens \
+                   the walk; the statement gives up with an `IOError` when it passes, and the \
+                   connection is spent. Omitted, the walk waits as long as the server takes.",
             shape: &[],
         },
     ],
@@ -1891,8 +1982,9 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The connection failed while the statement or one of its rows was in flight, \
-                   which leaves it unusable for the rest of the request.",
+            desc: "The connection failed while the statement or one of its rows was in flight — \
+                   or `timeout` passed with the walk still open — which leaves it unusable for \
+                   the rest of the request.",
         },
     ],
 };

@@ -14,6 +14,81 @@
 
 use super::*;
 
+/// The ABI slot ADR 0067 § 4's `{timeout?: Duration}` arrives in, on every
+/// statement member.
+///
+/// One constant for all five, because the bag flattens to one trailing argument
+/// and all five have the same three in front of it — the receiver, the statement
+/// and its values. `queryAs` reads it here too: `crate::registry::WRITTEN_CLASS_MEMBERS`'
+/// two leading constants are sliced off before [`queried_rows`] sees the
+/// arguments at all, so the slot is the same number on both sides of that slice.
+pub(super) const STATEMENT_TIMEOUT_ARG: usize = 3;
+
+/// The instant this statement must have answered by, or `None` for a call that
+/// named no `timeout`.
+///
+/// [`super::open::deadline_of`]'s twin for the statement path, reading the same
+/// `Core\Time\Duration` off the same kind of slot. The two are separate
+/// functions rather than one over an index because they refuse in their own
+/// member's name, and a `connect` timeout and a statement timeout are bounds on
+/// different things that a diagnostic should never blur.
+///
+/// # Errors
+///
+/// A thrown `RuntimeError` for a duration that is zero or negative — ADR 0074
+/// § 5 has no spelling for an unbounded wait and a zero one is that spelling said
+/// quietly — and a [`Fault::fatal`] for a slot that is neither a `Duration` nor
+/// `Tag::Null`, which the row's type rules out.
+pub(super) fn statement_deadline(
+    args: &[Value],
+    member: &str,
+) -> Result<Option<std::time::Instant>, Fault> {
+    if matches!(args[STATEMENT_TIMEOUT_ARG].tag(), Some(Tag::Null)) {
+        return Ok(None);
+    }
+    let nanos = crate::time::nanos_of(args, STATEMENT_TIMEOUT_ARG, "timeout")?;
+    if nanos <= 0 {
+        return Err(Fault::thrown(format!(
+            "{member}: `timeout` must be a positive duration, and this one is {nanos}ns"
+        )));
+    }
+    Ok(Some(
+        std::time::Instant::now() + std::time::Duration::from_nanos(nanos.unsigned_abs()),
+    ))
+}
+
+/// [`filed_connection`], with § 4's deadline filed on it before the statement
+/// goes out.
+///
+/// **Every statement path goes through this and not through
+/// [`filed_connection`]**, including the ones whose caller named no timeout: the
+/// bound belongs to the connection rather than to a call, so a statement that
+/// named none has to *lift* the one the statement before it named. The other end
+/// of that rule is [`warm_connection`], which lifts it again before § 13's reset
+/// — the one exchange no program's clock may bound.
+///
+/// `nvs_db::Connection::set_deadline` owns what the instant reaches on each
+/// driver: the socket on the four with a wire, and the lock wait on SQLite.
+///
+/// # Errors
+///
+/// [`filed_connection`]'s, plus a thrown `RuntimeError` for a connection that
+/// would not take the bound at all — which only the SQLite arm can report.
+pub(super) fn bound_connection<'a>(
+    ctx: &'a mut nvs_runtime::Ctx,
+    key: u64,
+    named: &str,
+    deadline: Option<std::time::Instant>,
+) -> Result<&'a mut nvs_db::Connection, Fault> {
+    let connection = filed_connection(ctx, key, named)?;
+    connection.set_deadline(deadline).map_err(|refused| {
+        Fault::thrown(format!(
+            "{named}: the connection would not take a `timeout`: {refused}"
+        ))
+    })?;
+    Ok(connection)
+}
+
 /// A connection ADR 0067 § 7's commands are written for, borrowed as one thing.
 ///
 /// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
@@ -166,7 +241,7 @@ nvs_runtime::nvs_helper! {
     /// order the *statement* asks for them, which is why nothing here counts
     /// placeholders itself and why an `inList`'s expansion needs no second
     /// pass.
-    fn nvs_core_db_connection_query(ctx, args: [3]) {
+    fn nvs_core_db_connection_query(ctx, args: [4]) {
         let answered = queried_rows(ctx, args, "query", QUERY)?;
         Ok(crate::instance::build(
             &ROWS,
@@ -218,6 +293,9 @@ pub(super) fn queried_rows(
     named: &str,
 ) -> Result<Answered, Fault> {
     let statement = statement_of(ctx, args, member, named)?;
+    // Read before the connection is in hand, because the refusal for a
+    // nonsensical duration is the caller's mistake and owes no round trip.
+    let deadline = statement_deadline(args, named)?;
     // § 18's `$sql` argument read a second time rather than [`Statement::sql`]:
     // what a refusal names is the text the program wrote, where that field is
     // § 5's rewrite of it. The tag is already known good — `statement_of`
@@ -233,7 +311,7 @@ pub(super) fn queried_rows(
     // the arm that read the span is still holding the thing the span is filed
     // on. Each arm hands back what [`QueryWatch::taken`] took, which is `None`
     // where nothing is reading rather than where a driver has no span.
-    let (answered, taken) = match filed_connection(ctx, statement.key, named)? {
+    let (answered, taken) = match bound_connection(ctx, statement.key, named, deadline)? {
         nvs_db::Connection::Postgres(postgres) => {
             postgres_rows(postgres, &statement, &sending, source, watch, named)?
         }
@@ -1074,7 +1152,7 @@ nvs_runtime::nvs_helper! {
     /// when `all`, `first` or a `foreach` asks for a row — so this body's own
     /// refusals are the two that are about the *call site* rather than about a
     /// row, and they are raised before the statement goes out.
-    fn nvs_core_db_connection_query_as(ctx, args: [5]) {
+    fn nvs_core_db_connection_query_as(ctx, args: [6]) {
         // Unreachable from source, exactly as `Core\Json::decodeAs`'s own
         // reading of these two slots is: `nvs_ir::lower` writes the descriptor
         // and the flag out of the type argument at the call site, and a call
@@ -1143,8 +1221,10 @@ nvs_runtime::nvs_helper! {
     /// whose tag carries no count at all — a `create table` — to `0`, and
     /// `changed` keeps the absence, which is the only thing the two say
     /// differently on this driver.
-    fn nvs_core_db_connection_execute(ctx, args: [3]) {
+    fn nvs_core_db_connection_execute(ctx, args: [4]) {
         let statement = statement_of(ctx, args, "execute", EXECUTE)?;
+        // As `query`'s, and read at the same point for the same reason.
+        let deadline = statement_deadline(args, EXECUTE)?;
         // As `query`, and for the reason given there: a refusal names the
         // caller's own text rather than the rewrite of it that reached the wire.
         let source = args[1].as_text();
@@ -1154,7 +1234,7 @@ nvs_runtime::nvs_helper! {
         // Branched as [`queried_rows`] is, and the arms hand the event back for
         // the same borrow reason: the rows hold the connection, which holds the
         // context the span is filed on.
-        let (written, taken) = match filed_connection(ctx, statement.key, EXECUTE)? {
+        let (written, taken) = match bound_connection(ctx, statement.key, EXECUTE, deadline)? {
             nvs_db::Connection::Postgres(postgres) => {
                 postgres_write(postgres, &statement, &sending, source, watch, EXECUTE)?
             }
@@ -1226,8 +1306,12 @@ nvs_runtime::nvs_helper! {
     /// on PostgreSQL, a command per execution on MySQL, an `sp_execute` per set
     /// against one `sp_prepexec` on SQL Server — and each `execute_many`'s own
     /// doc argues its half.
-    fn nvs_core_db_connection_execute_many(ctx, args: [3]) {
+    fn nvs_core_db_connection_execute_many(ctx, args: [4]) {
         let batch = batch_of(ctx, args, "executeMany", EXECUTE_MANY)?;
+        // § 4's `timeout` bounds the *batch*, which is what a caller asked to
+        // bound: the sets are one statement run N times over one connection, and
+        // there is no per-set answer for a per-set clock to belong to.
+        let deadline = statement_deadline(args, EXECUTE_MANY)?;
         // Two hops rather than one: the driver borrows each set as a slice, so
         // the per-set `Vec` has to outlive the slice taken of it.
         let sending: Vec<Vec<Option<&[u8]>>> = batch.binds.iter().map(Binds::wire).collect();
@@ -1235,7 +1319,7 @@ nvs_runtime::nvs_helper! {
 
         // As `execute`, and for the reason [`QueryWatch`] gives.
         let watch = QueryWatch::of(ctx, &batch.block);
-        let connection = filed_connection(ctx, batch.key, EXECUTE_MANY)?;
+        let connection = bound_connection(ctx, batch.key, EXECUTE_MANY, deadline)?;
         let driver = connection.driver();
         // § 11's span, opened where the driver opens `execute`'s: after the
         // connection is in hand, so the duration is the statement's wait and
@@ -1298,6 +1382,98 @@ mod tests {
         unsafe {
             value.release();
         }
+    }
+
+    /// [ADR 0067 § 4](/docs/adr/0067-core-db.md)'s `{timeout?: Duration}`, over
+    /// the three links that make it a bound rather than an option that parses:
+    /// the duration becomes an instant, the instant reaches the socket, and a
+    /// socket that gave up on it becomes a throw.
+    ///
+    /// **The middle link is the claim, and it is asserted on a real socket.**
+    /// `nvs_host::net::Deadline` is the trait every driver's `Wire::set_deadline`
+    /// forwards through, and `nvs_db::Connection::set_deadline` — what
+    /// [`bound_connection`] calls — is five arms of exactly that call. This crate
+    /// cannot build an `nvs_db::Connection` at all (the playbook's own bullet
+    /// owns why), so what is pinned here is the seam the member files the
+    /// deadline *on*, read back off the stream and then made to expire. The
+    /// live-server half is `tools/db-matrix.py`'s.
+    ///
+    /// The read runs off a core, where the bound is the poll's own timeout, so
+    /// this needs neither a scheduler nor a reactor — `nvs_host::net`'s
+    /// `a_read_off_a_core_is_bounded_by_the_same_deadline` is the same shape one
+    /// crate down.
+    #[test]
+    fn a_statement_timeout_reaches_the_socket_and_throws_on_expiry() {
+        // 1. § 18's option becomes the instant the statement must answer by.
+        let named = crate::time::duration_of(50_000_000);
+        let asked = [Value::null(), Value::null(), Value::null(), named];
+        let deadline = statement_deadline(&asked, QUERY)
+            .expect("a positive `timeout` is a deadline")
+            .expect("a `timeout` that was written is not an absent one");
+        assert!(
+            deadline > std::time::Instant::now(),
+            "a 50ms `timeout` produced a deadline that had already passed"
+        );
+        released(named);
+
+        // The absence is the absence, so a statement that named none lifts
+        // whatever the statement before it on this connection named.
+        let silent = [Value::null(), Value::null(), Value::null(), Value::null()];
+        assert!(
+            statement_deadline(&silent, QUERY)
+                .expect("an omitted `timeout` is not a refusal")
+                .is_none(),
+            "an omitted `timeout` produced a bound"
+        );
+
+        // And a zero is refused rather than read as "unbounded", which is the
+        // spelling ADR 0074 § 5 does not have.
+        let zero = crate::time::duration_of(0);
+        let refused = [Value::null(), Value::null(), Value::null(), zero];
+        assert!(
+            matches!(statement_deadline(&refused, QUERY), Err(Fault::Thrown(..))),
+            "a zero `timeout` was accepted as a bound"
+        );
+        released(zero);
+
+        // 2. The instant reaches the socket, through the trait the drivers
+        //    forward it through.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let address = listener
+            .local_addr()
+            .expect("a bound listener has an address");
+        let client = std::net::TcpStream::connect(address).expect("the listener refused a connect");
+        // Held for the length of the case: a peer that has gone leaves the read
+        // below answering end-of-stream instead of waiting for its deadline.
+        let peer = listener.accept().expect("the connect was never accepted");
+        let mut socket = nvs_host::net::NvsTcp::from_std(client)
+            .expect("the platform refused a non-blocking socket");
+        let expiring = std::time::Instant::now() + std::time::Duration::from_millis(20);
+        nvs_host::net::Deadline::set_deadline(&mut socket, Some(expiring));
+        assert_eq!(
+            nvs_host::net::Deadline::deadline(&socket),
+            Some(expiring),
+            "the deadline did not land on the stream that waits"
+        );
+
+        // 3. A read past it gives up, and this module's own mapping turns that
+        //    into § 10's `IOError` — the connection was abandoned part way
+        //    through a message and is spent, which is what that class says.
+        let mut buffer = [0_u8; 8];
+        let started = std::time::Instant::now();
+        let expired = std::io::Read::read(&mut socket, &mut buffer)
+            .expect_err("a read behind a deadline, from a peer that says nothing, answered");
+        assert_eq!(expired.kind(), std::io::ErrorKind::TimedOut);
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(20),
+            "the read gave up before the deadline it was given"
+        );
+        let thrown = statement_failure(QUERY, &Value::null(), Some("select 1"), &expired);
+        assert!(
+            matches!(thrown, Fault::Thrown(ThrownClass::Io, _)),
+            "a statement that ran out of time did not throw an `IOError`"
+        );
+        drop(peer);
     }
 
     /// One row of [`one_sqlite_cell_reads_as_five_things_under_five_declarations`]'s

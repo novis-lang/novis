@@ -42,26 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 6 — the server, M7 — is green.**  **`nvs-db`'s PostgreSQL is whole**, §§
-> 3-13.   **`Core\Db` is open**: `queryAs<T>`, § 6's convert, § 13's pool, `[queue]`, `stream` walks
-> 10k rows; `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
-> `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file; `E0621`/`E0622` refuse a
-> mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before an isolate; § 6's walk decides
-> the peer, `400` on a bad token; § 8's accept backs off, § 5's drain answers the probe;
-> `Core\Response` has seven, `Core\Request` thirteen, an upload walks as parts; ADR 0074 §§ 1-2
-> hold; `route()`, `match`, `methodsFor`, CSRF and the label read one match; four capture kinds
-> convert, decoded once; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's session
-> is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's
-> ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**:
-> `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace continues, both blocks
-> boot, a core meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:` at a
-> `Core` row too; ADR 0083 is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
+> 3-13.   **`Core\Db` is open**: `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool,
+> `[queue]`, `stream` walks 10k rows; `Core\Uri` answers `bytes`; `nvs check` reads grants.
+> **`nvs-server` runs h1 as goal 2's `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a
+> file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before
+> an isolate; § 6's walk decides the peer, `400` on a bad token; § 8's accept backs off, § 5's drain
+> answers the probe; `Core\Response` has seven, `Core\Request` thirteen, an upload walks; ADR 0074
+> §§ 1-2 hold; `route()`, `match`, `methodsFor`, CSRF and the label read one match; four capture
+> kinds convert, decoded once; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's
+> session is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR
+> 0073's ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7
+> land**: `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace continues, both
+> blocks boot, a core meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:` at
+> a `Core` row too; ADR 0083 is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores, §
 > 7's bounds are finite; `Core\Sse` fills § 5's cell. **ADR 0078's endpoint lands**: `E0629` refuses
 > a network `socket`, a local one is 0600, `reload` its only operation, a changed `Boot` key named.
 > **ADR 0093 refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is guarded**:
 > `never` never `stat`s, one window is one check, a swap publishes, § 3a picks `validate`, 10k cold
-> requests compile once. **ADR 0079 §§ 14, 17-18 land**: `--update` splices, a request runs
-> in-process and on a listener, a `db:` test rolls back. Conformance 1556, differential 275,
-> migration 100%; valgrind green, arrays too. Serve: 2.78x php-cgi.
+> compile once. **ADR 0079 §§ 14, 17-18 land**: `--update` splices, a request runs in-process and on
+> a listener, a `db:` test rolls back. Conformance 1556, differential 275, migration 100%; valgrind
+> green, arrays too. Serve: 2.78x php-cgi.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no

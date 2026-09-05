@@ -2,43 +2,45 @@
 
 ## State
 
-**Stage 5's pool item is landed, both halves.** An `open`'s bounds are the `[db.<name>.pool]` of the
-block whose *settings hash* is that connection's — `crates/nvs-stdlib/src/db/pool.rs`'s
-`settings_bounds`, over `open.rs`'s `block_settings_key`, which builds each block's key through
-`settings_key` itself so the pool and the memo cannot disagree about what "the same connection" is.
-And `pool = false` is now writable **unscoped**: `[db]` is a `nvs_config::tree::Databases` — the
-switch beside a flattened map of the blocks, `Deref`ing to that map so `config.db.get("main")` is
-unchanged — and `nvs_config::db::bounds_for` is the one place the switch is read, so it reaches
-`connect`, a matching `open` and a matching-nothing `open` alike. An unscoped `[db.pool]` *table* of
-bounds is a boot refusal rather than a second meaning. ADR 0067 § 13 carries all of it now.
+**Stage 5's statement timeout is landed, all three slices.** ADR 0067 § 4's
+`{timeout?: Duration}` is a **deadline on the connection's socket** — the decision, the two
+candidates and why the server-side `statement_timeout` lost are recorded in
+`crates/nvs-stdlib/src/db/mod.rs`'s own `# A statement's `timeout` is a deadline on the socket`
+section, which is that gap's home now. The seam is `nvs_host::net::Deadline`, a two-method trait
+that reaches a socket through however many wrappers are over it, forwarded by `NvsTls<T>` and by
+`nvs-db`'s TDS `Tunnel`; `nvs_db::Connection::set_deadline` is the five-arm door, and SQLite's arm
+is `sqlite3_busy_timeout` because a lock wait is the only wait that backend takes. The option is on
+all ten registry rows — five members declared twice, see the playbook — and `bound_connection` is
+the one place a statement path reaches a connection, so a call that named no timeout lifts the one
+before it and `warm_connection` lifts it again before § 13's reset.
 
-Stage 5's last check is the statement timeout, and it is a feature before it is a test. Nothing is
-blocked on a decision.
+Nothing is blocked on a decision. The next acceptance failure the driver reports outranks the group
+below.
 
 ## Next group
 
-**Stage 5 — `a_statement_timeout_reaches_the_socket_and_throws_on_expiry`, which is one gap in three
-slices.** One file set: `crates/nvs-stdlib/src/db/mod.rs`, `crates/nvs-stdlib/src/db/registry.rs`,
-`crates/nvs-stdlib/src/db/execute.rs`, `crates/nvs-db/src/pg.rs`.
+**What `crates/nvs-stdlib/src/db/mod.rs`'s known gaps still owe on § 18's roster.** One file set:
+`crates/nvs-stdlib/src/db/mod.rs`, `crates/nvs-stdlib/src/db/registry.rs`,
+`crates/nvs-stdlib/src/db/stream.rs`, `crates/nvs-db/src/pg.rs`.
 
-- [ ] **Decide which timeout it is, and say so in the gap that asks.** `crates/nvs-stdlib/src/db/mod.rs:196`
-      is gap 6 and states the blocker exactly: § 4's `{timeout?: Duration}` is in the spec signatures
-      and in no registry row, because a deadline on a statement has no seam to reach the socket
-      through. The candidates are a deadline on the *socket* (what `nvs_db::PgConn::connect` already
-      takes) and a server-side `statement_timeout`; ADR 0067 § 11's `slow_query` is the neighbour
-      that is neither. The socket deadline is the one that holds on all five drivers.
-- [ ] **The seam on the statement path**, mirroring the one the handshake has —
-      `crates/nvs-db/src/pg.rs:2822` is `start_statement`, the free function over the stream that a
-      `-p nvs-db` test can already script a server for (the playbook's `PgConn` bullet is why it is
-      shaped that way).
-- [ ] **The row, then the test.** `crates/nvs-stdlib/src/db/registry.rs:317` is the comment saying
-      § 18's `{timeout?, chunk?: uint}` is deliberately absent; the four executing members are
-      `crates/nvs-stdlib/src/db/execute.rs`. A `-p nvs-stdlib` test cannot build a connection
-      (playbook), so the assertion is over the split-out tail, as `pool.rs`'s two new cases are.
+- [ ] **`stream`'s `{chunk?: uint}`, the other half of gap 6.** `crates/nvs-stdlib/src/db/mod.rs:248`
+      states it: a chunk size has to reach the `Execute` that asks for a row count, and
+      `crates/nvs-db/src/pg.rs:584`'s `stream` asks for one row. The registry rows are
+      `crates/nvs-stdlib/src/db/registry.rs:348` and `crates/nvs-stdlib/src/db/registry.rs:633` —
+      both, for the playbook's reason — and the member body is
+      `crates/nvs-stdlib/src/db/stream.rs:228`. Decide first whether a chunk is worth a second
+      `Execute` shape at all: § 4 promises constant memory, which one row already gives.
+- [ ] **`serverVersion`, gap 5.** `crates/nvs-stdlib/src/db/mod.rs:237` is the inventory: no driver
+      keeps the server's own version string, so the member cannot be written until PostgreSQL's
+      `server_version` `ParameterStatus` is held on the connection —
+      `crates/nvs-db/src/pg.rs:584` is the driver, and the field belongs beside `time_zone` on
+      `crates/nvs-db/src/conn.rs:637`'s `PgConn`. One driver at a time is fine; the member throws
+      for a backend that has not landed its half, as `stream` already does.
 
 ## Backlog
 
-- `stream`'s `{chunk?: uint}` is the other half of gap 6 — `crates/nvs-stdlib/src/db/mod.rs:196`.
-- An `open` naming an endpoint no block describes still takes the default bounds, and where those
-  would be *written* is an open ADR 0067 § 13 question — `crates/nvs-stdlib/src/db/mod.rs` gap 1.
-- `docs/agent/carried-gaps.md` lost its `[db.<name>.pool]` row; the rest of that table is untouched.
+- A live-server assertion that a `timeout` really expires mid-statement — `tools/db-matrix.py`'s,
+  not a `-p` check's; `crates/nvs-db/tests/handshake.rs` is the nearest shape.
+- `orient.py` printed ADR 0067 § 13 and § 3 only; this item needed § 4 and § 11. Add `0067 §4` and
+  `0067 §11` to `[context] adrs` in `docs/agent/loop-goal.toml`.
+- The eight spec §§ 16-17 classes have no owner on the chain — `docs/agent/carried-gaps.md`.

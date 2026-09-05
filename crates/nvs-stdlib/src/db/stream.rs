@@ -225,13 +225,19 @@ nvs_runtime::nvs_helper! {
     /// cursor yet — [`crate::db`]'s known gap 5 — and [`statement_failure`] for
     /// anything the server refused, which for a connection that is already
     /// streaming is § 4's `LogicError`.
-    fn nvs_core_db_connection_stream(ctx, args: [3]) {
+    fn nvs_core_db_connection_stream(ctx, args: [4]) {
         let statement = statement_of(ctx, args, "stream", STREAM_MEMBER)?;
+        // § 4's `timeout` bounds the *walk* on this member and not the call that
+        // opens it: the deadline stays filed on the connection while the portal
+        // is open, so it is every `advance()` up to the last row that is bounded
+        // — which is the wait a streaming caller actually has to survive. The
+        // release lifts it, as it does for a buffered statement.
+        let deadline = statement_deadline(args, STREAM_MEMBER)?;
         // The caller's own text and not [`Statement::sql`], for
         // [`queried_rows`]' reason: a refusal names what the program wrote.
         let source = args[1].as_text();
         let sending: Vec<Option<&[u8]>> = statement.binds.wire();
-        match filed_connection(ctx, statement.key, STREAM_MEMBER)? {
+        match bound_connection(ctx, statement.key, STREAM_MEMBER, deadline)? {
             nvs_db::Connection::Postgres(postgres) => {
                 // The description is answered here and read again per row off
                 // the connection, so nothing about it is copied into this
