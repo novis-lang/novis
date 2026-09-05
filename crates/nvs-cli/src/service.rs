@@ -43,7 +43,7 @@
 //!
 //! # What is on disk, and what is not
 //!
-//! [`unit`] renders § 5's systemd unit and [`image_path`] § 3's Windows
+//! [`unit()`] renders § 5's systemd unit and [`image_path`] § 3's Windows
 //! `ImagePath`, both from a `Plan` and both pure. `nvs service unit` prints
 //! one of them and touches nothing, which is § 5's whole design on Linux and
 //! its `--print` on Windows.
