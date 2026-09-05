@@ -291,6 +291,34 @@
 //! Parsing is a single pass, so a hostile input costs O(n) here as it does
 //! everywhere else in this module.
 //!
+//! # A decoder answers `bytes`
+//!
+//! Percent-decoding is defined over octets and a client may send any of them,
+//! so [`nvs_core_uri_decode_component`] and [`nvs_core_uri_decode_form_value`]
+//! answer [ADR 0009](/docs/adr/0009-string-and-bytes.md)'s `bytes` rather than
+//! a `string`: `decodeComponent("%FF")` has an answer, and `%ff%fe%fd` is the
+//! three octets it spells rather than a refusal. A caller who wants text
+//! writes `as string`, which is that ADR § 3's checked row and throws in
+//! exactly the place these members used to throw, one line later — so no
+//! program is denied an answer it could have used, and the one place this
+//! module diverged from PHP, whose strings are byte strings, is closed.
+//!
+//! The two encoders are untouched. They take text and answer text, and they
+//! are this class's two [`Qual::Launder`] rows; a decoder answering octets
+//! does not change what an encoder escapes.
+//!
+//! [`nvs_core_uri_parse_query`] answers those same octets for a **value**. A
+//! **name** is the array key the pair is placed under and an array key is a
+//! `string`, so a name whose escapes decode outside UTF-8 still refuses —
+//! [`text_from`] is that refusal and names the reason at the site. The
+//! decoding either half gets is the same [`decode`] either way, which is what
+//! the frozen claim "a name and a value decode as octets too" is about.
+//!
+//! `Core\Request::query` and `Core\Request::post` share [`parse_query`]'s
+//! bracket walk and **not** its value type: a served request's parameters are
+//! read as text at the door, which is spec § 15's row rather than § 12's, and
+//! [`Values`] is the one knob between them.
+//!
 //! # Known gaps
 //!
 //! 1. **`$uri->with` replaces a component and cannot remove one**, so there is
@@ -301,19 +329,6 @@
 //!    an options bag that can tell the two apart, not an `""`-means-remove
 //!    rule: `""` is already an empty query, which `?` written with nothing
 //!    after it produces and which `query()` reports as distinct from `null`.
-//! 2. **A decoder answers `string`, so it throws on bytes that are not valid
-//!    UTF-8** — `decodeComponent("%FF")` throws rather than answering. The
-//!    honest signature is `: bytes`, since percent-decoding is defined over
-//!    octets and a client can send any of them; the throw is exactly what
-//!    [ADR 0009](/docs/adr/0009-string-and-bytes.md) § 3's checked
-//!    `bytes as string` row would do one line later, so no program is denied
-//!    an answer it could have used. `parseQuery` throws on the same octets for
-//!    the same reason, for a name as well as for a value. The runtime half of
-//!    this is no longer missing — `nvs_runtime::Tag` has its `Bytes` row now —
-//!    so what remains is a spec question: § 12's table writes `: string` for
-//!    both decoders, and changing it is a spec slice rather than a runtime
-//!    one. This is the one place this module diverges from PHP, whose strings
-//!    are byte strings.
 //!
 //! # What these members do with a qualifier
 //!
@@ -405,7 +420,9 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
-            return_ty: CoreTy::Str,
+            // `bytes`, not `string`: the module docs' *A decoder answers
+            // `bytes`* owns why, and spec § 12's row says the same.
+            return_ty: CoreTy::Bytes,
             symbol: "nvs_core_uri_decode_component",
             doc: Some(&DECODE_COMPONENT_DOC),
         },
@@ -423,7 +440,8 @@ pub const CLASS: CoreClass = CoreClass {
             names: &["s"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
-            return_ty: CoreTy::Str,
+            // [`nvs_core_uri_decode_component`]'s answer type, for its reason.
+            return_ty: CoreTy::Bytes,
             symbol: "nvs_core_uri_decode_form_value",
             doc: Some(&DECODE_FORM_VALUE_DOC),
         },
@@ -644,13 +662,10 @@ const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
         desc: "The text to decode.",
         shape: &[],
     }],
-    ret: "The decoded text; a malformed escape such as `%G1` or a trailing `%` decodes to \
-          itself.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The escapes decode to octets that are not valid UTF-8, which a `string` cannot \
-               hold.",
-    }],
+    ret: "The decoded octets, as `bytes` — percent-decoding is defined over octets, so `%FF` has \
+          an answer here and text is one `as string` away. A malformed escape such as `%G1` or a \
+          trailing `%` decodes to itself.",
+    errors: &[],
 };
 
 /// `Core\Uri::encodeFormValue`'s reference card — ADR 0117.
@@ -678,13 +693,9 @@ const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
         desc: "The text to decode.",
         shape: &[],
     }],
-    ret: "The decoded text; a malformed escape decodes to itself, and `%20` reads as a space \
-          too.",
-    errors: &[ErrorDoc {
-        error: "RuntimeError",
-        desc: "The escapes decode to octets that are not valid UTF-8, which a `string` cannot \
-               hold.",
-    }],
+    ret: "The decoded octets, as `bytes`, exactly as `decodeComponent` answers them; a malformed \
+          escape decodes to itself, and `%20` reads as a space too.",
+    errors: &[],
 };
 
 /// `Core\Uri::parseQuery`'s reference card — ADR 0117.
@@ -698,12 +709,15 @@ const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
         desc: "The query text, without its leading `?`.",
         shape: &[],
     }],
-    ret: "An array whose every value is a `string` or a nested `array<mixed>`; a pair without \
-          `=` has the empty string for its value, a pair whose name decodes to nothing is \
+    ret: "An array whose every value is a `bytes` or a nested `array<mixed>` — a value is \
+          percent-decoded by the same decoder `decodeFormValue` is, so it answers octets; a pair \
+          without `=` has empty `bytes` for its value, a pair whose name decodes to nothing is \
           dropped, and a repeated name without brackets keeps the last value.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A name's or a value's escapes decode to octets that are not valid UTF-8.",
+        desc: "A name's escapes decode to octets that are not valid UTF-8, and a name is the \
+               array key the pair is placed under, which is a `string`. A value has no such \
+               refusal.",
     }],
 };
 
@@ -1007,8 +1021,8 @@ fn escaped(bytes: &[u8], at: usize) -> Option<u8> {
 /// `text` percent-decoded under `form`, as the octets it spells.
 ///
 /// Answers bytes rather than a `String` because that is what percent-decoding
-/// produces — the UTF-8 question is the caller's, and gap 2 owns why it is
-/// asked at all.
+/// produces — the UTF-8 question is the caller's, and the module docs'
+/// *A decoder answers `bytes`* owns who is left asking it.
 fn decode(text: &str, form: Form) -> Vec<u8> {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -1070,15 +1084,14 @@ fn produced(text: &str) -> HelperResult {
 }
 
 /// `octets` as text, or a throw where they are not UTF-8. `subject` names
-/// which octets they were, since `parseQuery` decodes two kinds.
+/// which octets they were, since [`parse_query`] asks this of a name and, for
+/// [`Values::Text`], of a value.
 ///
 /// # Errors
 ///
 /// A [`Fault::thrown`] naming the member and the offset of the first bad byte.
-/// This is gap 2: percent-decoding answers octets, `string` is UTF-8, and the
-/// throw is ADR 0009 § 3's checked `bytes as string` row reached one member
-/// early. The offset is a position in text the caller supplied, so it is safe
-/// to name and it is the one fact that makes the throw actionable — the octets
+/// The offset is a position in text the caller supplied, so it is safe to name
+/// and it is the one fact that makes the throw actionable — the octets
 /// themselves are not quoted, since they are by definition not text.
 fn text_from(octets: Vec<u8>, member: &str, subject: &str) -> Result<String, Fault> {
     String::from_utf8(octets).map_err(|error| {
@@ -1091,13 +1104,13 @@ fn text_from(octets: Vec<u8>, member: &str, subject: &str) -> Result<String, Fau
     })
 }
 
-/// `octets` as a `string` value, or a throw where they are not UTF-8.
+/// `octets` as a `bytes` value.
 ///
-/// # Errors
-///
-/// [`text_from`]'s, which owns why this throws at all.
-fn decoded(octets: Vec<u8>, member: &str) -> HelperResult {
-    produced(&text_from(octets, member, "the decoded octets")?)
+/// Total, and that is the point: percent-decoding is defined over octets and a
+/// `bytes` holds every one of them, so a decoder has nothing left to refuse.
+/// The module docs' *A decoder answers `bytes`* owns the rule.
+fn decoded(octets: Vec<u8>) -> HelperResult {
+    Ok(Value::bytes(NvsStr::new(&octets)))
 }
 
 // ============================================================================
@@ -1731,6 +1744,15 @@ fn scalar_text(value: Value, owner: &str, member: &str) -> Result<Vec<u8>, Fault
     if let Some(set) = value.as_bool() {
         return Ok(if set { b"1".to_vec() } else { b"0".to_vec() });
     }
+    // A `bytes` is what `parseQuery` answers for a value now, and this member
+    // is that one's inverse — so its octets are written straight into the
+    // encoder, which turns every one of them into an ASCII escape. There is no
+    // `as string` in the way on purpose: a value that survived the wire once
+    // has to survive being written back, and `value_to_string` refuses a
+    // `bytes` exactly as ADR 0009 § 3 says it should.
+    if let Some(bytes) = value.as_bytes() {
+        return Ok(bytes.to_vec());
+    }
     let text = nvs_runtime::value_to_string(value).map_err(|_| {
         Fault::thrown(format!(
             "{owner}::{member}(): a parameter's value is neither a scalar nor a nested array, \
@@ -2191,7 +2213,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Uri::decodeComponent(string $s): string` — replacing PHP's
+    /// `Core\Uri::decodeComponent(string $s): bytes` — replacing PHP's
     /// `rawurldecode`.
     ///
     /// The exact inverse of [`nvs_core_uri_encode_component`] for text that
@@ -2200,12 +2222,12 @@ nvs_runtime::nvs_helper! {
     /// one: reading a form value with this decoder turns every space the user
     /// typed into a `+`.
     ///
-    /// A malformed escape decodes to itself and non-UTF-8 octets throw — the
-    /// module docs and gap 2 own both.
+    /// A malformed escape decodes to itself, and every octet has an answer:
+    /// the module docs' *A decoder answers `bytes`* owns both.
     fn nvs_core_uri_decode_component(_ctx, args: [1]) {
         let text = text_of(args, "decodeComponent")?;
 
-        decoded(decode(text, Form::Component), "decodeComponent")
+        decoded(decode(text, Form::Component))
     }
 }
 
@@ -2220,7 +2242,7 @@ nvs_runtime::nvs_helper! {
     /// difference is kept rather than collapsed.
     ///
     /// A program building a whole query string reaches for `Uri::buildQuery`
-    /// instead (gap 3), which writes the `=` and the `&` as well. This member
+    /// instead, which writes the `=` and the `&` as well. This member
     /// is one side of one pair.
     ///
     /// **It launders** ([`Qual::Launder`]), and the sink it launders for is an
@@ -2235,7 +2257,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Uri::decodeFormValue(string $s): string` — replacing PHP's
+    /// `Core\Uri::decodeFormValue(string $s): bytes` — replacing PHP's
     /// `urldecode`.
     ///
     /// The inverse of [`nvs_core_uri_encode_form_value`]: `+` is a space, and
@@ -2244,12 +2266,12 @@ nvs_runtime::nvs_helper! {
     /// this the right decoder for a query string written by something that
     /// followed RFC 3986 rather than the form encoding.
     ///
-    /// A malformed escape decodes to itself and non-UTF-8 octets throw — the
-    /// module docs and gap 2 own both.
+    /// A malformed escape decodes to itself, and every octet has an answer:
+    /// the module docs' *A decoder answers `bytes`* owns both.
     fn nvs_core_uri_decode_form_value(_ctx, args: [1]) {
         let text = text_of(args, "decodeFormValue")?;
 
-        decoded(decode(text, Form::FormValue), "decodeFormValue")
+        decoded(decode(text, Form::FormValue))
     }
 }
 
@@ -2260,9 +2282,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// Pairs are separated by `&`, each pair by its first `=`, and both halves
     /// are read with [`nvs_core_uri_decode_form_value`]'s decoder — so a `+`
-    /// is a space on both sides of the `=`. A pair with no `=` at all has the
-    /// empty string for its value, and one whose name decodes to nothing is
-    /// dropped, both as PHP does.
+    /// is a space on both sides of the `=`, and a value answers that decoder's
+    /// octets. A pair with no `=` at all has empty `bytes` for its value, and
+    /// one whose name decodes to nothing is dropped, both as PHP does.
     ///
     /// Names carry the bracket convention in full: `a[]=1&a[]=2` builds a
     /// list, `a[b]=c` builds a map, and the two nest to any depth. A repeated
@@ -2271,13 +2293,14 @@ nvs_runtime::nvs_helper! {
     ///
     /// # Errors
     ///
-    /// [`text_from`]'s throw, for a name or a value whose escapes decode to
-    /// octets that are not UTF-8. Every value in the answer is a `string` or a
-    /// nested `array<mixed>`, which is what the spec's `array<mixed>` says and
-    /// why it is not `array<string>`.
+    /// [`text_from`]'s throw, for a **name** whose escapes decode to octets
+    /// that are not UTF-8 — that name is an array key and an array key is a
+    /// `string`. A value has no such refusal. Every value in the answer is a
+    /// `bytes` or a nested `array<mixed>`, which is what the spec's
+    /// `array<mixed>` says and why it is not `array<bytes>`.
     fn nvs_core_uri_parse_query(_ctx, args: [1]) {
         let query = text_of(args, "parseQuery")?;
-        Ok(Value::array(parse_query(query, "parseQuery")?))
+        Ok(Value::array(parse_query(query, "parseQuery", Values::Octets)?))
     }
 }
 
@@ -2293,9 +2316,11 @@ nvs_runtime::nvs_helper! {
 ///
 /// # Errors
 ///
-/// [`text_from`]'s throw, for a name or a value whose escapes decode to octets
-/// that are not UTF-8.
-pub(crate) fn parse_query(query: &str, member: &str) -> Result<NvsArray, Fault> {
+/// [`text_from`]'s throw, for a **name** whose escapes decode to octets that
+/// are not UTF-8 — a name is an array key and an array key is a `string`. A
+/// value refuses nothing under [`Values::Octets`] and refuses the same octets
+/// under [`Values::Text`].
+pub(crate) fn parse_query(query: &str, member: &str, values: Values) -> Result<NvsArray, Fault> {
     let mut out = NvsArray::new();
     for pair in query.split('&') {
         let (written_name, written_value) = pair.split_once('=').unwrap_or((pair, ""));
@@ -2307,18 +2332,32 @@ pub(crate) fn parse_query(query: &str, member: &str) -> Result<NvsArray, Fault> 
         if name.is_empty() {
             continue;
         }
-        let value = text_from(
-            decode(written_value, Form::FormValue),
-            member,
-            "the decoded value of a query parameter",
-        )?;
-        place(
-            &mut out,
-            name.as_bytes(),
-            Value::str(NvsStr::new(value.as_bytes())),
-        );
+        let octets = decode(written_value, Form::FormValue);
+        let value = match values {
+            Values::Octets => Value::bytes(NvsStr::new(&octets)),
+            Values::Text => Value::str(NvsStr::new(
+                text_from(octets, member, "the decoded value of a query parameter")?.as_bytes(),
+            )),
+        };
+        place(&mut out, name.as_bytes(), value);
     }
     Ok(out)
+}
+
+/// What [`parse_query`] makes of a value's decoded octets.
+///
+/// The bracket walk is shared with [`crate::request`] because spec § 9 requires
+/// *the same code* to read `a[b][]=1`; the answer's element type is not shared,
+/// and this is the whole of the difference. `Core\Uri::parseQuery` is a § 12
+/// member and answers the octets ([`Values::Octets`]); `Core\Request::query`
+/// and `Core\Request::post` are § 15 members that read a served request's
+/// parameters as text at the door and keep their refusal ([`Values::Text`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Values {
+    /// The octets themselves, as a `bytes` — § 12's answer.
+    Octets,
+    /// The octets as text, refusing the ones no `string` holds — § 15's.
+    Text,
 }
 
 /// One already-decoded name and value, placed under the bracket convention.
@@ -2414,6 +2453,35 @@ mod tests {
         out
     }
 
+    /// [`run`] for a member that answers `bytes` rather than a `string` —
+    /// which is both decoders, since the module docs' *A decoder answers
+    /// `bytes`*. Kept separate rather than folded into `run` for the reason
+    /// `Value::as_bytes` gives: a caller that means text must not silently
+    /// accept octets.
+    fn octets(
+        member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+        subject: &str,
+    ) -> Vec<u8> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let argument = Value::str(nvs_runtime::NvsStr::new(subject.as_bytes()));
+        let answer = call(member, &mut ctx, &[argument]).expect("a decoder refuses nothing");
+        let out = answer
+            .as_bytes()
+            .expect("a decoder answers `bytes`")
+            .to_vec();
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the answer the helper built and the \
+                      argument it passed in, and a decoder borrows rather \
+                      than consumes"
+        )]
+        unsafe {
+            answer.release();
+            argument.release();
+        }
+        out
+    }
+
     /// The whole of ASCII plus one multi-byte character, round-tripped both
     /// ways: the assertion that catches a byte one encoder escapes and its own
     /// decoder does not restore.
@@ -2437,10 +2505,7 @@ mod tests {
                 encoded.is_ascii(),
                 "an encoded answer is ASCII by construction"
             );
-            assert_eq!(
-                run(decoder, &encoded).expect("its own output decodes"),
-                subject
-            );
+            assert_eq!(octets(decoder, &encoded), subject.as_bytes());
         }
     }
 
@@ -2463,13 +2528,13 @@ mod tests {
     /// in it that the cases below rely on.
     fn rendered(value: Value) -> String {
         let Some(address) = value.array_ptr() else {
-            return String::from_utf8(
-                value
-                    .as_str_bytes()
-                    .expect("a leaf of the answer is a `string`")
-                    .to_vec(),
+            // A leaf is `bytes` now, and lossily is the only way to render one
+            // on a line: the case that cares which octets they were asserts
+            // them directly rather than through here.
+            return String::from_utf8_lossy(
+                value.as_bytes().expect("a leaf of the answer is a `bytes`"),
             )
-            .expect("ADR 0009 guarantees a `string` is UTF-8");
+            .into_owned();
         };
         let array = crate::arr::borrowed(address);
         let mut out = String::from("{");
@@ -2635,21 +2700,107 @@ mod tests {
         }
     }
 
-    /// A name's escapes are decoded to octets exactly as a value's are, so
-    /// either side can carry bytes no `string` holds — gap 2, on both.
+    /// A name is the array key the pair is placed under and an array key is a
+    /// `string`, so a name whose escapes leave UTF-8 still refuses — wherever
+    /// in the name it sits. A *value* has no such refusal, which is the
+    /// neighbouring case.
     #[test]
-    fn a_non_utf8_escape_in_either_half_of_a_pair_throws() {
-        assert!(parsed("a=%FF").is_err());
+    fn a_non_utf8_escape_in_a_name_throws_because_a_key_is_a_string() {
         assert!(parsed("%FF=a").is_err());
         assert!(parsed("a[%FF]=b").is_err());
+        assert!(parsed("a=%FF").is_ok());
     }
 
-    /// A decoded octet outside UTF-8 has no `string` to land in, so the member
-    /// throws rather than substituting — gap 2, and ADR 0009 § 3's rule.
+    /// The claim the stage freezes: a decoder answers the octets themselves,
+    /// so the escapes a `string` could never have carried have an answer here
+    /// and text is one `as string` away. Asserted as bytes, since rendering
+    /// them as text is exactly what this member no longer does.
     #[test]
-    fn a_non_utf8_octet_throws_rather_than_being_replaced() {
-        assert!(run(super::nvs_core_uri_decode_component, "a%FFb").is_err());
-        assert!(run(super::nvs_core_uri_decode_form_value, "%C3%28").is_err());
+    fn decode_component_answers_octets_that_are_not_valid_utf8() {
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_component, "%ff%fe%fd"),
+            [0xff, 0xfe, 0xfd]
+        );
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_component, "a%FFb"),
+            [b'a', 0xff, b'b']
+        );
+        // A truncated sequence, a lone surrogate's encoding and an overlong
+        // form: the three shapes `String::from_utf8` refused, all answered.
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_form_value, "%C3%28"),
+            [0xc3, 0x28]
+        );
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_form_value, "%ED%A0%80"),
+            [0xed, 0xa0, 0x80]
+        );
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_component, "%C0%AF"),
+            [0xc0, 0xaf]
+        );
+        // Still text where the octets are text, and still one pass: the `+`
+        // rule is the only thing the two decoders disagree on.
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_component, "caf%C3%A9+x"),
+            "café+x".as_bytes()
+        );
+        assert_eq!(
+            octets(super::nvs_core_uri_decode_form_value, "caf%C3%A9+x"),
+            "café x".as_bytes()
+        );
+    }
+
+    /// `parseQuery` decodes a name and a value with the same octet decoder, so
+    /// a `+` and a `%XX` read alike on both sides of the `=` — and the value
+    /// answers those octets even where no `string` could have held them, which
+    /// is what the name cannot do, since it is a key.
+    #[test]
+    fn parse_query_answers_octets_for_a_name_and_for_a_value() {
+        // Both halves through the same decoder: `%61` is `a` and `+` is a
+        // space, in a name exactly as in a value.
+        assert_eq!(parsed("%61+b=%61+c").expect("no throw"), "{a b:a c}");
+        // The value's octets, whatever they are. `rendered` reads a leaf
+        // lossily, so this asserts the bytes rather than their rendering.
+        let query = super::parse_query("n=%ff%fe%fd", "parseQuery", super::Values::Octets)
+            .expect("a value refuses nothing");
+        let slot = query.next_slot(0).expect("one pair");
+        let value = query.value_at(slot).expect("a live slot has a value");
+        assert_eq!(
+            value.as_bytes().expect("a value is `bytes`"),
+            [0xff, 0xfe, 0xfd]
+        );
+        // The same query read as a served request's parameters keeps § 15's
+        // refusal, which is the whole of what `Values` decides.
+        assert!(super::parse_query("n=%ff%fe%fd", "query", super::Values::Text).is_err());
+    }
+
+    /// The amendment is the decoders' alone: an encoder still takes text and
+    /// still answers text, so `decodeComponent(encodeComponent($s)) as string`
+    /// is the round trip it always was.
+    #[test]
+    fn the_two_encoders_still_take_text_and_answer_text() {
+        for member in [
+            super::nvs_core_uri_encode_component,
+            super::nvs_core_uri_encode_form_value,
+        ] {
+            let answer = run(member, "a b/c?d é").expect("an encoder never throws");
+            assert!(answer.is_ascii(), "for {answer:?}");
+        }
+        assert_eq!(
+            octets(
+                super::nvs_core_uri_decode_component,
+                &run(super::nvs_core_uri_encode_component, "a b/c?d é").expect("no throw"),
+            ),
+            "a b/c?d é".as_bytes()
+        );
+        assert_eq!(
+            octets(
+                super::nvs_core_uri_decode_form_value,
+                &run(super::nvs_core_uri_encode_form_value, "a b/c?d é").expect("no throw"),
+            ),
+            "a b/c?d é".as_bytes()
+        );
     }
 
     /// PHP leaves a `%` that does not begin two hex digits exactly as it
@@ -2665,8 +2816,8 @@ mod tests {
             ("%2f", "/"),
         ] {
             assert_eq!(
-                run(super::nvs_core_uri_decode_component, subject).expect("no throw"),
-                expected
+                octets(super::nvs_core_uri_decode_component, subject),
+                expected.as_bytes()
             );
         }
     }

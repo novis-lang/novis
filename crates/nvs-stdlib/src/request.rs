@@ -156,7 +156,12 @@
 //! `query` parses the raw query string on **every call**, through
 //! [`crate::uri::parse_query`] — the same code `Core\Uri::parseQuery` runs,
 //! which is what spec § 9 promises when it says reproducing PHP's bracket
-//! convention there is what lets this member answer the same shape. Two lookups
+//! convention there is what lets this member answer the same shape. The *shape*
+//! is what is shared and not the element type: `Core\Uri::parseQuery` is a
+//! § 12 member and answers a value's decoded octets as `bytes`, while a served
+//! request's parameters are read as text at the door, so this member passes
+//! `crate::uri::Values::Text` and keeps the refusal for octets no `string`
+//! holds. That enum is the whole of the difference. Two lookups
 //! parse twice. That is O(query) per read rather than per request, and it is
 //! deliberate for now: a memoized parse is state on the context, and the
 //! context does not hold a *parsed* request yet — only the bytes one arrived
@@ -1388,7 +1393,7 @@ fn urlencoded_form(ctx: &mut Ctx, reading: Reading) -> Result<NvsArray, Fault> {
                 .to_owned(),
         )
     })?;
-    crate::uri::parse_query(held, "post")
+    crate::uri::parse_query(held, "post", crate::uri::Values::Text)
 }
 
 /// The request this context is answering, or ADR 0012 § 7's refusal.
@@ -1758,7 +1763,11 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let parsed = crate::uri::parse_query(inbound_of(ctx, "query")?.query(), "query")?;
+        let parsed = crate::uri::parse_query(
+            inbound_of(ctx, "query")?.query(),
+            "query",
+            crate::uri::Values::Text,
+        )?;
         let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
         // `get` borrows rather than retains, and `parsed` releases every value
         // it holds when it drops at the end of this block — so the one being
