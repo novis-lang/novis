@@ -94,8 +94,9 @@ pub struct Config {
     pub log: Option<Log>,
     /// `[http.*]` — the five sub-blocks ADRs 0020 § 7 and 0074 own.
     pub http: Option<Http>,
-    /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2).
-    pub db: BTreeMap<String, Database>,
+    /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2), and the `pool = false`
+    /// § 13 lets an operator write beside them rather than inside one.
+    pub db: Databases,
     /// `[mail.<name>]` — one named SMTP endpoint per sub-table (ADR 0082 § 2).
     pub mail: BTreeMap<String, MailEndpoint>,
     /// `[storage.<name>]` — one named object-storage disk per sub-table (ADR 0082 § 2).
@@ -507,6 +508,55 @@ pub struct StorageDisk {
     /// The directory the disk's objects are files in. Every object is one entry directly under
     /// it, because a key is one segment and never a path — `nvs_stdlib::storage` owns why.
     pub root: Option<String>,
+}
+
+/// `[db]` — every named block, and the one directive [ADR 0067] § 13 lets an operator write
+/// *unscoped*.
+///
+/// **A bare map has no home for an unscoped `pool = false`.** § 13's switch is written per block as
+/// `[db.<name>] pool = false`, and an audited deployment — one where every connection must map to
+/// one request — needs it to reach every connection the process opens, including the one a program
+/// described for itself through `Core\Db::open`. That connection names no block, so no per-block key
+/// can ever reach it. So `[db]` carries the switch and flattens the blocks beside it.
+///
+/// **Reserving a *name* inside the map was the other shape, and it collides.** `pool` is a name an
+/// operator may already have given a block, and a map that reinterpreted it would silently stop
+/// opening that connection. Against this shape a block written `[db.pool]` fails to deserialize as a
+/// [`Pool`] and names the key it could not read, which is the loud half of the same trade.
+///
+/// It [`Deref`](std::ops::Deref)s to [`blocks`](Self::blocks), so `config.db.get("main")` is still
+/// the whole of how a name is looked up; the field is named only by the passes that iterate, which
+/// cannot borrow through a deref.
+///
+/// [ADR 0067]: ../../../docs/adr/0067-core-db.md
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct Databases {
+    /// `[db] pool = false` — § 13's switch with no block in front of it, and the only key this
+    /// table holds that is not a block.
+    ///
+    /// It is the same [`Pool`] a block's own key is, so that `false` is spelled once; a *table* of
+    /// bounds written here is refused by `nvs_config::db::validate` rather than given a second
+    /// meaning, because bounds unscoped would be a default set for a pool whose key is a
+    /// credential hash and could not be sized against any one server.
+    pub pool: Option<Pool>,
+    /// `[db.<name>]` — one named connection per sub-table (ADR 0067 § 2).
+    #[serde(flatten)]
+    pub blocks: BTreeMap<String, Database>,
+}
+
+impl std::ops::Deref for Databases {
+    type Target = BTreeMap<String, Database>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.blocks
+    }
+}
+
+impl std::ops::DerefMut for Databases {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.blocks
+    }
 }
 
 /// One `[db.<name>]` block — ADR 0067 § 2, where the name and not the settings is the key.

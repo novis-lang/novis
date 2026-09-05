@@ -265,12 +265,18 @@ pub(crate) fn open_named(
              operator has not written yet"
         ))
     })?;
-    // ADR 0067 § 13's ticket. The bounds were validated at boot by
-    // `nvs_config::db::validate`, so the refusal below cannot fire; if it
-    // ever did, `OFF` is the answer that closes this connection with the
-    // request rather than pooling it under bounds nobody could resolve.
-    let bounds = nvs_config::db::pool_for(name, block, &std::collections::BTreeMap::new())
-        .unwrap_or(nvs_config::db::PoolBounds::OFF);
+    // ADR 0067 § 13's ticket, through the reader that applies the unscoped
+    // `pool = false` before it reads this block's own table. The bounds were
+    // validated at boot by `nvs_config::db::validate`, so the refusal below
+    // cannot fire; if it ever did, `OFF` is the answer that closes this
+    // connection with the request rather than pooling it under bounds nobody
+    // could resolve.
+    let bounds = nvs_config::db::bounds_for(
+        &snapshot.config,
+        Some(name),
+        &std::collections::BTreeMap::new(),
+    )
+    .unwrap_or(nvs_config::db::PoolBounds::OFF);
     let ticket = nvs_runtime::pool::Ticket::for_block(&snapshot, name, bounds);
     // § 13's ceiling, taken before the handshake so that `max` bounds every
     // connection this core has live under the key and not only the ones the
@@ -567,6 +573,56 @@ pub(super) fn settings_key(
     format!("\u{0}open:{:016x}", hasher.finish())
 }
 
+/// The [`settings_key`] a `[db.<name>]` block's own fields hash to, or `None`
+/// for a block whose `driver` or `time_zone` is not a value any connection could
+/// be opened with.
+///
+/// **This is how an `open` finds the block whose bounds are its own**, which is
+/// ADR 0067 § 13's answer for a member that names no block. `connect` is keyed
+/// on the name an operator wrote and reads that block's `[db.<name>.pool]`
+/// directly; a settings literal names nothing, so the only honest question is
+/// whether the settings it wrote *are* a block's — and the memo key already
+/// answers it, since § 2 hashes exactly the fields that say what the connection
+/// is. Building the key from the block rather than comparing its fields one at a
+/// time is the point: a second spelling of "the same connection" is how the pool
+/// and the memo would come to disagree, and a program that opens a block's
+/// endpoint by hand shares that block's pool for the same reason it shares its
+/// connection.
+///
+/// A field the block leaves unwritten hashes as the empty string, which is what
+/// a settings literal writing nothing for it hashes too — [`settings_text`]
+/// makes every one of the four a `&str`. `port` is the one that cannot be
+/// defaulted into agreement: a literal writing `5432` and a block leaving the
+/// server's default implicit are two keys and so two pools. That is the hash's
+/// own rule rather than this function's, and what an operator loses by it is
+/// § 13's bounds on that second pool, never a connection.
+pub(super) fn block_settings_key(block: &nvs_config::tree::Database) -> Option<String> {
+    let driver = nvs_db::Driver::from_config_name(block.driver.as_deref()?)?;
+    let zone = nvs_db::sql::time_zone_for(block)?;
+    let statement_cache = block.statement_cache.map(u64::from);
+    if driver == nvs_db::Driver::Sqlite {
+        let path = block.path.as_deref()?;
+        return Some(settings_key(
+            &[path, "", "", "", driver.matrix_name()],
+            None,
+            zone,
+            statement_cache,
+        ));
+    }
+    Some(settings_key(
+        &[
+            block.host.as_deref().unwrap_or_default(),
+            block.user.as_deref().unwrap_or_default(),
+            block.database.as_deref().unwrap_or_default(),
+            block.password.as_deref().unwrap_or_default(),
+            driver.matrix_name(),
+        ],
+        block.port.map(u64::from),
+        zone,
+        statement_cache,
+    ))
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\Db::open(Db\Settings $settings, {shared?: bool}): Db\Connection`
     /// — ADR 0067 § 2's connection the *program* describes.
@@ -591,17 +647,19 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** one connection per distinct set of settings a
     /// request opens, and § 13's pool keeps up to `idle` of them per key on this
-    /// core between the requests that use them. A settings literal has no
-    /// `[db.<name>.pool]` table to size that with, so it takes
-    /// `PoolBounds::DEFAULT` — the same bounds a block that writes no `pool` key
-    /// takes, which is what ADR 0074's *finite with nothing configured* already
-    /// means one layer down, and the only other candidate (`OFF`) is § 13
-    /// declining to pool `open` at all, which that section spends a bullet
-    /// requiring. Two consequences an operator has to be told rather than
-    /// discover: the ceiling on the database is `cores × max` *per distinct
-    /// settings hash* and that key space is the program's rather than the
-    /// config's, and `pool = false` cannot reach an `open` because that switch
-    /// is written per block and this has none.
+    /// core between the requests that use them. A settings literal names no
+    /// block, so what sizes that is
+    /// [`crate::db::pool::settings_bounds`]: the `[db.<name>.pool]` table of the
+    /// block these very settings describe, if a deployment wrote one, and
+    /// `PoolBounds::DEFAULT` otherwise — the same bounds a block that writes no
+    /// `pool` key takes, which is what ADR 0074's *finite with nothing
+    /// configured* already means one layer down, and the only other candidate
+    /// (`OFF`) is § 13 declining to pool `open` at all, which that section
+    /// spends a bullet requiring. The consequence an operator has to be told
+    /// rather than discover: the ceiling on the database is `cores × max` *per
+    /// distinct settings hash*, and a literal that differs from the block in any
+    /// hashed field — a written `port` where the block left the server's default
+    /// implicit — is a second key and so a second pool of that size.
     fn nvs_core_db_open(ctx, args: [12]) {
         let driver = settings_driver(&args[DRIVER_ARG])?;
         // The SQLite arm, whole and taken here: its `path` is the field that
@@ -673,12 +731,11 @@ nvs_runtime::nvs_helper! {
 
         // § 13's ticket, under the key § 2 hashes rather than the block name
         // `connect` keys on — `Ticket::for_settings` owns why only one of the
-        // two is scoped to a configuration generation, and this member's own
-        // doc owns why the bounds are the defaults.
-        let ticket = nvs_runtime::pool::Ticket::for_settings(
-            memo.clone(),
-            nvs_config::db::PoolBounds::DEFAULT,
-        );
+        // two is scoped to a configuration generation, and
+        // `crate::db::pool::settings_bounds` owns which block's table these
+        // bounds came out of, if any did.
+        let ticket =
+            nvs_runtime::pool::Ticket::for_settings(memo.clone(), crate::db::pool::settings_bounds(ctx, &memo));
         let max = ticket.bounds.max;
         let full = |waited: &str| {
             Fault::thrown_as(
@@ -686,7 +743,8 @@ nvs_runtime::nvs_helper! {
                 format!(
                     "{OPEN}: these settings already hold their `max` of {max} connections to \
                      {host} on this core, and {waited} — a settings literal is keyed on its own \
-                     fields and takes bounds no `[db.<name>.pool]` table can raise, so open \
+                     fields, so it is bounded by the `[db.<name>.pool]` of the block describing \
+                     that same endpoint if one is written, and by the defaults if none is; open \
                      fewer of them at once"
                 ),
             )
@@ -881,8 +939,10 @@ pub(super) fn sqlite_settings(
         ));
     }
 
-    let ticket =
-        nvs_runtime::pool::Ticket::for_settings(memo.clone(), nvs_config::db::PoolBounds::DEFAULT);
+    let ticket = nvs_runtime::pool::Ticket::for_settings(
+        memo.clone(),
+        crate::db::pool::settings_bounds(ctx, &memo),
+    );
     let max = ticket.bounds.max;
     let full = |waited: &str| {
         Fault::thrown_as(
@@ -890,8 +950,9 @@ pub(super) fn sqlite_settings(
             format!(
                 "{OPEN}: these settings already hold their `max` of {max} connections to \
                  `{path}` on this core, and {waited} — a settings literal is keyed on its own \
-                 fields and takes bounds no `[db.<name>.pool]` table can raise, so open fewer of \
-                 them at once"
+                 fields, so it is bounded by the `[db.<name>.pool]` of the block naming that same \
+                 file if one is written, and by the defaults if none is; open fewer of them at \
+                 once"
             ),
         )
     };

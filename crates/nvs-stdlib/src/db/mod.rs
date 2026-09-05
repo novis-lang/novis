@@ -63,20 +63,21 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An `open` pool's bounds are the defaults, and nothing an operator
-//!    writes can change them.** ADR 0067 § 13's key for `open` is live —
-//!    [`settings_key`] is the hash, [`nvs_runtime::pool::Ticket::for_settings`]
-//!    is the ticket, and a released connection rejoins this core's pool under it
-//!    exactly as a `connect`ed one does. What has no spelling is the operator's
-//!    half: `max`, `idle`, `lifetime` and `acquire` are `PoolBounds::DEFAULT`
-//!    because a settings literal has no `[db.<name>.pool]` table to read them
-//!    from, and § 13's `pool = false` is written *per block* and so cannot reach
-//!    an `open` at all. The deployment that notices is the audited one that
-//!    needs every connection to map to one request: it can switch off every
-//!    block an operator wrote and not the connections a program opens for
-//!    itself. Where those bounds would be written, for a key only the program
-//!    knows, is an ADR 0067 § 13 question and not a shape this module may pick
-//!    on its own.
+//! 1. **An `open` describing an endpoint no block describes still takes the
+//!    default bounds.** The operator's half of ADR 0067 § 13 has landed for the
+//!    rest: [`settings_bounds`] reads the `[db.<name>.pool]` of the block whose
+//!    settings hash *is* this connection's — [`block_settings_key`] builds each
+//!    block's key through [`settings_key`] itself, so the pool and the memo
+//!    cannot come to disagree about what "the same connection" is — and the
+//!    unscoped `[db] pool = false` reaches every connection the process opens,
+//!    which is the audited deployment's requirement and the one thing a
+//!    per-block key could never state. What is left is narrower: a literal
+//!    naming an endpoint an operator wrote no block for, and a literal that
+//!    differs from the block in any hashed field — a written `port` where the
+//!    block left the server's default implicit — is a second key and so a
+//!    second pool, at `PoolBounds::DEFAULT`. Where bounds for a key only the
+//!    program knows would be *written* is an ADR 0067 § 13 question and not a
+//!    shape this module may pick on its own.
 //!
 //!    ADR 0135 § 2's *exactly one arm accepts it* **is** the checker's rule —
 //!    `nvs_types::expr::args`' `select_arm` — so a `host` written beside

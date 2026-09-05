@@ -99,10 +99,11 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
 /// **The wording of that refusal is the caller's**, handed in as `full` and
 /// completed with the clause saying which ending it was. The two members have
 /// nothing to say in common there: `connect` names a block and the
-/// `[db.<name>.pool] max` an operator can raise, and `open` has neither — a
-/// settings literal is keyed on its own hash and takes bounds nothing can
-/// configure. What this function owns is the waiting, which *is* the same for
-/// both.
+/// `[db.<name>.pool] max` an operator can raise, and `open` has a hash of its
+/// own settings — whose `max` is [`settings_bounds`]'s answer, so the sentence
+/// it can honestly write is about the block describing that same endpoint, if a
+/// deployment wrote one. What this function owns is the waiting, which *is* the
+/// same for both.
 ///
 /// # Errors
 ///
@@ -285,6 +286,66 @@ pub(super) fn filed_connection<'a>(
         })
 }
 
+/// ADR 0067 § 13's bounds for a connection a *program* described: the
+/// `[db.<name>.pool]` table of the block whose settings hash is `memo` when a
+/// deployment wrote one, and [`PoolBounds::DEFAULT`] when it did not.
+///
+/// **A settings literal names no block, and that is the whole difficulty.**
+/// `Core\Db::connect` asks `nvs_config::db::bounds_for` by the name an operator
+/// wrote; this path has only the hash § 2 built out of the settings themselves,
+/// so the block is found by building each block's own key and comparing —
+/// [`super::open::block_settings_key`] owns that and owns why it is a key
+/// comparison rather than a field-by-field one.
+///
+/// **A program that opens a configured endpoint by hand gets that endpoint's
+/// bounds**, which is the rule this exists for: those two connections are the
+/// same connection to the same server under the same credentials, they already
+/// share a pool because § 2's key is the pool's key, and a pool with two
+/// answers for `max` would be a ceiling an operator sized and did not get. A
+/// literal naming an endpoint no block describes keeps the defaults, because
+/// there is no table to read and § 13 requires the bounds to be finite anyway.
+///
+/// **It costs one key per configured block per `open`, and only on the miss.**
+/// The memoized-connection check runs first and answers every `open` after the
+/// request's own first one, so this is reached once per distinct settings
+/// literal per request, over a `[db]` table an operator hand-wrote — a handful
+/// of `DefaultHasher` runs over short strings. Caching the mapping on the
+/// snapshot would spend a per-generation table to save that, which ADR 0004's
+/// ordering does not buy: the latency is not on the request path's hot part,
+/// and the memory would be O(blocks) per generation held for the lifetime of a
+/// reload.
+///
+/// A program running with no configuration at all takes the defaults: there is
+/// no tree to read a switch out of, which is not the same as a deployment that
+/// wrote one.
+pub(super) fn settings_bounds(ctx: &nvs_runtime::Ctx, memo: &str) -> nvs_config::db::PoolBounds {
+    let Some(config) = ctx.config() else {
+        return nvs_config::db::PoolBounds::DEFAULT;
+    };
+    bounds_for_settings(&config.snapshot().config, memo)
+}
+
+/// [`settings_bounds`] over the tree alone, which is the half a test can drive:
+/// nothing below this line needs a connection, a socket or a driver.
+///
+/// The refusal cannot fire — `nvs_config::db::validate` proved every block's
+/// bounds at boot — and `OFF` is what it answers if it ever did, for
+/// `nvs_core_db_connect`'s reason: a connection closed with the request beats
+/// one pooled under bounds nobody could resolve.
+fn bounds_for_settings(
+    config: &nvs_config::tree::Config,
+    memo: &str,
+) -> nvs_config::db::PoolBounds {
+    let named = config
+        .db
+        .blocks
+        .iter()
+        .find(|(_, block)| super::open::block_settings_key(block).as_deref() == Some(memo))
+        .map(|(name, _)| name.as_str());
+    nvs_config::db::bounds_for(config, named, &std::collections::BTreeMap::new())
+        .unwrap_or(nvs_config::db::PoolBounds::OFF)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,6 +418,107 @@ mod tests {
             owned,
             vec![nvs_db::Driver::Sqlite],
             "a bound value is a storage class exactly where there is no protocol to render it for"
+        );
+    }
+
+    /// One `[db.main]` block, written out as an operator would, with bounds
+    /// that are nothing like [`nvs_config::db::PoolBounds::DEFAULT`] — so a
+    /// path that quietly kept the defaults answers `16` where the table says
+    /// `3`, and every assertion below can name which number it got.
+    ///
+    /// `pool` is left for the caller to append, because the two cases below
+    /// differ only in where the switch is written.
+    const BLOCK: &str = "[db.main]\ndriver = \"postgres\"\nhost = \"db.internal\"\n\
+                         port = 6432\nuser = \"app\"\npassword = \"s3cret\"\n\
+                         database = \"shop\"\n";
+
+    /// The memo key a `Core\Db::open` writing [`BLOCK`]'s own fields opens
+    /// under — built here through [`crate::db::open::settings_key`], which is
+    /// the member's own call and not a copy of it.
+    fn memo_for(password: &str) -> String {
+        crate::db::open::settings_key(
+            &["db.internal", "app", "shop", password, "postgres"],
+            Some(6432),
+            0,
+            None,
+        )
+    }
+
+    /// ADR 0067 § 13's bounds for a connection a *program* described, which is
+    /// the half the ADR left to be found: `connect` looks its block up by the
+    /// name an operator wrote, and `open` has only § 2's settings hash.
+    ///
+    /// The claim is asserted **on both sides**, because a body that read the
+    /// table for every connection would pass the first half alone. A literal
+    /// whose fields are the block's takes the block's `max` of `3`; the same
+    /// literal with one credential changed is a different connection to the
+    /// same server, matches no block, and takes the defaults — `16`, which is
+    /// what every path here answered before the lookup existed.
+    #[test]
+    fn an_open_reads_its_pool_bounds_from_the_blocks_pool_table() {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        ctx.set_config(crate::tests::granting(&format!(
+            "{BLOCK}\n[db.main.pool]\nmax = 3\nidle = 1\n"
+        )));
+
+        let mine = settings_bounds(&ctx, &memo_for("s3cret"));
+        assert!(
+            mine.enabled,
+            "a block that writes bounds is a block that wants a pool"
+        );
+        assert_eq!(
+            (mine.max, mine.idle),
+            (3, 1),
+            "the settings hash names `[db.main]`, so `[db.main.pool]` is what bounds it"
+        );
+
+        let stranger = settings_bounds(&ctx, &memo_for("another-password"));
+        assert_eq!(
+            stranger,
+            nvs_config::db::PoolBounds::DEFAULT,
+            "and settings no block describes have no table to read, so § 13's defaults bound them"
+        );
+    }
+
+    /// § 13's `pool = false`, written **unscoped**: the audited deployment's
+    /// requirement is that every connection the process opens maps to one
+    /// request, and a per-block switch cannot say that about a connection a
+    /// program described for itself.
+    ///
+    /// So all three of the ways a connection is bounded are asked here — the
+    /// literal that matches the block, the literal that matches nothing, and
+    /// the `connect` by name that [`nvs_config::db::bounds_for`] answers — and
+    /// the switch reaches all three. The middle one is the case no per-block
+    /// spelling could ever have covered.
+    #[test]
+    fn an_unscoped_pool_false_reaches_a_program_opened_connection() {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        let snapshot = crate::tests::granting(&format!(
+            "[db]\npool = false\n{BLOCK}\n[db.main.pool]\nmax = 3\n"
+        ));
+        assert_eq!(
+            snapshot.config.db.blocks.len(),
+            1,
+            "`pool` is the table's own key and not a block, so `[db.main]` is still the only one"
+        );
+        ctx.set_config(std::sync::Arc::clone(&snapshot));
+
+        for memo in [memo_for("s3cret"), memo_for("another-password")] {
+            assert!(
+                !settings_bounds(&ctx, &memo).enabled,
+                "the switch is unscoped, so it reaches a settings literal whether or not a block \
+                 describes the same endpoint"
+            );
+        }
+        let named = nvs_config::db::bounds_for(
+            &snapshot.config,
+            Some("main"),
+            &std::collections::BTreeMap::new(),
+        )
+        .expect("`max = 3` is a bound this tree accepts");
+        assert!(
+            !named.enabled,
+            "and it outranks the block's own table, which is what `connect` reads"
         );
     }
 }

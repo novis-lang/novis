@@ -81,7 +81,7 @@ pub fn canonicalize(
     origins: &BTreeMap<String, Origin>,
     files: &dyn Files,
 ) -> Result<(), Diagnostic> {
-    for (name, db) in &mut config.db {
+    for (name, db) in &mut config.db.blocks {
         if let Some(written) = db
             .path
             .as_deref()
@@ -228,10 +228,23 @@ impl Default for PoolBounds {
 ///
 /// # Errors
 ///
-/// The first block whose bounds do not describe a pool or whose `slow_query` is not a duration, as
-/// [`pool_for`] and [`slow_query_for`] refuse it.
+/// An unscoped `[db.pool]` table of bounds, which § 13 gives no meaning to and which
+/// [`bounds_for`]'s doc argues could not be sized against anything; then the first block whose
+/// bounds do not describe a pool or whose `slow_query` is not a duration, as [`pool_for`] and
+/// [`slow_query_for`] refuse it.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
-    for (name, db) in &config.db {
+    if let Some(Pool::Bounds(_)) = config.db.pool {
+        return Err(refuse(
+            "db.pool",
+            "a table of bounds",
+            "bounds written with no block in front of them would size a pool whose key is a \
+             credential hash, and no one server's `max_connections` is what that is sized against",
+            "write the bounds under the block they are for, as `[db.<name>.pool]`; `pool = false` \
+             is the one directive § 13 gives an unscoped meaning",
+            origins,
+        ));
+    }
+    for (name, db) in &config.db.blocks {
         pool_for(name, db, origins)?;
         slow_query_for(name, db, origins)?;
     }
@@ -331,6 +344,39 @@ pub fn pool_for(
         lifetime,
         acquire,
     })
+}
+
+/// The bounds in force for a connection — [`pool_for`] with ADR 0067 § 13's **unscoped**
+/// `pool = false` in front of it, which is where that directive is read and the only place it is.
+///
+/// `block` is the name of the `[db.<name>]` block whose bounds are asked for, and `None` for a
+/// connection that matched no block at all: a `Core\Db::open` whose settings literal names an
+/// endpoint no operator wrote. That case takes [`PoolBounds::DEFAULT`], which is the only finite
+/// answer available — there is no table to read — and it is still reached by the unscoped switch,
+/// which is the whole reason § 13 gives that switch an unscoped spelling. An audited deployment
+/// needs every connection the process opens to map to one request, and a per-block key cannot reach
+/// a connection that has no block.
+///
+/// A name that is not in the tree is the same case as `None` rather than an error: the caller that
+/// asks by name has already established the block exists, and a name that vanished between the two
+/// is a reload, where the superseded generation's own key retires with it (§ 13).
+///
+/// # Errors
+///
+/// Exactly [`pool_for`]'s refusals, for the named block. The unscoped switch cannot fail: it is a
+/// boolean, and the table shape written in its place is [`validate`]'s refusal at boot.
+pub fn bounds_for(
+    config: &Config,
+    block: Option<&str>,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<PoolBounds, Diagnostic> {
+    if config.db.pool == Some(Pool::Switch(false)) {
+        return Ok(PoolBounds::OFF);
+    }
+    match block.and_then(|name| config.db.blocks.get(name).map(|db| (name, db))) {
+        Some((name, db)) => pool_for(name, db, origins),
+        None => Ok(PoolBounds::DEFAULT),
+    }
 }
 
 /// What a refused pool bound is told to write instead. Held once because two bounds share it, and
