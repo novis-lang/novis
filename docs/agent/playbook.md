@@ -8155,6 +8155,29 @@ sibling in the same namespace unqualified.
   byte-perfect. The recognition test is one grep: a `crate::instance::build` whose slot values are
   not all freshly constructed. `crates/nvs-stdlib/src/db/stream.rs:233` is the fix and states the
   rule.
+- **`mixed as string` does not reach a `bytes`, and the failure is a runtime throw from inside the
+  walk rather than a diagnostic at the line.** Changing `Core\Uri::parseQuery` to answer a value as
+  `bytes` broke every case that rendered the answer, and the obvious repair — a walk converting each
+  leaf with `$value as string` — compiles and then throws `cannot convert a `bytes` value to
+  `string`` on the *first* leaf, because `value_to_string` refuses `Tag::Bytes` exactly as ADR 0009
+  § 3 says it must and `mixed` gives it no second chance. The spelling that works is
+  `$value as bytes as string`: narrow the `mixed` to the type it actually holds, *then* take § 3's
+  checked row. The same shape applies to any `mixed` holding a type `as string` has no total
+  conversion for. The other half of that slice's cost is worth knowing before you start it:
+  `Core\Json::encode` refuses an array holding a `bytes`, so a member that starts answering octets
+  invalidates every fixture that rendered its answer as JSON — six of them here, each needing a
+  leaf-converting walk declared as a class, since `.nvst` cases have no free functions (`E0215`) and
+  every `foreach` binding needs a type.
+- **A `Core` member whose return type changes is five edits in the module and then a corpus pass, and
+  the corpus pass is the bigger half.** `decodeComponent`/`decodeFormValue` moving from `CoreTy::Str`
+  to `CoreTy::Bytes` was nine edits in `crates/nvs-stdlib/src/uri.rs`; it then failed 17 conformance
+  cases and one differential case. Two thirds of those wanted nothing but an `as string` at each call
+  site — mechanical, brace-matched, and worth writing as a script under `.agent-tmp/` handed to
+  Python by path rather than doing by hand or by `sed` (AGENTS.md rule 1 is about content crossing a
+  shell, and a script written with Write does not). The rest are the ones that pin the *refusal*: a
+  member that no longer throws hands its message to `bytes as string`, so their `--EXPECT--` moves to
+  `cannot convert `bytes` to `string`: not well-formed UTF-8 at byte N` and their titles have to say
+  the bound moved one member along rather than went away.
 
 ## Divergences and refusals already pinned
 

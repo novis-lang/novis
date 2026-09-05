@@ -495,9 +495,9 @@ rather than as one function and a footnote about `+`.
 | `http_build_query` | member | `Core\Uri::buildQuery` |
 | `parse_str` | member | `Core\Uri::parseQuery` — it returns the array, and never populates variables in the caller's scope |
 | `parse_url` | member | `Core\Uri::parse`, whose components are members rather than the keys of a sometimes-absent array |
-| `rawurldecode` | member | `Core\Uri::decodeComponent` |
+| `rawurldecode` | member | `Core\Uri::decodeComponent` — answers `bytes`, since percent-decoding is defined over octets; text is one `as string` away |
 | `rawurlencode` | member | `Core\Uri::encodeComponent` |
-| `urldecode` | member | `Core\Uri::decodeFormValue` — the `+`-for-space variant, named for where it is correct |
+| `urldecode` | member | `Core\Uri::decodeFormValue` — the `+`-for-space variant, named for where it is correct, and `bytes` for `decodeComponent`'s reason |
 | `urlencode` | member | `Core\Uri::encodeFormValue` |
 
 ## Paths

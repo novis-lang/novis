@@ -13474,6 +13474,10 @@ the same read with `null` in place of `RuntimeError`, and is the spelling of "is
 `with` and `resolve` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
 `==` on two `Uri` objects is identity. `parseQuery` and `buildQuery` read and write the bracket
 convention, and `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
+send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
+which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.
+`parseQuery` answers those same octets for a value; a name is the array key, so it is a `string`.
 
 ```nvs
 <?nvs
@@ -13514,9 +13518,9 @@ a%20b%26c a+b%26c
 | [`Core\Uri::parse`](#core-core-uri-parse) | `parse(string $uri): Core\Uri` |
 | [`Core\Uri::tryParse`](#core-core-uri-tryparse) | `tryParse(string $uri): ?Core\Uri` |
 | [`Core\Uri::encodeComponent`](#core-core-uri-encodecomponent) | `encodeComponent(string $s): string` |
-| [`Core\Uri::decodeComponent`](#core-core-uri-decodecomponent) | `decodeComponent(string $s): string` |
+| [`Core\Uri::decodeComponent`](#core-core-uri-decodecomponent) | `decodeComponent(string $s): bytes` |
 | [`Core\Uri::encodeFormValue`](#core-core-uri-encodeformvalue) | `encodeFormValue(string $s): string` |
-| [`Core\Uri::decodeFormValue`](#core-core-uri-decodeformvalue) | `decodeFormValue(string $s): string` |
+| [`Core\Uri::decodeFormValue`](#core-core-uri-decodeformvalue) | `decodeFormValue(string $s): bytes` |
 | [`Core\Uri::parseQuery`](#core-core-uri-parsequery) | `parseQuery(string $query): array<mixed>` |
 | [`Core\Uri::buildQuery`](#core-core-uri-buildquery) | `buildQuery(array<mixed> $parameters): string` |
 | [`Core\Uri->scheme`](#core-core-uri-scheme) | `scheme(): ?string` |
@@ -13582,7 +13586,7 @@ Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragmen
 #### `Core\Uri::decodeComponent`
 
 ```nvs skip
-Core\Uri::decodeComponent(string $s): string
+Core\Uri::decodeComponent(string $s): bytes
 ```
 
 Reverses `Core\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape becomes its byte, and a `+` stays a literal `+`.
@@ -13591,9 +13595,7 @@ Reverses `Core\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape
 |---|---|---|
 | `$s` | `string` | The text to decode. |
 
-**Returns** `string` — The decoded text; a malformed escape such as `%G1` or a trailing `%` decodes to itself.
-
-**Throws** `RuntimeError` — The escapes decode to octets that are not valid UTF-8, which a `string` cannot hold.
+**Returns** `bytes` — The decoded octets, as `bytes` — percent-decoding is defined over octets, so `%FF` has an answer here and text is one `as string` away. A malformed escape such as `%G1` or a trailing `%` decodes to itself.
 
 <a id="core-core-uri-encodeformvalue"></a>
 #### `Core\Uri::encodeFormValue`
@@ -13614,7 +13616,7 @@ Encodes `$s` as one value of an `application/x-www-form-urlencoded` payload — 
 #### `Core\Uri::decodeFormValue`
 
 ```nvs skip
-Core\Uri::decodeFormValue(string $s): string
+Core\Uri::decodeFormValue(string $s): bytes
 ```
 
 Reverses `Core\Uri::encodeFormValue`, as `urldecode` does: a `+` is a space, `%2B` is a `+`, and every other `%XX` escape becomes its byte.
@@ -13623,9 +13625,7 @@ Reverses `Core\Uri::encodeFormValue`, as `urldecode` does: a `+` is a space, `%2
 |---|---|---|
 | `$s` | `string` | The text to decode. |
 
-**Returns** `string` — The decoded text; a malformed escape decodes to itself, and `%20` reads as a space too.
-
-**Throws** `RuntimeError` — The escapes decode to octets that are not valid UTF-8, which a `string` cannot hold.
+**Returns** `bytes` — The decoded octets, as `bytes`, exactly as `decodeComponent` answers them; a malformed escape decodes to itself, and `%20` reads as a space too.
 
 <a id="core-core-uri-parsequery"></a>
 #### `Core\Uri::parseQuery`
@@ -13640,9 +13640,9 @@ Reads a query string into an array, as `parse_str` does but returning it rather 
 |---|---|---|
 | `$query` | `string` | The query text, without its leading `?`. |
 
-**Returns** `array<mixed>` — An array whose every value is a `string` or a nested `array<mixed>`; a pair without `=` has the empty string for its value, a pair whose name decodes to nothing is dropped, and a repeated name without brackets keeps the last value.
+**Returns** `array<mixed>` — An array whose every value is a `bytes` or a nested `array<mixed>` — a value is percent-decoded by the same decoder `decodeFormValue` is, so it answers octets; a pair without `=` has empty `bytes` for its value, a pair whose name decodes to nothing is dropped, and a repeated name without brackets keeps the last value.
 
-**Throws** `RuntimeError` — A name's or a value's escapes decode to octets that are not valid UTF-8.
+**Throws** `RuntimeError` — A name's escapes decode to octets that are not valid UTF-8, and a name is the array key the pair is placed under, which is a `string`. A value has no such refusal.
 
 <a id="core-core-uri-buildquery"></a>
 #### `Core\Uri::buildQuery`
@@ -21221,9 +21221,9 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `http_build_query` | member | `Core\Uri::buildQuery` |
 | `parse_str` | member | `Core\Uri::parseQuery` — it returns the array, and never populates variables in the caller's scope |
 | `parse_url` | member | `Core\Uri::parse`, whose components are members rather than the keys of a sometimes-absent array |
-| `rawurldecode` | member | `Core\Uri::decodeComponent` |
+| `rawurldecode` | member | `Core\Uri::decodeComponent` — answers `bytes`, since percent-decoding is defined over octets; text is one `as string` away |
 | `rawurlencode` | member | `Core\Uri::encodeComponent` |
-| `urldecode` | member | `Core\Uri::decodeFormValue` — the `+`-for-space variant, named for where it is correct |
+| `urldecode` | member | `Core\Uri::decodeFormValue` — the `+`-for-space variant, named for where it is correct, and `bytes` for `decodeComponent`'s reason |
 | `urlencode` | member | `Core\Uri::encodeFormValue` |
 | `basename` | member | `Core\Path::basename`, whose `withoutExtension` option replaces the second `$suffix` argument |
 | `dirname` | member | `Core\Path::dirname` |

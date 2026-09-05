@@ -10,6 +10,10 @@ the same read with `null` in place of `RuntimeError`, and is the spelling of "is
 `with` and `resolve` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
 `==` on two `Uri` objects is identity. `parseQuery` and `buildQuery` read and write the bracket
 convention, and `encodeComponent`/`encodeFormValue` are `rawurlencode`'s and `urlencode`'s two escapes.
+The two **decoders answer `bytes`**, because percent-decoding is defined over octets and a client may
+send any of them: `Core\Uri::decodeComponent("%FF")` has an answer, and text is one `as string` away —
+which throws for octets no `string` can hold, exactly where a `string`-returning decoder would have.
+`parseQuery` answers those same octets for a value; a name is the array key, so it is a `string`.
 
 ```nvs
 <?nvs
