@@ -19,7 +19,9 @@
 //! one slot that holds a value is [`STREAM_ROW_SLOT`], overwritten by every
 //! `advance()` and cleared at the end of the walk, which is what makes the
 //! member's promise measurable: one row is held at a time whatever the result
-//! set's size.
+//! set's size. [`park_row`] is where that is kept, and
+//! `stream_answers_rows_without_holding_the_result_set` counts it over a
+//! thousand rows.
 //!
 //! **What it spends:** one object per `foreach`, plus one row's columns for as
 //! long as the loop body holds them. That is O(1) in the rows the statement
@@ -81,6 +83,35 @@ fn stream_row(value: Value, member: &str) -> Result<Value, Fault> {
         held.retain();
     }
     Ok(held)
+}
+
+/// Parks `row` as the one row this walk is holding, and answers what
+/// `advance()` answers: `true` for a row, `false` for the end of the result
+/// set.
+///
+/// [`stream_step`]'s tail, split out because this is where § 4's promise is
+/// *kept* rather than merely stated — a member that held its result set would
+/// differ from this one in exactly this call — and because everything above it
+/// in that function needs a server.
+/// [`nvs_runtime::nvs_object_field_set`] releases the value it displaces, so
+/// the row the previous `advance()` parked is freed right here unless the loop
+/// body is still holding it, and the walk's footprint is one row whatever the
+/// statement answered.
+///
+/// The `None` arm clears the slot rather than leaving the last row in it, on
+/// `Core\Request\BodyStream`'s reasoning: the loop is over, so keeping it would
+/// hold one row's columns for as long as the program held the walk.
+fn park_row(receiver: *mut nvs_runtime::ObjHeader, row: Option<NvsArray>) -> Value {
+    let Some(row) = row else {
+        crate::instance::set_slot(receiver, STREAM_ROW_AT, Value::null());
+        return Value::bool(false);
+    };
+    crate::instance::set_slot(
+        receiver,
+        STREAM_ROW_AT,
+        crate::instance::build(&ROW, [Value::array(row)]),
+    );
+    Value::bool(true)
 }
 
 /// One step of the walk: the next row parked into [`STREAM_ROW_AT`], and
@@ -167,19 +198,7 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
         }
     };
     watch.file(ctx, taken);
-    let Some(row) = row else {
-        // Cleared rather than left holding the last row, on
-        // `Core\Request\BodyStream`'s reasoning: the loop is over, so keeping it
-        // would hold one row's columns for as long as the program held the walk.
-        crate::instance::set_slot(receiver, STREAM_ROW_AT, Value::null());
-        return Ok(Value::bool(false));
-    };
-    crate::instance::set_slot(
-        receiver,
-        STREAM_ROW_AT,
-        crate::instance::build(&ROW, [Value::array(row)]),
-    );
-    Ok(Value::bool(true))
+    Ok(park_row(receiver, row))
 }
 
 nvs_runtime::nvs_helper! {
@@ -310,5 +329,214 @@ nvs_runtime::nvs_helper! {
         let read = stream_row(args[0], nvs_runtime::sequence::CURRENT);
         crate::cursor::consume(args[0]);
         read
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drops the one reference this frame owns, exactly as a member's caller
+    /// would.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one this frame holds, \
+                      and the sweep below accounts for every other one"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// How many owners hold `row` — for a row of the sweep below, the test's
+    /// own reference plus whatever the walk is still holding.
+    fn owners(row: Value) -> usize {
+        let ptr = row.obj_ptr().expect("every row of the sweep is an object");
+        #[expect(
+            unsafe_code,
+            reason = "the sweep keeps a reference of its own to every row it \
+                      asks about, so each one is live for the whole test"
+        )]
+        unsafe {
+            nvs_runtime::NvsObj::refcount_of(ptr)
+        }
+    }
+
+    /// ADR 0067 § 4's promise, measured where [`park_row`] keeps it: a walk
+    /// over a result set of any size holds **one** row, because parking the
+    /// next one releases the last and the end of the walk clears the slot.
+    ///
+    /// **Asserted by counting the rows the walk still holds**, rather than by
+    /// reading the slot: a member that appended its rows to something as it
+    /// went — which is what buffering *is* — would answer `current()` correctly
+    /// on every line of the walk and still fail this, and one that cleared
+    /// nothing at the end would pass the count and fail the two lines after it.
+    /// A thousand rows rather than three, because the number the answer must
+    /// not depend on is the result set's size.
+    ///
+    /// The rows a server would have sent are stood in for by the arrays
+    /// [`stream_step`] builds a `DataRow` into, which is exactly where the wire
+    /// ends and this crate begins: a socket is what no `-p nvs-stdlib` test
+    /// has, and `nvs_db::PgConn::stream_next_row` is where the other half of
+    /// the member is pinned.
+    #[test]
+    fn stream_answers_rows_without_holding_the_result_set() {
+        const ROWS: u64 = 1_000;
+
+        let stream =
+            crate::instance::build(&STREAM, [Value::uint(0), Value::null(), Value::null()]);
+        let receiver = stream.obj_ptr().expect("`build` answers an object");
+
+        // One reference of the test's own per row, so that a row the walk has
+        // let go of is still live enough to be counted.
+        let mut rows: Vec<Value> = Vec::new();
+        for n in 0..ROWS {
+            let mut one = NvsArray::new();
+            one.set(NvsStr::new(b"n"), Value::uint(n));
+            assert_eq!(
+                park_row(receiver, Some(one)).as_bool(),
+                Some(true),
+                "a row parked is an `advance()` that answers `true`"
+            );
+
+            let held = crate::instance::slot(receiver, STREAM_ROW_AT);
+            assert!(
+                crate::instance::is_instance(held, &ROW),
+                "the walk parks spec § 18's `Db\\Row` and not the array it holds"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the slot keeps its own reference until the next \
+                          `park_row`, so the one this sweep keeps is its own"
+            )]
+            unsafe {
+                held.retain();
+            }
+            rows.push(held);
+        }
+
+        // `current()` hands back a reference of its own, which is what lets a
+        // loop body outlive the `advance()` that parked what it is reading.
+        let read = stream_row(stream, nvs_runtime::sequence::CURRENT)
+            .expect("the walk is standing on its last row");
+        assert_eq!(
+            owners(read),
+            3,
+            "`current` retains the row rather than lending out the slot's own reference"
+        );
+        let columns =
+            super::row::row_columns(std::slice::from_ref(&read), nvs_runtime::sequence::CURRENT)
+                .expect("a parked row holds the columns it was built over");
+        assert_eq!(
+            columns.get(b"n").and_then(Value::as_uint),
+            Some(ROWS - 1),
+            "`current` answers the row the last `advance` read"
+        );
+        // `columns` is borrowed rather than owned — a `ManuallyDrop`, so
+        // letting it fall out of scope releases nothing — and `read` is the one
+        // reference this frame owns.
+        released(read);
+
+        let still_held: Vec<usize> = rows
+            .iter()
+            .enumerate()
+            .filter(|(_, row)| owners(**row) == 2)
+            .map(|(at, _)| at)
+            .collect();
+        assert_eq!(
+            still_held,
+            vec![rows.len() - 1],
+            "one row is held whatever the result set's size, and it is the one last read"
+        );
+
+        assert_eq!(
+            park_row(receiver, None).as_bool(),
+            Some(false),
+            "the end of the result set is an `advance()` that answers `false`"
+        );
+        assert!(
+            rows.iter().all(|row| owners(*row) == 1),
+            "the last row is cleared at the end of the walk rather than held for as long as \
+             the program holds the stream"
+        );
+        let after = stream_row(stream, nvs_runtime::sequence::CURRENT)
+            .expect("`current` past the end of the walk is answerable");
+        assert_eq!(
+            after.tag(),
+            Some(Tag::Null),
+            "and what it answers is `null`, which is what the slot was cleared to"
+        );
+
+        for row in rows {
+            released(row);
+        }
+        released(stream);
+    }
+
+    /// § 4's price, and the sharper half of the pair: a second statement
+    /// written to a connection that is still streaming is a `LogicError`
+    /// rather than an answer.
+    ///
+    /// **It is sharper because a member that had buffered could not fail it.**
+    /// A buffered read finishes its statement before it returns, leaving the
+    /// connection [`nvs_db::State::Idle`] — so it would *answer* the second
+    /// query. Only a walk that is still holding the portal open refuses one,
+    /// which is why this is the pair's evidence that nothing was buffered.
+    ///
+    /// The rule is split across two crates on purpose, and both halves are
+    /// asserted here because neither is worth much alone: `nvs-db`'s
+    /// [`nvs_db::State::may_start_statement`] is what refuses, asserted over
+    /// the whole roster by **counting** the states that admit a statement, and
+    /// [`statement_failure`] is what turns that refusal into the class § 4
+    /// names — asserted over every member that can be the second statement,
+    /// since this module's docs say the rule is the same one whichever member
+    /// that is and a member that grew its own answer would still look right on
+    /// its own line.
+    #[test]
+    fn a_second_statement_on_a_streaming_connection_is_a_logic_error() {
+        let admitting: Vec<nvs_db::State> = [
+            nvs_db::State::Idle,
+            nvs_db::State::Executing,
+            nvs_db::State::Streaming,
+            nvs_db::State::Poisoned,
+        ]
+        .into_iter()
+        .filter(|state| state.may_start_statement())
+        .collect();
+        assert_eq!(
+            admitting,
+            vec![nvs_db::State::Idle],
+            "a statement is written to an idle connection and to no other, so an open walk \
+             refuses one and a buffered read would not have to"
+        );
+
+        // The driver's own refusal, whose wording is `pg.rs`'s
+        // `second_statement` and whose *kind* is the whole of what this side
+        // reads — that function is `pub(crate)` there, and this crate's half of
+        // the rule is the mapping rather than the sentence.
+        let busy = std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "a statement was written to a connection that is {:?}, and ADR 0067 § 4 allows \
+                 one at a time",
+                nvs_db::State::Streaming
+            ),
+        );
+        let block = Value::null();
+        for member in [STREAM_MEMBER, QUERY, QUERY_AS, EXECUTE, EXECUTE_MANY] {
+            let refused = statement_failure(member, &block, Some("select 1"), &busy);
+            let Fault::Thrown(ThrownClass::Logic, why) = refused else {
+                panic!("{member} refuses a second statement as § 4's `LogicError`");
+            };
+            assert!(
+                why.starts_with(member),
+                "the refusal names the member the program called: {why}"
+            );
+            assert!(
+                why.contains("Streaming"),
+                "and carries the driver's own sentence, which names both of § 4's fixes: {why}"
+            );
+        }
     }
 }

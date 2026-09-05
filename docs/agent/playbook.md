@@ -5874,6 +5874,20 @@ is why" — is this file.
   honest question, the delegated row being a second place the rule has to hold. Run `cargo test -p
   nvs-stdlib --test conformance_coverage` before the full gate when a new member lands on a
   delegating interface.
+- **A `-p nvs-stdlib` test cannot build *any* `nvs_db::Connection`, so a `Core\Db` member is testable
+  only in the part of it that is below the driver — and that part is usually where the ADR's promise
+  actually lives.** The sibling bullet says a `-p nvs-db` test cannot build a `PgConn` (its `wire` is
+  `Wire` at the default `NvsTls<NvsTcp>`); one crate up it is worse, because the fields are
+  `pub(crate)` as well and `pg.rs`'s `Peer` is not reachable. `Ctx::hold_open_connection` files a
+  hand-written `HeldConnection` — `open.rs`'s `a_named_connection_is_memoized_for_the_request` is the
+  shape — but `filed_connection` downcasts to `nvs_db::Connection`, so a fake only reaches members
+  that never touch the driver at all. The repair is the same one as `nvs-db`'s and it is worth
+  reaching for early: split the member's **tail** into a function over the receiver alone
+  (`stream.rs`'s `park_row`, which is everything `stream_step` does after the driver has answered),
+  and drive it with `crate::instance::build(&CLASS, [...])` and no connection. `NvsObj::refcount_of`
+  then counts what the member is holding, which is how a promise about *memory* — § 4's "does not
+  buffer" — is asserted without a server. Check the split really can fail: parking a row with the
+  displaced one retained turns the count from `[999]` into all thousand indices.
 
 ## Splitting a file that got too big
 
