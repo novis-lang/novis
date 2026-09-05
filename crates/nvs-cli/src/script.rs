@@ -524,7 +524,37 @@ mod tests {
     /// The same, over a program resolved earlier — which is what a holder of
     /// one does with it after the cache has moved on.
     fn run_program(program: Program) -> nvs_host::Completion {
-        let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
+        run_under(program, Ctx::new(OutputSink::Buffer(Vec::new())))
+    }
+
+    /// The same over a parent that may `spawn script`, on a scheduler and a
+    /// reactor of its own — which is the whole of what a program reaching this
+    /// resolver from inside its own run needs, and is what `main`'s run
+    /// installs for exactly the same reason. The capability is ADR 0118 § 1's,
+    /// denied by default, and [`granting_ctx`] is why the grant has one
+    /// spelling in this crate.
+    fn run_serving(program: Program) -> nvs_host::Completion {
+        let mut sched = nvs_host::Scheduler::new();
+        let completion = std::rc::Rc::new(std::cell::RefCell::new(None));
+        sched.spawn(granting(), nvs_runtime::TaskRoot::Request, {
+            let completion = std::rc::Rc::clone(&completion);
+            move |ctx| {
+                *completion.borrow_mut() = Some(
+                    nvs_host::Isolate::new(program, Value::null(), nvs_host::Output::Capture)
+                        .run(ctx)
+                        .expect("a null argument crosses"),
+                );
+            }
+        });
+        let installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("a reactor starts"));
+        nvs_host::run_until_idle(&mut sched).expect("the scheduler finishes");
+        drop(installed);
+        let taken = completion.borrow_mut().take();
+        taken.expect("the task ran")
+    }
+
+    fn run_under(program: Program, mut parent: Ctx) -> nvs_host::Completion {
         nvs_host::Isolate::new(program, Value::null(), nvs_host::Output::Capture)
             .run(&mut parent)
             .expect("a null argument crosses")
@@ -533,12 +563,24 @@ mod tests {
     /// A `.nvs` file this test owns, whose whole body echoes `said`. Called
     /// again with the same `name`, it is the edit.
     fn a_file_saying(name: &str, said: &str) -> std::path::PathBuf {
+        a_file_running(name, &format!("echo \"{said}\", \"\\n\";"))
+    }
+
+    /// The same file with a body of its own, for a case whose statement is not
+    /// an `echo`. The path is handed back with forward slashes available from
+    /// [`written`], because a Windows temp path inside a source literal is a
+    /// run of escapes rather than a path.
+    fn a_file_running(name: &str, body: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("nvs-swap-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("a directory to write the case in");
         let path = dir.join("entry.nvs");
-        std::fs::write(&path, format!("<?nvs\necho \"{said}\", \"\\n\";\n"))
-            .expect("the case is writable");
+        std::fs::write(&path, format!("<?nvs\n{body}\n")).expect("the case is writable");
         path
+    }
+
+    /// One of those paths as a source literal can carry it.
+    fn written(path: &std::path::Path) -> String {
+        path.to_string_lossy().replace('\\', "/")
     }
 
     /// A compiler that checks the content itself, on every resolve.
@@ -550,15 +592,31 @@ mod tests {
     /// check's window. What is being asserted below is the swap, not the rate
     /// cap — `nvs_config::cache::Revalidation` is where both are decided.
     fn revalidating() -> Compiler {
+        checking("hash", "0s")
+    }
+
+    /// The same, with both directives written out — the shape a test that is
+    /// *about* `[opcache]` reaches for, since either value alone decides
+    /// whether a resolve looks at the file.
+    fn checking(validate: &str, freq: &str) -> Compiler {
         use nvs_config::tree::{Config, Opcache, Setting};
         Compiler::new(&Config {
             opcache: Some(Opcache {
-                validate: Some(Setting::Text("hash".to_owned())),
-                revalidate_freq: Some(Setting::Text("0s".to_owned())),
+                validate: Some(Setting::Text(validate.to_owned())),
+                revalidate_freq: Some(Setting::Text(freq.to_owned())),
                 ..Opcache::default()
             }),
             ..Config::default()
         })
+    }
+
+    /// What a resolved program prints — which is how a test reads *which* unit
+    /// a resolve handed back, there being nothing else to compare two
+    /// [`Program`]s by.
+    fn said(program: Program) -> String {
+        let completion = run_program(program);
+        assert!(completion.ok, "error: {:?}", completion.error);
+        String::from_utf8_lossy(&completion.output).into_owned()
     }
 
     #[test]
@@ -662,6 +720,108 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&completion.output), "two\n");
         assert_eq!(compiler.units.borrow().len(), 1);
         drop(before);
+    }
+
+    #[test]
+    fn a_swap_never_blocks_a_request_serving_core() {
+        // ADR 0017 § *Decision*'s paragraph after the five steps, in the
+        // spelling one core has for it. The ADR keeps a *thread* free by
+        // running step 3 on the compile pool; what keeps this core free is the
+        // property [`PathEntry`]'s own doc states — neither table is borrowed
+        // across the stat or the compile — and the caller that proves it is a
+        // program already in flight, because its `spawn script` re-enters this
+        // resolver from inside the very run a held borrow would have to span.
+        let child = a_file_saying("in-flight", "one");
+        let compiler = revalidating();
+        let (holding, _) = compiler
+            .compiled(&child.to_string_lossy())
+            .expect("the child compiles");
+        let before = compiler.paths.borrow()[&child].content_hash;
+
+        // The edit a serving core is about to find, and the request that finds
+        // it: this parent resolves the edited path mid-run, through the seam
+        // `spawn script` lowers to.
+        let _ = a_file_saying("in-flight", "two");
+        let parent = a_file_running(
+            "serving",
+            &format!(
+                "var $swapped = spawn script '{}';\necho \"served\", \"\\n\";",
+                written(&child)
+            ),
+        );
+        let (running, _) = compiler
+            .compiled(&parent.to_string_lossy())
+            .expect("the parent compiles");
+        let completion = scoped(&compiler, || run_serving(running));
+
+        // The core served its own request through the swap, the swap published
+        // — step 4's pointer write happened underneath a running program — and
+        // the unit that program was handed before the edit is untouched, which
+        // is the same paragraph's first half.
+        assert!(completion.ok, "error: {:?}", completion.error);
+        assert_eq!(String::from_utf8_lossy(&completion.output), "served\n");
+        assert_ne!(
+            compiler.paths.borrow()[&child].content_hash,
+            before,
+            "the swap did not publish"
+        );
+        assert_eq!(said(holding), "one\n");
+    }
+
+    #[test]
+    fn revalidation_is_lazy_and_rate_capped() {
+        // ADR 0017 § *Decision* step 1, both halves. A `stat` is counted the
+        // only way a unit test can count one: `observe` is the single place
+        // this module makes one, and what a resolve hands back is what it
+        // observed — so an edit between two resolves says whether the second
+        // one looked at all. Nothing here asserts a syscall count directly,
+        // because a count would pin the implementation rather than the rule.
+
+        // `validate = "never"` is production's answer for *every* resolve, and
+        // it is not the rate cap wearing a longer window: the cap below is
+        // written at zero here, so a resolve that consulted the clock at all
+        // would look, and this one still does not.
+        let never = a_file_saying("never", "one");
+        let compiler = checking("never", "0s");
+        let (first, _) = compiler
+            .compiled(&never.to_string_lossy())
+            .expect("the entry compiles");
+        let _ = a_file_saying("never", "two");
+        let (again, _) = compiler
+            .compiled(&never.to_string_lossy())
+            .expect("the entry resolves again");
+        assert_eq!(said(first), "one\n");
+        assert_eq!(said(again), "one\n", "a `never` resolve read the file");
+
+        // The cap, on both sides of one window, since a resolve that stopped
+        // one edit early reads plausibly against either half alone. Inside a
+        // 60-second window the second resolve is answered from the entry the
+        // first one wrote — one check for the two of them.
+        let capped = a_file_saying("capped", "one");
+        let compiler = checking("hash", "60s");
+        let (before, _) = compiler
+            .compiled(&capped.to_string_lossy())
+            .expect("the entry compiles");
+        let _ = a_file_saying("capped", "two");
+        let (inside, _) = compiler
+            .compiled(&capped.to_string_lossy())
+            .expect("the entry resolves again");
+        assert_eq!(said(before), "one\n");
+        assert_eq!(said(inside), "one\n", "a capped resolve read the file");
+
+        // Past the window — the fixture writes it at zero — the same pair of
+        // resolves makes two checks, and the second one sees the edit.
+        let past = a_file_saying("uncapped", "one");
+        let compiler = revalidating();
+        let (old, _) = compiler
+            .compiled(&past.to_string_lossy())
+            .expect("the entry compiles");
+        let _ = a_file_saying("uncapped", "two");
+        let (new, _) = compiler
+            .compiled(&past.to_string_lossy())
+            .expect("the edited entry compiles");
+        assert_eq!(said(old), "one\n");
+        assert_eq!(said(new), "two\n", "an uncapped resolve did not look");
     }
 
     #[test]

@@ -3912,12 +3912,27 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "7 operator surface"
-name = "nvs-server (hot reload)"
-args = ["test", "-p", "nvs-server"]
+name = "nvs-cli (hot reload)"
+args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0017 -- swapped WITHOUT ever blocking a request-serving core.
+  # ADR 0017 -- swapped WITHOUT ever blocking a request-serving core. Both live
+  # in `crates/nvs-cli/src/script.rs`, which IS the cache ADR 0017 § *Decision*
+  # describes: `crates/nvs-server` resolves through that compiler and owns none
+  # of its own, so neither claim has a spelling under `-p nvs-server`.
   "a_swap_never_blocks_a_request_serving_core",
   "revalidation_is_lazy_and_rate_capped",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "7 operator surface"
+name = "nvs-config (the validate default)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  # ADR 0017's `validate` STARTUP default is an ADR 0091 § 3a row, chosen by the
+  # run mode before any request exists. It belongs to whichever module reads
+  # `[opcache]` -- `nvs_config::cache` -- and NOT to `nvs_config::mode`, whose
+  # own doc says § 3a's startup rows are deliberately outside its table.
   "the_validate_default_is_selected_by_the_run_mode",
 ]
 
