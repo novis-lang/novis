@@ -14453,7 +14453,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers, request
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -14524,6 +14524,7 @@ final class CartTest {
 | [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable $body, {message?: string}): void` |
 | [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
+| [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
 | [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path): Core\Test\Response` |
 
@@ -14747,6 +14748,17 @@ Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test 
 **Returns** `void` — Nothing. The next `Core\Time::now()` reads the moved clock.
 
 **Throws** `LogicError` — The running test declared no `at:`, so there is no fixed clock to move — the host's clock is never advanced.; `RuntimeError` — The moved reading lies outside the representable range, about ±9999 years.
+
+<a id="core-core-test-serverurl"></a>
+#### `Core\Test::serverUrl`
+
+```nvs skip
+Core\Test::serverUrl(): ?string
+```
+
+The base URL of the listener a `#[Test(server: true)]` case was given — a real socket on a port the operating system chose, for the cases that genuinely need the wire rather than an in-process request.
+
+**Returns** `?string` — `http://127.0.0.1:<port>` with no trailing slash, so a path appends directly; `null` anywhere no listener was bound, which is every context but a `server: true` test.
 
 <a id="core-core-test-scriptanswers"></a>
 #### `Core\Test::scriptAnswers`
