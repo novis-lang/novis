@@ -2,62 +2,61 @@
 
 ## State
 
-**Goal 6, M7 — stage 7's `nvs-server (hot reload)` check was misfiled and is now green.** All
-three names moved off `-p nvs-server`: `docs/agent/loop-goal.toml:3912` is two blocks now,
-`nvs-cli (hot reload)` for the two cache tests and `nvs-config (the validate default)` for the
-third, and `docs/agent/goals/6-server.toml` is the byte-identical copy the next `goal-switch.py`
-would otherwise restore over it. `crates/nvs-server` resolves through `nvs-cli`'s compiler and
-owns no cache, which is why neither claim had a spelling in that crate.
+**Goal 6, M7 — stage 8's acceptance check was misfiled and is now four checks.** All four tests
+were filed `-p nvs-test`, and `crates/nvs-test/Cargo.toml` declares **no dependencies at all** on
+purpose, so not one of them could ever have run there: that crate is the `.nvst` format and a
+runner for it, with nothing that could build a request, a listener or a database. What implements
+ADR 0079 §§ 14, 17 and 18 is `nvs_cli::runner` — its own module doc calls it the one place holding
+a checked program and a runtime context in one scope — so the four now sit at `-p nvs-cli`, one
+check each, and the ledger names which feature is open rather than only the first.
 
-**ADR 0091 § 3a's third row landed as behaviour, not only as a test.**
-`nvs_config::cache::Revalidation::from_config` now takes `validate`'s startup default from
-`[mode] default` — `never` in production, `mtime` in development, and a tree that writes no mode
-at all is production per § 5. `revalidate_freq` stays mode-independent, which § 3a states in its
-own words. The tradeoff, since it changes an unconfigured host: a tree with no `nvs.toml` no
-longer `stat`s a path it has compiled, which is strictly fewer syscalls on the request path
-(priority 3) and is what the row asks for; a developer's tree writes `mode = "development"`, and
-§ 3's first property keeps `[opcache] validate` overriding the mode either way.
-`Revalidation::default()` is now the type's own value and reached only for the cap — its doc says
-so.
+**ADR 0079 § 14's assertion half landed; its updater did not.**
+`Core\Test::assertMatchesInline(mixed $actual, string $expected)` compares
+`crates/nvs-stdlib/src/debug.rs:301`'s rendering — `Core\Debug::render`'s own text, borrowed rather
+than grown — against the literal in the test body, so ADR 0092 § 5's redaction reaches a snapshot
+for free and a `secret` property cannot be committed into one. Three `.nvst` cases:
+the 6×6 grid, both sides of a mismatch quoted, and the redaction. **`nvs test --update` is
+blocked on a fact worth not rediscovering**: splicing needs the `$expected` literal's *span*, and
+no runtime record holds one — a helper is called with a value, not with the expression that built
+it. The design (a compile-time table beside `nvs_types::ExprTypeTable::tests`, joined to a run's
+mismatches by the expected text) is in the helper's doc comment at
+`crates/nvs-stdlib/src/test.rs:1097`. Searching the source for the literal instead was refused
+there: § 14's workflow starts from an empty `""`, which occurs everywhere.
 
-`tools/orient.py` and `tools/peek.py` sliced `§3a` as § 3; both are fixed and the playbook bullet
-above owns why it was invisible.
+The rustdoc gate is green again — `crates/nvs-cli/src/service.rs:46` links `[`unit()`]`, which
+disambiguates the function from the primitive type.
 
 ## Next group
 
-**The control endpoint's other half — nothing accepts on it, and there is no client.** ADR 0078
-§§ 3, 5 and 6, whose *Decision* the standing decisions already close: `reload` is the socket's
-only operation and there is no network-reachable control surface. The file set is
-`crates/nvs-cli/src/serve.rs`, `crates/nvs-cli/src/main.rs` and `crates/nvs-server/src/control.rs`
-— but **the driver's own next acceptance failure outranks this list**, and it has not been seen
-yet, because the three checks above were the ones holding it.
+**The runner's remaining ADR 0079 sections, all three in `crates/nvs-cli/src/runner.rs`** —
+`run_in_isolate` is where a case's options are read and the child's context is armed, and
+`mod tests` at `crates/nvs-cli/src/runner.rs:1311` is where each check's named test goes. Take
+them in this order; the first two share the same insertion point.
 
-- [ ] **`nvs serve` creates the control endpoint and accepts on it** — ADR 0078 § 3, over
-      `crates/nvs-cli/src/serve.rs:274`, where the request listener is bound, and
-      `crates/nvs-server/src/control.rs:280`, which is the handler with no caller. The address is
-      `nvs_config::control::Endpoint` at `crates/nvs-config/src/control.rs:137`; the 0600 creation
-      and its refusals are landed and tested, so what is missing is only the accept loop beside
-      the request one. `crates/nvs-cli/src/serve.rs:496` already names the socket in a comment.
-- [ ] **`nvs ctl reload` — the client** — ADR 0078 § 6. There is no `Ctl` variant in the
-      subcommand enum at all: `crates/nvs-cli/src/main.rs:320` is the `Service` variant, whose
-      doc comment calls `nvs ctl` its own precedent, so the namespace is described and unbuilt.
-      One `POST /reload` over the local endpoint, and the report
-      `nvs_config::control::reload` at `crates/nvs-config/src/control.rs:282` already computes —
-      including the changed `Boot` key it names rather than ignores — printed for an operator.
-- [ ] **The refusals a client makes reachable** — `crates/nvs-server/src/control.rs:38`'s
-      "names no operation" answer has only a synthetic caller today; assert it over a real
-      connection once one exists, beside § 6's rule that nothing sent here reaches a program.
+- [ ] **`#[Test(server: true)]` gets an ephemeral listener** — ADR 0079 § 18's second mechanism,
+      at `crates/nvs-cli/src/runner.rs:721`, where the option is read and the listener has to be
+      bound before the isolate starts. `crates/nvs-cli/src/serve.rs:274` is this binary's one
+      existing `NvsListener::bind`, and `crates/nvs-cli/src/serve.rs:497`'s
+      `serve_on_this_core` is the loop beside it. Decide there how the test learns the address —
+      a `Core\Test` row is the cheap answer and `Core\Server` is the other one.
+- [ ] **`#[Test(db: "test")]` runs inside a transaction the runner rolls back** — ADR 0079 § 17,
+      the same option read at `crates/nvs-cli/src/runner.rs:721` and the same per-class scope at
+      `crates/nvs-cli/src/runner.rs:414`. A transaction opened *inside* the test must become a
+      savepoint, which is ADR 0067's closure form doing what it already does. Needs the reachable
+      PostgreSQL goals 4 and 5 use.
+- [ ] **`nvs test --update` splices an inline snapshot** — ADR 0079 § 14's other half. The span
+      table goes beside `crates/nvs-types/src/testing.rs:245`'s `TestCase`, the flag beside
+      `crates/nvs-cli/src/main.rs:234`'s `Test` subcommand, and the splice in
+      `crates/nvs-cli/src/runner.rs:414`, whose `ctx` outlives every test and is where a run's
+      mismatches can accumulate.
 
 ## Backlog
 
-- The queue suite leaves claimable jobs in the shared `novis_test`: `clear` at
-  `crates/nvs-stdlib/tests/queue.rs:395` runs at the head of a case and never at the end, and the
-  roster in `crates/nvs-cli/src/worker.rs:239` claims from every queue. Nineteen call sites, each
-  ending with a different connection state.
-- Registration itself — `install`/`uninstall`/`start`/`stop`/`status`/`run`, the SCM call and the
-  systemd write. `crates/nvs-cli/src/service.rs`'s module doc § *What is on disk, and what is not*.
-- ADR 0091 § 3a's other two rows — `[server] dispatch` and `[server] static` — are documented as
-  mode-selected at `crates/nvs-config/src/tree.rs:773` and are still not chosen by the mode.
-  `Validate::started_in` is the shape the two of them want.
-- `--fault-inject` is matched by word in `service.rs`; if `nvs run` ever gains a second hook the
-  allowlist needs the argument's own grammar.
+- `Core\Test::request` — § 18's first half, a registry row in `crates/nvs-stdlib/src/test.rs` over
+  a dispatch seam `crates/nvs-server/src/route.rs` already computes. Its check is stage 8's first.
+- The `[context] adrs` manifest has no ADR 0079 sections, though stage 8's checks cite §§ 14, 17
+  and 18; this session sliced them by hand. Add `0079` §§ 14, 17, 18.
+- A `"""` block string literal does not exist, so § 14's own example does not compile and an
+  object's snapshot is written with `\$`. `docs/adr/0079` § 14 owns the spelling.
+- `nvs-cli`'s `Cargo.toml` should be re-read before the db slice: the manifest excerpt this
+  session read stopped before `nvs-db`/`nvs-stdlib`.

@@ -5657,6 +5657,24 @@ is why" — is this file.
   is the twenty-line shape. Worth the bullet because a re-entrant resolve is the only way to
   assert anything about the unit cache *while a program is running*, which is what ADR 0017's
   "never blocks a request-serving core" is a claim about.
+- **Two things bite a `.nvst` case that pins a *rendering*, and both report as an error about the
+  case rather than about the member.** First, `Core\Debug::render` answers `Core\Cli\Text` and not
+  `string` (ADR 0086 § 1's carrier), so `string $r = Core\Debug::render($v);` is
+  `E0401: expected string, found Core\Cli\Text` — a case that wants to compare a rendering against a
+  literal has to write the literal, which is the better shape anyway: it pins the text rather than
+  asserting a member agrees with itself. Second, a rendered *property* name begins with `$`, so
+  `"Vault#1 (2) {\n  $token => …"` is `E0301: $token is not declared` **reported inside a string
+  literal** — the double-quoted form interpolates, and an object's snapshot is written `\$token`.
+  `Core\Debug::render`'s output is the one place a case routinely meets both at once;
+  `test-assert-matches-inline-never-holds-a-secret-property.nvst` carries the escaped spelling.
+
+- **`conformance_coverage.rs` counts only the *fully qualified* call spelling, so three cases that
+  write `Test::member(` under a `use Core\Test;` are reported as "asked by 0 case(s)".** The gate
+  builds `format!("{class}::{name}(")` from the registry row and asks whether the corpus contains
+  it, and `corpus::Attribution` indexes a case the same way — an aliased call site is invisible to
+  both, which reads as "you wrote no case" rather than as "you wrote it under a `use`". Two tests
+  fail together and neither says the word alias. Write the member's FQ spelling at least once per
+  case; the surrounding calls may stay aliased, which is what the landed snapshot cases do.
 
 ## Splitting a file that got too big
 
