@@ -37,5 +37,44 @@
       "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
       "cpus": 16
     }
+  },
+  {
+    "date": "2026-09-05T16:44:17",
+    "commit": "0282ae96",
+    "case": "hello",
+    "requests": 1000,
+    "concurrency": 1,
+    "reps": 5,
+    "php_mode": "jit",
+    "ratio": 2.8734,
+    "caveats": [
+      "the baseline pays no HTTP parse and no proxy hop -- it is driven over FastCGI as nginx would drive FPM -- while nvs serve pays both; the comparison favours PHP"
+    ],
+    "nvs": {
+      "kind": "nvs-serve",
+      "label": "nvs serve",
+      "detail": "ADR 0097's development server, one core",
+      "version": "nvs 0.0.1",
+      "requests_per_sec": 26625.8,
+      "median_requests_per_sec": 25604.7,
+      "ms_per_request": 0.0376,
+      "reconnects": 0
+    },
+    "baseline": {
+      "kind": "php-cgi-fastcgi",
+      "label": "php-cgi",
+      "detail": "the FastCGI SAPI FPM runs, opcache on",
+      "version": "PHP 8.5.9 (cgi-fcgi) (built: Jul 29 2026 09:37:09) (ZTS Visual C++ 2022 x64)",
+      "requests_per_sec": 9266.2,
+      "median_requests_per_sec": 9240.7,
+      "ms_per_request": 0.1079,
+      "reconnects": 0
+    },
+    "nvs_binary": "target\\release\\nvs.exe",
+    "host": {
+      "platform": "Windows-10-10.0.26200-SP0",
+      "processor": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+      "cpus": 16
+    }
   }
 ]
