@@ -7918,6 +7918,16 @@ sibling in the same namespace unqualified.
   a green session leaves it red and the driver reports it every iteration afterwards. `python
   tools/verify.py --doc` is the whole check and it names the file and column; run it once when a
   session writes a module doc that links a type from another module.
+- **A route table is on the *unit*, not on whichever context is in hand, and a `#[Test]` isolate's
+  own context has none.** ADR 0102 § 1's match for an in-process request was written in the `Core`
+  member, off `ctx.routes()`, which is exactly where the door takes it and reads correctly — and it
+  matched nothing, silently, so every synthetic request answered with a `null` route and a program
+  that branched on the match took the miss branch. `nvs run` installs the table on the script's own
+  context (`main.rs`'s `set_routes`); the test runner never does, because a `#[Test]` method runs in
+  an isolate that shares compiled code with the unit and nothing else (ADR 0079 § 2). The failure
+  looks like the *table* being empty rather than like the wrong table being asked. The rule: match
+  on the side that holds the compiled unit, and treat a `ctx.routes()` in a helper that may run
+  under `nvs test` as a bug.
 
 ## Divergences and refusals already pinned
 
