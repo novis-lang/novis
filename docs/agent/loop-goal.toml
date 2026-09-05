@@ -4067,6 +4067,21 @@ name = "throughput against PHP 8.5 + FPM + opcache, recorded"
 argv = ["python", "tools/bench.py", "--serve-vs-fpm", "--record", "benches/serve.json"]
 want = ["requests/sec", "recorded"]
 
+# The eight claims a request has to answer, as `.nvst` cases. Seven were drafted under a
+# `tests/conformance/http/` directory the corpus never adopted -- it is flat directories with a
+# subsystem prefix on the FILE name -- and the paths are corrected here, 2026-09-05, to the files that
+# pin each claim. Three were already landed under the name the corpus took: the match a request carries
+# is `an-in-process-request-carries-the-compiled-route-tables-own-match`, and the `404`/`405` pair is
+# `methods-for-answers-nothing-for-an-unclaimed-path-and-every-verb-for-a-claimed-one`, whose own
+# comment names the two answers as exactly those statuses. Five were written for this list.
+#
+# Two of them are pinned where a `.nvst` can be held to them rather than where the claim is worded.
+# A session surviving a core is asserted at the BOOT -- `[session] backend = "local"` is refused, and
+# ADR 0059 § 4 is the diagnostic's own note -- because a case running inside one request cannot be
+# scheduled onto a second core, and a test that never happened to cross one would pass over a runtime
+# that loses sessions in production. A deferred tree outliving its connection is asserted from the
+# CALLER's side -- the answer is complete and carries none of the deferred bytes -- because the child's
+# deferred output has nowhere left to go, which is the property itself.
 [[check]]
 kind = "nvs-suite"
 stage = "9 the claims"
@@ -4074,14 +4089,14 @@ name = "conformance"
 args = ["test", "tests/conformance/"]
 min_passing = 1450
 cases = [
-  "tests/conformance/http/a-request-value-arrives-tainted-and-is-laundered-to-be-used.nvst",
-  "tests/conformance/http/a-head-request-matches-a-get-route-and-is-head-says-so.nvst",
+  "tests/conformance/core/a-request-value-arrives-tainted-and-is-laundered-to-be-used.nvst",
+  "tests/conformance/core/a-head-request-matches-a-get-route-and-is-head-says-so.nvst",
   "tests/conformance/reject/mixing-echo-with-a-typed-body-member-is-refused.nvst",
-  "tests/conformance/http/a-request-is-matched-once-and-route-returns-that-match.nvst",
-  "tests/conformance/http/a-missing-path-is-404-and-a-refused-verb-is-405.nvst",
-  "tests/conformance/http/an-upload-is-received-only-through-files.nvst",
-  "tests/conformance/http/a-session-survives-a-request-on-another-core.nvst",
-  "tests/conformance/http/an-after-response-tree-outlives-its-connection.nvst",
+  "tests/conformance/core/an-in-process-request-carries-the-compiled-route-tables-own-match.nvst",
+  "tests/conformance/core/methods-for-answers-nothing-for-an-unclaimed-path-and-every-verb-for-a-claimed-one.nvst",
+  "tests/conformance/core/an-upload-is-received-only-through-files.nvst",
+  "tests/conformance/core/a-session-survives-a-request-on-another-core.nvst",
+  "tests/conformance/core/an-after-response-tree-outlives-its-connection.nvst",
 ]
 
 [[check]]
