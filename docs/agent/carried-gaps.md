@@ -78,7 +78,7 @@ Nobody's, and each is a scheduling question rather than a session's.
   URI without its fragment" — `crates/nvs-stdlib/src/uri.rs` gap 1. It needs an options bag that can
   tell an omitted option from a written `null`, which is a registry question rather than a `Core\Uri`
   one.
-- **No custom panic hook.** [ADR 0002](../adr/0002-error-handling-and-panic-containment.md)
+- **No custom panic hook.** [ADR 0002](../adr/0002-error-propagation.md)
   § *Corollary* wants a panic message routed to the request log with its request id;
   `crates/nvs-runtime/src/lib.rs` gap 4 has it, and its blocker — there being no request log — went
   away in M5. It is presentation rather than containment, which is why it has waited, and it rides
