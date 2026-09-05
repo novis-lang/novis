@@ -451,9 +451,30 @@ observe whether the handshake happened.
   say so in those terms — the number an operator sizes `max_connections` against.
 - **`{shared: false}` still means a dedicated connection for the request** (§ 2), and it is still drawn from
   and returned to the pool. What it bypasses is memoization within the request, not pooling across requests.
+- **An `open`'s bounds are the block's, when the settings describe a block.** `connect` names a block and
+  reads its `[db.<name>.pool]`; a settings literal names nothing, so the bounds come from the block whose
+  *settings hash* — the key § 2 already computes — is this connection's, and from the defaults above when no
+  block matches. Those two connections are the same connection to the same server under the same
+  credentials and already share a pool, since § 2's key *is* the pool's key, so a second answer for `max`
+  would be a ceiling an operator sized and did not get. A literal differing from the block in any hashed
+  field, a written `port` where the block left the server's default implicit among them, is a different key
+  and so a different pool at the default bounds.
 - **The pool is off by a config switch**, and `pool = false` restores the connect-per-request behaviour
   exactly. An operator who cannot accept a reused connection — an audited environment where each connection
   must map to one request — has a supported answer rather than a workaround.
+- **That switch may be written unscoped**, beside the blocks rather than inside one, and unscoped it reaches
+  every connection the process opens:
+
+  ```toml
+  [db]
+  pool = false        # every connection, including one `Core\Db::open` described for itself
+  ```
+
+  The audited deployment's requirement is about the *process*, and a per-block key cannot state it: a
+  program's own settings literal names no block, so under the per-block spelling alone there is one class of
+  connection the operator cannot turn pooling off for. Only the switch is unscoped. Bounds are not, and a
+  `[db.pool]` table of them is refused at boot: unscoped bounds would size a pool whose key is a credential
+  hash, and no one server's `max_connections` is what that would be sized against.
 
 ## Consequences
 

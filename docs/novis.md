@@ -20096,6 +20096,7 @@ accepts — anything else is `E0601`:
 | `[cache]` | `dir` — the artifact cache directory (the `nvs` command chapter) |
 | `[db.<name>]` | `driver`, `path`, `host`, `port`, `user`, `password`, `password_file`, `database`, `tls_ca_file`, `statement_cache`, `time_zone`, `slow_query`, `pool` |
 | `[db.<name>.pool]` | `max`, `idle`, `lifetime`, `acquire` — the connection pool's bounds, written as a table where `pool = false` turns it off |
+| `[db] pool` | `pool = false` written beside the blocks rather than inside one, turning pooling off for every connection this process opens — including one `Core\Db::open` described for itself, which names no block. Bounds are not written here: they belong to the block they size |
 | `[mail.<name>]` | `host`, `port`, `from`, `user`, `password`, `password_file`, `timeout` — an SMTP submission endpoint |
 | `[log]` | `handler`, `handler_reserve_memory`, `handler_reserve_time`, `target`, `format`, `level` |
 | `[http]` | `[http.errors] detail`; `[http.headers]`; `[http.cors]`; `[http.cookies]`; `[http.client]` |
