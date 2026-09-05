@@ -1,0 +1,172 @@
+# Goal 26 -- `Core\Xml`'s tree and stream, and the WHATWG parser over it.
+# The acceptance test, as data.
+#
+# `26-xml-tree.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/xml-tree.nvs",
+  "examples/html-sanitize.nvs",
+]
+
+[context]
+
+modules = [
+  # Stages 4-5 -- the class that gains `sanitize` and the parser, and whose gaps say they wait on the tree.
+  "crates/nvs-stdlib/src/html.rs",
+  # Stages 2-5 -- every new class and member declares its row here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 5 -- `escape` and `Markup` are the launderers `sanitize` joins.
+  "crates/nvs-stdlib/src/taint.rs",
+  # Stage 2 -- the inert-data precedent: a parsed tree with no path back into execution.
+  "crates/nvs-stdlib/src/ast.rs",
+  # Stage 2 -- the bytes/string boundary a parser reads across, and where encoding is decided.
+  "crates/nvs-stdlib/src/encoding.rs",
+  # Stage 2 -- the expansion ceiling goal 25 landed, which billion-laughs is bounded by.
+  "crates/nvs-stdlib/src/bytes.rs",
+  # Stages 2-5 -- the band a refusal that names its rule is declared in.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Stage 5 -- the last of the eight keys.
+  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
+]
+
+# 0122 is the parser and the shared tree; 0024 owns both launderers; 0051 is the tier row; 0019 is the
+# inert-data rule a parsed tree inherits; 0009 is the bytes/string boundary.
+rules = ["0122", "0024", "0051", "0019", "0009", "0133", "0004"]
+
+# 0122 whole -- it is half this goal's design, and its § 4 is what this entry makes wrong.
+adrs = ["0122", "0024 §1", "0051 §3"]
+
+shapes = ["An ADR", "A core class", "A commit message", "A .nvst case", "A diagnostic"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its own checks parse byte buffers in process. The floor is goal 25's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-stdlib"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the tree, and it is one node family. ADR 0122 § 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 tree"
+name = "nvs-stdlib (one node family, and it is inert)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "element_text_comment_processing_instruction_and_document_are_the_whole_family",
+  "a_parsed_tree_has_no_path_back_into_execution",
+  "an_external_entity_is_not_a_code_path_rather_than_a_flag_defaulting_to_off",
+  "a_dtd_naming_an_external_subset_is_refused_rather_than_fetched",
+  "a_billion_laughs_expansion_is_bounded_by_the_ceiling_goal_25_landed",
+  "every_string_read_out_of_a_parsed_tree_is_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the stream: one window, never the document.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 stream"
+name = "nvs-stdlib (the reader holds a window and the writer cannot emit ill-formed output)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_reader_answers_stage_twos_node_family_one_node_at_a_time",
+  "the_reader_holds_one_window_rather_than_the_document",
+  "the_writer_enforces_nesting_from_its_own_state_and_not_from_the_caller",
+  "an_unclosed_element_at_the_end_is_an_error_and_not_a_document",
+  "no_operation_is_available_through_both_the_tree_and_the_stream",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the WHATWG parser, on `Core\Html`. ADR 0122 §§ 1 and 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 parser"
+name = "nvs-stdlib (never-failing, and an entry rather than a mode)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "tag_soup_produces_a_document_because_the_parser_has_no_failure_mode",
+  "the_parser_produces_core_xmls_own_node_family",
+  "it_is_an_entry_on_core_html_and_there_is_no_html_mode_on_the_xml_parser",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `sanitize`, which is why the tree matters. The acceptance property is mXSS.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 sanitize"
+name = "nvs-stdlib (a second launderer on Core\\Html, and it reaches a fixed point)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "sanitize_is_an_adr_0024_launderer_beside_escape",
+  "the_allowlist_is_closed_and_is_not_configurable_by_a_caller",
+  "parse_sanitize_serialise_reparse_reaches_a_fixed_point_over_the_mxss_corpus",
+  "an_element_outside_the_allowlist_is_dropped_rather_than_escaped_in_place",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (the eighth key, and the file holds none)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]

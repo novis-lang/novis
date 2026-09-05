@@ -77,6 +77,21 @@ goal 3 built exactly as specified and which has never had a caller — a subsyst
 because the payload needs a second `nvs-codegen` `Module` and a named symbol for every host address the
 JIT bakes in, which is why it is its own entry.
 
+**Then six entries the user asked for on 2026-09-05**, from one question — what is *unowned*, and can it
+be made reachable? Answering it turned up two facts the repository had wrong (`Core\Metrics` was listed
+unowned and is goal 6's; spec § 17's four classes were filed under M9, which carries the extension system
+and none of them) and one it did not record at all: **50 `# Known gaps` blocks across the crates hold 152
+enumerated items**, of which `carried-gaps.md` indexed 22 and `carried-refusals.md` 15. These six close
+the real ones. [23 per-core](23-per-core.md) is M7's own scope that goal 6 shipped around, and the largest
+measured performance item in the repository. [24 net-os-signal](24-net-os-signal.md),
+[25 formats](25-formats.md) and [26 xml-tree](26-xml-tree.md) are M8's Tier 0 roster finished — the seven
+`Core` classes ADR 0051 § 3 names that M8's own goals walked past, after which
+`spec-classes-part-two-outstanding.txt` holds no keys at all. [27 gap-owners](27-gap-owners.md) is goal
+21's keystone applied one level down: a module-doc gap gains an owner tag and a gate fails on an untagged
+one, so the ~110 unindexed items become a short list of scheduling questions instead of an unread
+inventory. [28 unowned-sweep](28-unowned-sweep.md) closes what is left, four fifths of which is one
+blocker — an options bag the registry could not spell, which is what goal 18 lands.
+
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals --append-chain
 docs/agent/goals/chain.toml`, which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
@@ -135,7 +150,13 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
 | [21 carried-gaps](21-carried-gaps.md) | post-parity, ADR 0067/0073/0076/0116/0133 amendments | `nvs-config`, `nvs-cli`, `nvs-types`, `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-db`, `nvs-diagnostics` |
 | [22 warm-start](22-warm-start.md) | post-parity, ADR 0042 | `nvs-codegen`, `nvs-cli`, `nvs-config` |
-| 23–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
+| [23 per-core](23-per-core.md) | M7, one ADR slot + ADR 0097/0017 amendments | `nvs-cli`, `nvs-host`, `nvs-server`, `nvs-config` |
+| [24 net-os-signal](24-net-os-signal.md) | M8, one ADR slot + ADR 0142 § 6's deferred grant | `nvs-stdlib`, `nvs-host`, `nvs-config`, `nvs-runtime` |
+| [25 formats](25-formats.md) | M8, one ADR slot (the shared decompression bound) | `nvs-stdlib`, `nvs-config`, `nvs-diagnostics` |
+| [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + ADR 0122 § 4's fold | `nvs-stdlib`, `nvs-diagnostics` |
+| [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
+| [28 unowned-sweep](28-unowned-sweep.md) | post-parity, ADR 0002/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| 29–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
 

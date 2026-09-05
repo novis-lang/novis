@@ -1,0 +1,107 @@
+# Loop goal 28 — the gaps a past milestone left and no goal claimed
+
+Five gaps that goals 1–20 shipped around, each recorded in the module doc that owns it, each real, and
+none of them owned by any `[[goal]]` on the chain. Four of the five are the *same* gap wearing
+different clothes: **a member that needs an options bag the registry could not spell**, which is
+precisely the spelling [goal 18](18-input-shapes.md) lands. This goal is that follow-through, plus the
+two decisions the user took when the unowned list was drawn up.
+
+**It sits last of the entries added after goal 20** because every one of its items waits on something
+an earlier entry delivers — goal 18's optional shape field for four of them, and goal 27's attribution
+pass for the confidence that these five are the whole list rather than the five somebody remembered.
+
+## Stage 0 — the catch-up
+
+1. **Four module docs state the blocker as open** and are rewritten when it closes, not amended:
+   `crates/nvs-stdlib/src/uri.rs` gap 1, `crates/nvs-stdlib/src/queue.rs` gaps 1–2,
+   `crates/nvs-stdlib/src/lib.rs` gap 4, `crates/nvs-runtime/src/lib.rs` gap 4.
+2. **`carried-gaps.md` § *Unowned* loses the bullets this goal closes**, per that file's contract: an
+   entry leaves exactly one way, which is the gap being closed.
+
+## Stage 1 — the floor
+
+Goal 27's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+
+## Stage 2 — the keystone: an options bag can tell omitted from written `null`
+
+Goal 18 gave `Ty::Shape` an optional field, `{name?: T}`, and
+[ADR 0135](../../adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) gave a `Core`
+signature a shape parameter that carries its arms. This stage is what those were for.
+
+1. **`Core\Uri::with` gains a removal spelling.** `crates/nvs-stdlib/src/uri.rs`'s `written` owns the
+   mechanism and the gap names the fix exactly: today an omitted option and a written `null` arrive as
+   the same `Tag::Null`, so the option types are `string` rather than `?string`. With an optional
+   field the two are distinguishable and `?fragment` becomes `?string` — a written `null` removes, an
+   omitted key leaves alone. **Not** an `""`-means-remove rule: `""` is already an empty query, which
+   `?` with nothing after it produces and which `query()` reports as distinct from `null`.
+2. **`Core\Queue`'s `limits` and `grants` are declared** — § 1's `{…}` parameters, the exact shape the
+   registry could not spell. The gap notes this is the same blocker `Core\Db::open` waits on and that
+   "the two lift together"; goal 21 owns the `Core\Db` half, so this stage takes the other and the two
+   are checked against each other.
+3. **`Core\Queue`'s `$args` refuses a `secret`.** § 1 asks for it and `CoreTy::Mixed` carries no
+   qualifier, so the refusal needed a spelling rather than a line. A durable row is an output and
+   [ADR 0033](../../adr/0033-secret-qualifier-for-confidential-values.md)'s sinks are the shape of the
+   answer: a queued job's arguments are written to a database and read back by another process, which
+   is a sink by every test that ADR applies.
+
+## Stage 3 — `array<T>` accepts a covariant read
+
+**The user decided this when the unowned list was drawn up**; it is recorded here rather than
+re-argued. `crates/nvs-stdlib/src/lib.rs` gap 4 and `nvs_types::expr::is_assignable`'s own docs argue
+both sides, and the widening side wins:
+
+1. **`is_assignable` admits an element-covariant `array<T>`** — an `array<int>` satisfies an
+   `array<int|string>` parameter. Today it does not, so an `array<int|string>` parameter takes only
+   that exact spelling.
+2. **It is sound because an Novis array is a copy-on-write value.** An element-covariant *read* cannot
+   be aliased into an unsound write: the callee that widens gets its own copy the moment it writes.
+   This sentence is the whole argument and it lives in `is_assignable`'s doc comment, not in three
+   places.
+3. **It accepts strictly more programs and breaks none**, which is why it needs no migration and no
+   diagnostic — nothing that compiles today stops compiling.
+4. **The proof is a case that does not compile now and does after**, plus the negative: a write
+   through the widened parameter does not affect the caller's array.
+
+## Stage 4 — the two small ones
+
+1. **A custom panic hook**, [ADR 0002](../../adr/0002-error-propagation.md) § *Corollary*:
+   the panic message routed to the request log with its request id. `crates/nvs-runtime/src/lib.rs`
+   gap 4 says the blocker went away in M5 — the request log exists as `Ctx::write_log_record` under
+   `nvs_stdlib::log` — and that `nvs_helper!` already captures the message into `Ctx`, so what is left
+   is the hook. **The default hook's stderr output stays the right destination for a CLI script**; this
+   is the served case only. It is presentation rather than containment, which is why it waited, and it
+   is one item rather than a stage of its own.
+2. **`[limits] max_output` bounds a capture.** `crates/nvs-stdlib/src/process.rs` gap 1:
+   [ADR 0044](../../adr/0044-core-process-argv-only-no-shell.md) § 1 reuses that directive rather than
+   adding a cap and nothing reads it, so what bounds a child's stdout today is the request's memory
+   limit. `Core\IO::read` is the same question with the same answer, and the module doc says the same
+   signature closes both — so both are closed here or neither is.
+
+## Stage 5 — the list is shorter, and says so
+
+`carried-gaps.md` § *Unowned* is rewritten to what survives. What is expected to survive is one
+entry — [ADR 0116](../../adr/0116-an-isolates-arena-is-an-ownership-root.md)'s optional in-flight cycle
+collector — because it is an **open decision rather than an unclosed gap**, and it stays visible for
+exactly that reason. Its consequence is visible in a second place and that is not a duplicate: it is
+one of the two flags `nvs_safepoint` clears and ignores (`crates/nvs-runtime/src/lib.rs` gap 5), the
+other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
+
+## Standing decisions
+
+- **This goal opens no ADR number.** Every item is a folded edit to an ADR whose body already states
+  the rule — 0002's *Corollary*, 0033's sinks, 0044 § 1 — or a widening whose argument lives in a doc
+  comment.
+- **`array<T>` widening is decided and is not re-litigated by a session.** The user took it; a session
+  that finds the invariant position more comfortable has found a decision, not a question.
+- **An options bag distinguishes omitted from written `null`, everywhere, and never by a sentinel.**
+  No `""`-means-remove, no magic string, no second parameter meaning "and also clear these". If a
+  member cannot express removal with an optional field, the member waits.
+- **The panic hook changes presentation and never containment.** A panic still ends the request the
+  way it does today; what changes is where the message is written. Anything that would let a hook
+  *recover* is out of scope and stays out.
+- **Ambiguity resolves toward closing the gap rather than re-scoping it**, recorded in the module doc.
+  These five have each waited a milestone or more; a session that finds a sixth writes it into
+  `carried-gaps.md` and moves on, per [loop-authoring.md](../loop-authoring.md) § 8.
+- **What this spends**, per [ADR 0004](../../adr/0004-memory-for-simplicity.md): nothing per request.
+  The panic hook holds one message on a path that was already ending; `max_output` *reduces* what a
+  capture may hold; the widening is a compile-time judgement.

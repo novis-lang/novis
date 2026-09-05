@@ -1,0 +1,169 @@
+# Goal 25 -- `Core\Compress`, `Core\Mime` and `Core\Zip`.
+# The acceptance test, as data.
+#
+# `25-formats.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/compress-roundtrip.nvs",
+  "examples/zip-refuses.nvs",
+]
+
+[context]
+
+modules = [
+  # Stages 2-4 -- the three new modules land beside these, and declare their rows here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 3 -- `bytes` is what detection reads and what a codec answers.
+  "crates/nvs-stdlib/src/bytes.rs",
+  # Stage 4 -- path resolution and the traversal predicates an extraction destination is checked with.
+  "crates/nvs-stdlib/src/path.rs",
+  # Stage 4 -- the filesystem door an extraction goes through, and the grant it asks.
+  "crates/nvs-stdlib/src/storage.rs",
+  # Stage 2 -- `[limits]`, which supplies the default ceiling a call may lower and never raise.
+  "crates/nvs-config/src/tree.rs",
+  # Stages 2-4 -- the diagnostics band a refusal that names its rule is declared in.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Stage 3 -- the taint axis a detected type does not launder.
+  "crates/nvs-stdlib/src/taint.rs",
+  # Stage 5 -- the list this goal takes three keys off.
+  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
+]
+
+# 0051 is the tier roster and the `Core\Zip`-is-policy argument; 0024 is the taint axis detection does
+# not launder; 0097 is why the server still compresses nothing; 0009 is the bytes/string boundary.
+rules = ["0051", "0024", "0097", "0009", "0052", "0004"]
+
+adrs = ["0051 §3", "0097 §1"]
+
+shapes = ["An ADR", "A core class", "A commit message", "A .nvst case", "A diagnostic"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its own checks are in-process over byte buffers and need no container. The floor is goal 24's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-config"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `Core\Compress`, and the bound that cannot be switched off.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 compress"
+name = "nvs-stdlib (four codecs, one bound)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "gzip_deflate_brotli_and_zstd_each_round_trip",
+  "the_codec_is_an_enum_and_there_is_no_name_as_string_spelling",
+  "a_decompression_exceeding_the_ratio_throws_rather_than_truncating",
+  "a_decompression_exceeding_the_absolute_ceiling_throws_rather_than_truncating",
+  "a_call_may_lower_the_bound_and_may_not_raise_it_past_the_configured_ceiling",
+  "there_is_no_spelling_for_an_unbounded_decompression",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `Core\Mime`, magic bytes and no rule interpreter.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 mime"
+name = "nvs-stdlib (detection is by content, and launders nothing)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_type_is_detected_from_magic_bytes_and_never_from_a_file_extension",
+  "the_answer_is_a_closed_enum_plus_unknown_and_never_a_free_string",
+  "detected_bytes_are_still_tainted_because_detection_is_not_a_launderer",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `Core\Zip`, where the policy lives. The proofs are the attacks.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 zip"
+name = "nvs-stdlib (four hostile archives, four refusals that name the rule)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_traversing_entry_is_refused_at_read_time_by_the_diagnostic_that_names_the_rule",
+  "an_absolute_path_entry_is_refused_the_same_way",
+  "a_symlink_entry_is_refused_the_same_way",
+  "a_decompression_bomb_is_refused_by_stage_twos_bound_per_entry_and_across_the_archive",
+  "extraction_cannot_escape_its_destination_when_a_symlink_appears_during_it",
+  "a_refusal_is_a_diagnostic_and_never_a_failed_io_error",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the three keys are struck, and the server still compresses nothing.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (spec § 17 loses three of its four keys)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-server (nothing in the response path compresses implicitly)"
+args = ["test", "-p", "nvs-server"]
+tests = [
+  "the_server_still_sets_no_content_encoding_of_its_own",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]

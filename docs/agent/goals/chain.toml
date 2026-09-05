@@ -280,6 +280,91 @@ handoff = "docs/agent/goals/20-unix-sockets.handoff.md"
 milestone = "M8"
 preflight = "docker"
 
+# M7's own stated scope, shipped around: goal 6 built the single-core server and closed, and until
+# this entry existed no `[[goal]]` owned "per-core accept and dispatch". It is first of the
+# entries added after goal 20 because it is the largest measured performance item in the
+# repository -- the proxied bench has php-fpm scaling 2.44x from one core to four while `nvs
+# serve` stays flat, turning a 2.92x lead into 1.19x, and inverting it on a box with more cores.
+# The primitives are built and unreached: `NvsListener::from_std` and `Worker::spawn(cpu, ...)`
+# have only `#[cfg(test)]` callers.
+[[goal]]
+name = "23 per-core"
+md = "docs/agent/goals/23-per-core.md"
+toml = "docs/agent/goals/23-per-core.toml"
+handoff = "docs/agent/goals/23-per-core.handoff.md"
+milestone = "M7"
+preflight = "docker"
+
+# The three classes in spec § 16 that no milestone and no goal named at all -- ADR 0051 § 3 puts
+# all three at Tier 0 and M8's stdlib goals (4 and 5) walked without them, which makes them a gap
+# in a past milestone rather than work on a future one. It sits after goal 23 because
+# `Core\Os::cpuCount` should answer the number the server actually fans out over rather than a
+# number nothing reads.
+[[goal]]
+name = "24 net-os-signal"
+md = "docs/agent/goals/24-net-os-signal.md"
+toml = "docs/agent/goals/24-net-os-signal.toml"
+handoff = "docs/agent/goals/24-net-os-signal.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
+# Spec § 17's three archive-and-encoding classes, each Tier 0 because what a compressed or
+# archived input can do to a server is policy and policy must be non-optional. They are M8's, not
+# M9's: `spec-classes-part-two-outstanding.txt` said M9 carried the § 17 four, and m9.md is the
+# extension system and carries none of them. It sits after goal 24 because `Core\Mime`'s detection
+# is what a `Core\Net` or `Core\Http` reader hands bytes to, and before goal 26 because `Core\Xml`
+# is the largest of the four and shares nothing with these three.
+[[goal]]
+name = "25 formats"
+md = "docs/agent/goals/25-formats.md"
+toml = "docs/agent/goals/25-formats.toml"
+handoff = "docs/agent/goals/25-formats.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
+# The largest single unowned item in the repository, and not free-standing: `Core\Html::sanitize`
+# and ADR 0122's WHATWG parser both wait on `Core\Xml`'s tree, and ADR 0122 § 4 is titled
+# *Unscheduled, and lands with `Core\Xml`* -- three gaps, one tree, one goal. It is last of the
+# three M8 entries because it is the biggest and shares no file with them, so a run that has to
+# stop stops with the cheap two landed.
+[[goal]]
+name = "26 xml-tree"
+md = "docs/agent/goals/26-xml-tree.md"
+toml = "docs/agent/goals/26-xml-tree.toml"
+handoff = "docs/agent/goals/26-xml-tree.handoff.md"
+milestone = "M8"
+preflight = "docker"
+
+# Goal 21 stage 2 built the gate for an outstanding spec key -- a key whose owner is not a live
+# `[[goal]]` fails. This is the same gate for a module-doc gap, and the argument is goal 21's
+# verbatim: 50 `# Known gaps` blocks hold 152 items, `carried-gaps.md` indexes 22 and `carried-
+# refusals.md` covers 15, and the remaining ~110 are invisible to every tool because nothing in
+# the tree is shaped wrong. It sits after the M8 entries because those close a large share of what
+# would otherwise need attributing, and attributing a gap that is about to be closed is work done
+# twice.
+[[goal]]
+name = "27 gap-owners"
+md = "docs/agent/goals/27-gap-owners.md"
+toml = "docs/agent/goals/27-gap-owners.toml"
+handoff = "docs/agent/goals/27-gap-owners.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
+
+# Five gaps goals 1-20 shipped around, none owned by any entry before this one. Four of the five
+# are the same gap wearing different clothes -- a member that needs an options bag the registry
+# could not spell, which is precisely the spelling goal 18 lands -- and the other two are the
+# decisions the user took when the unowned list was drawn up: `array<T>` widening to a covariant
+# read, and ADR 0002's panic hook. It is last because every item waits on something an earlier
+# entry delivers: goal 18's optional shape field for four of them, and goal 27's attribution pass
+# for the confidence that these five are the whole list rather than the five somebody remembered.
+[[goal]]
+name = "28 unowned-sweep"
+md = "docs/agent/goals/28-unowned-sweep.md"
+toml = "docs/agent/goals/28-unowned-sweep.toml"
+handoff = "docs/agent/goals/28-unowned-sweep.handoff.md"
+milestone = "post-parity"
+preflight = "docker"
+
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
 # fires `dossier.py --emit-goals --append-chain` at this file, so ADR 0134's roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and

@@ -1,0 +1,155 @@
+# Goal 27 -- a module doc's gap names its owner, and a gate says so.
+# The acceptance test, as data.
+#
+# `27-gap-owners.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No new fixture: this goal writes a tool and a set of doc comments, and changes no program's output.
+]
+
+[context]
+
+modules = [
+  # Stage 2 -- the sibling gate one level up, and the file whose contract this one extends.
+  "docs/agent/carried-gaps.md",
+  # Stage 2 -- the refusal-site half of the same idea, and the `--unattributed` output to model on.
+  "tools/holes.py",
+  # Stage 2 -- the other derived worklist, and the help-text shape both of these use.
+  "tools/gaps.py",
+  # Stage 2 -- how a chain entry is read, so a tag naming a goal can be checked against the schedule.
+  "tools/chain.py",
+  # Stage 4 -- where the new gate is added, in order, stopping at the first failure.
+  "tools/verify.py",
+  # Stage 4 -- what the orientation pack prints, and where an unowned count joins it.
+  "tools/brief.py",
+  # Stage 3 -- the largest single block, 17 items, and already owned by carried-refusals 901.
+  "crates/nvs-ir/src/lib.rs",
+  # Stage 3 -- seven items, two of which are the deferrals the prose names.
+  "crates/nvs-runtime/src/lib.rs",
+  # Stage 3 -- the stale one: gap 3 says `match` is absent and the plan says a request is matched.
+  "crates/nvs-stdlib/src/router.rs",
+]
+
+# 0004 is the priority ordering an owner decision is taken under; the rest are the ADRs whose gaps are
+# most often mis-attributed, so a session reading this goal has the rule in front of it.
+rules = ["0004", "0116", "0042", "0002"]
+
+adrs = []
+
+shapes = ["A commit message"]
+
+playbook = [
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Nothing here needs a daemon. The floor is goal 26's, which is goals 4-6's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["tools", "docs/agent"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the tool, derived and never copied.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "owners.py walks every Known gaps block and answers"
+argv = ["python", "tools/owners.py", "--json"]
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "the gate: every gap item names an owner the chain or the plan knows"
+argv = ["python", "tools/owners.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "2 the tool"
+name = "the unowned list is the scheduling questions and nothing else"
+argv = ["python", "tools/owners.py", "--unowned"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the attribution pass. The gate above is what proves it complete.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "no untagged gap item survives anywhere in crates/"
+argv = ["python", "tools/owners.py", "--check", "--untagged-is-an-error"]
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "every `unowned` tag has a carried-gaps.md bullet behind it"
+argv = ["python", "tools/owners.py", "--check", "--reasons"]
+
+[[check]]
+kind = "command"
+stage = "3 attributed"
+name = "the chain still walks, and every goal a tag names is on it"
+argv = ["python", "tools/chain.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- it stays true.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 wired"
+name = "verify.py runs the gate in order"
+argv = ["python", "tools/verify.py", "--list"]
+
+[[check]]
+kind = "command"
+stage = "4 wired"
+name = "the orientation pack names the unowned count"
+argv = ["python", "tools/brief.py", "--where", "unowned"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- nothing a doc-comment pass does changes an answer.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]

@@ -1,0 +1,180 @@
+# Goal 24 -- `Core\Net`, `Core\Os` and `Core\Signal`.
+# The acceptance test, as data.
+#
+# `24-net-os-signal.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/net-echo.nvs",
+  "examples/os-facts.nvs",
+]
+
+[context]
+
+modules = [
+  # Stages 2-4 -- the three new `Core` modules land beside these; `socket.rs` is `Core\Socket`
+  # (ADR 0083's WebSocket) and is deliberately NOT what this goal extends.
+  "crates/nvs-stdlib/src/socket.rs",
+  # Stages 2-4 -- every new class declares its rows here.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 2 -- `NvsTcp` at :227, `NvsListener` at :313, `NvsUnix` at :460, and where `NvsUdp` joins.
+  "crates/nvs-host/src/net.rs",
+  # Stage 2 -- what a socket registers with, and what parking on it costs.
+  "crates/nvs-host/src/reactor.rs",
+  # Stage 2 -- `net.local` and `net.listen` join this roster; `net.connect` keeps its host scope.
+  "crates/nvs-config/src/capability.rs",
+  # Stage 2 -- `pin_host`/`pinned_address`: the denied-range walk a program's own connect still takes.
+  "crates/nvs-runtime/src/capability.rs",
+  # Stage 3 -- the one existing `available_parallelism` caller, at :145, which stops being the only one.
+  "crates/nvs-cli/src/info.rs",
+  # Stage 4 -- the drain state machine a `Core\Signal` handler enters rather than duplicating.
+  "crates/nvs-server/src/control.rs",
+  # Stage 5 -- the eight-key list this goal takes three keys off.
+  "crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt",
+]
+
+# 0051 is the tier roster all three rows come from; 0058 is the denied-range walk a program's connect
+# takes; 0142 is where `net.local` was named and deferred; 0052 is why no door dispatches on a scheme.
+rules = ["0051", "0058", "0142", "0052", "0017", "0097", "0004"]
+
+adrs = ["0051 §3", "0058 §3", "0142 §6"]
+
+shapes = ["An ADR", "A core class", "A commit message", "A .nvst case"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Its own checks bind loopback sockets and need no container. The floor is goal 23's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-host", "crates/nvs-config"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- `Core\Net`, over the reactor and nothing else.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-config (the two new grants)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "net_listen_and_net_local_are_on_the_roster_and_denied_by_default",
+  "net_connect_still_carries_its_host_scope_and_neither_new_grant_widens_it",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-host (a datagram socket parks like a stream)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_udp_socket_registers_with_the_reactor_and_parks_the_coroutine",
+  "a_udp_read_with_no_datagram_waiting_suspends_rather_than_spinning",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 net"
+name = "nvs-stdlib (Core\\Net: connect, listen, and what is refused)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_tcp_connect_walks_the_denied_range_table_through_pin_host",
+  "a_tcp_listener_asks_net_listen_and_not_net_connect",
+  "a_program_supplied_unix_path_is_refused_as_a_target_at_every_door",
+  "a_udp_socket_sends_and_receives_over_the_runtimes_own_reactor",
+  "no_door_dispatches_on_a_url_scheme",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `Core\Os`, five facts about the host.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 os"
+name = "nvs-stdlib (Core\\Os answers the host)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "pid_hostname_cpu_count_memory_usage_and_load_average_all_answer",
+  "cpu_count_answers_the_number_serve_fans_out_over",
+  "load_average_throws_on_windows_with_a_message_naming_the_platform",
+  "no_core_os_member_is_a_sink_or_carries_tainted",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `Core\Signal`, graceful shutdown and nothing else.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 signal"
+name = "nvs-stdlib (Core\\Signal is shutdown, and only shutdown)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_handler_runs_as_ordinary_novis_code_at_a_safepoint_and_never_in_a_signal_context",
+  "a_handler_enters_the_existing_drain_rather_than_a_second_state_machine",
+  "there_is_no_kill_no_alarm_and_no_signal_number_as_an_integer",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the three keys are struck.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 registered"
+name = "nvs-stdlib (spec § 16 loses its last three keys)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_part_two_spec_class_is_registered",
+  "every_migration_member_is_registered",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]

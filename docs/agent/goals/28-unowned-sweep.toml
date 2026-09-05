@@ -1,0 +1,174 @@
+# Goal 28 -- the gaps a past milestone left and no goal claimed.
+# The acceptance test, as data.
+#
+# `28-unowned-sweep.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/uri-without-fragment.nvs",
+]
+
+[context]
+
+modules = [
+  # Stage 2 -- `with`, `written`, and gap 1 naming the options bag as the fix.
+  "crates/nvs-stdlib/src/uri.rs",
+  # Stage 2 -- `limits`/`grants` as shape parameters, and `$args` refusing a secret.
+  "crates/nvs-stdlib/src/queue.rs",
+  # Stage 2 -- the registry rows the three members are declared in.
+  "crates/nvs-stdlib/src/registry.rs",
+  # Stage 2 -- ADR 0135's `CoreTy` shape arm, which goal 18 landed and this goal is the second caller of.
+  "crates/nvs-types/src/core_lib.rs",
+  # Stage 3 -- `is_assignable`, whose own docs argue both sides of the variance question.
+  "crates/nvs-types/src/expr/assign.rs",
+  # Stage 3 -- gap 4, the invariance entry, rewritten when the widening lands.
+  "crates/nvs-stdlib/src/lib.rs",
+  # Stage 4 -- gap 4, the panic hook, and gap 5's two flags that stay inert.
+  "crates/nvs-runtime/src/lib.rs",
+  # Stage 4 -- `Ctx::write_log_record`, the request log the hook routes into.
+  "crates/nvs-stdlib/src/log.rs",
+  # Stage 4 -- gap 1, `[limits] max_output`, and `Core\IO::read`'s half of the same signature.
+  "crates/nvs-stdlib/src/process.rs",
+  "crates/nvs-stdlib/src/io.rs",
+]
+
+# 0036 and 0135 are the shape spelling goal 18 landed; 0033 is the sink a queued row is; 0002's
+# Corollary is the panic hook; 0044 § 1 is the directive a capture is bounded by.
+rules = ["0036", "0135", "0033", "0002", "0044", "0007", "0004"]
+
+adrs = ["0002", "0044 §1", "0033 §5"]
+
+shapes = ["A core class", "A commit message", "A .nvst case"]
+
+playbook = [
+  'Writing Novis itself > core is',
+  'Tooling > a core class',
+  'Running things > adding a',
+  'Running things > target/release/nvs.exe is',
+  'Running things > a leak whose',
+  'Writing a test case > a rule',
+  'Writing a test case > a -p',
+  'Writing a test case > a test binary',
+  'Writing a test case > a multi-file',
+
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole adr',
+  'Tooling > a plan field is patched',
+  'Tooling > plan.py --get',
+  'Tooling > a commit',
+  'Tooling > a [context]',
+  'Tooling > a loop-goal.toml',
+  'Tooling > orient.py prints',
+  'Tooling > another session',
+  'Tooling > another agent',
+]
+
+plan = ["Open now", "Blocking"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# Stage 2's queue half runs against both dialects, so the daemon is this goal's own requirement and
+# not only its floor's.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "redis"]
+memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0036 § 3, ADR 0135.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 options bag"
+name = "nvs-stdlib (Core\\Uri::with can remove a component)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_written_null_removes_a_component_and_an_omitted_key_leaves_it_alone",
+  "an_empty_query_stays_distinct_from_an_absent_one",
+  "there_is_no_empty_string_means_remove_rule_anywhere_in_with",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 options bag"
+name = "nvs-stdlib (Core\\Queue declares its two shapes and refuses a secret)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "limits_and_grants_are_declared_shape_parameters_rather_than_undeclared_mixed",
+  "a_secret_argument_to_push_is_refused_where_the_call_is_written",
+  "the_core_db_open_half_of_the_same_blocker_and_this_one_agree_on_the_spelling",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- `array<T>` accepts a covariant read. The user's decision, recorded not re-argued.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 variance"
+name = "nvs-types (an element-covariant array is assignable)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "an_array_of_int_satisfies_an_array_of_int_or_string_parameter",
+  "the_widening_accepts_strictly_more_programs_and_breaks_none_that_compile_today",
+  "a_write_through_the_widened_parameter_does_not_reach_the_callers_array",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two small ones.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 hook and cap"
+name = "nvs-runtime (a panic reaches the request log with its request id)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_panic_on_a_served_request_is_written_to_the_request_log_with_its_request_id",
+  "a_cli_scripts_panic_still_reaches_stderr_through_the_default_hook",
+  "the_hook_changes_presentation_and_never_lets_a_panic_be_recovered",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 hook and cap"
+name = "nvs-stdlib (max_output bounds a capture, at both readers)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_child_whose_output_exceeds_limits_max_output_is_bounded_rather_than_unbounded",
+  "core_io_read_is_bounded_by_the_same_directive_and_the_same_signature",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the list is shorter, and says so.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 shorter"
+name = "the unowned list holds only the open decision it should"
+argv = ["python", "tools/owners.py", "--unowned", "--check"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
