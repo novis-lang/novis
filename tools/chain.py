@@ -854,6 +854,29 @@ def cmd_retire(text, head, entries, opts):
         return 2
 
     victims = [ROOT / e.get(k) for k in ("toml", "handoff")]
+
+    # The other way this deletion goes wrong, and the one the fold proof says nothing about: a
+    # markdown link to a file that is about to stop existing. `check-links.py` is a CI gate and
+    # `session.py --wrap` runs it in-process, so a switch that committed one would refuse the NEXT
+    # session's wrap -- unattended, hours later, in a file that session never touched. The six
+    # parity goals each said their checks lived in a sibling `.toml` "and only there", which is
+    # exactly the sentence retirement falsifies; the scaffold writes no such link, so this is a
+    # guard against a hand-written goal rather than a routine step. Refusing costs a stale file.
+    names = {p.name for p in victims}
+    cites = []
+    for doc in sorted((ROOT / "docs").rglob("*.md")):
+        for target in re.findall(r"\]\(([^)]+)\)", doc.read_text(encoding="utf-8")):
+            if Path(target.split("#", 1)[0]).name in names:
+                cites.append(f"{rel(doc)} -> {target}")
+    if cites:
+        die(f"goal {e.num} ({e.name}) cannot be retired yet: {len(cites)} link(s) name a file it "
+            f"would delete, and check-links.py is a gate:")
+        for line in cites[:8]:
+            print(f"       {line}", file=sys.stderr)
+        print("       Rewrite those sentences first -- a retired goal's checks are the live "
+              "goal's floor, and that is what they should say.", file=sys.stderr)
+        return 2
+
     freed = sum(p.stat().st_size for p in victims if p.is_file())
     if opts.dry_run:
         print(f"chain: --dry-run -- would retire goal {e.num} ({e.name}): every one of its "
