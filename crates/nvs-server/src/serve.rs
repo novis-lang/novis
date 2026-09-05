@@ -539,6 +539,19 @@ impl Drop for Peer {
 /// prepared. `nvs_stdlib::socket`'s module doc is the home of why the member
 /// cannot start one itself.
 ///
+/// **Every request is offered § 5's cell, and both cells are read at one
+/// point.** An event stream takes nothing of this connection — its response is
+/// an ordinary `200 text/event-stream` the request already has — so
+/// [`nvs_runtime::SseSlot`] is made for every request rather than for an
+/// upgradable one ([`Isolate::offering_sse`]), and what it holds opens the same
+/// root isolate § 1's slot does. A request that filled **both** is answered
+/// `500` and neither isolate is started: it asked for two responses where this
+/// connection has one, and `nvs_runtime::SseSlot::fill` is the home of why that
+/// refusal belongs here rather than in a cell that cannot see the other one.
+/// The arguments of the two it discards are given back by
+/// [`nvs_runtime::Upgrade::discard`], which exists because this crate forbids
+/// the `unsafe` that a release takes.
+///
 /// **This function starts what the slot was filled with, and it starts it after
 /// the request has ended.** § 1's ordering is the security property rather than
 /// a sequencing detail: the request's isolate is joined first, so its arena and
@@ -560,7 +573,10 @@ impl Drop for Peer {
 /// `OnUpgrade` this function is still holding, and the hand-over of the socket
 /// into the isolate are all one later slice's. Until it lands the `OnUpgrade`
 /// is dropped with the request's future, which upgrades nothing and leaves the
-/// connection framing responses the ordinary way.
+/// connection framing responses the ordinary way. § 5's `200
+/// text/event-stream` is the same slice's for the same reason: until the door
+/// writes one, an event stream's isolate runs with `Output::Capture` and its
+/// bytes reach its own buffer rather than a body.
 ///
 /// # Errors
 ///
@@ -704,6 +720,13 @@ where
                 nvs_runtime::UpgradeSlot::new(),
             )
         });
+        // ADR 0083 § 5's cell, and the line above is the whole of what makes it
+        // a second one: it is made for **every** request rather than for a
+        // request `hyper` framed an upgrade for, because an event stream takes
+        // nothing of this connection but the response the request already has.
+        // A request that asks for no stream leaves it empty, which costs the one
+        // allocation `nvs_runtime::SseSlot` documents.
+        let streaming = nvs_runtime::SseSlot::new();
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -738,6 +761,12 @@ where
                     Some((_, slot)) => isolate.offering_upgrade(slot.clone()),
                     None => isolate,
                 };
+                // § 5's cell, offered unconditionally beside it and in the same
+                // hand for the same reason. No `match`, because there is no
+                // question to ask: every request the server runs is offered
+                // one, and a reply that answers no request is left alone by
+                // `Isolate::offering_sse` itself.
+                let isolate = isolate.offering_sse(streaming.clone());
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -803,12 +832,12 @@ where
                 }
             }
         };
-        // ADR 0083 § 1's other half, and the line above is what makes it § 1
-        // rather than a resumed request: the request has been joined, so its
-        // arena, its carrier and everything the peer authenticated with are
-        // released before anything of the connection's exists. The slot is
-        // taken unconditionally — a `Reply::Done` never filled one, and a
-        // request that ran and did not call `Core\Socket::upgrade` leaves it
+        // ADR 0083 §§ 1 and 5's other half, and the line above is what makes it
+        // § 1 rather than a resumed request: the request has been joined, so
+        // its arena, its carrier and everything the peer authenticated with are
+        // released before anything of the connection's exists. Both cells are
+        // taken unconditionally — a `Reply::Done` never filled either, and a
+        // request that ran and called neither `upgrade` member leaves them
         // empty, which is the same `None` and needs no second question.
         //
         // Started from `ctx`, which is this **connection's** context and not
@@ -816,15 +845,42 @@ where
         // the request tree", spelled as the parent it is given rather than as
         // a rule to remember. `Output::Capture` because a connection's bytes
         // are frames it sends and never this response's body — the request
-        // below already wrote that.
-        if let Some((_on_upgrade, slot)) = offered
-            && let Some(upgrade) = slot.take()
-        {
+        // below already wrote that. § 5's stream is the one hand-over that
+        // *will* want a body, and it is the half that is not landed: until the
+        // `200 text/event-stream` it writes into exists, an event stream's
+        // isolate runs as § 1's does and echoes into its own buffer.
+        //
+        // Both cells are read here and § 5's contradiction is decided here,
+        // which is what `nvs_runtime::SseSlot::fill` means by "decided where
+        // the response is written": a request that filled both asked for a
+        // socket *and* an event stream, which is two responses where this
+        // connection has one, and neither cell could have seen the other
+        // without being the single tagged slot § 5 spends two types to refuse.
+        // Neither isolate is started, both prepared upgrades are discarded —
+        // `nvs_runtime::Upgrade::discard` is what gives their arguments back,
+        // since this crate forbids the `unsafe` a release takes — and the peer
+        // is answered the `500` that says the server failed to build what it
+        // was asked for. As with the refusals above it, there is no `catch`
+        // left to report it to: the request that asked is over.
+        let opened = match (
+            offered.as_ref().and_then(|(_on_upgrade, slot)| slot.take()),
+            streaming.take(),
+        ) {
+            (Some(socket), Some(stream)) => {
+                socket.discard();
+                stream.discard();
+                answered = failed();
+                None
+            }
+            (Some(socket), None) => Some(socket),
+            (None, stream) => stream,
+        };
+        if let Some(upgrade) = opened {
             let (program, args) = upgrade.into_parts();
             match Isolate::new(program, args, Output::Capture).start(&mut ctx.borrow_mut()) {
                 Ok(running) => *connection_isolate.borrow_mut() = Some(running),
                 // The *argument* had no meaning on the other side. Not
-                // reachable through `Core\Socket::upgrade`, whose own copy
+                // reachable through either `upgrade` member, whose own copy
                 // already accepted this graph once (`nvs_stdlib::socket`'s
                 // "copied twice per upgrade"), so there is no program to hand
                 // it back to and no `catch` left to report it in — the request
@@ -1723,6 +1779,7 @@ mod tests {
     /// this core on a task of the connection's, which is the claim rather than a
     /// convenience.
     fn upgrade_leaving(
+        door: Door,
         carried: String,
         said: Rc<RefCell<Vec<String>>>,
         connection: fn(&mut Ctx) -> String,
@@ -1748,19 +1805,32 @@ mod tests {
                         .push(format!("connection {line}"));
                     Value::null()
                 });
-                let filled = child
+                let filled = door.fill(child, opened);
+                // What the *other* cell says about this same request, reported
+                // beside the fill because it is what tells the two doors apart:
+                // § 1's slot is there only where `hyper` framed an upgrade, so
+                // an event stream that opened without one opened over a
+                // connection with no socket behind it — and nothing a `receive`
+                // could ever read from.
+                let framing = if child
                     .inbound()
                     .and_then(nvs_runtime::Inbound::upgrade_slot)
-                    .is_some_and(|slot| {
-                        slot.fill(nvs_runtime::Upgrade::new(opened, Value::null()))
-                            .is_ok()
-                    });
+                    .is_some()
+                {
+                    FRAMED
+                } else {
+                    NO_FRAMING
+                };
                 // Read here, with this request's carrier still alive and its
                 // arena at its peak — the number the connection's own reading
                 // is compared against.
                 said.borrow_mut()
                     .push(format!("request {}", nvs_runtime::budget::live_bytes()));
-                let mine = format!("{path} {}", if filled { "upgraded" } else { "no slot" });
+                let mine = if filled {
+                    door.answered(&path, framing)
+                } else {
+                    format!("{path} no cell")
+                };
                 child.write_output(mine.as_bytes()).expect("a buffer");
                 Value::null()
             });
@@ -1783,10 +1853,110 @@ mod tests {
         )
     }
 
-    /// Runs one connection's worth of the accept loop against `handler`, reads
-    /// until `needle` and closes — the four cases below differ only in the
-    /// program they leave in the slot.
-    fn upgrade_once<H>(handler: impl FnOnce() -> Rc<H> + 'static, path: &'static str) -> String
+    /// What a request reports about § 1's slot when `hyper` framed an upgrade
+    /// for it.
+    const FRAMED: &str = "over a framed upgrade";
+    /// And when it framed none, which is the half § 5's case reads back.
+    const NO_FRAMING: &str = "with no framed upgrade";
+
+    /// Which of [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)'s
+    /// two cells a case's request fills — § 1's socket hand-over or § 5's event
+    /// stream — which on this side is the whole of what separates the two
+    /// doors.
+    ///
+    /// It decides three things at once: what the client sends, which cell the
+    /// program fills, and the line the case reads back. They are one type
+    /// because they are one claim — § 1's slot is offered only where an upgrade
+    /// was framed and § 5's cell to every request — and a case that sent one
+    /// door's opening and read the other's answer would assert nothing while
+    /// still going green.
+    #[derive(Clone, Copy)]
+    enum Door {
+        /// § 1: the socket, taken over RFC 6455's opening handshake.
+        Socket,
+        /// § 5: the event stream, opened out of an ordinary `GET`.
+        Sse,
+        /// Both cells at once, which is the contradiction the door refuses: it
+        /// takes § 1's opening, because a request that framed no upgrade is
+        /// offered only one of the two and could not ask for both.
+        Both,
+    }
+
+    impl Door {
+        /// The opening the client sends.
+        fn opening(self, path: &str) -> String {
+            match self {
+                Self::Socket | Self::Both => upgrade_request(path),
+                Self::Sse => format!("GET {path} HTTP/1.1\r\nHost: localhost\r\n\r\n"),
+            }
+        }
+
+        /// Fills this door's cell on the request's own carrier, exactly as its
+        /// `upgrade` member will, and answers whether one was there to fill.
+        fn fill(self, child: &Ctx, opened: Program) -> bool {
+            let Some(inbound) = child.inbound() else {
+                return false;
+            };
+            match self {
+                Self::Socket => inbound.upgrade_slot().is_some_and(|slot| {
+                    slot.fill(nvs_runtime::Upgrade::new(opened, Value::null()))
+                        .is_ok()
+                }),
+                Self::Sse => inbound.sse_slot().is_some_and(|cell| {
+                    cell.fill(nvs_runtime::Upgrade::new(opened, Value::null()))
+                        .is_ok()
+                }),
+                // The socket half runs nothing and says nothing: the claim is
+                // that *neither* isolate is started, so a second program
+                // reporting to `said` would only be a second way to read the
+                // one line that must not be there.
+                Self::Both => {
+                    let socket: Program = Box::new(|_conn: &mut Ctx, _args| Value::null());
+                    inbound.upgrade_slot().is_some_and(|slot| {
+                        slot.fill(nvs_runtime::Upgrade::new(socket, Value::null()))
+                            .is_ok()
+                    }) && inbound.sse_slot().is_some_and(|cell| {
+                        cell.fill(nvs_runtime::Upgrade::new(opened, Value::null()))
+                            .is_ok()
+                    })
+                }
+            }
+        }
+
+        /// The line the request writes when it filled this door's cell, with
+        /// what the *other* cell said about the same request beside it.
+        fn answered(self, path: &str, framing: &str) -> String {
+            match self {
+                Self::Socket => format!("{path} upgraded {framing}"),
+                Self::Sse => format!("{path} streaming {framing}"),
+                Self::Both => format!("{path} both {framing}"),
+            }
+        }
+
+        /// What [`upgrade_once`] reads until, built from [`Self::answered`] so
+        /// the two cannot drift apart. § 5's carries the framing, because that
+        /// an event stream opened without one is the case's whole claim; § 1's
+        /// does not, because every case of that door was framed one.
+        fn needle(self, path: &str) -> String {
+            match self {
+                Self::Socket => format!("{path} upgraded"),
+                Self::Sse => self.answered(path, NO_FRAMING),
+                // The refused case reads the *status*, because the answer this
+                // request wrote for itself is the one thing it must not get.
+                Self::Both => "500 Internal Server Error".to_owned(),
+            }
+        }
+    }
+
+    /// Runs one connection's worth of the accept loop against `handler`, sends
+    /// `door`'s opening, reads until its answer and closes — the four cases
+    /// below differ only in the door they go through and the program they leave
+    /// in its cell.
+    fn upgrade_once<H>(
+        handler: impl FnOnce() -> Rc<H> + 'static,
+        path: &'static str,
+        door: Door,
+    ) -> String
     where
         H: Fn(Request<Incoming>, Origin) -> Reply + 'static,
     {
@@ -1799,10 +1969,10 @@ mod tests {
         let client = std::thread::spawn(move || {
             let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
             socket
-                .write_all(upgrade_request(path).as_bytes())
+                .write_all(door.opening(path).as_bytes())
                 .expect("the write failed");
             let mut seen = String::new();
-            read_until(&mut socket, &format!("{path} upgraded"), &mut seen);
+            read_until(&mut socket, &door.needle(path), &mut seen);
             seen
         });
 
@@ -1848,8 +2018,16 @@ mod tests {
         let said = Rc::new(RefCell::new(Vec::new()));
         let handler_said = Rc::clone(&said);
         let seen = upgrade_once(
-            move || upgrade_leaving(String::new(), handler_said, write_where_nobody_is_reading),
+            move || {
+                upgrade_leaving(
+                    Door::Socket,
+                    String::new(),
+                    handler_said,
+                    write_where_nobody_is_reading,
+                )
+            },
             "/chat",
+            Door::Socket,
         );
 
         assert!(
@@ -1923,12 +2101,14 @@ mod tests {
         let seen = upgrade_once(
             move || {
                 upgrade_leaving(
+                    Door::Socket,
                     format!("q={}", "x".repeat(CARRIED)),
                     handler_said,
                     say_the_balance,
                 )
             },
             "/chat",
+            Door::Socket,
         );
 
         assert!(
@@ -1980,12 +2160,14 @@ mod tests {
         let seen = upgrade_once(
             move || {
                 upgrade_leaving(
+                    Door::Socket,
                     "session=abc123".to_owned(),
                     handler_said,
                     say_what_it_can_see,
                 )
             },
             "/private",
+            Door::Socket,
         );
         assert!(
             seen.contains("/private upgraded"),
@@ -1996,6 +2178,107 @@ mod tests {
         assert_eq!(
             said[1], "connection no request",
             "the connection isolate reached the upgrading request's carrier: {said:?}"
+        );
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5:
+    /// "the isolate is the same; the door is not". An event stream opens the
+    /// same root isolate the three cases above assert of § 1 — its own context,
+    /// its own output, none of the request's state — out of a request nothing
+    /// framed an upgrade for.
+    ///
+    /// **The plain `GET` is the case.** § 5's cell is offered to *every*
+    /// request the server runs, so the opening carries no `Connection:
+    /// Upgrade`, and the request reports § 1's slot absent in the same line it
+    /// reports § 5's cell filled. That pair is what "with no receive" is on
+    /// this side of the framing slice: there is no socket behind this
+    /// connection for a peer frame to arrive on, so the isolate has nothing to
+    /// wait on and nothing but `send` to do — where an implementation that
+    /// offered the cell only where an upgrade *was* framed would open the same
+    /// isolate and still fail here, because no upgrade was.
+    ///
+    /// Where the isolate's bytes go is deliberately not asserted: § 5 sends
+    /// them as the body of a `200 text/event-stream` this door does not write
+    /// yet, and the response half is its own slice.
+    #[test]
+    fn sse_is_a_connection_isolate_with_no_receive() {
+        fn say_what_it_can_see(conn: &mut Ctx) -> String {
+            conn.inbound().map_or_else(
+                || "no request".to_owned(),
+                |inbound| format!("{}?{}", inbound.path(), inbound.query()),
+            )
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || {
+                upgrade_leaving(
+                    Door::Sse,
+                    "session=abc123".to_owned(),
+                    handler_said,
+                    say_what_it_can_see,
+                )
+            },
+            "/live",
+            Door::Sse,
+        );
+        assert!(
+            seen.contains("200 OK") && seen.contains(&Door::Sse.needle("/live")),
+            "an ordinary request was offered no event stream cell, or did not \
+             end with an ordinary answer of its own: {seen}"
+        );
+
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            2,
+            "one of the two isolates did not run: {said:?}"
+        );
+        assert!(
+            said[0].starts_with("request ") && said[1] == "connection no request",
+            "the event stream did not open a root isolate after the request \
+             ended: {said:?}"
+        );
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 5's
+    /// two cells, filled by one request: a program that asked for a socket
+    /// *and* an event stream asked for two responses where the connection has
+    /// one, and [`serve_connection`] refuses it rather than picking.
+    ///
+    /// `nvs_runtime::SseSlot::fill` is where that reading is recorded — neither
+    /// cell can see the other, so the contradiction is decided where the
+    /// response is written — and this is it decided. The assertion is on both
+    /// halves of the refusal: the peer gets the `500` and **not** the answer the
+    /// request wrote for itself, and neither prepared isolate runs. What the
+    /// discarded upgrades' arguments cost is `nvs_runtime::Upgrade::discard`'s,
+    /// and the valgrind leg is what reads that.
+    #[test]
+    fn a_request_that_asks_for_both_hand_overs_is_refused() {
+        fn never_reached(_conn: &mut Ctx) -> String {
+            "opened".to_owned()
+        }
+
+        let said = Rc::new(RefCell::new(Vec::new()));
+        let handler_said = Rc::clone(&said);
+        let seen = upgrade_once(
+            move || upgrade_leaving(Door::Both, String::new(), handler_said, never_reached),
+            "/two",
+            Door::Both,
+        );
+        assert!(
+            seen.contains("500 Internal Server Error") && !seen.contains("/two both"),
+            "a request that filled both cells was answered as though one of \
+             them had been honoured: {seen}"
+        );
+
+        let said = said.borrow();
+        assert_eq!(
+            said.len(),
+            1,
+            "a connection isolate was started for a request that asked for two \
+             of them: {said:?}"
         );
     }
 
