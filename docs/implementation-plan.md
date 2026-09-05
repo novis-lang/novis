@@ -43,14 +43,14 @@
 >
 > **Open now:** **Goal 6 — the built-in server, M7 — is green.**  **`nvs-db`'s PostgreSQL is
 > whole**, §§ 3-13.   **`Core\Db` is open**: `queryAs<T>`, § 6's convert, § 13's pool, `[queue]`,
-> `stream` on pg. **`nvs-server` runs h1 as goal 2's `Isolate`**: `nvs serve` boots the mounts, §
-> 4's statics send a file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is
-> arithmetic, `503` before an isolate; § 6's walk decides the peer, `400` on a bad token; § 8's
-> accept backs off, § 5's drain answers the probe and `isDraining()`; `Core\Response` has seven,
-> `Core\Request` thirteen, an upload walks as parts; the door carries the body; ADR 0074 §§ 1-2
-> hold; a request is matched once; `route()`, `methodsFor`, CSRF and the label read it; four capture
-> kinds convert; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's session is
-> whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's
+> `stream` walks 10k rows. **`nvs-server` runs h1 as goal 2's `Isolate`**: `nvs serve` boots the
+> mounts, § 4's statics send a file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's
+> ceiling is arithmetic, `503` before an isolate; § 6's walk decides the peer, `400` on a bad token;
+> § 8's accept backs off, § 5's drain answers the probe and `isDraining()`; `Core\Response` has
+> seven, `Core\Request` thirteen, an upload walks as parts; the door carries the body; ADR 0074 §§
+> 1-2 hold; a request is matched once; `route()`, `methodsFor`, CSRF and the label read it; four
+> capture kinds convert; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's session
+> is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's
 > ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**:
 > `afterResponse` drains detached; § 7's cap counts trees; ADR 0076's trace continues, both blocks
 > boot, a core meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:`, at a

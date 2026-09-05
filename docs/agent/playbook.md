@@ -8143,6 +8143,18 @@ sibling in the same namespace unqualified.
   three of `iterate`/`advance`/`current` on `instance`'s dispatch roster rather than a cursor handed
   back. `crate::cursor` is only for a member handing back a *snapshot* it is already holding, which
   is why `Core\Db\Rows::iterate` uses it and `Core\Db\Stream` cannot.
+- **`crate::instance::build` takes a reference *over*, and `crate::instance::slot` hands one
+  *back borrowed* — so parking a value read out of another object's slot into a new instance is a
+  double release, and there was no correct example to copy.** `Core\Db\Connection::stream` built its
+  `Core\Db\Stream` with `statement.block`, the connection's own block-name string, which
+  `bind::handle_of` reads out of the receiver's slot and every *other* `Core\Db` member only borrows
+  in passing (`statement_failure(&statement.block, …)`, `.as_text()`), so copying any of them gave no
+  hint that a member which *keeps* the value owes a `retain()`. The program printed all three of its
+  frozen lines and exited 127 with nothing on stderr — the signal the sibling bullet describes — and
+  `examples/stream.nvs`'s acceptance check would have failed on the exit status alone with its stdout
+  byte-perfect. The recognition test is one grep: a `crate::instance::build` whose slot values are
+  not all freshly constructed. `crates/nvs-stdlib/src/db/stream.rs:233` is the fix and states the
+  rule.
 
 ## Divergences and refusals already pinned
 

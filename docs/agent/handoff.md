@@ -2,64 +2,60 @@
 
 ## State
 
-**Goal 21, stage 5 is the live stage**, and the driver's acceptance run still stops there: `native
-examples/stream.nvs [5 db tail]` is item 8, and its fixture is still session 0003's stand-in. Only
-the fixture is left of that item. Nothing regressed; conformance is 1553.
+**Goal 21, item 8 is closed.** `examples/stream.nvs` is the program its own comment describes and
+the frozen `exact` check at `docs/agent/loop-goal.toml:4130` gets its three lines at exit 0; the
+root `nvs.toml` grants it `db.connect = ["main"]` beside the `db.nvs` and `transaction.nvs` blocks.
+Stage 5's `cargo-named` check ahead of it was already green. Conformance is 1553, unchanged.
 
-**Item 8's second slice is on disk and works against a real server.** `Core\Db\Connection::stream`
-and `Core\Db\Transaction::stream` answer `Core\Db\Stream`
-(`crates/nvs-stdlib/src/db/stream.rs:65`) — spec § 18's `Iterable<Db\Row>`, a registered memberless
-class that is its own iterator, with `iterate`/`advance`/`current` on `instance`'s dispatch roster
-and its element type declared in `registry::ITERABLES`. It holds the connection's key, the block
-name and **one** row; the rows themselves stay on the connection as session 0004's `PgCursor`, so
-memory is O(1) in the result set. § 10's literal check covers it: two rows joined
-`nvs_types::intrinsics`, one per declaring class. `Core\Db\Transaction::stream` is the same member
-under the same symbol, per ADR 0043, and carries its own three cases.
+**Line 2 of that check is the *program's* count, and both the fixture and the check's comment now
+say so.** No `Core` member answers "how many rows is the connection holding", so `rows held at once`
+counts what the file itself has in hand — a `array<Row> $held` declared inside the loop body, which
+a fixture that accumulated the walk would declare above it and print 10000 from. The connection's
+half of the promise is line 3 instead: the mid-walk `query` is refused with 9,999 rows still on the
+server, and a driver that had buffered the result set would have finished its statement and answered
+it. No new `Core` member was invented and the check's `want` is untouched; only the comment above
+the `[[check]]` moved, in `docs/agent/loop-goal.toml` and its byte-identical
+`docs/agent/goals/21-carried-gaps.toml`.
 
-**Smoke-tested end to end** against `tests/db/compose.yaml`'s PostgreSQL, which is up: 10,000 rows
-walked, the connection free for a `query` afterwards, and a statement issued mid-walk caught as
-`LogicError` — the three facts the frozen check wants, less its second line. The scratch program and
-its config are `.agent-tmp/stream-smoke.nvs` and `.agent-tmp/nvs.toml`; it is run from inside that
-directory, because `nvs run` resolves the config against the *working* directory.
+**A double release in the `stream` slice is fixed** — `crates/nvs-stdlib/src/db/stream.rs:233`. The
+new `Core\Db\Stream` was built with the connection's block-name string straight out of
+`bind::handle_of`, which borrows it, while `crate::instance::build` takes a reference over; the
+object's release then freed the connection's own name a second time. Every stream program printed
+the right answer and exited **127**, the smoke run in the previous handoff included. The playbook
+bullet under *Writing Novis itself* is the general rule.
 
-**`stream` lands on PostgreSQL alone**, and that is deliberate rather than unfinished: the other
-four drivers have no parked read state, and buffering behind the caller would break both the
-member's constant-memory promise and § 4's *uniform* connection-busy rule. They throw a
-`RuntimeError` naming `query`. `crates/nvs-stdlib/src/db/mod.rs`'s gap 5 is the record; `streamAs`
-is still owed whole.
+**`streamAs<T>` is what is left of spec § 18**, and `stream` is still PostgreSQL-only — the other
+four drivers throw a `RuntimeError` naming `query`, which is `crates/nvs-stdlib/src/db/mod.rs`'s gap
+5 and deliberate rather than unfinished.
 
 Nothing is blocked on a decision.
 
 ## Next group
 
-**Item 8's last slice, and the twin it shares every file with.** One file set:
-`examples/stream.nvs`, `nvs.toml`, `crates/nvs-stdlib/src/db/registry.rs`,
-`crates/nvs-stdlib/src/db/stream.rs`, `crates/nvs-stdlib/src/db/row.rs`.
+**`streamAs<T>` — `queryAs<T>`'s shape over the walk `stream` already opens.** One file set:
+`crates/nvs-stdlib/src/db/registry.rs`, `crates/nvs-stdlib/src/db/stream.rs`,
+`crates/nvs-stdlib/src/db/execute.rs`, `crates/nvs-stdlib/src/db/row.rs`,
+`crates/nvs-types/src/intrinsics.rs`.
 
-- [ ] **`examples/stream.nvs` becomes the program its own comment describes**, and the acceptance
-      check at `docs/agent/loop-goal.toml:4128` goes green — `examples/stream.nvs:1`. It needs an
-      `[[app]]` block granting `db.connect = ["main"]` in the root `nvs.toml`, beside the two that
-      already grant it — `grep -n 'examples/transaction.nvs' nvs.toml` lands on them.
-      Lines 1 and 3 of the frozen `want` are already produced by the smoke program
-      above; **line 2, `rows held at once: 1`, has no spelling yet** and deciding it is this
-      slice's real work. The fixture's own comment says the count must be "read from the connection
-      rather than from the program", and no `Core` member answers that today — `Core\Debug` has
-      only `dump`/`render`. The two honest ways out are (a) count what the *program* holds and say
-      so in the comment, or (b) amend the check's `want` in
-      `docs/agent/goals/<goal>.toml` **and** the live copy, since a `[[check]]`'s wording is this
-      goal's own file rather than an ADR. Do not invent a `Core` member for it: that is surface,
-      and this goal's § *Standing decisions* does not pre-authorize one.
-- [ ] **`streamAs<T>` joins `stream` the way `queryAs<T>` joined `query`** — ADR 0067 § 4 and spec
-      § 18's `Queryable` row. The registry rows go beside `stream`'s at
-      `crates/nvs-stdlib/src/db/registry.rs:313` and `:576` with a
-      `CoreTy::Written("T")` element, the body beside
-      `crates/nvs-stdlib/src/db/stream.rs:209`, and the per-row hydration is
-      `crates/nvs-stdlib/src/db/row.rs:122`'s `hydrate` — the same call
-      `nvs_core_db_rows_iterate` makes, moved to the `advance()` that reads the row. Its class
-      needs a fourth slot for the descriptor, on `ROWS_CLASS_SLOT`'s pattern.
+- [ ] **The two rows and the card** — a `streamAs` beside each `stream`, under one symbol per ADR
+      0043 as `queryAs` is: `crates/nvs-stdlib/src/db/registry.rs:313` (Connection),
+      `crates/nvs-stdlib/src/db/registry.rs:576` (Transaction), the card beside
+      `crates/nvs-stdlib/src/db/registry.rs:1715`'s `QUERY_AS_DOC`. The return type is a second
+      `CoreTy::Instance` and its element type is declared in `ITERABLES` the way `STREAM`'s is.
+- [ ] **The body** — `crates/nvs-stdlib/src/db/execute.rs:1077` is how a `<T>` member reads its class
+      out of argument 0 and the `array<...>` refusal out of argument 1, and
+      `crates/nvs-stdlib/src/db/stream.rs:209` is the statement half to clone; the class travels in a
+      fourth slot on the stream object rather than being re-derived per row.
+- [ ] **Per-row hydration** — `crates/nvs-stdlib/src/db/row.rs:90` builds one row into the declared
+      class and is what `advance()` calls instead of `build(&ROW, …)` at
+      `crates/nvs-stdlib/src/db/stream.rs:177`. A refusal names the column, as `queryAs` does.
+- [ ] **The checker's row** — `crates/nvs-types/src/intrinsics.rs:223` and `:254` are `queryAs`'s two
+      entries, and `crates/nvs-types/src/expr/calls.rs:185` is the comment saying a `<T>` member
+      *produces* its type rather than reading one off the receiver.
 
 ## Backlog
-- Item 9's `serverVersion` is owed because no driver keeps the string — `crates/nvs-stdlib/src/db/mod.rs` gap 5.
-- `stream` on the other four drivers is a `nvs-db` wire question, not a `Core\Db` one — same gap.
-- § 4's `{timeout?}` and `stream`'s `{chunk?}` are both unspellable — same file, gap 6.
-- Item 10's pool bounds for an `open` — gap 1, and the goal's standing decision names the answer.
+
+- `stream`/`streamAs` on the other four drivers — `crates/nvs-stdlib/src/db/mod.rs` gap 5.
+- `[context] modules` has no selector for `crates/nvs-stdlib/src/instance.rs`, whose `build`/`slot`
+  ownership contract is the whole of this session's fix; add it to `docs/agent/loop-goal.toml`.
+- `.agent-tmp/probe1.nvs`, `probe2.nvs` and the `nvs.toml` beside them are this session's scratch.

@@ -4127,9 +4127,13 @@ tests = [
   "a_statement_timeout_reaches_the_socket_and_throws_on_expiry",
 ]
 
-# Frozen: the row count proves the walk reaches the end, the held count proves it did not buffer the
-# result set, and the third line proves § 18's connection-busy refusal is a `LogicError` and not an
-# `IOError`. The fixture's source is written to produce these; they are not read off a first run.
+# Frozen: the row count proves the walk reaches the end, and the third line proves two things at once —
+# § 18's connection-busy refusal is a `LogicError` and not an `IOError`, and nothing was buffered, since
+# a driver that had read the result set into memory would have finished its statement and answered that
+# second query instead of refusing it. The held count is the *program's* own and says so in the fixture:
+# no `Core` member answers what the connection is holding, so line 2 counts the rows this file has in
+# hand and the connection's half of the promise is line 3. The fixture's source is written to produce
+# these; they are not read off a first run.
 [[check]]
 kind = "exact"
 stage = "5 db tail"

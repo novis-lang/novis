@@ -154,8 +154,8 @@ handler = "examples/logging/handler.nvs"
 # pre-approved against ADR 0058 § 3's denied ranges, which `examples/cache.nvs`'s block
 # above has to ask for explicitly because a program names that store's URL itself.
 #
-# Two entry blocks rather than one `root = "examples"`: every other fixture in this
-# repository runs with no database grant at all, and that is what makes these two evidence
+# One entry block per fixture rather than one `root = "examples"`: every other fixture in
+# this repository runs with no database grant at all, and that is what makes these evidence
 # that the check is asked rather than assumed.
 [[app]]
 entry = "examples/db.nvs"
@@ -169,7 +169,17 @@ entry = "examples/transaction.nvs"
 [app.capabilities.db]
 connect = ["main"]
 
-# The third database fixture, and the one whose grant names a *different* block: ADR 0067 § 13's
+# The streaming read, on the same block: ADR 0067 § 4's `stream` is a member of the
+# connection `connect("main")` already hands back, so it needs no grant of its own and
+# no second block. What it does need is an entry of its own, for the reason the header
+# above gives -- a grant is per application entry, never per directory.
+[[app]]
+entry = "examples/stream.nvs"
+
+[app.capabilities.db]
+connect = ["main"]
+
+# The database fixture whose grant names a *different* block: ADR 0067 § 13's
 # pool key is the config block, so `[db.tight]` below is its own pool and nothing this program does
 # to that pool's ceiling is reachable from the two fixtures above.
 [[app]]
@@ -203,8 +213,8 @@ memory = "512M"
 url = "redis://127.0.0.1:16379"
 
 # ADR 0067 § 3's root-owned connection, and the block `Core\Db::connect("main")` opens —
-# `examples/db.nvs` and `examples/transaction.nvs` are the two fixtures that read it, and
-# both say in their own headers that this file owes it. The server is
+# `examples/db.nvs`, `examples/transaction.nvs` and `examples/stream.nvs` are the fixtures
+# that read it, and each says in its own header that this file owes it. The server is
 # `tests/db/compose.yaml`'s `postgres` service, whose comments own the credentials and the
 # reason the published port is 15432 rather than 5432: a fixture that drops and recreates an
 # `accounts` table must never find a developer's own PostgreSQL on the other end.
