@@ -1,0 +1,48 @@
+--TEST--
+a value that arrived on the request line is `tainted`, and the launderer ADR 0088 § 1 makes name its sink is the whole route from it to that sink — spec § 15, ADR 0024 §§ 1, 3, ADR 0088 §§ 1-2, ADR 0079 § 18
+--FILE--
+<?nvs
+// `a-launder-row-hands-a-tainted-value-to-the-sink-it-names` walks the same
+// route from a *written* `tainted` literal, and
+// `a-request-body-is-tainted-and-a-grammar-sink-refuses-it` pins the refusal
+// half over a request. Neither of them is this claim: what is asserted here is
+// that the route runs end to end over bytes **the peer chose**, which is the
+// only reason ADR 0024 § 1's qualifier exists at all. A `tainted` mark on a
+// value nobody untrusted produced proves the type system; this proves the
+// door.
+//
+// The escaping is what earns the laundering, so the assertion is on the
+// *neutralisation* and not on the call succeeding: the `.` the request carried
+// is still a literal `.` inside the pattern, where an unlaundered one would
+// have become the grammar's any-character and matched a path the peer never
+// sent.
+//
+// **The branch is the request, and the `catch` is how a case tells the two
+// sides apart** — an in-process request may not be made from inside one, which
+// `an-in-process-request-may-not-be-made-from-inside-one` pins in full. The
+// child is the `catch`, and it is the only side with a request to read.
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/search/a.b");
+    echo $answered->body();
+} catch (RuntimeError $refused) {
+    // Spec § 15: the path is a `tainted string`, because the peer wrote it.
+    tainted string $raw = Core\Request::path();
+    echo "path=", $raw, "\n";
+
+    // ADR 0088 § 1: `Core\Regex::quote` launders *for the pattern sink*, and
+    // says so, which is why its answer may be declared plain here and the
+    // value above may not.
+    string $quoted = Core\Regex::quote($raw);
+    echo "quoted=", $quoted, "\n";
+
+    // The sink the row named takes that answer, and nothing else about the
+    // request had to change for it to.
+    Core\Regex\Pattern $pattern = Core\Regex::compile($quoted);
+    echo "literal=", Core\Regex::matches("/search/a.b", $pattern) ? "y" : "n", "\n";
+    echo "any=", Core\Regex::matches("/search/axb", $pattern) ? "y" : "n", "\n";
+}
+--EXPECT--
+path=/search/a.b
+quoted=/search/a\.b
+literal=y
+any=n

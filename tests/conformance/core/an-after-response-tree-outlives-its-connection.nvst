@@ -1,0 +1,49 @@
+--TEST--
+a request tree that deferred work keeps running once its answer is complete, and the answer is complete: nothing the deferred closure writes can reach the response the caller already holds — ADR 0072 § 6, ADR 0079 § 18
+--FILE--
+<?nvs
+// `task-after-response-runs` asks *when* a deferred closure runs, on a host
+// that has no response for anything to be after. This case asks the other
+// half, which only a request can be asked: § 6's "the closure runs after the
+// response is fully written", read from the side of the caller holding that
+// response.
+//
+// The shape is *a bound asserted on both sides*, over one request: the last
+// bytes the answer carries and the first bytes it does not are named together.
+// A queue that ran its closures inline — before the frame returned — would put
+// `deferred` inside the body below, and a response that stayed writable after
+// the connection was answered would put it there too. Both are what § 6
+// forbids, and either one takes this case off its expectation.
+//
+// **The branch is the request, and the `catch` is how a case tells the two
+// sides apart** — an in-process request may not be made from inside one, which
+// `an-in-process-request-may-not-be-made-from-inside-one` pins in full.
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/orders/7");
+    // The caller's whole view of the request: a status and the bytes. Both are
+    // read after the child's tree, deferred work and all, has been joined, so
+    // this is not a race the case is winning by being quick.
+    echo "status=", $answered->status(), "\n";
+    echo "body=", $answered->body(), "\n";
+
+    // The parent's own tree keeps its own queue — § 6's trigger on a host with
+    // no response is the scheduling frame returning — so this runs last, after
+    // the two lines above and after every statement of this file. Two trees,
+    // two queues, and neither one's deferred work reached the other's output.
+    Core\Task::afterResponse(fn (): void => {
+        echo "the parent's own tree, after its last statement\n";
+    });
+} catch (RuntimeError $refused) {
+    // The child. It registers deferred work and then finishes answering; § 6
+    // keeps `Core\Request` readable inside the closure because the tree is
+    // still the same tree, and keeps `Core\Response` out of it because the
+    // response is not.
+    Core\Task::afterResponse(fn (): void => {
+        echo " deferred=", Core\Request::path();
+    });
+    echo "answered";
+}
+--EXPECT--
+status=200
+body=answered
+the parent's own tree, after its last statement

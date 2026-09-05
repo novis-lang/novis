@@ -1,0 +1,38 @@
+--TEST--
+`Core\Request::files` is the one member an uploaded part is received through: the walk binds a `Core\Request\Part` and no other body reader can be bound as one — ADR 0105 §§ 1-2, ADR 0012 § 7, spec § 15
+--FILE--
+<?nvs
+// ADR 0105 § 1's governing sentence is "there is one way to receive it", and
+// the depth shape is *agreement*: the same binding is asked of every member
+// that can answer for a request body, so a second route to a part — a `post()`
+// that quietly carried file fields, a `body()` that could be walked as parts —
+// fails here while each member still reads plausibly on its own line.
+//
+// The superglobal half of the same rule is `a-superglobal-is-refused-and-names
+// -its-core-class` (ADR 0012 § 7); what is left to pin is that the `Core`
+// surface which replaced it has one door and not two.
+//
+// The line that is *not* in the error list below is the assertion. The walk
+// binds `Core\Request\Part` and compiles, so the file's only refusals are the
+// two other readers — and a case that merely refused everything would report
+// three.
+foreach (Core\Request::files() as Core\Request\Part $part) {
+    echo $part->name();
+}
+
+// § 2: form fields and file parts are separated by the same parse, and `post()`
+// answers only the former. Its `mixed` is a form value, never a part.
+Core\Request\Part $viaPost = Core\Request::post("upload");
+
+// § 3: the raw body is the bytes, undivided. A program that wants the parts
+// asks the member that yields them rather than re-deriving them from here,
+// which is the whole reason `bodyStream` and `files` are two members.
+Core\Request\Part $viaBody = Core\Request::body();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Core\Request\Part`, found `mixed`
+%A
+error[E0401]: expected `Core\Request\Part`, found `tainted string`
+%A
+error: aborting due to 2 errors

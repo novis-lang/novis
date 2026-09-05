@@ -1,0 +1,65 @@
+--TEST--
+a `HEAD` request matches the `Get` route the table holds, `Core\Request::method` reports `Get`, and `isHead` is the only member carrying the difference — ADR 0097 § 7, ADR 0102 § 1
+--FILE--
+<?nvs
+// ADR 0097 § 7's first convention, asserted from inside the program rather
+// than at the door: a `HEAD` *is* a `Get` whose body is dropped, so a table
+// declaring only `Get` must still match one. Reporting `Head` would fail the
+// application's own `Core\Router::match` against a `Get` row and produce the
+// `404` the convention exists to prevent, which is why the verb is gone by the
+// time it is a case and `isHead` is the one member that can still see it.
+//
+// The depth shape is *agreement*: three readings of one request line are asked
+// in one breath — the match the door took, the case `method()` answers and the
+// token `isHead` compares — so a member that grew its own reading of the verb
+// disagrees here while still printing plausibly on its own line.
+//
+// **The branch is the request, and the `catch` is how a case tells the two
+// sides apart**: an in-process request may not be made from inside one, which
+// `an-in-process-request-may-not-be-made-from-inside-one` pins in full. The
+// child is the `catch`.
+//
+// What is *not* asserted here is the answer's body being discarded. That is
+// the server's half of the same convention — `Core\Test::request` answers in
+// process, with no wire to drop bytes on (ADR 0079 § 18) — and this case is
+// about the half ADR 0102 § 1 makes readable by the program at all.
+class Pages {
+    // ADR 0096 § 1: the access decision is a required sibling of every
+    // `#[Route]`. Only `Get` is declared, and that is the point.
+    #[Core\Route(path: "/page", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "shown"; }
+}
+
+try {
+    var $answered = Core\Test::request(Core\Http\Method::Head, "/page");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
+} catch (RuntimeError $refused) {
+    // The child. `route()` is the match ADR 0102 § 1 took before this isolate
+    // existed, and a `Get`-only table claiming a `HEAD` request is the whole
+    // convention.
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "unmatched";
+    } else {
+        echo $matched->name() ?? "unnamed";
+    }
+    // ADR 0010 § 3: a case is its integer constant, so the comparison is
+    // between two constants and never between two spellings.
+    var $reported = Core\Request::method() as int;
+    if ($reported == Core\Http\Method::Get as int) {
+        echo " method=Get";
+    } else {
+        echo " method=other";
+    }
+    // The truth the parse threw away, back from the one member that kept it.
+    if (Core\Request::isHead()) {
+        echo " isHead=true";
+    } else {
+        echo " isHead=false";
+    }
+}
+--EXPECT--
+status 200
+body Pages::show method=Get isHead=true
