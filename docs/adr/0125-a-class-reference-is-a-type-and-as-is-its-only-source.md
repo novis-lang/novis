@@ -14,6 +14,7 @@
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's `atom` production gains `'class' '<' Name '>'`,
   § 2's conversion grid gains the `string`/`class<U>` → `class<T>` row, and § 7 row 14's tail no longer
   says the dynamic `instanceof` has no Novis spelling.
+- **Amended by:** 0144
 - **Validated by:** [crates/nvs-syntax/src/parser/tests/ty.rs](../../crates/nvs-syntax/src/parser/tests/ty.rs)
 
 > **In short:** `class<T>` is a type, and its value is the run-time class descriptor an object is
@@ -86,6 +87,7 @@ conversions produce one, and [ADR 0007](0007-explicit-type-system.md) § 2's gri
 |---|---|
 | `string` → `class<T>` | the string must name `T` or a class that is a `T`, or it throws |
 | `class<U>` → `class<T>` | a narrowing; `U` must be a `T`, checked at run time against the descriptor |
+| `class<T>` → `string` | total — the descriptor's own fully qualified name ([0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) § 3) |
 
 The `string` row is the door, and being a row of § 2's grid it inherits everything that grid already
 says: it is checked in fact, it throws rather than substituting, and `as ?class<T>`

@@ -91,6 +91,7 @@ parses but behaves differently*. A new row here earns one there once the behavio
 | `namespace X { … }` and several namespaces per file | refused; `namespace X;` once, before any declaration | [README](README.md) § *Decisions taken at project start* |
 | an `inout` (`&`) argument may be an element or a property | a local only; read it into one, pass it, store it back | [0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 5 |
 | `<?php` opens code; `die` terminates | `<?nvs` and `exit` are the only spellings — and a `#!` first line opens code with no tag | [0049](0049-single-open-tag-and-single-exit-keyword.md), [0100](0100-against-python-nvs-claims-the-tool-that-gets-handed-over.md) § 3 |
+| PHP answers the runtime class for every `::class` operand, including a `mixed` that turns out not to hold an object, which is a fatal at that point | Novis answers the same names, and refuses at compile time the operands PHP would only discover at run time — a `mixed`, a `?T`, a scalar | [0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) |
 
 ## Scope, names and the standard library
 

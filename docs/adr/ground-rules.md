@@ -156,6 +156,8 @@ spellings rejected, and the reasoning.
   reader sees at the call that an argument will be written; `&` is no longer a by-reference marker in any
   position and keeps only bitwise AND and the intersection type
   ([0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)).
+- `::class` answers the class the value **is**, which is folded only where the compiler already
+  knows it ([0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md)).
 
 ## Security and isolation
 

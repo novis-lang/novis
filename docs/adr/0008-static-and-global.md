@@ -7,7 +7,7 @@
 - **Amends:** the *function `static`* row in [0007](0007-explicit-type-system.md) § 1 and the `static`
   entry in the M1 list of new declaration slots. Novis has no function-scope `static`, so there is no type
   slot to add to it.
-- **Amended by:** 0010, 0011, 0012, 0031, 0046, 0052
+- **Amended by:** 0010, 0011, 0012, 0031, 0046, 0052, 0144
 
 > **In short:** `static` is a **class-member modifier and a class-relative type**, nothing else. Static
 > methods, static properties, `static::`, `new static()` and `: static` all stay exactly as PHP has them —
@@ -47,6 +47,7 @@ not exist.**
 | `public static function`, `public static int $n` | **kept**, type mandatory as everywhere else | — |
 | `static::`, `new static()`, `: static` | **kept**, PHP semantics unchanged | — |
 | `static::$prop` | **kept** — a static property, reached through late static binding | — |
+| `static::class` | **kept**, PHP semantics unchanged — the called class's own name, read at run time off the descriptor the frame already holds ([0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) § 1) | — |
 | `static int $calls = 0;` in a function | **rejected**, diagnostic | a `private static` property on a class, or a parameter |
 | `static function () {}`, `static fn() => …` | **rejected**, diagnostic | nothing — write the closure without it |
 | `global $x;` | **rejected**, diagnostic | pass it as a parameter, or make it a `static` property or a `const` |

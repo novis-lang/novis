@@ -2867,6 +2867,27 @@ A class constant is `public const int NAME = …;`, and like every other binding
 class's name as a string, and it stays a `string` — the type that holds a class itself is `class<T>`,
 and the three sites that take one are below.
 
+`::class` answers **the class the value is**. `Class::class`, `self::class` and `parent::class` name a
+class the compiler resolves, so they are folded where they are written. `static::class` and
+`$obj::class` are not: the first is the class the call was made on, the second the class the receiver
+was actually allocated from, so both are read at run time and a variable declared as a base class
+reports the subclass it holds. The operand has to carry a class — an object does; a `mixed` or a `?T`
+is `E0702` until it is narrowed, and a `class<T>` converts with `as string` instead
+([ADR 0144](../../adr/0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md)).
+
+```nvs
+class Base {
+    public static function called(): string { return static::class; }
+}
+class Leaf extends Base {}
+
+echo Leaf::called(), "\n";       // Leaf — the class the call was made on
+echo Base::called(), "\n";       // Base
+
+Base $b = new Leaf();
+echo $b::class, "\n";            // Leaf — the class it *is*, not the declared one
+```
+
 A constant's value is **inlined at every read** — there is no storage a read loads it from — so the
 value has to have a compile-time form. Literals do, and so does an `array<T>` literal of them: each
 element is placed in the declared element type, so `array<float> RATES = [1, 2.5]` holds two floats.
@@ -21518,7 +21539,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
 | `trait_exists` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling ([ADR 0010](adr/0010-enums-are-a-value-type.md)), so its existence is the only thing left to ask at run time |
-| `get_class` | member | `Core\Reflect::forObject`, whose description carries the name. Where the receiver's class is known while compiling — most calls — `$object::class` is a constant the compiler already holds |
+| `get_class` | language | `$object::class`, one load off the receiver's own class descriptor ([ADR 0144](adr/0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) § 1). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
 | `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
 | `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
 | `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has ([ADR 0019](adr/0019-reflection-and-ast-parsing-are-core-features.md) § 2) rather than silently returning more when called from inside the class |

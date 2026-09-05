@@ -1,0 +1,180 @@
+# ADR 0144 — `::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads
+
+- **Status:** Accepted
+- **Date:** 2026-09-06
+- **Scope:** what `::class` answers on the two sides that are not a name the compiler resolves —
+  `static::class` and `$obj::class` — and the `class<T>` → `string` conversion that is the same read
+  one representation over. Covers which operand types are accepted, why the answer is not folded, and
+  what it costs per evaluation. Not in scope: the reflective surface itself, which stays
+  [0019](0019-reflection-and-ast-parsing-are-core-features.md)'s `Core\Reflect` and gains nothing here
+  — a name is not a description; the `string` → `class<T>` direction and the three sites that consume a
+  class reference, which are [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
+  § 2's and § 4's and are unchanged; and how late static binding *binds*, which is
+  [0008](0008-static-and-global.md) § 1's and is only read here.
+- **Depends on:** [0008](0008-static-and-global.md), which decides there is a called class to read,
+  and [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md), which decides a class
+  descriptor is a value with a type.
+- **Amends:** [0008](0008-static-and-global.md) § 1 — the spelling table gains `static::class`, kept
+  with PHP's semantics: the called class is *readable as a `string`*, not only callable through, so
+  `get_called_class`'s replacement is a spelling rather than an absence.
+  [0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) § 2 — the conversion grid
+  gains the `class<T>` → `string` row, which closes the round trip the `string` row opens;
+  [0007](0007-explicit-type-system.md) § 2 — the conversion grid's `class<T>` row gains the total
+  `class<T>` → `string` direction, the descriptor's own name
+- **Validated by:** [tests/differential/class/a-class-name-constant-matches-php.nvst](../../tests/differential/class/a-class-name-constant-matches-php.nvst),
+  [tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst](../../tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst)
+  and [tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst](../../tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst)
+
+> **In short:** `::class` answers **the class the value is**, and folding is an optimization of that
+> rule rather than the rule itself. `Foo::class`, `self::class` and `parent::class` name a class the
+> compiler resolves, so they stay compile-time `string` constants with no storage behind them.
+> `static::class` and `$obj::class` do not: the first is [ADR 0008](0008-static-and-global.md)'s
+> called class, the second the class a receiver was actually allocated from, and both are one load off
+> a descriptor the frame already holds. Neither can be folded — a `User $u = new Admin()` must answer
+> `Admin`, and an inherited `static::class` must answer the subclass — so both read the name at run
+> time, and `class<T> as string` is that same read on a descriptor the program is holding directly.
+> The operand must carry a class *statically*: an object or a class reference does, a `mixed`, a `?T`
+> and a scalar do not, and each is refused with the narrowing or the `Core\Reflect` member that
+> answers it instead.
+
+## Context
+
+`Foo::class` arrived as a pure compile-time fold, and the reasoning behind that was sound for the
+sides it was written against. [ADR 0011](0011-functions-and-constants-are-class-members.md) removed
+`new $name` and `$name::m()`, so a class name has no dynamic destination to travel to; a name that
+resolves to nothing is therefore a typo with nowhere later to be caught, which is why `Bogus::class`
+is `E0303` here where PHP folds it to `"Bogus"` without complaint.
+
+That argument covers the three sides that *are* names. It was then extended to the two that are not,
+and there it does not hold. `static::class` was refused because folding it would answer the declaring
+class rather than the called one — a real objection, but an objection to *folding*, not to the
+question. `$obj::class` was refused on the stronger claim that "an object carries no name a program
+can read back", with every reflective question routed to `Core\Reflect`.
+
+**That second claim had no ADR behind it.** It was written into `E0702`'s doc comment and into the
+conformance case that pinned the refusal, both citing
+[ADR 0011](0011-functions-and-constants-are-class-members.md) § 3 for a sentence § 3 does not contain
+— § 3 is about global constants folding in, and 0011 decides nothing about `::class` at all. The
+reflective surface is [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s. A rule that
+lives only in the code that enforces it is the shape this repository's one-home convention exists to
+prevent, and it is why the refusal outlived its own argument.
+
+Both refusals were more expensive than they looked:
+
+- The name was never actually absent. A `nvs_runtime::ClassDesc` has carried its rendered name since
+  the class table existed, `Core\Reflect` already reads exactly that field, and every frame that can
+  write `static::` already holds the descriptor — parameter 0 in a `static` method, `$this`'s own in
+  an instance one. The refusal was a lowering that had not been written, and the checker's own comment
+  said so.
+- `get_called_class` had no replacement. [02-php-migration.md](../spec/02-php-migration.md) mapped it
+  to `static::class`, a spelling the compiler rejected, and `Core\Reflect::forObject` could not stand
+  in because a static method has no instance to hand it.
+- The reflective escape hatch is the wrong shape for the question. `Core\Reflect::forObject` allocates
+  a description carrying a class's whole member surface; a program that wants a name to log, to key a
+  cache or to compare pays for all of it.
+
+## Decision
+
+### 1. `::class` answers the class the value is; folding is an optimization of that
+
+The three named sides — `Foo::class`, `self::class`, `parent::class` — resolve against the file's
+namespace and imports and stay folded, exactly as before, because the compiler already knows the
+answer. They are inlined at every use site with no storage to read them back from, which is what makes
+`Bogus::class` an `E0303` rather than a string: there is no later place for the typo to be caught.
+**This paragraph is that rule's home**, and nothing else states it.
+
+The two run-time sides read the name off a class descriptor:
+
+| Written | Descriptor read | Answers |
+|---|---|---|
+| `static::class` | the frame's late-static-binding class — parameter 0 in a `static` method, `$this`'s own in an instance one | the class the call was made on |
+| `$obj::class` | one load at `nvs_runtime::OBJ_CLASS_OFFSET` | the class the receiver was allocated from |
+
+Neither is foldable, and the reason is the same in both: the static type is an upper bound, not the
+answer. `User $u = new Admin(); echo $u::class;` prints `App\Admin`, and an inherited `static::class`
+prints the subclass. Folding either would produce a string that is *silently* wrong rather than
+absent, which is the failure mode this project spends memory and latency to avoid.
+
+### 2. The operand must carry a class statically
+
+An object does, and a class reference does. Nothing else is accepted, and the refusal is `E0702` with
+the help naming what answers the question instead:
+
+| Operand | Answer |
+|---|---|
+| an object — `Ty::Class`, `Ty::Object` | accepted; the descriptor is one load away |
+| a `class<T>` | `as string`, § 3 — it is already a descriptor, so its name is a conversion and not a member read |
+| a `mixed` or a `?T` | refused: narrow it — `instanceof`, or a `!= null` test — or ask `Core\Reflect::forObject`, whose whole purpose is the erased receiver |
+| anything else | refused: it never holds an object |
+
+**A `mixed` is refused deliberately, and this is where Novis parts company with PHP.** PHP accepts
+`$m::class` on any operand and fails at run time on one that is not an object. Accepting it here would
+put a tag test and a throw behind a spelling that reads like a member read — a hidden failure on a
+line that looks total. The narrowing that lifts the refusal is the one `->` already requires of the
+same receiver, so this adds no rule a reader does not already know.
+
+### 3. `class<T> as string` is the same read, and closes the round trip
+
+[ADR 0125](0125-a-class-reference-is-a-type-and-as-is-its-only-source.md) § 2's grid gains its third
+row. A class reference *is* a descriptor, so its name is available by the same read, and
+`$name as class<Animal> as string` is the name it started from.
+
+It answers the **descriptor's** class, not the `T` it was checked against: a reference narrowed from a
+subclass converts back to that subclass. That is the same rule § 1's table states, and the reason this
+row is a run-time read rather than the annotation's own name folded where it is written.
+
+## Consequences
+
+**`::class` is no longer uniformly a constant.** It is a folded `string` on three sides and a load
+plus a helper call on two. That is a cost in language-surface simplicity — priority 4 — bought with
+PHP-compatible observable behaviour, priority 2, which outranks it. The compensation is that the rule
+a reader carries is *simpler* than before: "it answers the class the value is", with no list of which
+spellings are refused and no `Core\Reflect` detour for a name.
+
+**What it spends, per evaluation:** one load, one call, and one `NvsStr` allocation for the name,
+charged to the isolate that asked. A descriptor is process-wide and its name never changes, so one
+cached string per class would remove the allocation — and is deliberately *not* done. That payload is
+reference counted, and sharing one across isolates would put a refcount on the request-isolation
+boundary, which priority 1 does not trade for a saved allocation. A program that reads a name in a hot
+loop should hoist it, exactly as it would any other allocation.
+
+**`get_called_class` and `get_class` have real replacements**, so the migration table's rows stop
+pointing at a refused spelling. `Core\Reflect` is unchanged and remains the answer for every question
+about a class that is *not* its name.
+
+**One refusal became four.** `E0702` covered "not statically known" and now covers "carries no class",
+with a distinct help per operand kind. The two spellings it used to catch are the two that now lower.
+
+## Alternatives rejected
+
+**Fold `$obj::class` where the receiver's declared type is known.** It is wrong on exactly the case
+the feature exists for: a variable declared as a base class holding a subclass. It would be correct
+only for a `final` class or a receiver whose allocation is visible at the site, and a rule that
+answers correctly for some receivers and silently wrongly for others is worse than either total rule.
+
+**Route both spellings to `Core\Reflect`.** This was the standing position, and it fails a static
+method outright — there is no instance to pass — while charging a program that wants one string for a
+description of every member the class has.
+
+**Accept a `mixed` receiver with a run-time tag test.** Closer to PHP, and rejected under § 2: it puts
+a throw behind a spelling that reads total. The narrowing is already required by `->`.
+
+**Cache one `NvsStr` per descriptor to remove the allocation.** Rejected under *Consequences*: it
+shares a reference-counted payload across isolates. Priority 1 is not traded for priority 3, and never
+for priority 5.
+
+## Verification
+
+`tests/differential/class/a-class-name-constant-matches-php.nvst` runs both spellings against the PHP
+oracle through three levels of inheritance, from a static and an instance method, and against a
+variable whose declared type is an ancestor of what it holds.
+
+`tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst` pins the
+called-class-versus-declaring-class split that makes § 1 observable, and the narrowed `?T` that § 2's
+refusal admits.
+
+`tests/conformance/lang/a-class-name-constant-needs-a-class-the-compiler-resolves.nvst` pins § 2's
+four refusals, each with its own help, and the `E0303` a name that resolves to nothing still takes.
+
+`tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst` pins § 3's round
+trip and that it answers the descriptor's class rather than the annotation's.
