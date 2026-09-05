@@ -2393,7 +2393,7 @@ mod tests {
                 other => return format!("read {other:?}"),
             };
             let sent = peer.send(nvs_runtime::PeerFrame::Text(format!("echo of {heard}")));
-            peer.close();
+            peer.close(nvs_runtime::Closing::Done);
             match sent {
                 Ok(()) => format!("heard {heard}"),
                 Err(error) => format!("send {error}"),

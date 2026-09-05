@@ -191,7 +191,7 @@
 
 use nvs_runtime::script::{Program, ResolveError};
 use nvs_runtime::{
-    Ctx, Delivery, Fault, NvsStr, PeerFrame, ThrownClass, Upgrade, Value, copy_graph,
+    Closing, Ctx, Delivery, Fault, NvsStr, PeerFrame, ThrownClass, Upgrade, Value, copy_graph,
 };
 
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
@@ -378,7 +378,9 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
     ret: "The next message, or `null` once the peer has closed, which is what ends the \
           `while (var $msg = $conn->receive())` loop a connection script is written as. A peer \
           frame's payload is `tainted`; a delivery carries the published value and the topic's \
-          name, which is how the loop tells the two apart.",
+          name, which is how the loop tells the two apart. `null` is also what a connection that \
+          fell too far behind its topics is answered: its queue overflowed, so this connection is \
+          closed rather than a publisher being made to wait for it.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "This program is not a connection isolate, so there is no peer to wait on.",
@@ -994,6 +996,16 @@ nvs_runtime::nvs_helper! {
     /// park that is already running — `nvs_runtime::Ctx::deliver`'s own known
     /// gap says so, and it is the same gap whichever core published.
     ///
+    /// **This is also where a slow subscriber is closed** (§ 4). The publisher
+    /// that overflowed this connection's queue could not reach its peer — it is
+    /// a field of this context, on this isolate's own stack — so it raised the
+    /// overflow on the queue and this wait is what obeys it: the peer is told
+    /// [`nvs_runtime::Closing::SlowSubscriber`]'s code and the member answers
+    /// § 3's `null`, which is the condition the connection loop already ends
+    /// on. It is asked before the drain rather than after, because a connection
+    /// being closed for missing one value has no business being handed the
+    /// values it did not miss.
+    ///
     /// Draining first rather than last is not arbitrary: the peer's read is
     /// the operation that blocks, so checking it first would make a delivery
     /// wait for a frame that may never come, which is the one ordering a
@@ -1004,6 +1016,12 @@ nvs_runtime::nvs_helper! {
             return Err(no_connection("receive"));
         }
         crate::topic::deliver_from_other_cores(ctx);
+        if ctx.inbox_overflowed() {
+            ctx.peer()
+                .expect("`has_peer` answered above and nothing since could have taken it")
+                .close(Closing::SlowSubscriber);
+            return Ok(Value::null());
+        }
         if let Some(delivery) = ctx.take_delivery() {
             return Ok(message_of_delivery(delivery));
         }
@@ -1106,7 +1124,7 @@ mod tests {
     use nvs_runtime::script::{Installed, Program, Resolver, install};
     use nvs_runtime::{Ctx, Inbound, NvsArray, NvsStr, UpgradeSlot, Value};
 
-    use nvs_runtime::{Delivery, PeerError, PeerFrame, PeerSocket};
+    use nvs_runtime::{Closing, Delivery, PeerError, PeerFrame, PeerSocket};
 
     use super::{
         CLASS, nvs_core_socket_current, nvs_core_socket_message_bytes,
@@ -1133,6 +1151,9 @@ mod tests {
         /// What a `send` fails with, if it fails — ADR 0074's finite wait, in
         /// the wording the framing layer would report it with.
         refuse_send: Option<String>,
+        /// Why this socket was closed, once something closed it — § 4's code
+        /// is a thing a case reads back rather than a thing it takes on trust.
+        closed: Option<Closing>,
     }
 
     /// A handle onto one [`Script`], so the case can read what was sent after
@@ -1154,7 +1175,9 @@ mod tests {
             Ok(())
         }
 
-        fn close(&mut self) {}
+        fn close(&mut self, why: Closing) {
+            self.0.borrow_mut().closed = Some(why);
+        }
     }
 
     /// A context that is a connection's: ADR 0083 § 1's isolate with the
@@ -1199,7 +1222,11 @@ mod tests {
             .incoming
             .push_back(Ok(Some(PeerFrame::Text("hello".to_owned()))));
         let mut ctx = connected(&peer);
-        ctx.deliver(Delivery::new("room:lobby", Value::int(7)));
+        assert!(
+            ctx.deliver(Delivery::new("room:lobby", Value::int(7)))
+                .is_none(),
+            "an empty queue takes the first delivery"
+        );
 
         let conn = nvs_runtime::call(nvs_core_socket_current, &mut ctx, &[])
             .expect("a connection isolate answers `current()`");

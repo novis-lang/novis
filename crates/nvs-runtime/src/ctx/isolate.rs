@@ -79,10 +79,29 @@ impl Ctx {
     /// sources, which is a wake seam the framing layer has to take part in —
     /// `nvs_stdlib::socket`'s `receive()` and `nvs_server::socket`, not this
     /// method.
-    pub fn deliver(&mut self, delivery: crate::peer::Delivery) {
+    ///
+    /// **Answers the delivery back when the queue is full** — § 4's bound, and
+    /// [`crate::peer::Inbox::push`] owns why a refusal comes back to the caller
+    /// rather than being dropped here.
+    #[must_use = "a refused delivery still owns a reference the caller has to release"]
+    pub fn deliver(&mut self, delivery: crate::peer::Delivery) -> Option<crate::peer::Delivery> {
         self.deliveries
             .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default()))
-            .push(delivery);
+            .push(delivery)
+    }
+
+    /// Whether this connection missed a delivery and is to be closed — ADR 0083
+    /// § 4's bound, as the one question `Core\Socket::receive()` asks before it
+    /// waits on anything.
+    ///
+    /// `false` for every context that never subscribed to a topic, with no
+    /// queue made: the answer is the same either way, and an ordinary request
+    /// pays one null check for it.
+    #[must_use]
+    pub fn inbox_overflowed(&self) -> bool {
+        self.deliveries
+            .as_ref()
+            .is_some_and(|inbox| inbox.overflowed())
     }
 
     /// The oldest queued delivery, handing its reference to the caller.

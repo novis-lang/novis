@@ -118,6 +118,24 @@
 //! single-core server or a topic joined only here. [`crate::bus`] owns the
 //! rest of that accounting.
 //!
+//! # Decision: a subscriber that has stopped reading is skipped, not waited for
+//!
+//! § 4's priority-1 rule, in the fan-out: the walk asks each queue whether it
+//! has room *before* it makes that subscriber's copy, and a full one is marked
+//! and stepped over. So a connection that stopped reading costs a publish one
+//! comparison — not an allocation, not a wait, and not the other nine thousand
+//! nine hundred and ninety-nine subscribers' latency.
+//!
+//! **It is not counted, either.** `publish` answers what it queued, and a value
+//! this member declined to copy was never queued for anybody. That keeps the
+//! count's meaning the one the card states rather than making it two numbers a
+//! caller has to subtract.
+//!
+//! Where the bound is, what it is, and why the *subscriber* is what performs
+//! the close all live in [`nvs_runtime::Inbox`]'s module — this module raises
+//! the overflow and `crate::socket`'s `receive()` obeys it, because the peer is
+//! a field of that connection's own context and no publisher can reach it.
+//!
 //! # Decision: the name is checked before the connection is
 //!
 //! All three members refuse an empty name, and the two that ask about the host
@@ -256,7 +274,9 @@ const PUBLISH_DOC: MethodDoc = MethodDoc {
     ret: "How many subscribers the value was queued for, which is `0` for a topic nobody has \
           joined. Publishing needs no connection of its own — an ordinary request may tell the \
           connections that something changed — and a connection publishing to a topic it joined \
-          itself is delivered to like any other subscriber.",
+          itself is delivered to like any other subscriber. A subscriber whose queue is full is \
+          not among them: it is being closed for falling behind, and this call is never delayed \
+          by one.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "An empty `$topic`, which no subscriber can be reached by; and a `$value` with no \
@@ -484,10 +504,18 @@ pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
         let subscribers = subscribers_of(envelope.topic());
         let resolve = |name: &str| ctx.class_desc(name);
         for inbox in &subscribers {
+            // The same bound the local walk keeps, asked before the decode for
+            // the same reason it is asked before the copy.
+            if !inbox.has_room() {
+                inbox.note_overflow();
+                continue;
+            }
             let Ok(value) = nvs_runtime::decode(envelope.payload(), &resolve) else {
                 break;
             };
-            inbox.push(Delivery::new(envelope.topic(), value));
+            if let Some(refused) = inbox.push(Delivery::new(envelope.topic(), value)) {
+                release_crossed(refused.into_value());
+            }
         }
     }
 }
@@ -530,6 +558,13 @@ nvs_runtime::nvs_helper! {
         let mut first = Some(cross(args[1])?);
         let mut delivered: u64 = 0;
         for inbox in &subscribers {
+            // § 4's bound, asked before the copy is made rather than after:
+            // a subscriber that is already being closed costs this publisher
+            // nothing but the test. `nvs_runtime::peer` owns the rest of it.
+            if !inbox.has_room() {
+                inbox.note_overflow();
+                continue;
+            }
             // A refusal is a property of the graph rather than of the copy, so
             // the one above is the one that reports it: a further copy of the
             // same unchanged value cannot decide differently, and this `?` is
@@ -538,7 +573,14 @@ nvs_runtime::nvs_helper! {
                 Some(made) => made,
                 None => cross(args[1])?,
             };
-            inbox.push(Delivery::new(topic.as_str(), copy));
+            // Nothing between `has_room` and here can have filled the queue —
+            // this core is the only one that pushes into its own subscribers'
+            // queues, and neither call suspends — so the refusal is written for
+            // the ownership rule rather than for a path a publish reaches.
+            if let Some(refused) = inbox.push(Delivery::new(topic.as_str(), copy)) {
+                release_crossed(refused.into_value());
+                continue;
+            }
             delivered += 1;
         }
         if let Some(unused) = first {
@@ -568,7 +610,9 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value};
+    use nvs_runtime::{
+        Closing, Ctx, INBOX_CAP, NvsFn, NvsStr, PeerError, PeerFrame, PeerSocket, Value,
+    };
 
     use super::{
         nvs_core_topic_publish, nvs_core_topic_subscribe, nvs_core_topic_unsubscribe,
@@ -584,13 +628,17 @@ mod tests {
         subscribers_of(topic).len()
     }
 
-    /// A peer that says nothing and is never read: what these cases need from
-    /// a socket is only that the context *has* one, which is the whole of what
-    /// separates a connection isolate from every other kind of context.
-    #[derive(Debug)]
-    struct Silent;
+    /// A peer that says nothing and records the close it was told to send.
+    ///
+    /// What most of these cases need from a socket is only that the context
+    /// *has* one, which is the whole of what separates a connection isolate
+    /// from every other kind of context. § 4's slow subscriber needs one thing
+    /// more — the code the peer was closed with — and a handle onto the same
+    /// cell is how a case reads it back after the context took the socket.
+    #[derive(Clone, Debug, Default)]
+    struct Watched(std::rc::Rc<std::cell::Cell<Option<Closing>>>);
 
-    impl PeerSocket for Silent {
+    impl PeerSocket for Watched {
         fn receive(&mut self) -> Result<Option<PeerFrame>, PeerError> {
             Ok(None)
         }
@@ -599,14 +647,21 @@ mod tests {
             Ok(())
         }
 
-        fn close(&mut self) {}
+        fn close(&mut self, why: Closing) {
+            self.0.set(Some(why));
+        }
     }
 
     /// A context that is a connection's — ADR 0083 § 1's isolate with a socket
     /// already moved onto it.
     fn connected() -> Ctx {
+        connected_to(&Watched::default())
+    }
+
+    /// The same, over a socket the case kept a handle onto.
+    fn connected_to(peer: &Watched) -> Ctx {
         let mut ctx = Ctx::buffered();
-        ctx.set_peer(Box::new(Silent));
+        ctx.set_peer(Box::new(peer.clone()));
         ctx
     }
 
@@ -878,5 +933,80 @@ mod tests {
         call(nvs_core_topic_subscribe, &mut ctx, "room:brief").expect("joined");
         call(nvs_core_topic_unsubscribe, &mut ctx, "room:brief").expect("and left");
         assert_eq!(subscriber_count("room:brief"), 0);
+    }
+
+    /// ADR 0083 § 4's priority-1 rule, on both halves at once: a subscriber
+    /// that never reads is **closed**, and the publisher fanning out to it is
+    /// unaffected — not blocked, not failed, and still reaching everybody else.
+    ///
+    /// The two connections here differ in exactly one thing: one drains its
+    /// queue at every publish and the other never does. So what the case pins
+    /// is the bound and nothing beside it — the slow one stops being counted at
+    /// [`INBOX_CAP`], the fast one keeps being delivered to afterwards, and the
+    /// close carries [`Closing::SlowSubscriber`]'s code rather than the one an
+    /// orderly end would.
+    ///
+    /// The close is asserted at the *subscriber's* own `receive()`, which is
+    /// where § 4's rule is performed: the publisher cannot reach another
+    /// isolate's peer, so a case asserting the close on the publish would be
+    /// asserting a design this tree deliberately does not have.
+    #[test]
+    fn a_subscriber_that_never_reads_is_closed_and_the_publisher_is_unaffected() {
+        let socket = Watched::default();
+        let mut sleeper = connected_to(&socket);
+        let mut reader = connected();
+        call(nvs_core_topic_subscribe, &mut sleeper, "room:slow").expect("the slow one joins");
+        call(nvs_core_topic_subscribe, &mut reader, "room:slow").expect("and one that reads");
+
+        let closed_before = nvs_runtime::slow_subscribers_closed();
+        let mut publisher = Ctx::buffered();
+        for _ in 0..INBOX_CAP {
+            let reached = publish(&mut publisher, "room:slow", "tick").expect("a publish");
+            assert_eq!(reached, 2, "both are still being queued");
+            drained(&mut reader, "room:slow");
+        }
+
+        let reached = publish(&mut publisher, "room:slow", "one too many").expect("a publish");
+        assert_eq!(
+            reached, 1,
+            "the full queue is stepped over rather than waited for"
+        );
+        drained(&mut reader, "room:slow");
+        assert_eq!(
+            nvs_runtime::slow_subscribers_closed(),
+            closed_before + 1,
+            "§ 4's metric counts the subscriber once, not once per publish"
+        );
+
+        // The subscriber's own next wait is what performs the close, and it
+        // answers § 3's `null` — the condition its `while` loop ends on.
+        let conn = nvs_runtime::call(crate::socket::nvs_core_socket_current, &mut sleeper, &[])
+            .expect("a connection isolate answers `current()`");
+        let answered = nvs_runtime::call(
+            crate::socket::nvs_core_socket_receive,
+            &mut sleeper,
+            &[conn],
+        )
+        .expect("the wait answered");
+        assert!(
+            answered.as_text().is_none() && answered.obj_ptr().is_none(),
+            "a connection being closed was handed a message"
+        );
+        assert_eq!(socket.0.get(), Some(Closing::SlowSubscriber));
+        #[expect(
+            unsafe_code,
+            reason = "the case owns the reference `current()` answered with, and \
+                      `receive` borrowed rather than took it"
+        )]
+        // SAFETY: nothing else points at the connection value this case built.
+        unsafe {
+            conn.release();
+        }
+
+        // And the publisher carries on to everybody else, which is the half of
+        // the rule a bound alone would not give.
+        let reached = publish(&mut publisher, "room:slow", "and on").expect("a publish");
+        assert_eq!(reached, 1, "the reader is still a subscriber");
+        drained(&mut reader, "room:slow");
     }
 }

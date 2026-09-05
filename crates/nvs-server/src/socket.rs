@@ -55,8 +55,10 @@
 use std::io::{Read, Write};
 
 use nvs_host::NvsTcp;
-use nvs_runtime::{PeerError, PeerFrame, PeerSocket};
+use nvs_runtime::{Closing, PeerError, PeerFrame, PeerSocket};
 use tungstenite::Message;
+use tungstenite::protocol::frame::CloseFrame;
+use tungstenite::protocol::frame::coding::CloseCode;
 use tungstenite::protocol::{Role, WebSocket};
 
 /// RFC 6455's `Sec-WebSocket-Accept` for the key the opening carried.
@@ -188,8 +190,15 @@ impl PeerSocket for Framed {
     ///
     /// A close that cannot be written is a connection that is already gone, and
     /// the descriptor closes with this object either way.
-    fn close(&mut self) {
-        drop(self.0.close(None));
+    ///
+    /// The code and the reason are [`Closing`]'s, which is the one place this
+    /// tree decides them — a peer told 1008 rather than 1000 is a client that
+    /// can log why it will not simply reconnect into the same overflow.
+    fn close(&mut self, why: Closing) {
+        drop(self.0.close(Some(CloseFrame {
+            code: CloseCode::from(why.code()),
+            reason: why.reason().into(),
+        })));
         drop(self.0.flush());
     }
 }

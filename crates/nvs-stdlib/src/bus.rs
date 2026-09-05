@@ -51,8 +51,12 @@
 //! counted — so a publish answers what it actually queued. A core cannot reach
 //! that cap while it is running, because it drains its whole mailbox at every
 //! `receive()`; reaching it means that core has not run at all for a very long
-//! time, and § 4's answer for a subscriber in that state is to close it, which
-//! is the per-subscriber bound `crate::topic` owes and not this one.
+//! time, and § 4's answer for a subscriber in that state is to close it — which
+//! is the *per-subscriber* bound, one layer up: [`nvs_runtime::Inbox`] holds it
+//! and `crate::topic`'s fan-out raises it. The two refusals are the same rule at
+//! two granularities, and this one is deliberately the blunter: a mailbox is a
+//! whole core's, so what it declines is an envelope rather than a subscriber,
+//! and nobody is closed for it.
 //!
 //! # What it spends
 //!

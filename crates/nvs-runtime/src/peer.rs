@@ -5,7 +5,7 @@
 //! § 1 moves the socket into the root isolate the upgrade opened. The socket
 //! itself is a `nvs_host::NvsTcp` with RFC 6455's framing over it, and neither
 //! of those names exists here: this crate is underneath both, and the isolate's
-//! [`Ctx`] is what has to carry the thing. So what crosses is a **trait
+//! [`Ctx`](crate::Ctx) is what has to carry the thing. So what crosses is a **trait
 //! object** — the same seam shape [`crate::host`] uses for the scheduler, and
 //! for the same reason. `nvs_server::socket` implements it over the stream the
 //! upgrade handed back, `Core\Socket` calls it from inside the isolate, and
@@ -32,9 +32,44 @@
 //! *signature*'s, so the `Core\Socket` row that hands the payload to a program
 //! is where it is declared, and this seam carries bytes.
 //!
+//! # Decision: the queue is bounded, and the overflow closes the subscriber
+//!
+//! ADR 0083 § 4's priority-1 rule: each subscriber's queue is capped, the
+//! publisher is never blocked, and an overflow closes *that* subscriber. An
+//! [`Inbox`] therefore holds [`INBOX_CAP`] deliveries and refuses the next one,
+//! and the refusal is **sticky** — [`Inbox::overflowed`] stays true once it has
+//! been raised, because the fact it records is not "the queue is full now" but
+//! "this connection missed a value it had subscribed to", which draining cannot
+//! undo.
+//!
+//! **Who closes is the question this shape answers.** The publisher cannot: the
+//! peer is a field of the *subscriber's* [`Ctx`](crate::Ctx), which is another
+//! isolate's stack frame and may be on another core, and a publisher reaching
+//! into it would be the shared mutable state § 4 declines. The [`Inbox`] is the
+//! one object both sides already hold, so the overflow is raised on it and the
+//! subscriber's own next `receive()` obeys — it closes its peer with
+//! [`Closing::SlowSubscriber`]'s code and answers § 3's `null`, which is the
+//! condition the connection loop already ends on. `nvs_stdlib::socket` owns
+//! that half; nothing about the publisher's call changes, which is what "never
+//! blocked" means here.
+//!
+//! [`slow_subscribers_closed`] is § 4's "a metric increments", as a per-core
+//! count. **Known gap:** nothing exports it yet — it is not one of
+//! [ADR 0076](/docs/adr/0076-observability-export.md) § 1's series, and giving
+//! it one is `nvs_server::metrics`' edit, in the crate that owns the registry.
+//! The count is maintained either way, so the series is a wiring change rather
+//! than an instrumentation one.
+//!
 //! # What it spends
 //!
-//! One boxed trait object per connection isolate, and one buffer per frame in
+//! Up to [`INBOX_CAP`] deliveries per **live connection that subscribed to
+//! something** — a `Box<str>` and a 16-byte value each, so about 8 KiB of
+//! queue slots, plus the published copies themselves, which are the publisher's
+//! allocations and are bounded by its own `[limits] memory`. It is
+//! O(live connections), never O(publishes), which is the whole point of the
+//! cap: a subscriber that stops reading is closed rather than accumulated.
+//!
+//! Beyond that: one boxed trait object per connection isolate, and one buffer per frame in
 //! flight — a `String` or a `Vec<u8>` the caller is handed and then owns.
 //! Neither is O(frames received): a frame is released with the value it became.
 //! The implementation's own read buffer is charged to the connection, which is
@@ -104,6 +139,37 @@ impl Delivery {
     }
 }
 
+/// How many deliveries one connection's queue holds before the next is refused
+/// and that connection is closed.
+///
+/// The module doc owns why an overflow closes the subscriber and what the queue
+/// spends. The number is a *count* rather than a size, because the bytes are
+/// already bounded twice over: a published value is a graph copy the publisher
+/// allocated under its own `[limits] memory`, and the connection holding them
+/// has a memory limit of its own (§ 1). 256 is far more than the gap between a
+/// publish and the `receive()` that drains it — a connection that is running at
+/// all empties its whole queue at every wait — so reaching it means this
+/// subscriber has not run for 256 publishes, which is § 4's "slow subscriber"
+/// and not a burst.
+pub const INBOX_CAP: usize = 256;
+
+thread_local! {
+    /// How many subscribers this core has closed for overflowing — § 4's "a
+    /// metric increments", read back by [`slow_subscribers_closed`].
+    static SLOW_SUBSCRIBERS_CLOSED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many subscribers **this core** has closed for missing a delivery.
+///
+/// ADR 0083 § 4's metric, as the number an exporter would read. It is a core's
+/// own count and never a process-wide one, which is where
+/// [ADR 0076](/docs/adr/0076-observability-export.md) § 7 already charges a
+/// series; the module doc records that nothing exports it yet.
+#[must_use]
+pub fn slow_subscribers_closed() -> u64 {
+    SLOW_SUBSCRIBERS_CLOSED.with(std::cell::Cell::get)
+}
+
 /// The queue one connection's deliveries wait in — ADR 0083 § 3's second
 /// source, as a thing two owners can hold.
 ///
@@ -135,12 +201,60 @@ pub struct Inbox {
     /// at the same one: the runtime is thread-per-core and neither a publish
     /// nor a `receive()` holds the borrow across a suspension point.
     queue: std::cell::RefCell<std::collections::VecDeque<Delivery>>,
+    /// Whether this subscriber has already missed a value — the module doc's
+    /// bound, and why the flag is sticky rather than derived from the length.
+    overflowed: std::cell::Cell<bool>,
 }
 
 impl Inbox {
     /// Queues one delivery, taking over its value's reference.
-    pub fn push(&self, delivery: Delivery) {
-        self.queue.borrow_mut().push_back(delivery);
+    ///
+    /// **Answers the delivery back when the queue is full**, having raised the
+    /// overflow: this type cannot release a value — [`Delivery`] says why — so
+    /// the refused one goes back to the caller, which is the publisher and does
+    /// have the context that allocated it.
+    #[must_use = "a refused delivery still owns a reference the caller has to release"]
+    pub fn push(&self, delivery: Delivery) -> Option<Delivery> {
+        let mut queue = self.queue.borrow_mut();
+        if queue.len() >= INBOX_CAP {
+            drop(queue);
+            self.note_overflow();
+            return Some(delivery);
+        }
+        queue.push_back(delivery);
+        None
+    }
+
+    /// Whether one more delivery would be taken.
+    ///
+    /// Asked by the fan-out *before* it makes a copy, so that a subscriber
+    /// already being closed costs the publisher no allocation at all — which is
+    /// the case § 4 is written for, a fan-out to ten thousand clients where one
+    /// has stopped reading.
+    #[must_use]
+    pub fn has_room(&self) -> bool {
+        self.queue.borrow().len() < INBOX_CAP
+    }
+
+    /// Raises the overflow, counting the subscriber the first time.
+    ///
+    /// Idempotent, and the count is only moved on the transition: a topic
+    /// publishing a hundred more values to a connection that is already being
+    /// closed has lost one subscriber, not a hundred.
+    pub fn note_overflow(&self) {
+        if !self.overflowed.replace(true) {
+            SLOW_SUBSCRIBERS_CLOSED.with(|closed| closed.set(closed.get().saturating_add(1)));
+        }
+    }
+
+    /// Whether this connection missed a delivery and is therefore to be closed.
+    ///
+    /// Read by the subscriber's own `receive()` and by nothing else — the
+    /// module doc owns why the close is the subscriber's rather than the
+    /// publisher's.
+    #[must_use]
+    pub fn overflowed(&self) -> bool {
+        self.overflowed.get()
     }
 
     /// The oldest queued delivery, handing its reference to the caller.
@@ -225,6 +339,47 @@ pub trait PeerSocket: std::fmt::Debug {
     ///
     /// There is nothing a caller could do with a failure here — the connection
     /// is ending either way, and the descriptor closes with this object — so
-    /// the operation has no error to report and no result to check.
-    fn close(&mut self);
+    /// the operation has no error to report and no result to check. What the
+    /// peer is *told* is [`Closing`]'s code, which is the one thing about a
+    /// close a program on the other end can act on.
+    fn close(&mut self, why: Closing);
+}
+
+/// Why a connection is being closed, as the code RFC 6455 puts on the wire.
+///
+/// Two, because there are two reasons this runtime ever closes one from its own
+/// side, and a peer that cannot tell them apart cannot decide whether to
+/// reconnect. It is deliberately not a `u16`: a code is a *decision* this crate
+/// makes, and an open integer would let each call site invent one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Closing {
+    /// The connection ended the way it was meant to — its loop finished, or the
+    /// isolate did. RFC 6455's 1000.
+    Done,
+    /// ADR 0083 § 4: this subscriber's delivery queue overflowed, so it is
+    /// closed rather than tolerated. RFC 6455's 1008, *policy violation*, which
+    /// is the code for a peer whose behaviour the server will not carry —
+    /// specifically not 1001 or 1011, which say the server is going away or
+    /// broke, and either would tell a client to reconnect and do it again.
+    SlowSubscriber,
+}
+
+impl Closing {
+    /// RFC 6455's status code for this reason.
+    #[must_use]
+    pub fn code(self) -> u16 {
+        match self {
+            Self::Done => 1000,
+            Self::SlowSubscriber => 1008,
+        }
+    }
+
+    /// The text sent beside the code, which is for a human reading a log.
+    #[must_use]
+    pub fn reason(self) -> &'static str {
+        match self {
+            Self::Done => "closing",
+            Self::SlowSubscriber => "subscriber too slow to keep up with its topics",
+        }
+    }
 }

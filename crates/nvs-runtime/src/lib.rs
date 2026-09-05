@@ -355,7 +355,9 @@ pub use object::{
     nvs_object_key_get, nvs_object_key_set, nvs_object_new, nvs_object_release, nvs_object_retain,
     nvs_object_slot_get, nvs_object_slot_set, nvs_value_instanceof, write_erased_property,
 };
-pub use peer::{Delivery, Inbox, PeerError, PeerFrame, PeerSocket};
+pub use peer::{
+    Closing, Delivery, INBOX_CAP, Inbox, PeerError, PeerFrame, PeerSocket, slow_subscribers_closed,
+};
 pub use string::{
     CAP_OFFSET, COUNT_UNKNOWN, GRAPHEMES_OFFSET, HEADER_ALIGN, IMMORTAL_REFCOUNT, LEN_OFFSET,
     NvsStr, PAYLOAD_OFFSET, REFCOUNT_OFFSET, StrHeader, StrWriter, immortal_header_bytes,
