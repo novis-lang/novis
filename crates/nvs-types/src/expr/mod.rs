@@ -502,7 +502,7 @@ pub(crate) fn infer(
         // every `Foo::` in the program), it is resolved the same way a static
         // call's is. A class side that is not statically known is `E0702`.
         ExprKind::ClassNameConst { class } => {
-            members::check_class_name_const(expr, class, ctx, env)
+            members::check_class_name_const(expr, class, live, scope, ctx, env)
         }
         // `nvs-ir` needs the element's declared type to lower an eventual
         // indexed read/write instruction — see `crate::expr_table`'s own

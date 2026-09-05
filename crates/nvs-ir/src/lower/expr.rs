@@ -316,17 +316,61 @@ impl<'a> Lowering<'a> {
             // at its use site whichever of the three it is, and this crate
             // cannot name a `nvs_hir::QName` to do the resolution itself.
             //
-            // The lookup only misses in a compilation that has already
-            // aborted — the checker records a name for every `::class` it
-            // accepts and reports `E0702` for the one shape it does not — so
-            // the fallback is an empty string rather than a panic, which is
-            // what keeps this arm's own reachability a fact about the checker
-            // rather than a claim in a message.
-            ExprKind::ClassNameConst { .. } => match self.exprs.lookup(expr.span) {
+            // `static::class` and `$obj::class` are the two sides that have no
+            // name until the call runs; they take the `ClassNameOf` arm below
+            // and read one off a descriptor the frame already holds.
+            ExprKind::ClassNameConst { class } => match self.exprs.lookup(expr.span) {
                 Some(ExprInfo::CoreConst { value }) => {
                     let value = value.clone();
                     self.emit_const_arg(&value, env, *cur)
                 }
+                // `static::class` and `$obj::class` — the two sides that name
+                // a class only the run time knows. The checker recorded
+                // `ClassNameOf` for exactly these (see its own doc comment for
+                // why one entry covers both), and which descriptor to read is
+                // read back off the class side's own shape here rather than
+                // carried in the entry: `nvs-ir` already has both instructions
+                // and neither needs anything `nvs_types` resolved.
+                Some(ExprInfo::ClassNameOf) => {
+                    let desc = if matches!(class.kind, ExprKind::StaticExpr) {
+                        // Late static binding's own class — parameter 0 in a
+                        // `static` method, `$this`'s descriptor in an instance
+                        // one. `Self::lsb` owns that split and caches the
+                        // value, so a method reading `static::` twice loads
+                        // once.
+                        self.lsb()
+                    } else {
+                        // One load at `nvs_runtime::OBJ_CLASS_OFFSET`, which
+                        // answers the class the receiver *is* rather than the
+                        // one its variable was declared as — the reason this
+                        // is not folded even where the declared type resolved.
+                        // The receiver needs no lifecycle of its own: it is
+                        // read through and not kept, exactly as
+                        // [`Self::lower_instanceof`]'s subject is. Its
+                        // representation is a [`Ty::Object`] by construction —
+                        // the checker records `ClassNameOf` for no other — so
+                        // this asserts nothing, the way every other
+                        // [`InstKind::ClassDescOf`] emitter does not.
+                        let (object, _) = self.lower_expr(class, None, env, cur);
+                        let (desc, _) =
+                            self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object });
+                        desc
+                    };
+                    self.emit_fallible(
+                        *cur,
+                        Ty::Str,
+                        InstKind::HelperCall {
+                            helper: Helper::ClassDescName,
+                            args: vec![desc],
+                        },
+                        env,
+                    )
+                }
+                // Only reachable in a compilation that has already aborted:
+                // the checker records one of the two entries above for every
+                // `::class` it accepts and reports `E0702` for every side it
+                // does not. The empty string keeps that a fact about the
+                // checker rather than a claim in a panic message.
                 _ => self.emit(*cur, Ty::Str, InstKind::ConstStr(String::new())),
             },
             // PHP 8's `throw` in expression position — `$n ?? throw new
@@ -483,8 +527,8 @@ impl<'a> Lowering<'a> {
             //   Their neighbour used to be `spawn script` and `await`, both
             //   refused where they were written; both lower two arms above
             //   now, and `E0703`, `E0704` and `E0776` are all retired.
-            // * `$obj::class` is `E0702`; the statically-named spelling lowers
-            //   one arm above.
+            //   `$obj::class` used to be here as `E0702`; it lowers now, and
+            //   so does `static::class`, both through `Helper::ClassDescName`.
             //
             // `Ternary`, `Match`, `Paren` and `ObjectLiteral`, which used to
             // arrive here, all lower above.

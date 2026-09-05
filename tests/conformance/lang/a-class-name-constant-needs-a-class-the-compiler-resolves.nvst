@@ -1,24 +1,30 @@
 --TEST--
-`::class` on a class side that is not statically known is `E0702`, and on a name that resolves to nothing is `E0303` — never a panic and never a folded guess (ADR 0011, ADR 0008)
+`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (ADR 0011, ADR 0125)
 --FILE--
 <?nvs
-// ADR 0011 puts every reflective question on `Core\Reflect`: an object
-// carries no name a program can read back, so a receiver's runtime class
-// is not something `::class` can answer.
 class User {
 }
-User $u = new User();
-echo $u::class;
 
-// ADR 0008 binds `static` to whichever class the call was made on, so
-// folding it here would answer the declaring class instead — silently a
-// different string rather than an absent one, which is the reason this
-// one is refused and `self::class` is not.
-class Base {
-    public static function name(): string {
-        return static::class;
-    }
-}
+// ADR 0011 puts every reflective question on `Core\Reflect`, and an erased
+// receiver is exactly the one it is for: a `mixed` might hold an object and
+// might not, so accepting it would put a tag test and a throw behind a
+// spelling that reads like a member read.
+mixed $m = new User();
+echo $m::class;
+
+// The `null` half of a `?T` carries no descriptor, so the same refusal — and
+// the same narrowing that `->` already requires is what lifts it.
+?User $n = new User();
+echo $n::class;
+
+// A scalar never holds an object at all.
+int $i = 1;
+echo $i::class;
+
+// ADR 0125's `class<T>` is a class reference already, so its name is a
+// conversion rather than a member read — § 2's third row, `as string`.
+class<User> $c = User::class as class<User>;
+echo $c::class;
 
 // A name that resolves to nothing is the same mistake, and the same code,
 // `new Undeclared()` already takes. PHP folds this to `"Bogus"` because
@@ -27,23 +33,37 @@ class Base {
 echo Bogus::class;
 --EXPECTF-ERROR--
 error[E0702]: `::class` needs a class named at compile time
-  --> %s:8:6
-  |
-8 | echo $u::class;
-  |      ^^ this names no class the compiler can resolve
-  = help: write the class itself — `Foo::class`, `self::class` — or take the question to the type system. An object carries no name a program can read back: ADR 0011 puts every reflective question on `Core\Reflect`
+   --> %s:10:6
+   |
+10 | echo $m::class;
+   |      ^^ this is a `mixed`, which names no class
+   = help: narrow it to a class first — `if ($v instanceof Foo)` — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
 
 error[E0702]: `::class` needs a class named at compile time
-   --> %s:16:16
+   --> %s:15:6
    |
-16 |         return static::class;
-   |                ^^^^^^ `static` is not known until the call runs
-   = help: ADR 0008 binds `static` to whichever class the call was made on, so folding it here would answer the declaring class instead — write `self::class` if that is what was meant
+15 | echo $n::class;
+   |      ^^ this is a `null|User`, which names no class
+   = help: narrow it to a class first — `if ($v instanceof Foo)`, or a `!= null` test — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
 
-error[E0303]: `Bogus` is not declared
+error[E0702]: `::class` needs a class named at compile time
+   --> %s:19:6
+   |
+19 | echo $i::class;
+   |      ^^ this is a `int`, which names no class
+   = help: only an object carries a class at run time. Write the class itself — `Foo::class`, `self::class`, `static::class`
+
+error[E0702]: `::class` needs a class named at compile time
    --> %s:24:6
    |
-24 | echo Bogus::class;
+24 | echo $c::class;
+   |      ^^ this is a `class<User>`, which names no class
+   = help: a `class<T>` is already a class reference, so its name is a conversion rather than a member read — write `as string`
+
+error[E0303]: `Bogus` is not declared
+   --> %s:30:6
+   |
+30 | echo Bogus::class;
    |      ^^^^^ no matching declaration
 
-error: aborting due to 3 errors
+error: aborting due to 5 errors

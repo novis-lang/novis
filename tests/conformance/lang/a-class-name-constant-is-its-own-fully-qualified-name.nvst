@@ -8,8 +8,9 @@ namespace App;
 // exactly as a static call's class side is, so the answer is the fully
 // qualified name and never the short one PHP would also refuse to give.
 class User {
-    // `self` is the class this method is declared in, which is what makes
-    // it the spelling `static::class` is refused in favour of.
+    // `self` is the class this method is declared in, and stays folded for
+    // that reason. `static::class` is the other spelling and answers the
+    // *called* class instead — ADR 0144 § 1, pinned by its own case.
     public static function own(): string {
         return self::class;
     }

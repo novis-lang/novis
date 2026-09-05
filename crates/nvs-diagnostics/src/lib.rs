@@ -1734,18 +1734,30 @@ pub mod code {
     /// parameter list is packed and written back at the *call site*, which is
     /// the one thing a call whose callee is unknown until it runs cannot do.
     pub const E_INOUT_ARG_UNEXPECTED: Code = Code::new("E0714");
-    /// `::class` written on a class side that is not statically known —
-    /// `$obj::class`, `($e)::class`, and `static::class`.
+    /// `::class` written on a side that carries no class — ADR 0144 § 2.
     ///
-    /// PHP answers the *runtime* class in all three. Novis's `Foo::class` is a
-    /// compile-time constant string and nothing else: an object carries no
-    /// name a program can read back (ADR 0011 puts every reflective question
-    /// on `Core\Reflect`), so there is no value to hand back for the first
-    /// two. `static::class` is the third and the one that would be *silently*
-    /// wrong rather than absent — ADR 0008 binds `static` to whichever class
-    /// the call was made on, so folding it would answer the declaring class
-    /// instead. `self::class` and `parent::class` name a class the compiler
-    /// resolves and are not refused.
+    /// `::class` answers the class the value *is*, so the operand has to carry
+    /// one. An object does, and a `class<T>` does; `static::class` and
+    /// `$obj::class` both lower (ADR 0144 § 1), reading the name off a
+    /// descriptor the frame already holds. What is left is the operand that
+    /// might hold a class and might not, and the one that never can:
+    ///
+    /// * a `mixed` or a `?T` — accepting it would put a tag test and a throw
+    ///   behind a spelling that reads like a member read. The narrowing that
+    ///   lifts it is the one `->` already requires, and `Core\Reflect` (ADR
+    ///   0019) is the door for a receiver whose type was genuinely erased.
+    /// * a `class<T>` — already a descriptor, so its name is ADR 0125 § 2's
+    ///   `as string` conversion rather than a member read.
+    /// * anything else — a scalar, an `array<T>`, an enum: it never holds an
+    ///   object at all.
+    ///
+    /// This is where Novis parts company with PHP, which accepts every operand
+    /// and fails at run time on one that turns out not to be an object.
+    ///
+    /// A name that resolves to nothing is not this code: `Bogus::class` is
+    /// [`E_UNDEFINED_CLASS`]'s `E0303`, the same mistake `new Undeclared()`
+    /// takes, because ADR 0144 § 1's fold leaves it nowhere later to be
+    /// caught.
     pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
     // `E0703` is retired and is never reused: `spawn script` refused its own
     // construct until `nvs-ir` had an arm for it, and it lowers now.

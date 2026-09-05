@@ -797,31 +797,39 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
 pub(crate) fn check_class_name_const(
     expr: &Expr,
     class: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
     // `static::class` is the one class side that resolves *and* is wrong to
-    // fold. ADR 0008's late static binding makes `static` whichever class the
+    // fold: ADR 0008's late static binding makes `static` whichever class the
     // call was made on, so an inherited method's `static::class` is the
-    // subclass in PHP and would be the declaring class here — a silently
-    // different string rather than a refusal. The name is reachable at run
-    // time (the frame carries a `Ty::ClassDesc`), so this is a lowering that
-    // does not exist yet rather than a thing the language lacks; until it
-    // does, `self::class` is the spelling that means what this folds to.
-    if matches!(class.kind, ExprKind::StaticExpr) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_CLASS_NAME_CONST_NOT_STATIC,
-                "`::class` needs a class named at compile time",
-            )
-            .with_primary(class.span, "`static` is not known until the call runs")
-            .with_help(
-                "ADR 0008 binds `static` to whichever class the call was made on, so folding \
-                 it here would answer the declaring class instead — write `self::class` if \
-                 that is what was meant",
-            ),
-        );
+    // subclass, and folding it would answer the declaring class instead. The
+    // frame already holds that class as a `Ty::ClassDesc` — parameter 0 in a
+    // `static` method, `$this`'s own descriptor in an instance one — so this
+    // records the run-time entry and `nvs-ir` reads the name off it.
+    //
+    // Whether `static` has a class at all is not this function's question:
+    // `resolve_class_expr` answers `None` outside one, and the arm below
+    // reports it with the same code every other unresolvable side takes.
+    if matches!(class.kind, ExprKind::StaticExpr) && ctx.current_class.is_some() {
+        env.exprs.record(expr.span, ExprInfo::ClassNameOf);
         return env.interner.string();
+    }
+    // A class side that is not name-shaped is an *expression*, and the only
+    // one that carries a class at run time is an object: its descriptor is one
+    // load at `nvs_runtime::OBJ_CLASS_OFFSET`, which is the same load
+    // `$obj->method()` already makes. Checking it as a value here is safe
+    // precisely because it is not name-shaped — the four name-shaped sides
+    // return above or resolve below, so the `E0319`/`E0321`-on-every-`Foo::`
+    // problem this function's docs describe cannot arise.
+    if !matches!(
+        class.kind,
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
+    ) {
+        let recv_ty = check_expr(class, None, live, scope, ctx, env);
+        return check_dynamic_class_name_const(class, expr, recv_ty, env);
     }
     match resolve_class_expr(class, ctx, env) {
         Some(qname) => {
@@ -851,6 +859,10 @@ pub(crate) fn check_class_name_const(
             let value = crate::defaults::ConstArg::Str(qname.to_string());
             env.exprs.record(expr.span, ExprInfo::CoreConst { value });
         }
+        // `self`, `static` or `parent` written outside any class — the only
+        // sides left that resolve to nothing, every other shape having been
+        // answered above. There is no enclosing declaration for the name to
+        // come from and no receiver to read one off.
         None => {
             env.diags.report(
                 Diagnostic::error(
@@ -859,13 +871,90 @@ pub(crate) fn check_class_name_const(
                 )
                 .with_primary(class.span, "this names no class the compiler can resolve")
                 .with_help(
-                    "write the class itself — `Foo::class`, `self::class` — or take the \
-                     question to the type system. An object carries no name a program can \
-                     read back: ADR 0011 puts every reflective question on `Core\\Reflect`",
+                    "`self`, `static` and `parent` each name a class through the declaration \
+                     they are written in, and there is none here — write the class itself, \
+                     `Foo::class`",
                 ),
             );
         }
     }
+    env.interner.string()
+}
+
+/// `$obj::class` and every other class side that is an expression rather than
+/// a name — [`check_class_name_const`]'s second half, split out because the
+/// accept and the refusal are one `match` over the operand's type and the
+/// function above is already long.
+///
+/// **An object is the only operand that carries a class at run time.** Its
+/// descriptor is one load at `nvs_runtime::OBJ_CLASS_OFFSET` and the name is
+/// read off that, so `$obj::class` answers the class the receiver *is* rather
+/// than the class its variable was declared as — which is PHP's own rule, and
+/// the reason it cannot be folded even where the declared type is known: a
+/// `User $u = new Admin();` must still answer `Admin`.
+///
+/// Everything else is [`code::E_CLASS_NAME_CONST_NOT_STATIC`], and the three
+/// refusals differ only in what the help points at:
+///
+/// * a `class<T>` **is** a class reference already, so the name is a
+///   conversion rather than a member read — ADR 0125 § 2's `class<T>` →
+///   `string` row, `$c as string`.
+/// * a `mixed` or a union might hold an object and might not. Accepting it
+///   would put a tag test and a throw behind a spelling that reads like a
+///   field read, so it is refused in favour of narrowing it first — or of
+///   `Core\Reflect::forObject`, which is the member whose whole job is the
+///   erased receiver (ADR 0011).
+/// * anything else never holds an object at all.
+fn check_dynamic_class_name_const(
+    class: &Expr,
+    expr: &Expr,
+    recv_ty: TypeId,
+    env: &mut Env<'_>,
+) -> TypeId {
+    // A `?Foo` reaches the same refusal a `mixed` does, and deliberately: the
+    // `null` half carries no descriptor, so the accepted spelling would have
+    // to throw on it. `if ($obj !== null)` narrows to the class half and the
+    // read below then lowers, which is the same shape `->` already requires of
+    // a nullable receiver.
+    let erased = env.interner.is_nullable(recv_ty);
+    let help = match env.interner.get(recv_ty) {
+        Ty::Class(..) | Ty::Object if !erased => {
+            env.exprs.record(expr.span, ExprInfo::ClassNameOf);
+            return env.interner.string();
+        }
+        Ty::ClassRef(_) => {
+            "a `class<T>` is already a class reference, so its name is a conversion rather \
+             than a member read — write `as string`"
+        }
+        _ if erased => {
+            "narrow it to a class first — `if ($v instanceof Foo)`, or a `!= null` test — \
+             or ask `Core\\Reflect::forObject($v)`, whose description carries the name for a \
+             receiver whose type was erased"
+        }
+        Ty::Mixed => {
+            "narrow it to a class first — `if ($v instanceof Foo)` — or ask \
+             `Core\\Reflect::forObject($v)`, whose description carries the name for a \
+             receiver whose type was erased"
+        }
+        _ => {
+            "only an object carries a class at run time. Write the class itself — \
+             `Foo::class`, `self::class`, `static::class`"
+        }
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLASS_NAME_CONST_NOT_STATIC,
+            "`::class` needs a class named at compile time",
+        )
+        .with_primary(
+            class.span,
+            format!(
+                "this is a `{}`, which names no class",
+                env.interner.describe(recv_ty)
+            ),
+        )
+        .with_help(help),
+    );
     env.interner.string()
 }
 

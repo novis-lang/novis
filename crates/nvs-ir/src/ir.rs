@@ -1571,6 +1571,23 @@ pub enum Helper {
     FloatToString,
     /// `bool` to `"1"`/`""`, PHP's own bool-to-string rule.
     BoolToString,
+    /// A [`Ty::ClassDesc`] to the class's own fully qualified name — the
+    /// run-time half of `::class`, and the only way a name leaves a
+    /// descriptor.
+    ///
+    /// The operand needs no conversion to reach this: `nvs_codegen::ty::tag_of`
+    /// already spells a [`Ty::ClassDesc`] slot as a `Tag::Null` byte with the
+    /// address in the payload, which is exactly what
+    /// `nvs_runtime::Value::as_class_desc` reads. So the descriptor rides into
+    /// the helper in the representation it already had.
+    ///
+    /// **What it costs:** one `NvsStr` allocation per evaluation, charged to
+    /// the isolate that asked. A descriptor is process-wide and its name never
+    /// changes, so one cached string per class would remove the allocation —
+    /// and is deliberately *not* done: that payload is reference counted, and
+    /// sharing one across isolates is the request-isolation boundary
+    /// [AGENTS.md](/AGENTS.md)'s first priority does not trade.
+    ClassDescName,
     /// `int` truthiness: falsy iff `0`.
     IntTruthy,
     /// `uint` truthiness: falsy iff `0`.

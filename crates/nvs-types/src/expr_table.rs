@@ -745,6 +745,25 @@ pub enum ExprInfo {
         /// The constant's value, in its declared type.
         value: ConstArg,
     },
+    /// `static::class` and `$obj::class` — a `::class` whose answer is not
+    /// known until the call runs, and the one shape that is *not* folded into
+    /// an [`Self::CoreConst`] beside it.
+    ///
+    /// Both spellings are the same question asked of a class descriptor the
+    /// frame already holds, which is why they share one entry: `static::class`
+    /// reads the frame's late-static-binding class
+    /// ([`nvs_ir::lower`'s `Lowering::lsb`](/crates/nvs-ir/src/lower/mod.rs)),
+    /// and `$obj::class` reads the receiver's own
+    /// ([`nvs_ir::ir::InstKind::ClassDescOf`]). `nvs-ir` picks which by
+    /// matching the class side's own `ExprKind`, so nothing about *which*
+    /// descriptor needs recording here — what this entry carries is the fact
+    /// that the checker accepted a run-time `::class` at all, which keeps
+    /// `nvs-ir`'s folded arm a checker invariant rather than a guess.
+    ///
+    /// A `Foo::class`/`self::class`/`parent::class` never reaches this: those
+    /// name a class the compiler resolves, so ADR 0011's "inlined at every use
+    /// site" still holds for them and they stay [`Self::CoreConst`].
+    ClassNameOf,
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
     /// written-out string —
     /// [ADR 0126](/docs/adr/0126-a-property-key-is-a-checked-name-and-as-is-its-only-source.md)

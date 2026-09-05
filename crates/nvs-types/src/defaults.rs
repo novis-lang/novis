@@ -407,11 +407,12 @@ pub(crate) fn fold_const_reference(
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
     match &expr.kind {
-        // `static::class` resolves here — to the *declaring* class, which ADR
-        // 0008's late static binding makes the wrong answer, and which
-        // `crate::expr::members::check_class_name_const` refuses to fold for
-        // exactly that reason. Left unfolded rather than answered differently
-        // in two places.
+        // `static::class` would resolve here to the *declaring* class, which
+        // ADR 0008's late static binding makes the wrong answer: ADR 0144 § 1
+        // reads it off the frame's called class instead, and a constant
+        // initializer has no frame to read. Left unfolded rather than answered
+        // differently in two places — the read then takes `E0792`, the same
+        // code every other constant with no compile-time form takes.
         ExprKind::ClassNameConst { class } if !matches!(class.kind, ExprKind::StaticExpr) => {
             let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
             Some(ConstArg::Str(qname.to_string()))

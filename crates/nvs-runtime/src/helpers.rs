@@ -90,6 +90,25 @@ crate::nvs_helper! {
 }
 
 crate::nvs_helper! {
+    /// `nvs_ir::Helper::ClassDescName`.
+    fn nvs_class_desc_name(_ctx, args: [1]) {
+        let desc = expect_tag!("nvs_class_desc_name", args[0], as_class_desc, Tag::Null);
+        // A descriptor is owned by the unit's `ClassTable` and outlives every
+        // frame that can name one, so this read needs no lifetime beyond the
+        // call — the same borrow `nvs_stdlib::reflect` takes of a receiver's
+        // own class. `as_class_desc` has already rejected the null payload.
+        #[allow(
+            unsafe_code,
+            reason = "a `Ty::ClassDesc` slot carries a descriptor address by \
+                      construction (`nvs_codegen::ty::tag_of`), and the \
+                      `ClassTable` that owns it outlives the unit"
+        )]
+        let name = unsafe { (*desc).name() };
+        Ok(Value::str(NvsStr::new(name.as_bytes())))
+    }
+}
+
+crate::nvs_helper! {
     /// `nvs_ir::Helper::IntTruthy`.
     fn nvs_int_truthy(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_truthy", args[0], as_int, Tag::Int);
@@ -2716,6 +2735,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_uint_to_string", address(nvs_uint_to_string)),
         ("nvs_float_to_string", address(nvs_float_to_string)),
         ("nvs_bool_to_string", address(nvs_bool_to_string)),
+        ("nvs_class_desc_name", address(nvs_class_desc_name)),
         ("nvs_int_truthy", address(nvs_int_truthy)),
         ("nvs_uint_truthy", address(nvs_uint_truthy)),
         ("nvs_float_truthy", address(nvs_float_truthy)),
