@@ -2,61 +2,71 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 § 1's carrier is on disk and nothing fills it yet.**
-`nvs_runtime::Upgrade` is the prepared connection isolate — a `nvs_runtime::script::Program`
-and the already-crossed `args`, exactly `nvs_host::Isolate::new`'s first two arguments
-(`crates/nvs-runtime/src/ctx/inbound.rs:693`) — and `nvs_runtime::UpgradeSlot` is the shared
-cell it is left in (`crates/nvs-runtime/src/ctx/inbound.rs:746`), whose `fill` refuses a
-second upgrade by handing it back rather than overwriting. `nvs_server::serve_connection`
-offers one half to a request `hyper` framed an upgrade for and to no other, keeping the other
-half beside the `OnUpgrade` it took off the extensions (`crates/nvs-server/src/serve.rs:666`);
-the offer reaches the request's carrier through `nvs_host::Isolate::offering_upgrade`
-(`crates/nvs-host/src/isolate.rs:211`), because the door never holds an `Inbound` — the
-handler it asks for a reply is what builds one. **The design's home is unchanged**:
-`crates/nvs-stdlib/src/socket.rs`'s module doc, § *Decision: this member spawns nothing, and
-the connection starts it*.
+**Goal 6, M7 — ADR 0083 § 1's connection isolate starts.** `serve_connection` takes the
+slot's other half after the request has joined and starts
+`Isolate::new(program, args, Output::Capture)` from the **connection's** own context
+(`crates/nvs-server/src/serve.rs:806`), keeping the handle beside `ctx` and joining it after
+`hyper`'s connection future ends (`crates/nvs-server/src/serve.rs:854`). **No `101`, decided
+rather than deferred**: nothing can frame a byte yet, so the upgrading request answers its own
+ordinary response and the status, the `OnUpgrade` and the socket hand-over are the framing
+slice's — that function's doc comment is the home of the reasoning. **The member still throws**
+(`crates/nvs-stdlib/src/socket.rs:236`).
 
-**The member still throws** (`crates/nvs-stdlib/src/socket.rs:236`), and that module's doc
-owns the gap list. The driver's stage-6b check is now two: § 1's three tests and § 5's one
-stay `-p nvs-server`, §§ 2-3's four moved to a `-p nvs-stdlib` check of their own —
-`docs/agent/loop-goal.toml:3738` and the seed at `docs/agent/goals/6-server.toml:3737`, both
-edited so `goal-switch.py` does not restore the old filing. Both still fail on tests that do
-not exist yet, which is this goal's ordinary state.
+**§ 1's third test is not writable, and the reason is a leak on the request path.**
+`nvs_host::Scheduler` keeps every finished task's whole `Ctx`
+(`crates/nvs-host/src/scheduler.rs:881`) and nothing under a server drains it, so a served
+request's carrier and arena live as long as the process — O(requests served), which is ADR
+0004's own definition of a leak. `docs/agent/playbook.md` § *Writing a test case* owns the
+diagnosis and the tell; `crates/nvs-server/src/serve.rs:1875` says why the case is absent.
+
+**§ 5's check needs a decision before its test can exist.** The offer is gated on `hyper`
+leaving an `OnUpgrade`, and SSE is not an HTTP upgrade — a `Core\Sse::upgrade` request is an
+ordinary `200` — so `sse_is_a_connection_isolate_with_no_receive` cannot reach a slot on
+today's door.
 
 ## Next group
 
-**§ 1's other half, then the member.** One file set: `crates/nvs-server/src/serve.rs`,
-`crates/nvs-stdlib/src/socket.rs`, `crates/nvs-host/src/isolate.rs`.
+**The retention first, then § 1's last test over it.** Item 1's file set is
+`crates/nvs-host/src/scheduler.rs` and `crates/nvs-cli/`; items 2 and 3 are
+`crates/nvs-server/src/serve.rs` and `crates/nvs-runtime/src/ctx/inbound.rs`. Item 1 is first
+because it is a leak, and because two of this goal's checks cannot be honest until it lands.
 
-- [ ] **The connection starts it, and the upgrading request ends** — after the join at
-      `crates/nvs-server/src/serve.rs:760`, take the slot's other half, and start
-      `Isolate::new(program, args, Output::Capture)` from the *connection's* own context
-      (`crates/nvs-host/src/isolate.rs:267`), which is what makes it the request's sibling.
-      § 1's three `-p nvs-server` tests land here and can be written with no compiler: a
-      hand-written request `Program` fills the slot exactly as the member will.
-      **Decide the `101` before writing it.** RFC 6455's `Sec-WebSocket-Accept` needs the
-      framing crate (`tungstenite`, the goal's standing decision) and nothing can frame a
-      byte yet, so answering `101` now would hand a peer a socket no code reads; the safe
-      call is to start the isolate, let the request answer its own response, and record in
-      the `serve_connection` doc that the status and the socket hand-over are the framing
-      slice's. Say which you chose there either way.
-- [ ] **The member fills the slot** — both of § 2's entry forms into one `Program`
-      (`crates/nvs-stdlib/src/socket.rs:236` is the throwing body,
-      `crates/nvs-runtime/src/script.rs:98` is what a `Program` owes its context). A path goes
-      through `nvs_runtime::script`'s resolver; a method arrives as the first-class callable
-      `nvs_ir`'s `lower_callable` builds, so its program is a closure over that retained value
-      plus the request unit's statics recipes and class table. A request with no slot
-      (`Inbound::upgrade_slot()` is `None`) is the throw off a CLI program and inside a
-      `spawn script` child. §§ 2-3's check is `-p nvs-stdlib` now.
-- [ ] **The capability row and the gap list** — the slice that opens the connection owes
-      `crates/nvs-stdlib/src/registry.rs`'s `CAPABILITIES` row for reading the entry file,
-      which `crates/nvs-stdlib/src/socket.rs:21` says cannot be written ahead of the body.
+- [ ] **A finished task's context is not kept for a task nobody will collect** — `Finished`
+      carries the `Ctx` a request boundary reads back (`crates/nvs-host/src/scheduler.rs:542`),
+      and the `Return` arm pushes one per task (`crates/nvs-host/src/scheduler.rs:881`) onto a
+      list only `take_finished` empties (`crates/nvs-host/src/scheduler.rs:1012`). The two
+      production consumers both `find(|f| f.id == root)` a single **root** task
+      (`crates/nvs-cli/src/main.rs:1249`, `crates/nvs-cli/src/runner.rs:356`), and a child's
+      answer is delivered through whatever spawned it — `Isolate`'s own slot
+      (`crates/nvs-host/src/isolate.rs:392`) — never through this list, so a child's context
+      buys nothing by being held. The ids must stay: `run_until_idle` reads them for ADR 0115
+      § 2's reactor deregistration (`crates/nvs-host/src/reactor.rs:759`). Decide and record
+      whether the `Ctx` becomes optional or the list is scoped to roots; say what it spends in
+      the `Finished` doc either way.
+- [ ] **§ 1's arena test, once the retention is fixed** — write
+      `the_upgrading_requests_arena_is_released_while_the_connection_is_open` where the comment
+      now stands (`crates/nvs-server/src/serve.rs:1875`): `upgrade_leaving` already puts two
+      readings of `nvs_runtime::budget::live_bytes` into `said`
+      (`crates/nvs-server/src/serve.rs:1762`), and `upgrade_once`
+      (`crates/nvs-server/src/serve.rs:1789`) is the whole fixture. Two mebibytes on the
+      request's carrier, and assert the drop rather than that the connection ran.
+- [ ] **The member fills the slot** — both of ADR 0083 § 2's entry forms into one
+      `nvs_runtime::Program` (`crates/nvs-stdlib/src/socket.rs:236`), left in the slot the door
+      offers (`crates/nvs-runtime/src/ctx/inbound.rs:667`). `crates/nvs-server/src/serve.rs:1725`
+      is the hand-written `Upgrade` the tests fill it with, which is the shape the member owes.
+- [ ] **§ 5's SSE decision, then its test** — the offer is `hyper`'s `OnUpgrade` and nothing
+      else (`crates/nvs-server/src/serve.rs:697`), so an SSE request — an ordinary `200`, no
+      protocol upgrade — reaches its program with no slot. Either the slot is offered to every
+      request and *what the door may do with it* is what `OnUpgrade` gates
+      (`crates/nvs-runtime/src/ctx/inbound.rs:657` would carry the flag), or § 5 gets a second
+      door path. The first keeps one mechanism, which is § 1's whole argument; it also rewrites
+      `only_an_upgradable_request_is_offered_a_slot`
+      (`crates/nvs-server/src/serve.rs:1655`), so decide it before writing either.
 
 ## Backlog
 
-- `Core\Sse` § 5 and `Core\Topic` § 4 are unregistered — `crates/nvs-stdlib/src/socket.rs`'s
-  module doc owns the gap list.
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, narrowed
-  by `docs/plan/m7.md`.
-- `origin.ignored_address_header()` is ADR 0097 § 6's one `Warn` and still has nowhere to go —
-  `crates/nvs-server/src/serve.rs`'s service closure.
+- `Core\Socket`'s capability row and gap list — `crates/nvs-stdlib/src/socket.rs`'s module doc.
+- The `101`, `tungstenite` framing and the socket hand-over — ADR 0083 §§ 3-4, and
+  `serve_connection`'s doc names what it is holding for them.
+- A pipelined request behind an upgraded one is undefined at the door —
+  `crates/nvs-server/src/serve.rs:601`.

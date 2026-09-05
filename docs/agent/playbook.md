@@ -5466,6 +5466,20 @@ is why" — is this file.
   `OnUpgrade` in the request's extensions **only** for a request it framed an upgrade for, so
   `request.extensions().get::<hyper::upgrade::OnUpgrade>()` is the whole of "can this connection be
   upgraded" and no test or door needs to re-read `Connection:` for itself.
+- **A test that asserts memory was *released* fails on the scheduler rather than on the code
+  under test, because `nvs_host::Scheduler` keeps every finished task's whole `Ctx`.**
+  `CoroutineResult::Return` pushes a `Finished { id, ctx, outcome }` onto `self.finished`
+  (`crates/nvs-host/src/scheduler.rs:881`) and nothing but `take_finished` ever removes one —
+  `run_until_idle` deliberately only *reads* the ids for ADR 0115 § 2's reactor
+  deregistration, and the two production callers are `nvs-cli`'s, after the whole run
+  (`crates/nvs-cli/src/main.rs:1249`, `crates/nvs-cli/src/runner.rs:356`). So an isolate's
+  context — its carrier, its arena, its output — outlives the join that collected it, and a
+  case reading `nvs_runtime::budget::live_bytes` before and after sees no drop however long it
+  sleeps in between. Two mebibytes of query on a request's carrier came back within 16 KiB of
+  itself. The tell that it is the scheduler and not the join: the same reading taken after
+  `run_until_idle` *returns* — where the `Scheduler` itself is dropped — falls to a few
+  hundred bytes. Anything asserting a release before then has to drain the list first, and
+  under a server nobody does, which is the bug rather than the workaround.
 
 ## Splitting a file that got too big
 
