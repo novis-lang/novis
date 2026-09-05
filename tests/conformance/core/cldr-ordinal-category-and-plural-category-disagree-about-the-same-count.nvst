@@ -1,0 +1,38 @@
+--TEST--
+`Core\Cldr::ordinalCategory` and `Core\Cldr::pluralCategory` answer the same count differently, which is why they are two members over two tables — ADR 0082 § 2
+--FILE--
+<?nvs
+// English marks a `2nd` and makes no plural distinction at 2. Russian is the
+// exact reverse: `2` is its `few` for an amount and is unmarked as a place.
+// One member serving both would have to pick, and either pick is wrong in one
+// of the two directions.
+echo "en 2 as a place: ", Core\Cldr::ordinalCategory(2, "en") == Core\Cldr\PluralCategory::Two ? "two" : "other", "\n";
+echo "en 2 as an amount: ", Core\Cldr::pluralCategory(2, "en") == Core\Cldr\PluralCategory::Other ? "other" : "two", "\n";
+echo "ru 2 as a place: ", Core\Cldr::ordinalCategory(2, "ru") == Core\Cldr\PluralCategory::Other ? "other" : "few", "\n";
+echo "ru 2 as an amount: ", Core\Cldr::pluralCategory(2, "ru") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
+
+// Counted rather than read off those four lines: over the first twenty counts
+// the two members disagree twice in English — at 2 and at 3, the counts it
+// marks as places and not as amounts — and at every single one in Russian,
+// which marks no place at all and five bands of amount. A member answering the
+// plural table for both would print `0` on the first row and `0` on the
+// second.
+int $englishApart = 0;
+int $russianApart = 0;
+for (int $n = 1; $n <= 20; $n = $n + 1) {
+    if (Core\Cldr::ordinalCategory($n, "en") != Core\Cldr::pluralCategory($n, "en")) {
+        $englishApart = $englishApart + 1;
+    }
+    if (Core\Cldr::ordinalCategory($n, "ru") != Core\Cldr::pluralCategory($n, "ru")) {
+        $russianApart = $russianApart + 1;
+    }
+}
+echo "en apart: ", $englishApart, " of 20\n";
+echo "ru apart: ", $russianApart, " of 20\n";
+--EXPECT--
+en 2 as a place: two
+en 2 as an amount: other
+ru 2 as a place: other
+ru 2 as an amount: few
+en apart: 2 of 20
+ru apart: 20 of 20

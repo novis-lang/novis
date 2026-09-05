@@ -1,0 +1,55 @@
+--TEST--
+`Core\Cldr::ordinalCategory` answers the form a place takes, which is a second CLDR table and not the plural one — ADR 0082 § 2
+--FILE--
+<?nvs
+// These are the forms `1st`, `2nd`, `3rd` and `4th` take — not the forms
+// `1 file` and `2 files` take, which is the other member. English marks three
+// of the six and puts everything else in `Other`, and the marks are moduli:
+// 21 is `1st` and 11 is not.
+array<int> $places = [1, 2, 3, 4, 11, 12, 13, 21];
+foreach ($places as int $place) {
+    var $form = Core\Cldr::ordinalCategory($place, "en");
+    string $name = $form == Core\Cldr\PluralCategory::One ? "one" : ($form == Core\Cldr\PluralCategory::Two ? "two" : ($form == Core\Cldr\PluralCategory::Few ? "few" : "other"));
+    echo $place, ": ", $name, "\n";
+}
+
+// Welsh marks all five and is the only language whose ordinals reach `Zero`,
+// which is why the member answers the same six-case enum the plural one does
+// rather than a second one of its own.
+array<int> $welsh = [0, 1, 2, 3, 5, 10];
+foreach ($welsh as int $place) {
+    var $welshForm = Core\Cldr::ordinalCategory($place, "cy");
+    string $welshName = $welshForm == Core\Cldr\PluralCategory::Zero ? "zero" : ($welshForm == Core\Cldr\PluralCategory::One ? "one" : ($welshForm == Core\Cldr\PluralCategory::Two ? "two" : ($welshForm == Core\Cldr\PluralCategory::Few ? "few" : ($welshForm == Core\Cldr\PluralCategory::Many ? "many" : "other"))));
+    echo "cy ", $place, ": ", $welshName, "\n";
+}
+
+// Italian's whole rule is four counts, and 8000 is not one of them — a rule
+// read as "a multiple of 8" would answer the first three rows correctly.
+array<int> $italian = [8, 11, 80, 800, 8000];
+int $marked = 0;
+foreach ($italian as int $place) {
+    if (Core\Cldr::ordinalCategory($place, "it") == Core\Cldr\PluralCategory::Many) {
+        $marked = $marked + 1;
+    }
+}
+echo "it marked: ", $marked, " of 5\n";
+
+// Only the language subtag is read, exactly as the plural member reads it.
+echo "en-GB 3: ", Core\Cldr::ordinalCategory(3, "en-GB") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
+--EXPECT--
+1: one
+2: two
+3: few
+4: other
+11: other
+12: other
+13: other
+21: one
+cy 0: zero
+cy 1: one
+cy 2: two
+cy 3: few
+cy 5: many
+cy 10: other
+it marked: 4 of 5
+en-GB 3: few

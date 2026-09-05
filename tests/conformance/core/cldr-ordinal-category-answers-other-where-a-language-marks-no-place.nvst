@@ -1,0 +1,45 @@
+--TEST--
+`Core\Cldr::ordinalCategory` answers `Other` for a language that marks no ordinal form, and still refuses one it carries no rules for at all — ADR 0082 § 2, ADR 0095
+--FILE--
+<?nvs
+// Most languages mark no ordinal form: German writes `1.` for every place and
+// Japanese writes none. CLDR files them as one bucket rather than omitting
+// them, so `Other` is an answer here and not a gap — which is the one place
+// this member differs from `pluralCategory`, whose absent language throws.
+array<string> $unmarked = ["de", "ja", "pl", "zu"];
+foreach ($unmarked as string $locale) {
+    int $others = 0;
+    for (int $n = 1; $n <= 8; $n = $n + 1) {
+        if (Core\Cldr::ordinalCategory($n, $locale) == Core\Cldr\PluralCategory::Other) {
+            $others = $others + 1;
+        }
+    }
+    echo $locale, ": ", $others, " of 8 unmarked\n";
+}
+
+// The boundary both members share is the language itself. One neither table
+// carries is refused rather than given another's rules, and the message names
+// the member that could not answer.
+try {
+    Core\Cldr::ordinalCategory(1, "tlh");
+    echo "not reached\n";
+} catch (LogicError $unknownLanguage) {
+    echo $unknownLanguage->message, "\n";
+}
+
+// And a tag with no language subtag in it is that same refusal, not a silent
+// `Other` — the answer above is about a language, never about a locale the
+// member could not read.
+try {
+    Core\Cldr::ordinalCategory(1, "-GB");
+    echo "not reached\n";
+} catch (LogicError $noSubtag) {
+    echo $noSubtag->message, "\n";
+}
+--EXPECT--
+de: 8 of 8 unmarked
+ja: 8 of 8 unmarked
+pl: 8 of 8 unmarked
+zu: 8 of 8 unmarked
+Core\Cldr::ordinalCategory carries no plural rules for the language `tlh`: a language is never given another one's rules, because a catalog written against the wrong forms reads correctly for one count and wrongly for the rest
+Core\Cldr::ordinalCategory read no language subtag from the locale `-GB`: a tag begins with letters
