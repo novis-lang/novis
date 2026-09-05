@@ -572,12 +572,20 @@ const ROUTE_DOC: MethodDoc = MethodDoc {
           where nothing in the table claimed this method and path — which is a served request \
           like any other, since matching dispatches nothing. A program declaring no `#[Route]` \
           builds no table and reads `null` here for the same reason.",
-    errors: &[ErrorDoc {
-        error: "LogicError",
-        desc: "This program is not answering a request, as a CLI program, a scheduled script, a \
-               job worker and a test are not — refused rather than answered `null`, because \
-               \"no request arrived\" and \"nothing matched\" are different facts.",
-    }],
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "This program is not answering a request, as a CLI program, a scheduled script, \
+                   a job worker and a test are not — refused rather than answered `null`, because \
+                   \"no request arrived\" and \"nothing matched\" are different facts.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A capture percent-decodes to octets that are not UTF-8, so it has no `tainted \
+                   string` to bind to; the throw names the capture and the offset of the first \
+                   byte a `string` cannot hold.",
+        },
+    ],
 };
 
 /// `Core\Request::mount`'s reference card — ADR 0117.
@@ -1633,7 +1641,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_request_route(ctx, _args: [0]) {
         let inbound = inbound_of(ctx, "route")?;
         Ok(match inbound.route() {
-            Some(matched) => crate::router::match_value(matched),
+            Some(matched) => crate::router::match_value(matched)?,
             None => Value::null(),
         })
     }

@@ -1113,6 +1113,34 @@ fn decoded(octets: Vec<u8>) -> HelperResult {
     Ok(Value::bytes(NvsStr::new(&octets)))
 }
 
+/// The route capture `name`'s segment text, percent-decoded, or a throw where
+/// its octets are not UTF-8.
+///
+/// Here rather than in [`crate::router`] because this module owns the decoder:
+/// `nvs_runtime::routes`' module doc states that rule from the other side, and
+/// a second walk beside [`decode`] is the two-that-agree-today shape the
+/// tainted laundering rules exist to prevent. [`Form::Component`] and not
+/// [`Form::FormValue`], since a capture is a path segment where `+` is a
+/// literal plus.
+///
+/// # Errors
+///
+/// A [`Fault::thrown`] naming the capture and the offset of the first byte no
+/// `string` can hold. Unlike this module's own two decoders, a capture has no
+/// `bytes` to answer with — [`crate::router::capture_value`]'s doc owns why —
+/// so the refusal is the answer, and the offset is a position in a path the
+/// peer supplied, which is the one fact that makes it actionable.
+pub(crate) fn decode_capture(text: &str, name: &str) -> Result<String, Fault> {
+    String::from_utf8(decode(text, Form::Component)).map_err(|error| {
+        Fault::thrown(format!(
+            "the route capture `{name}` percent-decodes to a byte a `string` cannot hold — byte \
+             {} begins a sequence that is not valid UTF-8. A capture binds as a `tainted string`, \
+             so a path segment escaping an octet outside UTF-8 has no capture to become",
+            error.utf8_error().valid_up_to()
+        ))
+    })
+}
+
 // ============================================================================
 // The grammar — RFC 3986 through `fluent-uri`, and the instance it fills
 // ============================================================================

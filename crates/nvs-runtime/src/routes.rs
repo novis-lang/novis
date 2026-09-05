@@ -47,6 +47,16 @@
 //! per capture, which is the segment text it converted. O(in-flight requests),
 //! per [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
 //!
+//! **A capture leaves this crate as the segment arrived, still
+//! percent-encoded**, and is decoded once on the far side of the crossing.
+//! [`Route::convert`] is why the decode cannot be here: it runs first, so a
+//! segment decoded before it would let `%34` reach a `{n: uint}` route as `4`.
+//! The decoder is `nvs_stdlib::uri`'s — a second one here would be the
+//! two-that-agree-today failure the tainted laundering rules exist to prevent —
+//! and `nvs_stdlib::router`'s `capture_value` is both the crossing and the home
+//! of that rule, including what a capture whose octets are not UTF-8 becomes. A
+//! `uint` capture is unaffected either way: no digit has an encoded spelling.
+//!
 //! # Known gaps
 //!
 //! 1. **The walk is a linear scan, not ADR 0077 § 2's trie.** § 1's measured
@@ -63,11 +73,6 @@
 //!    dispatch ADR 0077 § 4 refuses. Nothing needs them yet, and the day
 //!    something does is the day that refusal is re-argued rather than widened
 //!    here.
-//! 3. **A capture's value is the segment as it arrived, still percent-encoded.**
-//!    Decoding is `nvs_stdlib::uri`'s, one crate above this one, and a second
-//!    decoder here would be the two-that-agree-today failure the tainted
-//!    laundering rules exist to prevent. A `uint` capture is unaffected — no
-//!    digit has an encoded spelling.
 
 use std::sync::Arc;
 

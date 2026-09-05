@@ -57,14 +57,7 @@
 //!    reason and says so where a program can see it: it reads
 //!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
 //!    resolved none, rather than answering an empty authority.
-//! 3. **`match` is absent.** § 4's last member answers a *request* against a
-//!    second, program-chosen path, and `docs/agent/loop-goal.md` § *Standing
-//!    decisions* keeps it out of scope on purpose. The type it would answer
-//!    with is here — [`MATCH`], reached through `Core\Request::route()` — and
-//!    the table it would walk is now reached, by [`nvs_core_router_methods_for`]
-//!    through [`Ctx::routes`](nvs_runtime::Ctx::routes), so what it still owes
-//!    is the member and nothing under it.
-//! 4. **The parse of a verb into one of these cases is [`crate::request`]'s**,
+//! 3. **The parse of a verb into one of these cases is [`crate::request`]'s**,
 //!    not this module's — `Core\Request::method` is the one reader that turns a
 //!    method token into a case, and its module doc owns the two decisions in
 //!    it: `HEAD` answering `Get`, and a token outside this roster being refused
@@ -209,15 +202,20 @@ const PARAMS: CoreTy = CoreTy::Array(&CoreTy::Mixed);
 /// disagree with the first about what `Delete` looks like.
 const METHODS: CoreTy = CoreTy::Array(&CoreTy::Enum(METHOD_NAME));
 
+/// `?Core\Router\Match`, written once — `match` answers it and so, one class
+/// away, does `Core\Request::route()`.
+const MATCHED: CoreTy = CoreTy::Nullable(&CoreTy::Instance(MATCH_NAME));
+
 /// Spec § 15's `Core\Router`, as much of it as ADR 0077 § 4's link half and
-/// ADR 0102 § 2's other answer need.
+/// ADR 0102 §§ 1-2's two answers need.
 ///
-/// `match` is deliberately absent — it answers *a request*, which belongs with
-/// the server, and `docs/agent/loop-goal.md` § *Standing decisions* keeps it
-/// out of scope. `methodsFor` is here rather than beside it because the
-/// question it asks is not a request's: it is asked *of the table*, about a
-/// path, once § 1's match has already answered `null`, and every input it takes
-/// is the caller's.
+/// `match` asks *of the table*, about a verb and a path the caller chose, and
+/// so does `methodsFor` — neither reads the request, which is why both are here
+/// rather than on `Core\Request`. § 1's own match is the other member entirely:
+/// the door takes it once, before any of this program ran, and
+/// `Core\Request::route()` hands that one back. A program asking this class
+/// about the path it is already serving would be matching twice, which is what
+/// § 1 exists to remove.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -238,6 +236,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Str,
             symbol: "nvs_core_router_url_absolute",
             doc: Some(&URL_ABSOLUTE_DOC),
+        },
+        CoreMethod {
+            name: "match",
+            names: &["method", "path"],
+            params: &[CoreTy::Enum(METHOD_NAME), CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: MATCHED,
+            symbol: "nvs_core_router_match",
+            doc: Some(&MATCH_DOC),
         },
         CoreMethod {
             name: "methodsFor",
@@ -297,6 +304,38 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
         error: "RuntimeError",
         desc: "For everything `url` throws for, and when no origin is configured for the unit, \
                since an origin is never derived from a request header.",
+    }],
+};
+
+/// `Core\Router::match`'s reference card — ADR 0117.
+const MATCH_DOC: MethodDoc = MethodDoc {
+    short: "Matches `$method` and `$path` against this program's compiled route table, answering \
+            the same `Core\\Router\\Match` a served request carries — a question asked of the \
+            table, which dispatches nothing and never reads the request.",
+    params: &[
+        ParamDoc {
+            name: "method",
+            desc: "The verb to match under. A route declared for one verb is not claimed by \
+                   another, so the same path under `Get` and `Post` are two questions.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "path",
+            desc: "The path to match, as a URL path and with no query string; a mount's prefix is \
+                   not stripped here, because nothing about a path the caller chose says which \
+                   mount it was meant for.",
+            shape: &[],
+        },
+    ],
+    ret: "The match — its declared name, and the captures the path filled, each percent-decoded \
+          once and converted to the type its `#[Route]` parameter declared. `null` where no route \
+          claims that verb and path, and for a program that declares no route at all, since a \
+          table nothing built claims nothing.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "A capture percent-decodes to octets that are not UTF-8, so it has no `tainted \
+               string` to bind to; the throw names the capture and the offset of the first byte a \
+               `string` cannot hold.",
     }],
 };
 
@@ -514,6 +553,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_router_url_absolute" => (nvs_core_router_url_absolute as *const ()).cast(),
         "nvs_core_router_link" => (nvs_core_router_link as *const ()).cast(),
         "nvs_core_router_link_absolute" => (nvs_core_router_link_absolute as *const ()).cast(),
+        "nvs_core_router_match" => (nvs_core_router_match as *const ()).cast(),
         "nvs_core_router_methods_for" => (nvs_core_router_methods_for as *const ()).cast(),
         "nvs_core_router_match_name" => (nvs_core_router_match_name as *const ()).cast(),
         "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
@@ -771,15 +811,22 @@ nvs_runtime::nvs_helper! {
 /// The [`MATCH`] one request carries, built out of the match the door already
 /// took — the whole of how [`nvs_runtime::routes`]' row reaches a program.
 ///
-/// `pub(crate)` because the reader is [`crate::request`]'s `route()`: § 1 puts
-/// the match on the request rather than on the router, and the class it answers
-/// with is this module's because `Core\Router\Match` is a `Core\Router` name.
-pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Value {
+/// `pub(crate)` because the readers are [`crate::request`]'s `route()` and
+/// [`nvs_core_router_match`]: § 1 puts the match on the request rather than on
+/// the router, and the class both answer with is this module's because
+/// `Core\Router\Match` is a `Core\Router` name.
+///
+/// # Errors
+///
+/// [`capture_value`]'s throw, whose doc owns the decode this walk performs. The
+/// partly built array is released by its own `Drop` on the way out, so a
+/// refused capture costs the ones already converted and nothing else.
+pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Result<Value, Fault> {
     let mut params = NvsArray::new();
     for (name, capture) in matched.params() {
-        params.set(NvsStr::new(name.as_bytes()), capture_value(capture));
+        params.set(NvsStr::new(name.as_bytes()), capture_value(name, capture)?);
     }
-    crate::instance::build(
+    Ok(crate::instance::build(
         &MATCH,
         [
             match matched.name() {
@@ -788,7 +835,7 @@ pub(crate) fn match_value(matched: &nvs_runtime::routes::Match) -> Value {
             },
             Value::array(params),
         ],
-    )
+    ))
 }
 
 /// Which case of [`METHOD`] a table row's declared verb is, by its ordinal.
@@ -805,6 +852,80 @@ fn method_case(verb: &str) -> Option<i64> {
         .iter()
         .find(|(case, _)| case.eq_ignore_ascii_case(verb))
         .map(|(_, ordinal)| *ordinal)
+}
+
+/// The [`METHOD`] case in `value` as the verb a table row spells, or a fatal.
+///
+/// The inverse of [`method_case`], and its mirror image in what it may assume:
+/// a case crosses as its ordinal (ADR 0010), so what arrives is one of this
+/// roster's own integers and the lookup cannot miss for anything a program
+/// could have written.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`], on [`crate::log`]'s `level_of` terms: the row's
+/// parameter is a [`CoreTy::Enum`], so `E0401` refuses anything that is not a
+/// case of it at the call, and an ordinal outside the roster is a lowering bug
+/// rather than something a `catch` could answer.
+fn method_verb(value: &Value) -> Result<&'static str, Fault> {
+    value
+        .as_int()
+        .and_then(|ordinal| {
+            METHOD
+                .cases
+                .iter()
+                .find(|(_, case)| *case == ordinal)
+                .map(|(name, _)| *name)
+        })
+        .ok_or_else(|| {
+            // Unreachable from source, on `crate::log`'s `level_of` terms: the
+            // row's parameter is a `CoreTy::Enum`, so `E0401` refuses anything
+            // that is not a case of it before this body runs, and a case
+            // crosses as one of this roster's own ordinals.
+            Fault::fatal(format!(
+                "Core\\Router::match expected a `{METHOD_NAME}` case, got tag {} value {:?}",
+                value.tag_byte(),
+                value.as_int()
+            ))
+        })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Router::match(Core\Http\Method $method, tainted string $path): ?Core\Router\Match`
+    /// — ADR 0102 § 1's second entry, over the table
+    /// [`Ctx::routes`](nvs_runtime::Ctx::routes) holds.
+    ///
+    /// **Nothing here is a request**, and that is the whole difference from
+    /// `Core\Request::route()`: the verb and the path are the caller's, the
+    /// walk is [`nvs_runtime::routes::Routes::match_request`]'s — the same one
+    /// the door takes, so the two cannot answer differently about one path —
+    /// and matching still dispatches nothing, which keeps ADR 0077 § 4's
+    /// refusal untouched.
+    ///
+    /// **A program with no `#[Route]` answers `null`**, not a throw, for
+    /// [`nvs_core_router_methods_for`]'s reason: ADR 0077 § 5's table is opt-in
+    /// and "no route claims this path" is exactly true of a program that
+    /// declares none.
+    ///
+    /// **The captures come back decoded**, because [`match_value`] is shared
+    /// with the served-request reader and [`capture_value`] owns that rule for
+    /// both.
+    fn nvs_core_router_match(ctx, args: [2]) {
+        let verb = method_verb(&args[0])?;
+        // Unreachable from source for the reason `methodsFor`'s own read
+        // states: the row's parameter is `CoreTy::Text(Qual::Neutral)`, so
+        // `E0401` refuses anything but a `string` before this body runs.
+        let path = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Router::match expected a `string` path, got tag {}",
+                args[1].tag_byte()
+            ))
+        })?;
+        match ctx.routes().and_then(|table| table.match_request(verb, path)) {
+            Some(matched) => match_value(&matched),
+            None => Ok(Value::null()),
+        }
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -858,14 +979,41 @@ nvs_runtime::nvs_helper! {
 /// the octets crossed as bytes precisely so that the class stays where it is
 /// declared, and [`crate::uuid::of_octets`] is the seam ADR 0067 § 9's `UUID`
 /// column already arrives on.
-fn capture_value(capture: &nvs_runtime::routes::Param) -> Value {
-    match capture {
-        nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(text.as_bytes())),
+///
+/// # A capture is percent-decoded here, once, and this is that rule's home
+///
+/// The text arm decodes; nothing before it does, and nothing after it may. The
+/// segment travels from the door still as the peer wrote it —
+/// [`nvs_runtime::routes::Route::convert`] must see it that way, because it
+/// runs *first* and a `{n: uint}` route reading a decoded `%34` would match `4`
+/// — so this crossing is the single point where a capture stops being a piece
+/// of a URL and starts being a value. Deciding it here also decides it once for
+/// both readers: `Core\Request::route()` on a served request and
+/// `Core\Router::match` on a path a program chose share [`match_value`].
+///
+/// **A capture whose octets are not UTF-8 refuses**, which is
+/// [`crate::uri::decode_capture`]'s throw. [`CAPTURE`]'s text arm is a
+/// `tainted string` and ADR 0009 § 1 guarantees a `string` is valid UTF-8 by
+/// construction, so `%ff` in a path segment has no capture to become; answering
+/// the undecoded text instead would hand the program a `%20` that every other
+/// capture had already lost, and answering `bytes` would widen [`CAPTURE`] to a
+/// type the route declaration cannot spell.
+///
+/// # Errors
+///
+/// That throw, and only from the text arm: no other conversion the matcher
+/// performs has an encoded spelling to decode — a digit, a `-` and a hex digit
+/// are all unreserved bytes.
+fn capture_value(name: &str, capture: &nvs_runtime::routes::Param) -> Result<Value, Fault> {
+    Ok(match capture {
+        nvs_runtime::routes::Param::Text(text) => Value::str(NvsStr::new(
+            crate::uri::decode_capture(text, name)?.as_bytes(),
+        )),
         nvs_runtime::routes::Param::Int(number) => Value::int(*number),
         nvs_runtime::routes::Param::Uint(number) => Value::uint(*number),
         nvs_runtime::routes::Param::Decimal(value) => Value::decimal(*value),
         nvs_runtime::routes::Param::Uuid(octets) => crate::uuid::of_octets(*octets),
-    }
+    })
 }
 
 /// Slot `index` of a [`MATCH`] receiver, retained for the caller — the shape
@@ -954,7 +1102,73 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use super::METHOD;
+    use nvs_runtime::routes::Param;
+
+    use super::{METHOD, capture_value};
+
+    /// The text a capture becomes, or the message it refused with — the seam
+    /// [`capture_value`] is, read back as something a case can assert.
+    fn crossed(name: &str, capture: &Param) -> Result<String, String> {
+        match capture_value(name, capture) {
+            Ok(value) => Ok(String::from_utf8(
+                value
+                    .as_str_bytes()
+                    .expect("a text capture crosses as a `string`")
+                    .to_vec(),
+            )
+            .expect("the decode refuses anything else")),
+            Err(nvs_runtime::Fault::Thrown(_, message)) => Err(message.into_owned()),
+            Err(_) => panic!("a capture refuses by throwing, so a program can catch it"),
+        }
+    }
+
+    /// The claim the stage freezes: the crossing decodes, and decodes *once*.
+    /// `%2520` is the case that tells "once" from "until it stops changing" —
+    /// a second pass would answer a space where one pass answers `%20` — and
+    /// `%ff` is the boundary, since a capture binds as a `tainted string` and
+    /// ADR 0009 § 1 leaves no `string` for those octets to be.
+    #[test]
+    fn a_route_capture_is_percent_decoded_once_where_it_crosses() {
+        assert_eq!(
+            crossed("slug", &Param::Text("hello%20world".to_owned())),
+            Ok("hello world".to_owned())
+        );
+        assert_eq!(
+            crossed("slug", &Param::Text("hello%2520world".to_owned())),
+            Ok("hello%20world".to_owned())
+        );
+        // A path segment, not a form value: `+` is a literal plus here and only
+        // `%2B` is one on the other row.
+        assert_eq!(
+            crossed("slug", &Param::Text("a+b".to_owned())),
+            Ok("a+b".to_owned())
+        );
+        assert_eq!(
+            crossed("slug", &Param::Text("caf%C3%A9".to_owned())),
+            Ok("café".to_owned())
+        );
+        let refused = crossed("slug", &Param::Text("%ff".to_owned())).expect_err("no `string`");
+        assert!(refused.contains("`slug`"), "{refused}");
+        assert!(refused.contains("byte 0"), "{refused}");
+    }
+
+    /// The other half of the same rule, and the reason the decode is on this
+    /// side of `Route::convert` rather than in `nvs_runtime::routes`: a
+    /// converted capture is a number the matcher already read out of the raw
+    /// segment, and nothing here touches it. Were the decode to run first,
+    /// `%34` would reach a `{n: uint}` route as `4`; it does not reach it at
+    /// all, because no digit has an encoded spelling.
+    #[test]
+    fn a_uint_capture_is_unchanged_by_the_decode() {
+        let crossed = capture_value("n", &Param::Uint(20)).expect("a number refuses nothing");
+        assert_eq!(crossed.as_uint(), Some(20));
+        let big = capture_value("n", &Param::Uint(u64::MAX)).expect("a number refuses nothing");
+        assert_eq!(big.as_uint(), Some(u64::MAX));
+        // The same is true of every other converted arm — the text arm is the
+        // only one with an escape to read.
+        let signed = capture_value("n", &Param::Int(-7)).expect("a number refuses nothing");
+        assert_eq!(signed.as_int(), Some(-7));
+    }
 
     /// The tail is what the doc comment promises, asserted rather than
     /// described: an inserted case that pushes `Post` along breaks the bound a
