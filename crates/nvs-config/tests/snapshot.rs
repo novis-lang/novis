@@ -8,8 +8,9 @@
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
-use nvs_config::cache::{UnitKey, artifact_key, content_hash, env_hash};
+use nvs_config::cache::{Revalidation, UnitKey, Validate, artifact_key, content_hash, env_hash};
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_config::trust::Untrusted;
@@ -486,5 +487,52 @@ fn env_hash_is_carried_by_both_cache_keys() {
         key,
         artifact_key(content_hash(b"<?nvs\necho 2;\n"), one),
         "a changed source is a changed key",
+    );
+}
+
+/// ADR 0017 § *Decision*'s two revalidation directives, read off the merged tree: what a resolve
+/// looks at when it re-checks a compiled path, and how often it may look at all. Both are
+/// `System`-class, so what the snapshot holds is what the process runs with — nothing re-reads
+/// them per request, and `nvs_config::cache`'s own doc is where the defaults are decided.
+#[test]
+fn the_opcache_block_is_read_into_a_revalidation_policy() {
+    let written = |block: &str| {
+        let fs = Fake::with(&[("nvs.toml", block), ("srv/www/index.nvs", "")]);
+        Revalidation::from_config(&snapshot_of(&fs, "srv/www/index.nvs").config)
+    };
+
+    assert_eq!(
+        written(""),
+        Revalidation::default(),
+        "a tree with no `[opcache]` block runs the default policy"
+    );
+    assert_eq!(
+        written("[opcache]\nvalidate = \"never\"\n").validate,
+        Validate::Never
+    );
+    assert_eq!(
+        written("[opcache]\nvalidate = \"hash\"\n").validate,
+        Validate::Hash
+    );
+    assert_eq!(
+        written("[opcache]\nvalidate = false\n").validate,
+        Validate::Never,
+        "PHP's `validate_timestamps = 0`, which is what an operator transcribes",
+    );
+    assert_eq!(
+        written("[opcache]\nrevalidate_freq = \"500ms\"\n").freq,
+        Duration::from_millis(500),
+        "the one quantity parser reads this exactly as it reads a `[limits]` duration",
+    );
+    assert_eq!(
+        written("[opcache]\nrevalidate_freq = false\n").freq,
+        Duration::ZERO,
+        "ADR 0005's `false` removes the cap, which is a check on every resolve",
+    );
+    // A word that spells nothing keeps the default rather than refusing the boot: that check has
+    // no diagnostic yet, and `nvs_config::cache`'s module doc is where it is recorded as owed.
+    assert_eq!(
+        written("[opcache]\nvalidate = \"sometimes\"\n").validate,
+        Validate::Mtime,
     );
 }

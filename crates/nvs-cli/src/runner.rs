@@ -347,7 +347,10 @@ fn run_suite_in_a_task(
     // A test's own isolate is built by this crate directly, but a `spawn script`
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
-    // the compiled unit (`crate::script`).
+    // the compiled unit (`crate::script`). `default` and not the tree's own
+    // `[opcache]`: the suite is compiled before any snapshot is resolved here,
+    // and a run that reads no configuration is exactly what that constructor
+    // means. Nothing edits a file mid-suite, so the policy chooses nothing.
     let compiler = crate::script::Compiler::default();
     let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
     drop(installed);

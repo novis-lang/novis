@@ -1061,6 +1061,12 @@ fn run_run(
     // *context* it is resolved from, and a worker's context is not the script's. `worker`'s module
     // doc owns why the deployment's own snapshot is the right answer there.
     let for_workers = queued.is_some().then(|| std::sync::Arc::clone(&snapshot));
+    // And the unit cache gets one for the same reason, taken at the same
+    // moment: `[opcache]` decides when a `spawn script` path is re-checked, and
+    // ADR 0078 § 4's environment digest is half of every key it holds
+    // (`script`'s module doc). The compiler itself is built where it is
+    // installed, a few hundred lines below.
+    let for_compiler = std::sync::Arc::clone(&snapshot);
     ctx.set_config(snapshot);
     // ADR 0086 § 6: `Core\Command`'s members are generated from the table the
     // front end already built, so the rows cross here — once, before the program
@@ -1238,7 +1244,7 @@ fn run_run(
     // Held on this stack for the length of the run rather than leaked: `scoped`
     // owns why the seam's `&'static` does not oblige a `Box::leak`, and the unit
     // cache goes down with it here.
-    let compiler = script::Compiler::default();
+    let compiler = script::Compiler::new(&for_compiler.config);
     let ran = nvs_runtime::script::scoped(&compiler, || nvs_host::run_until_idle(&mut sched));
     drop(installed);
     if let Err(error) = ran {

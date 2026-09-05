@@ -26,6 +26,15 @@
 //! **Every variable-length field is length-prefixed before it is hashed**, so a pin set of
 //! `["ab", "c"]` and one of `["a", "bc"]` are different environments rather than the same one.
 //!
+//! **[`Revalidation`] is here for [`UnitKey`]'s own reason**, one layer up: [ADR 0017]
+//! § *Decision* puts a `PathEntry` in front of the unit table this key addresses, and `[opcache]
+//! validate` and `revalidate_freq` are what decide when a resolve looks at the file behind a path
+//! at all. Reading them is a question about the configuration and not about any one cache, so it
+//! lands beside the key rather than inside the crate that happens to hold the table — the same
+//! separation `[server]`'s waits have from the listener that arms them ([`mod@crate::server`]).
+//! Neither directive is refused at boot yet: an unspelled `validate` falls back to the default,
+//! and [`Validate::of`] is the one place a refusal would read the word.
+//!
 //! Cost: one BLAKE3 pass over a few dozen bytes plus one per `[[extension]]` entry, per
 //! [`env_hash`] call. It is a snapshot's value, not a unit's — a caller computes it when it
 //! publishes a snapshot and carries it into every key built against that snapshot. [`content_hash`]
@@ -45,8 +54,10 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use crate::tree::Config;
+use crate::tree::{Config, Setting};
+use crate::value::{Quantity, Unit};
 
 /// A 32-byte BLAKE3 digest, printed as lowercase hex.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -172,6 +183,135 @@ impl UnitKey {
     /// The environment this unit was compiled against.
     pub fn env(&self) -> EnvHash {
         self.env
+    }
+}
+
+/// `[opcache] validate` — what a resolve looks at when it re-checks a path it has already
+/// compiled ([ADR 0017] § *Decision* steps 1-2).
+///
+/// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Validate {
+    /// `never` — a path compiled once is answered from the unit table for the life of the process
+    /// and no resolve spends a syscall. This is production's value, selected there by the run mode
+    /// as an [ADR 0091] § 3a row rather than by this type.
+    ///
+    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
+    Never,
+    /// `mtime` — PHP's `validate_timestamps`: `stat`, and re-read the source only where the
+    /// modification time or the size moved. The cheap pre-filter [ADR 0017] § *Investigation*
+    /// names, and the default.
+    #[default]
+    Mtime,
+    /// `hash` — re-read and re-hash whenever the rate cap allows a check at all, so a file
+    /// rewritten twice inside one timestamp tick is still observed.
+    Hash,
+}
+
+impl Validate {
+    /// The value `written` names, and `None` for a word that names none of them.
+    #[must_use]
+    pub fn of(written: &str) -> Option<Self> {
+        match written {
+            "never" => Some(Self::Never),
+            "mtime" => Some(Self::Mtime),
+            "hash" => Some(Self::Hash),
+            _ => None,
+        }
+    }
+}
+
+/// `[opcache]`'s two revalidation directives, read into what one resolve asks — [ADR 0017]
+/// § *Decision* steps 1-2.
+///
+/// Both are `System`-class ([ADR 0005]) and that ADR says why in its own words: a request able to
+/// set `validate = never` for itself could pin a version of the code past a shipped fix, and one
+/// able to lower the cap could force a `stat` storm on a hot file. Nothing here is per-request, so
+/// a caller holds one of these for a configuration generation and reads it on every resolve.
+///
+/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+/// [ADR 0017]: ../../../docs/adr/0017-hot-reload-without-restart.md
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Revalidation {
+    /// What a check looks at, once the cap below has let one happen.
+    pub validate: Validate,
+    /// `revalidate_freq`: the shortest interval between two checks of one path. A resolve inside it
+    /// reuses the digest the last check observed and spends no syscall, which is what bounds the
+    /// overhead at `N ⁄ revalidate_freq` stats rather than at the request rate.
+    pub freq: Duration,
+}
+
+impl Default for Revalidation {
+    /// `mtime`, checked at most once every two seconds.
+    ///
+    /// [ADR 0017] states neither number, so they are decided here, in the crate that reads the
+    /// block — the same place [ADR 0042] § 7 leaves its file-cache pair to the implementation. Both
+    /// are PHP's own `opcache` defaults, which is the behaviour every deployment this runtime is
+    /// migrating from already has: an edit becomes visible without a restart, and a hot path pays
+    /// at most one `stat` every two seconds for it.
+    ///
+    /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
+    fn default() -> Self {
+        Self {
+            validate: Validate::Mtime,
+            freq: Duration::from_secs(2),
+        }
+    }
+}
+
+impl Revalidation {
+    /// The policy `config`'s `[opcache]` block writes, with [`Revalidation::default`]'s value for
+    /// every key it leaves out — and for a value that spells nothing, which the module doc records
+    /// as the refusal this crate does not make yet.
+    #[must_use]
+    pub fn from_config(config: &Config) -> Self {
+        let fallback = Self::default();
+        let Some(opcache) = config.opcache.as_ref() else {
+            return fallback;
+        };
+        Self {
+            validate: opcache
+                .validate
+                .as_ref()
+                .and_then(validate_of)
+                .unwrap_or(fallback.validate),
+            freq: opcache
+                .revalidate_freq
+                .as_ref()
+                .and_then(freq_of)
+                .unwrap_or(fallback.freq),
+        }
+    }
+}
+
+/// One written `validate`, as the check it names.
+///
+/// A boolean is read as PHP's own spelling of the same directive — `validate_timestamps = 0` is
+/// `never` and `1` is the timestamp check — rather than refused, because an operator transcribing
+/// an `opcache` block they already run is writing the thing this directive replaced.
+fn validate_of(setting: &Setting) -> Option<Validate> {
+    match setting {
+        Setting::Text(written) => Validate::of(written),
+        Setting::Bool(false) => Some(Validate::Never),
+        Setting::Bool(true) => Some(Validate::Mtime),
+        _ => None,
+    }
+}
+
+/// One written `revalidate_freq`, as the interval it names.
+///
+/// [`Quantity`] is the one parser for a duration anywhere in this tree ([ADR 0064] § 5), so `"2s"`,
+/// `"500ms"` and a bare `2` all read here exactly as they do in `[limits]`. `false` is the spelling
+/// [ADR 0005] gives to "no ceiling" and means no cap at all — a check on every resolve, which is
+/// what a developer watching one file asks for and what the default deliberately is not.
+///
+/// [ADR 0005]: ../../../docs/adr/0005-config-changeability.md
+/// [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
+fn freq_of(setting: &Setting) -> Option<Duration> {
+    match Quantity::parse("opcache.revalidate_freq", Unit::Duration, setting) {
+        Ok(Quantity::Nanos(nanos)) => Some(Duration::from_nanos(nanos)),
+        Ok(Quantity::Unbounded) => Some(Duration::ZERO),
+        _ => None,
     }
 }
 

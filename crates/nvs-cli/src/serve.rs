@@ -259,8 +259,11 @@ pub(crate) fn run(
     // rather than a request that does. That is the rule the enumeration exists
     // for, and it costs one compile per mounted entry at boot rather than one
     // per entry per request. The front end renders its own diagnostics
-    // (`script`'s module doc), so the message here is the summary.
-    let compiler = Rc::new(Compiler::default());
+    // (`script`'s module doc), so the message here is the summary. What a later
+    // request re-checks is ADR 0017's question and the same module doc's: this
+    // compiler carries the `[opcache]` block, so an edited entry is recompiled
+    // for the requests that resolve it after the edit.
+    let compiler = Rc::new(Compiler::new(&snapshot.config));
     for mounted in table.mounts() {
         if let Err(message) = compiler.resolve(&mounted.entry.to_string_lossy()) {
             eprintln!("error: {message}");

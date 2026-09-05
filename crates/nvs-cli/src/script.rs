@@ -18,58 +18,79 @@
 //! way the shell that started this one would name it. `examples/isolate.nvs`
 //! is written against exactly this and says so in its own comment.
 //!
-//! # Decision: one unit per written path, kept for the process
+//! # Decision: one unit per written path, swapped when its content moves
 //!
 //! ADR 0006's "an isolate shares immutable compiled code" is a property of this
 //! cache and of nothing else — the seam hands over a closure and has no opinion
 //! about what is behind it. So a path is compiled once and every later isolate
 //! over it runs the same pages, which is what makes spawning a child cheap
-//! enough to be worth doing.
+//! enough to be worth doing, until the file behind it changes.
 //!
 //! It is keyed by the path **as written**, so two spellings of one file compile
 //! twice. Canonicalizing would buy the sharing back at the cost of a syscall on
 //! every spawn and of a failure mode before the front end has run — and what a
 //! program controls is its own text, which is the thing this key already is.
 //!
-//! **What it spends:** one compiled unit per distinct `spawn script` path in
-//! the program, held for as long as the run is. O(the program's text), never
-//! O(isolates spawned), per
+//! **What it spends:** at most two compiled units per distinct written path —
+//! the one in force and, while an edit does not compile, the failure the next
+//! resolve of that same content is answered with. O(the program's text), never
+//! O(isolates spawned) and never O(edits), per
 //! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — and freed with
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
 //!
-//! # Known gap: nothing here revalidates, so nothing here ever swaps
+//! # Decision: [ADR 0017]'s five steps, and what one core collapses
 //!
-//! "Kept for the process" above is a statement about this cache's *lifetime*
-//! and reads, wrongly, as one about its contents: a path compiled once is
-//! answered from the map forever, and an edit to the file behind it is
-//! invisible to every later resolve. That is not what
-//! [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md) decides. Its
-//! § *Decision* puts a `PathEntry { content_hash, last_checked }` indirection
-//! in front of a unit table keyed by `{ path, content_hash, env_hash }` — the
-//! key `nvs_config::cache::UnitKey` already spells and that nothing outside
-//! that crate's own tests constructs — and resolves through it in five steps:
-//! skip the syscall under `[opcache] validate = never` or inside
-//! `revalidate_freq`, otherwise `stat`, recompile only on an observed change,
-//! and write the new hash back only if no fresher revalidation won the race.
-//! Both directives deserialize in `nvs_config::tree` and neither is read.
+//! [ADR 0017]'s § *Decision* is implemented here whole, because this is the
+//! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
+//! stamp the last check observed, in front of a table keyed by
+//! [`UnitKey`]`{ path, content_hash, env_hash }`. A resolve walks its five
+//! steps — reuse the known digest under `[opcache] validate = "never"` or
+//! inside `revalidate_freq`; otherwise `stat`, and re-read the source only
+//! where the stamp cannot answer; compile only content this table has not seen;
+//! write the digest back on success; leave it alone on failure, and answer that
+//! caller with the failure the new content is now keyed to.
 //!
-//! This cache is the tree's only in-memory unit table, so the gap is the whole
-//! of two rules rather than a corner of one.
+//! **A single core collapses the concurrent half of it.** That ADR is written
+//! against `DashMap`s reached from many request-serving cores, and specifies a
+//! compile pool, a `Compiling`/`Ready`/`Failed` broadcast every racing caller
+//! single-flights on, and a step 4 that writes a new digest back *only if a
+//! fresher revalidation has not won*. This cache is a [`RefCell`] reached from
+//! one coroutine on one core: there is no second resolve of a path between an
+//! observation and the write that follows it, so the compare in step 4 is
+//! **unreachable rather than relaxed**, and single-flighting is a property of
+//! the borrow rather than machinery. `Compiling` has no representation for the
+//! same reason — nothing can observe this cache while a compile is running in
+//! it. What survives is [`CompileState`]'s other two states, which are
+//! observable: a second resolve landing on content that already failed is
+//! answered from the table rather than compiled again.
+//!
+//! **A failure renders its spans once.** The front end writes diagnostics to
+//! standard error as it compiles (see [`Resolver::resolve`]), so the resolve
+//! that reached a broken edit is the one that printed it; a later resolve of
+//! the same content gets the one-line summary out of the table. That is what
+//! step 5's shared `Failed` entry means, and it is the difference between a
+//! request storm against a broken file costing one compile and costing one per
+//! request.
+//!
+//! This is also the mechanism
 //! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
-//! second bullet — a connection isolate runs to completion on the code it
-//! began with while an edit swaps the pointer for new connections — is
-//! *unfalsifiable* against this file as written: every holder keeps its
-//! [`Program`] across an edit when nothing can observe one, so a test of it
-//! would pin the absence of the rule. Closing the gap is what makes that
-//! bullet, and stage 7's own three hot-reload names, writable at all.
+//! second bullet is a statement about. The swap is a write to the *table*: a
+//! [`Program`] already handed out owns its unit's pages through its own `Rc`,
+//! so a connection isolate runs to completion on the code it began with while
+//! the next resolve of that path hands the new unit to whoever asks next.
+//!
+//! [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::{Instant, SystemTime};
 
+use nvs_config::cache::{Digest, EnvHash, Revalidation, UnitKey, Validate, content_hash, env_hash};
+use nvs_config::tree::Config;
 use nvs_runtime::script::{Program, Resolver};
 use nvs_runtime::{Ctx, Value};
 
@@ -92,42 +113,251 @@ pub(crate) struct Compiled {
     routes: Arc<nvs_runtime::routes::Routes>,
 }
 
+/// What one written path resolved to last, and when that was checked — [ADR
+/// 0017]'s `PathEntry`, the pointer an edit swaps.
+///
+/// Copied out of the map rather than borrowed across the `stat` and the compile
+/// below it, which is why every field is [`Copy`]: holding the borrow over a
+/// front-end run would make the map unreachable from the `spawn script` that
+/// run may itself perform.
+///
+/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
+#[derive(Clone, Copy, Debug)]
+struct PathEntry {
+    /// The digest of the content this path last *compiled* to, which is the
+    /// half of its [`UnitKey`] that moves.
+    content_hash: Digest,
+    /// What `validate = "mtime"` compares against, and `None` where the file
+    /// system answered with neither — a path whose stamp cannot be read is
+    /// re-hashed rather than trusted.
+    stamp: Option<Stamp>,
+    /// When the last check happened. `revalidate_freq` gates the next one
+    /// against this, which is what makes the cost `N ⁄ freq` rather than `N`.
+    last_checked: Instant,
+}
+
+/// The `mtime`/size pair [ADR 0017] § *Investigation* calls the cheap
+/// pre-filter: enough to say a file did *not* change, never enough to say what
+/// it now holds.
+///
+/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Stamp {
+    modified: SystemTime,
+    len: u64,
+}
+
+/// [ADR 0017] § *Decision* step 3's state machine, less the state one core
+/// cannot be in — the module doc owns why `Compiling` has no spelling here.
+///
+/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
+#[derive(Debug)]
+enum CompileState {
+    /// The unit, and the route table beside it.
+    Ready(Rc<Compiled>),
+    /// The one-line summary this content failed with, kept so that every later
+    /// resolve landing on the same [`UnitKey`] is answered rather than
+    /// recompiled.
+    Failed(String),
+}
+
+/// What one resolve saw of the file behind a path.
+struct Observed {
+    content_hash: Digest,
+    stamp: Option<Stamp>,
+}
+
 /// The one implementor: the front end and the backend `nvs run` already
-/// carries, plus the cache in front of them.
-#[derive(Debug, Default)]
+/// carries, plus [ADR 0017]'s two maps in front of them.
+///
+/// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
+#[derive(Debug)]
 pub(crate) struct Compiler {
-    /// Written path to what was compiled from it. `RefCell` because the seam
-    /// borrows a resolver shared, and a cache that could not be written on a
-    /// hit would not be one.
-    cache: RefCell<HashMap<PathBuf, Rc<Compiled>>>,
+    /// Written path to what the last check of it observed. `RefCell` because
+    /// the seam borrows a resolver shared, and a cache that could not be
+    /// written on a hit would not be one.
+    paths: RefCell<HashMap<PathBuf, PathEntry>>,
+    /// The unit table proper, addressed by content rather than by path, so that
+    /// two paths holding the same source compile once and a reverted edit is a
+    /// hit rather than a recompile.
+    units: RefCell<HashMap<UnitKey, CompileState>>,
+    /// The environment half of every key here — [ADR 0078] § 4's digest, taken
+    /// once from the configuration this process booted, because it is constant
+    /// for the life of a snapshot.
+    ///
+    /// [ADR 0078]: /docs/adr/0078-config-reload-and-control-socket.md
+    env: EnvHash,
+    /// `[opcache] validate` and `revalidate_freq`, read once for the same
+    /// reason: both are `System`-class, so no request can move them.
+    revalidation: Revalidation,
+}
+
+impl Default for Compiler {
+    /// The compiler of a host with **no configuration file anywhere**, which is
+    /// [`nvs_config::Snapshot::default`]'s own state: the default revalidation
+    /// policy, and the environment digest of a host with no `[[extension]]`.
+    ///
+    /// This is what a caller with no snapshot in hand holds — `nvs test` builds
+    /// its context before any tree is resolved — and it is a correct answer
+    /// there rather than a placeholder: the digest separates environments, and
+    /// a run that read no configuration has exactly this one.
+    fn default() -> Self {
+        Self::new(&Config::default())
+    }
 }
 
 impl Compiler {
+    /// The compiler for a process running under `config`: its environment
+    /// digest, and the `[opcache]` block's answer to when a resolve looks at a
+    /// file it has already compiled.
+    pub(crate) fn new(config: &Config) -> Self {
+        Self {
+            paths: RefCell::new(HashMap::new()),
+            units: RefCell::new(HashMap::new()),
+            env: env_hash(config),
+            revalidation: Revalidation::from_config(config),
+        }
+    }
+
     /// The program over `path`'s unit **and** that unit's route table, which is
     /// what a server needs and what [`Resolver::resolve`]'s own signature has
     /// nowhere to put.
     ///
-    /// Compiles on the first ask and hits the cache afterwards, exactly as
-    /// `resolve` does — it *is* what `resolve` does, with the second half kept
-    /// rather than dropped.
+    /// [ADR 0017] § *Decision*'s five steps, in order, with the module doc's
+    /// note about what a single core collapses.
     ///
     /// # Errors
     ///
     /// The one-line summary `resolve` reports, for the same two failures: a
     /// program the front end refused, and one the backend could not compile.
+    ///
+    /// [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
     pub(crate) fn compiled(
         &self,
         path: &str,
     ) -> Result<(Program, Arc<nvs_runtime::routes::Routes>), String> {
-        let key = PathBuf::from(path);
-        if let Some(compiled) = self.cache.borrow().get(&key) {
-            return Ok((
-                program_over(Rc::clone(compiled)),
-                Arc::clone(&compiled.routes),
-            ));
+        let written = PathBuf::from(path);
+        let known = self.paths.borrow().get(&written).copied();
+
+        // 1. The syscall this resolve does not make: `validate = "never"` is
+        //    production's answer for every resolve, and the rate cap is the
+        //    same answer for the requests arriving inside one window.
+        if let Some(entry) = known
+            && (self.revalidation.validate == Validate::Never
+                || entry.last_checked.elapsed() < self.revalidation.freq)
+            && let Some(answer) = self.answer(&written, entry.content_hash)
+        {
+            return answer;
         }
 
-        let checked = crate::front_end(&key)
+        // 2. Otherwise look. A file the system will not answer for keeps
+        //    whatever it last resolved to — step 5's reading, for the same
+        //    reason: the entry still names the last content that compiled, and
+        //    a path being replaced by a rename is momentarily absent. One with
+        //    no entry has nothing to fall back on, so it is reported here in
+        //    the shape `front_end` would have reported it.
+        let observed = match observe(&written, self.revalidation.validate, known) {
+            Ok(observed) => observed,
+            Err(error) => {
+                if let Some(answer) = known.and_then(|e| self.answer(&written, e.content_hash)) {
+                    return answer;
+                }
+                eprintln!("error: could not read {}: {error}", written.display());
+                return Err(format!(
+                    "`{path}` could not be compiled; see the errors above"
+                ));
+            }
+        };
+
+        // Step 2's second half and step 3's single-flight in one lookup: an
+        // observation that did not move addresses the entry the last one wrote,
+        // and one that did may still name content this process compiled before
+        // — a reverted edit, or a broken one being re-observed.
+        if let Some(answer) = self.answer(&written, observed.content_hash) {
+            if answer.is_ok() {
+                self.advance(&written, &observed);
+            }
+            return answer;
+        }
+
+        // 3. The compile itself, which is the only step that costs anything.
+        let key = UnitKey::new(&written, observed.content_hash, self.env);
+        let state = match self.compile(path, &written) {
+            Ok(compiled) => CompileState::Ready(compiled),
+            Err(message) => CompileState::Failed(message),
+        };
+        // 4 and 5: the pointer moves only on success, and what the table keeps
+        // for this path is the entry in force plus, at most, the failure the
+        // next resolve of this content is owed.
+        let ready = matches!(state, CompileState::Ready(_));
+        let keep = if ready {
+            None
+        } else {
+            known.map(|entry| entry.content_hash)
+        };
+        self.record(key, state, keep);
+        if ready {
+            self.advance(&written, &observed);
+        }
+        self.answer(&written, observed.content_hash)
+            .expect("the state just written is in the table")
+    }
+
+    /// What the table holds for `path` at `content`, and `None` where it holds
+    /// nothing — the one place a [`CompileState`] becomes a caller's answer.
+    fn answer(
+        &self,
+        path: &Path,
+        content: Digest,
+    ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
+        match self
+            .units
+            .borrow()
+            .get(&UnitKey::new(path, content, self.env))?
+        {
+            CompileState::Ready(compiled) => Some(Ok((
+                program_over(Rc::clone(compiled)),
+                Arc::clone(&compiled.routes),
+            ))),
+            CompileState::Failed(message) => Some(Err(message.clone())),
+        }
+    }
+
+    /// Step 4's pointer write: what this path resolves to now, and the moment
+    /// the cap is measured from.
+    fn advance(&self, path: &Path, observed: &Observed) {
+        self.paths.borrow_mut().insert(
+            path.to_path_buf(),
+            PathEntry {
+                content_hash: observed.content_hash,
+                stamp: observed.stamp,
+                last_checked: Instant::now(),
+            },
+        );
+    }
+
+    /// `state` under `key`, and the two entries this path is then allowed to
+    /// keep: the content just reached, and `keep` where a failure leaves an
+    /// older unit still in force.
+    ///
+    /// The sweep is what keeps the table O(paths): every earlier generation of
+    /// this path goes, and a unit a running [`Program`] still holds stays
+    /// mapped through that program's own `Rc` rather than through this map.
+    fn record(&self, key: UnitKey, state: CompileState, keep: Option<Digest>) {
+        let mut units = self.units.borrow_mut();
+        let reached = key.content_hash();
+        units.retain(|other, _| {
+            other.path() != key.path()
+                || other.content_hash() == reached
+                || Some(other.content_hash()) == keep
+        });
+        units.insert(key, state);
+    }
+
+    /// The front end and the backend, over one path, with nothing cached: the
+    /// whole of what step 3 costs.
+    fn compile(&self, path: &str, written: &Path) -> Result<Rc<Compiled>, String> {
+        let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
         let lowered = nvs_ir::lower::lower_program(
             crate::SCRIPT,
@@ -137,16 +367,54 @@ impl Compiler {
             &checked.enums,
             &checked.layouts,
         );
-        let compiled = Rc::new(Compiled {
+        Ok(Rc::new(Compiled {
             unit: Rc::new(
                 nvs_codegen::compile(&lowered).map_err(|error| format!("`{path}`: {error}"))?,
             ),
             routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
-        });
-        self.cache.borrow_mut().insert(key, Rc::clone(&compiled));
-        let routes = Arc::clone(&compiled.routes);
-        Ok((program_over(compiled), routes))
+        }))
     }
+}
+
+/// Step 2: what the file behind `path` holds now.
+///
+/// The stamp is read first and the source only where it cannot answer, which is
+/// the whole of the `mtime` policy — under `hash` the source is read every time
+/// a check happens at all, which is what a file rewritten twice inside one
+/// timestamp tick needs.
+///
+/// **The source is read once more than it was before this cache revalidated**:
+/// this read hashes it, and the front end opens it again through its own
+/// `SourceMap`. One extra read of one file per compile, and per check that
+/// observes a change, against a compile — the ADR's own accounting makes the
+/// hash the thing that is trusted, and there is no `SourceMap` to hand here.
+///
+/// # Errors
+///
+/// The read's own error, for a path that is absent or unreadable. A `stat` that
+/// fails is not an error by itself: it leaves the stamp unknown and the read
+/// below reports whatever is really wrong.
+fn observe(path: &Path, validate: Validate, known: Option<PathEntry>) -> std::io::Result<Observed> {
+    let stamp = std::fs::metadata(path).ok().and_then(|meta| {
+        Some(Stamp {
+            modified: meta.modified().ok()?,
+            len: meta.len(),
+        })
+    });
+    if validate == Validate::Mtime
+        && let (Some(stamp), Some(known)) = (stamp, known)
+        && known.stamp == Some(stamp)
+    {
+        return Ok(Observed {
+            content_hash: known.content_hash,
+            stamp: Some(stamp),
+        });
+    }
+    let source = std::fs::read(path)?;
+    Ok(Observed {
+        content_hash: content_hash(&source),
+        stamp,
+    })
 }
 
 impl Resolver for Compiler {
@@ -232,7 +500,7 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
 #[cfg(test)]
 mod tests {
     use super::{Compiler, granting_ctx as granting};
-    use nvs_runtime::script::{ResolveError, Resolver, resolve, scoped};
+    use nvs_runtime::script::{Program, ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
 
     /// The repository root, which is what a written path is anchored at — and
@@ -250,11 +518,47 @@ mod tests {
     /// and what its top-level `return` answered.
     fn run_child(path: &str) -> nvs_host::Completion {
         let compiler = Compiler::default();
-        let program = compiler.resolve(path).expect("the child compiles");
+        run_program(compiler.resolve(path).expect("the child compiles"))
+    }
+
+    /// The same, over a program resolved earlier — which is what a holder of
+    /// one does with it after the cache has moved on.
+    fn run_program(program: Program) -> nvs_host::Completion {
         let mut parent = Ctx::new(OutputSink::Buffer(Vec::new()));
         nvs_host::Isolate::new(program, Value::null(), nvs_host::Output::Capture)
             .run(&mut parent)
             .expect("a null argument crosses")
+    }
+
+    /// A `.nvs` file this test owns, whose whole body echoes `said`. Called
+    /// again with the same `name`, it is the edit.
+    fn a_file_saying(name: &str, said: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("nvs-swap-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("a directory to write the case in");
+        let path = dir.join("entry.nvs");
+        std::fs::write(&path, format!("<?nvs\necho \"{said}\", \"\\n\";\n"))
+            .expect("the case is writable");
+        path
+    }
+
+    /// A compiler that checks the content itself, on every resolve.
+    ///
+    /// Neither half is the production default and both are spelled in
+    /// `[opcache]` on purpose: `mtime` answers from a stamp that two writes
+    /// inside one filesystem tick share, and the default two-second cap puts
+    /// the second write of a test that takes microseconds inside the first
+    /// check's window. What is being asserted below is the swap, not the rate
+    /// cap — `nvs_config::cache::Revalidation` is where both are decided.
+    fn revalidating() -> Compiler {
+        use nvs_config::tree::{Config, Opcache, Setting};
+        Compiler::new(&Config {
+            opcache: Some(Opcache {
+                validate: Some(Setting::Text("hash".to_owned())),
+                revalidate_freq: Some(Setting::Text("0s".to_owned())),
+                ..Opcache::default()
+            }),
+            ..Config::default()
+        })
     }
 
     #[test]
@@ -288,7 +592,7 @@ mod tests {
         let path = from_root("examples/isolate/capture.nvs");
         let _first = compiler.resolve(&path).expect("the child compiles");
         let _second = compiler.resolve(&path).expect("and again, from the cache");
-        assert_eq!(compiler.cache.borrow().len(), 1);
+        assert_eq!(compiler.units.borrow().len(), 1);
     }
 
     #[test]
@@ -303,6 +607,61 @@ mod tests {
             refusal.contains("could not be compiled"),
             "unhelpful refusal: {refusal}"
         );
+    }
+
+    #[test]
+    fn an_open_connection_keeps_its_compiled_unit_across_an_edit() {
+        // ADR 0083 § 7's second bullet, first half — asserted at the cache the
+        // bullet is a statement about. A connection isolate's hold on its code
+        // *is* the [`Program`] a resolve handed it (`nvs_host::Isolate` runs
+        // one), and `nvs serve` resolves per request through this compiler, so
+        // an edit reaches a connection only if it reaches this table. What
+        // cannot be driven from here is the socket: `serve::run` is an
+        // `ExitCode` entry point over one accept loop, so the second
+        // connection the bullet compares against has no spelling in a unit
+        // test of this crate.
+        let path = a_file_saying("keeps", "one");
+        let compiler = revalidating();
+        let (open, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the entry compiles");
+
+        // The edit, and a resolve after it — a new connection's, which is what
+        // makes this a test of the swap rather than of a cache nobody touched.
+        let _ = a_file_saying("keeps", "two");
+        let (_swapped, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the edited entry compiles");
+
+        let completion = run_program(open);
+        assert!(completion.ok, "error: {:?}", completion.error);
+        assert_eq!(String::from_utf8_lossy(&completion.output), "one\n");
+    }
+
+    #[test]
+    fn a_connection_opened_after_the_swap_runs_the_new_unit() {
+        // The other half of the bullet, over the same fixture: what a resolve
+        // taken after the edit hands back is the *new* unit. The length
+        // assertion is ADR 0017's own accounting — the pointer moved rather
+        // than the table growing an entry per edit — and it holds while the
+        // program resolved before the edit is still alive, because that one's
+        // pages are kept by its own `Rc` (`script`'s module doc).
+        let path = a_file_saying("swaps", "one");
+        let compiler = revalidating();
+        let (before, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the entry compiles");
+
+        let _ = a_file_saying("swaps", "two");
+        let (after, _) = compiler
+            .compiled(&path.to_string_lossy())
+            .expect("the edited entry compiles");
+
+        let completion = run_program(after);
+        assert!(completion.ok, "error: {:?}", completion.error);
+        assert_eq!(String::from_utf8_lossy(&completion.output), "two\n");
+        assert_eq!(compiler.units.borrow().len(), 1);
+        drop(before);
     }
 
     #[test]
