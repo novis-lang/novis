@@ -179,6 +179,11 @@ adrs = [
   "0083 §1",
   "0083 §2",
   "0083 §3",
+  # Added 2026-09-05: the goal's own failing check names § 4 and this list did not, so the session
+  # implementing the crossing between cores had the ground rule's one line and neither the count the
+  # `publish` row answers with nor the bounded-hand-off sentence that decides its shape. Every open item
+  # left in 6b is § 4's, so this is the section the next sessions read.
+  "0083 §4",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is
@@ -3783,14 +3788,19 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6b persistent connections"
-name = "nvs-server (ADR 0083 § 4 -- Core\\Topic, across every core)"
-args = ["test", "-p", "nvs-server"]
+# Moved off `-p nvs-server` on 2026-09-05: every name here is a claim about `Core\Topic::publish`, which
+# lives in `nvs-stdlib`, and `crates/nvs-server/Cargo.toml` does not name that crate -- so none of the four
+# could ever have run where they were filed. The crossing between cores is `nvs_stdlib::bus` and the two
+# threads a case spawns are what two cores are, so the server is not in the picture at all.
+name = "nvs-stdlib (ADR 0083 § 4 -- Core\\Topic, across every core)"
+args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_publish_reaches_a_subscriber_on_another_core",
   "a_published_value_is_a_copy_shared_with_nobody",
+  # `publish_returns_the_number_of_subscribers_delivered_to` as the corpus took the name.
+  "a_publish_reaches_every_subscriber_on_this_core_and_answers_how_many",
   # The load-bearing one: a stalled subscriber among many is closed and the publisher does not feel it.
   "a_subscriber_that_never_reads_is_closed_and_the_publisher_is_unaffected",
-  "publish_returns_the_number_of_subscribers_delivered_to",
 ]
 
 [[check]]

@@ -2,62 +2,60 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 § 4's three rows are on disk.** `Core\Topic::publish`
-(`crates/nvs-stdlib/src/topic.rs:432`) copies the published value once per subscriber by ADR 0023
-§ 2's graph copy and queues each copy on that connection's `nvs_runtime::Inbox`, answering how
-many it reached. That module's own docs are the home of its three decisions: a publisher needs no
-connection of its own and is **not** excluded from a topic it joined itself, and the copy is made
-*before* the walk so that ADR 0033's "a `secret` may never be published" does not hold or fail by
-who happened to be listening — which is also the only reason a `.nvst` case can reach it, having
-no connection to subscribe with.
+**Goal 6, M7 — ADR 0083 § 4's bus is whole across cores.** `Core\Topic::publish`
+(`crates/nvs-stdlib/src/topic.rs:527`) fans out to the subscribers on its own core by ADR 0023
+§ 2's graph copy, then hands ADR 0023 § 2's *encoding* of the same value to every other core that
+reported a subscriber, and answers both. The transport is `crates/nvs-stdlib/src/bus.rs`: a
+process-wide registry of per-core mailboxes, each holding a bounded queue of envelopes and the
+subscriber count its own core last saw per topic. A core registers itself on first use and its
+entry goes with the thread, so `nvs-server` needs no edge to this crate for § 4 to hold across its
+cores. `Core\Socket::receive()` drains the mailbox before it reads either source
+(`crates/nvs-stdlib/src/socket.rs:1001`), which is where the bytes become one value per subscriber.
+The four decisions behind it — bytes rather than a value, what the count means and what it
+over-reports, lazy registration, a refused overflow — live in those two modules' own docs.
 
-**The bus is whole on one core and on no more than one.** Two known gaps, both written down where
-they live rather than here: the hand-off between cores (this module's docs) and the wake seam —
-a delivery queued while its connection is parked inside `receive()` waits for the *next*
-`receive()`, which `nvs_runtime::Ctx::deliver`'s known gap owns and which `publish` landing is what
-made observable.
+**Two known gaps, both written down where they live.** The wake seam
+(`nvs_runtime::Ctx::deliver`'s known gap) is unchanged and a cross-core delivery inherits it rather
+than adding one, because the drain runs at the same `receive()`. The per-subscriber bound and § 4's
+"a slow subscriber is closed" are item 1 below and are the last open work in § 4.
 
-**The goal's failing acceptance check is still open**: `nvs-server`'s
-`a_publish_reaches_a_subscriber_on_another_core` is item 1 below, and it is the harder of the two
-gaps.
+**The goal's failing acceptance check was filed where it could not run.** Every name in
+`ADR 0083 § 4 -- Core\Topic, across every core` is a claim about `Core\Topic::publish`, and
+`crates/nvs-server/Cargo.toml` does not name `nvs-stdlib`; the check is now `-p nvs-stdlib` in both
+`docs/agent/loop-goal.toml` and `docs/agent/goals/6-server.toml`, with a comment saying why, and
+three of its four names are landed. The fourth is item 1.
 
 ## Next group
 
-**What § 4 still owes, in the two questions it is, and then the seam under them.** All three share
-`crates/nvs-stdlib/src/topic.rs` and `crates/nvs-runtime/src/peer.rs`; item 1 also opens
-`crates/nvs-server/src/serve.rs` and is the one that closes the driver's failing check.
+**What § 4 still owes, and the seam under it.** Both share `crates/nvs-stdlib/src/topic.rs` and
+`crates/nvs-runtime/src/peer.rs`; item 1 closes the goal's last open name in the § 4 check.
 
-- [ ] **The hand-off to another core** — ADR 0083 § 4's "a publish from a connection on core 3
-      reaches subscribers on core 0", and the goal's failing acceptance check. A `Value` is
-      refcounted on the core that made it and cannot be sent to another, so the carrier is ADR 0023
-      § 2's *encoding* rather than its copy: `crates/nvs-runtime/src/graph.rs:698`'s `encode` on the
-      publishing core and `crates/nvs-runtime/src/graph.rs:895`'s `decode` on the receiving one,
-      both already exported (`crates/nvs-runtime/src/lib.rs:345`). What has to be built beside them
-      is a process-wide registry of per-core mailboxes that
-      `crates/nvs-stdlib/src/topic.rs:432`'s walk consults after its local fan-out, and the count it
-      answers then has to include what the remote cores accepted. `nvs-server` has no multi-core
-      fan-out of its own — `crates/nvs-server/src/serve.rs:1239`'s `serve_on_this_core` is the whole
-      per-core entry and that module's `//!` says the listener is handed to several cores from
-      outside — so the test spawns two of them and is the first thing in the tree to do so.
-- [ ] **The bounded queue, and closing a slow subscriber** — ADR 0083 § 4's priority-1 rule. A cap
-      on `crates/nvs-runtime/src/peer.rs:131`'s `Inbox`, read by the push at
-      `crates/nvs-stdlib/src/topic.rs:432`: past it *that subscriber's* connection is closed with a
-      defined code and a metric increments, and the publisher is never blocked. Note that the count
-      `publish` answers is documented as what reached a queue, so a subscriber closed for overflow
-      is not one of them.
-- [ ] **The wake seam: a park over both sources** — `crates/nvs-runtime/src/ctx/isolate.rs:76`'s
-      known gap, now reachable. `crates/nvs-stdlib/src/socket.rs:998`'s `receive()` parks on the
-      peer alone, so a delivery published while it is parked waits for the next frame; the park has
-      to be over the socket *and* the inbox, which the framing layer in `nvs_server::socket` has to
-      take part in.
+- [ ] **The bounded queue, and closing a slow subscriber** — ADR 0083 § 4's priority-1 rule: each
+      subscriber's queue is capped, and when it overflows *that subscriber's connection* is closed
+      with a defined code and a metric increments, while the publisher is never blocked. The cap
+      belongs on `crates/nvs-runtime/src/peer.rs:142`'s `Inbox::push`, which today takes anything;
+      the count and the decision belong in the fan-out at
+      `crates/nvs-stdlib/src/topic.rs:527`. **The design question to settle first is who closes**:
+      the peer is on the subscriber's own isolate (`crates/nvs-runtime/src/ctx/isolate.rs:82` is
+      where a context and its socket meet) and may be on another core entirely, so the publisher
+      cannot reach it — the likely shape is a flag the overflowing queue carries and the
+      subscriber's next `receive()` obeys, which is `crates/nvs-stdlib/src/socket.rs:1001`. Landing
+      it makes `a_subscriber_that_never_reads_is_closed_and_the_publisher_is_unaffected` real.
+      `crates/nvs-stdlib/src/bus.rs:234`'s own refusal — a full mailbox drops an envelope and
+      counts nobody for it — is the same rule one layer down and should be decided with it.
+- [ ] **The wake seam: a park over both sources** — a delivery queued while its connection is
+      already parked inside `receive()` waits for the *next* `receive()`.
+      `crates/nvs-runtime/src/ctx/isolate.rs:82`'s known gap is the specification;
+      `crates/nvs-stdlib/src/socket.rs:1001` is the member that parks and
+      `crates/nvs-server/src/socket.rs:1` is the framing side that has to take part, since the park
+      is inside the codec's read. ADR 0083 § 3's "one wait over two sources" is what it owes.
 
 ## Backlog
 
-- `orient.py` did not print **ADR 0083 § 4** — the goal's `[context] adrs` names §§ 1-3 of 0083 and
-  this session's item was § 4's second row, so the section had to be sliced by hand. Add `§ 4` to
-  that field in `docs/agent/loop-goal.toml` and to `docs/agent/goals/<goal>.toml` beside it.
-- `docs/novis.md` is regenerated by `verify.py`'s reference step and carries `Core\Topic::publish`'s
-  card; it is committed here with the plan.
-- ADR 0083 § 5's `Core\Sse` is landed; § 4's metric for a closed slow subscriber is not, and it
-  belongs with the bounded queue above (ADR 0076 § 1's table gains no row — it is a counter that
-  section does not name, so decide and record it in `nvs_server::metrics`).
+- ADR 0083 § 7's bounds, budgets, reload and drain — its own check, stage 6b (`loop-goal.toml`).
+- `nvs-types`' three qualifier cases at the connection boundary — `tainted` payload, `tainted`
+  topic name, `secret` through `upgrade`/`publish` (stage 6b's `-p nvs-types` check).
+- A published object crossing cores resolves against the *draining* program's class table, not the
+  publisher's — `nvs_runtime::graph`'s known gap 2, restated in `topic.rs`'s drain.
+- `[context] modules` prints no `nvs-stdlib/src/topic.rs` or `socket.rs` line, so 6b's own two
+  modules are absent from the map; `[context] adrs` gained `0083 §4` this session.
