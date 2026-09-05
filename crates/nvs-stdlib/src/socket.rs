@@ -80,7 +80,12 @@
 //! that never ran the unit.
 //!
 //! **The preparation rides on `nvs_runtime::Inbound`**, the request carrier,
-//! and that answers two questions at once. A connection is the only thing an
+//! and that answers two questions at once. Both halves of that are on disk —
+//! `nvs_runtime::Upgrade` is the prepared pair and `nvs_runtime::UpgradeSlot`
+//! the cell it is left in, offered by `nvs_server::serve_connection` to a
+//! request `hyper` framed an upgrade for and to no other — so what the body
+//! below still owes is the filling: resolving the entry into one `Program` and
+//! crossing `args`. A connection is the only thing an
 //! upgrade can happen to, so a request that did not arrive on one — a CLI
 //! program, a `spawn script` child, a request the server could offer no
 //! upgrade for — has no slot to write into and this member throws, for the

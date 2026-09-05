@@ -529,6 +529,17 @@ impl Drop for Peer {
 /// `hyper` framing a head ends the header wait and answering the request starts
 /// the write one.
 ///
+/// **An upgradable request is offered
+/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+/// slot, and only an upgradable one.** `hyper` leaves an `OnUpgrade` on the
+/// requests it framed an upgrade for; this function takes it, keeps it, and
+/// hands the request's isolate the other half of a
+/// [`nvs_runtime::UpgradeSlot`] ([`Isolate::offering_upgrade`]) so that
+/// `Core\Socket::upgrade` has somewhere to leave the connection isolate it
+/// prepared. Nothing is started for it here — § 1's ordering is that the
+/// request ends first, and `nvs_stdlib::socket`'s module doc is the home of why
+/// the member cannot start one itself.
+///
 /// # Errors
 ///
 /// `hyper`'s own for this connection: a peer that spoke something other than
@@ -559,7 +570,7 @@ where
     // moment anything on this side can reach it.
     let phase = io.phase();
     let phase = &phase;
-    let service = service_fn(move |request: Request<Incoming>| async move {
+    let service = service_fn(move |mut request: Request<Incoming>| async move {
         // A head that framed is a head that arrived: what this connection is
         // waiting for from here is the body, and then nothing until the answer
         // exists.
@@ -635,6 +646,29 @@ where
         // about an answer the policy never produced. [`crate::cors`] owns the
         // rest, including why a cache is what `Vary` is for.
         let crossing = serving.cors.answer(request.headers());
+        // ADR 0083 § 1's offer, taken here for `crossing`'s reason and one more:
+        // `hyper` leaves an `OnUpgrade` in the extensions of a request it framed
+        // an upgrade for and of no other, so this is both the last moment
+        // anything on this side can read it and the whole of the question "can
+        // this connection be upgraded" — asked of `hyper`'s own answer rather
+        // than of a header set re-read here. An ordinary request is offered
+        // nothing, which is what `nvs_runtime::Inbound::offer_upgrade` says is
+        // the point.
+        //
+        // Both halves stay on this task: the slot's clone rides out to the
+        // request below, and the `OnUpgrade` never leaves, because the socket it
+        // yields belongs to this connection and § 1's isolate is started from
+        // here after the request has ended.
+        let upgradable = request
+            .extensions()
+            .get::<hyper::upgrade::OnUpgrade>()
+            .is_some();
+        let offered = upgradable.then(|| {
+            (
+                hyper::upgrade::on(&mut request),
+                nvs_runtime::UpgradeSlot::new(),
+            )
+        });
         let mut answered = match handler(request, origin) {
             // Already an answer: a mount table's `404`, or a file this server is
             // sending rather than running. Nothing is started for it, so the
@@ -659,6 +693,16 @@ where
             // could not send to the isolate, and one `pump` per poll reads a
             // chunk for a request that is waiting for one.
             Reply::Run(isolate, mut supply) => {
+                // The offer reaches the program through the carrier the handler
+                // built, which is why it is made here and not above: this loop
+                // never holds an `Inbound`, and `Isolate::offering_upgrade` is
+                // the one point at which the slot and that carrier are in the
+                // same hand. A reply that answers no request is left alone by
+                // it, exactly as `Reply::Done` is by having no arm here at all.
+                let isolate = match offered.as_ref() {
+                    Some((_, slot)) => isolate.offering_upgrade(slot.clone()),
+                    None => isolate,
+                };
                 // A statement of its own, because the borrow a `match`
                 // scrutinee takes lives to the end of the whole `match` — and
                 // the arm below borrows the same context again to collect.
@@ -1481,6 +1525,105 @@ mod tests {
         assert!(
             answer.ends_with("GET /greet who=world 7 8"),
             "the request did not reach the program as the peer sent it: {answer}"
+        );
+    }
+
+    /// The isolate ADR 0083 § 1's offer case answers with: a program that says
+    /// whether its **own** carrier has an upgrade slot on it.
+    ///
+    /// It reads the slot through `Core\Socket::upgrade`'s own route —
+    /// `Ctx::inbound()` and nothing else — so what the case sees is what that
+    /// member will see, and it never touches the request's headers: whether this
+    /// connection can be upgraded is `hyper`'s answer, and a handler re-reading
+    /// `Connection: Upgrade` for itself would be asserting a second one.
+    fn say_whether_an_upgrade_was_offered() -> Rc<impl Fn(Request<Incoming>, Origin) -> Reply> {
+        Rc::new(|request: Request<Incoming>, _origin: Origin| {
+            let inbound = nvs_runtime::Inbound::new(
+                request.method().as_str(),
+                request.uri().path(),
+                request.uri().query().unwrap_or(""),
+            );
+            let path = request.uri().path().to_owned();
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let offered = child
+                    .inbound()
+                    .and_then(nvs_runtime::Inbound::upgrade_slot)
+                    .is_some();
+                let said = format!("{path} {}", if offered { "offered" } else { "none" });
+                child.write_output(said.as_bytes()).expect("a buffer");
+                Value::null()
+            });
+            Reply::run(Isolate::new(program, Value::null(), Output::Capture).answering(inbound))
+        })
+    }
+
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// offer, at the door: a request `hyper` framed an upgrade for reaches its
+    /// program with a slot on its carrier, and the request after it on the same
+    /// connection does not.
+    ///
+    /// **Both halves on one connection**, because the claim is that the offer is
+    /// per *request* and not per connection — the socket really is upgradable
+    /// throughout, so a door that decided once at accept time and remembered
+    /// would pass a case that asked only the first question. It is also the half
+    /// that makes `Core\Socket::upgrade` refuse: a request with no slot is what
+    /// that member throws on, and here it is an ordinary `GET` over a connection
+    /// that could have carried one.
+    #[test]
+    fn only_an_upgradable_request_is_offered_a_slot() {
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            // RFC 6455's own opening handshake, minus the key: what decides the
+            // offer is that `hyper` framed an upgrade, and the framing is these
+            // two field lines.
+            socket
+                .write_all(
+                    b"GET /chat HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\n\
+                      Upgrade: websocket\r\n\r\n",
+                )
+                .expect("the write failed");
+            let mut seen = String::new();
+            read_until(&mut socket, "/chat offered", &mut seen);
+            socket
+                .write_all(b"GET /plain HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .expect("the second write failed");
+            socket
+                .read_to_string(&mut seen)
+                .expect("the second response could not be read");
+            seen
+        });
+
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &say_whether_an_upgrade_was_offered(),
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+
+        let seen = client.join().expect("the client thread panicked");
+        assert!(
+            seen.contains("/chat offered"),
+            "an upgradable request reached its program with no slot: {seen}"
+        );
+        assert!(
+            seen.contains("/plain none"),
+            "an ordinary request was offered an upgrade slot: {seen}"
         );
     }
 

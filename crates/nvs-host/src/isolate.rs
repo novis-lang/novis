@@ -80,7 +80,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
-use nvs_runtime::{Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, TaskRoot, Value};
+use nvs_runtime::{
+    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, TaskRoot, UpgradeSlot, Value,
+};
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
 
@@ -184,6 +186,32 @@ impl Isolate {
     #[must_use]
     pub fn answering(mut self, inbound: Inbound) -> Self {
         self.inbound = Some(inbound);
+        self
+    }
+
+    /// Offers [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 1's upgrade slot to the request this isolate answers, so that
+    /// `Core\Socket::upgrade` inside it has somewhere to leave the connection
+    /// isolate it prepared.
+    ///
+    /// It goes through the isolate rather than onto the carrier directly because
+    /// of who holds what: the door that knows whether this connection *can* be
+    /// upgraded (`nvs_server::serve_connection`) never sees the
+    /// [`Inbound`] — the handler it asks for a reply is what builds one — and
+    /// this is the one place the two are in the same hand. Nothing else about
+    /// the isolate changes, and in particular a connection's own isolate is
+    /// built by [`Isolate::new`] with no builder of its own: what it runs is a
+    /// [`nvs_runtime::Upgrade`]'s two halves, which are already this type's
+    /// first two arguments.
+    ///
+    /// **A no-op for an isolate answering no request**, which is the fail-closed
+    /// direction and the honest one: a `spawn script` child has no request, so
+    /// there is nothing an upgrade of its connection would mean.
+    #[must_use]
+    pub fn offering_upgrade(mut self, slot: UpgradeSlot) -> Self {
+        if let Some(inbound) = self.inbound.as_mut() {
+            inbound.offer_upgrade(slot);
+        }
         self
     }
 

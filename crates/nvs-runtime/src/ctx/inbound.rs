@@ -10,6 +10,22 @@
 //! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s finite
 //! defaults mean a carrier hands the body out a chunk at a time and holds none
 //! of it, so what a request has resident is one chunk and never the whole body.
+//!
+//! One thing here is not a fact the request arrived with, and that is
+//! [`UpgradeSlot`]:
+//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+//! connection isolate is *prepared* inside the request by `Core\Socket::upgrade`
+//! and *started* by the connection once that request has ended, so the two need
+//! somewhere to meet. It is on the carrier because a connection is the only
+//! thing an upgrade can happen to: a request that arrived on one has a slot, and
+//! a CLI program, a `spawn script` child and a request no connection offered one
+//! for do not — which is the whole of how that member refuses. The home of why
+//! it is here rather than on a completion or on the context is
+//! `nvs_stdlib::socket`'s module doc, § *Decision: this member spawns nothing,
+//! and the connection starts it*.
+
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::*;
 
@@ -310,6 +326,18 @@ pub struct Inbound {
     /// **What it spends:** 26 bytes per request, held no longer than the
     /// carrier.
     trace: Option<crate::trace_context::TraceContext>,
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// upgrade slot, for a request a connection offered one to, and `None` for
+    /// every other carrier — [`Self::offer_upgrade`] owns which is which and
+    /// [`UpgradeSlot`] owns why it is a shared cell.
+    ///
+    /// The one field here that is not a fact about what arrived, which the
+    /// module doc's last paragraph is the home of.
+    ///
+    /// **What it spends:** one pointer per request, and — only for a request
+    /// running on an upgradable connection — one small allocation the connection
+    /// holds the other reference to.
+    upgrade: Option<UpgradeSlot>,
 }
 
 impl std::fmt::Debug for Inbound {
@@ -328,6 +356,7 @@ impl std::fmt::Debug for Inbound {
             .field("scheme", &self.scheme)
             .field("body", &self.body.is_some())
             .field("parts", &self.parts.is_some())
+            .field("upgrade", &self.upgrade.is_some())
             .finish()
     }
 }
@@ -364,6 +393,10 @@ impl Inbound {
             // whatever root its context drew standing — the field's own doc
             // owns why that is not "no trace".
             trace: None,
+            // Nothing has offered this request an upgrade, which is what every
+            // carrier says until a connection that can be upgraded says
+            // otherwise — and is why `Core\Socket::upgrade` throws on one.
+            upgrade: None,
         }
     }
     /// Records who the request came from, as ADR 0097 § 6's walk decided it.
@@ -608,6 +641,149 @@ impl Inbound {
     pub fn form(&self) -> Option<&[u8]> {
         self.form.as_deref()
     }
+
+    /// Offers ADR 0083 § 1's upgrade to this request: the slot
+    /// `Core\Socket::upgrade` writes a prepared connection isolate into, whose
+    /// other half is held by whoever is going to start it.
+    ///
+    /// Called at most once, by whoever accepted the request, beside
+    /// [`Self::set_peer`] and before the program runs — and **only for a request
+    /// a connection can actually be upgraded out of**, which for the built-in
+    /// server is an h1 request `hyper` framed an upgrade for
+    /// (`nvs_server::serve_connection`). Everything else is left with no slot on
+    /// purpose: that is what makes the member throw off a CLI program, inside a
+    /// `spawn script` child and on an ordinary request alike, rather than
+    /// preparing an isolate nothing would ever start.
+    pub fn offer_upgrade(&mut self, slot: UpgradeSlot) {
+        self.upgrade = Some(slot);
+    }
+    /// The slot [`Self::offer_upgrade`] left, and `None` for a request no
+    /// connection offered one for.
+    ///
+    /// A shared borrow is all a writer needs, because the slot is a cell: what
+    /// `Core\Socket::upgrade` does with it is [`UpgradeSlot::fill`], which takes
+    /// `&self` for exactly the reason the connection's own half does.
+    #[must_use]
+    pub fn upgrade_slot(&self) -> Option<&UpgradeSlot> {
+        self.upgrade.as_ref()
+    }
+}
+
+/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+/// connection isolate, prepared and not yet started: the program it runs, and
+/// the argument that has already crossed to it.
+///
+/// **It is exactly what `nvs_host::Isolate::new` takes**, and that is the whole
+/// of the type — a connection is not a fourth kind of isolate but § 1's root one
+/// with the two things every isolate needs decided a task earlier. Why they are
+/// decided there is `nvs_stdlib::socket`'s module doc: the capability, the
+/// argument and the code are all the *request's* to refuse, and each of the
+/// three answers `null` or throws on a context that never ran the program.
+///
+/// **Consumes one reference to `args`**, which the connection hands on to the
+/// spawn at the far end; a prepared upgrade that is dropped without being taken
+/// leaks that reference, the same obligation `nvs_host::Isolate::new` and
+/// [`crate::host::Job`] already document for a child that is never run. The
+/// connection takes the slot unconditionally after joining the request, so the
+/// only path that drops one is a connection that died before it got there.
+///
+/// **What it spends:** one boxed closure and one 16-byte value per upgrade, plus
+/// the argument graph the copy behind it holds — accounted where that copy is
+/// made, which is `nvs_stdlib::socket`'s "copied twice per upgrade".
+pub struct Upgrade {
+    /// What the connection's isolate runs: the resolver's program for a path
+    /// entry, or the closure `nvs_stdlib::socket` built over an already-crossed
+    /// callable for a static method one. Both of ADR 0006's two entry forms
+    /// arrive here as one thing, which is what makes them one isolate.
+    program: crate::script::Program,
+    /// The argument, on this side of the boundary already — the copy the request
+    /// made so that ADR 0023 § 2's refusal could still be a throw the program
+    /// catches.
+    args: Value,
+}
+
+impl std::fmt::Debug for Upgrade {
+    /// Written out for [`Inbound`]'s reason: a [`crate::script::Program`] is a
+    /// closure and has no `Debug`, and there is nothing to print of it but that
+    /// one is here.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Upgrade")
+            .field("args", &self.args)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Upgrade {
+    /// Prepares one. **Consumes one reference to `args`** — the type's own doc
+    /// owns what that obligates.
+    #[must_use]
+    pub fn new(program: crate::script::Program, args: Value) -> Self {
+        Self { program, args }
+    }
+    /// Hands both halves over, which is the one thing anybody does with one:
+    /// they are `nvs_host::Isolate::new`'s first two arguments and are never
+    /// read apart.
+    #[must_use]
+    pub fn into_parts(self) -> (crate::script::Program, Value) {
+        (self.program, self.args)
+    }
+}
+
+/// The place a prepared [`Upgrade`] is left, shared between the request that
+/// prepares it and the connection that starts it.
+///
+/// **A cell with two halves rather than a value on the carrier**, because the
+/// two sides are a task apart and only one of them is alive at a time: the
+/// request writes through its `nvs_runtime::Inbound`, the request ends and its
+/// context — the carrier with it — is dropped, and the connection reads through
+/// the half it kept. A field the connection had to reach back into a finished
+/// request for would be the ordering ADR 0083 § 1 forbids, spelled as something
+/// to remember rather than as something the code can express.
+///
+/// Cloning one is what "offering" it is: both halves name the same cell, and a
+/// slot nobody filled costs one allocation on a connection that never upgraded.
+#[derive(Clone, Debug, Default)]
+pub struct UpgradeSlot(Rc<RefCell<Option<Upgrade>>>);
+
+impl UpgradeSlot {
+    /// An empty slot, whose other half is a [`Clone`] of it.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Records the prepared isolate.
+    ///
+    /// `&self` rather than `&mut self` because both halves are shared handles
+    /// and neither is the owner; the cell is what serialises them, and nothing
+    /// holds a borrow of it across a call.
+    ///
+    /// # Errors
+    ///
+    /// The upgrade handed back, unchanged, where one is already recorded — a
+    /// program that called `Core\Socket::upgrade` twice on one request. It is
+    /// returned rather than dropped so that the refusal happens where there is
+    /// still a context to release the argument with and a `catch` to report it
+    /// to; a fill that overwrote would leak the first argument and open a
+    /// connection the program did not think it had asked for.
+    pub fn fill(&self, upgrade: Upgrade) -> Result<(), Upgrade> {
+        let mut slot = self.0.borrow_mut();
+        if slot.is_some() {
+            return Err(upgrade);
+        }
+        *slot = Some(upgrade);
+        Ok(())
+    }
+    /// Takes what was recorded, leaving the slot empty — the connection's half,
+    /// and `None` for a request that never upgraded.
+    #[must_use]
+    pub fn take(&self) -> Option<Upgrade> {
+        self.0.borrow_mut().take()
+    }
+    /// Whether an upgrade has been recorded, without taking it.
+    #[must_use]
+    pub fn is_filled(&self) -> bool {
+        self.0.borrow().is_some()
+    }
 }
 
 /// The body of a served request, as chunks the program pulls one at a time —
@@ -789,5 +965,86 @@ mod tests {
         // And the head is still there afterwards: reading the body consumed
         // the body and nothing else.
         assert_eq!(ctx.inbound().map(Inbound::method), Some("POST"));
+    }
+
+    /// A [`Upgrade`] whose program records that it ran, which is the only thing
+    /// a prepared isolate can be asked to prove on this side of the boundary:
+    /// what crossed is a closure, so "the same one came back out" is that
+    /// closure running and nothing else.
+    fn prepared(marker: &Rc<std::cell::Cell<u8>>, mark: u8) -> Upgrade {
+        let marker = Rc::clone(marker);
+        Upgrade::new(
+            Box::new(move |_ctx: &mut Ctx, _args: Value| {
+                marker.set(mark);
+                Value::null()
+            }),
+            Value::null(),
+        )
+    }
+
+    /// ADR 0083 § 1's slot, as the two halves it is: a carrier nobody offered
+    /// one to has none — which is the whole of how `Core\Socket::upgrade`
+    /// refuses off a CLI program and inside a `spawn script` child — and a
+    /// carrier that has one is writing into the cell the connection kept.
+    ///
+    /// The program is asserted by *running* it after the take, because the
+    /// claim is that the connection ends up holding the thing the request
+    /// prepared and not merely a slot that is occupied.
+    #[test]
+    fn an_offered_upgrade_reaches_the_half_the_connection_kept() {
+        let mut nothing = Inbound::new("GET", "/", "");
+        assert!(nothing.upgrade_slot().is_none());
+        nothing.set_body(Canned::of(&[]));
+
+        // The door's half, and the request's: one cell, two names.
+        let connection = UpgradeSlot::new();
+        let mut inbound = Inbound::new("GET", "/chat", "");
+        inbound.offer_upgrade(connection.clone());
+
+        let marker = Rc::new(std::cell::Cell::new(0));
+        let slot = inbound.upgrade_slot().expect("the door offered one");
+        assert!(!slot.is_filled());
+        assert!(slot.fill(prepared(&marker, 1)).is_ok());
+
+        // The request is over: its carrier is gone and the connection reads
+        // what it left, which is § 1's ordering as the code expresses it.
+        drop(inbound);
+        assert!(connection.is_filled());
+        let (program, args) = connection
+            .take()
+            .expect("the request filled it")
+            .into_parts();
+        assert_eq!(args.tag(), Some(crate::Tag::Null));
+        assert!(!connection.is_filled());
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        program(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 1);
+    }
+
+    /// [`UpgradeSlot::fill`]'s refusal, asserted on both sides of it: the second
+    /// upgrade comes back to its caller rather than being dropped — there is an
+    /// argument reference on it that only the request can release — and the
+    /// first one is still what the connection takes.
+    #[test]
+    fn a_second_upgrade_is_handed_back_and_the_first_one_stands() {
+        let slot = UpgradeSlot::new();
+        let marker = Rc::new(std::cell::Cell::new(0));
+
+        assert!(slot.fill(prepared(&marker, 1)).is_ok());
+        let refused = slot
+            .fill(prepared(&marker, 2))
+            .expect_err("one request upgrades once");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (first, _) = slot.take().expect("the first fill stands").into_parts();
+        first(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 1);
+
+        // And the refused one is intact rather than half-consumed: the caller
+        // is what releases its argument, so it has to arrive whole.
+        let (second, _) = refused.into_parts();
+        second(&mut ctx, Value::null());
+        assert_eq!(marker.get(), 2);
     }
 }
