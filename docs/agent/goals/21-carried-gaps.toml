@@ -131,7 +131,7 @@ tests = [
 kind = "command"
 stage = "2 owned keys"
 name = "the durable gap list exists and every entry names an owner"
-args = ["python", "tools/chain.py", "--check"]
+argv = ["python", "tools/chain.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- a grant an operator wrote is a grant something reads. 0067 §§ 3 and 10.
@@ -331,10 +331,10 @@ want = [
 kind = "nvs-suite"
 stage = "11 suites"
 name = "the conformance tree"
-tree = "tests/conformance"
+args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "nvs-suite"
 stage = "11 suites"
 name = "the differential tree"
-tree = "tests/differential"
+args = ["test", "tests/differential/"]

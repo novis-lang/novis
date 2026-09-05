@@ -141,10 +141,10 @@ tests = [
 kind = "nvs-suite"
 stage = "5 suites"
 name = "the conformance tree"
-tree = "tests/conformance"
+args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "nvs-suite"
 stage = "5 suites"
 name = "the differential tree"
-tree = "tests/differential"
+args = ["test", "tests/differential/"]
