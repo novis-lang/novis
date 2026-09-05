@@ -346,7 +346,7 @@ fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
 
 #[cfg(feature = "wasm-probe")]
 mod wasm_guards {
-    use super::{Instant, black_box, ns_per_op};
+    use super::{Instant, black_box, ns_per_op, under};
     use nvs_abi_probe::wasm::WasmProbe;
 
     const NO_DEADLINE: u64 = u64::MAX;
