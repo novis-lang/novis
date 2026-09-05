@@ -8197,6 +8197,18 @@ sibling in the same namespace unqualified.
   member that no longer throws hands its message to `bytes as string`, so their `--EXPECT--` moves to
   `cannot convert `bytes` to `string`: not well-formed UTF-8 at byte N` and their titles have to say
   the bound moved one member along rather than went away.
+- **A `.nvst` case can carry its own `nvs.toml`, so the conformance corpus already pins how a
+  *command* behaves under a configuration — grep `--FILE nvs.toml--` before making one read the
+  tree.** ADR 0067 § 10's check-time refusal of an ungranted literal `Core\Db::open` host reads as
+  something the shared front end should ask for every subcommand, and threading the grants through
+  `front_end` is a two-line change that compiles. It would also have broken
+  `tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst`, which
+  writes `[capabilities.db] open = ["127.0.0.1"]` into the case directory and expects the *runtime*
+  refusal its program catches — ADR 0118 § 5's denial the program is still running underneath.
+  `crates/nvs-test/src/run.rs`'s module doc is why: every case spawns the real binary with the case
+  directory as its working directory, so ADR 0103 § 1 step 2 finds that file exactly as a user's
+  would. The general shape: hoisting a runtime refusal to compile time is a language change wherever
+  the runtime one is catchable, and the corpus is where that gets noticed.
 
 ## Divergences and refusals already pinned
 
