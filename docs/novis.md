@@ -16545,7 +16545,7 @@ $socket->receive(): ?Core\Socket\Message
 
 Waits for the next thing from either side — a frame the peer sent, or a value published to a topic this connection subscribed to — and answers it as one message.
 
-**Returns** `?Core\Socket\Message` — The next message, or `null` once the peer has closed, which is what ends the `while (var $msg = $conn->receive())` loop a connection script is written as. A peer frame's payload is `tainted`; a delivery carries the published value and the topic's name, which is how the loop tells the two apart.
+**Returns** `?Core\Socket\Message` — The next message, or `null` once the peer has closed, which is what ends the `while (var $msg = $conn->receive())` loop a connection script is written as. A peer frame's payload is `tainted`; a delivery carries the published value and the topic's name, which is how the loop tells the two apart. `null` is also what a connection that fell too far behind its topics is answered: its queue overflowed, so this connection is closed rather than a publisher being made to wait for it.
 
 **Throws** `LogicError` — This program is not a connection isolate, so there is no peer to wait on.
 
@@ -16681,7 +16681,7 @@ Copies `$value` to every connection subscribed to `$topic`, and answers how many
 | `$topic` | `string` (sink) | The topic's name, under the rule `subscribe` reads it under: it is built from checked values or it does not compile. |
 | `$value` | `mixed` | What to publish. Every subscriber is handed its own copy, so nothing is shared with the publisher or between subscribers; a `tainted` value is still `tainted` where it arrives, and a `secret` may not be published at all. |
 
-**Returns** `uint` — How many subscribers the value was queued for, which is `0` for a topic nobody has joined. Publishing needs no connection of its own — an ordinary request may tell the connections that something changed — and a connection publishing to a topic it joined itself is delivered to like any other subscriber.
+**Returns** `uint` — How many subscribers the value was queued for, which is `0` for a topic nobody has joined. Publishing needs no connection of its own — an ordinary request may tell the connections that something changed — and a connection publishing to a topic it joined itself is delivered to like any other subscriber. A subscriber whose queue is full is not among them: it is being closed for falling behind, and this call is never delayed by one.
 
 **Throws** `LogicError` — An empty `$topic`, which no subscriber can be reached by; and a `$value` with no meaning on the other side of a copy boundary — a resource, or a `secret` — which is refused whether or not anybody has joined.
 
