@@ -9,11 +9,16 @@ members = ["crates/*", "benches/*"]
 # README describes, and `benches/serve/` for the twin pair `tools/bench.py
 # --serve-vs-fpm` runs under two servers. `benches/proxied/` is compose files,
 # an nginx and a PHP configuration and a Dockerfile, for the same reason.
+# `benches/results/` is the one nothing in the repository creates: the loop's
+# acceptance sweep writes a `--record` row there and `.gitignore` covers it, so
+# it appears for the first time on a machine that has run the sweep and on no
+# other — which is a build that breaks for one person and nobody else.
 # The failure is the whole workspace
 # rather than that one directory: `cargo` reads the glob before it reads a
 # crate, so a `.nvs` tree under `benches/` that is not listed here breaks every
 # build in the repository.
-exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied"]
+exclude = ["benches/userland", "benches/members", "benches/serve", "benches/proxied",
+           "benches/results"]
 
 # ---------------------------------------------------------------------------
 # Shared package metadata. Every crate inherits these with `x.workspace = true`.
