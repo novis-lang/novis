@@ -193,6 +193,38 @@ keeps `debug = "line-tables-only"` so a production backtrace names lines; stripp
 binary would spend exactly what that setting buys, to save bytes — which AGENTS.md's priority
 ordering puts last.
 
+## Recalling a published image
+
+A pushed image tag is the one write in this pipeline that reverting a commit does not undo, so it
+is the one rollback with a procedure. Three levels — take the lowest one that fixes the problem.
+
+**1. Move the floating tags back to the previous release.** Everyone pulling `latest` or the
+`MAJOR.MINOR` line stops getting the bad build; everyone who pinned a version or a digest is
+untouched. **Delete the bad `vX.Y.Z` git tag first.** `release.py` refuses to move a floating tag
+onto a version older than the newest `v*` tag — that is what stops a stale draft walking `latest`
+backwards, and it is also what silently blocks this rollback while the bad tag still exists.
+With it gone, dispatch [release-promote.yml](../.github/workflows/release-promote.yml) with the
+good tag and both variants move.
+
+**2. Release a fixed patch.** Almost always better than deleting anything: it costs one run, and
+it leaves the record of what happened intact.
+
+**3. Delete the package version** — for a leaked secret or a compromised build, not for a bug.
+*Packages → `novis` → Versions →* the version *→ Delete*, or
+
+```sh
+gh api -X DELETE /orgs/novis-lang/packages/container/novis/versions/<id>
+```
+
+Three things to know before you do: a **digest pin stops resolving**, which breaks a deployment
+that was doing the most careful thing available; GitHub will not delete any version of a public
+package once it passes 5,000 downloads, so past that it is a support request; and a deleted
+version can be restored for 30 days afterwards, which is the escape hatch if the deletion itself
+was the mistake.
+
+Deleting the *whole* package also unlinks it from the repository, so setup § 6's visibility switch
+has to be done again on the next release.
+
 ## When it goes wrong
 
 | | |
@@ -201,7 +233,8 @@ ordering puts last.
 | An `optional` build leg failed | `linux-x86_64-musl` and `windows-aarch64` are marked optional because `wasmtime` and `corosensei` carry assembly and neither lists Windows on ARM64 as supported. The release still ships; drop `optional:` from that leg once a run has proved it. |
 | A **required** leg failed | `publish` refuses by name rather than shipping a quietly incomplete release. Fix and re-run; nothing was written. |
 | The push in `publish` was rejected | `main` moved (see step 2) or is protected (see setup § 4). Nothing was written — re-run. |
-| A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo; delete that package version by hand, from the package's *Versions* page. |
+| A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo, and § *Recalling a published image* above is that procedure. Do it in that order: deleting the git tag is what unblocks moving `latest` back. |
 | `docker pull` says *denied* or asks for a login | The package is still private. Setup § 6 — it is a one-time switch and it is not the repository's own visibility. |
-| The `docker` job failed after the release was tagged | Re-run that job alone. It is idempotent and needs nothing from the earlier jobs but their artifacts. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
+| The `docker` job failed after the release was tagged | Re-run that job alone; it needs nothing from the earlier jobs but their artifacts, and `fail-fast: false` means a variant that already succeeded is not redone. It names the same tags, but the re-run's **digest differs** — the image config records a build time — so the abandoned attempt is left as an untagged version in the package. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
+| The `docker` job failed *before* the release was tagged | It cannot: it `needs: [plan, publish]`. There is no state where an image exists for a version the repository has no tag for. |
 | `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `release.py` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |
