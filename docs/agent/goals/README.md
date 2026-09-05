@@ -172,10 +172,10 @@ Each goal is three files, named for it:
 | File | Holds |
 |---|---|
 | `N-<name>.md` | the target, the item list grouped by file set, the standing decisions |
-| `N-<name>.toml` | the acceptance test as data, and the `[context]` manifest |
-| `N-<name>.handoff.md` | the handoff the switch seeds, naming that goal's first group |
+| `N-<name>.toml` | the acceptance test as data, and the `[context]` manifest — **deleted when the run leaves the goal** |
+| `N-<name>.handoff.md` | the handoff the switch seeds, naming that goal's first group — deleted with it |
 
-Three rules bind every one of them, and they are the reason the run can be left alone:
+Four rules bind every one of them, and they are the reason the run can be left alone:
 
 1. **A goal's acceptance list is the next goal's floor, mechanically.** `tools/goal-switch.py` copies every
    `[[check]]` out of the live `loop-goal.toml` into the next goal's own marker line, relabelled to the
@@ -190,6 +190,16 @@ Three rules bind every one of them, and they are the reason the run can be left 
    `BLOCKED`, and never a new number.
 3. **A goal that cannot verify itself does not advance.** The driver runs the acceptance test; a session
    claiming `DONE` against a red check stops the run, exactly as it does today.
+4. **A goal the run has left is retired, in the same commit as the switch.** Rule 1 makes the fold
+   cumulative — goal 1's 80 checks are in goal 2's file and in every file after it — so a walked goal's
+   own `.toml` is a duplicate of a duplicate, and by goal 6 the directory held 830K of floors no tool
+   reads. `chain.py --retire N` proves every one of that goal's checks is in the live `loop-goal.toml`,
+   deletes its `.toml` and `.handoff.md`, and marks the entry `retired = "<date>"`. **The `[[goal]]`
+   block and the `.md` stay**: `.loop/chain.json` indexes this list by position, so nothing may be
+   removed from it, and the prose is what [the plan](../../implementation-plan.md) and the milestone
+   files cite. The proof is not `--force`-able, and a retired entry at or after the live one is refused
+   by `loop.py` at start-up — retiring is the claim that a goal's checks are already somebody's floor,
+   and that claim is false anywhere but behind the run.
 
 ## Starting the chain
 
@@ -206,8 +216,9 @@ Three steps.
 
 **The driver does the switching, including the first one.** It runs `tools/goal-switch.py` against the
 entry it is about to install — which folds the live goal's whole acceptance list in as that entry's floor
-— copies the three files into `docs/agent/loop-goal.md`/`.toml` and `docs/agent/handoff.md`, commits that
-switch, and starts the session. On `GOAL REACHED` it does the same for the next entry and keeps going.
+— copies the three files into `docs/agent/loop-goal.md`/`.toml` and `docs/agent/handoff.md`, retires the
+entry it just left (rule 4), and commits all of that as one switch before starting the session. On
+`GOAL REACHED` it does the same for the next entry and keeps going.
 Without `--chain` the run stops six times and waits for a human, which is the same run with five extra
 nights in it.
 

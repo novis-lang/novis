@@ -96,6 +96,15 @@ and everything that is this goal's own substance left as marked `TODO` — takes
 the dossier, and inserts the entry in front of it. `--set N`, `--why N`, `--move N`, `--renumber`,
 `--retitle` and `--remove` are the edits; no flag at all lists the order with where the run stands.
 
+**`--retire N` is what a walked entry ends as, and the driver runs it at every switch.** The fold is
+cumulative — goal 1's checks are in goal 2's file and in every file after it — so once the run has left a
+goal, its own `.toml` is a copy of a copy, and six of them were 830K that no tool reads and every `grep`
+over `docs/` hits eight times. This deletes that `.toml` and its `.handoff.md`, and marks the entry
+`retired = "<date>"`; the `[[goal]]` block and the `.md` stay, because the list is indexed by position and
+the prose is cited from the plan. It refuses unless **every** `[[check]]` of that goal is in the live
+`loop-goal.toml`, matched on `(kind, name)` so a floor a session legitimately edited still counts — and
+that proof, unlike the position guard, is not `--force`-able.
+
 Every mutation is a **text splice**: half of that file is the prose saying why the order is what it is,
 and a `tomllib` round-trip would delete all of it. `--check` re-renders the file it just read and reports
 it if that ever stops being byte-identical, alongside the two failures that are otherwise silent — a goal

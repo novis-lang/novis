@@ -81,8 +81,10 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
     (--chain, before the first session: install the next staged goal -- goal-switch.py carries the
-     live goal's checks in as its floor, the three files are copied into place, the switch is
-     committed, and any [docker] services the goal declares are brought up once)
+     live goal's checks in as its floor, the three files are copied into place, the entry the run
+     just left is retired (chain.py --retire: its checks are now in the file above, so its own
+     copy goes), the switch is committed, and any [docker] services the goal declares are brought
+     up once)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
     if the result event blamed a 529       -> back off and re-run this session, forever -- not a failure,
