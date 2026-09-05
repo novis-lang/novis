@@ -85,7 +85,8 @@ pub fn take(inbound: &mut Inbound) {
 #[cfg(test)]
 mod tests {
     use super::take;
-    use nvs_runtime::{Inbound, TraceContext};
+    use nvs_render::Level;
+    use nvs_runtime::{Ctx, Inbound, OutputSink, TraceContext, floor};
 
     /// A carrier as the door builds one: the request line, then one field line
     /// per entry in arrival order.
@@ -199,5 +200,94 @@ mod tests {
         // actually differ — one sampled arrival and three unsampled ones.
         let sampled = traces.iter().filter(|trace| trace.sampled()).count();
         assert_eq!(sampled, 1, "the sweep asked one question four times");
+    }
+
+    /// What the door decided for `headers`, and the one diagnostic line a
+    /// record written on a context serving that request produced.
+    ///
+    /// The record goes out through [`nvs_runtime::floor::report`] — one of
+    /// ADR 0020 § 6's two writers, and the one this crate can reach — so the
+    /// line read back here is rendered by the same serialiser, stamped by the
+    /// same [`nvs_runtime::Ctx::stamp_envelope`] and floored by the same
+    /// directive as a record `Core\Log::write` produces. Nothing about the ids
+    /// is this fixture's: the door writes them and the stamp reads them.
+    fn reported(headers: &[(&str, &str)], message: &str) -> (TraceContext, String) {
+        let mut inbound = arrived(headers);
+        take(&mut inbound);
+        let carried = inbound
+            .trace_context()
+            .expect("the door wrote no trace for a request it walked");
+        let mut ctx = Ctx::buffered();
+        // The floor writes to the diagnostic channel with no `[log] target`
+        // configured, and a fresh context points that at stderr.
+        ctx.set_diagnostic_sink(OutputSink::Buffer(Vec::new()));
+        ctx.set_inbound(inbound);
+        floor::report(&mut ctx, &floor::note(Level::Error, message));
+        let line = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("a buffered channel hands its bytes back"),
+        )
+        .expect("a JSON Lines line is text");
+        (carried, line)
+    }
+
+    /// ADR 0076 §§ 2 and 6, across the seam neither crate owns alone: the trace
+    /// id a record carries is the one **this door** decided, and not a second
+    /// one drawn where the record was written.
+    ///
+    /// `crates/nvs-stdlib/src/log.rs` pins the record's *shape* — which keys a
+    /// served request contributes and which a CLI run omits — against a trace
+    /// context the fixture sets by hand. That leaves exactly one thing
+    /// unasserted, and it is the thing an operator jumping from a log line to a
+    /// trace depends on: that the hand a request's ids actually come from is
+    /// [`take`]'s. A door that read the header and a stamp that minted its own
+    /// id would each pass their own crate's tests and produce a line no backend
+    /// could join to anything.
+    ///
+    /// Asked on both sides of § 2's sampling bound, because they fail
+    /// differently: a continued trace pins the ids against the *arrived*
+    /// header, and a root — which has an id and no spans being recorded — pins
+    /// that `request_id` still names the door's id rather than falling back to
+    /// nothing.
+    #[test]
+    fn a_requests_log_record_and_its_span_carry_the_same_trace_id() {
+        let (continued, line) = reported(
+            &[("host", "localhost"), ("traceparent", INBOUND)],
+            "the store said no",
+        );
+        assert!(
+            continued.sampled(),
+            "the arrived header is sampled, which is what puts spans on the record"
+        );
+        for (key, want) in [
+            ("request_id", continued.trace_id_hex()),
+            ("trace_id", continued.trace_id_hex()),
+            ("span_id", continued.span_id_hex()),
+        ] {
+            assert!(
+                line.contains(&format!("\"{key}\":\"{want}\"")),
+                "`{key}` is not the id the door carried: {line}"
+            );
+        }
+        // And that id is the caller's, so the assertions above are about a
+        // continuation rather than about two readings of one fresh root.
+        assert!(
+            line.contains("\"trace_id\":\"4bf92f3577b34da6a3ce929d0e0e4736\""),
+            "the record names a trace the request did not arrive in: {line}"
+        );
+
+        // § 2's other side: a request that carried no header is a root, and its
+        // record still reads the door's id — the half that makes the trace id
+        // Novis's only request identifier rather than a tracing detail.
+        let (root, line) = reported(&[("host", "localhost")], "the queue was empty");
+        assert!(
+            line.contains(&format!("\"request_id\":\"{}\"", root.trace_id_hex())),
+            "a root's record named no request: {line}"
+        );
+        assert_ne!(
+            root.trace_id_hex(),
+            continued.trace_id_hex(),
+            "the root joined the continued request's trace"
+        );
     }
 }

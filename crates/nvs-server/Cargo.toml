@@ -49,6 +49,13 @@ tungstenite.workspace = true
 # in this crate's own code names a TOML value; the configuration reaches it as
 # `nvs_config::snapshot::Snapshot` and never as a document.
 toml.workspace = true
+# Test-only, and for one seam: ADR 0076 § 6 has a log record carry the trace id this crate's
+# `src/trace.rs` decided at the door, and a record is a `nvs_render::Record` at a
+# `nvs_render::Level`. Nothing in this crate's own code names either — the door writes a
+# `TraceContext` and the stamping is `nvs_runtime::Ctx::stamp_envelope`'s — so the vocabulary is
+# needed only to *read the record back* in the case that pins the two halves together. Not a new
+# crate in the graph: `nvs-runtime`, `nvs-host` and `nvs-config` all already rest on it.
+nvs-render.workspace = true
 
 # This crate inherits the workspace lint policy unchanged, `unsafe_code =
 # "forbid"` included. That is a decision and not an omission: the obvious way to
