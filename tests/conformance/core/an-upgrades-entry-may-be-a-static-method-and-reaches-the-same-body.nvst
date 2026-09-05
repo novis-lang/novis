@@ -13,9 +13,13 @@ class Chat {
     }
 }
 
-// § 1's root isolate is not built, so what says the entry was *accepted* is
-// that the member reaches its own body and reports from there — byte for byte
-// the report the path form gets, never a diagnostic and never a silent `void`.
+// A script run from the command line arrived on no connection, so what says
+// the entry was *accepted* is that the member reaches its own body and reports
+// the missing connection from there — byte for byte the report the path form
+// gets, never a diagnostic and never a silent `void`. The connection is asked
+// about before the entry is read, which is why both spellings answer alike;
+// `nvs_stdlib::socket`'s § *The method form waits on a name* owns what this
+// form still cannot prepare once there is a slot to prepare it into.
 try {
     Core\Socket::upgrade(Chat::run(...), args: {room: "lobby"});
     echo "upgraded\n";
@@ -27,5 +31,5 @@ try {
 // isolate § 1 opens is the only place that body ever runs.
 echo "not run here\n";
 --EXPECT--
-`Core\Socket::upgrade` cannot open a connection yet: the root isolate a WebSocket connection runs in is not built, so there is nothing to hand this connection to
+`Core\Socket::upgrade` needs a connection to upgrade and this request arrived on none: only a request a server framed an upgrade for is offered one
 not run here
