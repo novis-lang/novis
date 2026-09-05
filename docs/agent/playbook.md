@@ -2014,6 +2014,14 @@ is why" — is this file.
   mismatch is what `Edit` with `replace_all` is for when the string is *literal and unique*, and what
   `tools/splice.py --patch` is for when it is not. If a script really is the only shape, make every
   replacement an exact literal with an asserted count — never a regex with `.` in it.
+- **A `[context] adrs` entry of `§3a` printed § 3, silently, and the pack looked complete.**
+  `orient.py`'s `normalize` split a leading number off its letter, so `3a` became the key `3 a` —
+  and *`### 3. A mode selects defaults ...`* normalizes to `3 a mode selects ...`, which starts
+  with it. ADR 0091's § 3a was in the manifest the whole time and no session had ever seen it; the
+  same regex is in `peek.py`'s `heading_span`, so `peek.py <adr>:"### 3a"` gave the wrong section
+  too and confirmed nothing. Both now read `^(\d+[a-z]?)`. The general shape: a section slice that
+  comes back plausible is not evidence the selector matched — check the heading line the slicer
+  printed against the one you asked for, because every other check in the loop trusts that pack.
 
 ## Running things
 
@@ -5636,6 +5644,19 @@ is why" — is this file.
   `nvs_config::trust::exposure` reading a DACL on Windows. `crates/nvs-cli/src/cache.rs`'s
   `open_to_the_world` is the portable *positive* fixture when a real directory is what you need:
   a `chmod` on Unix and an `icacls` grant for `S-1-1-0` on Windows.
+- **A `-p nvs-cli` test whose program `spawn script`s needs a scheduler and a reactor on the
+  thread, and `nvs_host::Isolate::run` on its own installs neither.** The two failures arrive one
+  at a time and neither names the fixture: first ``  `spawn script` needs the capability
+  `script.spawn` ... which is not granted `` — ADR 0118 § 1 denies by default, and
+  `crates/nvs-cli/src/script.rs`'s `granting_ctx` is this crate's one spelling of the grant — and
+  then, once that is past, `needs a scheduler on this thread and there is none`, which is
+  `nvs_stdlib::script` refusing to spawn onto nothing. What closes it is exactly what `main`'s own
+  run installs and in the same order: `nvs_host::Scheduler::new()`, `sched.spawn(granting_ctx(),
+  TaskRoot::Request, |ctx| …)` with the isolate run inside the task, then
+  `nvs_host::reactor::install(Reactor::new()?)`, then `run_until_idle`. `script.rs`'s `run_serving`
+  is the twenty-line shape. Worth the bullet because a re-entrant resolve is the only way to
+  assert anything about the unit cache *while a program is running*, which is what ADR 0017's
+  "never blocks a request-serving core" is a claim about.
 
 ## Splitting a file that got too big
 

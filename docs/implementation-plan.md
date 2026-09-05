@@ -49,19 +49,19 @@
 > isolate; § 6's walk decides the peer, `400` on a bad token; § 8's accept backs off, § 5's drain
 > answers the probe and `isDraining()`; `Core\Response` has seven, `Core\Request` thirteen, an
 > upload walks as parts; the door carries the body; ADR 0074 §§ 1-2 hold; a request is matched once;
-> `route()`, `methodsFor`, CSRF and the label read it; a `decimal`, `Core\Uuid`, a union and an enum
-> case convert as captures; § 7's mount answers a class and `E0801` refuses `echo` beside one. **ADR
-> 0139's session is whole**: `[session]` is shared or db, `E0626` refuses local, § 1's seven carry
-> it, § 4 sends it. **Stage 10's corpus opened**: §§ 5-7's bindings, naming, flag. **ADR 0073's
-> ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**:
-> `afterResponse` drains detached; § 7's cap counts trees; ADR 0076: the trace continues, both
-> blocks boot, a core meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:`, at
-> a `Core` row too; ADR 0083 is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores
-> closing a slow subscriber, § 7's bounds are finite, an edit swaps for new resolves; `Core\Sse`
-> fills § 5's cell. **ADR 0078's endpoint lands**: `E0629` refuses a network `socket`, a local one
-> is created 0600, `reload` its only operation, a changed `Boot` key named. **ADR 0093's installer
-> refuses**: `E0630`-`E0634`, and `nvs service unit` prints § 5's. Conformance 1533, differential
-> 256, migration 100%; valgrind green.
+> `route()`, `methodsFor`, CSRF and the label read it; four capture kinds convert; § 7's mount
+> answers a class, `E0801` refuses `echo`. **ADR 0139's session is whole**: `[session]` is shared or
+> db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR 0073's ticker fires**: a root
+> isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse` drains
+> detached; § 7's cap counts trees; ADR 0076: the trace continues, both blocks boot, a core meters §
+> 1's nine under § 7's bound; ADR 0006's method entry binds `args:`, at a `Core` row too; ADR 0083
+> is whole — § 1's `101` opens a root isolate, § 4's bus crosses cores closing a slow subscriber, §
+> 7's bounds are finite; `Core\Sse` fills § 5's cell. **ADR 0078's endpoint lands**: `E0629` refuses
+> a network `socket`, a local one is created 0600, `reload` its only operation, a changed `Boot` key
+> named. **ADR 0093's installer refuses**: `E0630`-`E0634`, and `nvs service unit` prints § 5's.
+> **ADR 0017 is guarded**: `never` never `stat`s, one window is one check, a swap publishes under a
+> running program, § 3a picks `validate`. Conformance 1533, differential 256, migration 100%;
+> valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
