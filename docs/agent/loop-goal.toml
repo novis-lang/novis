@@ -171,6 +171,14 @@ adrs = [
   "0076 §1",
   "0076 §6",
   "0076 §7",
+  # Added 2026-09-05 with the connection group, which is stage 6b's whole remaining surface: this list
+  # named `0083` in `rules` and not one section here, so a session opening § 1's carrier was handed the
+  # one-line ground rule and none of the decision it was implementing. § 1 is what a connection isolate
+  # IS and the sentence that the upgrading request ends normally, § 2 is the entry rule at its second
+  # site, § 3 is the one wait over the peer and its topics. Take them out when 6b closes.
+  "0083 §1",
+  "0083 §2",
+  "0083 §3",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is
@@ -3738,21 +3746,38 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6b persistent connections"
-name = "nvs-server (ADR 0083 §§ 1-3 -- the upgrade, the request that ends, and the one wait)"
+name = "nvs-server (ADR 0083 §§ 1 and 5 -- the upgrade, and the request that ends)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # § 1 -- a root isolate, and the request that upgraded it ends normally.
   "an_upgrade_opens_a_root_isolate_and_the_upgrading_request_ends",
   "the_upgrading_requests_arena_is_released_while_the_connection_is_open",
   "a_connection_isolate_cannot_read_the_upgrading_requests_state",
+  # § 5 -- SSE is the same isolate with no receive.
+  "sse_is_a_connection_isolate_with_no_receive",
+]
+
+# Split off the check above on 2026-09-05, and what decides which half a test is in is what crosses the
+# boundary. § 1's hand-over is a `nvs_runtime::script::Program` and an already-crossed `Value` -- a
+# boxed Rust closure and 16 bytes -- so a `-p nvs-server` test builds one by hand with no Novis
+# compiler and no `unsafe`, which that crate forbids. §§ 2-3 are `Core` members: an entry form the
+# compiler interned, `receive()`'s wait over two sources and `send()`'s timeout. `crates/nvs-server/
+# Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime` and not `nvs-stdlib`, so none
+# of those four could ever have run where they were filed, however end-to-end the check's name reads.
+# The playbook's "a `-p <crate>` check is *impossible* rather than unwritten" bullet is the one call
+# that settles it.
+[[check]]
+kind = "cargo-named"
+stage = "6b persistent connections"
+name = "nvs-stdlib (ADR 0083 §§ 2-3 -- the entry form, and the one wait)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
   # § 2 -- the entry rule is spawn script's, at a second site.
   "an_upgrade_by_static_method_is_the_same_isolate_as_an_upgrade_by_path",
   # § 3 -- one wait, two sources; null when the peer closed.
   "receive_answers_a_peer_frame_and_a_topic_delivery_from_one_wait",
   "receive_answers_null_when_the_peer_closes",
   "send_throws_on_the_send_timeout_rather_than_waiting",
-  # § 5 -- SSE is the same isolate with no receive.
-  "sse_is_a_connection_isolate_with_no_receive",
 ]
 
 [[check]]
