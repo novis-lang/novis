@@ -2081,6 +2081,20 @@ is why" — is this file.
   § *Standing decisions* had already ruled the same way ("the two-key envelope a CLI run
   produces"). Read a check's whole `tests` list as one sentence before writing the first of them:
   the names bound each other, and a sibling name is cheaper than re-deriving the bound from the ADR.
+- **A `loop-goal.toml` check filed in a crate that cannot reach the surface has a *fourth* repair,
+  and it is the one to reach for when the crate owns the *loop* but not the *store*: leave the check
+  where it is and make the surface a parameter the binary fills.** Stage 7's three fleet-lease tests
+  are `-p nvs-server`, and every sibling triage said misfiled — `crates/nvs-server/Cargo.toml` names
+  no `nvs-stdlib`, the shared tier is `crates/nvs-stdlib/src/cache.rs`, and no `compare_and_set`
+  existed anywhere under `crates/`. The check was right anyway, because the rule under test is the
+  *ticker's* — which host runs the fire — and only the store it asks lives elsewhere. The crate
+  already had the pattern in the same file: `Fires` exists because turning a path into an isolate is
+  the compiler's and this crate has none, so a second trait for the lease is the shape the module
+  had already argued for. The tell that this repair applies rather than moving the check: the named
+  crate owns the *decision* and a crate it may not name owns only the *data* the decision reads —
+  then adding the dependency really would put the test one layer above its rule, and inverting it
+  puts the test exactly on it. `nvs-cli` names both sides, which is not a coincidence and is the
+  same reason it is `Fires`'s only implementor.
 
 ## Running things
 
