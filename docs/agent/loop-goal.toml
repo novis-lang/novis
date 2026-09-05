@@ -72,8 +72,6 @@ files = [
 [context]
 
 modules = [
-  # Stage 2 -- the outstanding lists and the walk that reads them; the keystone lives here.
-  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
   # Stage 3 -- `host_granted` and its two callers; the wildcard is one predicate.
   "crates/nvs-config/src/capability.rs",
   # Stage 3 -- `front_end`/`run_check`, which build no grants today.
