@@ -1724,6 +1724,159 @@ mod tests {
         );
     }
 
+    /// M7's header injection suite — ADR 0074 § 1, one row per published
+    /// technique rather than one case per spelling.
+    ///
+    /// **This is the lower of two layers, and the only one a `-p nvs-server`
+    /// fixture can reach.** `Core\Response::setHeader` refuses a name that is
+    /// not a token and a value a header line cannot carry *at the member*,
+    /// which is `nvs-stdlib`'s half and is pinned by
+    /// `tests/conformance/core/a-response-set-header-names-both-sides-of-a-header-line.nvst`;
+    /// so every row below is a pair no program can write today, and what is
+    /// asserted here is what [`answer`] does if one arrives anyway — the
+    /// `continue` that drops it rather than repairing it into something
+    /// spellable or answering with it.
+    ///
+    /// **Every row's expected answer is the response the same request would
+    /// have got having declared nothing at all**, asserted by counting the head
+    /// rather than by searching it for the injected name: a door that rewrote a
+    /// `\r\n` to a space, or that kept the name and dropped only the value,
+    /// passes a search for `X-Injected` and fails here.
+    #[test]
+    fn the_header_injection_suite_passes() {
+        // Each row is `(the technique, the name, the value)`, and every one of
+        // them is trying to reach the peer with the same marker, so a row that
+        // got through is legible from its own line.
+        let suite = [
+            (
+                "CRLF and a second header",
+                "X-Request-Id",
+                "9f2\r\nX-Injected: yes",
+            ),
+            (
+                "a bare LF, which a lenient parser accepts alone",
+                "X-Request-Id",
+                "9f2\nX-Injected: yes",
+            ),
+            ("a bare CR", "X-Request-Id", "9f2\rX-Injected: yes"),
+            (
+                "CRLF twice, ending the head and starting a body",
+                "X-Request-Id",
+                "9f2\r\n\r\nX-Injected: yes",
+            ),
+            (
+                "a leading CRLF, folding onto the line above",
+                "X-Request-Id",
+                "\r\n X-Injected: yes",
+            ),
+            ("a NUL in the value", "X-Request-Id", "9f2\0X-Injected"),
+            ("a lone control character", "X-Request-Id", "\u{b}"),
+            ("a DEL", "X-Request-Id", "9f2\u{7f}"),
+            (
+                "a colon in the name",
+                "X-Request-Id: 9f2\r\nX-Injected",
+                "yes",
+            ),
+            ("a space in the name", "X Request Id", "9f2"),
+            ("CRLF in the name", "X-Request-Id\r\nX-Injected", "yes"),
+            ("a NUL in the name", "X-Request\0Id", "9f2"),
+            ("a name that is only a fold", "\n X-Injected", "yes"),
+            ("an empty name", "", "9f2"),
+        ];
+        for (technique, name, value) in suite {
+            let mut declared = completed("ok", Some("text/plain"));
+            declared.headers = vec![nvs_runtime::DeclaredHeader::set(name, value)];
+            let answered = answer(declared);
+            assert_eq!(
+                answered.headers().len(),
+                1,
+                "{technique}, spelled {name:?}: {value:?}, reached the peer"
+            );
+            assert_eq!(
+                answered.headers().get(header::CONTENT_TYPE).unwrap(),
+                "text/plain",
+                "{technique} displaced the body member's media type"
+            );
+        }
+
+        // The one byte the two layers disagree about, named here rather than
+        // left to read as an omission from the table: `Core\Response::setHeader`
+        // refuses a value outside printable ASCII *at the member*, while a
+        // header line may carry obs-text, so the door admits it. That is not a
+        // gap — no byte above 127 ends a header line, which is the only thing
+        // this layer is defending — and the layer that refuses it is the one
+        // whose rule it is.
+        let mut obs_text = completed("ok", Some("text/plain"));
+        obs_text.headers = vec![nvs_runtime::DeclaredHeader::set(
+            "X-Request-Id",
+            "9f2\u{e9}",
+        )];
+        assert_eq!(
+            answer(obs_text).headers().len(),
+            2,
+            "the door drops what a header line cannot carry, which obs-text is not"
+        );
+
+        // The suite is only worth its length if a pair the member *would* have
+        // admitted still reaches the peer, and if ADR 0074 § 1's set is intact
+        // beside it: a door that dropped every declaration would pass all
+        // fourteen rows above and nothing here.
+        let mut declared = completed("ok", Some("text/plain"));
+        declared.headers = vec![
+            nvs_runtime::DeclaredHeader::set("X-Request-Id", "9f2"),
+            // The override § 1 exists to allow, beside an attempt to smuggle a
+            // second policy header in on the back of one this server writes.
+            // `Secure::fill` writes a name the answer does not already carry,
+            // so an accepted injection here would be a policy header the
+            // program chose rather than one it overrode.
+            nvs_runtime::DeclaredHeader::set("Referrer-Policy", "no-referrer"),
+            nvs_runtime::DeclaredHeader::set(
+                "X-Content-Type-Options",
+                "nosniff\r\nX-Frame-Options: ALLOWALL",
+            ),
+        ];
+        let mut answered = answer(declared);
+        Secure::default().fill(answered.headers_mut(), Scheme::Http);
+        let headers = answered.headers();
+        assert_eq!(
+            headers.get("x-request-id").unwrap(),
+            "9f2",
+            "a header the member admits did not survive the suite's own layer"
+        );
+        assert_eq!(
+            headers.get(header::REFERRER_POLICY).unwrap(),
+            "no-referrer",
+            "§ 1's set overwrote the program's override of one of its members"
+        );
+        assert_eq!(
+            headers.get("x-content-type-options").unwrap(),
+            "nosniff",
+            "the dropped pair left its name absent, so the policy value is what is on the wire"
+        );
+        assert_eq!(
+            headers.get("x-frame-options"),
+            None,
+            "an injected pair split the policy header it was declared under"
+        );
+        assert_eq!(
+            headers.get(header::CONTENT_SECURITY_POLICY).unwrap(),
+            "frame-ancestors 'none'",
+            "one overridden header took the rest of § 1's set with it"
+        );
+        // The governing rule, over the whole head at once rather than over the
+        // name a row happened to choose: nothing a program declared can put a
+        // byte on the wire that ends a header line.
+        for (name, value) in headers {
+            assert!(
+                !value
+                    .as_bytes()
+                    .iter()
+                    .any(|&byte| matches!(byte, b'\r' | b'\n' | 0)),
+                "a value on the wire carries a byte that ends a header line: {name}"
+            );
+        }
+    }
+
     /// The isolate the first two tests answer with: a program that echoes the
     /// path back, so that a response asserted below is the answer to the
     /// request that asked for it and not merely a well-formed response.
@@ -3193,6 +3346,170 @@ mod tests {
         );
     }
 
+    /// M7's acceptance paragraph, its third clause: **a request whose isolates
+    /// are still running when the client disconnects leaves none of them
+    /// behind.**
+    ///
+    /// **The isolate is parked when the peer goes away**, which is what makes
+    /// this a case about a request still running rather than about one that
+    /// happened to finish first: the client promises a hundred bytes, sends
+    /// four and closes, so the program is inside `next_chunk` waiting for the
+    /// other ninety-six. The body is also where the disconnect is *noticed* —
+    /// the read side of `hyper`'s own loop is what learns the peer is gone
+    /// while the service future is still `Pending`.
+    ///
+    /// **What the door does with it is fail the park, not cut the frame**, and
+    /// that is asserted here rather than assumed: the supply dies with the
+    /// connection, `next_chunk` answers `Err`, and the program returns through
+    /// its own end. [`Peer`]'s cancel-then-wait is the layer below that, for a
+    /// request parked on something the connection cannot fail — and an isolate
+    /// parked on a channel whose sender it holds itself is not that request:
+    /// it wedged this fixture's core for three minutes, which is the playbook's
+    /// bullet and not this case's subject.
+    ///
+    /// **Asserted as an ordering rather than as a final state**, which is the
+    /// only reading of it that is not vacuous: every task on this core is
+    /// dropped when the scheduler is, so "the isolate is gone afterwards" holds
+    /// just as well for a door that left it running. What is asserted is that
+    /// the isolate was released *before* the accept loop returned — [`Peer`]'s
+    /// drop is where that happens, and it abandons rather than releases:
+    /// cancel, then wait.
+    #[test]
+    fn a_client_disconnect_leaves_no_isolate_behind() {
+        /// What happened, in the order it happened.
+        type Log = Arc<std::sync::Mutex<Vec<&'static str>>>;
+
+        fn note(log: &Log, what: &'static str) {
+            log.lock().expect("a poisoned log").push(what);
+        }
+
+        /// Files the isolate's release, which is the drop of everything its
+        /// program captured — so it fires on the cancellation path and on an
+        /// ordinary end alike, and it is the *order* that tells them apart.
+        struct Released(Log);
+
+        impl Drop for Released {
+            fn drop(&mut self) {
+                note(&self.0, "the isolate was released");
+            }
+        }
+
+        let log: Log = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let handler = {
+            let log = Arc::clone(&log);
+            Rc::new(move |request: Request<Incoming>, _origin: Origin| {
+                let mut inbound = nvs_runtime::Inbound::new(
+                    request.method().as_str(),
+                    request.uri().path(),
+                    request.uri().query().unwrap_or(""),
+                );
+                let (head, incoming) = request.into_parts();
+                let supply = match crate::body::of(&head.headers, incoming) {
+                    crate::body::Arrived::Streaming(supply, pull) => {
+                        inbound.set_body(pull);
+                        Some(supply)
+                    }
+                    crate::body::Arrived::Absent | crate::body::Arrived::TooLarge => None,
+                };
+                let released = Released(Arc::clone(&log));
+                let log = Arc::clone(&log);
+                let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                    let _held = &released;
+                    note(&log, "the isolate started");
+                    let inbound = child
+                        .inbound_mut()
+                        .expect("the isolate ran with no request in front of it");
+                    let body = inbound.body().expect("a request that promised a body");
+                    // The park this case is about: ninety-six of the hundred
+                    // bytes the head promised are never sent, so the isolate is
+                    // still inside this loop when the peer goes away.
+                    note(
+                        &log,
+                        loop {
+                            match body.next_chunk() {
+                                Ok(Some(_chunk)) => {}
+                                Ok(None) => break "the body ended",
+                                Err(_refused) => break "the body failed",
+                            }
+                        },
+                    );
+                    note(&log, "the isolate finished");
+                    Value::null()
+                });
+                Reply::Run(
+                    Isolate::new(program, Value::null(), Output::Capture).answering(inbound),
+                    supply,
+                )
+            })
+        };
+
+        let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .write_all(
+                    b"POST /forever HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\n\r\nabcd",
+                )
+                .expect("the write failed");
+            // Long enough for the isolate to have started and parked, so the
+            // disconnect lands on a request that is genuinely still running.
+            std::thread::sleep(Duration::from_millis(50));
+            drop(socket);
+        });
+
+        let ended = Arc::clone(&log);
+        let mut sched = nvs_host::Scheduler::new();
+        let _installed =
+            nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, move |_ctx| {
+            serve_on_this_core(
+                &mut listener,
+                &handler,
+                Waits::default(),
+                &wide_open(),
+                &Draining::detached(),
+                |_note| {},
+                || ControlFlow::Break(()),
+            )
+            .expect("the accept loop failed");
+            note(&ended, "the accept loop returned");
+        });
+        nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+        client.join().expect("the client thread panicked");
+
+        let events = log.lock().expect("a poisoned log").clone();
+        assert!(
+            events.contains(&"the isolate started"),
+            "the isolate never ran, so there was nothing to leave behind: {events:?}"
+        );
+        assert!(
+            events.contains(&"the body failed"),
+            "a request parked on a body its peer never sent was not told the peer had gone: \
+             {events:?}"
+        );
+        assert!(
+            !events.contains(&"the body ended"),
+            "the isolate was handed a complete body, so this case never tested a disconnect: \
+             {events:?}"
+        );
+        let released = events
+            .iter()
+            .position(|event| *event == "the isolate was released")
+            .expect("the isolate was still held when the core was torn down");
+        let returned = events
+            .iter()
+            .position(|event| *event == "the accept loop returned")
+            .expect("the accept loop never returned, so the connection outlived its client");
+        assert!(
+            released < returned,
+            "the isolate outlived the connection that owned it: {events:?}"
+        );
+    }
+
     /// A request that carried no body leaves the carrier with none to read —
     /// `Inbound::body` answering `None` is "there was no body", which is the
     /// distinction RFC 9110 § 8.6 draws and what a `Core\Request` member reports
@@ -3494,6 +3811,211 @@ mod tests {
         assert!(
             answer.ends_with("hello /hello"),
             "the response did not carry the handler's body: {answer}"
+        );
+    }
+
+    /// How long a smuggling case waits for the second response it asserts never
+    /// arrives, on a connection the server is keeping alive.
+    ///
+    /// Short on purpose, because every row spends it: loopback delivery of a
+    /// response already written is microseconds, so this is three orders of
+    /// magnitude of headroom, and a machine too loaded to answer inside it is a
+    /// machine that would not have produced the second response either.
+    const SMUGGLED_PATIENCE: Duration = Duration::from_millis(500);
+
+    /// One connection, the exact bytes a case names, and everything the peer
+    /// read back before the server closed or the wait ran out.
+    ///
+    /// **The client neither asks for `Connection: close` nor half-closes**, and
+    /// that is the whole reason this is not [`served_by`] with a literal in it.
+    /// Either one ends the connection on the *client's* say-so, and then a door
+    /// that had answered a request nobody made would look exactly like a door
+    /// that had not: the count this suite asserts on would be one either way.
+    /// Measured — the half-closing draft of this fixture read one response back
+    /// from a genuinely pipelined pair. So the connection is left open and the
+    /// absence of a second response is a bounded wait instead.
+    fn read_back(raw: &[u8]) -> String {
+        let listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
+            .expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let payload = raw.to_vec();
+        let client = std::thread::spawn(move || {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(SMUGGLED_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket.write_all(&payload).expect("the write failed");
+            let mut seen = Vec::new();
+            let mut chunk = [0_u8; 4096];
+            while let Ok(read) = socket.read(&mut chunk) {
+                if read == 0 {
+                    break;
+                }
+                seen.extend_from_slice(&chunk[..read]);
+            }
+            String::from_utf8_lossy(&seen).into_owned()
+        });
+        served_by(listener, &echo_the_path(), client)
+    }
+
+    /// How many responses one connection carried back.
+    fn responses(answer: &str) -> usize {
+        answer.matches("HTTP/1.1 ").count()
+    }
+
+    /// M7's request smuggling suite — ADR 0097 § 1's last paragraph, which is
+    /// the one place that ADR does *not* delegate to the proxy: smuggling is a
+    /// proxy/origin parser differential, so the deployment that always has a
+    /// proxy in front is exactly the one where a lenient origin is dangerous,
+    /// and [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+    /// stands whole here.
+    ///
+    /// **Every row is one payload down one connection, and the property is the
+    /// same for all of them: the peer gets back exactly one response, and it is
+    /// never the smuggled request's.** That is asserted by *counting* status
+    /// lines rather than by looking for `/smuggled` alone — a door that answered
+    /// the hidden request with a `400` would pass the search and fail the count,
+    /// and the count is what a proxy in front would be desynchronised by.
+    ///
+    /// **The three tables differ only in where the ambiguity sits**, and each
+    /// asserts the thing that makes the peer's next request unsmuggleable: a
+    /// head this door cannot read is refused before the handler; a head two
+    /// parsers would frame differently is answered and the connection does not
+    /// survive it; a head that is unambiguous is answered even though the body
+    /// framing behind it then falls apart, and the bytes after that die with
+    /// the connection. **No row lets a second request through**, which is the
+    /// only thing a proxy in front can be desynchronised by.
+    #[test]
+    fn the_request_smuggling_suite_passes() {
+        // Ambiguous in the head, and refused there: one framing spelled twice
+        // and disagreeing with itself, or a spelling only one of two parsers
+        // would see at all.
+        let refused: [(&str, &[u8]); 6] = [
+            (
+                "two lengths that disagree",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nContent-Length: 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "one length header carrying two values",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0, 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a length that is not a number",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: +46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "an encoding a proxy might read as chunked",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: xchunked\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a space before the colon",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding : chunked\r\nContent-Length: 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a fold hiding a second length",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\tContent-Length: 46\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+        ];
+        for (technique, payload) in refused {
+            let answer = read_back(payload);
+            assert_eq!(
+                responses(&answer),
+                1,
+                "{technique}: the peer got more than the one refusal it is owed: {answer:?}"
+            );
+            assert!(
+                answer.starts_with("HTTP/1.1 400 "),
+                "{technique}: an ambiguous head was repaired rather than refused: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello /outer"),
+                "{technique}: a head nobody could frame reached the handler: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello /smuggled"),
+                "{technique}: the hidden request was answered: {answer:?}"
+            );
+        }
+
+        // Two framings at once, which is the pair every published technique is
+        // built on. RFC 9112 *disambiguates* this one rather than refusing it —
+        // the chunked encoding wins and the length is ignored — and `hyper`
+        // follows it, so these two rows are a measured divergence from ADR
+        // 0095's "refused, never repaired" and are asserted as one rather than
+        // left out of the suite. What makes it safe is the second half of the
+        // same rule, and it is what these rows are really about: **the
+        // connection does not survive the message**, so the bytes the proxy
+        // read as a request of their own are never read as one here.
+        let disambiguated: [(&str, &[u8]); 2] = [
+            (
+                "a length and a chunked encoding at once",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nContent-Length: 6\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a chunked encoding and a length, in the other order",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\nContent-Length: 4\r\n\r\n0\r\n\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+        ];
+        for (technique, payload) in disambiguated {
+            let answer = read_back(payload);
+            assert_eq!(
+                responses(&answer),
+                1,
+                "{technique}: the peer got a second response: {answer:?}"
+            );
+            assert!(
+                answer.to_ascii_lowercase().contains("connection: close"),
+                "{technique}: the door kept a connection two parsers frame differently: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello /smuggled"),
+                "{technique}: the hidden request was answered: {answer:?}"
+            );
+        }
+
+        // Unambiguous in the head and broken behind it: the outer request is
+        // owed an answer by the time those bytes are read, so what is asserted
+        // is only that they never become a request of their own.
+        let broken: [(&str, &[u8]); 2] = [
+            (
+                "a chunk size that is not hexadecimal",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0x2c\r\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+            (
+                "a chunked terminator ended with a bare LF",
+                b"POST /outer HTTP/1.1\r\nHost: localhost\r\nTransfer-Encoding: chunked\r\n\r\n0\n\nGET /smuggled HTTP/1.1\r\nHost: localhost\r\n\r\n",
+            ),
+        ];
+        for (technique, payload) in broken {
+            let answer = read_back(payload);
+            assert_eq!(
+                responses(&answer),
+                1,
+                "{technique}: the peer got a second response: {answer:?}"
+            );
+            assert!(
+                !answer.contains("hello /smuggled"),
+                "{technique}: the hidden request was answered: {answer:?}"
+            );
+        }
+
+        // The control, and the reason the counting above is worth anything: two
+        // requests the peer really did make, down one connection, are answered
+        // twice. A door that answered nothing after the first response would
+        // pass all ten rows above and fail here.
+        let pipelined = read_back(
+            b"GET /first HTTP/1.1\r\nHost: localhost\r\n\r\nGET /second HTTP/1.1\r\nHost: localhost\r\n\r\n",
+        );
+        assert_eq!(
+            responses(&pipelined),
+            2,
+            "two pipelined requests were not both answered: {pipelined:?}"
+        );
+        assert!(
+            pipelined.contains("hello /first") && pipelined.contains("hello /second"),
+            "a pipelined pair was answered out of its own bodies: {pipelined:?}"
         );
     }
 
