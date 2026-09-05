@@ -16,11 +16,6 @@
 # with no Novis answer is a `dropped` or an `open` row in that table, not a
 # `member` row with a spelling nothing backs.
 
-# `mysqli_use_result`'s cursor. § 18's interface declares `stream`, no `Core\Db`
-# class registers it, and `spec-members-part-two-outstanding.txt` already carries
-# it as `§18 stream` -- the two lines are struck by the same slice.
-Core\Db\Queryable::stream  # 21
-
 # `Core\Os` has no module in this crate at all -- `php_uname`, `gethostname`,
 # `memory_get_usage` and `getmypid` are pointed at a class that is specified and
 # unwritten.

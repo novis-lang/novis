@@ -1,5 +1,9 @@
-//! What `Core\Db` declares: eight classes, five enums, and a reference card for
-//! every member of them.
+//! What `Core\Db` declares: eight of its nine classes, five enums, and a
+//! reference card for every member of them.
+//!
+//! The ninth is `Core\Db\Stream`, which is declared beside its own walk in
+//! [`mod@super::stream`] rather than here: it carries no member and no card, and
+//! what there is to say about it is the walk.
 //!
 //! Rows, not behaviour. Every symbol named here is defined by a sibling, and
 //! the join between the two is checked when the crate links rather than by
@@ -305,6 +309,29 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             symbol: "nvs_core_db_connection_execute_many",
             doc: Some(&EXECUTE_MANY_DOC),
         },
+        CoreMethod {
+            name: "stream",
+            names: &["sql", "params"],
+            // `query`'s two exactly: § 4 gives this member the same statement
+            // and the same binding rule, and the only difference is where the
+            // rows are when it answers. § 18's `{timeout?, chunk?: uint}` is
+            // absent for [`crate::db`]'s known gap 6 reason, which `chunk`
+            // joins — a size that reached no read would be an option that
+            // parsed and did nothing.
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            // § 18's `Iterable<Db\Row>`, spelled as the class that *is* the
+            // walk — [`CoreTy::Iterated`] is parameter position only, so
+            // `Core\IO\Lines`' spelling is the one available here. It is a
+            // [`CoreTy::Instance`] and not an [`CoreTy::InstanceAt`] because
+            // the element is fixed rather than the receiver's: a streamed row
+            // is a `Core\Db\Row` and `streamAs<T>` will be its own class's
+            // question, exactly as `query` and `queryAs` are one class at two
+            // arguments only because both buffer.
+            return_ty: CoreTy::Instance(STREAM_NAME),
+            symbol: "nvs_core_db_connection_stream",
+            doc: Some(&STREAM_DOC),
+        },
         TRANSACTION_ROW,
         CoreMethod {
             name: "close",
@@ -544,6 +571,21 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             return_ty: CoreTy::Uint,
             symbol: "nvs_core_db_connection_execute_many",
             doc: Some(&EXECUTE_MANY_DOC),
+        },
+        CoreMethod {
+            name: "stream",
+            names: &["sql", "params"],
+            params: &[CoreTy::Text(Qual::Sink), CoreTy::Array(&CoreTy::Mixed)],
+            defaults: &[],
+            // [`CONNECTION`]'s row under [`CONNECTION`]'s symbol, for its
+            // `queryAs` sibling's reason — and § 4's connection-busy rule is
+            // what makes the delegation worth stating twice here: a stream
+            // opened inside a transaction holds the very connection the
+            // `COMMIT` has to go out on, so the `LogicError` a second statement
+            // meets is the same one either receiver produces.
+            return_ty: CoreTy::Instance(STREAM_NAME),
+            symbol: "nvs_core_db_connection_stream",
+            doc: Some(&STREAM_DOC),
         },
         TRANSACTION_ROW,
         CoreMethod {
@@ -1800,6 +1842,57 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
             error: "IOError",
             desc: "The connection failed while the batch was in flight, which leaves it unusable \
                    for the rest of the request.",
+        },
+    ],
+};
+
+/// `Core\Db\Queryable::stream`'s reference card — ADR 0117.
+pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
+    short: "Runs one statement and walks its rows one at a time, holding the connection open until \
+            the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as \
+            something a `foreach` reads directly. Memory is constant in the number of rows, which \
+            is the whole reason to write this rather than `query`.",
+    params: &[
+        ParamDoc {
+            name: "sql",
+            desc: "The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, \
+                   never a value written into the text, and a sink either way.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "params",
+            desc: "The values to bind, read exactly as `query` reads them — list-keyed for `?`, \
+                   string-keyed for `:name`, one array and never both spellings.",
+            shape: &[],
+        },
+    ],
+    ret: "A walk over the statement's rows, each one a `Core\\Db\\Row`, in the server's order. \
+          Nothing has been read when this returns and the connection is busy from here: no second \
+          statement runs on it until the walk reaches its end, so a loop that writes per row needs \
+          a second connection (`{shared: false}`) or `query`'s buffered read instead.",
+    errors: &[
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The call is wrong rather than the database: the placeholders and the array \
+                   disagree in spelling or in number, a `:name` names no element, an element is a \
+                   value with no bound form, the connection has been closed, or a statement is \
+                   already streaming on it.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The connection's driver has no streaming read yet — only PostgreSQL parks a \
+                   cursor today, and `query` answers the same rows on every driver.",
+        },
+        ErrorDoc {
+            error: "Core\\Db\\DbError",
+            desc: "The server refused the statement, or refused it part way through the walk, \
+                   carrying its own `SQLSTATE` and message — or a column came back in a type this \
+                   driver does not read back yet.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The connection failed while the statement or one of its rows was in flight, \
+                   which leaves it unusable for the rest of the request.",
         },
     ],
 };

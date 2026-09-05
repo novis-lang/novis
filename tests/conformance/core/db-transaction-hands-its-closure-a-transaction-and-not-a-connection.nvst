@@ -13,6 +13,12 @@ $db->transaction(fn (Core\Db\Transaction $tx): void => {
     var $rows = $tx->query("select id from accounts", []);
     var $write = $tx->execute("update accounts set owner = ? where id = ?", ["ada", 1]);
     var $written = $tx->executeMany("insert into accounts (id) values (?)", [[1], [2]]);
+    // § 4's streaming read is on `Queryable` too, so it is reached here for the
+    // same reason the four above are — and it is the one whose delegation is
+    // worth writing down: a stream holds the very connection the `COMMIT` has
+    // to go out on, so the surface being shared is also the busy rule being
+    // shared.
+    var $walk = $tx->stream("select id from accounts", []);
     $tx->rollBack("this fixture keeps nothing");
 });
 
@@ -33,6 +39,6 @@ $db->transaction(fn (Core\Db\Transaction $tx): void => {
 
 --EXPECTF-ERROR--
 error[E0401]: expected `Core\Db\Connection`, found `Core\Db\Transaction`
-   --> case.nvs:27:17
+   --> case.nvs:33:17
 %A
 error: aborting due to 1 error

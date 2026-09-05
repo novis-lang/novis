@@ -21,6 +21,18 @@ try {
     echo "query: refused\n";
 }
 
+// `stream` is on the same side, and it is the interesting one: § 4 makes it the
+// member that *holds* the connection, so a program could reasonably expect it to
+// be refused later — at the first row — rather than where the statement is
+// written. It is not. Naming the walk is what opens the portal, so a released
+// connection is found out at the call and never inside a `foreach`.
+try {
+    $db->stream("select id from t", []);
+    echo "stream: not refused\n";
+} catch (LogicError $refused) {
+    echo "stream: refused\n";
+}
+
 // `driver()` reaches for the connection too, so it is on the same side of the
 // boundary as the statement is — the member is readonly, not connectionless.
 try {
@@ -49,6 +61,7 @@ path = ":memory:"
 --EXPECT--
 created 0
 query: refused
+stream: refused
 driver: refused
 isOpen: no
 closed twice: no

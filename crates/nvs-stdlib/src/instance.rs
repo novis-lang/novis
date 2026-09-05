@@ -189,6 +189,17 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
+    // And the fifth: ADR 0067 § 4's walk over a statement's rows, whose next row
+    // does not exist until the walk asks the server for it. `crate::db::stream`
+    // is the argument, and it is the same one the three above make.
+    (
+        crate::db::STREAM_NAME,
+        &[
+            (sequence::ITERATE, crate::db::STREAM_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::db::STREAM_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::db::STREAM_CURRENT_SYMBOL),
+        ],
+    ),
     (
         crate::cursor::NAME,
         &[

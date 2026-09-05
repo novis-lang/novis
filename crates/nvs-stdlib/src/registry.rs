@@ -1664,6 +1664,12 @@ pub const CLASSES: &[CoreClass] = &[
     // `columns()` reads the description beside them, which is why it is
     // readable before a row is.
     crate::db::ROWS,
+    // What `stream` answers with — § 18's `Iterable<Db\Row>`, a name for the
+    // walk with no member on it exactly as `Core\IO\Lines` is. It is the second
+    // `Iterable` in `Core` that is its own iterator rather than a snapshot, and
+    // [`crate::db::stream`] says why: a row of a streamed result set does not
+    // exist until the walk asks the server for it.
+    crate::db::STREAM,
     // One row of that set: § 18's associative reading plus the eleven typed
     // readers ADR 0067 § 6 puts in place of PHP's three fetch modes. Four of
     // the eleven answer only their refusal until § 9's structured columns land.
@@ -2359,6 +2365,14 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // own variables, like the three collections above, because § 18's `Rows`
     // and `Rows<T>` are one generic class and not two.
     (crate::db::ROWS_NAME, &CoreTy::Var("T")),
+    // § 18's `stream(): Iterable<Db\Row>`, and the concrete element the row
+    // above is not: `Core\Db\Stream` carries no type variable at all, because
+    // a streamed row is a `Core\Db\Row` and `streamAs<T>` is a second class's
+    // question rather than a second argument to this one.
+    (
+        crate::db::STREAM_NAME,
+        &CoreTy::Instance(crate::db::ROW_NAME),
+    ),
     // Spec § 15's `bodyStream(): Iterable<bytes>`, with the qualifier `body()`
     // puts on the same octets: a chunk of a request body is `tainted` whatever
     // the body held, so this is a concrete element like the two `Core\IO` rows
@@ -4114,7 +4128,10 @@ mod tests {
     /// the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
     /// writes and reads — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
     /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
-    /// thing it answers with. Two have left this list, both the same way:
+    /// thing it answers with. `Core\Db\Stream` is that entry again for § 18's
+    /// `stream()`, and its three slots are the connection's key, the block that
+    /// opened it and the one row the walk is holding. Two have left this list,
+    /// both the same way:
     /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
     /// its readers did.
     ///
@@ -4145,6 +4162,7 @@ mod tests {
             crate::cli::COLOR_NAME,
             crate::cli::STYLE_NAME,
             crate::db::IN_LIST_NAME,
+            crate::db::STREAM_NAME,
             crate::queue::ID_NAME,
             crate::request::BODY_STREAM_NAME,
             crate::request::FILES_NAME,

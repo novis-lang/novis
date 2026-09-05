@@ -1,0 +1,42 @@
+--TEST--
+`stream` classifies its statement text exactly as `query` does, so the member that holds a connection open is no easier a way into a database than the one that does not — ADR 0024 § 4, ADR 0067 §§ 4 and 5
+--FILE--
+<?nvs
+// ADR 0067 § 4 gives `stream` and `query` one signature and one binding rule,
+// and the sink classification is half of that signature: the statement text is
+// a sink on both, so a value from outside the process cannot be written into
+// it, and a bound parameter accepts the same value freely.
+//
+// This is worth asserting on its own member rather than inferred from `query`'s
+// case, because a row is where the classification lives — a `Qual::Neutral`
+// pasted into this one would compile, run, and be a whole injection surface
+// that no other case in the corpus looks at.
+tainted string $outside = "ada";
+
+var $db = Core\Db::connect("main");
+
+// The refusal. There is no escaper to launder the value with, here or on any
+// other `Core\Db` member: binding is the mechanism. Naming the walk is enough —
+// the statement is written at the call and not at the first row.
+var $refused = $db->stream($outside, []);
+
+// And the way through, which is the same value at the same statement — a sink
+// with no admitting spelling beside it would be a member no program can pass
+// data to.
+var $bound = $db->stream("select id from accounts where owner = ?", [$outside]);
+
+// The classification is on the row and not on the receiver, and ADR 0043's
+// delegation means the row is declared twice — so the refusal is asked of the
+// other declaring class as well. A `Core\Db\Transaction` that accepted a
+// `tainted` statement would be an injection surface reachable from inside every
+// transaction in an application, which is where the writes are.
+$db->transaction(fn (Core\Db\Transaction $tx): void => {
+    $tx->stream($outside, []);
+});
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:18:28
+%A
+error: aborting due to 2 errors

@@ -166,9 +166,19 @@
 //!    only code. A failure of the *wire* rather than of the
 //!    statement stays an `IOError`: § 8's class is the server's answer, not the
 //!    socket's.
-//! 5. **`query`, `queryAs`, `execute`, `executeMany` and `transaction` are what
-//!    has landed of `Core\Db\Queryable`** (gap 8 is what `queryAs` still owes).
-//!    `stream` and `streamAs` are owed whole. Of § 18's four rows beyond the
+//! 5. **`query`, `queryAs`, `execute`, `executeMany`, `stream` and
+//!    `transaction` are what has landed of `Core\Db\Queryable`** (gap 8 is what
+//!    `queryAs` still owes). **`stream` lands on PostgreSQL alone**, and that is
+//!    the wire half rather than this one: § 4's read needs the portal left open
+//!    with the read state parked off the borrow — `nvs_db::PgCursor` — and the
+//!    other four drivers have no such state, so [`mod@stream`]'s member throws a
+//!    `RuntimeError` naming `query` on each of them rather than buffering behind
+//!    the caller's back. Buffering would be the worse answer twice over: it
+//!    breaks the member's one promise, constant memory, and it breaks § 4's
+//!    *uniform* connection-busy rule, which is there so that a program written
+//!    against one driver runs on all five. `streamAs` is owed whole and is that
+//!    class at a written type, exactly as `queryAs` is `query`'s. Of § 18's four
+//!    rows beyond the
 //!    interface, `close`, `driver` and `isOpen` land — the first over
 //!    [`nvs_runtime::Ctx::close_open_connection`], which is § 13's release
 //!    reached early for one connection — and **`serverVersion` is owed for a
@@ -182,13 +192,16 @@
 //!    registered, `columns()` among them. What that member cannot answer is
 //!    one field rather than a member — [`COLUMN_NULLABLE_DOC`] states it — and
 //!    it is a property of the PostgreSQL wire and not a gap in this module.
-//! 6. **Neither `query` nor `execute` declares a `{timeout?: Duration}`.**
-//!    § 4's option is in both spec signatures and is deliberately in neither
-//!    registry row, for one reason on both: a deadline
+//! 6. **No statement member declares a `{timeout?: Duration}`, and `stream`
+//!    declares no `{chunk?: uint}` either.** § 4's options are in the spec
+//!    signatures and are deliberately in none of the registry rows, for one
+//!    reason across all of them: a deadline
 //!    on a statement has to reach the socket the way
 //!    [`nvs_db::PgConn::connect`]'s does, and there is no seam for one on the
-//!    statement path yet. An option that parsed and did nothing would be worse
-//!    than its absence, which the compiler can at least report.
+//!    statement path yet; a chunk size has to reach the `Execute` that asks for
+//!    a row count, and this driver's walk asks for one row. An option that
+//!    parsed and did nothing would be worse than its absence, which the compiler
+//!    can at least report.
 //! 7. **A delimiting quoter, if one is ever wanted, belongs on `Connection`**
 //!    and not here — that is the only place a dialect exists. § 18 does not ask
 //!    for one, and this module's second decision above is why adding it to
@@ -229,6 +242,7 @@ mod pool;
 mod registry;
 mod row;
 mod span;
+mod stream;
 mod transaction;
 
 // A glob re-export takes each item at its own visibility, so what these lines
@@ -245,6 +259,7 @@ pub(crate) use self::pool::*;
 pub(crate) use self::registry::*;
 pub use self::row::*;
 pub(crate) use self::span::*;
+pub use self::stream::*;
 pub use self::transaction::*;
 
 /// The class name, once, for the messages and the rows that all name it —
@@ -373,6 +388,36 @@ const COLUMNS_SLOT: &str = "columns";
 /// Where [`COLUMNS_SLOT`] sits. See [`ROWS_AT`].
 const COLUMNS_AT: usize = 0;
 
+/// `Core\Db\Stream`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
+/// spec § 18's `Iterable<Db\Row>`, which needs a class name because
+/// [`CoreTy::Iterated`] is parameter position only.
+///
+/// `pub(crate)` for `registry`'s handle roster and its `ITERABLES` row, for
+/// [`IN_LIST_NAME`]'s reason.
+pub(crate) const STREAM_NAME: &str = r"Core\Db\Stream";
+
+/// The symbol behind `Iterable<Db\Row>::iterate()` — [`ROWS_ITERATE_SYMBOL`]'s
+/// twin, and see [`mod@stream`] for why this class carries the other two names
+/// as well rather than handing a [`crate::cursor`] back.
+pub(crate) const STREAM_ITERATE_SYMBOL: &str = "nvs_core_db_stream_iterate";
+
+/// The symbol behind `Iterator<Db\Row>::advance()`.
+pub(crate) const STREAM_ADVANCE_SYMBOL: &str = "nvs_core_db_stream_advance";
+
+/// The symbol behind `Iterator<Db\Row>::current()`.
+pub(crate) const STREAM_CURRENT_SYMBOL: &str = "nvs_core_db_stream_current";
+
+/// A [`STREAM`]'s third slot: the row the last `advance()` read, `null` before
+/// the first one and after the last.
+///
+/// **Its first two are [`CONNECTION`]'s, in the same positions and under the
+/// same names**, for [`TRANSACTION`]'s reason — a walk reaches its connection
+/// through the same key any other member does.
+const STREAM_ROW_SLOT: &str = "row";
+
+/// Where [`STREAM_ROW_SLOT`] sits. See [`HANDLE_AT`].
+const STREAM_ROW_AT: usize = 2;
+
 /// `Core\Db\Write`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 const WRITE_NAME: &str = r"Core\Db\Write";
 
@@ -448,6 +493,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_connection_transaction" => {
             (nvs_core_db_connection_transaction as *const ()).cast()
         }
+        // One arm for both classes' rows again, for the transaction arm's
+        // reason: § 18 puts `stream` on `Core\Db\Queryable`.
+        "nvs_core_db_connection_stream" => (nvs_core_db_connection_stream as *const ()).cast(),
+        STREAM_ITERATE_SYMBOL => (nvs_core_db_stream_iterate as *const ()).cast(),
+        STREAM_ADVANCE_SYMBOL => (nvs_core_db_stream_advance as *const ()).cast(),
+        STREAM_CURRENT_SYMBOL => (nvs_core_db_stream_current as *const ()).cast(),
         "nvs_core_db_connection_close" => (nvs_core_db_connection_close as *const ()).cast(),
         "nvs_core_db_connection_driver" => (nvs_core_db_connection_driver as *const ()).cast(),
         "nvs_core_db_connection_is_open" => (nvs_core_db_connection_is_open as *const ()).cast(),
