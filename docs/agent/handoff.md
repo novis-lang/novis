@@ -58,4 +58,6 @@ either of the others, and the second is what closes the goal's failing check.
   and it becomes observable the moment `publish` lands.
 - § 1's `[limits] idle` and § 3's send timeout — `crates/nvs-server/src/socket.rs`'s § *What is not
   here yet*.
-- The reference pages for `Core\Topic`'s two rows — ADR 0117, `docs/reference/`.
+- `docs/novis.md` is **generated** from the registry cards by `verify.py`'s `reference` step, so a
+  new row leaves it dirty after the wrap has committed — stage it with the slice rather than writing
+  it by hand.

@@ -123,6 +123,7 @@ Conventions the whole file uses:
 | [`Core\Session`](#core-core-session) |  |
 | [`Core\Socket`](#core-core-socket) |  |
 | [`Core\Socket\Message`](#core-core-socket-message) |  |
+| [`Core\Topic`](#core-core-topic) |  |
 | [`Core\Sse`](#core-core-sse) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -16637,6 +16638,50 @@ $message->value(): mixed
 What a publisher put on the topic, copied across the isolate boundary the way every other value crosses one.
 
 **Returns** `mixed` — The published value for a delivery, `null` for a peer frame. It is a copy and never a shared reference, so writing to it changes nothing the publisher can see.
+
+<a id="core-core-topic"></a>
+### `Core\Topic`
+
+Keywords: subscribe, unsubscribe
+
+| Member | Signature |
+|---|---|
+| [`Core\Topic::subscribe`](#core-core-topic-subscribe) | `subscribe(string $topic): void` |
+| [`Core\Topic::unsubscribe`](#core-core-topic-unsubscribe) | `unsubscribe(string $topic): void` |
+
+<a id="core-core-topic-subscribe"></a>
+#### `Core\Topic::subscribe`
+
+```nvs skip
+Core\Topic::subscribe(string $topic): void
+```
+
+Joins this connection to `$topic`, so that a value published to it arrives at the next `receive()` as a message whose `topic()` is that name.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$topic` | `string` (sink) | The topic's name. It may not come from outside the program — a name derived from user input is how one tenant subscribes to another's stream — so it is built from checked values or it does not compile. |
+
+**Returns** `void` — Nothing. Subscribing twice to one name is one subscription, so a published value arrives once however many times the connection joined.
+
+**Throws** `LogicError` — An empty `$topic`, which no publisher can mean; and a call from a program that is not a connection, which has nothing to deliver to.
+
+<a id="core-core-topic-unsubscribe"></a>
+#### `Core\Topic::unsubscribe`
+
+```nvs skip
+Core\Topic::unsubscribe(string $topic): void
+```
+
+Leaves `$topic`, so nothing published to it reaches this connection again.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$topic` | `string` (sink) | The topic's name, under the same rule `subscribe` reads it under. |
+
+**Returns** `void` — Nothing. Leaving a topic this connection never joined is not an error — the state it asks for is the state that already holds.
+
+**Throws** `LogicError` — An empty `$topic`, and a call from a program that is not a connection — the same two `subscribe` refuses, so the pair cannot disagree about what a call means.
 
 <a id="core-core-sse"></a>
 ### `Core\Sse`
