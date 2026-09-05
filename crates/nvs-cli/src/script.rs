@@ -82,7 +82,7 @@
 //!
 //! [ADR 0017]: /docs/adr/0017-hot-reload-without-restart.md
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -190,6 +190,19 @@ pub(crate) struct Compiler {
     /// `[opcache] validate` and `revalidate_freq`, read once for the same
     /// reason: both are `System`-class, so no request can move them.
     revalidation: Revalidation,
+    /// How many times [`Self::compile`] has run on this cache — the counter
+    /// `docs/plan/m7.md`'s acceptance paragraph asks the "compiles it exactly
+    /// once" claim to be asserted against, and the only number a caller could
+    /// state it as: every other observable — the table's length, what a
+    /// resolve hands back — is equal for a unit compiled once and one
+    /// compiled a thousand times.
+    ///
+    /// **What it spends:** one word per compiler, which is one per core, and
+    /// an increment on the one step that already costs a front end and a
+    /// backend. Deliberately not `#[cfg(test)]`: a field that exists in one
+    /// profile makes the release build a different struct, and this is the
+    /// number an `nvs info` would report if it ever reported one.
+    compiles: Cell<u64>,
 }
 
 impl Default for Compiler {
@@ -216,6 +229,7 @@ impl Compiler {
             units: RefCell::new(HashMap::new()),
             env: env_hash(config),
             revalidation: Revalidation::from_config(config),
+            compiles: Cell::new(0),
         }
     }
 
@@ -357,6 +371,11 @@ impl Compiler {
     /// The front end and the backend, over one path, with nothing cached: the
     /// whole of what step 3 costs.
     fn compile(&self, path: &str, written: &Path) -> Result<Rc<Compiled>, String> {
+        // Counted here rather than at the call site, and before the front end
+        // rather than after it: a compile that *failed* is still a compile
+        // this cache paid for, and the claim being counted is about how many
+        // times the file was put through the front end at all.
+        self.compiles.set(self.compiles.get() + 1);
         let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
         let lowered = nvs_ir::lower::lower_program(
@@ -662,6 +681,120 @@ mod tests {
         let _first = compiler.resolve(&path).expect("the child compiles");
         let _second = compiler.resolve(&path).expect("and again, from the cache");
         assert_eq!(compiler.units.borrow().len(), 1);
+    }
+
+    #[test]
+    fn ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once() {
+        // `docs/plan/m7.md`'s core requirement, asserted at the only place a
+        // compile happens: ten thousand requests for one cold file, every one
+        // of them created before any of them runs — `Scheduler::spawn`'s own
+        // doc says nothing runs until `run` is called, so this is the widest
+        // concurrency one core admits — and one compile between them.
+        //
+        // `[opcache]` is written at `hash`/`0s` rather than left at the
+        // default, because the default answers requests 2..N from step 1
+        // without looking at the file and would make this a test of the rate
+        // cap. Here every request after the first re-observes the file, hashes
+        // it, and is still answered out of the unit table: the single-flight
+        // is the module doc's "property of the borrow", and this is the number
+        // that says so.
+        const REQUESTS: usize = 10_000;
+
+        let entry = a_file_saying("cold", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = std::rc::Rc::new(revalidating());
+        let answered = std::rc::Rc::new(std::cell::Cell::new(0_usize));
+
+        let mut sched = nvs_host::Scheduler::new();
+        for _ in 0..REQUESTS {
+            let compiler = std::rc::Rc::clone(&compiler);
+            let answered = std::rc::Rc::clone(&answered);
+            let path = path.clone();
+            // One task per request, as `serve::run` spawns one per connection,
+            // reaching the same `Rc<Compiler>` that command builds per core.
+            sched.spawn(
+                Ctx::new(OutputSink::Buffer(Vec::new())),
+                nvs_runtime::TaskRoot::Request,
+                move |_ctx| {
+                    let (_program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                    answered.set(answered.get() + 1);
+                },
+            );
+        }
+        let report = sched.run();
+
+        assert_eq!(report.finished, REQUESTS, "a request never reached its end");
+        assert_eq!(
+            answered.get(),
+            REQUESTS,
+            "a request was answered with no unit"
+        );
+        assert_eq!(
+            compiler.compiles.get(),
+            1,
+            "the file was put through the front end more than once"
+        );
+        // And the table did not grow an entry per request either, which is the
+        // same claim stated as what the cache holds afterwards.
+        assert_eq!(compiler.units.borrow().len(), 1);
+    }
+
+    #[test]
+    fn no_request_stalls_while_the_file_is_compiled() {
+        // The other half of `docs/plan/m7.md`'s core requirement, and the half
+        // the number above cannot state: compiling once is worth nothing if
+        // the other requests paid for it by waiting.
+        //
+        // On one core a stall has exactly one shape — a suspension. A request
+        // made to wait for a compile in flight would have to give the core
+        // back and be resumed once the unit existed, and `RunReport::resumes`
+        // counts precisely that: a task that runs from its first turn to its
+        // end without ever yielding costs one resume, and every wait costs
+        // another. So `resumes == REQUESTS` is "nobody waited", asserted
+        // rather than argued from the absence of a `Compiling` state.
+        //
+        // This is the ADR's single-flight seen from the other side. ADR 0017
+        // gives racing callers a broadcast to wait on because its cache is
+        // reached from many cores; the module doc's § *what one core
+        // collapses* says why there is nothing to wait on here, and a resume
+        // count is what turns that paragraph into a test.
+        const REQUESTS: usize = 64;
+
+        let entry = a_file_saying("unstalled", "served");
+        let path = entry.to_string_lossy().into_owned();
+        let compiler = std::rc::Rc::new(revalidating());
+        let held: std::rc::Rc<std::cell::RefCell<Vec<Program>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+
+        let mut sched = nvs_host::Scheduler::new();
+        for _ in 0..REQUESTS {
+            let compiler = std::rc::Rc::clone(&compiler);
+            let held = std::rc::Rc::clone(&held);
+            let path = path.clone();
+            sched.spawn(
+                Ctx::new(OutputSink::Buffer(Vec::new())),
+                nvs_runtime::TaskRoot::Request,
+                move |_ctx| {
+                    let (program, _routes) = compiler.compiled(&path).expect("the entry compiles");
+                    held.borrow_mut().push(program);
+                },
+            );
+        }
+        let report = sched.run();
+
+        assert_eq!(report.finished, REQUESTS, "a request never reached its end");
+        assert_eq!(report.parked, 0, "a request was left parked on the compile");
+        assert_eq!(
+            report.resumes, REQUESTS,
+            "a request gave the core back and was resumed, which is the stall"
+        );
+        assert_eq!(compiler.compiles.get(), 1);
+        // And what the requests that did not compile were handed is the unit,
+        // not a placeholder waiting to be filled in: every one of them runs.
+        assert_eq!(held.borrow().len(), REQUESTS);
+        for program in held.borrow_mut().drain(..) {
+            assert_eq!(said(program), "served\n");
+        }
     }
 
     #[test]
