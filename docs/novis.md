@@ -18408,7 +18408,7 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, queryAs, execute, executeMany, transaction
+Keywords: query, queryAs, execute, executeMany, transaction, close, driver, isOpen
 
 | Member | Signature |
 |---|---|
@@ -18417,6 +18417,9 @@ Keywords: query, queryAs, execute, executeMany, transaction
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
+| [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
+| [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
+| [`Core\Db\Connection->isOpen`](#core-core-db-connection-isopen) | `isOpen(): bool` |
 
 <a id="core-core-db-connection-query"></a>
 #### `Core\Db\Connection->query`
@@ -18509,6 +18512,41 @@ Runs `$fn` inside a transaction and answers whatever it answered: returning comm
 **Returns** `T` — What `$fn` returned, after the commit. A nested call on the same connection is a savepoint, so a function that wraps its own writes stays callable from inside a caller's transaction.
 
 **Throws** `Core\Db\RolledBack` — `$fn` called `rollBack`. It travels out of this call whether or not anything inside caught it, because the decision is a flag on the transaction and not the exception's own journey.; `LogicError` — A statement inside the closure was refused for the way it was written, the transaction was reached after the call that owned it returned, or a nested call asked for its own `isolation` or `readOnly`.; `Core\Db\DbError` — The server refused the `BEGIN`, or refused the `COMMIT` after the closure returned — a serialization failure or a deferred constraint. The work is not committed either way.; `IOError` — The connection failed while the transaction was open, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-connection-close"></a>
+#### `Core\Db\Connection->close`
+
+```nvs skip
+$connection->close(): void
+```
+
+Releases the connection to this core's pool, ahead of the request that opened it. Every other member of this connection then throws; `isOpen` answers `false`, and a second `close` does nothing.
+
+**Returns** `void` — Nothing. A connection is released for its effect on the pool, and the pool is not something a program holds.
+
+<a id="core-core-db-connection-driver"></a>
+#### `Core\Db\Connection->driver`
+
+```nvs skip
+$connection->driver(): Core\Db\Driver
+```
+
+Which backend this connection speaks to, as the `Core\Db\Driver` case the `[db.<name>]` block or the `open` settings named.
+
+**Returns** `Core\Db\Driver` — The connection's own `Core\Db\Driver` case.
+
+**Throws** `LogicError` — The connection has been closed.
+
+<a id="core-core-db-connection-isopen"></a>
+#### `Core\Db\Connection->isOpen`
+
+```nvs skip
+$connection->isOpen(): bool
+```
+
+Whether this connection is still usable — `true` until `close`, and `false` after it. It is the one member a closed connection still answers.
+
+**Returns** `bool` — `true` for a connection a statement may still run on, `false` for one `close` has released.
 
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
