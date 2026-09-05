@@ -76,10 +76,20 @@ pub(super) struct OpenConnection {
     memo: Option<String>,
     /// The slot this connection is live under, holding the key and the bounds
     /// the pool needs to take it back at teardown.
+    ///
+    /// Taken by [`Ctx::close_open_connection`], which is what makes the
+    /// release happen there instead of at teardown.
     pub(super) lease: Option<crate::pool::Lease>,
     /// The connection, held as the trait object for the reason
-    /// [`HeldConnection`]'s own doc gives.
-    pub(super) connection: Box<dyn HeldConnection>,
+    /// [`HeldConnection`]'s own doc gives — and `None` once
+    /// [`Ctx::close_open_connection`] has released it.
+    ///
+    /// **The entry stays behind the connection it no longer holds.** Keys are
+    /// positions in this vector, so removing one would renumber every handle a
+    /// program is still holding; and an emptied entry is the only thing that
+    /// can tell a `Core\Db\Connection::close`d handle from a key this request
+    /// never filed, which are a `LogicError` and a paste error respectively.
+    pub(super) connection: Option<Box<dyn HeldConnection>>,
 }
 
 impl Ctx {
@@ -194,7 +204,7 @@ impl Ctx {
         self.open_connections.push(OpenConnection {
             memo,
             lease,
-            connection,
+            connection: Some(connection),
         });
         // The index, one-based, so that a handle slot never holds a key a
         // zeroed value could be mistaken for.
@@ -214,25 +224,73 @@ impl Ctx {
     /// [`HeldConnection::as_any_mut`](crate::HeldConnection::as_any_mut) — one
     /// downcast, at the one place a statement is written.
     ///
-    /// There is no `take_open_connection` beside it and there is not meant to
-    /// be one yet: spec § 18's `Core\Db\Connection::close` is what would take a
-    /// connection back out, and until it exists every connection this request
-    /// filed leaves through [`Drop`], which is the one place ADR 0067 § 13's
-    /// release is written.
+    /// `None` covers both a key this request never filed and one whose
+    /// connection [`Ctx::close_open_connection`] has already released;
+    /// [`Ctx::connection_is_filed`] is what tells those two apart, and the
+    /// caller needs to, because they are a paste error in the caller's own
+    /// crate and a program's `close`-then-use respectively.
     pub fn open_connection_mut(&mut self, key: u64) -> Option<&mut dyn HeldConnection> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_connections
-            .get_mut(index)
-            .map(|held| &mut *held.connection)
+            .get_mut(index)?
+            .connection
+            .as_deref_mut()
+    }
+
+    /// Whether `key` names an entry this request filed at all, open or closed.
+    #[must_use]
+    pub fn connection_is_filed(&self, key: u64) -> bool {
+        key.checked_sub(1)
+            .and_then(|index| usize::try_from(index).ok())
+            .is_some_and(|index| index < self.open_connections.len())
+    }
+
+    /// Releases the connection `key` names, answering whether it was still
+    /// open — spec § 18's `Core\Db\Connection::close`, which is the one thing
+    /// that ends a connection's life before the request's.
+    ///
+    /// It is the teardown loop in [`Ctx::drop`] for exactly one entry, and
+    /// deliberately the same two lines: ADR 0067 § 13's release is where a
+    /// leased connection goes, and an unleased one — an embedder's — is
+    /// dropped. A `close` therefore returns a connection to this core's pool
+    /// *earlier* than the request would have, which is the whole reason a
+    /// program that is finished with one writes it.
+    ///
+    /// **Idempotent, and it is the only member that is.** A second `close` has
+    /// nothing to release and answers `false`; every other member on a closed
+    /// handle refuses, because a statement on a connection that is gone is a
+    /// mistake a program can only have made on purpose. The entry itself stays,
+    /// per [`OpenConnection::connection`].
+    pub fn close_open_connection(&mut self, key: u64) -> bool {
+        let Some(index) = key.checked_sub(1).and_then(|at| usize::try_from(at).ok()) else {
+            return false;
+        };
+        let Some(held) = self.open_connections.get_mut(index) else {
+            return false;
+        };
+        let Some(connection) = held.connection.take() else {
+            return false;
+        };
+        match held.lease.take() {
+            Some(lease) => crate::pool::release(lease, std::time::Instant::now(), connection),
+            None => drop(connection),
+        }
+        true
     }
 
     /// The key of the connection this request already opened under `memo`, or
     /// `None` for a name it has not reached yet — § 2's memoization, asked.
+    ///
+    /// **A closed entry does not answer.** § 2 memoizes so that a second
+    /// `connect("main")` is the same *connection*, and a handle whose
+    /// connection has been released is not one — so the name is free again and
+    /// the next `connect` opens and files a second entry, which is what a
+    /// program that wrote `close` asked for.
     #[must_use]
     pub fn memoized_connection(&self, memo: &str) -> Option<u64> {
         self.open_connections
             .iter()
-            .position(|held| held.memo.as_deref() == Some(memo))
+            .position(|held| held.memo.as_deref() == Some(memo) && held.connection.is_some())
             .map(|index| index as u64 + 1)
     }
 }

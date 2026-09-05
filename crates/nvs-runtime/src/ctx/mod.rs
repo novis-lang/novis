@@ -1130,12 +1130,19 @@ impl Drop for Ctx {
         // not this one's. Either way the lease is consumed, which is what gives
         // the key's `max` slot back. The clock is read once for the whole set
         // and not at all for a request that opened no connection.
+        //
+        // An entry a `Core\Db\Connection::close` already emptied is skipped:
+        // `Ctx::close_open_connection` ran these same two lines for it then,
+        // and took its lease with it.
         if !self.open_connections.is_empty() {
             let now = std::time::Instant::now();
             for held in std::mem::take(&mut self.open_connections) {
+                let Some(connection) = held.connection else {
+                    continue;
+                };
                 match held.lease {
-                    Some(lease) => crate::pool::release(lease, now, held.connection),
-                    None => drop(held.connection),
+                    Some(lease) => crate::pool::release(lease, now, connection),
+                    None => drop(connection),
                 }
             }
         }
