@@ -1219,7 +1219,7 @@ is why" — is this file.
   sentence about your *config* rather than about staleness.** Stage 1's
   `a warm-cache CLI start stays under 10ms` failed after session 0003 with
   `error[E0601]: unknown field 'internal', expected 'connect'` at `nvs.toml:102` — which reads as a
-  config regression and is not one: `[app.capabilities.net] internal` had landed in `07075f20` and
+  config regression and is not one: `[app.capabilities.net] internal` had landed in `1581ac8d` and
   the release binary on disk predated it by a day. `tools/bench.py` deliberately refuses a debug
   build (its own § *Release against release*), and the driver only ever builds debug, so **every
   release-measured check goes stale the moment the tree grows a field, a member or a diagnostic the
@@ -1364,7 +1364,7 @@ is why" — is this file.
   there.** The tool ranks a class by its **case count** — the median and the worst member — and the floor
   is 3, so a class whose every question has already been asked keeps being nominated for as long as its
   thinnest member has three cases. The `Core\Uuid` group two handoffs pointed at was landed in full by
-  commit 5bcee544 and its neighbours: `tryParse`/`parse` agreement counted over eighteen near-miss
+  commit bde41aae and its neighbours: `tryParse`/`parse` agreement counted over eighteen near-miss
   spellings, `v7`'s ordering counted over a 64-draw sweep, its version and variant nibbles counted over
   24 draws. `Core\Math`'s `atan2`/`hypot`/`lcm`, `Core\Cldr::pluralCategory` and `Core\Arr`'s
   `replaceRange`/`underlay`/`withoutFirst` are the same story — each already has a case file named for
@@ -1674,7 +1674,7 @@ is why" — is this file.
   carries it" and pointed into what is now `crates/nvs-stdlib/src/db/bind.rs`; the doc comment `orient.py` inlined
   from that very anchor already explained *which* spelling of the text rides the throw, and the
   runtime slot, the compiler's copy, the `OWN_PROPERTIES` row and `statement_failure`'s write of it
-  were two commits old — `fe39a987` and `b4e23338`. A stale item reads exactly like an open one,
+  were two commits old — `11bfda3a` and `8307f87a`. A stale item reads exactly like an open one,
   because the handoff is written by the session that held the context and not by the tree, and a
   re-scope can carry an item forward without re-checking it. `git log --oneline -S '<the symbol the
   item is about>'` settles it in one call, which is cheaper than the four greps that establish it a
