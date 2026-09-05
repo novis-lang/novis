@@ -41,6 +41,33 @@ for (int $i = 0; $i < 1000; $i += 1) {
     $built += 1;
 }
 
+// The array-closed shape, which is the one a tally reading field slots alone
+// could not see and which therefore stayed out for the life of the process.
+// `$member`'s only reference is an *element* of `$holder`'s array, so the ring
+// closes through the array rather than through a field; `$grid` is the same
+// ring one array deeper, which is what pins the descent into a nested array
+// the outer one solely owns. Neither loop touches `$built`, because this
+// fixture's stdout is frozen by the acceptance check and what these iterations
+// add is invisible in it — the WSL `valgrind --leak-check=full` leg is the
+// whole check on them, exactly as it is on the pairs above.
+class Ring {
+    public ?Ring $peer = null;
+    public array<Ring> $group = [];
+    public array<array<Ring>> $grid = [];
+}
+
+for (int $round = 0; $round < 1000; $round += 1) {
+    var $holder = new Ring();
+    var $member = new Ring();
+    $holder->group[] = $member;
+    $member->peer = $holder;
+
+    var $outer = new Ring();
+    var $inner = new Ring();
+    $outer->grid[][] = $inner;
+    $inner->peer = $outer;
+}
+
 // A node that points at itself, held to the end of the program: the cycle the
 // sweep meets while the rest of the request is still being taken apart around
 // it, rather than one abandoned a thousand iterations ago.
