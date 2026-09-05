@@ -314,6 +314,15 @@ impl Unit {
     /// The compiled function `name` names, ready to call — through
     /// [`nvs_runtime::call`], which is the safe wrapper over [`NvsFn`]'s
     /// pointer contract.
+    ///
+    /// **The pointer alone is not enough to call a method with.** Slot 0 of
+    /// the argument array is the implicit receiver and the first declared
+    /// parameter is at slot 1 ([`NvsFn`] owns the rule), so a caller that
+    /// hands [`nvs_runtime::call`] the declared arguments alone reads one
+    /// `Value` past the end of its own slice and answers with whatever was
+    /// next in memory. Reach a `static` method through [`Self::call_static`],
+    /// an instance method through [`Self::call_on_new_instance`], and use this
+    /// directly only for a script frame, which has no receiver.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -381,6 +390,48 @@ impl Unit {
                       through `install_in`"
         )]
         Some(unsafe { nvs_runtime::construct_and_call(ctx, desc, method, args) })
+    }
+
+    /// Calls the `static` method `Class::method` from outside compiled code,
+    /// with `args` in written order and nothing else — this fills the receiver
+    /// slot [`Self::function`] leaves to the caller.
+    ///
+    /// A `static` method's receiver is the **called class**, so slot 0 gets
+    /// this unit's descriptor for `class` rather than a null: late static
+    /// binding reads that slot, and a null there would answer `static::` with
+    /// a wild pointer instead of the class the caller named. The descriptor is
+    /// process-wide and immortal, so unlike an instance receiver it needs no
+    /// reference taken for the call.
+    ///
+    /// `class` names the function to call **and** the class that reaches the
+    /// receiver slot, which is one string because an inherited body is
+    /// compiled once, under the class that declares it: a method `Derived`
+    /// inherits is reached by naming `Base`, and then `static::` inside it
+    /// answers `Base` too. A hand caller that needs a derived called-class
+    /// wants the descriptor's own method table, which is
+    /// [`Self::call_on_new_instance`]'s path.
+    ///
+    /// `None` when this unit declares no such class or compiled no such
+    /// method, which is an internal inconsistency for a label that came out of
+    /// the same compile.
+    ///
+    /// # Errors
+    ///
+    /// The status the call reported, with its message left on `ctx`.
+    pub fn call_static(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        class: &str,
+        method: &str,
+        args: &[nvs_runtime::Value],
+    ) -> Option<Result<nvs_runtime::Value, i32>> {
+        let target = self.function(&format!("{class}::{method}"))?;
+        let receiver =
+            nvs_runtime::Value::class_desc(self.classes.desc(self.classes.id_of(class)?));
+        let mut slots = Vec::with_capacity(args.len() + 1);
+        slots.push(receiver);
+        slots.extend_from_slice(args);
+        Some(nvs_runtime::call(target, ctx, &slots))
     }
 
     /// Builds ADR 0079 § 8's fixture `method` of `class` into `fixtures`,

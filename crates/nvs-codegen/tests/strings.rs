@@ -51,16 +51,18 @@ echo \"<\" . $tag . \">$i</\" . $tag . \">\", \"\\n\";
 /// land at different addresses.
 #[test]
 fn a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation() {
-    // Both methods take a parameter they ignore: a compiled function called
-    // with an empty argument slice faults, so a fixture reached through
-    // `call` rather than through the script frame declares at least one.
+    // Neither method takes a parameter. They used to declare one they ignored,
+    // because calling either with an empty slice faulted — which was this
+    // crate's own reading of a missing *receiver* slot, not a missing
+    // argument. `Unit::call_static` fills that slot, so the dummy parameter is
+    // gone and the calls below say what they mean.
     let source = "<?nvs
 class Label {
-    public static function pinned(int $ignored): string {
+    public static function pinned(): string {
         return \"beta\";
     }
 
-    public static function made(int $ignored): string {
+    public static function made(): string {
         return \"be\" . \"ta\";
     }
 }
@@ -68,11 +70,13 @@ class Label {
     let unit = compile(source).expect("the fixture compiles");
     let mut ctx = Ctx::buffered();
 
-    let pinned = unit
-        .function("Label::pinned")
-        .expect("`pinned` was compiled");
-    let first = call(pinned, &mut ctx, &[Value::int(0)]).expect("the method ran");
-    let second = call(pinned, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    let run = |ctx: &mut Ctx, method: &str| {
+        unit.call_static(ctx, "Label", method, &[])
+            .expect("the method was compiled")
+            .expect("the method ran")
+    };
+    let first = run(&mut ctx, "pinned");
+    let second = run(&mut ctx, "pinned");
     assert_eq!(first.as_str_bytes(), Some(&b"beta"[..]));
     assert_eq!(second.as_str_bytes(), Some(&b"beta"[..]));
     assert_eq!(
@@ -81,9 +85,8 @@ class Label {
         "the literal was allocated rather than pointed at"
     );
 
-    let made = unit.function("Label::made").expect("`made` was compiled");
-    let one = call(made, &mut ctx, &[Value::int(0)]).expect("the method ran");
-    let two = call(made, &mut ctx, &[Value::int(0)]).expect("the method ran");
+    let one = run(&mut ctx, "made");
+    let two = run(&mut ctx, "made");
     assert_eq!(one.as_str_bytes(), Some(&b"beta"[..]));
     assert_ne!(
         one.as_str_bytes().map(<[u8]>::as_ptr),

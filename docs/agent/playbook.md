@@ -9032,3 +9032,20 @@ every session. Nothing below was reworded on the way.
   tools/reference.py --no-examples"` after copying a Linux `nvs` into `target/debug/` — and read the
   `git diff`. `PLATFORM_VALUES` in that tool is where a newly platform-varying constant gets pinned to
   one spelling.
+- **A compiled method's argument array starts with a receiver, so a hand-built call needs `1 + arity`
+  slots.** Slot 0 is `$this` for an instance method and the *called class descriptor* for a `static` one
+  — late static binding's whole mechanism — and the first declared parameter is at slot **1**
+  (`nvs_ir::lower`, and `nvs_runtime::NvsFn` for the contract). Every compiled call site fills it, so a
+  Rust caller that passes only the declared arguments gets no diagnostic: it reads one `Value` past the
+  end of its own slice for every parameter and answers with whatever was next in memory. Reach a static
+  method through `nvs_codegen::Unit::call_static`, never through `Unit::function` plus
+  `nvs_runtime::call`. The tell is an answer that is a *neighbouring* argument, or a plausible-looking
+  zero — and it hides completely behind a `Value::int(0)` argument, which is what four of the
+  workspace's five hand-built calls passed.
+- **A sanitizer changing an answer does not mean the sanitizer is involved.** ASAN turned the above into
+  `Some(0)` on the asan leg alone, which read as an ASAN-specific ABI fault; it was an ordinary
+  out-of-bounds read that ASAN merely made *deterministic*, because the slot past the array was poisoned
+  rather than holding stack litter. The same test passed everywhere else by landing on a neighbour that
+  happened to hold the same value. Before theorising about instrumentation, print what the callee
+  actually received for **several distinct non-zero arguments** — one run of that named the off-by-one
+  that four sessions of reasoning about calling conventions would not have.

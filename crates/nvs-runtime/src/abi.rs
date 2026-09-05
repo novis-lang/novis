@@ -61,9 +61,26 @@ pub const EXITED: i32 = 3;
 ///
 /// `unsafe` because the three pointers carry a contract the type cannot
 /// express: each must be non-null, aligned and valid for the duration of the
-/// call, `args` must point at as many values as the callee's arity, and `out`
-/// must be writable. Compiled code satisfies this by construction; hand
-/// callers go through [`call`].
+/// call, `args` must point at every slot the callee reads, and `out` must be
+/// writable. Compiled code satisfies this by construction; hand callers go
+/// through [`call`].
+///
+/// **`args` is not the argument list — it is the argument list behind an
+/// implicit receiver.** A compiled *method* reads slot 0 as its receiver and
+/// its first declared parameter at slot **1**, so the array is `1 + arity`
+/// values long. What slot 0 holds depends on the method: `$this` for an
+/// instance method, and for a `static` one the **called class descriptor**,
+/// which is late static binding's whole mechanism and the reason it costs no
+/// second parameter and no second calling convention (`nvs_ir::lower`, which
+/// owns the numbering). A *script frame* is the one compiled function with no
+/// receiver at all, so it takes an empty array.
+///
+/// Every compiled call site writes that leading slot, so a hand caller that
+/// passes only the declared arguments does not get a diagnostic — it reads one
+/// `Value` past the end of its own slice for **every** parameter, and answers
+/// with whatever was next in memory. [`crate::dispatch`], [`crate::closure`]
+/// and `nvs_codegen::Unit::call_static` are the constructors that get it
+/// right; prefer one of those to building the array by hand.
 pub type NvsFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
 
 /// A runtime helper. Identical to [`NvsFn`] — that identity is the point of
@@ -568,6 +585,13 @@ macro_rules! nvs_helper {
 /// The safe wrapper hand callers — this crate's tests, `nvs-codegen`'s tests,
 /// and eventually `nvs run` itself — use instead of building the three
 /// pointers by hand.
+///
+/// `args` is passed through **exactly as given**: it is the callee's ABI slot
+/// array, not its argument list, and the two differ for a compiled method by
+/// the implicit receiver [`NvsFn`] describes. A helper's slots are its
+/// arguments and nothing else; a method's slot 0 is its receiver and its
+/// parameters start at slot 1. Nothing here can tell the two apart, which is
+/// why the shape is the caller's to get right.
 ///
 /// # Errors
 ///

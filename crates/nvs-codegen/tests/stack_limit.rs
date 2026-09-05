@@ -51,12 +51,14 @@ fn a_function_entry_checks_the_stack_limit() {
     // The same impossible bounds against a method that calls one thing: the
     // check is at the entry of any non-leaf function, not only the script's.
     let unit = compile(TWO_METHODS).expect("the fixture compiles");
-    let deeper = unit
-        .function("Depth::deeper")
-        .expect("`deeper` was compiled");
     let mut ctx = Ctx::buffered();
     ctx.arm_stack_limit(usize::MAX, 0);
-    assert_eq!(call(deeper, &mut ctx, &[Value::int(21)]).err(), Some(FATAL));
+    assert_eq!(
+        unit.call_static(&mut ctx, "Depth", "deeper", &[Value::int(21)])
+            .expect("`deeper` was compiled")
+            .err(),
+        Some(FATAL)
+    );
 }
 
 #[test]
@@ -66,11 +68,17 @@ fn a_leaf_function_under_the_slack_emits_no_stack_check() {
     // passed one with `STACK_RESERVE` still underneath, which is the whole of
     // the elision's justification.
     let unit = compile(TWO_METHODS).expect("the fixture compiles");
-    let twice = unit.function("Depth::twice").expect("`twice` was compiled");
     let mut ctx = Ctx::buffered();
     ctx.arm_stack_limit(usize::MAX, 0);
 
-    let answer = call(twice, &mut ctx, &[Value::int(21)]).expect("the leaf ran");
+    // The `21` is load-bearing twice over: it is what proves the body ran at
+    // all, and — because this is one of the few places a compiled method is
+    // reached from Rust — that the argument arrived in the slot the callee
+    // reads. `crates/nvs-codegen/tests/calls.rs` holds the dedicated guard.
+    let answer = unit
+        .call_static(&mut ctx, "Depth", "twice", &[Value::int(21)])
+        .expect("`twice` was compiled")
+        .expect("the leaf ran");
     assert_eq!(answer.as_int(), Some(42));
     assert!(ctx.pending().is_none());
 }
