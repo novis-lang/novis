@@ -2003,6 +2003,17 @@ is why" — is this file.
   correction. Read the module doc's own gap section before reaching for `Cargo.toml`: it answers
   "impossible", "unwritten" and "decided but unlanded" in one call, and only the third looks like a
   misfiling from outside.
+- **A `python - <<'PY'` regex over a whole source file is AGENTS.md rule 1's breach with a different
+  spelling, and it fails the same way a `sed -i` does: silently, far from where you were looking.**
+  A non-greedy `plan\((.*?)\)\s*\.expect_err\(` written to repair six call sites in a test module
+  matched across 600 lines and rewrote the *function's own signature* into
+  `pub(crate) fn coded(&plan(request: &Request, …)`, which the compiler then reported as an unclosed
+  delimiter at the end of the file — three build cycles to walk back to a line the edit was never
+  aimed at. Rule 1's reason is usually given as the shell parsing apostrophes, and that is only half
+  of it: the other half is that a pattern has no idea what a Rust item is. Repairing a repeated API
+  mismatch is what `Edit` with `replace_all` is for when the string is *literal and unique*, and what
+  `tools/splice.py --patch` is for when it is not. If a script really is the only shape, make every
+  replacement an exact literal with an asserted count — never a regex with `.` in it.
 
 ## Running things
 

@@ -183,6 +183,16 @@ adrs = [
   # session implementing it was not handed: its second bullet is the whole of the two names left in this
   # stage, and it defers their mechanism to ADR 0017 in one clause that is easy to read past.
   "0083 §7",
+  # Added 2026-09-05 with stage 7's hot-reload group becoming the open one, and it is the third
+  # consecutive stage whose sections arrived by hand: ADR 0093 was sliced by hand for the installer
+  # group this session and 0078 §§ 3/5/6 for the control socket the session before, and neither
+  # session's handoff could close the gap because this list is the only thing `orient.py` reads. 0017's
+  # `Decision` is the five steps a resolve takes — `validate = "never"`, the `revalidate_freq` window,
+  # the hash, the swap and what an open isolate keeps — which is the whole of what the two cache tests
+  # assert, and 0091 § 3a is the startup defaults a mode selects, one of which is `validate` and which
+  # is the third test outright. Take both out when that check is green.
+  "0017 Decision",
+  "0091 §3a",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is

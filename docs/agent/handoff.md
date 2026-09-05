@@ -2,65 +2,63 @@
 
 ## State
 
-**Goal 6, M7 — stage 7's `nvs-server (the control socket)` check is green.** All five of ADR 0078's
-names run and pass under `cargo test -p nvs-server`; the driver's next failure will be the
-`nvs-server (hot reload)` check at `docs/agent/loop-goal.toml:3905`, which is the group below and
-was this session's original item.
+**Goal 6, M7 — stage 7's `nvs-cli (nvs service, and it fails closed)` check is green.** All seven of
+ADR 0093's names run and pass under `cargo test -p nvs-cli`. The driver's next failure will be the
+`nvs-server (hot reload)` check, now at `docs/agent/loop-goal.toml:3915` (this session's manifest
+edit moved it by ten lines), which is the group below.
 
-**The surface is split across two crates, and the split is the point.**
-`crates/nvs-config/src/control.rs` owns the endpoint, because "no account but this one may reach
-it" is a mode on Unix and a DACL on Windows and `nvs_config::trust` already owns both spellings:
-`Address::of` reads `[control] socket` (absent or `false` is `Disabled`, and `E0629` refuses
-anything network-shaped), `Endpoint::create` makes an `AF_UNIX` socket at mode `0600` or a named
-pipe under a `D:P` DACL naming this account, `SYSTEM` and `Administrators`, `boundary`/`bind` put
-§ 3's directory rule in front of it, and `reload` publishes a snapshot and returns § 5's `Report`.
-`crates/nvs-server/src/control.rs` owns the wire surface — `Operation::of`, which is `POST /reload`
-and nothing else — and re-exports the rest so the server's control surface is one name.
+**The whole check was writable with no privileged operation, because § 2 is a pure function.**
+`crates/nvs-cli/src/service.rs` is the installer sink: `plan()` is the one constructor of a `Plan`
+and the only path out of it that is not one of `E0630`-`E0634`, and `Host` is a *parameter* — what
+this binary and the named config answer about themselves — so every refusal is reachable with no
+service manager, no elevation and no files. `image_path` is § 3's `CommandLineToArgvW` encoder with
+`decode` beside it so the round trip is a property; `unit` is § 5's systemd unit; `destination`
+answers `None` for the printing delivery, which is what makes "written only on install" assertable.
 
-**What is not there is the transport.** Nothing accepts on the endpoint, no `hyper` connection is
-served over it, `nvs serve` does not create one, and `nvs ctl` has no client. § 3's `ctl config`
-(ADR 0103 § 9) is deliberately not an operation yet and `control.rs`'s module doc says so.
+**What is not there is registration**, and the module doc says so: no `install`, `uninstall`,
+`start`, `stop`, `status` or `run` subcommand, no SCM call and no unit-directory write. That is the
+goal's own standing decision ("No session installs a service") plus ADR 0093's *Verification*, whose
+remaining items all need a privileged machine. `nvs service unit` is the one wired subcommand.
 
-**`orient.py` did not print ADR 0078** — the `[context] adrs` list has no entry for it, so §§ 3, 5
-and 6 were sliced by hand. Add `0078` with those three sections.
+**`orient.py` did not print ADR 0093** — that gap is now closed differently than the last two
+sessions closed it: `[context] adrs` gained `0017 Decision` and `0091 §3a` for the group below, and
+`docs/agent/goals/6-server.toml` was re-synced from the live file.
 
 ## Next group
 
-**Stage 7's `nvs-server (hot reload)` check, which ADR 0017's landed swap unblocks. The file set is
-`docs/agent/loop-goal.toml`, `crates/nvs-cli/src/script.rs` and `crates/nvs-config/src/cache.rs`.**
-All three of its names are misfiled `-p nvs-server`: two are this cache's and one is
-`nvs_config::mode`'s, and the check is at `docs/agent/loop-goal.toml:3905`.
+**Stage 7's `nvs-server (hot reload)` check. The file set is `docs/agent/loop-goal.toml`,
+`crates/nvs-cli/src/script.rs` and `crates/nvs-config/src/cache.rs`.** All three names are misfiled
+`-p nvs-server`: two are the CLI cache's and one is `nvs_config::cache`'s.
 
 - [ ] **Refile the check and write `revalidation_is_lazy_and_rate_capped`** — split
-      `docs/agent/loop-goal.toml:3905` so the two cache names run `-p nvs-cli`, and assert both
-      halves of step 1 over `crates/nvs-cli/src/script.rs:235`: `validate = "never"` never
-      `stat`s, and two resolves inside one `revalidate_freq` window make one check while one past
-      it makes two. Count the checks by editing the file between resolves and reading which unit
-      comes back — `crates/nvs-cli/src/script.rs:397` is the only place a syscall happens, and
-      `revalidating()` in that module's tests is the fixture shape.
-- [ ] **`a_swap_never_blocks_a_request_serving_core`** — ADR 0017 § *Decision*'s paragraph after
-      the five steps. On one core the claim is that no borrow of this cache is held across a
-      compile: a program resolved from it, *while running*, does a `spawn script` over a second
-      path, which compiles through the same `Compiler` (`crates/nvs-cli/src/script.rs:346` is the
-      only `borrow_mut` a compile is anywhere near). `examples/isolate/` has the spawning fixtures;
-      a held borrow is a panic rather than a wrong answer, which is what makes this assertable.
-- [ ] **`the_validate_default_is_selected_by_the_run_mode`** — ADR 0091 § 3a, and it is
-      `nvs-config`'s: `production` starts at `Validate::Never`, `development` at `Mtime`.
-      `crates/nvs-config/src/mode.rs:8` says § 3a's three startup rows are deliberately not in that
-      module, and `crates/nvs-config/src/tree.rs:773` carries the other two on their own fields, so
-      this row goes where it is read — `Revalidation::from_config`,
-      `crates/nvs-config/src/cache.rs:267`, which needs the snapshot's `mode` beside the `Config`.
-      Move the name to `-p nvs-config` in the same `loop-goal.toml` edit as the first item.
+      `docs/agent/loop-goal.toml:3915` so the two cache names run `-p nvs-cli`, and assert both
+      halves of ADR 0017 § *Decision* step 1 over `crates/nvs-cli/src/script.rs:235`:
+      `validate = "never"` never `stat`s, and two resolves inside one `revalidate_freq` window make
+      one check while one past it makes two. Count the checks by editing the file between resolves
+      and reading which unit comes back — `crates/nvs-cli/src/script.rs:397` is the only place a
+      syscall happens, and `revalidating()` at `crates/nvs-cli/src/script.rs:552` is the fixture.
+- [ ] **`a_swap_never_blocks_a_request_serving_core`** — ADR 0017 § *Decision*'s paragraph after the
+      five steps, over `crates/nvs-cli/src/script.rs:235`: a resolve that finds a newer source
+      publishes the new unit without any in-flight resolve waiting on it.
+- [ ] **`the_validate_default_is_selected_by_the_run_mode`** — and **it is not `nvs_config::mode`'s**,
+      which the previous handoff guessed. `crates/nvs-config/src/mode.rs:8` says outright that
+      § 3a's three startup rows are deliberately *not* in that module's table. The default lives at
+      `crates/nvs-config/src/cache.rs:204` (`Validate`'s `#[default]`, whose doc already cites
+      ADR 0091) and is read at `crates/nvs-config/src/cache.rs:262` (`Revalidation::of`), which
+      today reads `[opcache]` and does **not** take a mode — so check whether the mode→`validate`
+      link exists before writing the test.
 
 ## Backlog
 
-- The control endpoint has no accept loop, no `hyper` connection over it and no `nvs ctl` client —
-  `crates/nvs-config/src/control.rs`'s module doc owns what exists; ADR 0078 § 3 owns the rest.
-- No boot refusal for `[opcache] validate` / `revalidate_freq` — `crates/nvs-config/src/cache.rs`'s
-  module doc records it as owed; `nvs_config::log::validate` is the shape and `E0630` is now free.
-- `nvs test` compiles a `spawn script` under the default policy — `crates/nvs-cli/src/runner.rs:351`
-  says why; closing it means resolving a tree on that path.
-- The unit table keeps at most two entries per path, so a *reverted* edit recompiles rather than
-  hitting — `crates/nvs-cli/src/script.rs:346`'s doc owns the trade.
-- ADR 0042's on-disk cache is not consulted by the swap: a recompile is always a real compile.
-  `crates/nvs-cli/src/cache.rs` holds the artifact store the new `UnitKey` could key into.
+- Registration itself — `install`/`uninstall`/`start`/`stop`/`status`/`run`, the SCM call and the
+  systemd write. `crates/nvs-cli/src/service.rs`'s module doc § *What is on disk, and what is not*.
+- `nvs ctl` has no client and § 3's `ctl config` is not an operation —
+  `crates/nvs-server/src/control.rs`'s module doc.
+- Nothing accepts on the control endpoint: no `hyper` connection is served over it and `nvs serve`
+  creates none. Same module doc.
+- `--fault-inject` is matched by word in `service.rs`; if `nvs run` ever gains a second hook the
+  allowlist there needs the same treatment. ADR 0093 § 2, row 2.
+- `[server] listen`'s privileged-port test in `service.rs::describe_host` reads the merged table
+  rather than `nvs_config::server`'s typed value. ADR 0097 § 5.
+- `Core\Session` may not use the local cache tier — ADR 0059 § 4, still enforced by boot refusal
+  only.
