@@ -448,8 +448,12 @@ fn check_param_class(
 /// Absent from a static target's class, which has nothing to remember: its
 /// called class is a compile-time constant the thunk materializes for itself.
 /// Named like [`FN_ARITY`] so no declaration can collide with it, and placed
-/// third so a native reader's slot arithmetic over the two reserved fields is
-/// the one [`FN_ARITY`] already states.
+/// **last** so a native reader's slot arithmetic over the reserved fields
+/// ahead of it — [`FN_ARITY`], [`FN_PARAM_TAGS`] and
+/// [`FN_PARAM_NAMES`](crate::lower::FN_PARAM_NAMES) — is the one those
+/// constants already state. Nothing reads this field by index: the thunk
+/// reads it by name, which is why adding a reserved field in front of it
+/// changed a sentence here and no code anywhere.
 pub(crate) const FCC_RECV: &str = "fcc#recv";
 
 /// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
@@ -728,12 +732,19 @@ pub(crate) fn lower_callable(
         crate::ir::Class {
             label: class.clone(),
             // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
-            // closure — a native caller reads both by index. See `FCC_RECV`
-            // for why the receiver comes third.
-            fields: [FN_ARITY.to_owned(), FN_PARAM_TAGS.to_owned()]
-                .into_iter()
-                .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
-                .collect(),
+            // closure — a native caller reads both by index — then
+            // `FN_PARAM_NAMES`, which only this kind of closure has and which
+            // is why `FCC_RECV`'s "third" is now fourth. Nothing reads the
+            // receiver by index, so that move is a comment's problem and not a
+            // reader's; see both constants.
+            fields: [
+                FN_ARITY.to_owned(),
+                FN_PARAM_TAGS.to_owned(),
+                FN_PARAM_NAMES.to_owned(),
+            ]
+            .into_iter()
+            .chain(takes_receiver.then(|| FCC_RECV.to_owned()))
+            .collect(),
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),

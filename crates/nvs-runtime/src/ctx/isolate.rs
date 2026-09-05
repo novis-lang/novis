@@ -61,6 +61,29 @@ impl Ctx {
         self.unit_statics = Some(defaults);
     }
 
+    /// The recipes this context was armed with, as a **handle that outlives
+    /// this borrow** — what [`Self::method_isolate`] hands a child, for a
+    /// caller that will arm a context it is not holding yet.
+    ///
+    /// [`Self::method_isolate`] answers the case where the parent *is* the
+    /// spawning context. A connection is the case where it is not:
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1
+    /// makes it a **root** isolate started from the connection's own context,
+    /// which never ran the unit and so has nothing to re-materialize from — so
+    /// the recipes have to be taken here, inside the request that prepared the
+    /// upgrade, and carried in the program that arms the child. `nvs_stdlib`'s
+    /// `socket` module owns why that preparation happens on this side at all.
+    ///
+    /// `None` for a context that was never armed, which is a unit declaring no
+    /// static property and a bare embedder alike — [`Self::install_statics`]
+    /// owns why those two are one answer.
+    ///
+    /// Cost is one `Rc` bump, against a list `nvs_codegen::Unit` already owns.
+    #[must_use]
+    pub fn unit_statics(&self) -> Option<std::rc::Rc<[Option<FieldDefault>]>> {
+        self.unit_statics.clone()
+    }
+
     /// How many static-property slots this request holds — the length
     /// [`Ctx::install_statics`] was last armed with.
     #[must_use]

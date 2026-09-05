@@ -2529,6 +2529,17 @@ impl<'a> Lowering<'a> {
             InstKind::ConstInt(i64::from_ne_bytes(tags.to_ne_bytes())),
         );
         self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_TAGS.to_owned(), tags_v);
+        // The target's parameter *names*, which only a resolved call knows and
+        // only this crate is still holding — ADR 0006 § *Decision* binds an
+        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
+        // is such an entry with no constant beside it to carry them. See
+        // `FN_PARAM_NAMES` for why the sibling `fn` literal gets no such field.
+        let (names_v, _) = self.emit(
+            *cur,
+            Ty::Str,
+            InstKind::ConstStr(call.param_names.join(",")),
+        );
+        self.emit_field_set(*cur, obj, class.clone(), FN_PARAM_NAMES.to_owned(), names_v);
         let takes_receiver = !call.is_static;
         if takes_receiver {
             // ADR 0031 § 2's "by value at the point the closure literal is

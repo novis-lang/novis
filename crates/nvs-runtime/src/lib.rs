@@ -321,8 +321,9 @@ pub use array::{
     nvs_array_unset, nvs_array_value_at, prime_empty_array,
 };
 pub use closure::{
-    CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT,
-    call_closure, closure_arity,
+    CLOSURE_ARITY_SLOT, CLOSURE_INVOKE, CLOSURE_PARAM_NAMES, CLOSURE_PARAM_NAMES_SLOT,
+    CLOSURE_PARAM_TAG_ANY, CLOSURE_PARAM_TAGS_SLOT, call_closure, closure_arity,
+    closure_param_names,
 };
 pub use ctx::{
     AssertionOutcome, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP, CARRIER_TEXT_SLOT, Ctx,

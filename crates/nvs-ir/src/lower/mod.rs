@@ -3279,6 +3279,44 @@ pub(crate) const FN_PARAM_TAGS: &str = "fn#params";
 /// 64 bits of a slot's `int` payload.
 pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 
+/// The reserved **third** field of a *first-class callable*'s class: what the
+/// target declares its parameters to be **called**, comma-separated in
+/// declaration order — and absent from a `fn` literal's class, which is the
+/// whole of how a native reader tells the two apart.
+///
+/// # Why the object carries it
+///
+/// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision* binds
+/// an isolate's `args:` to its entry's parameters **by name**, and
+/// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 2 makes
+/// `Core\Socket::upgrade(Chat::run(...), args: {…})` one of those entries. The
+/// `spawn script Class::method` construct has the names as a constant this
+/// lowering writes into the call (`Lowering::spawn_method_entry`); a `Core`
+/// member's entry is one ordinary argument with no constant beside it, so the
+/// names have to ride on the value. [`FN_ARITY`] and [`FN_PARAM_TAGS`] are the
+/// precedent and the reason is theirs: this lowering is the last party that
+/// can see a declaration, and the party that needs the fact runs much later.
+///
+/// # Why only a first-class callable's class
+///
+/// `nvs_types::expr::isolate` admits exactly a path or a `Class::method(...)`
+/// where an entry is expected and refuses an `fn` literal with `E0802`, so a
+/// literal's names could never be read — and paying a slot per closure
+/// evaluation for a field nothing reads is the wrong trade under this
+/// repository's priority ordering. The absence is *load-bearing* rather than
+/// an omission: `nvs_runtime::closure_param_names` asks the descriptor for a
+/// field of this name, so a `fn` literal's closure answers `None` instead of
+/// having its first capture read as a name list.
+///
+/// Placed third, ahead of [`FCC_RECV`](closure::FCC_RECV), so
+/// the index `nvs_runtime::CLOSURE_PARAM_NAMES_SLOT` restates is a *hint* that
+/// hits on the first probe for every callable that has one.
+///
+/// One 16-byte slot per written `(...)`, per evaluation of it, holding an
+/// interned constant — and nothing at all on the `fn` literals every
+/// `Core\Arr` callback is.
+pub(crate) const FN_PARAM_NAMES: &str = "fn#names";
+
 /// The [`FN_PARAM_TAGS`] nibble for a parameter no argument can be wrong for.
 ///
 /// Deliberately not a `nvs_runtime::Tag` discriminant, and parked at the

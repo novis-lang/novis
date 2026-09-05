@@ -79,6 +79,35 @@ pub const CLOSURE_ARITY_SLOT: usize = 0;
 /// its map against the tag bytes compiled code actually writes.
 pub const CLOSURE_PARAM_TAGS_SLOT: usize = 1;
 
+/// The field a **first-class callable**'s object records its target's
+/// parameter names under, comma-separated in declaration order.
+///
+/// Read by name rather than by index, and that is the whole safety argument:
+/// `nvs_ir::lower`'s `FN_PARAM_NAMES` writes this field at a `Class::method(...)`
+/// and at nothing else, so a `fn` literal's closure — whose third field is its
+/// first *capture* — answers [`closure_param_names`] `None` rather than having
+/// a captured string read as a parameter list. [`CLOSURE_PARAM_NAMES_SLOT`] is
+/// the hint that keeps the lookup one comparison.
+///
+/// Must agree with that constant; `nvs-ir`'s
+/// `a_first_class_callable_records_its_targets_parameter_names` is the writing
+/// side asserted on its own — the field list and the joined names — and it
+/// stands alone rather than beside a behavioural end-to-end case for the
+/// reason that file's module doc gives: the one member that reads these needs
+/// a connection's slot, which no corpus case is offered.
+pub const CLOSURE_PARAM_NAMES: &str = "fn#names";
+
+/// Where [`CLOSURE_PARAM_NAMES`] sits on a first-class callable's object —
+/// third, after the arity and the tags.
+///
+/// A **hint** rather than an index, unlike [`CLOSURE_ARITY_SLOT`] and
+/// [`CLOSURE_PARAM_TAGS_SLOT`], because this field is not on every closure
+/// class: [`ClassDesc::field_slot`] takes it, checks that one slot, and falls
+/// back to a search that answers `None` for a class without the field. So the
+/// common case costs a comparison and the absent case cannot be mistaken for
+/// a hit.
+pub const CLOSURE_PARAM_NAMES_SLOT: usize = 2;
+
 /// The one [`CLOSURE_PARAM_TAGS_SLOT`] nibble that is not a [`Tag`]: the
 /// parameter is `mixed`, `?T` or another union, whose representation *is* a
 /// tag chosen at run time, so no argument can be wrong for it.
@@ -379,6 +408,77 @@ fn closure_param_tags(closure: Value) -> Result<u64, Fault> {
     // The sixteenth nibble sits in the sign bit; the slot holds the same 64
     // bits either way, and only the nibbles are ever read.
     Ok(u64::from_ne_bytes(word.to_ne_bytes()))
+}
+
+/// The parameter names `closure`'s target declares, in declaration order, or
+/// `None` for a closure that records none.
+///
+/// `None` is the honest answer for an `fn` literal and is not a failure:
+/// [`CLOSURE_PARAM_NAMES`] is written at a `Class::method(...)` and nowhere
+/// else, so a literal's closure genuinely has no such field. A caller that
+/// *needs* names — [ADR 0006](/docs/adr/0006-isolated-script-execution.md)
+/// § *Decision*'s `args:` binding, which is by name — turns that `None` into
+/// its own refusal naming the form the program wrote, because only the caller
+/// knows which member it is refusing on behalf of.
+///
+/// An empty name list is `Some(&[][..])`-shaped rather than `None`: a target
+/// declaring no parameters is a callable an `args:`-less entry may open, and
+/// it is not the same fact as a closure that never recorded any.
+///
+/// # Errors
+///
+/// [`Fault::Fatal`] when `closure` is not an object, when its class has no
+/// descriptor, or when the field is present and does not hold text. Each is a
+/// compiler or embedder bug rather than a program's: this lowering writes a
+/// `ConstStr` into that slot or writes no field at all.
+pub fn closure_param_names(closure: Value) -> Result<Option<Vec<String>>, Fault> {
+    let ptr = closure.obj_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable` argument carried tag {} rather than an object",
+            closure.tag_byte()
+        ))
+    })?;
+    #[expect(
+        unsafe_code,
+        reason = "the caller owns a reference to this object, so the \
+                  allocation and its descriptor are both live for this read"
+    )]
+    let desc: *const ClassDesc = unsafe { NvsObj::class_of(ptr) };
+    if desc.is_null() {
+        return Err(Fault::fatal(
+            "internal error: a `callable` argument's object has no class descriptor".to_owned(),
+        ));
+    }
+    #[expect(
+        unsafe_code,
+        reason = "just checked the descriptor is non-null, and it is owned by \
+                  the compiled unit's class table for that unit's whole life"
+    )]
+    let found = unsafe { &*desc }.field_slot(CLOSURE_PARAM_NAMES, CLOSURE_PARAM_NAMES_SLOT);
+    let Some(slot) = found else {
+        return Ok(None);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the slot index came from this object's own descriptor, and \
+                  the caller owns a reference keeping the object live"
+    )]
+    let value = unsafe { crate::object::nvs_object_field_get(ptr, slot) };
+    let text = value.as_text().ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: a `callable`'s parameter-name slot carried tag {} rather than text",
+            value.tag_byte()
+        ))
+    })?;
+    // An entry declaring no parameters writes the empty string, which splits
+    // to one empty name — the filter is what makes that the empty list the
+    // caller means. No declared name can be empty, so nothing else is lost.
+    Ok(Some(
+        text.split(',')
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned)
+            .collect(),
+    ))
 }
 
 /// Refuses `args` unless every one of them carries the tag the callee's
