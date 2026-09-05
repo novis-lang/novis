@@ -103,6 +103,65 @@ impl Delivery {
     }
 }
 
+/// The queue one connection's deliveries wait in — ADR 0083 § 3's second
+/// source, as a thing two owners can hold.
+///
+/// [`Ctx::deliver`](crate::Ctx::deliver) fills it and
+/// [`Ctx::take_delivery`](crate::Ctx::take_delivery) drains it, which is all a
+/// connection needs. It is a separate allocation, behind an
+/// [`Rc`](std::rc::Rc), for the *other* owner: § 4's subscriber table has to be
+/// able to reach a subscriber's queue from outside that subscriber's own call
+/// stack, and a `Ctx` is a stack frame's — it cannot be named from a table that
+/// outlives any one isolate. So the queue moves out of the context and the
+/// context keeps a handle onto it.
+///
+/// **The table holds a [`Weak`](std::rc::Weak) and the context the only
+/// strong**, which is what keeps § 4's bookkeeping O(live connections) rather
+/// than O(connections served): the isolate ending drops the last strong
+/// reference, and a subscription to a connection that is gone is a dead entry
+/// the next walk of that topic drops. Nothing has to unsubscribe on the way
+/// out, which matters because a connection that ended at a limit or a fatal
+/// error runs no more of its own code.
+///
+/// **Every queued [`Delivery`] holds one owned reference** and this type has no
+/// [`Drop`], for the reason `Delivery` has none: releasing a value needs the
+/// context that allocated it. `Ctx`'s own `Drop` is where what no `receive()`
+/// reached is given back.
+#[derive(Debug, Default)]
+pub struct Inbox {
+    /// Arrival order, drained from the front. A [`RefCell`] rather than a
+    /// `&mut` because the two owners reach it at unrelated moments, and never
+    /// at the same one: the runtime is thread-per-core and neither a publish
+    /// nor a `receive()` holds the borrow across a suspension point.
+    queue: std::cell::RefCell<std::collections::VecDeque<Delivery>>,
+}
+
+impl Inbox {
+    /// Queues one delivery, taking over its value's reference.
+    pub fn push(&self, delivery: Delivery) {
+        self.queue.borrow_mut().push_back(delivery);
+    }
+
+    /// The oldest queued delivery, handing its reference to the caller.
+    #[must_use]
+    pub fn pop(&self) -> Option<Delivery> {
+        self.queue.borrow_mut().pop_front()
+    }
+
+    /// How many deliveries are waiting — § 4's bounded queue reads this, and
+    /// so does a test asserting what a publish reached.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.queue.borrow().len()
+    }
+
+    /// Whether nothing is waiting.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.queue.borrow().is_empty()
+    }
+}
+
 /// What went wrong on the socket, as the one thing a `Core` member turns into a
 /// throw.
 ///

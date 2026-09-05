@@ -69,21 +69,47 @@ impl Ctx {
     /// A delivery queued while this isolate is already parked inside
     /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
     /// `receive()` rather than waking the parked one, because the park is on
-    /// the socket alone. Nothing can observe that yet — § 4's bus is
+    /// the socket alone. Nothing can observe that yet — § 4's `publish` is
     /// unwritten, so the only publisher is a test on this same task — and
     /// closing it is a wake seam the framing layer has to take part in, which
-    /// is § 4's slice and not this one's.
+    /// belongs to the slice that writes the fan-out and not to this one.
     pub fn deliver(&mut self, delivery: crate::peer::Delivery) {
-        self.deliveries.push_back(delivery);
+        self.deliveries
+            .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default()))
+            .push(delivery);
     }
 
     /// The oldest queued delivery, handing its reference to the caller.
     ///
     /// `None` when the bus has nothing waiting, which is every context that is
-    /// not a connection's and most that are.
+    /// not a connection's and most that are. It does **not** make the queue:
+    /// a wait on a context nothing ever published to should cost no
+    /// allocation, and the answer is the same either way.
     #[must_use]
     pub fn take_delivery(&mut self) -> Option<crate::peer::Delivery> {
-        self.deliveries.pop_front()
+        self.deliveries.as_ref().and_then(|inbox| inbox.pop())
+    }
+
+    /// This connection's delivery queue, made if it has none yet — ADR 0083
+    /// § 4's subscriber table is what asks, and holds the [`std::rc::Weak`]
+    /// half of what this answers.
+    ///
+    /// A handle rather than the values themselves, because a subscription
+    /// outlives every call that touches it: `subscribe` runs on the connection
+    /// isolate's own task, and the publish that fills the queue runs on
+    /// another. [`crate::peer::Inbox`] owns the ownership rule, including why
+    /// the table's reference is weak and why nothing has to unsubscribe when a
+    /// connection ends.
+    ///
+    /// Cost is one small allocation, charged to the first connection that
+    /// subscribes or is published to and released with its context — never to
+    /// an ordinary request, which never reaches this.
+    #[must_use]
+    pub fn inbox(&mut self) -> std::rc::Rc<crate::peer::Inbox> {
+        std::rc::Rc::clone(
+            self.deliveries
+                .get_or_insert_with(|| std::rc::Rc::new(crate::peer::Inbox::default())),
+        )
     }
 
     /// Arms this request's static-property storage: one slot per entry in

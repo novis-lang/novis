@@ -990,12 +990,19 @@ pub struct Ctx {
     /// **second source**: values published to topics this connection
     /// subscribed to, in arrival order, waiting for the next `receive()`.
     ///
-    /// Empty on every context that is not a connection's, and empty on most
-    /// of those too — see [`Ctx::deliver`], which owns why the queue is here
-    /// beside [`Self::peer`] rather than anywhere else. Each entry holds one
-    /// owned reference, given back in [`Drop`] for whatever is still queued
-    /// when the connection ends.
-    deliveries: std::collections::VecDeque<crate::peer::Delivery>,
+    /// `None` on every context that is not a connection's, and on most that
+    /// are — see [`Ctx::deliver`], which owns why the queue is here beside
+    /// [`Self::peer`] rather than anywhere else. Each entry holds one owned
+    /// reference, given back in [`Drop`] for whatever is still queued when the
+    /// connection ends.
+    ///
+    /// **An [`Option`] because the allocation is on the request path.** The
+    /// queue is a separate allocation now that § 4's subscriber table shares it
+    /// ([`crate::peer::Inbox`]), and an eager one would charge every request
+    /// ever served for a connection's facility; [`Ctx::inbox`] makes it the
+    /// first time something asks, which is a subscribe or a delivery and
+    /// therefore a connection.
+    deliveries: Option<std::rc::Rc<crate::peer::Inbox>>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
@@ -1044,16 +1051,22 @@ impl Drop for Ctx {
         // with the queue non-empty — `crate::peer::Delivery` carries one owned
         // reference and deliberately has no `Drop` of its own, so this is where
         // the ones no `receive()` reached are given back.
-        for delivery in std::mem::take(&mut self.deliveries) {
-            #[expect(
-                unsafe_code,
-                reason = "the queue holds exactly one reference per delivery and \
-                          nothing else points at it"
-            )]
-            // SAFETY: `Ctx::deliver` was handed that reference and this is the
-            // only other place it is given back.
-            unsafe {
-                delivery.into_value().release();
+        // Taking the handle is also what unsubscribes this connection from
+        // every topic it joined: `Core\Topic`'s table holds a `Weak` onto this
+        // queue and nothing else, so dropping the last strong reference is the
+        // subscription ending — see `crate::peer::Inbox`.
+        if let Some(inbox) = self.deliveries.take() {
+            while let Some(delivery) = inbox.pop() {
+                #[expect(
+                    unsafe_code,
+                    reason = "the queue holds exactly one reference per delivery and \
+                              nothing else points at it"
+                )]
+                // SAFETY: `Ctx::deliver` was handed that reference and this is
+                // the only other place it is given back.
+                unsafe {
+                    delivery.into_value().release();
+                }
             }
         }
         // ADR 0072 § 6's deferred work is request-local for the same reason,
