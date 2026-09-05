@@ -177,6 +177,21 @@ impl<'a> Lowering<'a> {
                     env,
                 )
             }
+            // ADR 0125 § 2's `class<T>` → `string` row — the descriptor's own
+            // fully qualified name, through the same [`Helper::ClassDescName`]
+            // `$obj::class` reads one with. No conversion of the operand: a
+            // [`Ty::ClassDesc`] slot is already spelled the way that helper
+            // reads it (`nvs_codegen::ty::tag_of`), and the descriptor is not
+            // refcounted, so there is nothing to retain or release around it.
+            (Ty::ClassDesc, Ty::Str) => self.emit_fallible(
+                cur,
+                Ty::Str,
+                InstKind::HelperCall {
+                    helper: Helper::ClassDescName,
+                    args: vec![v],
+                },
+                env,
+            ),
             // ADR 0007 § 2's "anything → `string`" row at `null`, and the same
             // answer `Self::concat_operand` gives the same value: PHP renders
             // `null` as the empty string, and a `?string` holding one already

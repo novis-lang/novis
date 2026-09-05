@@ -1,0 +1,43 @@
+--TEST--
+ADR 0125 § 2's third row — `class<T> as string` is the descriptor's own fully qualified name, which closes the round trip the `string` row opens
+--FILE--
+<?nvs
+namespace App;
+
+class Animal {
+}
+
+class Dog extends Animal {
+}
+
+// The `string` row is the door in; this row is the door back out, and the two
+// compose to the identity on any name that survived the conversion.
+string $name = "App\\Dog";
+class<Animal> $c = $name as class<Animal>;
+echo $c as string, "\n";
+echo (($c as string) == $name) as string, "\n";
+
+// A written-out name is decided where it stands (§ 2 folds it to a
+// `ClassDescConst`), and converts back the same way.
+class<Animal> $d = Dog::class as class<Animal>;
+echo $d as string, "\n";
+
+// It answers the *descriptor's* class, not the `T` it was checked against —
+// the same rule `$obj::class` follows, and the reason this is a run-time read
+// rather than the annotation's own name folded at compile time.
+echo (($c as string) != "App\\Animal") as string, "\n";
+
+// A reference made from the base still answers the base.
+class<Animal> $base = Animal::class as class<Animal>;
+echo $base as string, "\n";
+
+// And it is an ordinary `string` once converted: it binds and concatenates.
+string $s = $c as string;
+echo $s . "!", "\n";
+--EXPECT--
+App\Dog
+1
+App\Dog
+1
+App\Animal
+App\Dog!

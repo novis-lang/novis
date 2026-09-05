@@ -2132,6 +2132,18 @@ fn conversion_row_exists(from: ConvKind, to: ConvKind) -> bool {
         // to the "anything → `string`" arm below, where it would read as one of
         // the scalars.
         (PropertyKey, Str) => true,
+        // ADR 0125 § 2's own third row, the sibling of the one above and total
+        // for the same reason: a class reference *is* a descriptor, and a
+        // descriptor carries the class's fully qualified name. So this closes
+        // the round trip the `string` row opens — `$name as class<Animal> as
+        // string` is the name it started from, and `$obj::class` is the same
+        // read one representation over.
+        //
+        // It answers the *descriptor's* class, which for a reference narrowed
+        // from a subclass is that subclass rather than the `T` it was checked
+        // against — the same rule `$obj::class` follows, and the reason this is
+        // not the annotation's own name folded at compile time.
+        (ClassRef, Str) => true,
         // ADR 0007 § 2's "anything → `string`" row: total for scalars, and an
         // object needs `Stringable` — which `require_stringable_object` has
         // already asked at this same span. `null` is in the row for the reason
@@ -2209,9 +2221,9 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
              (`Foo::class`, or the text a request carried) and convert that"
         }
         (ClassRef, _) => {
-            "a class reference is a class descriptor, not the name it was made from: ADR 0125 \
-             § 4's three sites take the value itself, and `Core\\Reflect` is where a reflective \
-             question about a class belongs (ADR 0011)"
+            "a class reference is a class descriptor: ADR 0125 § 4's three sites take the value \
+             itself, `as string` reads the class's own name off it, and `Core\\Reflect` answers \
+             every other reflective question about a class (ADR 0011)"
         }
         (Void, _) => {
             "a call that returns `void` has no value at all, so there is nothing here to convert"
