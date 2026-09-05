@@ -5738,6 +5738,19 @@ is why" — is this file.
   `crates/nvs-host/src/isolate.rs`'s `build_a_cycle` is the shape. Getting this wrong does not fail
   where it happens — the pair simply leaks, and what fails is an assertion about bytes several frames
   away, which reads as though the sweep were broken.
+- **A `.nvst` case gets exactly one in-process request, and the child's deferred output has nowhere
+  to go.** `Core\Test::request` is refused from inside the request it answers — that refusal is the
+  whole reason a one-file case works, the `catch` branch *being* the child — so a claim needing two
+  requests cannot be driven from a case at all, and a claim about what runs *after* the answer cannot
+  be observed from the child either: `runner.rs`'s `answer` takes the `Completion` before the deferred
+  queue drains, so an `echo` inside an `afterResponse` closure reaches a buffer nobody reads. Both
+  still have an honest home. Pin a cross-request claim at the **boot** — `[session] backend = "local"`
+  is `E0626`, and ADR 0059 § 4's reasoning is the diagnostic's own note, so the case asserts the note
+  rather than restating it — and pin an after-the-answer claim from the **caller's** side, where the
+  assertion is that the response is complete and carries none of the deferred bytes. That is the
+  property itself and not a weaker reading of it.
+  `a-session-survives-a-request-on-another-core.nvst` and
+  `an-after-response-tree-outlives-its-connection.nvst` are the two shapes.
 
 ## Splitting a file that got too big
 

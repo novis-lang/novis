@@ -60,7 +60,7 @@
 > **ADR 0093's installer refuses**: `E0630`-`E0634`; `nvs service unit` prints § 5's. **ADR 0017 is
 > guarded**: `never` never `stat`s, one window is one check, a swap publishes, § 3a picks
 > `validate`, 10k cold requests compile once, no stalls. **ADR 0079 §§ 14, 17-18 land**: `--update`
-> splices, a request runs in-process and on a listener, a `db:` test rolls back. Conformance 1543,
+> splices, a request runs in-process and on a listener, a `db:` test rolls back. Conformance 1548,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

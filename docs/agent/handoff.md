@@ -2,13 +2,17 @@
 
 ## State
 
-**Goal 6, M7 — stage 9's memory floor is closed**, and it is checked at `-p nvs-host` rather than
-`-p nvs-server`. `a_request_that_builds_cycles_returns_its_bytes_at_teardown` and
-`live_bytes_are_flat_across_a_cycle_building_soak` are both in
-`crates/nvs-host/src/isolate.rs`'s test module, over one shared fixture; each carries in its own doc
-comment why it is not at the door, and so does the check's comment block. The short of it: a request
-*is* the isolate, but the cycle has to be built by hand, `NvsObj::new` is `unsafe`, and
-`crates/nvs-server` inherits the workspace's `unsafe_code = "forbid"`.
+**Goal 6, M7 — stage 9's conformance check is green.** Its `cases` list named seven `.nvst` paths
+under a `tests/conformance/http/` directory the corpus never adopted; the corrected list and the
+reasoning for every row are in `docs/agent/loop-goal.toml`'s comment block directly above that check.
+Three claims were already landed under the name the corpus took — the match a request carries, the
+`404`/`405` pair, and the `echo`/typed-body refusal. Five cases were written for the list, all under
+`tests/conformance/core/`, and the suite is **1548 passing, 0 failing**.
+
+**Two of the five are pinned where a case can be held to them rather than where the claim is worded**,
+and the playbook's *A `.nvst` case gets exactly one in-process request* bullet owns why: a session
+surviving a core is asserted at the boot, and a deferred tree outliving its connection from the
+caller's side.
 
 **Stage 9 has two checks left, and neither is a test to write beside another.** The
 `tools/bench.py --serve-vs-fpm --record benches/serve.json` command check names a flag `tools/bench.py`
@@ -18,26 +22,25 @@ stands against 256 cases on disk, all of them passing.
 ## Next group
 
 **Nineteen differential cases, to carry `min_passing = 275`.** The file set is
-`tests/differential/core/` and `tests/differential/lang/`, and the check they answer is
-`docs/agent/loop-goal.toml:4087`. `python tools/gaps.py` ranks the PHP twins with no oracle case, so
-the picking is a tool call rather than a survey. Every case is `--ORACLE--`, never `--EXPECT--` —
-`docs/agent/conventions.md` § *A `.nvst` test case* says why, and PHP is on `PATH` on this box.
+`tests/differential/core/` and `tests/differential/lang/`, and the check they answer is the
+`differential` `nvs-suite` row of stage 9 in `docs/agent/loop-goal.toml`. `python tools/gaps.py` ranks
+the PHP twins with no oracle case, so the picking is a tool call rather than a survey. Every case is
+`--ORACLE--`, never `--EXPECT--` — `docs/agent/conventions.md` § *A `.nvst` test case* says why, and
+PHP is on `PATH` on this box.
 
 - [ ] **Seven `Core\Arr` twins** — the members `gaps.py` names first, as
       `tests/differential/core/arr-chunk-matches-array_chunk.nvst:1`. One case per member, each asking
       the question its PHP twin answers differently at a boundary rather than in the middle.
 - [ ] **Seven `Core\Str`/`Core\Num` twins** — same shape, same directory, as
-      `tests/differential/core/arr-count-matches-count.nvst:1`.
+      `tests/differential/core/str-chunk-matches-str_split-and-chunk_split.nvst:1`.
 - [ ] **Five language-level divergences** — `tests/differential/lang/`, as
-      `tests/differential/class/clone-is-shallow-like-phps.nvst:1`. Where Novis is deliberately
-      *unlike* PHP the case belongs in `tests/conformance/` instead, so this slice is only for what
-      must agree.
+      `tests/differential/lang/a-for-loop-matches-php.nvst:1`.
 
 ## Backlog
 
-- `tools/bench.py --serve-vs-fpm --record benches/serve.json` — the flag does not exist and no
-  `benches/serve.json` is on disk; the check is `docs/agent/loop-goal.toml:4067` and M7's *Verify*
-  paragraph (`docs/plan/m7.md`) owns what it must record. Needs PHP-FPM and a load generator on this
-  machine, which is a bigger question than a slice.
-- `docs/agent/goals/6-server.toml` is kept byte-identical to `docs/agent/loop-goal.toml` by hand; a
-  session that edits one must edit both, since the former is what a re-install copies back.
+- `tools/bench.py --serve-vs-fpm --record benches/serve.json` — stage 9's other open check; the flag
+  and the `benches/` artifact both have to be built. Owned by `docs/plan/m7.md`'s *Verify*.
+- The `[context]` manifest printed nothing about the conformance corpus's own layout or about
+  `crates/nvs-cli/src/runner.rs`'s in-process `answer`, both of which this session needed; a
+  `modules` pattern for `nvs-cli/src/runner.rs` would have covered the second. Owned by
+  `docs/agent/loop-goal.toml` `[context]`.
