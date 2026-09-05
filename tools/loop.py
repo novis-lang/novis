@@ -1434,6 +1434,25 @@ def validate_spec(spec):
             memo_names[named] = i
 
 
+def spec_error(path):
+    """One line naming why `path` holds no acceptance list this driver can run, or "" when it does.
+
+    The file-shaped wrapper around `validate_spec`, for the callers that hold a path to a goal file
+    rather than the live spec: the chain, which reads every entry it has not walked yet, and
+    `tools/chain.py --check`, which is the gate that says an entry is walkable and has to mean it.
+    A queued goal validates as it sits, before a floor is folded into it -- the fold only ever adds
+    checks the goal they came from was already run against."""
+    try:
+        validate_spec(tomllib.loads(path.read_text(encoding="utf-8")))
+    except OSError as e:
+        return f"cannot be read: {e}"
+    except tomllib.TOMLDecodeError as e:
+        return f"did not parse as TOML: {e}"
+    except GoalError as e:
+        return str(e)
+    return ""
+
+
 class Goal:
     """The acceptance test, read from docs/agent/loop-goal.toml. `check()` returns "" when everything
     passes, or the first failure as one line -- with one deliberate exception, a suite that runs
@@ -2666,6 +2685,15 @@ class Chain:
             for key in ("md", "toml", "handoff"):
                 if not (ROOT / g[key]).is_file():
                     raise ChainError(f"goal {i} ({g['name']}) names {g[key]}, which does not exist")
+            # Existing is not the same as walkable. A misspelled key in entry 20's list is an
+            # authoring mistake with a three-day fuse: nothing reads that file until the switch
+            # into it, which is hours of sessions after the entry before it went green, and the
+            # driver's answer there is to stop the run. Read at start-up, it is one line before a
+            # single session is launched -- exactly what this class refuses a missing file for.
+            fail = spec_error(ROOT / g["toml"])
+            if fail:
+                raise ChainError(f"goal {i} ({g['name']}) names {g['toml']}, whose acceptance list "
+                                 f"this driver cannot run -- {fail}")
         return goals
 
     def refresh(self):
@@ -2753,6 +2781,16 @@ class Chain:
         fail = preflight(nxt.get("preflight"))
         if fail:
             return fail
+
+        # Before anything on disk moves. `goal-switch.py` is not idempotent and the three copies
+        # below overwrite the live goal, so a spec refused *after* them leaves a tree that is
+        # half-switched and an index that says the switch never happened -- and the next run folds
+        # the floor in a second time. `_load` refuses this at start-up, which is where an authoring
+        # error should surface; this is the same read against what is on disk now, since a session
+        # may have edited a queued entry since the run began.
+        fail = spec_error(ROOT / nxt["toml"])
+        if fail:
+            return f"chain: {nxt['name']}'s acceptance list is not runnable -- {fail}"
 
         # The floor. `goal-switch.py` reads the LIVE goal, so this has to happen before the copy.
         # On the first entry there is no previous chain goal and the live one is whatever the run

@@ -51,6 +51,9 @@ import textwrap
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import loop  # noqa: E402  -- same directory; the check schema has one home and it is `loop.py`
+
 ROOT = Path(__file__).resolve().parent.parent
 GOALS = ROOT / "docs" / "agent" / "goals"
 CHAIN = GOALS / "chain.toml"
@@ -900,6 +903,13 @@ def cmd_check(text, head, entries):
                 if "[[check]]" not in body:
                     problems.append(f"{rel(path)}: holds no `[[check]]`, so nothing can turn it "
                                     f"green and the run stalls on it")
+                # The list has to be one the DRIVER can run, not just one that greps right.
+                # Everything above is a text search; this is `loop.py`'s own schema, so a
+                # misspelled key is a problem printed here rather than a dead run on the night the
+                # chain reaches the entry.
+                fail = loop.spec_error(path)
+                if fail:
+                    problems.append(f"{rel(path)}: the driver cannot run this list -- {fail}")
             if key == "md" and e.num is not None:
                 h1 = body.split("\n", 1)[0]
                 if not h1.startswith(f"# Loop goal {e.num} "):
