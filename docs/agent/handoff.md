@@ -2,56 +2,54 @@
 
 ## State
 
-**Goal 6, M7 — stage 9's `-p nvs-server` check has seven names and five of them now exist and pass.**
-The three landed this session are all in `crates/nvs-server/src/serve.rs`'s test module:
-`the_header_injection_suite_passes`, `the_request_smuggling_suite_passes` and
-`a_client_disconnect_leaves_no_isolate_behind`, beside the two `mount.rs` already had.
+**Goal 6, M7 — stage 9's `-p nvs-server` check (the load-bearing assertions) is whole.** All seven
+names exist and pass; the two this session added are in `crates/nvs-server/src/serve.rs`'s test
+module beside the five that were there:
+`a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory` (`:3744`) and
+`the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary` (`:4167`).
 
-**Two names are left, and they are the whole of what stage 9 owes**:
-`the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary` and
-`a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory`.
+**The measured margin, so a future session does not re-derive it**: the body crossing holds
+**90 KiB** at its peak while carrying 32 MiB — a 371st — and the case asserts against a 2 MiB bound,
+which is headroom over `hyper`'s own 400 KiB read buffer rather than a measurement.
 
-**One measured divergence is recorded in a test comment and nowhere else.** `hyper` follows RFC 9112
-for a request carrying both a `Content-Length` and `Transfer-Encoding: chunked`: it disambiguates —
-chunked wins, the length is ignored — rather than refusing, where
-[ADR 0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md) says ambiguous input is refused
-and never repaired. It is not a hole: the connection does not survive the message, so the trailing
-bytes are never read as a request, and that `connection: close` is what those two rows assert. Whether
-ADR 0095 or ADR 0097 § 1 should say so out loud is an ADR edit no session has made.
+**Stage 9 is not finished**, and its three remaining checks are each a different kind of work:
+`nvs-server (the memory floor)` names two tests that exist nowhere in the tree; the
+`tools/bench.py --serve-vs-fpm --record benches/serve.json` command check has no `benches/serve.json`
+to show; and the `differential` suite's `min_passing = 275` stands against 256 on disk.
 
 ## Next group
 
-**The two claims stage 9 still owes, sharing `crates/nvs-server/src/body.rs` and the body half of
-`crates/nvs-server/src/serve.rs`** — both are about what the door holds while a request is reading,
-so the same two files are open for either. Take them in this order: the first establishes the
-high-water fixture the second's isolate half reads.
+**The memory floor — ADR 0116 § 2's teardown sweep asserted from the door.** Both slices are one
+`#[test]` each in `crates/nvs-server/src/serve.rs`'s test module, over the two fixtures this session
+left there, and both read the same sweep in `crates/nvs-runtime`. Take them in this order: the first
+is the single-request claim the second repeats under load.
 
-- [ ] **A multipart body far over the memory bound is received at bounded resident memory** — ADR 0105's
-      load-bearing case, asserted against a high-water mark rather than against the request merely
-      succeeding. The crossing is `crates/nvs-server/src/body.rs:68`'s `Arrived`, driven from
-      `crates/nvs-server/src/serve.rs:798`'s `Reply::Run` arm, which pumps one chunk per poll.
-      **`nvs-stdlib` is not a dependency of `crates/nvs-server`** (the playbook's manifest bullet), so
-      the multipart *parse* is out of reach here and the claim that is testable is the crossing's own
-      resident bytes: `nvs_runtime::budget::live_bytes()`, read the way
-      `crates/nvs-server/src/serve.rs:2447` reads it. A client that writes megabytes against a small
-      `[limits]` cap, a program that reads to the end, and a peak sampled inside the pull.
-- [ ] **The state-bleed suite passes within a request and across an isolate boundary** — M7's
-      acceptance paragraph. **Item 25 is a parameterisation, not a second suite**: the same rows run
-      twice, once inside one request and once with a child isolate between them, which is what the
-      shared `Isolate` buys. Two requests down one connection is the fixture
-      (`crates/nvs-server/src/serve.rs:3252`'s `echo_the_body` is the closest shape, and the playbook's
-      bullet says a second *connection* is what a test cannot ask for), and the isolate arm hangs off
-      `crates/nvs-server/src/serve.rs:798`.
+- [ ] **A request that builds cycles returns its bytes at teardown** —
+      `a_request_that_builds_cycles_returns_its_bytes_at_teardown`, ADR 0116 § 2: what the root drain
+      leaves is swept when the arena is dropped, so a request holding a reference cycle still gives
+      every byte back. The fixture shape is `crates/nvs-server/src/serve.rs:3634`'s `weigh_the_body`
+      — a program that reports `nvs_runtime::budget::live_bytes()` and the door's own reading around
+      it — and the sweep it is asserting is named at `crates/nvs-runtime/src/lib.rs:235`, with
+      `crates/nvs-runtime/src/object.rs:1389` for what a cycle is. A program with no compiler in
+      front of it builds one through `nvs_runtime::object`, not through source.
+- [ ] **Live bytes are flat across a cycle-building soak** —
+      `live_bytes_are_flat_across_a_cycle_building_soak`, the same claim under repetition: the
+      reading after N requests is the reading after one, which is ADR 0004's "O(in-flight) rather
+      than O(requests served)" on the request path. **N requests down one connection is the fixture**
+      — `crates/nvs-server/src/serve.rs:4033`'s `across_a_request_boundary` is that shape already,
+      with a `Cell` counting which run it is — and the playbook's bullet says a second *connection*
+      is what a test cannot ask for.
 
 ## Backlog
 
-- An isolate parked on something the connection cannot fail wedges the core — measured at three
-  minutes, not diagnosed; `crates/nvs-server/src/serve.rs:446`'s `Peer::drop` and `nvs_host`'s
-  cancellation own it between them.
-- ADR 0095 versus `hyper`'s RFC 9112 disambiguation of `Content-Length` + `Transfer-Encoding`: stated
-  in `the_request_smuggling_suite_passes`'s comment, in no ADR.
-- `[context] adrs` was missing `0097 §1` and `[context] rules` was missing `0095`; both were needed for
-  the smuggling item and were sliced by hand (`docs/agent/loop-goal.toml`).
-- `Core\Response::setHeader`'s member-half of the injection defence is already pinned, by
-  `tests/conformance/core/a-response-set-header-names-both-sides-of-a-header-line.nvst` — no second
-  case is owed in `nvs-stdlib`.
+- `benches/serve.json` does not exist; stage 9's `tools/bench.py --serve-vs-fpm --record` check
+  wants `requests/sec` and `recorded` in its output. Its own file set is `tools/bench.py`.
+- The `differential` suite is 256 against stage 9's `min_passing = 275`; `python tools/gaps.py`
+  ranks the PHP twins with no oracle case.
+- `hyper` disambiguates a request carrying both `Content-Length` and `Transfer-Encoding: chunked`
+  where [ADR 0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md) refuses ambiguous
+  input. It is not a hole — the connection does not survive the message — but it is recorded only in
+  a test comment in `crates/nvs-server/src/serve.rs`'s smuggling suite. Whether ADR 0095 or ADR 0097
+  § 1 says so out loud is an ADR edit no session has made.
+- `[context] adrs` in `docs/agent/loop-goal.toml` has no ADR 0116 section, and the next group is
+  entirely about §§ 1-2 of it. Add `0116 §2` before that session opens the ADR by hand.

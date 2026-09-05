@@ -5715,6 +5715,18 @@ is why" — is this file.
   `next_chunk`, which is a park the connection can fail — the supply dies with the connection, the read
   answers `Err`, and the isolate ends through its own frame. That is also the more faithful case, since
   the body is where a disconnect is noticed at all.
+- **A state-bleed suite parameterised over a request boundary *and* an isolate boundary cannot have
+  a memory row, and that is the row which looks most load-bearing.** M7 asks for one suite run
+  twice, so every row has to hold on both arms — and the obvious row, "the next run's ceiling and
+  its arena are its own", is right across a request boundary and *wrong* across an isolate one:
+  [ADR 0006](../adr/0006-isolated-script-execution.md) gives a child isolate its parent's budget, so
+  a child reporting a fresh `Ctx::memory_limit` would be the bug rather than the pass. What
+  parameterises is the state an ADR says is *never* shared — the carrier, the body, the declared
+  response head, the response buffer — and each of those is plantable by the door or by a program
+  with no compiler in front of it. Memory keeps its own cases for a second reason worth knowing on
+  its own: `Ctx::memory_used` is measured from *that context's own* base, so it can never see what
+  an earlier run left behind, and only `nvs_runtime::budget::live_bytes()` sampled across the
+  boundary can.
 
 ## Splitting a file that got too big
 
