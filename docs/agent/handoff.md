@@ -2,55 +2,54 @@
 
 ## State
 
-**ADR 0020 § 6's log envelope is whole.** A record written inside a request carries `ts`,
-`request_id` and — for a *sampled* trace, which is § 6's "whenever a trace is active" —
-`trace_id` and `span_id`; a CLI run still writes `level` and `msg` alone, which is what keeps
-the addition additive. `request_id` is ADR 0076 § 2's trace id, that section having made it
-Novis's only request identifier. The one home for which key comes from what is
-`nvs_runtime::Ctx::stamp_envelope` (`crates/nvs-runtime/src/ctx/output.rs`), and **both** of
-§ 6's writers call it — `Core\Log::write` from `nvs_stdlib::log`'s `record`, and
-`nvs_runtime::floor::report` after `key` has taken the coalescing window's key, which is why it
-is a call of its own rather than something `write_log_record` does. `nvs-runtime` gained a
-`jiff` edge so the tree has one RFC 3339 renderer, not two.
+**Stage 6's log envelope is closed, both halves.** The record's shape is pinned in
+`crates/nvs-stdlib/src/log.rs`; what this session added is the *seam* — `crates/nvs-server/src/trace.rs`'s
+`a_requests_log_record_and_its_span_carry_the_same_trace_id` drives `take` over a real arrived
+header and reads the line `nvs_runtime::floor::report` wrote back off a buffered diagnostic
+channel, so the ids on the record are the door's decision and not a second one minted where the
+record was written. `nvs-server` gained a **dev-only** `nvs-render` edge for the record vocabulary
+alone; its `Cargo.toml` comment is that decision's home.
 
-Stage 5's statement timeout is landed, all three slices; `crates/nvs-stdlib/src/db/mod.rs`'s own
-§ *A statement's `timeout` is a deadline on the socket* is that decision's home.
+**`Core\Db` gap 6 is now a recorded refusal, not an open option.** `stream` will not declare
+`{chunk?: uint}` on any driver: `crates/nvs-stdlib/src/db/mod.rs`'s gap 6 owns the argument, which
+is that the portal's `Execute` already asks for every row and the walk holds one.
 
-Nothing is blocked on a decision. The next acceptance failure the driver reports outranks the
-group below.
+Nothing is blocked on a decision. The next acceptance failure the driver reports outranks the group
+below.
 
 ## Next group
 
-**What `crates/nvs-stdlib/src/db/mod.rs`'s known gaps still owe on § 18's roster.** One file set:
-`crates/nvs-stdlib/src/db/mod.rs`, `crates/nvs-stdlib/src/db/registry.rs`,
-`crates/nvs-stdlib/src/db/stream.rs`, `crates/nvs-db/src/pg.rs`.
+**ADR 0073 § 3's fleet lease — stage 7's three checks, and the first slice is a *placement*
+question rather than code.** One file set: `crates/nvs-server/src/schedule.rs`,
+`crates/nvs-config/src/schedule.rs`.
 
-- [ ] **`stream`'s `{chunk?: uint}`, the other half of gap 6.**
-      `crates/nvs-stdlib/src/db/mod.rs:248` states it: a chunk size has to reach the `Execute`
-      that asks for a row count, and `crates/nvs-db/src/pg.rs:584`'s `stream` asks for one row.
-      The registry rows are `crates/nvs-stdlib/src/db/registry.rs:348` and
-      `crates/nvs-stdlib/src/db/registry.rs:633` — both, for the playbook's reason — and the
-      member body is `crates/nvs-stdlib/src/db/stream.rs:228`. Decide first whether a chunk is
-      worth a second `Execute` shape at all: § 4 promises constant memory, which one row already
-      gives, so the honest outcome may be to record the refusal in gap 6 rather than to add the
-      option.
-- [ ] **`serverVersion`, gap 5.** `crates/nvs-stdlib/src/db/mod.rs:237` is the inventory: no
-      driver keeps the server's own version string, so the member cannot be written until
-      PostgreSQL's `server_version` `ParameterStatus`, MariaDB's greeting, TDS's `LOGINACK` and
-      SQLite's library version are each held on the connection. `nvs_db::mysql` already parses
-      one into a `(u16, u16, u16)` for its own capability decisions —
-      `crates/nvs-db/src/pg.rs:584` is the neighbouring driver's own statement path.
+- [ ] **Where the lease's store lives, decided before anything is written.**
+      `crates/nvs-server/src/schedule.rs:239` is the skip that keeps a `fleet` entry unarmed, and
+      `crates/nvs-config/src/schedule.rs:174` is the boot refusal for one with no shared store — so
+      the config half already knows what a store is. The server half cannot reach one:
+      `crates/nvs-server/Cargo.toml` names no `nvs-stdlib`, the shared tier is
+      `crates/nvs-stdlib/src/cache.rs`, and **no `compare_and_set` or set-if-absent exists anywhere
+      under `crates/` yet**. So either the primitive gets a home the server can reach or stage 7's
+      `-p nvs-server` check is one of the playbook's misfiled ones; decide that first, in one grep,
+      and the other two slices are ordinary after it.
+- [ ] **Arm a fleet entry under the lease.** `crates/nvs-server/src/schedule.rs:222` is `arm`'s doc
+      and the skip's home, `crates/nvs-server/src/schedule.rs:523` is `fire`, and the module doc's
+      § *What is not armed* at `crates/nvs-server/src/schedule.rs:33` is the paragraph that stops
+      being true. The goal's standing decision 13 fixes the shape: set-if-absent with an expiry on
+      the shared tier, keyed on `name` plus the fire's scheduled instant, renewed while the run is
+      in flight — never a new `Core\Cache` member.
+- [ ] **The fallback stays the fallback, and says so at boot.**
+      `crates/nvs-server/src/schedule.rs:778`'s `a_fleet_scoped_entry_is_not_armed_on_this_host`
+      already pins today's note; under standing decision 13 it becomes the check's
+      `a_shared_store_with_no_compare_and_set_leaves_the_entry_unarmed_and_says_so`, and the two
+      lease cases the check names join it.
 
 ## Backlog
 
-- `[context] adrs` for this goal is missing **ADR 0020 § 6** — the log envelope's own
-  specification. Stage 6's check cites it and `orient.py` printed 0076 § 6 alone, so this
-  session sliced it by hand. Add `0020` `§6` to `docs/agent/loop-goal.toml`'s manifest.
-- `scope = "fleet"` parses, boots and is not armed — `crates/nvs-server/src/schedule.rs`
-  § *What is not armed*, ADR 0073 § 3.
-- A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` —
-  `crates/nvs-runtime/src/object.rs` § *The five walks*, ADR 0116 § 2.
-- `Core\Server::traceId()` is a known gap in `crates/nvs-stdlib/src/server.rs`, and the id it
-  would read is now stamped on every record — `TraceContext::trace_id_hex` is the spelling.
-- ADR 0133 § 3's computed `$reason` is not refused — `crates/nvs-stdlib/src/html.rs`
-  § *Known gaps*, blocked on a full diagnostic band.
+- `serverVersion`, gap 5 — `crates/nvs-stdlib/src/db/mod.rs:237` is the inventory; blocked on all
+  five drivers holding a version string, which is `nvs-db`'s work and not this module's.
+- `streamAs` is owed whole, same gap 5 — `stream` at a written type, as `queryAs` is `query`'s.
+- Gap 8's three `queryAs` refusals that are at run time and should be at compile time — stage 8's
+  `-p nvs-types` checks name two of them.
+- `[context]` gap: the pack printed ADR 0067 §§ 3, 10, 13 but not **§ 4**, which is the section
+  every `stream` question is decided under. Add `§4` to `[context] adrs` for this goal.

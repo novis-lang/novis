@@ -8244,6 +8244,16 @@ sibling in the same namespace unqualified.
   ambiguous anchor — "block 5 appears 2 times" — which is worth reading as *two rosters* rather
   than as a bad anchor. `grep -c 'name: "<member>"' crates/nvs-stdlib/src/db/registry.rs` before
   editing any of these five, and expect `2`.
+- **A crate's known-gap bullet can state a *reason* that is false about the driver it names, and
+  one grep at the named call site settles it.** `crates/nvs-stdlib/src/db/mod.rs`'s gap 6 refused
+  `stream`'s `{chunk?: uint}` because "a chunk size has to reach the `Execute` that asks for a row
+  count, and this driver's walk asks for one row". It does not: `nvs_db::pg`'s `open_portal` writes
+  `frontend::execute(UNNAMED, 0, …)`, and the comment on the line above it says "`0` is every row.
+  This driver never suspends a portal." The refusal was right and its argument was backwards — the
+  walk already streams the whole result set over one round trip while holding one row, so a chunk
+  buys no memory and costs round trips. A gap bullet naming *another* crate's mechanism is a claim
+  about that crate as it was when the bullet was written; grep the mechanism before implementing
+  the gap or restating its reason, because both readings look equally settled from here.
 
 ## Divergences and refusals already pinned
 
