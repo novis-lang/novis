@@ -37,6 +37,32 @@
 //! [ADR 0004](/docs/adr/0004-memory-for-simplicity.md) — and freed with
 //! the resolver, which is a local of `nvs run` published through
 //! [`nvs_runtime::script::scoped`] rather than leaked.
+//!
+//! # Known gap: nothing here revalidates, so nothing here ever swaps
+//!
+//! "Kept for the process" above is a statement about this cache's *lifetime*
+//! and reads, wrongly, as one about its contents: a path compiled once is
+//! answered from the map forever, and an edit to the file behind it is
+//! invisible to every later resolve. That is not what
+//! [ADR 0017](/docs/adr/0017-hot-reload-without-restart.md) decides. Its
+//! § *Decision* puts a `PathEntry { content_hash, last_checked }` indirection
+//! in front of a unit table keyed by `{ path, content_hash, env_hash }` — the
+//! key `nvs_config::cache::UnitKey` already spells and that nothing outside
+//! that crate's own tests constructs — and resolves through it in five steps:
+//! skip the syscall under `[opcache] validate = never` or inside
+//! `revalidate_freq`, otherwise `stat`, recompile only on an observed change,
+//! and write the new hash back only if no fresher revalidation won the race.
+//! Both directives deserialize in `nvs_config::tree` and neither is read.
+//!
+//! This cache is the tree's only in-memory unit table, so the gap is the whole
+//! of two rules rather than a corner of one.
+//! [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 7's
+//! second bullet — a connection isolate runs to completion on the code it
+//! began with while an edit swaps the pointer for new connections — is
+//! *unfalsifiable* against this file as written: every holder keeps its
+//! [`Program`] across an edit when nothing can observe one, so a test of it
+//! would pin the absence of the rule. Closing the gap is what makes that
+//! bullet, and stage 7's own three hot-reload names, writable at all.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
