@@ -71,10 +71,9 @@ retired = "2026-09-05"
 [[goal]]
 name = "21 carried-gaps"
 md = "docs/agent/goals/21-carried-gaps.md"
-toml = "docs/agent/goals/21-carried-gaps.toml"
-handoff = "docs/agent/goals/21-carried-gaps.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = "2026-09-05"
 
 # Post-parity: ADR 0042's on-disk artifact cache, which goal 3 built exactly as specified and
 # which has had no caller since. `crates/nvs-cli/src/cache.rs` is the whole store -- layout,

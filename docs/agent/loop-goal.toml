@@ -1,18 +1,17 @@
-# Goal 21 -- The gaps no goal owned. The acceptance test, as data.
+# Goal 22 -- The on-disk artifact cache has a producer
+# The acceptance test, as data.
 #
-# `21-carried-gaps.md` is the prose. One home each.
+# `22-warm-start.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # Stage 4 -- goal 4 wrote it; this goal adds the cycle whose only closing edge is inside an array.
-  "examples/cycles.nvs",
-  # Stage 5 -- `stream`/`streamAs` at constant memory, over the compose PostgreSQL.
-  "examples/stream.nvs",
-  # Stage 10 -- a percent-escape that is not UTF-8, decoded as octets, and a route capture with a
-  # `%20` in it that the handler reads as a space.
-  "examples/octets.nvs",
+  # No new fixture: every check here is a unit test or a measurement, and what a warm hit must not
+  # change is the output of every fixture the floor already froze.
   # carried from the previous goal by tools/goal-switch.py
+  "examples/cycles.nvs",
+  "examples/stream.nvs",
+  "examples/octets.nvs",
   "examples/serve.nvs",
   "examples/upload.nvs",
   "examples/session.nvs",
@@ -72,52 +71,30 @@ files = [
 [context]
 
 modules = [
-  # Stage 3 -- `host_granted` and its two callers; the wildcard is one predicate.
-  "crates/nvs-config/src/capability.rs",
-  # Stage 3 -- `front_end`/`run_check`, which build no grants today.
-  "crates/nvs-cli/src/main.rs",
-  # Stage 3 -- `check_program_granted`, written and callerless, and the pass that reads `Env::grants`.
-  "crates/nvs-types/src/check.rs",
-  "crates/nvs-types/src/intrinsics.rs",
-  # Stage 4 -- `object_fields` and `sweep`: the tally that decides what is unreachable.
+  # Stage 2 -- the one lowering walk, and the entry point that gains an object-module sibling.
+  "crates/nvs-codegen/src/lib.rs",
+  # Stage 2 -- the three sites that bake a host address in as an `iconst` with no relocation record.
+  "crates/nvs-codegen/src/emit.rs",
+  # Stages 3-4 -- the store itself: written, tested, and with no caller until this goal.
+  "crates/nvs-cli/src/cache.rs",
+  # Stage 3 -- the two seams a warm hit is consulted at.
+  "crates/nvs-cli/src/runner.rs",
+  "crates/nvs-cli/src/script.rs",
+  # Stage 3 -- the key both caches are addressed by, and the env hash that separates two toolchains.
+  "crates/nvs-config/src/cache.rs",
+  # Stage 2 -- what a descriptor's address means to the runtime, which is what a symbol must resolve
+  # to for the JIT path to be unchanged.
   "crates/nvs-runtime/src/object.rs",
-  # Stage 5 -- § 18's tail, the pool bounds and the statement deadline.
-  "crates/nvs-stdlib/src/db/*.rs",
-  "crates/nvs-db/src/*.rs",
-  "crates/nvs-config/src/db.rs",
-  # Stage 6 -- the record envelope, the request id it needs, and the trace context beside it.
-  "crates/nvs-stdlib/src/log.rs",
-  "crates/nvs-server/src/trace.rs",
-  # Stage 7 -- `arm`, which skips a fleet entry, and the shared tier that owes it a compare-and-set.
-  "crates/nvs-server/src/schedule.rs",
-  "crates/nvs-stdlib/src/cache.rs",
-  # Stage 8 -- the E08xx band, and the two rules that were waiting on it.
-  "crates/nvs-diagnostics/src/lib.rs",
-  "crates/nvs-stdlib/src/html.rs",
-  # Stages 9 and 10 -- the CLDR rosters, and the two decoders.
-  "crates/nvs-stdlib/src/cldr.rs",
-  "crates/nvs-stdlib/src/uri.rs",
-  "crates/nvs-runtime/src/routes.rs",
 ]
 
-# 0067 for the grant, the pool and § 18's roster; 0116 for why the sweep is an obligation; 0076 for the
-# record envelope; 0073 for the lease; 0133 for the reason literal; 0009 for the checked `bytes as
-# string` item 19 leans on; 0063 for R20, which is why item 5 refuses a second spelling of `*`.
-rules = ["0067", "0116", "0076", "0073", "0133", "0009", "0063", "0088", "0004", "0056"]
+# 0042 is the whole design; 0017 is the hot reload the key has to keep working; 0061 and 0048 are the
+# two other readers of the same hashes; 0004 is why a warm start is worth spending memory on.
+rules = ["0042", "0017", "0061", "0048", "0004", "0006"]
 
-# Only the sections a stage implements, never a whole ADR: 0067 is 11k and three sections of it are
-# what this goal touches.
-adrs = [
-  "0067 §3",
-  "0067 §10",
-  "0067 §13",
-  "0116",
-  "0076 §6",
-  "0073 §3",
-  "0133 §3",
-]
+# 0042 whole -- it is this goal's entire design and every stage implements one of its sections.
+adrs = ["0042", "0017 §2"]
 
-shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message", "An ADR"]
+shapes = ["An ADR", "A commit message"]
 
 playbook = [
   'Writing Novis itself > core is',
@@ -152,14 +129,20 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Stage 5 sends statements to a real PostgreSQL, and the floor carries goals 4-6's container-backed
-# checks whole -- the Redis tier, the five drivers and the session store. Same compose file, same
-# memoization.
+# Its own checks need no container at all. The floor is goal 21's, which is goals 4-6's -- the Redis
+# tier, the five drivers and the session store -- so the daemon is the floor's requirement and not
+# this goal's.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "redis"]
 memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+# 267 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
+# Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
@@ -4037,15 +4020,12 @@ tests = [
   "every_migration_member_row_has_a_conformance_case",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: an outstanding key names a goal that is still on the chain.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 owned keys"
+stage = "1 floor"
 name = "nvs-stdlib (an orphaned key stops the run)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4057,17 +4037,16 @@ tests = [
 # `carried-gaps.md` is a file the tools read, so its absence is a failing check rather than a habit.
 [[check]]
 kind = "command"
-stage = "2 owned keys"
+stage = "1 floor"
 name = "the durable gap list exists and every entry names an owner"
 argv = ["python", "tools/chain.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- a grant an operator wrote is a grant something reads. 0067 §§ 3 and 10.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 grants"
+stage = "1 floor"
 name = "nvs-config (the leading-label wildcard)"
 args = ["test", "-p", "nvs-config"]
 tests = [
@@ -4080,7 +4059,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 grants"
+stage = "1 floor"
 name = "nvs-cli (`nvs check` reads the configuration)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -4092,10 +4071,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- a cycle closed through an array is swept. 0116 § 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 array cycles"
+stage = "1 floor"
 name = "nvs-runtime (the tally reads array elements)"
 args = ["test", "-p", "nvs-runtime"]
 tests = [
@@ -4112,10 +4090,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `Core\Db` answers spec § 18's whole roster. 0067 §§ 13 and 18.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 db tail"
+stage = "1 floor"
 name = "nvs-stdlib (streaming, close, the readonly three)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4136,7 +4113,7 @@ tests = [
 # these; they are not read off a first run.
 [[check]]
 kind = "exact"
-stage = "5 db tail"
+stage = "1 floor"
 file = "examples/stream.nvs"
 want = [
   "streamed 10000 rows",
@@ -4147,10 +4124,9 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- a log line can be jumped to from a trace. 0076 § 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "6 log envelope"
+stage = "1 floor"
 name = "nvs-stdlib (the record's four new fields)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4162,7 +4138,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "6 log envelope"
+stage = "1 floor"
 name = "nvs-server (the id a record reads is the one the trace carries)"
 args = ["test", "-p", "nvs-server"]
 tests = [
@@ -4172,10 +4148,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 7 -- a `fleet` schedule entry fires. 0073 § 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "7 fleet lease"
+stage = "1 floor"
 name = "nvs-server (one run across the deployment)"
 args = ["test", "-p", "nvs-server"]
 tests = [
@@ -4187,10 +4162,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 8 -- the two rules a full diagnostic band was blocking. 0133 § 3, 0067 § 9.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "8 the E08xx rules"
+stage = "1 floor"
 name = "nvs-types (refused where it is written)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -4204,10 +4178,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the rosters that throw. `Core\Cldr` gaps 2-4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "9 cldr rosters"
+stage = "1 floor"
 name = "nvs-stdlib (plurals, ordinals, the eight letters)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4220,10 +4193,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 10 -- a percent-decoder answers octets, and a route capture is decoded once.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "10 octets"
+stage = "1 floor"
 name = "nvs-stdlib (the decoders answer bytes)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4237,7 +4209,7 @@ tests = [
 # `nvs-stdlib` nor `nvs-types` -- so the door has no way to observe a capture's Novis value at all.
 [[check]]
 kind = "cargo-named"
-stage = "10 octets"
+stage = "1 floor"
 name = "nvs-stdlib (a capture crosses decoded)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -4250,7 +4222,7 @@ tests = [
 # space already in it rather than as `%20`.
 [[check]]
 kind = "exact"
-stage = "10 octets"
+stage = "1 floor"
 file = "examples/octets.nvs"
 want = [
   "decoded octets: ff fe fd",
@@ -4261,15 +4233,82 @@ want = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 11 -- the suites, whole, and the leak sweep.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "11 suites"
+stage = "1 floor"
 name = "the conformance tree"
 args = ["test", "tests/conformance/"]
 
 [[check]]
 kind = "nvs-suite"
-stage = "11 suites"
+stage = "1 floor"
+name = "the differential tree"
+args = ["test", "tests/differential/"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: `nvs-codegen` emits the same IR a second way. ADR 0042 § 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 object module"
+name = "nvs-codegen (one walk, two backends)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "the_object_module_emits_every_program_the_jit_module_does",
+  "a_class_descriptor_address_is_a_relocation_not_an_immediate",
+  "an_instanceof_target_is_a_relocation_not_an_immediate",
+  "a_statically_resolved_call_target_is_a_relocation_not_an_immediate",
+  "the_two_modules_answer_the_same_for_every_lowering_fixture",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the relocating read path, and the wiring. ADR 0042 § 3, as amended by stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 warm hit"
+name = "nvs-cli (a warm hit relocates and runs)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable",
+  "a_second_run_of_the_same_program_does_not_compile_it",
+  "a_payload_whose_checksum_fails_is_a_miss_and_not_an_error",
+  "a_payload_written_by_a_different_toolchain_is_a_miss",
+  "an_absent_or_unwritable_cache_directory_is_a_miss_and_the_run_succeeds",
+  "an_edited_source_file_is_a_miss_on_the_next_run",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the amendment, and the number. ADR 0042 §§ 2-3.
+# ---------------------------------------------------------------------------------------------------
+
+# The measurement is the check: a cache that does not beat compiling is a cache to delete, and this
+# is what would say so. The threshold is written when the bench is, from what it prints.
+[[check]]
+kind = "cargo-named"
+stage = "4 measured"
+name = "nvs-cli (warm beats cold, by a margin the bench names)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- nothing a warm hit does changes an answer.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
+name = "the conformance tree"
+args = ["test", "tests/conformance/"]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 suites"
 name = "the differential tree"
 args = ["test", "tests/differential/"]
