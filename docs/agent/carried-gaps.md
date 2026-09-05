@@ -17,9 +17,10 @@ same fix, one file up.
 ## The contract
 
 - **An entry names an owner.** A goal number that is a live `[[goal]]` in
-  [goals/chain.toml](goals/chain.toml), or the word **`unowned`** with the reason it is nobody's yet.
-  `unowned` is a legitimate state — it is a scheduling question for the user — but it is never the
-  *absence* of an answer.
+  [goals/chain.toml](goals/chain.toml), a **milestone tag** whose plan already covers the gap, or the
+  word **`unowned`** with the reason it is nobody's yet. `unowned` is a legitimate state — it is a
+  scheduling question for the user — but it is never the *absence* of an answer, and it is never what a
+  *future* milestone's scheduled work is called. Goal 27 turns these three kinds into a gate.
 - **An entry leaves exactly one way: the gap is closed.** Not when it is rewritten, not when it stops
   being convenient. An entry whose owner went green without closing it is the failure this file
   exists to make visible; strike the owner, not the entry.
@@ -51,56 +52,50 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | ADR 0042's artifact cache is written, tested and has no caller | 22 | `crates/nvs-cli/src/cache.rs` § *Known gaps* |
 | `Core\Request::clientIp`/`host`/`scheme`, `Response::html`/`sendFile` | 17 | `crates/nvs-stdlib/tests/spec-members-part-two-outstanding.txt` |
 | `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
+| `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
+| `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | 24 | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
+| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | 25 | the same file; ADR 0051 § 3 puts all three at Tier 0 |
+| `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and ADR 0122's parser | 26 | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, ADR 0122 § 4 |
+| ~110 module-doc `# Known gaps` items name no owner and are in no index | 27 | this file's own contract, applied one level down |
+| `Core\Uri::with` replaces a component and cannot remove one | 28 | `crates/nvs-stdlib/src/uri.rs` gap 1 |
+| `Core\Queue`'s `limits`/`grants` are undeclared and `$args` does not refuse a `secret` | 28 | `crates/nvs-stdlib/src/queue.rs` gaps 1–2 |
+| `array<T>` is invariant — **decided 2026-09-05: widen to a covariant read** | 28 | `crates/nvs-stdlib/src/lib.rs` gap 4, `nvs_types::expr::assign` |
+| No custom panic hook — ADR 0002 § *Corollary*; its blocker went away in M5 | 28 | `crates/nvs-runtime/src/lib.rs` gap 4 |
+| `[limits] max_output` bounds no capture, at `Core\Process` or at `Core\IO::read` | 28 | `crates/nvs-stdlib/src/process.rs` gap 1 |
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's.
+Nobody's, and each is a scheduling question rather than a session's. **One entry, on 2026-09-05** — the
+six that stood here before were made reachable as goals 23–28, and the two facts this section had wrong
+were corrected at the same time: `Core\Metrics` was listed here and is goal 6's item 19, and spec § 17's
+four classes were filed under M9, which carries the extension system and none of them.
 
-- **Spec §§ 16–17's eight `Core` classes — `Core\Metrics`, `Core\Net`, `Core\Os`, `Core\Signal`,
-  `Core\Compress`, `Core\Mime`, `Core\Xml`, `Core\Zip`.** Listed in
-  `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`, named by no `[[goal]]` on a
-  23-entry chain, and the largest unowned item in the repository. `Core\Xml` is not free-standing:
-  `Core\Html::sanitize` and [ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)'s
-  WHATWG parser both wait on its tree, so two more gaps sit behind it. This is a milestone's worth of
-  work and wants its own entries or an M8 amendment, which is a decision for the user and not for a
-  session.
 - **[ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
   *Consequences* says outright that it "remains open"; goal 21's item 7 closes the *leak* at teardown
-  and does not build the collector. This is an open decision, not an unclosed gap, and it stays here
-  so that it stays visible.
-- **`array<T>` is invariant, so an `array<int|string>` parameter takes only that exact spelling.**
-  `crates/nvs-stdlib/src/lib.rs` gap 4 and `nvs_types::expr::is_assignable`'s own docs argue both
-  sides: widening accepts strictly more programs and breaks none, and an Novis array is a
-  copy-on-write value so an element-covariant read cannot be aliased into an unsound write. Narrow is
-  the safe thing to hold while the question is open. It is a decision to take, not work to schedule.
-- **`Core\Uri::with` replaces a component and cannot remove one**, so there is no spelling for "this
-  URI without its fragment" — `crates/nvs-stdlib/src/uri.rs` gap 1. It needs an options bag that can
-  tell an omitted option from a written `null`, which is a registry question rather than a `Core\Uri`
-  one.
-- **No custom panic hook.** [ADR 0002](../adr/0002-error-propagation.md)
-  § *Corollary* wants a panic message routed to the request log with its request id;
-  `crates/nvs-runtime/src/lib.rs` gap 4 has it, and its blocker — there being no request log — went
-  away in M5. It is presentation rather than containment, which is why it has waited, and it rides
-  naturally with goal 21's item 12 if a session finds itself there.
-- **`nvs serve` runs on one core, and no path in the process starts a second.**
-  [m7.md](../plan/m7.md) puts "per-core accept and dispatch" inside M7's own scope and goal 6 shipped
-  the single-core server, so this is a milestone's stated scope that no `[[goal]]` on the chain now
-  owns — the reason it is here rather than struck.
-  `crates/nvs-cli/src/serve.rs` § *Decision: one socket, and the flag is the last word* is the
-  detail: `[server] listen` is a flat array, that loop binds the first entry and says on stderr what
-  it left, and binding all of them is `nvs_host::NvsListener::from_std`'s fan-out — "the slice that
-  gives this command a core count". **The primitives are built and unreached.** That constructor
-  exists for precisely this ("each core takes its own handle on the descriptor"),
-  `nvs_host::Worker::spawn(cpu, …)` pins a scheduler per core for a cost paid per process start, and
-  both are called only from `#[cfg(test)]` — neither `nvs-cli` nor `nvs-server` reads a CPU count at
-  all. Nothing about the design is in the way: `docs/plan/design.md` § *Thread-per-core,
-  shared-nothing runtime* is this shape, ADR 0097's in-flight ceiling is already a relaxed atomic
-  "so one hot core cannot refuse while its neighbours idle", its watchdog is already per worker, and
-  its h2c refusal argues *from* connections being balanced across cores.
-  **It is the largest measured performance item left**: `benches/serve-proxied.json`'s deployed arm
-  has php-fpm scaling 2.44x from one core to four while `nvs serve` stays flat, turning a 2.92x lead
-  into 1.19x — and inverting it on a box with more cores. Open before it can be scoped: whether the
-  per-core compiled-unit cache and [ADR 0017](../adr/0017-hot-reload-without-restart.md)'s
-  revalidate-and-swap are per core or shared, since an immutable unit behind an `Arc` is sound to
-  share but the swap has a publisher.
+  and does not build the collector. This is an **open decision, not an unclosed gap**, and it stays
+  here so that it stays visible. Its consequence shows up in one other place and that is not a
+  duplicate: `nvs_safepoint` clears and ignores two of its four flags (`crates/nvs-runtime/src/lib.rs`
+  gap 5), and `COLLECT` is inert because this collector does not exist. The other, `DEBUG_BREAK`, waits
+  on `nvs dap` and is M10's.
+
+## What is *not* on either list
+
+Two kinds of thing look like an unowned gap and are not, and saying so here is cheaper than each
+session deciding again:
+
+- **A gap a future milestone's plan already covers is scheduled work, not a hole.**
+  `crates/nvs-cli/src/bundle.rs`'s `.nvsx` embedding is M9's; the inlining items in
+  `crates/nvs-runtime/src/decimal.rs` and the string fast path in `crates/nvs-runtime/src/lib.rs` are
+  M12's. Only a gap in a milestone that has *already been carried*, and that no chain entry claims, is
+  unowned. Goal 27 makes this distinction machine-readable.
+- **A decision is not a gap.** `crates/nvs-stdlib/src/time.rs`'s "there is no `Core\Month`, and there
+  is not going to be one" and `crates/nvs-syntax/src/casing.rs`'s "left out deliberately" are settled
+  positions that happen to sit under a `# Known gaps` heading. Goal 27 moves them out of the block, so
+  the roster counts what is owed.
+
+**The list this file indexes is not the whole inventory.** There are 50 `# Known gaps` blocks across the
+crates holding 152 enumerated items; this file names the ones whose ownership needed an argument, and
+[carried-refusals.md](carried-refusals.md) 901 covers `nvs-ir`'s. The rest were unindexed until goal 27,
+which puts the owner in the module doc beside the gap and derives the roster rather than copying it —
+this file's own contract, applied one level down.

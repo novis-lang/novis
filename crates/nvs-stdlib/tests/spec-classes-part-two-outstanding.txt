@@ -7,10 +7,14 @@
 # only shrinks: registering a class and striking its line here are one slice,
 # and a line naming a class that is registered now fails the same test.
 #
-# Every one of these is owed by a milestone or a goal that has not run, which is
-# why the list opens at eight rather than at zero: `Core\Metrics` is goal 6's,
-# and the four in § 17 are the document and archive formats M9 carries.
-# `Core\Net`, `Core\Os` and `Core\Signal` have no owning slice yet at all.
+# Every one of these is owed by a goal that has not run, and each names it:
+# `Core\Metrics` is goal 6's item 19. `Core\Net`, `Core\Os` and `Core\Signal`
+# are goal 24's; `Core\Compress`, `Core\Mime` and `Core\Zip` are goal 25's;
+# `Core\Xml` is goal 26's, with `Core\Html::sanitize` and ADR 0122's parser
+# behind it. All seven are M8's: ADR 0051 § 3 puts them at Tier 0 and M8 is the
+# milestone that builds Core's stdlib. An earlier version of this comment filed
+# § 17's four under M9 -- m9.md is the extension system and carries none of
+# them -- which left them owned by nothing while reading as scheduled.
 
 §16 Core\Metrics
 §16 Core\Net
