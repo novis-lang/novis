@@ -15911,8 +15911,8 @@ Keywords: get, all, mode
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
 | [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env\Mode` |
-| `Core\Env::EOL` | `string` = `"\r\n"` — The line ending this platform writes — `\r\n` on Windows and `\n` everywhere else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing reads it: `Core\Str::lines` and `Core\IO::lines` split on all three terminators and never consult it, which is spec § 1's own note. |
-| `Core\Env::OS` | `string` = `"Windows"` — The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. A closed set a program can compare against, and never `uname`'s free text, which is what PHP's other spelling `PHP_OS` hands over. |
+| `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes — `\r\n` on Windows and `\n` everywhere else, as `PHP_EOL` is. It is for *emitting* platform-native text and nothing reads it: `Core\Str::lines` and `Core\IO::lines` split on all three terminators and never consult it, which is spec § 1's own note. |
+| `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**, spelled as `PHP_OS_FAMILY` spells it — `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. A closed set a program can compare against, and never `uname`'s free text, which is what PHP's other spelling `PHP_OS` hands over. |
 | `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version, replacing `PHP_VERSION` — three dot-separated numbers, and the same string `nvs info` reports. There is no `PHP_VERSION_ID` beside it: a second spelling of one fact is what R6 closes, and comparing versions is `Core\Str::split` plus arithmetic on what this already says. |
 
 <a id="core-core-env-get"></a>

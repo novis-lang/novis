@@ -70,9 +70,15 @@ REL_LINK_RE = re.compile(r"(?<=\]\()(?!\w+:|[#/])([^)]+)(?=\))")
 
 TIMEOUT = 60  # seconds per example; a hung example is a bug in the example
 
-#: A constant whose value the binary answers per platform (`Core\Path::SEPARATOR`), and the one
-#: spelling the generated file uses for it on every platform.
-PLATFORM_VALUES = {'"\\\\"': '"/" ("\\" on Windows)', '"/"': '"/" ("\\" on Windows)'}
+#: A constant whose value the binary answers per platform, and the one spelling the generated file
+#: uses for it on every platform. Keyed by the constant rather than by the value it happened to
+#: answer: `Core\Env::OS` has six of those and a value-keyed table would have to list them all,
+#: while `Core\Env::EOL`'s two differ only by a `\r` that is easy to miss in a diff.
+PLATFORM_VALUES = {
+    r"Core\Path::SEPARATOR": r'"/" ("\" on Windows)',
+    r"Core\Env::EOL": r'"\n" ("\r\n" on Windows)',
+    r"Core\Env::OS": r'"Linux" ("Windows" or "Darwin" per platform)',
+}
 
 
 # ------------------------------------------------------------------ sources
@@ -317,10 +323,9 @@ def render_class(cls: dict, lines: list[str], index: list[str]) -> None:
                      f" | `{esc(m['signature'])}` |")
     for k in cls.get("constants", []):
         value = k["value"]
-        if value in PLATFORM_VALUES:
-            # The binary answers the platform it was built on; the reference is read
-            # everywhere, so it names both rather than whichever machine ran the generator.
-            value = PLATFORM_VALUES[value]
+        # The binary answers the platform it was built on; the reference is read
+        # everywhere, so it names both rather than whichever machine ran the generator.
+        value = PLATFORM_VALUES.get(f"{name}::{k['name']}", value)
         lines.append(f"| `{name}::{k['name']}` | `{k['type']}` = `{esc(value)}` — {esc(card(k.get('doc', '')))} |")
     lines.append("")
     if cls.get("constructor"):
