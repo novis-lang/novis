@@ -330,3 +330,164 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
         assert_eq!(caps.address_refused(ip("93.184.216.34")), None);
     }
 }
+
+/// Whether `caps` grants `cap` for `host`, asked in **both** spellings and asserted to agree.
+///
+/// `allows_host` is what a `nvs check` pass asks and `allows` is what a running request asks
+/// ([ADR 0067](/docs/adr/0067-core-db.md) § 10 and § 3), and a check that disagreed with the run it
+/// precedes is the one failure ADR 0057 § 4 forbids outright. Every wildcard case below goes through
+/// here rather than through either half, so a wildcard read by one caller and not the other fails.
+fn grants_host(caps: &Capabilities, cap: Cap, host: &str, disk: &Disk) -> bool {
+    let checked = caps.allows_host(cap, host);
+    assert_eq!(
+        checked,
+        caps.allows(cap, Scope::Host(host), disk),
+        "`{}` answered a check and a run differently for {host}",
+        cap.name(),
+    );
+    checked
+}
+
+/// ADR 0067 § 3's own worked grant, `db.open = ["*.tenants.internal"]`, matches a host under that
+/// zone — at one label of depth and at several, and in any casing, because DNS preserves none.
+#[test]
+fn a_wildcard_grant_matches_a_subdomain_at_a_label_boundary() {
+    let disk = Disk::of(&["/srv"]);
+    let caps = granting("[db]\nopen = [\"*.tenants.internal\"]\n", &disk);
+
+    for host in [
+        "a.tenants.internal",
+        "a.b.tenants.internal",
+        "A.Tenants.INTERNAL",
+        "x-1.deep.nest.tenants.internal",
+    ] {
+        assert!(
+            grants_host(&caps, Cap::DbOpen, host, &disk),
+            "`*.tenants.internal` did not cover {host}",
+        );
+    }
+
+    // The wildcard widens the entry it is written on and nothing else: a sibling zone stays denied,
+    // and so does a host that merely contains the suffix somewhere other than at its end.
+    for outside in [
+        "a.tenants.example",
+        "tenants.internal.evil.test",
+        "a.tenants.internal.evil.test",
+    ] {
+        assert!(
+            !grants_host(&caps, Cap::DbOpen, outside, &disk),
+            "`*.tenants.internal` covered {outside}",
+        );
+    }
+}
+
+/// `*.tenants.internal` is a grant for what is *under* the zone, so the zone's own name is not in
+/// it — nor is the empty label a bare dot in front of it would make.
+///
+/// Asserted beside the grant that does cover it, because "the bare domain is denied" is only
+/// meaningful next to the entry that would have granted it: an operator who wants both writes both.
+#[test]
+fn a_wildcard_grant_does_not_match_the_bare_domain() {
+    let disk = Disk::of(&["/srv"]);
+    let wild = granting("[db]\nopen = [\"*.tenants.internal\"]\n", &disk);
+    let both = granting(
+        "[db]\nopen = [\"*.tenants.internal\", \"tenants.internal\"]\n",
+        &disk,
+    );
+
+    for bare in ["tenants.internal", ".tenants.internal", "internal"] {
+        assert!(
+            !grants_host(&wild, Cap::DbOpen, bare, &disk),
+            "`*.tenants.internal` covered {bare}",
+        );
+    }
+    assert!(grants_host(&both, Cap::DbOpen, "tenants.internal", &disk));
+    assert!(grants_host(&both, Cap::DbOpen, "a.tenants.internal", &disk));
+}
+
+/// The reason this is a label-boundary rule and not `ends_with`: `evil-tenants.internal` is a name
+/// anybody can register, and a suffix check would hand it every credential the zone's grant covers.
+#[test]
+fn a_wildcard_grant_does_not_match_a_suffix_inside_a_label() {
+    let disk = Disk::of(&["/srv"]);
+    let caps = granting("[db]\nopen = [\"*.tenants.internal\"]\n", &disk);
+
+    for inside in [
+        "evil-tenants.internal",
+        "eviltenants.internal",
+        "xtenants.internal",
+        "a.eviltenants.internal",
+    ] {
+        assert!(
+            !grants_host(&caps, Cap::DbOpen, inside, &disk),
+            "`*.tenants.internal` covered {inside}, which is a suffix match inside a label",
+        );
+    }
+}
+
+/// `open = true` is already "every host", so `"*"` is not a second way to write it — it grants
+/// nothing at all, which is the deny-by-default direction and what ADR 0063 R20 asks for.
+///
+/// The `true` case is asserted first so that the refusals below are the entry being inert and not
+/// the fixture answering `false` to everything.
+#[test]
+fn a_bare_star_is_refused_as_a_second_spelling_of_every_host() {
+    let disk = Disk::of(&["/srv"]);
+    let everything = granting("[db]\nopen = true\n", &disk);
+    assert!(grants_host(
+        &everything,
+        Cap::DbOpen,
+        "anything.test",
+        &disk
+    ));
+
+    // Neither spelling of a pattern with no zone behind it grants a host, including one named the
+    // way the entry is: a pattern-looking entry is never read as an exact host.
+    for entry in ["*", "*.", "**"] {
+        let caps = granting(&format!("[db]\nopen = [\"{entry}\"]\n"), &disk);
+        for host in ["a.tenants.internal", "tenants.internal", entry] {
+            assert!(
+                !grants_host(&caps, Cap::DbOpen, host, &disk),
+                "`open = [\"{entry}\"]` covered {host}",
+            );
+        }
+    }
+}
+
+/// The wildcard is `db.open`'s alone. A `*.` entry under `net.connect` grants no host, and the
+/// exact entry beside it still does.
+///
+/// ADR 0058 § 2's door is why the two capabilities differ: `net.connect` names what a program may
+/// *reach*, and the address it is pinned to is resolved from that name afterwards, so widening the
+/// set of names by a pattern widens it by every name an attacker can get into the zone's DNS
+/// without the operator having written any one of them down. `db.open`'s zone is one the operator
+/// named and runs.
+#[test]
+fn net_connect_takes_no_wildcard_because_it_is_asked_of_an_address() {
+    let disk = Disk::of(&["/srv"]);
+    let caps = granting(
+        "[net]\nconnect = [\"*.tenants.internal\", \"api.tenants.internal\"]\n",
+        &disk,
+    );
+
+    assert!(grants_host(
+        &caps,
+        Cap::NetConnect,
+        "api.tenants.internal",
+        &disk
+    ));
+    for host in ["a.tenants.internal", "b.tenants.internal", "*"] {
+        assert!(
+            !grants_host(&caps, Cap::NetConnect, host, &disk),
+            "`net.connect = [\"*.tenants.internal\"]` covered {host}",
+        );
+    }
+
+    // And the same list under `db.open` does read the pattern — the difference is the capability
+    // and nothing about the entry.
+    let open = granting(
+        "[db]\nopen = [\"*.tenants.internal\", \"api.tenants.internal\"]\n",
+        &disk,
+    );
+    assert!(grants_host(&open, Cap::DbOpen, "a.tenants.internal", &disk));
+}

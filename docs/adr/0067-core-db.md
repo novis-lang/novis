@@ -116,6 +116,16 @@ db.connect = ["main", "replica"]        # which config blocks a program may open
 db.open    = ["*.tenants.internal"]     # which hosts dynamic settings may reach
 ```
 
+A `db.open` entry beginning `*.` matches a host whose name ends with the entry's remainder **at a label
+boundary**, case-insensitively: `*.tenants.internal` grants `a.tenants.internal` and
+`a.b.tenants.internal`, and grants neither `tenants.internal` itself nor `evil-tenants.internal`. A bare
+`*` is not a second spelling of `true` and grants nothing, and the wildcard is this capability's alone —
+`db.connect` names configuration blocks rather than hosts, and a pattern under `net.connect` would widen
+the set of names a program may reach to every name an attacker can get into that zone's DNS, which is what
+[0058](0058-outbound-request-policy.md) § 2's pinned address exists to bound. `nvs_config::capability`'s
+module doc is the comparison's one home, and § 10's check-time refusal reads it through the same
+predicate a request does.
+
 [ADR 0058](0058-outbound-request-policy.md)'s address policy exists because a **program-supplied** address
 can be attacker-influenced. An address an operator wrote into root-owned configuration is not: it is the
 same authority that grants the capability in the first place. So a `connect`-named endpoint is

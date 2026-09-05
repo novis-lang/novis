@@ -16,6 +16,31 @@
 //! [`Capabilities`] that grants it. A new capability is a variant, a `name` arm and a `grant` arm —
 //! never a string compared in a second module.
 //!
+//! # A `db.open` entry may be a `*.` wildcard
+//!
+//! [ADR 0067](/docs/adr/0067-core-db.md) § 3 writes `db.open = ["*.tenants.internal"]`, and this is
+//! what that entry means. An entry beginning `*.` matches a host whose name ends with the entry's
+//! remainder **at a label boundary**: `*.tenants.internal` grants `a.tenants.internal` and
+//! `a.b.tenants.internal`, and grants neither `tenants.internal` itself nor `evil-tenants.internal`.
+//! Matching stays case-insensitive, because the exact spelling of an entry is not something DNS
+//! preserves either.
+//!
+//! Three refusals hold the rule to that shape:
+//!
+//! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
+//!   a grant reachable two ways is what ADR 0063 R20 forbids. `*` alone therefore matches no host
+//!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
+//! - **The wildcard is `db.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
+//!   grant is asked of a *name* and then [ADR 0058](/docs/adr/0058-outbound-request-policy.md)
+//!   § 2's door pins the address that name resolved to; a pattern there would widen the set of
+//!   names an attacker-influenced argument may reach without the operator having written any one of
+//!   them down, which is the whole thing that ADR refuses. `db.open`'s targets are program-supplied
+//!   too, but a tenant-per-subdomain deployment cannot enumerate them, and its blast radius is one
+//!   operator-named zone rather than the internet.
+//! - **A wildcard never crosses a label**, so a suffix match inside a label — the
+//!   `evil-tenants.internal` case, which is the whole reason this is not `ends_with` — is refused.
+//!   Registering that name is the cheapest attack there is against a suffix check.
+//!
 //! [ADR 0118]: ../../../docs/adr/0118-a-capability-is-checked-at-the-door-to-the-effect.md
 
 use std::ffi::OsStr;
@@ -200,6 +225,17 @@ impl Cap {
         )
     }
 
+    /// Whether a grant entry for this capability may be written `*.suffix`, per the module doc's
+    /// § *A `db.open` entry may be a `*.` wildcard*.
+    ///
+    /// `db.open` alone. The knowledge lives here rather than in `host_granted` for the reason the
+    /// module doc gives about [`name`](Self::name): a capability's properties are arms of this type,
+    /// never a string compared in a second place.
+    #[must_use]
+    pub const fn takes_host_wildcard(self) -> bool {
+        matches!(self, Self::DbOpen)
+    }
+
     /// What `caps` grants for this capability, or `None` when the block is absent — which is a
     /// refusal, not an omission.
     #[must_use]
@@ -265,9 +301,41 @@ fn grant_of(setting: &Setting) -> Grant<'_> {
 ///
 /// One home for the comparison, because [`Capabilities::allows`] and
 /// [`Capabilities::allows_host`] are the runtime's asker and the compiler's, and a check that
-/// disagreed with the run it precedes is the one failure ADR 0057 § 4 forbids outright.
-fn host_granted(list: &[String], host: &str) -> bool {
-    list.iter().any(|entry| entry.eq_ignore_ascii_case(host))
+/// disagreed with the run it precedes is the one failure ADR 0057 § 4 forbids outright. `cap` is a
+/// parameter for the same reason: [`Cap::takes_host_wildcard`] decides whether an entry may be a
+/// pattern at all, and the two askers must not be able to answer that differently either.
+fn host_granted(cap: Cap, list: &[String], host: &str) -> bool {
+    list.iter().any(|entry| {
+        if cap.takes_host_wildcard() && entry.starts_with('*') {
+            // A pattern-looking entry is read as a pattern and never falls back to an exact match:
+            // a `*` that silently became a grant for one host named `*` is the trap this arm exists
+            // to close, and denying more than the exact arm would is the safe direction.
+            wildcard_granted(entry, host)
+        } else {
+            entry.eq_ignore_ascii_case(host)
+        }
+    })
+}
+
+/// The module doc's wildcard rule, as the comparison: `entry` is `*.suffix`, and `host` ends with
+/// `suffix` **at a label boundary** with at least one label of its own in front.
+///
+/// Compared over bytes rather than over `str` slices because a hostname arrives from a program and
+/// need not be ASCII — a byte index taken from the *end* of one is not guaranteed to be a character
+/// boundary, and slicing a `str` there panics. ASCII-case folding over the bytes is the same
+/// comparison [`host_granted`]'s exact arm makes, for the same DNS reason.
+fn wildcard_granted(entry: &str, host: &str) -> bool {
+    let Some(suffix) = entry.strip_prefix("*.") else {
+        return false;
+    };
+    if suffix.is_empty() {
+        return false;
+    }
+    let (host, suffix) = (host.as_bytes(), suffix.as_bytes());
+    let Some(dot) = host.len().checked_sub(suffix.len() + 1) else {
+        return false;
+    };
+    dot > 0 && host[dot] == b'.' && host[dot + 1..].eq_ignore_ascii_case(suffix)
 }
 
 impl Capabilities {
@@ -286,7 +354,7 @@ impl Capabilities {
             (Grant::Nothing, _) => false,
             (Grant::Everything, _) => true,
             (Grant::These(_), Scope::Unscoped) => true,
-            (Grant::These(list), Scope::Host(host)) => host_granted(list, host),
+            (Grant::These(list), Scope::Host(host)) => host_granted(cap, list, host),
             (Grant::These(list), Scope::Name(name)) => list.iter().any(|entry| entry == name),
             (Grant::These(list), Scope::Path(path)) => {
                 let Some(path) = resolved(path, files) else {
@@ -315,7 +383,7 @@ impl Capabilities {
         match grant_of(setting) {
             Grant::Nothing => false,
             Grant::Everything => true,
-            Grant::These(list) => host_granted(list, host),
+            Grant::These(list) => host_granted(cap, list, host),
         }
     }
 

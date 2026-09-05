@@ -74,11 +74,6 @@
 //!    is a decision about `nvs check` rather than about this pass — a command
 //!    that reads configuration is a command a broken `nvs.toml` can fail — and
 //!    it belongs where that command's own errors are decided.
-//! 7. **A `db.open` grant is matched host-for-host, so ADR 0067 § 3's
-//!    `"*.tenants.internal"` matches nothing.** That is
-//!    `nvs_config::capability`'s rule and not this pass's: the wildcard the ADR
-//!    writes has no reader on either side, so a run and a check agree — they
-//!    are both wrong together, which is the one property § 4 asks of this pass.
 
 use nvs_config::capability::Cap;
 use nvs_diagnostics::{Diagnostic, SourceFile, code};

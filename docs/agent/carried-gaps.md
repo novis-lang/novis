@@ -41,7 +41,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 | Gap | Owner | Where the detail lives |
 |---|---|---|
-| `db.open`'s `"*.tenants.internal"` grant matches no host — the wildcard has no reader | 21 | `crates/nvs-config/src/capability.rs` § *Known gaps*, ADR 0067 § 3 |
 | `nvs check` builds no grants, so ADR 0067 § 10's host diagnostic fires for nobody | 21 | `crates/nvs-types/src/intrinsics.rs` gap 6 |
 | A cycle whose only closing edge is inside an `array<T>` survives `object::sweep` | 21 | `crates/nvs-runtime/src/object.rs` § *The five walks*, ADR 0116 § 2 |
 | `Core\Db::stream`/`streamAs`, `Connection::close`, § 18's three readonly properties | 21 | `crates/nvs-stdlib/src/db/mod.rs` gap 5 |
