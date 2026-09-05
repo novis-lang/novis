@@ -5542,6 +5542,17 @@ is why" — is this file.
   green crate red at a file that names neither the module's members nor the helper. Every test-only
   item goes inside the module's own `mod tests` and reaches private state through `super::`, which
   costs one `use` and nothing else.
+- **A `-p <crate>` test that asserts a *process-wide* ceiling races every other test in the same
+  binary, and the repair is to make the count a parameter rather than to serialise the tests.** ADR
+  0083 § 7's connections-per-process bound is one relaxed `static AtomicU64`, exactly as
+  `nvs_server::admit`'s in-flight count is, and the only ceiling small enough to assert against is
+  one — so `Slot::take(1)` written against the module's own count answers whichever *other* test in
+  `-p nvs-server` happened to be holding a connection open at that instant, and there are several
+  that drive a real upgrade. Nothing about it is deterministic and nothing about it fails locally
+  first. The fix costs one line of signature: `take_from(count: &'static AtomicU64, ceiling)` with
+  the module's `take(ceiling)` delegating to it, and the test declaring a `static COUNT` of its own.
+  The general shape: when a bound lives in a `static`, the *bound* is testable and the *count* is
+  not, so name the count wherever a test has to reach a ceiling.
 
 ## Splitting a file that got too big
 

@@ -2,61 +2,65 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 § 4's qualifiers at the connection boundary are whole, and the acceptance
-check that named them is green.** § 3's received payload was already `tainted`
-(`nvs_stdlib::socket`'s `Message::text` answers `?tainted string`) and § 4's topic name was already
-a `Qual::Sink` on all three `Core\Topic` rows; what was missing was the third qualifier rule —
-**a `secret` may never be published**. `nvs_types::expr::quals`'s `reject_secret_published_argument`
-is that half, reporting `E0775` at the written argument through the same `reject_secret_crossing`
-`Core\Serialize::encode`, `spawn script`'s `args:` and `Core\Socket::upgrade`'s `args:` report it
-through — one code for one graph copy, which is that code's own doc. The value is found by its
-`ArgSlot`, so `value:` is refused as surely as the second positional argument; the topic is
-deliberately not asked about, because a qualified name is already a sink mismatch there.
+**Goal 6, M7 — ADR 0083 § 7's connection bounds are on disk, and the acceptance check that named
+them runs its first test.** `nvs_server::bounds` is the one home of § 7's numbers and of why each
+is the number it is; `Connection::default()` is the whole answer rather than a starting point,
+because § 7's load-bearing word is *nothing configured*. Six of § 7's eight are fields the framing
+layer arms — frame, message, idle, lifetime, send, and § 4's subscriber queue restated from
+`nvs_runtime::INBOX_CAP`. The seventh, connections per process, is `bounds::Slot`, a relaxed
+process-wide count taken at the `101` and released with the descriptor. The eighth, per tenant, is
+not this server's at all: § 7's own parenthetical hands it to ADR 0075's rate limit on the upgrade
+request, and that module doc says so.
 
-**§ 4 is otherwise unchanged from the last session.** The bus crosses cores, each subscriber's queue
-holds `nvs_runtime::INBOX_CAP` (256), and a subscriber that overflows closes itself with
-`Closing::SlowSubscriber`. `nvs_runtime::peer`'s module doc is the one home of that reasoning, of
-what the queue spends, and of the metric. `nvs_runtime::slow_subscribers_closed()` is § 4's "a
-metric increments", per core — **known gap: nothing exports it**, because the registry that would
-carry it is `nvs_server::metrics`. That is item 3 below.
+**`nvs_server::socket::Framed` is what winds the clock.** It holds the bounds, caps every wait by
+`Instant::now() + window` against a lifetime computed once, and turns a `TimedOut` into a close
+rather than an error — `Closing::Idle` or `Closing::Expired`, with the member answering § 3's
+`null`. `send` is the one that still throws, per § 3. `Closing` gained four variants and
+`nvs_runtime::peer`'s enum doc is where the code-per-action reasoning lives.
 
-**The remaining § 4/§ 3 gap is the wake seam**, unchanged and still the only one: a delivery queued
-while its connection is parked inside `PeerSocket::receive` is answered by the *next* `receive()`.
-`nvs_runtime::Ctx::deliver`'s known gap states it, and item 1 is it.
+**A connection isolate's end now tells its peer why.** `nvs_host::isolate`'s child body closes the
+peer off `Completion::ok` — `Closing::Done` or `Closing::Faulted` (1011) — which is § 1's "closed
+with a defined code" for a connection that ran past a `[limits]` budget. Before this, every
+connection ended as a bare descriptor drop, so a client read a reset on the normal path too.
+
+**Known gap: none of § 7's six has a `[server]` key**, so changing one is a rebuild.
+`nvs_server::bounds`' § *Known gap* names where the keys belong. **The wake seam is unchanged and
+still open** — `nvs_runtime::Ctx::deliver`'s known gap at `crates/nvs-runtime/src/ctx/isolate.rs:72`
+states it.
 
 ## Next group
 
-**The connection's two remaining waits, and the metric that watches them.** Items 1 and 2 share
-`crates/nvs-server/src/socket.rs` and `crates/nvs-stdlib/src/socket.rs`; item 3 is small and shares
-the first of those. Take 1 first — it is the hard one and it decides the shape the other two sit in.
+**The rest of the § 7 check's test list, all three over `crates/nvs-server/src/serve.rs`'s test
+module and the isolate teardown it drives.** Take 1 first: it is the test for the mechanism this
+session landed, and the fixture it needs is the one items 2 and 3 also want.
 
-- [ ] **The wake seam: a park over both sources** — ADR 0083 § 3's "`receive()` suspends until the
-      next thing arrives from *either* side". Today the park is on the socket alone, so a topic
-      delivery queued while the connection is already parked waits for a peer frame that may never
-      come. The gap is stated at `crates/nvs-runtime/src/ctx/isolate.rs:72` and the two ends that
-      have to take part are `crates/nvs-stdlib/src/socket.rs:1013`'s drain-then-read ordering and
-      `crates/nvs-server/src/socket.rs:158`'s `Framed::receive`, which is where the codec blocks on
-      `nvs_host::NvsTcp`. **The design question to settle first is what wakes the park**: the
-      publisher is on another task and may be on another core, so the likely shape is a wakeable
-      handle the `Inbox` carries and the publisher signals, with the framing layer's read taking
-      part in a select rather than owning the wait — `crates/nvs-host/src/net.rs`'s parking stream
-      is the half that knows how a task is resumed. Landing it also closes the overflow's one
-      remaining latency: a subscriber being closed only learns so at its next wait.
-- [ ] **A connection's `[limits] idle`, and § 3's send timeout** — ADR 0083 § 2's `limits: {idle:
-      5m}` and § 3's "`send()` … throws on the send timeout rather than waiting forever"
-      (ADR 0074). Neither is enforced: `crates/nvs-server/src/socket.rs:158` parks with no deadline
-      and `crates/nvs-stdlib/src/socket.rs:1013`'s siblings buffer with none either. `[server]`'s
-      four waits are already durations in `nvs_config::server`, so what is missing is the deadline
-      travelling with the peer rather than a new directive.
-- [ ] **§ 4's metric becomes an ADR 0076 series** — `crates/nvs-runtime/src/peer.rs:169`'s per-core
-      count is read by nothing. ADR 0076 § 1's table is the nine series a core meters, and
-      `crates/nvs-server/src/metrics.rs:1` is the registry that would carry a tenth; § 7's
-      `max_series` bound applies unchanged.
+- [ ] **`a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom`** — ADR 0083 § 1's
+      "closed with a defined code". The close is landed at
+      `crates/nvs-host/src/isolate.rs:625`, keyed off `Completion::ok`, which `finish` reads from
+      `Ctx::pending()` at `crates/nvs-host/src/isolate.rs:730`. What is missing is an induction: the
+      fixture's connection program is a plain `fn(&mut Ctx) -> String` at
+      `crates/nvs-server/src/serve.rs:1963`, so it trips no Novis allocation site.
+      `crates/nvs-runtime/src/ctx/limits.rs:46`'s `set_memory_limit` is the ceiling to set, and the
+      playbook's `Ctx::pending_slot` bullet is the warning that reading a pending throw needs an
+      exception class table installed first. Assert the client reads a **close frame carrying
+      1011** — the socket-pair shape is at `crates/nvs-server/src/serve.rs:2407`.
+- [ ] **`a_connection_whose_isolate_panics_is_contained`** — the same seam one step further out:
+      `Ended`'s `Drop` at `crates/nvs-host/src/isolate.rs:589` fires on a forced unwind, but the
+      close added at `crates/nvs-host/src/isolate.rs:625` sits *after* `finish` and so does not run
+      for a panic. Decide whether the close moves into `Ended` (which would need the peer reachable
+      from there) or whether a panicking isolate is deliberately a reset; either way the module doc
+      is the home of the answer.
+- [ ] **`reload_and_shutdown_close_every_connection_after_the_drain`** — ADR 0083 § 7's third
+      bullet. The drain already answers the probe and `isDraining()`; what it does not do is close
+      open *connections* with a code after it. `crates/nvs-server/src/serve.rs:1260`'s
+      `serve_on_this_core` is where the drain is decided, and `bounds::Slot`'s count is the only
+      thing that currently knows how many connections are open.
 
 ## Backlog
 
-- Raw/unparsed body access for an arbitrary content-type — ADR 0024's *Revisiting*, narrowed by
-  `docs/plan/m7.md`; a decided-and-recorded call in `Core\Request`'s module doc if it is needed.
-- `Core\Validate` has no text member, so ADR 0083 § 3's named launderer is spelled as ADR 0024
-  § 2's checked conversion today — `crates/nvs-stdlib/src/validate.rs`, and `tests/sockets.rs`
-  says so where it asserts the laundered half.
+- The wake seam: a park over both sources — `crates/nvs-runtime/src/ctx/isolate.rs:72` states it,
+  and ADR 0083 § 3 specifies it.
+- `[server]` keys for § 7's six bounds — `nvs_server::bounds`' § *Known gap*.
+- § 4's `slow_subscribers_closed` becomes an ADR 0076 series — `crates/nvs-runtime/src/peer.rs:169`.
+- The § 7 hot-reload pair, `an_open_connection_keeps_its_compiled_unit_across_an_edit` and
+  `a_connection_opened_after_the_swap_runs_the_new_unit` — ADR 0017 owns the swap.
