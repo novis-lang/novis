@@ -930,7 +930,7 @@ fn release(value: Value) {
 mod tests {
     use super::*;
     use crate::scheduler::{Scheduler, current_task};
-    use nvs_runtime::{ClassTable, FieldDefault, MethodRow, NvsObj};
+    use nvs_runtime::{ClassDesc, ClassTable, FieldDefault, MethodRow, NvsObj};
 
     /// A parent that looks like a request: armed statics, a buffer of its own,
     /// and an error class, so a child's bare-message failure becomes a `Thrown`
@@ -1791,6 +1791,174 @@ mod tests {
             sched.parked_count(),
             0,
             "the abandoning task was left parked"
+        );
+    }
+
+    /// A one-field class for [`build_a_cycle`] to allocate from. Leaked for
+    /// [`closure_value`]'s reason — a descriptor's address is its identity, so
+    /// it has to outlive every object made against it — and built **once** per
+    /// test, outside every measured region: a table leaked per request would
+    /// grow the very reading the two cases below hold flat.
+    fn node_class() -> *const ClassDesc {
+        let mut table = ClassTable::new();
+        let id = table.define("Node", &["next"], &[]);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        table.desc(id)
+    }
+
+    /// One pair of objects that hold each other and that nothing else holds —
+    /// the smallest graph no reference count can reclaim, and the one
+    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2's teardown sweep exists for.
+    ///
+    /// An `extern "C"` entry reached through [`nvs_runtime::call`] rather than
+    /// a plain Rust call from the program closure, because that call is what
+    /// installs the child's context as the current one: an object links itself
+    /// into the live list of whichever context is running, and a pair allocated
+    /// with none current would sit in no list for the sweep to walk. Slot 0
+    /// carries the class to allocate from, the way ADR 0008's late static
+    /// binding hands a static method its own.
+    #[expect(
+        unsafe_code,
+        reason = "a compiled function's entry is `extern \"C\"`, and the class \
+                  `node_class` leaked outlives every object made here"
+    )]
+    unsafe extern "C" fn build_a_cycle(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        _out: *mut Value,
+    ) -> i32 {
+        // SAFETY: `nvs_runtime::call` is handed a one-element slice below, so
+        // slot 0 is a live, initialized `Value`.
+        let class = unsafe { *args }
+            .as_class_desc()
+            .expect("slot 0 carries the class to allocate from");
+        // SAFETY: the table `node_class` leaked is never freed, so the
+        // descriptor outlives every object and every context in this binary.
+        unsafe {
+            let left = NvsObj::new(class);
+            let right = NvsObj::new(class);
+            left.set_field(0, Value::object(right.clone()));
+            right.set_field(0, Value::object(left.clone()));
+        }
+        nvs_runtime::OK
+    }
+
+    /// Runs one isolate whose program builds `pairs` cycles, and answers what
+    /// this thread was holding at the moment the child had them all — the
+    /// reading a caller compares its own baseline against.
+    ///
+    /// The [`Completion`] is dropped before this returns, so a caller's reading
+    /// afterwards is charged nothing of the answer; the program returns `null`,
+    /// which is the one value there is nothing to discard.
+    fn a_cycle_building_request(ctx: &mut Ctx, class: *const ClassDesc, pairs: usize) -> isize {
+        let peak: Rc<Cell<isize>> = Rc::new(Cell::new(0));
+        let inside = Rc::clone(&peak);
+        let program: Program = Box::new(move |child: &mut Ctx, _args| {
+            for _ in 0..pairs {
+                nvs_runtime::call(build_a_cycle, child, &[Value::class_desc(class)])
+                    .expect("the builder answers OK");
+            }
+            inside.set(nvs_runtime::budget::live_bytes());
+            Value::null()
+        });
+        let done = run(Isolate::new(program, Value::null(), Output::Capture), ctx)
+            .expect("a null argument crosses");
+        assert!(done.ok, "{:?}", done.error);
+        peak.get()
+    }
+
+    /// [ADR 0116](/docs/adr/0116-an-isolates-arena-is-an-ownership-root.md)
+    /// § 2 at the boundary ADR 0006 gives a request: what the root drain leaves
+    /// is swept when the arena is dropped, so a request that built a cycle
+    /// still gives every byte back. `nvs_runtime::object`'s
+    /// `a_cyclic_object_graph_is_reclaimed_when_its_context_drops` is the same
+    /// mechanism at the line that performs it; this is it one boundary out,
+    /// where the arena is torn down by the host on the child's way off the run
+    /// queue rather than by the case itself.
+    ///
+    /// **Filed `-p nvs-host` and not `-p nvs-server`, which is where the
+    /// acceptance check named it.** A request *is* this isolate — the goal's
+    /// standing decision — but the cycle has to be built by hand, and
+    /// `NvsObj::new` is `unsafe` while `crates/nvs-server` inherits the
+    /// workspace's `unsafe_code = "forbid"`, which no `#[expect]` can open. The
+    /// claim is about the arena's teardown, and the arena's teardown is here.
+    ///
+    /// The peak is read from **inside** the child rather than inferred, because
+    /// a fixture that allocated nothing would satisfy the flat reading below on
+    /// its own.
+    #[test]
+    fn a_request_that_builds_cycles_returns_its_bytes_at_teardown() {
+        const PAIRS: usize = 64;
+        let class = node_class();
+        let mut ctx = parent();
+        // One request run and thrown away before the baseline is taken: the
+        // scheduler's state, the child's stack and this thread's allocator are
+        // all first-touch costs that a cold run pays and nothing frees, and
+        // charging them to the sweep would be measuring the fixture.
+        // `nvs_runtime::object`'s own cycle guard opens with the same line.
+        a_cycle_building_request(&mut ctx, class, PAIRS);
+
+        let before = nvs_runtime::budget::live_bytes();
+        let peak = a_cycle_building_request(&mut ctx, class, PAIRS);
+
+        assert!(
+            peak - before >= (2 * PAIRS * nvs_runtime::FIELD_STRIDE).cast_signed(),
+            "the request held {} bytes over the baseline, less than the {} \
+             objects it was asked for can weigh — nothing was built, and the \
+             flat reading below would be about nothing",
+            peak - before,
+            2 * PAIRS
+        );
+        assert_eq!(
+            nvs_runtime::budget::live_bytes(),
+            before,
+            "the request is over and its cycles are not reachable from anything \
+             — no reference count in one ever reached zero, so what gave the \
+             bytes back is the arena's own sweep or nothing did"
+        );
+    }
+
+    /// The same claim under load, which is the whole memory story in one
+    /// reading: a request's cycles die with the request, so live bytes track
+    /// what is **in flight** and never what has been served.
+    ///
+    /// A leak of one pair per request is invisible in the single reading the
+    /// case above takes, and it is the failure this shape exists for. Asserted
+    /// by **counting** the readings that moved rather than by comparing the
+    /// last one, so a drift that only shows up after fifty requests fails as
+    /// loudly as one that shows up immediately.
+    #[test]
+    fn live_bytes_are_flat_across_a_cycle_building_soak() {
+        const REQUESTS: usize = 100;
+        const PAIRS: usize = 16;
+        let class = node_class();
+        let mut ctx = parent();
+        // Sized up front and never grown, so recording a reading cannot move
+        // the next one.
+        let mut readings: Vec<isize> = Vec::with_capacity(REQUESTS);
+        a_cycle_building_request(&mut ctx, class, PAIRS);
+
+        let before = nvs_runtime::budget::live_bytes();
+        let mut peak = before;
+        for _ in 0..REQUESTS {
+            peak = peak.max(a_cycle_building_request(&mut ctx, class, PAIRS));
+            readings.push(nvs_runtime::budget::live_bytes());
+        }
+
+        assert!(
+            peak > before,
+            "no request in the soak ever held anything, so a flat reading says \
+             nothing about the sweep"
+        );
+        let drifted = readings.iter().filter(|held| **held != before).count();
+        assert_eq!(
+            drifted,
+            0,
+            "{drifted} of {REQUESTS} requests left the thread holding bytes it \
+             had not held before them, the worst by {} — memory is tracking \
+             traffic rather than what is in flight",
+            readings.iter().copied().max().unwrap_or(before) - before
         );
     }
 }
