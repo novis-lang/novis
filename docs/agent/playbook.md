@@ -9006,3 +9006,10 @@ every session. Nothing below was reworded on the way.
   optional and defaults to the active toolchain, so the file stays the one home for the version, the
   components *and* the targets. The tell is a wholly red pipeline whose only green jobs are the ones
   that never wanted a compiler.
+- **A red CI job is not automatically a regression — ask whether it has *ever* been green.** The asan leg
+  had been failing since the commit that introduced it, and reading it as "something recent broke this"
+  bought a confident wrong suspect and two builds before the bisect said otherwise. On a repository whose
+  CI history is short, `gh run list` cannot answer the question at all, and the run list looking sparse is
+  itself the clue. `git log -S "<a flag only that job passes>" -- .github/workflows/ci.yml` finds the
+  commit that added the job, and running the failing test *there* settles it in one build — cheapest as
+  the first question, not the last.
