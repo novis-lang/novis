@@ -120,6 +120,11 @@ modules = [
   # the second place a program ends, so both halves of a request-end rule are written here.
   "crates/nvs-cli/src/main.rs",
   "crates/nvs-cli/src/serve.rs",
+  # Added 2026-09-05 with stage 6b's last two names, which are ADR 0017's: `Compiler` is the tree's only
+  # in-memory unit table, so "the compiled unit a connection keeps" and "the pointer an edit swaps" are
+  # both this file and neither is anywhere else. The map printed `serve.rs`'s mount and not the cache
+  # behind it, so the session triaging those two arrived unable to see that the swap does not exist.
+  "crates/nvs-cli/src/script.rs",
 ]
 
 rules = ["0097", "0012", "0024", "0074", "0088", "0102", "0105", "0073", "0076", "0078", "0093", "0017", "0072", "0079", "0083", "0006"]
@@ -153,14 +158,15 @@ adrs = [
   # enforces CSRF" and "the dispatcher enforces access" is stated, 0096 § 4 is the CSRF check itself, and
   # § 4 is the capture grammar the remaining `nvs_runtime::routes` gap is measured against. The routing
   # group's two open items are specified in these three and nothing else prints them.
-  # Added when the session group opened: § 1 is the roster of seven and the rule that a member called
-  # before `start` throws, § 2 is the four operations a backend answers and why `load` answering absent
-  # is the whole strict-id rule, and § 4 is what `clear`, `regenerate` and `destroy` do over a store
-  # with no multi-key atomic step. The group's three implementation items are specified in these and
-  # nothing else prints them -- session 0006 sliced §§ 1-2 by hand to scope one item.
-  "0139 §1",
-  "0139 §2",
-  "0139 §4",
+  # Taken out 2026-09-04 with the session group closed: 0139 §§ 1, 2 and 4 went in for it and every one
+  # of its items is landed — the roster of seven carries a record its store issued, and § 4's write-back
+  # sends it. Put one back on the session that names it again.
+  # Added 2026-09-04 with the deferred group: § 6 is what `afterResponse` is — the connection ends and
+  # the request tree does not — and § 7 is the bound the queue is kept under. This stage's two open test
+  # names are specified in the pair and nowhere else, including the rule that a registration past the
+  # cap throws at the call site rather than queueing.
+  "0072 §6",
+  "0072 §7",
   # Added 2026-09-04 with the exporter group, after a session spent three calls fetching them: the whole
   # of what stage 6 still owes is ADR 0076's export, and no part of it was printed. § 6 is the two
   # `System` blocks verbatim — every key, its class and its closed value set — § 7 is the per-core
@@ -170,19 +176,13 @@ adrs = [
   "0076 §1",
   "0076 §6",
   "0076 §7",
-  # Added 2026-09-05 with the connection group, which is stage 6b's whole remaining surface: this list
-  # named `0083` in `rules` and not one section here, so a session opening § 1's carrier was handed the
-  # one-line ground rule and none of the decision it was implementing. § 1 is what a connection isolate
-  # IS and the sentence that the upgrading request ends normally, § 2 is the entry rule at its second
-  # site, § 3 is the one wait over the peer and its topics. Take them out when 6b closes.
-  "0083 §1",
-  "0083 §2",
-  "0083 §3",
-  # Added 2026-09-05: the goal's own failing check names § 4 and this list did not, so the session
-  # implementing the crossing between cores had the ground rule's one line and neither the count the
-  # `publish` row answers with nor the bounded-hand-off sentence that decides its shape. Every open item
-  # left in 6b is § 4's, so this is the section the next sessions read.
-  "0083 §4",
+  # Taken out 2026-09-05 with §§ 1-5's checks green: the driver stops at the first failing check, and the
+  # one it reports is § 7's, so every 6b check above it -- the upgrade and the request that ends, the
+  # entry form and the one wait, `Core\Topic` across cores, the qualifiers -- is passing and its sections
+  # are spent. § 7 replaces them because it is the only 6b surface still open, and it was the section the
+  # session implementing it was not handed: its second bullet is the whole of the two names left in this
+  # stage, and it defers their mechanism to ADR 0017 in one clause that is easy to read past.
+  "0083 §7",
   # Taken out 2026-09-04 with the routing group closed: 0102 §§ 4 and 8 and 0096 § 4 went in for that
   # group's two open items, both of which are landed -- the door reads the match for CSRF and the
   # label, and the capture grammar is pinned. § 1 stays, because the match riding on the request is
@@ -3106,7 +3106,7 @@ tests = [
   # with it, and that the same statement after it costs the prepare again; MariaDB's `reset` rides the
   # same `crate::mysql::reset_session`, so it is that function's case and not a second one.
   "a_reset_invalidates_the_statement_cache",
-  # The MSSQL half, landed with the driver that made it writable: `crates/nvs-db/src/tds/plan.rs`'s
+  # The MSSQL half, landed with the driver that made it writable: `crates/nvs-db/src/tds.rs`'s
   # `reset_session` and the `TdsPlan` cache it empties. MS-TDS spells the procedure as a header bit
   # rather than as a call, so what the test asserts is that `Status::RESET_CONNECTION` rode a message of
   # its own, that the cache emptied with it, and that the same statement then costs the prepare again.
@@ -3546,7 +3546,7 @@ tests = [
 # nothing here dispatches"), and a door refusing a miss would refuse every request of a program that
 # declares no `#[Route]` at all -- ADR 0077 § 5's opt-in rule inverted. The `404`/`405` decision is
 # therefore a computation the *table* performs and the program sends, so the test asserts it where the
-# walk is (`crates/nvs-runtime/src/routes.rs:506`) and names the statuses as what a sender does with the
+# walk is (`crates/nvs-runtime/src/routes.rs:573`) and names the statuses as what a sender does with the
 # answer. `crates/nvs-server/src/route.rs` keeps § 1's half of the ADR and nothing of § 2.
 [[check]]
 kind = "cargo-named"
@@ -3580,11 +3580,11 @@ args = ["test", "-p", "nvs-stdlib"]
 # filing.
 tests = [
   # § 2 -- `filename` is the whole distinction between a file part and a form field, and the parse that
-  # decides it is `nvs_stdlib::multipart` (`crates/nvs-stdlib/src/multipart.rs:847`).
+  # decides it is `nvs_stdlib::multipart` (`crates/nvs-stdlib/src/multipart.rs:635`).
   "a_part_is_a_file_part_iff_content_disposition_carries_a_filename",
   # § 1 -- lazy, and the one door: a part yielded from what arrived before the rest of the body failed,
   # and a count over the registry saying no second member answers a walk or a part
-  # (`crates/nvs-stdlib/src/request.rs:3028`).
+  # (`crates/nvs-stdlib/src/request.rs:3849`).
   "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
 ]
 
@@ -3606,7 +3606,7 @@ tests = [
   # § 2 -- a part claiming no filename goes where `post()` will read it rather than to the caller.
   "a_non_file_part_is_buffered_into_post",
   # §§ 3, 6-8 -- exclusive with body and with files on one request, which `claim_body` decides
-  # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:980`).
+  # (`crates/nvs-runtime/src/ctx/inbound.rs:551`, wrapped at `crates/nvs-stdlib/src/request.rs:1194`).
   "body_stream_is_exclusive_with_body_and_with_files",
 ]
 
@@ -3816,15 +3816,51 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "6b persistent connections"
-name = "nvs-server (ADR 0083 § 7 -- bounds, budgets, reload and drain)"
+name = "nvs-server (ADR 0083 § 7 -- bounds, budgets and drain)"
 args = ["test", "-p", "nvs-server"]
 tests = [
+  # The four bullets a connection keeps with no unit in sight: the finite bounds, the budget close, the
+  # contained panic and the drain. A `-p nvs-server` test builds its `nvs_runtime::script::Program` by
+  # hand -- a boxed Rust closure -- which is exactly why these four could be written where they are and
+  # the two below could not.
   "every_connection_bound_is_finite_with_nothing_configured",
   "a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom",
   "a_connection_whose_isolate_panics_is_contained",
+  "reload_and_shutdown_close_every_connection_after_the_drain",
+]
+
+# Split off the check above on 2026-09-05, and what decides the boundary is the same thing it did for
+# §§ 2-3 and § 4: whether a compiled unit is in the picture. § 7's second bullet is the only one that
+# needs one -- "a connection isolate holds the compiled unit it started with; an edit swaps the pointer
+# for *new* connections" -- and `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config`,
+# `nvs-runtime` and `jiff`: no front end, no backend, and a door that takes a handler closure rather than
+# a path. So neither name below could ever have run where it was filed, however end-to-end it reads.
+# `nvs-cli` is the one crate where both halves exist: `src/script.rs`'s `Compiler` is the tree's only
+# in-memory unit table (`crates/nvs-cli/src/script.rs:118`), `src/serve.rs` mounts one unit per entry and
+# resolves it per request, and this crate depends on `nvs-server`, so a case here drives a real upgrade
+# over a real unit rather than over a closure standing in for one.
+#
+# BOTH NAMES ARE BLOCKED ON THE SWAP, and that is a slice rather than a filing question. `Compiler::
+# compiled` compiles once per written path and never revalidates -- `script.rs`'s own module doc states
+# "one unit per written path, kept for the process" as the policy -- `nvs_config::cache::UnitKey`, the
+# `{ path, content_hash, env_hash }` ADR 0017's revalidation keys on, has no caller outside
+# `nvs-config`'s own tests, and `[opcache] validate` / `revalidate_freq` deserialize in
+# `nvs_config::tree` with nothing reading either. A test written against that tree would pass by
+# pinning the *absence* of the bullet: everything keeps its unit across an edit when nothing can notice
+# one. ADR 0017 § *Decision* steps 1-5 is the specification, and stage 7's own `hot reload` check is
+# where the mechanism's three names already sit -- misfiled `-p nvs-server` by this same argument.
+[[check]]
+kind = "cargo-named"
+stage = "6b persistent connections"
+name = "nvs-cli (ADR 0083 § 7 -- the unit a connection keeps, and the one a new connection gets)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  # § 7's second bullet, one name per half: an open connection runs to completion on the code it began
+  # with, and the connection opened after the edit gets the new unit. Two functions and not one, because
+  # they are two claims about two connections -- unlike the drain's name above, which is one mechanism
+  # under two spellings.
   "an_open_connection_keeps_its_compiled_unit_across_an_edit",
   "a_connection_opened_after_the_swap_runs_the_new_unit",
-  "reload_and_shutdown_close_every_connection_after_the_drain",
 ]
 
 
