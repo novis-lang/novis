@@ -20,7 +20,7 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
-//! The sinks reachable here are nine, and the three below are the ones a
+//! The sinks reachable here are ten, and the three below are the ones a
 //! conversion reaches. [`reject_non_literal_markup_conversion`]
 //! is ADR 0024 § 5's one M2-scoped rule: `as Core\Html\Markup` accepts only a
 //! literal string token, `tainted` or not — the rest of § 5 (auto-escaping,
@@ -34,15 +34,17 @@
 //! decided without a declared `Throwable`/`Exception`/`Error` stdlib to check
 //! against.
 //!
-//! The next five are read off a written argument rather than off a
+//! The next six are read off a written argument rather than off a
 //! conversion, because the member they reach declares an open type and the
 //! call site is the last place the qualifier is visible:
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
 //! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
 //! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers —
+//! [`reject_secret_published_argument`], which is ADR 0083 § 4's bus reaching
+//! that same graph copy through a third carrier,
 //! [`reject_secret_encoded_argument`], and
 //! [`reject_secret_logged_argument`], whose open type is `array<mixed>` **by
-//! design** rather than pending, which is why it is the one of the five that
+//! design** rather than pending, which is why it is the one of the six that
 //! also reads the elements of a written literal.
 //!
 //! The last has no member behind it at all: [`reject_secret_output`] is
@@ -865,6 +867,56 @@ pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: 
              refuses that one itself",
         ),
     );
+}
+
+/// ADR 0083 § 4's bus, which is [`reject_secret_crossing`]'s third carrier:
+/// `Core\Topic::publish` copies its value into every subscriber's own arena
+/// through ADR 0023 § 2's graph copy, so "a `secret` may never be published" is
+/// the disclosure `Core\Serialize::encode` and `spawn script`'s `args:` are
+/// already refused for, and it reports the same code rather than one of its
+/// own.
+///
+/// A call-site rule rather than a parameter type, exactly as every sibling
+/// here is one: `publish` declares `mixed` for its value, which a
+/// `secret string` satisfies, so the written argument is the last place the
+/// qualifier is still visible.
+///
+/// **The topic is not asked about**, and that is not an omission: it is a
+/// [`Qual::Sink`] parameter, so a qualified name is already an ordinary
+/// mismatch there — § 4's own `tainted` refusal — and asking a second time
+/// would report one error as two.
+///
+/// The value is found through its [`ArgSlot`] rather than by position, for
+/// [`super::isolate::check_core_isolate_call`]'s reason: `value:` fills the
+/// parameter as surely as the second positional argument does.
+pub(crate) fn reject_secret_published_argument(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    env: &mut Env<'_>,
+) {
+    if qname.to_string() != r"Core\Topic" || member != "publish" {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    // Slot 1 is `$value` in `nvs_stdlib::topic`'s row, whose parameters are
+    // `[CoreTy::Text(Qual::Sink), CoreTy::Mixed]`.
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        if slot != ArgSlot::Param(1) {
+            continue;
+        }
+        reject_secret_crossing(
+            &arg.value,
+            ty,
+            "`Core\\Topic::publish` copies it into every subscriber's own arena, on this core \
+             and on every other",
+            env,
+        );
+    }
 }
 
 /// ADR 0033 § 4's fifth sink: a `secret` class constant reaching an attribute

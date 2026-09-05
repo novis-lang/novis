@@ -226,18 +226,60 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
 ///
 /// The bound on the other side is the line above it: the same value binds and
 /// is read, so what is refused is the crossing and not the value.
+///
+/// ADR 0083 § 4's bus is asserted here rather than beside § 4's other qualifier
+/// rules (`sockets.rs`) because it is the same copy: "a published value is
+/// copied by ADR 0023 § 2's graph copy", so `Core\Topic::publish` is a third
+/// carrier of the rule this test's first half asks about, and the two are
+/// asserted together so a carrier that grew a refusal of its own would fail
+/// here rather than look right on its own line. `nvs_types::expr::quals`'s
+/// `reject_secret_published_argument` is that half.
 #[test]
-fn a_secret_fails_to_compile_through_upgrade_args() {
-    let diags = check_in_method(
+fn a_secret_fails_to_compile_through_upgrade_args_or_publish() {
+    let upgrade = check_in_method(
         "secret string $key = \"k\" as secret string;\n\
          Core\\Socket::upgrade(\"sockets/chat.nvs\", args: $key);",
     );
     assert!(
-        diags
+        upgrade
             .iter()
             .any(|d| d.code == Some(code::E_SECRET_CROSSES_A_BOUNDARY)),
-        "{diags:?}"
+        "{upgrade:?}"
     );
+
+    let published = check_in_method(
+        "secret string $key = \"k\" as secret string;\n\
+         Core\\Topic::publish(\"room:lobby\", $key);",
+    );
+    assert!(
+        published
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_CROSSES_A_BOUNDARY)),
+        "{published:?}"
+    );
+
+    // Named rather than positional, because the refusal is read off the
+    // argument's own slot: `value:` fills the parameter as surely as the
+    // second positional argument does.
+    let by_name = check_in_method(
+        "secret string $key = \"k\" as secret string;\n\
+         Core\\Topic::publish(\"room:lobby\", value: $key);",
+    );
+    assert!(
+        by_name
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_CROSSES_A_BOUNDARY)),
+        "{by_name:?}"
+    );
+
+    // The bound's other side: an unqualified value crosses the same two
+    // carriers with nothing reported.
+    let plain = check_in_method(
+        "string $room = \"lobby\";\n\
+         Core\\Socket::upgrade(\"sockets/chat.nvs\", args: $room);\n\
+         Core\\Topic::publish(\"room:\" . $room, $room);",
+    );
+    assert!(!plain.has_errors(), "{plain:?}");
 }
 
 /// ADR 0006 § *Failure is a value, not an exception* makes `error` present

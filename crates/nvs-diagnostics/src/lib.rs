@@ -2640,9 +2640,14 @@ pub mod code {
     /// It is one code for both because the disclosure is one disclosure: the
     /// walk that puts a credential into bytes on disk is the walk that puts it
     /// into another arena, and a developer who learns the rule at one carrier
-    /// has learned it at the other. `Core\Serialize::encode` is the call site
-    /// that exists today; `spawn`/`spawn worker`/`spawn script` report the
-    /// same code from the same check once they compile.
+    /// has learned it at the other. Four call sites report it today:
+    /// `Core\Serialize::encode`, `spawn script`'s `args:`,
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 2's `Core\Socket::upgrade` — an `args:` that opens a connection
+    /// isolate rather than a script one — and § 4's `Core\Topic::publish`,
+    /// whose value is copied into every subscriber's arena on every core.
+    /// `spawn`/`spawn worker` join them from the same check once they
+    /// compile.
     ///
     /// A call-site rule rather than a parameter type, for the same reason
     /// [`E_SECRET_DEBUG_ARGUMENT`] is one: `encode` declares `mixed`, which a
