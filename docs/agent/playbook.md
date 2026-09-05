@@ -5541,7 +5541,10 @@ is why" — is this file.
   so a test-only helper written beside the state it reads, rather than inside `mod tests`, turns a
   green crate red at a file that names neither the module's members nor the helper. Every test-only
   item goes inside the module's own `mod tests` and reaches private state through `super::`, which
-  costs one `use` and nothing else.
+  costs one `use` and nothing else. The tempting shape that trips it is a small helper used only by
+  a test and gated so it is not dead code in the binary; the fix is to not need one — move the table
+  the helper held into the test's own `for` loop, which is where the two spellings were being held
+  together anyway. `#[allow(dead_code)]` passes the scan and is the wrong trade: it ships the code.
 - **A `-p <crate>` test that asserts a *process-wide* ceiling races every other test in the same
   binary, and the repair is to make the count a parameter rather than to serialise the tests.** ADR
   0083 § 7's connections-per-process bound is one relaxed `static AtomicU64`, exactly as
@@ -6954,15 +6957,6 @@ sibling in the same namespace unqualified.
   cranelift-jit — `can't resolve symbol nvs_core_html_markup`, from `backend.rs`, naming neither crate nor
   the one line in `lib.rs` that is missing. Anything a construct reaches rather than a member call owes
   that line.
-- **A second `#[cfg(test)]` in an `nvs-stdlib` source file fails a test in a *different* crate's
-  file, and the message is the only thing that says so.** `crates/nvs-stdlib/tests/capability.rs`'s
-  `nvs_stdlib_reaches_the_os_only_through_the_gate` is a source scan that stops at the first
-  `#[cfg(test)]` to exclude the tests module, so it refuses a file with two — *"`…/cldr.rs` has more
-  than one `#[cfg(test)]`, so this scan can no longer stop at the first one"*. The tempting shape
-  that trips it is a small helper used only by a test and gated so it is not dead code in the
-  binary; the fix is to not need one — move the table the helper held into the test's own `for`
-  loop, which is where the two spellings were being held together anyway. `#[allow(dead_code)]`
-  passes the scan and is the wrong trade: it ships the code.
 - **`nvs-stdlib`'s OS gate is a *spelling* scan, so a `std::fs` type name fails it while the
   effect on the line above passes.** `crates/nvs-stdlib/tests/capability.rs`'s
   `nvs_stdlib_reaches_the_os_only_through_the_gate` greps every shipped line for `std::fs`, and
