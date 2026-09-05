@@ -2716,6 +2716,16 @@ is why" — is this file.
   freed allocation reused by a `String`, and it names the string, so it says which allocation died;
   and an `Rc<T>` allocation is 24 bytes with the data at offset 16, which is why a 23-byte queue name
   landed exactly on top of a one-word `LiveList`.
+- **`php-cgi -b` exits after 500 requests, and `php -S` frames its body by closing the
+  connection — so a benchmark client sees a reset socket and an empty body rather than either
+  fact.** Both cost a debugging pass while building `tools/bench.py`'s `--serve-vs-fpm` leg. The
+  FastCGI SAPI honours `PHP_FCGI_MAX_REQUESTS`, default **500**, and recycles the whole process at
+  that count: the generator gets `WinError 10054` a third of the way into a run, which reads as the
+  peer crashing. Set it to `0` in the child's environment, which is what FPM's own `pm.max_requests`
+  defaults to. Separately, PHP's built-in server answers `Connection: close` with **no**
+  `Content-Length`, so a reader that frames by content-length alone hands back `b""` and an
+  agreement gate then reports a `DIFF` that is the client's bug and not the server's — read to EOF
+  when a response carries neither header, and count the reopen rather than hiding it.
 
 ## Writing a test case
 
