@@ -157,6 +157,7 @@ Conventions the whole file uses:
 | [`Core\Db\Connection`](#core-core-db-connection) |  |
 | [`Core\Db\Transaction`](#core-core-db-transaction) |  |
 | [`Core\Db\Rows<T>`](#core-core-db-rows) |  |
+| [`Core\Db\Stream`](#core-core-db-stream) |  |
 | [`Core\Db\Row`](#core-core-db-row) |  |
 | [`Core\Db\Write`](#core-core-db-write) |  |
 | [`Core\Db\Column`](#core-core-db-column) |  |
@@ -18408,7 +18409,7 @@ Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, 
 <a id="core-core-db-connection"></a>
 ### `Core\Db\Connection`
 
-Keywords: query, queryAs, execute, executeMany, transaction, close, driver, isOpen
+Keywords: query, queryAs, execute, executeMany, stream, transaction, close, driver, isOpen
 
 | Member | Signature |
 |---|---|
@@ -18416,6 +18417,7 @@ Keywords: query, queryAs, execute, executeMany, transaction, close, driver, isOp
 | [`Core\Db\Connection->queryAs`](#core-core-db-connection-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Connection->execute`](#core-core-db-connection-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Connection->executeMany`](#core-core-db-connection-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
+| [`Core\Db\Connection->stream`](#core-core-db-connection-stream) | `stream(string $sql, array<mixed> $params): Core\Db\Stream` |
 | [`Core\Db\Connection->transaction`](#core-core-db-connection-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Connection->close`](#core-core-db-connection-close) | `close(): void` |
 | [`Core\Db\Connection->driver`](#core-core-db-connection-driver) | `driver(): Core\Db\Driver` |
@@ -18493,6 +18495,24 @@ Runs one statement once per set of values and answers how many rows the whole ba
 
 **Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
 
+<a id="core-core-db-connection-stream"></a>
+#### `Core\Db\Connection->stream`
+
+```nvs skip
+$connection->stream(string $sql, array<mixed> $params): Core\Db\Stream
+```
+
+Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+
+**Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight, which leaves it unusable for the rest of the request.
+
 <a id="core-core-db-connection-transaction"></a>
 #### `Core\Db\Connection->transaction`
 
@@ -18551,7 +18571,7 @@ Whether this connection is still usable — `true` until `close`, and `false` af
 <a id="core-core-db-transaction"></a>
 ### `Core\Db\Transaction`
 
-Keywords: query, queryAs, execute, executeMany, transaction, rollBack
+Keywords: query, queryAs, execute, executeMany, stream, transaction, rollBack
 
 | Member | Signature |
 |---|---|
@@ -18559,6 +18579,7 @@ Keywords: query, queryAs, execute, executeMany, transaction, rollBack
 | [`Core\Db\Transaction->queryAs`](#core-core-db-transaction-queryas) | `queryAs<T>(string $sql, array<mixed> $params): Core\Db\Rows<T>` |
 | [`Core\Db\Transaction->execute`](#core-core-db-transaction-execute) | `execute(string $sql, array<mixed> $params): Core\Db\Write` |
 | [`Core\Db\Transaction->executeMany`](#core-core-db-transaction-executemany) | `executeMany(string $sql, array<array<mixed>> $sets): uint` |
+| [`Core\Db\Transaction->stream`](#core-core-db-transaction-stream) | `stream(string $sql, array<mixed> $params): Core\Db\Stream` |
 | [`Core\Db\Transaction->transaction`](#core-core-db-transaction-transaction) | `transaction(callable $fn, {isolation?: Core\Db\Isolation, readOnly?: bool, retries?: uint}): T` |
 | [`Core\Db\Transaction->rollBack`](#core-core-db-transaction-rollback) | `rollBack(string $reason): void` |
 
@@ -18633,6 +18654,24 @@ Runs one statement once per set of values and answers how many rows the whole ba
 **Returns** `uint` — The sum of what each execution reported, with a command whose tag carries no count contributing nothing. An empty `$sets` writes nothing and answers `0`. Rows a `RETURNING` clause produced are discarded, and there is no `lastId`: neither has one execution to belong to.
 
 **Throws** `LogicError` — The call is wrong rather than the database: a set is keyed both ways at once, two sets do not agree on how many values the statement binds, an element has no bound form, or a statement is already streaming on this connection.; `Core\Db\DbError` — The server refused an execution — a syntax error, a constraint, a permission. Each execution is its own transaction, so the writes before the failing one stand; `transaction` is how a caller asks for all or nothing.; `IOError` — The connection failed while the batch was in flight, which leaves it unusable for the rest of the request.
+
+<a id="core-core-db-transaction-stream"></a>
+#### `Core\Db\Transaction->stream`
+
+```nvs skip
+$transaction->stream(string $sql, array<mixed> $params): Core\Db\Stream
+```
+
+Runs one statement and walks its rows one at a time, holding the connection open until the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as something a `foreach` reads directly. Memory is constant in the number of rows, which is the whole reason to write this rather than `query`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$sql` | `string` (sink) | The statement, bound exactly as `query` binds it: a `?` or a `:name` per value, never a value written into the text, and a sink either way. |
+| `$params` | `array<mixed>` | The values to bind, read exactly as `query` reads them — list-keyed for `?`, string-keyed for `:name`, one array and never both spellings. |
+
+**Returns** `Core\Db\Stream` — A walk over the statement's rows, each one a `Core\Db\Row`, in the server's order. Nothing has been read when this returns and the connection is busy from here: no second statement runs on it until the walk reaches its end, so a loop that writes per row needs a second connection (`{shared: false}`) or `query`'s buffered read instead.
+
+**Throws** `LogicError` — The call is wrong rather than the database: the placeholders and the array disagree in spelling or in number, a `:name` names no element, an element is a value with no bound form, the connection has been closed, or a statement is already streaming on it.; `RuntimeError` — The connection's driver has no streaming read yet — only PostgreSQL parks a cursor today, and `query` answers the same rows on every driver.; `Core\Db\DbError` — The server refused the statement, or refused it part way through the walk, carrying its own `SQLSTATE` and message — or a column came back in a type this driver does not read back yet.; `IOError` — The connection failed while the statement or one of its rows was in flight, which leaves it unusable for the rest of the request.
 
 <a id="core-core-db-transaction-transaction"></a>
 #### `Core\Db\Transaction->transaction`
@@ -18756,6 +18795,14 @@ $rows->columns(): array<Core\Db\Column>
 What the statement described, one `Core\Db\Column` per column and in the server's own order — `PDOStatement::getColumnMeta` asked once for the whole row description rather than once per column, and `mysqli_fetch_fields`.
 
 **Returns** `array<Core\Db\Column>` — The columns. An empty result set has them too: a `select` that matched nothing still described what it would have answered, which is what makes this readable before the rows are.
+
+<a id="core-core-db-stream"></a>
+### `Core\Db\Stream`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-db-row"></a>
 ### `Core\Db\Row`
