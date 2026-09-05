@@ -457,7 +457,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: asan
-      - name: ASAN test (runtime, backend and library)
+      - name: ASAN test (runtime and library)
         env:
           RUSTFLAGS: -Zsanitizer=address
           ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=1
@@ -465,5 +465,20 @@ jobs:
           cargo +nightly test --target x86_64-unknown-linux-gnu \
             --features nvs-runtime/sanitizer \
             -p nvs-runtime \
-            -p nvs-codegen \
             -p nvs-stdlib
+      # The backend runs in the same sanitizer with one option off, and it is not a preference.
+      # `detect_stack_use_after_return` moves an address-taken local into a heap fake frame, and
+      # `nvs-codegen`'s `stack_limit` tests arm ADR 0020 § 1's window from the address of one — so
+      # with it on, the window lands megabytes away from the stack the JIT'd frames actually walk
+      # down, and a runaway recursion either trips on its first frame or overflows for real. A JIT
+      # frame is not instrumented, so there is no spelling of that measurement the fake stack does
+      # not break. Everything else ASAN checks is still on here; only this crate loses the
+      # use-after-return half, which is the half that cannot coexist with measuring a real stack.
+      - name: ASAN test (backend)
+        env:
+          RUSTFLAGS: -Zsanitizer=address
+          ASAN_OPTIONS: detect_leaks=0:detect_stack_use_after_return=0
+        run: |
+          cargo +nightly test --target x86_64-unknown-linux-gnu \
+            --features nvs-runtime/sanitizer \
+            -p nvs-codegen

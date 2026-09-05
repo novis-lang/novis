@@ -5,6 +5,13 @@
 //! module doc gives: what is under test is that the compare is emitted, that a
 //! leaf skips it, and that a runaway reaches a report, none of which should
 //! depend on how much stack `cargo test` happened to hand this thread.
+//!
+//! **The runaway's base must be an address on the real stack**, which is why
+//! CI runs this crate under ASAN with `detect_stack_use_after_return` off and
+//! the rest of the workspace with it on. That option moves an address-taken
+//! local into a heap fake frame, so `&ctx` would arm a window megabytes from
+//! the stack the JIT'd frames walk down — and a JIT frame is not instrumented,
+//! so there is no spelling of the measurement that survives it.
 
 mod common;
 
