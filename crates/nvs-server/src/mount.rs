@@ -525,7 +525,7 @@ pub fn carry(mount: &Mounted, inbound: &mut Inbound) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, BTreeSet};
 
     /// The files the cases describe, with a canonical name for a link.
     #[derive(Default)]
@@ -564,6 +564,78 @@ mod tests {
                 }
             }
             self.files.contains(&out).then_some(out)
+        }
+    }
+
+    /// The same described filesystem, read the way a **boot** reads one, so that
+    /// a case can expand § 3's globs over exactly the tree its requests then
+    /// probe through [`Existing`] above.
+    ///
+    /// It mirrors `nvs-config`'s own `tests/mount.rs` reader, which is where what
+    /// each of these methods means is pinned. The one difference from the
+    /// [`Existing`] half is that `list` reports directories as well as files: a
+    /// glob's `*` is a directory listing, and a reader that returned only files
+    /// would expand nothing.
+    impl nvs_config::resolve::Files for Fake {
+        fn trust(&self, path: &Path) -> Result<PathBuf, nvs_config::trust::Untrusted> {
+            self.canonical(path)
+                .map_err(nvs_config::trust::Untrusted::Unreadable)
+        }
+
+        fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
+            let mut out = PathBuf::new();
+            for component in path.components() {
+                match component {
+                    std::path::Component::CurDir => {}
+                    std::path::Component::ParentDir => {
+                        out.pop();
+                    }
+                    other => {
+                        out.push(other.as_os_str());
+                        if let Some(target) = self.links.get(&out) {
+                            out.clone_from(target);
+                        }
+                    }
+                }
+            }
+            if self.exists(&out) {
+                Ok(out)
+            } else {
+                Err("no such file or directory".to_string())
+            }
+        }
+
+        fn read(&self, _path: &Path) -> Result<String, String> {
+            Err("no case here reads a mounted file".to_string())
+        }
+
+        fn read_bytes(&self, _path: &Path) -> Result<Vec<u8>, String> {
+            Err("no case here reads a mounted file".to_string())
+        }
+
+        fn exposure(&self, _path: &Path) -> Option<String> {
+            None
+        }
+
+        fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
+            let mut out: Vec<PathBuf> = Vec::new();
+            for path in &self.files {
+                let Ok(rest) = path.strip_prefix(dir) else {
+                    continue;
+                };
+                let Some(first) = rest.components().next() else {
+                    continue;
+                };
+                let child = dir.join(first.as_os_str());
+                if !out.contains(&child) {
+                    out.push(child);
+                }
+            }
+            Ok(out)
+        }
+
+        fn exists(&self, path: &Path) -> bool {
+            self.files.iter().any(|file| file.starts_with(path))
         }
     }
 
@@ -880,5 +952,299 @@ mod tests {
         let unmounted = Inbound::new("GET", "/orders/17", "");
         assert_eq!(unmounted.mount_prefix(), "");
         assert!(words(&unmounted).is_empty());
+    }
+
+    /// ADR 0097 § 2's governing rule, as a **set equality** rather than as a list
+    /// of refusals: the paths a booted server can execute are exactly the entries
+    /// [`nvs_config::mount::expand`] enumerated, no more and no fewer.
+    ///
+    /// A refusal case pins one spelling, and there is always another spelling.
+    /// This sweeps a generated corpus instead — every one- and two-segment path
+    /// over an alphabet holding the fixture's own names, `..` and its encoding,
+    /// an encoded separator, a bad escape, the empty segment and a symlink out of
+    /// the tree, asked on every host in the table and on one in no mount — and
+    /// compares the **set** of files [`Table::resolve`] ever answers `Run` with
+    /// against the expanded one. Both directions are the assertion: an answer
+    /// outside the set is § 2 broken, and an entry the sweep never reaches means
+    /// the equality held over a corpus too thin to have shown it.
+    ///
+    /// The equality is stated at the production pair — what [`Table::from_config`]
+    /// reads from a tree writing neither switch, and what ADR 0091 § 3a gives
+    /// `production`. Development's pair is asserted separately and more weakly,
+    /// because § 4 step 4 *deliberately* widens the set to the `.nvs` files inside
+    /// a mount root: what is checked there is where the widening stops — never a
+    /// `.nvs` elsewhere under `[server] root`, and never one a symlink points at
+    /// outside it.
+    #[test]
+    fn the_executable_path_set_after_boot_equals_the_expanded_mount_table() {
+        let fs = Fake::with(&[
+            "/www/blog/public/index.nvs",
+            "/www/blog/public/style.css",
+            "/www/blog/public/admin.nvs",
+            // A `.nvs` under `[server] root` and outside every mount root: no
+            // switch may reach it, because no mount points at it.
+            "/www/blog/src/Post.nvs",
+            "/www/shop/public/index.nvs",
+            // A directory the glob finds no entry in, so it is not a mount.
+            "/www/notes/README.md",
+            // Outside `[server] root` altogether, reachable only through the link.
+            "/secret/pwned.nvs",
+        ])
+        .linking("/www/blog/public/away", "/secret");
+
+        // Two blocks over one glob: every module reachable by prefix and by host,
+        // which is § 3's two spellings of a capture and gives step 1 both of its
+        // passes something to choose between.
+        let config: Config = toml::from_str(
+            "[server]\nroot = \"/www\"\n\n\
+             [[server.mount]]\nscan = \"*/public/index.nvs\"\nprefix = \"/{1}\"\n\n\
+             [[server.mount]]\nscan = \"*/public/index.nvs\"\nhost = \"{1}.example.com\"\n",
+        )
+        .expect("the fixture tree deserializes");
+        let mounts = nvs_config::mount::expand(&config, &BTreeMap::new(), &fs)
+            .unwrap_or_else(|why| panic!("the boot refused the fixture: {}", why.message));
+        assert_eq!(mounts.len(), 4, "two modules, each by prefix and by host");
+        let enumerated: BTreeSet<PathBuf> = mounts.iter().map(|one| one.entry.clone()).collect();
+        assert_eq!(enumerated.len(), 2, "four rows naming two entry files");
+
+        let segments = [
+            "blog",
+            "shop",
+            "notes",
+            "public",
+            "src",
+            "index.nvs",
+            "index.NVS",
+            "admin.nvs",
+            "style.css",
+            "Post.nvs",
+            "pwned.nvs",
+            "README.md",
+            "away",
+            "secret",
+            "..",
+            "%2e%2e",
+            ".",
+            "",
+            "%2f",
+            "a%2fb",
+            "%zz",
+        ];
+        let mut corpus: Vec<String> = vec!["/".to_string(), "/healthz".to_string()];
+        for one in segments {
+            corpus.push(format!("/{one}"));
+            corpus.push(format!("/{one}/"));
+            for two in segments {
+                corpus.push(format!("/{one}/{two}"));
+                // The same pairs again below a prefix that matches, so that step
+                // 2 has stripped something before steps 3 to 5 see them.
+                corpus.push(format!("/blog/{one}/{two}"));
+            }
+        }
+        let hosts = [
+            None,
+            Some("blog.example.com"),
+            // A host mount is matched case-insensitively, and a host in no mount
+            // falls through to step 1's second pass.
+            Some("BLOG.example.com"),
+            Some("shop.example.com"),
+            Some("nobody.example.com"),
+        ];
+        let sweep = |table: &Table| {
+            let mut run: BTreeSet<PathBuf> = BTreeSet::new();
+            let mut sent: BTreeSet<PathBuf> = BTreeSet::new();
+            for host in hosts {
+                for path in &corpus {
+                    let Some(selected) =
+                        table.resolve(host, path, &fs).and_then(Resolved::selection)
+                    else {
+                        continue;
+                    };
+                    match selected.what {
+                        What::Run(file) => run.insert(file),
+                        What::Static(file) => sent.insert(file),
+                    };
+                }
+            }
+            (run, sent)
+        };
+
+        // § 2, whole: what the server can run after boot *is* the expanded table.
+        let (booted, sent) = sweep(&Table::from_config(mounts.clone(), &config));
+        assert_eq!(booted, enumerated, "the executable set is the mount table");
+        assert!(sent.is_empty(), "a tree writing no `static` serves no file");
+
+        // Development's pair, where step 4 widens the set on purpose.
+        let roots: Vec<PathBuf> = mounts.iter().map(|one| one.root.clone()).collect();
+        let (widened, sent) = sweep(&Table::new(mounts.clone(), Dispatch::Path, true));
+        for file in &widened {
+            assert!(is_nvs(file), "steps 4 and 5 answer a `.nvs`: {file:?}");
+            assert_eq!(
+                fs.file(file).as_ref(),
+                Some(file),
+                "a file on disk: {file:?}"
+            );
+            assert!(
+                roots.iter().any(|root| file.starts_with(root)),
+                "inside a mount root: {file:?}"
+            );
+        }
+        assert!(
+            widened.is_superset(&enumerated) && widened.contains(&p("/www/blog/public/admin.nvs")),
+            "step 4 adds the `.nvs` files inside a root, and step 5 still answers"
+        );
+        // The four ways out of a root the corpus spells, all four of them closed:
+        // `..`, its encoding, an encoded separator, and the symlink.
+        assert!(
+            !widened.contains(&p("/www/blog/src/Post.nvs")),
+            "a `.nvs` under `[server] root` and outside every mount root"
+        );
+        assert!(
+            !widened.contains(&p("/secret/pwned.nvs")),
+            "a `.nvs` the symlink points at outside the tree"
+        );
+        // And § 4's last sentence, over the same sweep: static serving reaches
+        // the same roots and never hands back a `.nvs` as source.
+        for file in &sent {
+            assert!(
+                !is_nvs(file),
+                "a `.nvs` is never served as source: {file:?}"
+            );
+            assert!(
+                roots.iter().any(|root| file.starts_with(root)),
+                "inside a mount root: {file:?}"
+            );
+        }
+        assert!(sent.contains(&p("/www/blog/public/style.css")));
+    }
+
+    /// M7's path traversal suite — ADR 0097 § 2 and § 4 step 3, one row per
+    /// published technique rather than one case per file.
+    ///
+    /// The suite is run at the **widest** reading of the table, `dispatch =
+    /// "path"` with `[server] static` on, because that is the only pair under
+    /// which a remainder reaches the filesystem at all: production answers every
+    /// row with the entry without looking, so a suite asserted there would pass
+    /// against a step 3 that had no containment check in it.
+    ///
+    /// **Every row's expected answer is the mount's entry**, which is § 4 step 5.
+    /// That single expectation is the whole rule: a traversal attempt is not
+    /// repaired into a neighbouring file and is not refused with a status of its
+    /// own — it reaches the application as a path the application can 404, and
+    /// reaches the filesystem not at all. It also asserts the static half by
+    /// construction, since a row that escaped would have to answer
+    /// [`What::Static`] to be sent: [`crate::statics::send`] is handed the
+    /// `PathBuf` this table chose and never sees a request target, so there is no
+    /// second place for a spelling to be re-derived.
+    #[test]
+    fn the_path_traversal_suite_passes() {
+        let fs = Fake::with(&[
+            "/www/public/index.nvs",
+            "/www/public/style.css",
+            "/www/public/admin.nvs",
+            "/www/public/assets/logo.png",
+            // The three targets every row below is trying to reach: a file
+            // beside the mount root, a `.nvs` inside `[server] root` but outside
+            // the root, and a file outside the tree altogether.
+            "/www/private/secrets.env",
+            "/www/src/Post.nvs",
+            "/etc/passwd",
+        ])
+        .linking("/www/public/away", "/www/private")
+        .linking("/www/public/assets/up", "/etc");
+        let entry = p("/www/public/index.nvs");
+        let table = Table::new(
+            vec![
+                mount("/", None, "/www/public/index.nvs"),
+                mount("/blog", None, "/www/public/index.nvs"),
+            ],
+            Dispatch::Path,
+            true,
+        );
+
+        // Each row is `(the technique, the target it is written against)`.
+        let suite = [
+            ("dot-dot, plainly", "/../private/secrets.env"),
+            ("dot-dot, twice", "/../../etc/passwd"),
+            (
+                "dot-dot below a real directory",
+                "/assets/../../private/secrets.env",
+            ),
+            (
+                "dot-dot after the prefix was stripped",
+                "/blog/../../etc/passwd",
+            ),
+            (
+                "dot-dot behind an existing file",
+                "/style.css/../../etc/passwd",
+            ),
+            ("percent-encoded dots", "/%2e%2e/private/secrets.env"),
+            (
+                "percent-encoded dots, upper case",
+                "/%2E%2E/private/secrets.env",
+            ),
+            ("one dot encoded, one not", "/.%2e/private/secrets.env"),
+            ("the separator encoded too", "/%2e%2e%2fprivate/secrets.env"),
+            ("dots and separator in one segment", "/..%2f..%2fetc/passwd"),
+            (
+                "double encoding, decoded once",
+                "/%252e%252e/private/secrets.env",
+            ),
+            ("the `....//` padding", "/....//private/secrets.env"),
+            (
+                "a path parameter after the dots",
+                "/..;/private/secrets.env",
+            ),
+            ("a backslash as the separator", "/..\\private\\secrets.env"),
+            ("an encoded backslash", "/..%5cprivate%5csecrets.env"),
+            ("an encoded separator alone", "/%2fetc%2fpasswd"),
+            ("a NUL in the name", "/style.css%00.txt"),
+            ("a drive letter", "/C:/Windows/win.ini"),
+            ("a UNC share", "//server/share/passwd"),
+            ("an absolute target", "/%2f%2fetc%2fpasswd"),
+            ("a symlink out of the mount root", "/away/secrets.env"),
+            ("a symlink out of the tree", "/assets/up/passwd"),
+            (
+                "a symlink reached through dots",
+                "/assets/../away/secrets.env",
+            ),
+            ("a `.nvs` outside the mount root", "/../src/Post.nvs"),
+            ("a bare `..` as the whole remainder", "/.."),
+            ("a directory walk, as a default document", "/../private/"),
+        ];
+        for (technique, path) in suite {
+            let what = table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what;
+            assert_eq!(
+                what,
+                What::Run(entry.clone()),
+                "{technique}, spelled {path:?}, must answer § 4 step 5"
+            );
+        }
+
+        // The suite is only worth its length if the same table serves and runs
+        // the files it is supposed to: a reading that refused every remainder
+        // would pass all 26 rows above and nothing here.
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount covers every path")
+                .what
+        };
+        assert_eq!(what("/style.css"), What::Static(p("/www/public/style.css")));
+        assert_eq!(
+            what("/assets/logo.png"),
+            What::Static(p("/www/public/assets/logo.png"))
+        );
+        assert_eq!(what("/admin.nvs"), What::Run(p("/www/public/admin.nvs")));
+        assert_eq!(
+            what("/blog/style.css"),
+            What::Static(p("/www/public/style.css")),
+            "and through the prefix the rows above tried to escape from"
+        );
     }
 }
