@@ -5675,6 +5675,16 @@ is why" — is this file.
   both, which reads as "you wrote no case" rather than as "you wrote it under a `use`". Two tests
   fail together and neither says the word alias. Write the member's FQ spelling at least once per
   case; the surrounding calls may stay aliased, which is what the landed snapshot cases do.
+- **`Core\Request::route()` throws a `LogicError` where there is no request, and a `.nvst` case that
+  catches `RuntimeError` around it does not catch.** The runner fixture
+  `crates/nvs-cli/tests/fixtures/runner/in-process-request.nvs` catches `RuntimeError` and is green,
+  because under `nvs test` the entry only ever runs *with* a request in front of it — so copying that
+  shape into a conformance case, where the outer run has none, fails with the throw escaping. The
+  second half of the same surprise is that the trace's frame pointed at a line inside the `catch`
+  block rather than at the `try`, so the message ("there is no request here — this program is not
+  answering one") is what identifies it and the line number is not. ADR 0012 § 7 is the rule; the
+  general shape is that "no request at all" is a *logic* error in this runtime and "the request sent
+  nothing" is the runtime one.
 
 ## Splitting a file that got too big
 
