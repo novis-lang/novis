@@ -94,7 +94,8 @@
 //!
 //! What is carried is CLDR's **cardinal** rules, as [`RuleSet`]'s arms and the
 //! language-subtag table [`RULES`] maps onto them. Ordinal rules (`1st`,
-//! `2nd`) are a second table and are not here; nothing asks for one yet.
+//! `2nd`) are a second table, [`ORDINALS`], and the section on them below owns
+//! what it carries and what it refuses.
 //!
 //! **A language whose rules are not carried throws rather than falling back.**
 //! There is an obvious cheaper design — answer English's `one`/`other` for
@@ -126,7 +127,7 @@
 //!
 //! CLDR's ordinal rules are a second table — the forms `1st`, `2nd`, `3rd`,
 //! `4th` take, rather than the forms `1 file`/`2 files` take — and
-//! [`ORDINAL_CATEGORY`]'s member reads it. They answer with the same six
+//! the member [`ORDINAL_MEMBER`] names reads it. They answer with the same six
 //! categories, so no second enum is registered: `Two` is Welsh's `2il` here and
 //! Welsh's two-thing form there, and which one a program meant is which member
 //! it called.
