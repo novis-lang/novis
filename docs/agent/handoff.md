@@ -2,67 +2,67 @@
 
 ## State
 
-**Goal 6, M7 — ADR 0083 § 7's acceptance check runs four of its six tests.** On disk:
-`every_connection_bound_is_finite_with_nothing_configured` at `crates/nvs-server/src/bounds.rs:213`,
-`a_connection_over_its_budget_is_closed_with_the_defined_code_not_oom`,
-`a_connection_whose_isolate_panics_is_contained` and now
-`reload_and_shutdown_close_every_connection_after_the_drain`, the last three in
-`crates/nvs-server/src/serve.rs`'s test module.
+**Goal 6, M7 — ADR 0083 § 7's four `-p nvs-server` names are green and the check is split.**
+`every_connection_bound_is_finite_with_nothing_configured` (`crates/nvs-server/src/bounds.rs:213`), the
+over-budget close, the contained panic and `reload_and_shutdown_close_every_connection_after_the_drain`
+(the last three in `crates/nvs-server/src/serve.rs`'s test module) are the whole of that check now.
 
-**The drain's close is the connection's own, taken at its next wait.** Neither way of reaching one
-from outside survives: cancelling the isolate tears its task down at its next safepoint, which is
-the reset § 7 asks to replace, and the socket moved into the isolate at the `101` so there is no
-second handle to write a frame through. So the drain is one more instant in `Framed::arm`'s minimum
-and `Closing::ShuttingDown` — 1001, new in `crates/nvs-runtime/src/peer.rs` — is one more answer in
-`Framed::expiry`'s. `crates/nvs-server/src/socket.rs`'s `receive` is the whole argument, including
-why the period runs from when a connection *sees* the drain. The period is `Connection::drain`,
-1 second, `crates/nvs-server/src/bounds.rs`.
+**The two ADR 0017 names moved to a second `[[check]]`, `-p nvs-cli`, and both are blocked on a
+mechanism rather than on their filing.** `crates/nvs-cli/src/script.rs`'s `Compiler` is the tree's only
+in-memory unit table, and it compiles once per written path and never revalidates: `[opcache] validate`
+and `revalidate_freq` deserialize in `nvs_config::tree` with nothing reading them, and
+`nvs_config::cache::UnitKey` — ADR 0017's `{ path, content_hash, env_hash }` — has no caller outside
+`nvs-config`'s own tests. So § 7's second bullet is unfalsifiable against this tree: every holder keeps
+its `Program` across an edit when nothing can observe one. `script.rs`'s module doc now carries that as
+a `# Known gap` section, which is its one home; the new check's comment carries the filing argument.
 
-**The remaining two tests are ADR 0017's and `-p nvs-server` cannot host them.** That crate has no
-compiled unit at all: `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config`,
-`nvs-runtime` and `jiff`, its door takes a handler closure, and the per-mount unit and its swap live
-in `crates/nvs-cli/src/serve.rs` (module doc line 57, "one compiled unit per mounted entry"). The
-check's `args` is what is wrong, and the group below is that repair plus the two tests.
+**Stage 7's `nvs-server (hot reload)` check is misfiled the same way** —
+`a_swap_never_blocks_a_request_serving_core` and `revalidation_is_lazy_and_rate_capped` are the same
+cache's, and `the_validate_default_is_selected_by_the_run_mode` is `nvs_config::mode`'s ADR 0091 § 3a
+row. Left alone: which crate each moves to is decided by where the swap lands, which is the group below.
 
-**Known gap: a connection already parked on a read when the drain begins does not see it until that
-read ends**, which is `Connection::idle` away at worst — the same wake seam a topic delivery needs
-(`nvs_runtime::Ctx::deliver`'s known gap), because a parked `Read` ends on its deadline, on
-readiness or on a cancellation and on nothing else. `socket.rs`'s `receive` states it.
-
-**`orient.py` printed ADR 0083 §§ 1-4 but not § 7**, which is the section this item implements, and
-still does not print `crates/nvs-host/src/scheduler.rs`, where cancellation's "dies at its next
-safepoint" is stated. `[context] adrs` wants `0083 § 7`; `[context] modules` wants
-`nvs-host/src/scheduler.rs`.
+**`[context]` gained `0083 §7` and `crates/nvs-cli/src/script.rs` and lost `0083 §§ 1-4`** — the driver
+stops at the first failing check, so every 6b check above § 7's is passing and those sections are spent.
+`docs/agent/goals/6-server.toml` is back in sync with the live file, which it had not been since
+2026-09-04.
 
 ## Next group
 
-**The check's last two tests, and the filing repair they need first. The file set is
-`docs/agent/loop-goal.toml`, `crates/nvs-cli/src/serve.rs` and `crates/nvs-cli/Cargo.toml`.** Take
-the triage first: it decides where the other two are written.
+**ADR 0017's swap, then the two names it unblocks. The file set is `crates/nvs-cli/src/script.rs`,
+`crates/nvs-cli/src/serve.rs` and `crates/nvs-config/src/cache.rs`.** The first slice is the whole of
+it; the two tests are cheap once it lands, which is why the group is three.
 
-- [ ] **Split ADR 0083 § 7's check at `docs/agent/loop-goal.toml:3817`** so the two ADR 0017 tests
-      run where a compiled unit exists. Read `crates/nvs-cli/src/serve.rs:57` (the module doc's
-      "one compiled unit per mounted entry, held for the life of the process"),
-      `crates/nvs-cli/src/serve.rs:294` (the resolve that is a cache hit on the unit) and
-      `crates/nvs-cli/src/serve.rs:347` ("both halves of what the selected unit is") before deciding;
-      `crates/nvs-server/Cargo.toml:12` is the manifest that rules the current filing out. Leave the
-      four landed names on the `-p nvs-server` check and give the two a second `[[check]]`.
-- [ ] **`an_open_connection_keeps_its_compiled_unit_across_an_edit`** — ADR 0083 § 7's second
-      bullet over ADR 0017. A connection isolate started against one unit runs on it after the
-      pointer has been swapped; the swap is `crates/nvs-cli/src/serve.rs:294`'s resolve and the
-      isolate is started from `crates/nvs-server/src/serve.rs:1030`, which takes the program it was
-      handed and never re-resolves.
-- [ ] **`a_connection_opened_after_the_swap_runs_the_new_unit`** — the other half, over the fixture
-      the item above builds: the second connection resolves again at
-      `crates/nvs-cli/src/serve.rs:294` and reaches
-      `crates/nvs-server/src/serve.rs:1030` with the *new* program, so it is that slice's second
-      assertion rather than a second set-up.
+- [ ] **Give `Compiler` ADR 0017 § *Decision*'s five steps** — a `PathEntry { content_hash,
+      last_checked }` in front of a unit table keyed by `nvs_config::cache::UnitKey`
+      (`crates/nvs-config/src/cache.rs:143`, whose `new` takes the content digest so the source is read
+      once). `crates/nvs-cli/src/script.rs:105` is the `Compiler` and
+      `crates/nvs-cli/src/script.rs:118` is the `compiled` that answers from the map forever today.
+      **Single-core collapses most of the ADR**: that cache is a `RefCell<HashMap>` reached from one
+      coroutine, so there is no compile pool, no `Compiling`/`Ready` broadcast and no single-flight —
+      steps 1-5 are a `stat`, a lookup, a recompile and a pointer write, all synchronous, and step 4's
+      "only if a fresher revalidation has not won" is unreachable rather than wrong. Say so in the doc
+      rather than implementing the machinery. `[opcache] validate` and `revalidate_freq` are at
+      `crates/nvs-config/src/tree.rs:910`; `Compiler` is `Default`-constructed at
+      `crates/nvs-cli/src/serve.rs:263`, `crates/nvs-cli/src/main.rs:1241` and
+      `crates/nvs-cli/src/runner.rs:351`, so reading them means a constructor and three call sites.
+      Leave the mode-selected `validate` default (ADR 0017's own § *Decision*, last paragraph but two)
+      to stage 7 — it is `nvs_config::mode`'s row, not this cache's.
+- [ ] **`an_open_connection_keeps_its_compiled_unit_across_an_edit`** — ADR 0083 § 7's second bullet,
+      first half, as a `-p nvs-cli` test. `crates/nvs-cli/src/script.rs:219`'s `granting_ctx` is the
+      context a fixture that spawns needs, and `crates/nvs-cli/src/serve.rs:294` is the per-request
+      resolve that must go on answering the old unit while the file underneath has changed.
+- [ ] **`a_connection_opened_after_the_swap_runs_the_new_unit`** — the other half, over the same
+      fixture: resolve once, edit, resolve again, and assert the second answer is the new code.
+      `crates/nvs-cli/src/script.rs:118` is the one seam both assertions read.
 
 ## Backlog
 
-- None of § 7's seven bounds has a `[server]` key — `crates/nvs-server/src/bounds.rs`'s § *Known gap*
-  names where they belong.
-- The wake seam: one slice closes both the drain's reach into a parked read and a topic delivery's
-  (`nvs_runtime::Ctx::deliver`'s known gap).
-- ADR 0083 § 5's `200 text/event-stream` response head is still unwritten — `serve_connection`'s doc
-  says so.
+- Stage 7's `nvs-server (hot reload)` check needs the same split its comment now predicts —
+  `docs/agent/loop-goal.toml`, the block at `stage = "7 operator surface"`.
+- `crates/nvs-cli/src/serve.rs:570` claims a scheduled entry "picks up an edited script at the next
+  fire"; that is false until the swap lands, and it is one sentence to fix when it does.
+- A connection already parked on a read does not see a drain until that read ends —
+  `crates/nvs-server/src/socket.rs`'s `receive` states it; the same wake seam `nvs_runtime::Ctx::deliver`
+  wants.
+- `[context] modules` still does not print `crates/nvs-host/src/scheduler.rs`; the drain item that
+  wanted it is landed, so add it only when a session needs cancellation's safepoint rule again.

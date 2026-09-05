@@ -5581,6 +5581,19 @@ is why" — is this file.
   drain caps the wait and the close is what the timeout becomes, which is what § 7's third bullet
   asks for anyway. When a connection-side behaviour reads the drain, assume it is on from the first
   line of every existing case rather than from the moment a shutdown would really begin.
+- **A `loop-goal.toml` check can be misfiled *and* blocked at once, and the second half is settled by
+  grepping the ADR's own key type for a production caller.** ADR 0083 § 7's last two names were filed
+  `-p nvs-server`, which the sibling bullets' one-call manifest check rules out immediately — no front
+  end there, so no compiled unit to keep or swap. Moving them to `nvs-cli`, where `src/script.rs`'s
+  `Compiler` is the tree's only in-memory unit table, looks like the whole repair and is not: that cache
+  compiles once per written path and never revalidates, so a test of "an open connection keeps its unit
+  across an edit" passes by pinning the rule's *absence*. What said so in one call was
+  `grep -rn UnitKey crates/` — ADR 0017's `{ path, content_hash, env_hash }` key is `pub` in
+  `nvs-config` with callers in that crate's own tests and nowhere else, and `[opcache] validate` /
+  `revalidate_freq` deserialize in `nvs_config::tree` with nothing reading them. The general shape: a
+  decided-but-unlanded mechanism leaves exactly that fingerprint — the ADR's types and directives
+  present, no production caller — and it is cheaper to find than to read the module that would use them,
+  whose doc may state the missing behaviour as settled policy rather than as a gap. This one did.
 
 ## Splitting a file that got too big
 
