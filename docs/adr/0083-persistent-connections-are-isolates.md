@@ -211,6 +211,18 @@ place two spellings could appear for one job:
 - **A stream that outlives its request is a connection isolate.** Notifications, a live dashboard, anything
   a client keeps open across page lifetimes.
 
+**The isolate is the same; the door is not.** § 1's slot is offered only where the server framed an HTTP
+upgrade, because a WebSocket connection *takes the socket* — the upgrade is the hand-over, and the isolate
+starts after the request's own future has ended. An SSE connection takes nothing: its response is an
+ordinary `200 text/event-stream` that must still be **sent**, and what the isolate writes into is that
+response's body, while the connection future is still running. The two hand-overs are different objects
+arriving at different moments, so they are **two cells on the request carrier and not one** — a single slot
+carrying both would be a slot the connection has to ask the *kind* of before it could use it, which is a tag
+standing in for a distinction the types already make. What "the same model" means here is therefore the
+isolate — a root, its own arena, its own budget, `send` and no `receive` — and never the door. `Core\Sse`'s
+cell is offered to **every** request the server runs, which is § 1's fail-closed rule read against a
+different hand-over rather than a relaxation of it: a request with no cell is one no server is answering.
+
 ### 6. The two things that outlive a response, and how they differ
 
 | | `Core\Task::afterResponse` ([0072](0072-core-task-structured-concurrency.md)) | A connection isolate (this ADR) |

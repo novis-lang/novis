@@ -5492,6 +5492,24 @@ is why" — is this file.
   loosening the payload: 64 KiB against a 2 MiB signal still fails a retained arena by three
   orders of magnitude, where an assertion tuned to the exact number is a false failure the first
   time either isolate grows a field.
+- **A `Core` member's throw does not come back from `nvs_runtime::call` — it is on the
+  context, and the `Err` is a bare status integer.** A `-p nvs-stdlib` test asserting the
+  wording of a refusal wrote `format!("{refused:?}").contains(…)` off the `expect_err`
+  value and read `the refusal did not name the missing connection: 1`, which looks like the
+  member threw the wrong thing rather than like the assertion reading the wrong place.
+  `Fault::thrown` records the message on the context and answers the status the caller
+  reports, so the reader is `ctx.pending()` — an `Option<Cow<'_, str>>`, taken *after* the
+  call and `into_owned()` if the context is borrowed again. `crates/nvs-stdlib/src/socket.rs`'s
+  `an_upgrade_on_a_request_no_connection_offered_a_slot_for_is_refused` is the shape.
+- **`conformance_coverage`'s error-path gate reads the *eight lines above the throw*, and a
+  `match` arm is its own site.** A member whose refusals all stand behind a fact no `.nvst`
+  case can produce — here a slot only a served connection is offered — owes each of them a
+  "no case can reach this" comment plus the `#[test]` that asserts it instead, and one
+  declaration above a `map_err(|error| match …)` does **not** cover the arms inside it: the
+  gate reported `socket.rs:311` after a comment placed three lines above the `resolve` call,
+  because the `ResolveError::Refused` arm is eight lines further down. Put the comment on the
+  arm. The other half worth knowing: the gate names the message prefix rather than the line, so
+  two arms formatting the same prefix are one entry and go green together.
 
 ## Splitting a file that got too big
 
