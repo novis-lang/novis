@@ -1,0 +1,37 @@
+--TEST--
+`Core\Sse::upgrade` accepts ADR 0006's second entry spelling — a static method reference — and it reaches the same body the path form does rather than any compile question — ADR 0083 §§ 2 and 5
+--FILE--
+<?nvs
+// ADR 0083 § 5 gives this member "the identical clause" its sibling takes, so
+// the operand is § 2's under ADR 0006 § *Decision*: a file path, or a static
+// method whose parameters `args:` binds by name. This case is the accepted
+// half of that rule at the second door;
+// `an-upgrade-refuses-an-entry-it-cannot-see-the-function-behind.nvst` is the
+// refused half, written once at the first.
+class Feed {
+    public static function run(string $room): void {
+        echo "ran ", $room, "\n";
+    }
+}
+
+// A script run from the command line is a request no server is answering, so
+// what says the entry was *accepted* is that the member reaches its own body
+// and reports the missing cell from there -- byte for byte the report the path
+// form gets, never a diagnostic and never a silent `void`. The cell is asked
+// about before the entry is read, which is why both spellings answer alike;
+// `nvs_stdlib::socket`'s § *The method form waits on a name* owns what this
+// form still cannot prepare once there is a cell to prepare it into, and it is
+// one rule for both doors.
+try {
+    Core\Sse::upgrade(Feed::run(...), args: {room: "lobby"});
+    echo "opened\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The entry is *named*, not called: `ran lobby` is nowhere above, because the
+// isolate § 5 opens is the only place that body ever runs.
+echo "not run here\n";
+--EXPECT--
+`Core\Sse::upgrade` needs a request a server is answering and this is not one: every request the server runs is offered an event stream, and a program run from the command line, a `spawn script` child and a `#[Test]` method are not requests
+not run here

@@ -262,6 +262,7 @@ mod server;
 mod session;
 mod signed_cookie;
 mod socket;
+mod sse;
 mod storage;
 pub mod str;
 mod taint;
@@ -401,6 +402,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| session::address(symbol))
         .or_else(|| signed_cookie::address(symbol))
         .or_else(|| socket::address(symbol))
+        .or_else(|| sse::address(symbol))
         .or_else(|| storage::address(symbol))
         .or_else(|| taint::address(symbol))
         .or_else(|| task::address(symbol))

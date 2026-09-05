@@ -16,13 +16,19 @@
 //! connection to start. What is still missing behind it is the framing — RFC
 //! 6455 over the socket, and the `101` that would precede it — so an upgrade
 //! prepared here opens a root isolate with no peer attached to it yet.
-//! `Core\Sse` (§ 5) and `Core\Topic` (§ 4) are unregistered for that reason and
-//! are this module's other two known gaps, alongside *the method form waits on
-//! a name* below. § 5's own door is decided in that ADR's body and not here:
-//! an SSE connection takes no socket, so it is offered a **second cell** on the
-//! carrier — one every request the server runs gets — rather than
-//! [`nvs_runtime::UpgradeSlot`], which exists to carry a socket hand-over the
-//! server framed.
+//! `Core\Topic` (§ 4) is unregistered for that reason and is this module's
+//! other known gap, alongside *the method form waits on a name* below.
+//!
+//! `Core\Sse` (§ 5) is [`crate::sse`], and it is a module of its own rather
+//! than a second class here because what § 5 splits is the **door** and never
+//! the isolate: an SSE connection takes no socket, so it is offered a second
+//! cell on the carrier — [`nvs_runtime::SseSlot`], one every request the server
+//! runs gets — rather than [`nvs_runtime::UpgradeSlot`], which exists to carry
+//! a socket hand-over the server framed. Everything *behind* the door is one
+//! thing and is shared outright: [`entry_program`] resolves either member's
+//! operand, and [`retained`] and [`release_crossed`] are the two halves of
+//! either one's crossing. Which is why the sections below say `this member`
+//! where they mean both, and are the home of the reasoning for both.
 //!
 //! There is no [`crate::registry::CAPABILITIES`] row, and that is a statement
 //! about where the grant is asked rather than about the member: the entry path
@@ -275,12 +281,16 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// refuses every other spelling with `E0802` where it is written — so a third
 /// tag here is a compiler bug and not a program's.
 ///
+/// `member` is the caller's own spelling — `Core\Socket::upgrade` or
+/// `Core\Sse::upgrade` — because a refusal names the member a program wrote and
+/// the two doors share this body.
+///
 /// # Errors
 ///
 /// Everything [`nvs_runtime::script::resolve`] refuses, in `spawn script`'s own
-/// wording with this member's name in front of it, plus the method form's
-/// refusal the module doc's *the method form waits on a name* owns.
-fn entry_program(ctx: &Ctx, entry: Value) -> Result<Program, Fault> {
+/// wording with `member` in front of it, plus the method form's refusal the
+/// module doc's *the method form waits on a name* owns.
+pub(crate) fn entry_program(ctx: &Ctx, entry: Value, member: &str) -> Result<Program, Fault> {
     // No case can reach this, and no case can reach any refusal below it: every
     // one of them stands *after* the slot, and a `.nvst` case runs a script
     // nothing offered a connection to, so the missing slot is the only report
@@ -289,11 +299,11 @@ fn entry_program(ctx: &Ctx, entry: Value) -> Result<Program, Fault> {
     // for this one and `an_entry_a_resolver_refuses_is_a_throw_the_program_catches`
     // for the two below.
     let Some(path) = entry.as_text() else {
-        return Err(Fault::thrown(
-            "`Core\\Socket::upgrade` cannot open a connection on a static method entry yet: a \
-             `callable` carries its arity and its parameter tags but not its parameter names, \
-             and ADR 0006 binds `args:` by name. Name the file the connection runs instead",
-        ));
+        return Err(Fault::thrown(format!(
+            "`{member}` cannot open a connection on a static method entry yet: a `callable` \
+             carries its arity and its parameter tags but not its parameter names, and ADR 0006 \
+             binds `args:` by name. Name the file the connection runs instead"
+        )));
     };
     // ADR 0118 § 2's door is inside `resolve` and not here, exactly as it is
     // for the sibling construct: a `Program` is what a spawn was after, so the
@@ -305,15 +315,14 @@ fn entry_program(ctx: &Ctx, entry: Value) -> Result<Program, Fault> {
         // An embedder that installed none — `nvs_core_script_spawn`'s reading
         // unchanged, and not something a `catch` should paper over.
         ResolveError::NoResolver => Fault::fatal(format!(
-            "`Core\\Socket::upgrade('{path}')` needs a script resolver on this thread and there \
-             is none"
+            "`{member}('{path}')` needs a script resolver on this thread and there is none"
         )),
         // No case can reach this — see above — and
         // `an_entry_a_resolver_refuses_is_a_throw_the_program_catches` is the
         // `#[test]` that asserts it instead.
         ResolveError::Refused(message) => Fault::thrown_as(
             ThrownClass::Runtime,
-            format!("`Core\\Socket::upgrade('{path}')`: {message}"),
+            format!("`{member}('{path}')`: {message}"),
         ),
         // Already a whole sentence naming the capability and the path (ADR 0118
         // § 5), so it is thrown as written rather than framed twice.
@@ -333,7 +342,7 @@ fn entry_program(ctx: &Ctx, entry: Value) -> Result<Program, Fault> {
     reason = "the argument is live for this frame, being one the caller is \
               holding a reference to for the length of the call"
 )]
-fn retained(value: Value) -> Value {
+pub(crate) fn retained(value: Value) -> Value {
     // SAFETY: `value` is an argument slot of a running helper frame, so the
     // caller's own reference is what keeps the payload alive across this call.
     unsafe { value.retain() };
@@ -346,7 +355,7 @@ fn retained(value: Value) -> Value {
     reason = "the reference released is the one `copy_graph` answered with and \
               handed to this frame, which no slot took"
 )]
-fn release_crossed(value: Value) {
+pub(crate) fn release_crossed(value: Value) {
     // SAFETY: this frame owns the reference `copy_graph` returned and the slot
     // refused, and nothing else points at it.
     unsafe { value.release() };
@@ -386,7 +395,7 @@ nvs_runtime::nvs_helper! {
                      one",
                 )
             })?;
-        let program = entry_program(ctx, args[0])?;
+        let program = entry_program(ctx, args[0], "Core\\Socket::upgrade")?;
         // No case can reach this: it stands after the slot, and a `.nvst` case
         // runs a script no connection offered one to.
         // `an_args_value_that_cannot_cross_is_refused_before_the_slot_is_filled`

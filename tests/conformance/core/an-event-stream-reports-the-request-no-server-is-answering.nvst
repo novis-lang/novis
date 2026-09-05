@@ -1,0 +1,32 @@
+--TEST--
+`Core\Sse::upgrade` takes `spawn script`'s operand and refuses a request no server is answering, rather than answering as though a stream had opened — ADR 0083 § 5
+--FILE--
+<?nvs
+// ADR 0083 § 5 makes an event stream the same root isolate § 1 opens, prepared
+// by this member and started by the connection that is still sending the
+// response it writes into. The cell that hand-over is left in is offered to
+// every request a server runs -- and a script run from the command line is not
+// a request a server is answering, so there is none here. The alternative is
+// the one this case exists to refuse: answering `void` and leaving a program
+// to believe its client was going to receive events.
+try {
+    Core\Sse::upgrade("streams/feed.nvs");
+    echo "opened\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The second parameter is optional, and omitting it above is not what was
+// refused -- an entry declaring no parameter needs no `args:`, exactly as
+// `spawn script` with no `with(args:)` clause does. So the same report arrives
+// either way, which is what says the refusal is about the missing request and
+// not about the call's shape.
+try {
+    Core\Sse::upgrade("streams/feed.nvs", args: {room: "lobby"});
+    echo "opened\n";
+} catch (RuntimeError $refused) {
+    echo "refused again\n";
+}
+--EXPECT--
+`Core\Sse::upgrade` needs a request a server is answering and this is not one: every request the server runs is offered an event stream, and a program run from the command line, a `spawn script` child and a `#[Test]` method are not requests
+refused again

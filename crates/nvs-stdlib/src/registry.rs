@@ -1469,6 +1469,12 @@ pub const CLASSES: &[CoreClass] = &[
     // member answers `void` where the ADR writes a returned response, and why
     // three of § 2's four options are absent rather than accepted.
     crate::socket::CLASS,
+    // ADR 0083 § 5, and beside `Core\Socket` because the two are one model with
+    // two doors: the same root isolate, reached through the cell the hand-over
+    // needs. [`crate::sse`] owns why that is a second cell rather than a second
+    // use of the first, and why this member is offered to every request a
+    // server answers where its sibling is offered only to an upgradable one.
+    crate::sse::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the

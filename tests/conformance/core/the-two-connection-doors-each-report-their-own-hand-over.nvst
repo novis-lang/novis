@@ -1,0 +1,49 @@
+--TEST--
+`Core\Socket::upgrade` and `Core\Sse::upgrade` are two doors onto one isolate, so each names the hand-over it is missing rather than one report standing for both — ADR 0083 §§ 1 and 5
+--FILE--
+<?nvs
+// ADR 0083 § 5's decision is that these are two cells on the request carrier
+// and not one: a WebSocket upgrade *takes the socket*, and only a request the
+// server framed an upgrade for has one to give, while an event stream takes
+// nothing and is offered to every request a server answers. A single slot
+// carrying both hand-overs would be a slot the connection has to ask the kind
+// of, and the observable half of that refusal is here -- two members, two
+// reports, neither of which is the other's.
+//
+// This is asserted from a command-line script, where *both* are missing, which
+// is what makes the two reports comparable: the only thing that can differ is
+// what each member asked for.
+try {
+    Core\Socket::upgrade("sockets/chat.nvs");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Sse::upgrade("streams/feed.nvs");
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// And the two are one model behind those doors -- § 5's "the same model
+// without `receive`" -- so what a program writes at either is the same clause:
+// the same operand, the same optional `args:`, and the same `void`. Counting
+// the refusals is how that is said without asserting a third copy of either
+// message: the clause's other shape, written once at each door, and both of
+// them a throw rather than a `void` one of the two answered.
+var $refusals = 0;
+try {
+    Core\Socket::upgrade("sockets/chat.nvs", args: {room: "lobby"});
+} catch (RuntimeError $refused) {
+    $refusals = $refusals + 1;
+}
+try {
+    Core\Sse::upgrade("streams/feed.nvs", args: {room: "lobby"});
+} catch (RuntimeError $refused) {
+    $refusals = $refusals + 1;
+}
+echo $refusals, "\n";
+--EXPECT--
+`Core\Socket::upgrade` needs a connection to upgrade and this request arrived on none: only a request a server framed an upgrade for is offered one
+`Core\Sse::upgrade` needs a request a server is answering and this is not one: every request the server runs is offered an event stream, and a program run from the command line, a `spawn script` child and a `#[Test]` method are not requests
+2

@@ -42,26 +42,26 @@
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 6 — the built-in server, M7 — is running.**  **`crates/nvs-db`'s PostgreSQL
-> is whole**, §§ 3-13.  § 9's type map decodes and § 7 nests as a `SAVEPOINT`. **`Core\Db` has
-> opened**: § 18's three and § 4's four. **`queryAs<T>` hydrates**, and § 6's *request* converts.
-> **§ 13's pool is complete**, **§ 2's `[queue]` resolves at boot**, **`nvs queue migrate` applies §
-> 2's schema; a worker runs on all three**.  **Goals 1-5, M4 closed**. **`crates/nvs-server` runs an
-> h1 request as goal 2's `Isolate`**: a coroutine per connection, `hyper` under `block_on`; `nvs
-> serve` boots the whole mount table on one core and § 4's static policy sends a file;
-> `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic against the budget,
-> `503` before an isolate; § 6's walk decides the peer, `400` on a bad token; § 8's accept backs
-> off, § 5's drain answers the probe and `isDraining()`; `Core\Response` has seven, `Core\Request`
-> thirteen, an upload walks as parts; the door carries the body; every response carries ADR 0074 §
-> 1's set, § 2 whole; a request is matched once, `route()` and `methodsFor` answer, the door reads
-> it for CSRF and the label; a `decimal`, `Core\Uuid`, a literal union and an enum case convert as
-> captures; § 7's mount answers a class and `E0801` refuses `echo` beside one. **ADR 0139's session
-> is whole**: `[session]` is shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends
-> it. **Stage 10's corpus opened**: §§ 5-7's bindings, naming and flag. **ADR 0073's ticker fires**:
-> a root isolate, § 6's `overlap` whole; `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse`
-> drains detached; § 7's cap counts trees; ADR 0076: the trace continues, both blocks boot, a core
-> meters § 1's nine under § 7's bound; ADR 0006's method entry binds `args:`; § 1's upgrade opens a
-> root isolate and its member fills the slot with a path entry. Conformance 1521, differential 256,
-> migration 100%; valgrind green.
+> is whole**, §§ 3-13.   **`Core\Db` has opened**: § 18's three and § 4's four. **`queryAs<T>`
+> hydrates**, and § 6's *request* converts. **§ 13's pool is complete**, **§ 2's `[queue]` resolves
+> at boot**, **`nvs queue migrate` applies § 2's schema; a worker runs on all three**.  **Goals 1-5,
+> M4 closed**. **`crates/nvs-server` runs an h1 request as goal 2's `Isolate`**: a coroutine per
+> connection, `hyper` under `block_on`; `nvs serve` boots the whole mount table on one core and §
+> 4's static policy sends a file; `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling
+> is arithmetic against the budget, `503` before an isolate; § 6's walk decides the peer, `400` on a
+> bad token; § 8's accept backs off, § 5's drain answers the probe and `isDraining()`;
+> `Core\Response` has seven, `Core\Request` thirteen, an upload walks as parts; the door carries the
+> body; every response carries ADR 0074 § 1's set, § 2 whole; a request is matched once, `route()`
+> and `methodsFor` answer, the door reads it for CSRF and the label; a `decimal`, `Core\Uuid`, a
+> literal union and an enum case convert as captures; § 7's mount answers a class and `E0801`
+> refuses `echo` beside one. **ADR 0139's session is whole**: `[session]` is shared or db, `E0626`
+> refuses local, § 1's seven carry it, § 4 sends it. **Stage 10's corpus opened**: §§ 5-7's
+> bindings, naming and flag. **ADR 0073's ticker fires**: a root isolate, § 6's `overlap` whole;
+> `fleet` unarmed. **ADR 0072 §§ 6-7 land**: `afterResponse` drains detached; § 7's cap counts
+> trees; ADR 0076: the trace continues, both blocks boot, a core meters § 1's nine under § 7's
+> bound; ADR 0006's method entry binds `args:`; § 1's upgrade opens a root isolate and its member
+> fills the slot; § 5's cell and `Core\Sse::upgrade` land beside it. Conformance 1524, differential
+> 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized
 > in the goal's own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
