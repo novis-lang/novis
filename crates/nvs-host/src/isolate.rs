@@ -81,7 +81,7 @@ use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
 use nvs_runtime::{
-    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, TaskRoot, UpgradeSlot, Value,
+    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, SseSlot, TaskRoot, UpgradeSlot, Value,
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
@@ -211,6 +211,30 @@ impl Isolate {
     pub fn offering_upgrade(mut self, slot: UpgradeSlot) -> Self {
         if let Some(inbound) = self.inbound.as_mut() {
             inbound.offer_upgrade(slot);
+        }
+        self
+    }
+
+    /// Offers [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 5's SSE cell to the request this isolate answers, so that
+    /// `Core\Sse::upgrade` inside it has somewhere to leave the connection
+    /// isolate it prepared.
+    ///
+    /// Everything [`Self::offering_upgrade`] says about *why it goes through
+    /// the isolate* holds here unchanged. What differs is who is offered one:
+    /// **every request a server answers gets this cell**, because an event
+    /// stream takes nothing of the connection but the response the request
+    /// already has, where § 1's slot is offered only where an upgrade was
+    /// framed. `nvs_runtime::Inbound::offer_sse` is the one home of that
+    /// difference.
+    ///
+    /// **Still a no-op for an isolate answering no request**, which is the same
+    /// fail-closed direction: a `spawn script` child has no response for an
+    /// event stream to be written into.
+    #[must_use]
+    pub fn offering_sse(mut self, cell: SseSlot) -> Self {
+        if let Some(inbound) = self.inbound.as_mut() {
+            inbound.offer_sse(cell);
         }
         self
     }

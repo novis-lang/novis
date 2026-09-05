@@ -733,7 +733,9 @@ impl Inbound {
 /// leaks that reference, the same obligation `nvs_host::Isolate::new` and
 /// [`crate::host::Job`] already document for a child that is never run. The
 /// connection takes the slot unconditionally after joining the request, so the
-/// only path that drops one is a connection that died before it got there.
+/// only path that drops one is a connection that died before it got there — and
+/// a connection that takes one and then declines to start it says so with
+/// [`Self::discard`] rather than by dropping it.
 ///
 /// **What it spends:** one boxed closure and one 16-byte value per upgrade, plus
 /// the argument graph the copy behind it holds — accounted where that copy is
@@ -774,6 +776,33 @@ impl Upgrade {
     #[must_use]
     pub fn into_parts(self) -> (crate::script::Program, Value) {
         (self.program, self.args)
+    }
+    /// Gives back what a dropped one would leak — the reference to `args` this
+    /// type's own doc says it consumed — and drops the program unrun.
+    ///
+    /// **Here rather than at the connection that decides to discard one**,
+    /// because releasing a [`Value`] is `unsafe` and `nvs-server` is
+    /// `forbid(unsafe_code)`: a door that had to refuse a prepared isolate
+    /// would otherwise have no spelling for it but the leak. The one caller
+    /// today is [`SseSlot::fill`]'s "decided where the response is written" — a
+    /// request that asked for a socket *and* an event stream has asked for two
+    /// responses, and neither isolate is started.
+    ///
+    /// Refusing where the cells are read rather than where they are filled is
+    /// what keeps each cell ignorant of the other; what it costs is that the
+    /// argument crossing already happened, and this is where it is paid back.
+    pub fn discard(self) {
+        #[expect(
+            unsafe_code,
+            reason = "`Upgrade::new` consumed exactly one reference to `args` \
+                      and this is the only place it is given back unrun"
+        )]
+        // SAFETY: nothing else points at that reference — the connection is the
+        // only reader of a cell, it has taken this upgrade out of it, and it is
+        // discarding rather than starting it.
+        unsafe {
+            self.args.release();
+        }
     }
 }
 
