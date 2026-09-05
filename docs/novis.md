@@ -14452,7 +14452,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, scriptAnswers
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -14518,6 +14518,7 @@ final class CartTest {
 | [`Core\Test::assertNull`](#core-core-test-assertnull) | `assertNull(mixed $actual, {message?: string}): void` |
 | [`Core\Test::assertCount`](#core-core-test-assertcount) | `assertCount(array<T> $actual, uint $expected, {message?: string}): void` |
 | [`Core\Test::assertContains`](#core-core-test-assertcontains) | `assertContains(array<T> $actual, T $expected, {message?: string}): void` |
+| [`Core\Test::assertMatchesInline`](#core-core-test-assertmatchesinline) | `assertMatchesInline(mixed $actual, string $expected, {message?: string}): void` |
 | [`Core\Test::assertThrows`](#core-core-test-assertthrows) | `assertThrows(callable $body, string $expected, {message?: string}): void` |
 | [`Core\Test::assertDoesNotThrow`](#core-core-test-assertdoesnotthrow) | `assertDoesNotThrow(callable $body, {message?: string}): void` |
 | [`Core\Test::expectFailure`](#core-core-test-expectfailure) | `expectFailure(callable $body): void` |
@@ -14654,6 +14655,25 @@ Asserts some entry of `$actual` is `$expected` under strict identity — the que
 **Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
 
 **Throws** `Core\Test\Failure` — No entry of the array is identical to `$expected`; the failure is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
+
+<a id="core-core-test-assertmatchesinline"></a>
+#### `Core\Test::assertMatchesInline`
+
+```nvs skip
+Core\Test::assertMatchesInline(mixed $actual, string $expected, {message?: string}): void
+```
+
+Asserts that `$actual`, rendered as `Core\Debug::render` renders it, is exactly `$expected` — an inline snapshot, whose expectation is a literal in the test's own source rather than a file beside it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$actual` | `mixed` | The value to render; a `secret` property inside it renders redacted, so a snapshot cannot become where a secret is committed. |
+| `$expected` | `string` (neutral) | The rendering this value is expected to have, written inline. |
+| `{message: …}` | `string` (default `null`, neutral) | A prefix written in front of the failure's own diagnosis; the default is none. |
+
+**Returns** `void` — Nothing; the assertion is recorded as held in the test's ledger.
+
+**Throws** `Core\Test\Failure` — The rendering differs from `$expected`; the failure quotes both, and is recorded in the ledger before it is thrown, so a `catch` cannot erase it.
 
 <a id="core-core-test-assertthrows"></a>
 #### `Core\Test::assertThrows`
