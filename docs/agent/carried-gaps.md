@@ -83,3 +83,24 @@ Nobody's, and each is a scheduling question rather than a session's.
   `crates/nvs-runtime/src/lib.rs` gap 4 has it, and its blocker — there being no request log — went
   away in M5. It is presentation rather than containment, which is why it has waited, and it rides
   naturally with goal 21's item 12 if a session finds itself there.
+- **`nvs serve` runs on one core, and no path in the process starts a second.**
+  [m7.md](../plan/m7.md) puts "per-core accept and dispatch" inside M7's own scope and goal 6 shipped
+  the single-core server, so this is a milestone's stated scope that no `[[goal]]` on the chain now
+  owns — the reason it is here rather than struck.
+  `crates/nvs-cli/src/serve.rs` § *Decision: one socket, and the flag is the last word* is the
+  detail: `[server] listen` is a flat array, that loop binds the first entry and says on stderr what
+  it left, and binding all of them is `nvs_host::NvsListener::from_std`'s fan-out — "the slice that
+  gives this command a core count". **The primitives are built and unreached.** That constructor
+  exists for precisely this ("each core takes its own handle on the descriptor"),
+  `nvs_host::Worker::spawn(cpu, …)` pins a scheduler per core for a cost paid per process start, and
+  both are called only from `#[cfg(test)]` — neither `nvs-cli` nor `nvs-server` reads a CPU count at
+  all. Nothing about the design is in the way: `docs/plan/design.md` § *Thread-per-core,
+  shared-nothing runtime* is this shape, ADR 0097's in-flight ceiling is already a relaxed atomic
+  "so one hot core cannot refuse while its neighbours idle", its watchdog is already per worker, and
+  its h2c refusal argues *from* connections being balanced across cores.
+  **It is the largest measured performance item left**: `benches/serve-proxied.json`'s deployed arm
+  has php-fpm scaling 2.44x from one core to four while `nvs serve` stays flat, turning a 2.92x lead
+  into 1.19x — and inverting it on a box with more cores. Open before it can be scoped: whether the
+  per-core compiled-unit cache and [ADR 0017](../adr/0017-hot-reload-without-restart.md)'s
+  revalidate-and-swap are per core or shared, since an immutable unit behind an `Arc` is sound to
+  share but the swap has a publisher.
