@@ -221,10 +221,11 @@ def heading_span(lines: list[str], wanted: str) -> tuple[int, int] | None:
     """A markdown heading and its body, to the next heading at the same or a higher level.
 
     Matches on the heading's *words*, so `## 4`, `4`, and `4. What a write checks` all find the
-    same section -- the same normalisation orient.py uses, for the same reason."""
+    same section -- the same normalisation orient.py uses, for the same reason, including why the
+    letter of a `3a` stays attached to its number."""
     def norm(t: str) -> str:
         t = re.sub(r"[`*_#]", "", t).strip().lower()
-        t = re.sub(r"^(\d+)\s*[.)]?\s*", r"\1 ", t)
+        t = re.sub(r"^(\d+[a-z]?)\s*[.)]?\s*", r"\1 ", t)
         return re.sub(r"\s+", " ", t).strip()
 
     key = norm(wanted)

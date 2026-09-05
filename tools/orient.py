@@ -203,9 +203,15 @@ def headings(text: str) -> list[tuple[int, int, str]]:
 
 def normalize(title: str) -> str:
     """`### 2. Both operands must ...` -> `2 both operands must ...`, so a manifest can name a
-    section as `§2`, as `2`, or by the words in its title, and all three land."""
+    section as `§2`, as `2`, or by the words in its title, and all three land.
+
+    The letter is part of the number. Without it a manifest entry of `§3a` normalizes to `3 a`,
+    which is a prefix of *`### 3. A mode selects ...`* -- so ADR 0091's § 3a silently printed § 3
+    instead, and the session that needed the row went and sliced it by hand. Any `### 3.` heading
+    whose title happens to start with the word the suffix spells does this, so it is the number's
+    own regex that has to stop splitting."""
     t = re.sub(r"[`*_]", "", title).strip().lower()
-    t = re.sub(r"^(\d+)\s*[.)]?\s*", r"\1 ", t)
+    t = re.sub(r"^(\d+[a-z]?)\s*[.)]?\s*", r"\1 ", t)
     return re.sub(r"\s+", " ", t).strip()
 
 
