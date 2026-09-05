@@ -2040,6 +2040,7 @@ dependencies = [
  "nvs-config",
  "nvs-host",
  "nvs-runtime",
+ "toml",
  "tungstenite",
 ]
 

@@ -64,6 +64,7 @@
 pub mod app;
 pub mod cache;
 pub mod capability;
+pub mod control;
 pub mod db;
 pub mod directive;
 pub mod export;

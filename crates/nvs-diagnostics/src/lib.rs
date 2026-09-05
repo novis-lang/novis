@@ -1585,6 +1585,29 @@ pub mod code {
     /// expression that reads `0.0` that way.
     pub const E_SAMPLE_NOT_A_FRACTION: Code = Code::new("E0628");
 
+    /// `[control] socket` names something that would be reachable over a
+    /// network rather than a local endpoint.
+    ///
+    /// ADR 0078 § 6 has no TCP listener in it, in either direction of
+    /// configuration, and § 3's reasoning is why: the socket's owner and mode
+    /// *are* the authentication, so a control surface that arrives over a
+    /// network has no authentication at all. `socket = "127.0.0.1:9000"` is
+    /// the shape that says so out loud, and it is refused at boot rather than
+    /// read as the relative path a host and a port happen to spell — a file
+    /// called `127.0.0.1:9000` is a legal name on Unix, and creating one is
+    /// the reading that leaves an operator believing they bound a port.
+    ///
+    /// Every other value that names no local endpoint — a list, a float, a
+    /// bare `true` — is refused under this same code rather than a second one,
+    /// because the directive has exactly two legal shapes and one reason to
+    /// have them: a value that is not one local endpoint, and is not `false`,
+    /// leaves the operator believing they configured a control surface.
+    ///
+    /// Not `E0627`'s refusal reached from another direction: that one is an
+    /// exporter *sink* the tree does not know, and this one is a value the
+    /// tree understands perfectly and is not allowed to accept.
+    pub const E_NETWORK_CONTROL_SOCKET: Code = Code::new("E0629");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

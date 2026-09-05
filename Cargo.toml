@@ -172,6 +172,10 @@ windows-sys = { version = "0.61", features = [
     # per-request cap, and on Windows this is the one call that answers what the budget is.
     "Win32_System_SystemInformation",
     "Win32_System_Threading",
+    # `CreateNamedPipeW`: ADR 0078 § 3's control endpoint is a named pipe on Windows, created with
+    # a security descriptor of its own so that "mode 0600" holds where there is no mode.
+    # `crates/nvs-config/src/control.rs` is the one caller.
+    "Win32_System_Pipes",
 ] }
 
 # --- TLS over the parking stream (ADR 0051 § 3's "TLS via `rustls`") ---
