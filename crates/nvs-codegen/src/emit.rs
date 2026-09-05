@@ -2817,6 +2817,31 @@ impl Emitter<'_, '_> {
     /// A [`codegen::ir::FuncRef`] for one of the unit's own functions, cached
     /// per emitted function the same way [`Self::runtime_ref`] caches an
     /// import.
+    ///
+    /// **The reference is deliberately not colocated.** `cranelift-module`
+    /// derives `colocated` from `linkage.is_final()`, which is true for a
+    /// function this unit defines, and a colocated callee lowers to a 32-bit
+    /// PC-relative `call rel32` — correct only while caller and callee sit
+    /// within ±2 GiB of one another. Nothing guarantees that: `cranelift-jit`
+    /// asks the OS for each code allocation separately, and when two of them
+    /// land further apart than that it panics *inside cranelift* applying the
+    /// relocation — `TryFromIntError(PosOverflow)` out of an `i32::try_from`
+    /// in its `compiled_blob.rs`, where no diagnostic of ours can reach.
+    /// Clearing the flag emits `movabs rax, imm64; call rax`, which has no
+    /// range at all, and is the same absolute form
+    /// `use_colocated_libcalls = false` already gives every runtime helper
+    /// call [`Self::runtime_ref`] returns.
+    ///
+    /// **It costs one instruction per call and nothing else.** Measured with
+    /// callgrind over `benches/userland` (ADR 0026's currency): naive
+    /// `fib(30)` is 2·F(31)−1 = 2,692,537 calls and gains 2,698,113 retired
+    /// instructions, so 1.002 of them per call, and at +1.14% it is the worst
+    /// case in the suite. Everything not call-bound is inside the noise floor
+    /// — json-encode −0.000%, array-map-filter −0.005%, method-dispatch
+    /// +0.001%, that last because an instance method already dispatches
+    /// through `call_indirect` and never took this path. ADR 0004's ordering
+    /// spends priority-3 latency to buy off a priority-2 crash, which is the
+    /// direction it allows and not the reverse.
     fn callee_ref(&mut self, target: &str) -> Result<codegen::ir::FuncRef, CodegenError> {
         if let Some(reference) = self.callee_refs.get(target) {
             return Ok(*reference);
@@ -2829,6 +2854,7 @@ impl Emitter<'_, '_> {
                 target: target.to_owned(),
             })?;
         let reference = self.module.declare_func_in_func(id, self.b.func);
+        self.b.func.dfg.ext_funcs[reference].colocated = false;
         self.callee_refs.insert(target.to_owned(), reference);
         Ok(reference)
     }

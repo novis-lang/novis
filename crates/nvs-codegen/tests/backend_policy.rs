@@ -21,6 +21,32 @@ fn backend() -> String {
     fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
 }
 
+/// The lowering walk's source, read once.
+fn emitter() -> String {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/emit.rs");
+    fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
+}
+
+#[test]
+fn a_call_to_the_units_own_function_is_not_colocated() {
+    // `cranelift-module` sets `colocated` from `linkage.is_final()`, true for
+    // a function this unit defines, and a colocated callee is a 32-bit
+    // PC-relative call. `cranelift-jit` asks the OS for each code allocation
+    // separately, so two can land more than 2 GiB apart, and applying that
+    // relocation then panics inside cranelift with `PosOverflow` — before any
+    // diagnostic of ours. The ASan leg reproduces it because the sanitizer's
+    // reservations spread the allocations out; an ordinary run usually does
+    // not, which is exactly why deleting the line needs to fail here too and
+    // not only on the one leg that happens to notice.
+    assert!(
+        emitter().contains("ext_funcs[reference].colocated = false"),
+        "nvs-codegen no longer clears `colocated` on a call to one of the unit's own \
+         functions, so such a call is a 32-bit PC-relative one again and a code allocation \
+         further than 2 GiB from its caller panics cranelift-jit rather than running. If \
+         this is deliberate, the reasoning belongs beside the line in `callee_ref`."
+    );
+}
+
 #[test]
 fn stack_probes_are_enabled() {
     // Cranelift defaults `enable_probestack` to false. Off means a frame
