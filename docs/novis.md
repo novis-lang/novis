@@ -13806,7 +13806,7 @@ Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms �
 <a id="core-core-router"></a>
 ### `Core\Router`
 
-Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, methodsFor
+Keywords: route, url, link, reverse routing, named route, #[Core\Route], origin, mount, router, methodsFor, Allow, 404, 405, url, urlAbsolute, match, methodsFor
 
 `Core\Router::url` builds a link from a route's `name` as its `#[Core\Route]` declared it: each
 `{capture}` in the path is substituted from `$params`, percent-encoded into its own segment. It is
@@ -13861,6 +13861,7 @@ https://example.test/users/7
 |---|---|
 | [`Core\Router::url`](#core-core-router-url) | `url(string $name, array<mixed> $params): string` |
 | [`Core\Router::urlAbsolute`](#core-core-router-urlabsolute) | `urlAbsolute(string $name, array<mixed> $params): string` |
+| [`Core\Router::match`](#core-core-router-match) | `match(Core\Http\Method $method, string $path): ?Core\Router\Match` |
 | [`Core\Router::methodsFor`](#core-core-router-methodsfor) | `methodsFor(string $path): array<Core\Http\Method>` |
 
 <a id="core-core-router-url"></a>
@@ -13898,6 +13899,24 @@ Core\Router::urlAbsolute(string $name, array<mixed> $params): string
 **Returns** `string` — The absolute URL, `https://example.test/users/42?page=2`.
 
 **Throws** `RuntimeError` — For everything `url` throws for, and when no origin is configured for the unit, since an origin is never derived from a request header.
+
+<a id="core-core-router-match"></a>
+#### `Core\Router::match`
+
+```nvs skip
+Core\Router::match(Core\Http\Method $method, string $path): ?Core\Router\Match
+```
+
+Matches `$method` and `$path` against this program's compiled route table, answering the same `Core\Router\Match` a served request carries — a question asked of the table, which dispatches nothing and never reads the request.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$method` | `Core\Http\Method` | The verb to match under. A route declared for one verb is not claimed by another, so the same path under `Get` and `Post` are two questions. |
+| `$path` | `string` (neutral) | The path to match, as a URL path and with no query string; a mount's prefix is not stripped here, because nothing about a path the caller chose says which mount it was meant for. |
+
+**Returns** `?Core\Router\Match` — The match — its declared name, and the captures the path filled, each percent-decoded once and converted to the type its `#[Route]` parameter declared. `null` where no route claims that verb and path, and for a program that declares no route at all, since a table nothing built claims nothing.
+
+**Throws** `RuntimeError` — A capture percent-decodes to octets that are not UTF-8, so it has no `tainted string` to bind to; the throw names the capture and the offset of the first byte a `string` cannot hold.
 
 <a id="core-core-router-methodsfor"></a>
 #### `Core\Router::methodsFor`
@@ -16170,7 +16189,7 @@ The route this request matched, which the server took once at the door before an
 
 **Returns** `?Core\Router\Match` — A `Core\Router\Match` answering the declared name and the path's captures, or `null` where nothing in the table claimed this method and path — which is a served request like any other, since matching dispatches nothing. A program declaring no `#[Route]` builds no table and reads `null` here for the same reason.
 
-**Throws** `LogicError` — This program is not answering a request, as a CLI program, a scheduled script, a job worker and a test are not — refused rather than answered `null`, because "no request arrived" and "nothing matched" are different facts.
+**Throws** `LogicError` — This program is not answering a request, as a CLI program, a scheduled script, a job worker and a test are not — refused rather than answered `null`, because "no request arrived" and "nothing matched" are different facts.; `RuntimeError` — A capture percent-decodes to octets that are not UTF-8, so it has no `tainted string` to bind to; the throw names the capture and the offset of the first byte a `string` cannot hold.
 
 <a id="core-core-request-mount"></a>
 #### `Core\Request::mount`
