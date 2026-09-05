@@ -1,0 +1,51 @@
+--TEST--
+`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — ADR 0079 §§ 5, 14, ADR 0063 R2
+--FILE--
+<?nvs
+// A snapshot's failure has to say both halves: what the value rendered as is
+// the thing the author is about to accept, and the snapshot on record is what
+// they are accepting it *over*. One of the two alone would leave a reader
+// diffing by hand against a value they cannot see.
+
+use Core\Test;
+
+// 1. Both sides, quoted.
+try {
+    Test::assertMatchesInline(7, "int(8)");
+} catch (Core\Test\Failure $offByOne) {
+    echo $offByOne->message, "\n";
+}
+
+// 2. The empty snapshot is the state § 14's own workflow begins in -- the
+// author writes it and asks the runner to fill it in -- so it is a mismatch
+// like any other rather than a value that matches anything.
+try {
+    Test::assertMatchesInline("a", "");
+} catch (Core\Test\Failure $unfilled) {
+    echo $unfilled->message, "\n";
+}
+
+// 3. A rendering that spans lines is quoted with its line breaks written out,
+// which is what keeps a multi-line snapshot's failure on one line of a report.
+try {
+    Test::assertMatchesInline([1], "int(1)");
+} catch (Core\Test\Failure $container) {
+    echo $container->message, "\n";
+}
+
+// 4. ADR 0063 R2's bag sits in front of this report as in front of every other.
+try {
+    Test::assertMatchesInline(true, "bool(false)", {message: "the summary is stable"});
+} catch (Core\Test\Failure $withMessage) {
+    echo $withMessage->message, "\n";
+}
+
+// 5. And the assertion that holds says nothing at all.
+Core\Test::assertMatchesInline("a", "string(1) \"a\"");
+echo "held\n";
+--EXPECT--
+Core\Test::assertMatchesInline failed: the rendering is "int(7)", and the snapshot holds "int(8)"
+Core\Test::assertMatchesInline failed: the rendering is "string(1) \"a\"", and the snapshot holds ""
+Core\Test::assertMatchesInline failed: the rendering is "array(1) [\n  0 => int(1)\n]", and the snapshot holds "int(1)"
+the summary is stable: Core\Test::assertMatchesInline failed: the rendering is "bool(true)", and the snapshot holds "bool(false)"
+held

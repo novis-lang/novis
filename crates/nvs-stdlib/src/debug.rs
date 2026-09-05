@@ -199,13 +199,8 @@ nvs_runtime::nvs_helper! {
     /// cannot be handed back as a `string` without the next `echo` escaping
     /// them a second time, so this answers what `Core\Out::capture` answers.
     fn nvs_core_debug_render(_ctx, args: [1]) {
-        let node = node_of(args[0], &Caps::default(), 0, &mut Seen::default());
-        // Without the trailing newline `dump` writes: this member answers a
-        // *value*, and a caller composing one into a larger output decides
-        // where the line ends. `dump` is the one that writes a line.
-        let rendered = nvs_render::plain::render_nodes(std::slice::from_ref(&node));
         Ok(crate::cli::built(Value::str(nvs_runtime::NvsStr::new(
-            rendered.trim_end_matches('\n').as_bytes(),
+            rendered(args[0]).as_bytes(),
         ))))
     }
 }
@@ -288,6 +283,26 @@ impl Seen {
     fn depth(&self) -> usize {
         self.0.len()
     }
+}
+
+/// One value as `Core\Debug::render` answers it: the canonical, ordered,
+/// `secret`-redacting text of the whole value, with no trailing newline.
+///
+/// Public to the crate because
+/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
+/// § 14's inline snapshot is *this* rendering held in a source literal —
+/// `Core\Test::assertMatchesInline` calls it rather than growing one of its
+/// own, so a snapshot and a dump of the same value cannot disagree about what
+/// that value looks like, and § 5's redaction reaches a snapshot for free.
+///
+/// Without the trailing newline `dump` writes: this answers a *value*, and a
+/// caller composing one into a larger output decides where the line ends.
+/// `dump` is the one that writes a line.
+pub(crate) fn rendered(value: Value) -> String {
+    let node = node_of(value, &Caps::default(), 0, &mut Seen::default());
+    nvs_render::plain::render_nodes(std::slice::from_ref(&node))
+        .trim_end_matches('\n')
+        .to_owned()
 }
 
 /// One value as a node, at `depth` levels of container below the record's root.

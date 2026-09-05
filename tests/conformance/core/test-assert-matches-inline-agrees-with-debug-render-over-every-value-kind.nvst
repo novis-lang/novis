@@ -1,0 +1,62 @@
+--TEST--
+An inline snapshot holds against exactly one of a table of renderings — its own — over one value of each kind, asserted by counting the whole grid — ADR 0079 § 14
+--FILE--
+<?nvs
+// The expectation an inline snapshot holds is `Core\Debug::render`'s text, so
+// the claim is an identity over a grid rather than a fact about one line: each
+// value must hold against its own rendering and refuse every other one. Counted
+// across all thirty-six pairs, so a member that compared loosely -- a prefix, a
+// containment, a truthy conversion -- fails here while every diagonal row still
+// reads correctly.
+
+use Core\Test;
+
+final class Held {
+    public static function against(mixed $value, string $snapshot): bool {
+        try {
+            Test::assertMatchesInline($value, $snapshot);
+        } catch (Core\Test\Failure $mismatch) {
+            return false;
+        }
+        return true;
+    }
+}
+
+array<mixed> $values = [null, true, 7, "a", 1.5, [10, 20]];
+array<string> $snapshots = [
+    "null",
+    "bool(true)",
+    "int(7)",
+    "string(1) \"a\"",
+    "float(1.5)",
+    "array(2) [\n  0 => int(10)\n  1 => int(20)\n]",
+];
+
+int $held = 0;
+int $refused = 0;
+int $row = 0;
+foreach ($values as mixed $value) {
+    int $column = 0;
+    foreach ($snapshots as string $snapshot) {
+        if (Held::against($value, $snapshot)) {
+            if ($row == $column) {
+                $held = $held + 1;
+            }
+        } else {
+            if ($row != $column) {
+                $refused = $refused + 1;
+            }
+        }
+        $column = $column + 1;
+    }
+    $row = $row + 1;
+}
+echo "held=", $held, "/6 refused=", $refused, "/30\n";
+
+// The multi-line row written out, so the grid above is anchored to a rendering
+// a reader can see rather than to whatever the member produced on both sides.
+Core\Test::assertMatchesInline([10, 20], "array(2) [\n  0 => int(10)\n  1 => int(20)\n]");
+echo "the container's own snapshot held\n";
+--EXPECT--
+held=6/6 refused=30/30
+the container's own snapshot held

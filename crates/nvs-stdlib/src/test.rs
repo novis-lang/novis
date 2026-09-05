@@ -71,6 +71,13 @@
 //!
 //! Each member's own doc comment carries the argument in full.
 //!
+//! # The one row whose expectation is a source literal
+//!
+//! § 14's `assertMatchesInline` compares `Core\Debug::render`'s text against a
+//! literal in the test body rather than against a `.snap` file beside it. Its
+//! own doc comment owns why the renderer is borrowed rather than grown, and
+//! what `nvs test --update` still needs before it can write into that literal.
+//!
 //! # The ledger, and the one member that discharges from it
 //!
 //! § 5 gives an assertion two effects, not one: it throws `Core\Test\Failure`
@@ -231,6 +238,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_contains",
             doc: Some(&ASSERT_CONTAINS_DOC),
+        },
+        CoreMethod {
+            name: "assertMatchesInline",
+            names: &["actual", "expected"],
+            params: &[
+                CoreTy::Mixed,
+                CoreTy::Text(Qual::Neutral),
+                CoreTy::Options(MESSAGE),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_matches_inline",
+            doc: Some(&ASSERT_MATCHES_INLINE_DOC),
         },
         CoreMethod {
             name: "assertThrows",
@@ -551,6 +571,38 @@ const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Test::assertMatchesInline`'s reference card — ADR 0117.
+const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
+    short: "Asserts that `$actual`, rendered as `Core\\Debug::render` renders it, is exactly \
+            `$expected` — an inline snapshot, whose expectation is a literal in the test's own \
+            source rather than a file beside it.",
+    params: &[
+        ParamDoc {
+            name: "actual",
+            desc: "The value to render; a `secret` property inside it renders redacted, so a \
+                   snapshot cannot become where a secret is committed.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "expected",
+            desc: "The rendering this value is expected to have, written inline.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "A prefix written in front of the failure's own diagnosis; the default is \
+                   none.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing; the assertion is recorded as held in the test's ledger.",
+    errors: &[ErrorDoc {
+        error: "Core\\Test\\Failure",
+        desc: "The rendering differs from `$expected`; the failure quotes both, and is recorded \
+               in the ledger before it is thrown, so a `catch` cannot erase it.",
+    }],
+};
+
 /// `Core\Test::assertThrows`'s reference card — ADR 0117.
 const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's \
@@ -770,6 +822,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_assert_true" => (nvs_core_test_assert_true as *const ()).cast(),
         "nvs_core_test_assert_null" => (nvs_core_test_assert_null as *const ()).cast(),
         "nvs_core_test_assert_count" => (nvs_core_test_assert_count as *const ()).cast(),
+        "nvs_core_test_assert_matches_inline" => {
+            (nvs_core_test_assert_matches_inline as *const ()).cast()
+        }
         "nvs_core_test_assert_contains" => (nvs_core_test_assert_contains as *const ()).cast(),
         "nvs_core_test_assert_throws" => (nvs_core_test_assert_throws as *const ()).cast(),
         "nvs_core_test_assert_does_not_throw" => {
@@ -1007,6 +1062,57 @@ nvs_runtime::nvs_helper! {
                 "`$actual` holds {count} entries and none is `$expected`, which is {}",
                 shown(args[1])
             ),
+            args[2],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertMatchesInline(mixed $actual, string $expected, {message?: string}):
+    /// void` — ADR 0079 § 14's inline snapshot.
+    ///
+    /// The comparison is between two *renderings*, and only one of them is
+    /// built here: `$actual` goes through [`crate::debug::rendered`], which is
+    /// `Core\Debug::render`'s own text, and `$expected` is the literal the
+    /// author wrote. Reusing that renderer rather than growing one is what
+    /// makes a snapshot something a developer can produce by dumping the value
+    /// — and it is also what carries ADR 0092 § 5's redaction into a snapshot,
+    /// so a `secret` property renders as its placeholder and a snapshot cannot
+    /// become the place a secret is committed (§ 14's own last sentence).
+    ///
+    /// The subject is `mixed` and not `T`: the whole point is that a value of
+    /// any shape has *one* canonical text, and a type variable here would only
+    /// name the type of a thing that is about to become a string.
+    ///
+    /// **The `--update` half of § 14 has not landed**, and this member is where
+    /// the reason is worth writing down: splicing the produced value back into
+    /// the source needs the *span* of the `$expected` literal, and nothing at
+    /// runtime holds one — a helper is called with a value, not with the
+    /// expression that built it. The material the updater needs is therefore a
+    /// compile-time table beside `nvs_types::ExprTypeTable::tests`, one row per
+    /// written `assertMatchesInline` call carrying its file and the literal's
+    /// span, joined to a run's mismatches by the expected text. Searching the
+    /// source for the literal instead was considered and refused: the workflow
+    /// § 14 describes starts from an empty `""`, which occurs everywhere.
+    fn nvs_core_test_assert_matches_inline(ctx, args: [3]) {
+        // Unreachable from source: parameter 1 is `CoreTy::Text` in `CLASS`, so
+        // a non-string expectation is `E0401` at the checker. Parameter 0 is
+        // `mixed` and needs no check at all.
+        let expected = args[1].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\Test::assertMatchesInline expected {:?}, got tag {}",
+                Tag::Str,
+                args[1].tag_byte()
+            ))
+        })?.to_owned();
+        let produced = crate::debug::rendered(args[0]);
+        if produced == expected {
+            return Ok(held(ctx, "assertMatchesInline"));
+        }
+        Err(failed(
+            ctx,
+            "assertMatchesInline",
+            &format!("the rendering is {produced:?}, and the snapshot holds {expected:?}"),
             args[2],
         ))
     }
