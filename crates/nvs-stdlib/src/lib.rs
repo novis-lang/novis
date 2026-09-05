@@ -188,6 +188,7 @@
 pub mod arr;
 mod ast;
 mod attributes;
+mod bus;
 mod bytes;
 mod cache;
 // `pub` for the two predicates `nvs_types::capability` reads — the class's own

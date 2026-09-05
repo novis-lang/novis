@@ -9,19 +9,19 @@
 //!
 //! # What is here, and what is not
 //!
-//! § 4's three rows and the table behind them. What is **not** here is the
-//! hand-off between cores: `publish` copies to the subscribers that joined on
-//! the core it runs on, and § 4's "a publish from a connection on core 3
-//! reaches subscribers on core 0" waits on the bounded queue a neighbouring
-//! core is handed. Until that lands a publish is whole only where the
-//! publisher and the subscriber landed on the same core, and that is this
-//! module's first known gap.
+//! § 4's three rows, the table behind them, and both halves of the crossing
+//! between cores: the publish that hands an encoded value to every other core
+//! listening, and the drain that reads it back and fans it out where it
+//! landed. The transport underneath is [`crate::bus`] — this module is what
+//! decides what crosses and what a subscriber is handed.
 //!
-//! The second one is under the seam rather than here, and this row is what
-//! makes it reachable: a delivery queued while its connection is already
-//! parked inside `receive()` is answered by the *next* `receive()` rather than
-//! waking the parked one. [`nvs_runtime::Ctx::deliver`]'s own known gap is
-//! where that is written down.
+//! What is **not** here is the wake, and this module is what makes it
+//! reachable: a delivery queued while its connection is already parked inside
+//! `receive()` is answered by the *next* `receive()` rather than waking the
+//! parked one. [`nvs_runtime::Ctx::deliver`]'s own known gap is where that is
+//! written down, and it is the only one § 4's bus has left. A delivery from
+//! another core inherits it exactly rather than adding a second one, because
+//! the drain runs at the same `receive()` the local queue is read at.
 //!
 //! # Decision: the table is per core, and it holds a weak reference
 //!
@@ -89,6 +89,34 @@
 //! a topic nobody joined releases it unused. **What it spends:** one graph
 //! copy on a publish nobody is listening to, which is the price of the refusal
 //! being the value's business rather than the topic's.
+//!
+//! # Decision: what crosses a core is bytes, and the count is what was queued
+//!
+//! A [`Value`] is refcounted on the core that made it, so the copy a
+//! subscriber on another core is handed cannot be made by the publisher. What
+//! crosses is ADR 0023 § 2's *encoding* rather than its copy —
+//! [`nvs_runtime::encode`] on the publishing core and `decode` on the
+//! receiving one, the same carrier [`crate::cache`]'s shared tier crosses a
+//! process with — and the receiving core makes one value per subscriber as it
+//! drains. The two halves of that carrier refuse the same graphs, so the
+//! crossing decided above is still the one that reports a refusal, and a
+//! publish cannot be refused by who happened to be listening elsewhere.
+//!
+//! **The count is what was queued, on either side.** Locally that is the live
+//! subscribers the walk found; elsewhere it is the number that core last
+//! reported for the topic, which it refreshes whenever it joins, leaves or
+//! walks that row. A remote connection that ended without unsubscribing is
+//! therefore counted until its own core next looks at that name — an
+//! over-count of the same kind § 4's row already carries locally, where a
+//! subscriber counted at the queue may never live to read it. Making it exact
+//! would mean waiting for the other core to answer before `publish` returns,
+//! which is the publisher blocking on a subscriber, and that is the one thing
+//! § 4 says may not happen.
+//!
+//! **What it spends:** one encoding per publish somebody elsewhere is
+//! listening to, held once however many cores take it, and nothing at all on a
+//! single-core server or a topic joined only here. [`crate::bus`] owns the
+//! rest of that accounting.
 //!
 //! # Decision: the name is checked before the connection is
 //!
@@ -326,11 +354,15 @@ fn connection_inbox(ctx: &mut Ctx, member: &str) -> Result<Rc<Inbox>, Fault> {
 /// The walk prunes every subscriber whose connection has ended, which is the
 /// whole of how a subscription is undone by an isolate that never got to
 /// unsubscribe itself — see this module's docs.
+///
+/// What the row then holds is reported to [`crate::bus`], because a publisher
+/// on another core counts and reaches this topic through that number and
+/// through nothing else.
 fn join(topic: &str, inbox: &Rc<Inbox>) {
-    SUBSCRIBERS.with_borrow_mut(|table| {
+    let live = SUBSCRIBERS.with_borrow_mut(|table| {
         let Some(row) = table.get_mut(topic) else {
             table.insert(Box::from(topic), vec![Rc::downgrade(inbox)]);
-            return;
+            return 1;
         };
         row.retain(|held| held.strong_count() > 0);
         if !row
@@ -339,7 +371,9 @@ fn join(topic: &str, inbox: &Rc<Inbox>) {
         {
             row.push(Rc::downgrade(inbox));
         }
+        row.len()
     });
+    crate::bus::note_subscribers(topic, live);
 }
 
 /// Takes `inbox` out of `topic`'s row, and the row out of the table once it
@@ -348,15 +382,18 @@ fn join(topic: &str, inbox: &Rc<Inbox>) {
 /// A name that is not in the table at all is the state the caller asked for,
 /// so there is nothing here to report.
 fn leave(topic: &str, inbox: &Rc<Inbox>) {
-    SUBSCRIBERS.with_borrow_mut(|table| {
+    let live = SUBSCRIBERS.with_borrow_mut(|table| {
         let Some(row) = table.get_mut(topic) else {
-            return;
+            return 0;
         };
         row.retain(|held| held.upgrade().is_some_and(|live| !Rc::ptr_eq(&live, inbox)));
+        let live = row.len();
         if row.is_empty() {
             table.remove(topic);
         }
+        live
     });
+    crate::bus::note_subscribers(topic, live);
 }
 
 /// The live subscribers `topic` has on this core, with the row left holding
@@ -367,7 +404,7 @@ fn leave(topic: &str, inbox: &Rc<Inbox>) {
 /// is a re-entrancy nobody needs — `subscribe` runs on a connection's own task
 /// and reaches the same map.
 fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
-    SUBSCRIBERS.with_borrow_mut(|table| {
+    let live = SUBSCRIBERS.with_borrow_mut(|table| {
         let Some(row) = table.get_mut(topic) else {
             return Vec::new();
         };
@@ -378,7 +415,12 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
             row.retain(|held| held.strong_count() > 0);
         }
         live
-    })
+    });
+    // The prune above is the only thing that lowers this core's count, so it is
+    // also the freshest a publisher on another core ever sees — the module
+    // doc's fourth decision is what that costs.
+    crate::bus::note_subscribers(topic, live.len());
+    live
 }
 
 /// ADR 0023 § 2's copy of the value being published, which is also the one
@@ -400,6 +442,54 @@ fn cross(value: Value) -> Result<Value, Fault> {
             format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
         )
     })
+}
+
+/// ADR 0023 § 2's *encoding* of the value being published, which is what
+/// crosses to another core in place of a copy.
+///
+/// **Borrows the argument**, on [`retained`]'s convention, and answers bytes
+/// that own nothing.
+///
+/// # Errors
+///
+/// The same refusal [`cross`] makes, in the same words: `encode` and
+/// `copy_graph` share the walk that decides, so this cannot refuse a value the
+/// copy above already accepted. It is mapped rather than asserted because a
+/// carrier answering `Result` is not a place to write an `expect`.
+fn externalize(value: Value) -> Result<Vec<u8>, Fault> {
+    nvs_runtime::encode(retained(value)).map_err(|refused| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("`Core\\Topic::publish` cannot publish this value: {refused}"),
+        )
+    })
+}
+
+/// Fans out everything other cores have published to this one, into the
+/// subscribers that joined here.
+///
+/// Called by `Core\Socket::receive()` before it reads either source, which is
+/// where a connection is about to wait anyway — [`crate::socket`] owns that
+/// ordering, and this module's docs own why a delivery from another core
+/// inherits the wake gap rather than adding one.
+///
+/// One `decode` **per subscriber**, so each is handed a graph it shares with
+/// nobody, which is § 4's rule and is the same guarantee the local walk's
+/// copy-per-subscriber gives. An envelope naming a class this program cannot
+/// resolve is dropped rather than thrown: the connection running this drain
+/// did not publish it and has no answer to give, and the resolver is the
+/// draining program's own class table (`nvs_runtime::graph`'s known gap 2).
+pub(crate) fn deliver_from_other_cores(ctx: &Ctx) {
+    for envelope in crate::bus::take_all() {
+        let subscribers = subscribers_of(envelope.topic());
+        let resolve = |name: &str| ctx.class_desc(name);
+        for inbox in &subscribers {
+            let Ok(value) = nvs_runtime::decode(envelope.payload(), &resolve) else {
+                break;
+            };
+            inbox.push(Delivery::new(envelope.topic(), value));
+        }
+    }
 }
 
 nvs_runtime::nvs_helper! {
@@ -428,7 +518,12 @@ nvs_runtime::nvs_helper! {
     ///
     /// The count is what reached a queue, not what a subscriber has read: a
     /// delivery waits until that connection's own `receive()` drains it (§ 3),
-    /// and this member never blocks on one.
+    /// and this member never blocks on one — on this core or on any other.
+    ///
+    /// **The walk of the other cores comes last**, and it is asked before the
+    /// value is encoded so that a topic nobody joined elsewhere costs no
+    /// carrier at all. What it hands over is bytes and what it counts is what
+    /// those cores reported, which is this module's fourth decision.
     fn nvs_core_topic_publish(_ctx, args: [2]) {
         let topic = topic_of(&args[0], "publish")?;
         let subscribers = subscribers_of(&topic);
@@ -448,6 +543,9 @@ nvs_runtime::nvs_helper! {
         }
         if let Some(unused) = first {
             release_crossed(unused);
+        }
+        if crate::bus::subscribers_elsewhere(&topic) > 0 {
+            delivered += crate::bus::hand_off(&topic, externalize(args[1])?);
         }
         Ok(Value::uint(delivered))
     }
@@ -587,6 +685,103 @@ mod tests {
 
         drained(&mut first, "room:fanout");
         drained(&mut second, "room:fanout");
+    }
+
+    /// A publish from one core reaches the subscribers on another and answers a
+    /// count that includes them — ADR 0083 § 4's "a publish from a connection
+    /// on core 3 reaches subscribers on core 0".
+    ///
+    /// The two threads are what a server's two cores are, and the channels
+    /// stand in for the ordering a running server gets from its own accept
+    /// loop. What crosses between them is bytes: the subscriber's value is made
+    /// by the `decode` its own core runs at the drain `Core\Socket::receive()`
+    /// performs, which is this module's fourth decision. The last assertion is
+    /// the half that would still pass if the table had quietly become shared —
+    /// the publisher's core joined nothing, so a subscriber found there would
+    /// be one core reading another's map.
+    #[test]
+    fn a_publish_reaches_a_subscriber_on_another_core() {
+        let (joined, listening) = std::sync::mpsc::channel();
+        let (published, sent) = std::sync::mpsc::channel::<()>();
+        let subscriber = std::thread::spawn(move || {
+            let mut ctx = connected();
+            call(nvs_core_topic_subscribe, &mut ctx, "room:crosscore").expect("it joins");
+            joined.send(()).expect("the publisher is waiting");
+            sent.recv()
+                .expect("the publisher says when it has published");
+
+            super::deliver_from_other_cores(&ctx);
+            drained(&mut ctx, "room:crosscore");
+        });
+
+        listening.recv().expect("the subscriber has joined");
+        let mut publisher = Ctx::buffered();
+        let reached =
+            publish(&mut publisher, "room:crosscore", "from another core").expect("a publish");
+        published.send(()).expect("the subscriber is waiting");
+        subscriber.join().expect("the subscriber finished");
+
+        assert_eq!(reached, 1, "the subscriber on the other core is counted");
+        assert_eq!(
+            subscriber_count("room:crosscore"),
+            0,
+            "and it joined that core's table rather than this one's"
+        );
+    }
+
+    /// Each subscriber is handed a value of its own — ADR 0083 § 4's
+    /// "subscribers share nothing with the publisher or with each other",
+    /// asserted as the two payloads not being one allocation.
+    ///
+    /// Read off the pointers rather than off the contents, because two
+    /// subscribers holding one refcounted string compare equal on every
+    /// content test there is and differ only in whether a write by one is seen
+    /// by the other.
+    #[test]
+    fn a_published_value_is_a_copy_shared_with_nobody() {
+        let mut first = connected();
+        let mut second = connected();
+        call(nvs_core_topic_subscribe, &mut first, "room:unshared").expect("one joins");
+        call(nvs_core_topic_subscribe, &mut second, "room:unshared").expect("and another");
+
+        let text = "a payload long enough to be an allocation rather than a few bytes in a value";
+        let mut publisher = Ctx::buffered();
+        assert_eq!(
+            publish(&mut publisher, "room:unshared", text).expect("a publish"),
+            2
+        );
+
+        let mine = first
+            .take_delivery()
+            .expect("the first subscriber was queued one")
+            .into_value();
+        let yours = second
+            .take_delivery()
+            .expect("and so was the second")
+            .into_value();
+        let held = |value: &Value| {
+            value
+                .as_str_bytes()
+                .expect("a published string arrives as one")
+                .as_ptr()
+        };
+        assert_eq!(mine.as_str_bytes(), Some(text.as_bytes()));
+        assert_eq!(yours.as_str_bytes(), Some(text.as_bytes()));
+        assert!(
+            !std::ptr::eq(held(&mine), held(&yours)),
+            "one copy per subscriber, so the two payloads are two allocations"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "each delivery handed this frame the only reference to its own copy"
+        )]
+        // SAFETY: nothing else points at either copy — the fan-out made one per
+        // subscriber and both queues have been drained.
+        unsafe {
+            mine.release();
+            yours.release();
+        }
     }
 
     /// A topic nobody joined is reached by nobody, and a connection that ended

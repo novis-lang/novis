@@ -986,10 +986,13 @@ nvs_runtime::nvs_helper! {
     /// **The bus is drained before the socket is read**, and that order is the
     /// whole of the select this member can make today: a queued delivery is
     /// answered without touching the peer, and only an empty queue parks on
-    /// the socket. What it does not do yet is wake a park that is already
-    /// running — `nvs_runtime::Ctx::deliver`'s own known gap says so, and § 4's
-    /// bus is where the wake seam belongs, since nothing can publish until it
-    /// exists.
+    /// the socket. The drain has two steps for one reason — what another core
+    /// published is waiting as bytes rather than as a value, so
+    /// `nvs_stdlib::topic`'s `deliver_from_other_cores` reads it back into
+    /// this core's queues first and `take_delivery` then answers from one
+    /// queue however far the publisher was. What it does not do yet is wake a
+    /// park that is already running — `nvs_runtime::Ctx::deliver`'s own known
+    /// gap says so, and it is the same gap whichever core published.
     ///
     /// Draining first rather than last is not arbitrary: the peer's read is
     /// the operation that blocks, so checking it first would make a delivery
@@ -1000,6 +1003,7 @@ nvs_runtime::nvs_helper! {
         if !ctx.has_peer() {
             return Err(no_connection("receive"));
         }
+        crate::topic::deliver_from_other_cores(ctx);
         if let Some(delivery) = ctx.take_delivery() {
             return Ok(message_of_delivery(delivery));
         }
