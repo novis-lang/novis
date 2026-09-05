@@ -16514,7 +16514,7 @@ Turns this request into a WebSocket connection running `$entry` as a root isolat
 
 **Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
-**Throws** `RuntimeError` — Always, so far: the root isolate a connection runs in is not built, and this member reports that rather than answering as though a peer were attached.
+**Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request; and a static method entry, which cannot be opened yet.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through.
 
 <a id="core-core-fatal"></a>
 ### `Core\Fatal`
