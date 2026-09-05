@@ -8268,6 +8268,31 @@ sibling in the same namespace unqualified.
   buys no memory and costs round trips. A gap bullet naming *another* crate's mechanism is a claim
   about that crate as it was when the bullet was written; grep the mechanism before implementing
   the gap or restating its reason, because both readings look equally settled from here.
+- **`literal_default` does not fold a class constant, and every sibling pass's `folded_str` copies
+  that hole forward.** A new compile-time read of a string reaches for
+  `crate::intrinsics`'s or `crate::links`'s two-line `folded_str`, which is
+  `defaults::literal_default(expr, string, env)` — and that function's `ClassConstAccess` arm is in
+  its *callers* (`eval_property_default` branches to `const_reference_default` before calling it), so
+  `Foo::WHY` folds to `None` and the pass silently treats a named constant as computed. It cost a
+  test that asserted the opposite of the rule. The fold that works in the checking pass is
+  `defaults::fold_const_reference`, which reads `signatures::resolve_const` — the same entry a *read*
+  of `Foo::CONST` inlines, which is why a payload and a read cannot disagree — and it needs a
+  `&Ctx<'_>`, so the hook has to take one even though its sibling does not.
+  `crates/nvs-types/src/reasons.rs`'s `folded_str` is the shape that answers both.
+- **A `QName::to_string()` at the top of a per-call hook is an allocation per call site, and what
+  catches it is `nvs-cli`'s 10k cold-compile guard failing inside cranelift.** A new roster hook in
+  `expr::calls` copied `intrinsics::row`'s opening line — `let owner = owner.to_string();` before
+  the roster lookup — which runs at every resolved call in the program. The whole-workspace
+  `cargo test` then failed
+  `script::tests::ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` two different
+  ways on two runs: once as `left: 8178, right: 10000` ("a request was answered with no unit") and
+  once as a panic *inside cranelift-jit* — `compiled_blob.rs:142`,
+  `TryFromIntError(NegOverflow)`, a relocation that no longer fits because 10,000 concurrent
+  compiles pushed the JIT's blobs out of ±2 GB. Neither message names the checker, the test passes
+  in isolation, and it passes with the change stashed — `git stash push -- crates/<the ones you
+  touched>` and one `cargo test -p nvs-cli --bin nvs` is the whole bisect, and it is much cheaper
+  than reading the panic. The repair is to test the cheap `&str` half of the roster row first and
+  stringify only after it matches.
 
 ## Divergences and refusals already pinned
 

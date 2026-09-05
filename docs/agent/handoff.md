@@ -2,22 +2,32 @@
 
 ## State
 
-**Stage 7's fleet lease is closed, all three checks.** ADR 0073 § 3's lease reaches the ticker as
-**`nvs_server::Leases`** — one method, `take(key, ttl) -> bool` — which is `Fires`'s sibling and for
-the same reason: `crates/nvs-server/Cargo.toml` names no `nvs-stdlib`, so the store a fleet entry is
-held in is reachable from `nvs-cli` and nowhere else. `crates/nvs-server/src/schedule.rs`'s module
-doc § *Where a `fleet` entry's lease comes from* is that decision's home. `arm` now takes
-`Option<&dyn Leases>`: a fleet entry arms when one is present and each of its fires takes the key
-`name@scheduled-instant` for the interval; a `None` leaves it unarmed with the note it always had.
+**Stage 8's acceptance check is closed** — all five `-p nvs-types` tests exist and pass. The E08xx
+band is what unblocked them, exactly as `nvs_stdlib::html`'s gap note predicted, and the two rules
+landed as two passes rather than one:
 
-**`nvs serve` still passes `None`, deliberately.** `Core\Cache`'s shared tier is `put` and `get`
-(ADR 0059 § 2) and neither is a set-if-absent, so there is nothing to implement `Leases` with yet and
-§ 3's fallback holds — `crates/nvs-cli/src/serve.rs:472`'s comment is why, and it is the goal's own
-standing decision 13. That primitive is the next group's first slice and is **not** a new `Core`
-member.
+- **`E0805`, ADR 0133 § 3's written reason** — `crates/nvs-types/src/reasons.rs`, a new sibling of
+  `intrinsics`/`links`/`retrieval`/`program` reached from the same two places in `expr::calls`. Its
+  module doc is the home of why it is *not* a `crate::intrinsics` row: that pass refuses nothing for
+  being dynamic and this pass refuses only that. A `const` folds and compiles; `$why`, a
+  concatenation and a computed `reason:` named argument do not. **An empty reason stays the body's
+  throw** — `tests/conformance/core/to-source-refuses-an-empty-reason-and-takes-any-written-one.nvst`
+  pins it there, and refusing it at compile time made that case unreachable.
+- **`E0806`, ADR 0067 § 9's map asked at a `queryAs<T>`** — `derive::check_row_sites`, a deferred
+  pass beside `resolve_field_types` and for its reason (the row class is routinely declared in a
+  later file). Three conditions, one code: the list form, no `#[Db\Derive]`, and a mapping that
+  cannot fill the constructor.
 
-Nothing is blocked on a decision. The next acceptance failure the driver reports outranks the group
-below.
+**"An opaque field" resolved to the third of those, and the reading matters** — do not redo it.
+`CodecTy::Opaque` is the wrong predicate for a Db codec: `db_reachable` deliberately accepts
+`decimal` and `bytes` (§ 9's `DECIMAL` and `BLOB` rows) and both erase to `Opaque`, so a rule over
+the erasure would refuse exactly what § 9 promises. What *is* opaque to a row mapping is a property
+`#[Db\Field(skip: true)]` took off it while the constructor still demands it —
+`crates/nvs-types/src/derive.rs`'s own `#[Db\Field(skip: true)]` case had flagged that consequence
+as deferred to "the `queryAs<T>` that would later run", and this is it.
+
+**Stage 7's group was not taken**, because the acceptance failure outranked it; its three slices are
+unchanged and are the group below. Nothing is blocked on a decision.
 
 ## Next group
 
@@ -31,19 +41,22 @@ One file set: `crates/nvs-stdlib/src/cache.rs`, `crates/nvs-cli/src/serve.rs`.
       — the roster is unchanged, which is the whole point of keeping it off `Core\Cache`'s surface.
       Its own test is that two callers over one store get two different answers.
 - [ ] **`nvs serve` implements `nvs_server::Leases` over it.** `crates/nvs-cli/src/serve.rs:472` is
-      the `None` and `crates/nvs-cli/src/serve.rs:492` is the second one; the trait is
-      `crates/nvs-server/src/schedule.rs:301` and its contract paragraph is the specification —
-      atomic or do not implement it, and an unreachable store is a `false`. Delete the comment above
-      the `arm` call that says why there is none, rather than reconciling it.
-- [ ] **A fleet fire, driven through the ticker rather than through the gate.** The three landed
-      cases assert `took_the_lease` (`crates/nvs-server/src/schedule.rs:699`), which is the whole
-      decision but not the wiring. `crates/nvs-server/src/schedule.rs:1146`'s `drive` takes a scope
-      and an `Option<Rc<Store>>`, and the case asserts that a losing host starts **no** fire and
-      notes it — the `else if` at `crates/nvs-server/src/schedule.rs:545`'s neighbourhood.
+      the `None` and the comment saying why, and `nvs-cli` is the one crate naming both sides — the
+      same reason it is `Fires`'s only implementor. The `arm` call above it takes the
+      `Option<&dyn Leases>` already.
+- [ ] **A fleet fire, driven through the ticker rather than through the gate.**
+      `crates/nvs-server/src/schedule.rs:333` is the `arm` the three landed `-p nvs-server` tests
+      drive directly, `crates/nvs-server/src/schedule.rs:301` is the `Leases` trait they stub, and
+      that module's doc § *Where a `fleet` entry's lease comes from* is the decision. What is
+      missing is a test that reaches a fire through the ticker with a real store behind it —
+      `crates/nvs-cli/src/serve.rs:582` is where `Fires` is already implemented for one.
 
 ## Backlog
 
-- Renewing a lease while its run is in flight (§ 3) — `crates/nvs-server/src/schedule.rs`'s module
-  doc § *Not here yet* owns the gap and says what it costs.
-- The per-entry `limits` and `grants` sub-caps (§ 5), same module doc section.
-- Eight spec §§ 16–17 classes with no owner on the chain — `docs/agent/carried-gaps.md`.
+- `check_row_sites` has no `Core\Json::decodeAs` half — `crates/nvs-types/src/derive.rs` gap 3 owns
+  the question and says why it is ADR 0071's to answer.
+- The plan's `Open now` still reads "`fleet` needs a lease"; the field is 1996 B of its 2000 B
+  ceiling, so correcting it needs a sentence dropped in the same edit.
+- `E0805`'s roster is one row. `Core\Taint::assertTrusted` and `Core\Secret::reveal` are the
+  obvious neighbours and each needs its own ADR's say-so — `crates/nvs-types/src/reasons.rs`.
+- `crates/nvs-types/src/reasons.rs` gap 1: a spread argument is not read.
