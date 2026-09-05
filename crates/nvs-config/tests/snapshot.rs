@@ -502,9 +502,9 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
     };
 
     assert_eq!(
-        written(""),
-        Revalidation::default(),
-        "a tree with no `[opcache]` block runs the default policy"
+        written("").freq,
+        Revalidation::default().freq,
+        "a tree with no `[opcache]` block runs the default cap"
     );
     assert_eq!(
         written("[opcache]\nvalidate = \"never\"\n").validate,
@@ -530,9 +530,63 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
         "ADR 0005's `false` removes the cap, which is a check on every resolve",
     );
     // A word that spells nothing keeps the default rather than refusing the boot: that check has
-    // no diagnostic yet, and `nvs_config::cache`'s module doc is where it is recorded as owed.
+    // no diagnostic yet, and `nvs_config::cache`'s module doc is where it is recorded as owed. The
+    // default it keeps is the startup one — this tree writes no mode, so it is `production`'s.
     assert_eq!(
         written("[opcache]\nvalidate = \"sometimes\"\n").validate,
+        Validate::Never,
+    );
+}
+
+/// ADR 0091 § 3a's third row, which is the only one of the three that is `System`-class: what
+/// `validate` starts at when `[opcache]` writes nothing, chosen by the mode before any request
+/// exists. Asserted on both sides, because a default that stopped at one mode reads plausibly
+/// against either half alone — and asserted beside the two things the row does **not** reach: an
+/// explicitly written `validate` (§ 3's first property) and the rate cap (§ 3a's own list of what a
+/// mode deliberately does not govern).
+#[test]
+fn the_validate_default_is_selected_by_the_run_mode() {
+    let written = |block: &str| {
+        let fs = Fake::with(&[("nvs.toml", block), ("srv/www/index.nvs", "")]);
+        Revalidation::from_config(&snapshot_of(&fs, "srv/www/index.nvs").config)
+    };
+
+    assert_eq!(
+        written("").validate,
+        Validate::Never,
+        "a host that wrote nothing at all is in production, which is ADR 0091 § 5's row for it",
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"production\"\n").validate,
+        Validate::Never,
+        "production spends no syscall on a path it has already compiled",
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n").validate,
         Validate::Mtime,
+        "development is the row's `on`, which is PHP's own `validate_timestamps = 1`",
+    );
+
+    // The mode supplies a default and nothing more: a written directive beside it wins, in either
+    // direction, which is what keeps § 3's "every row is spellable on its own" true of this table
+    // as well.
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n\n[opcache]\nvalidate = \"never\"\n").validate,
+        Validate::Never,
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"production\"\n\n[opcache]\nvalidate = \"hash\"\n").validate,
+        Validate::Hash,
+    );
+
+    // And the cap is untouched by either mode — ADR 0091 § 3a says outright that there is no value
+    // of `revalidate_freq` a developer's machine needs that an operator's does not.
+    assert_eq!(
+        written("[mode]\ndefault = \"development\"\n").freq,
+        Revalidation::default().freq,
+    );
+    assert_eq!(
+        written("[mode]\ndefault = \"production\"\n").freq,
+        Revalidation::default().freq,
     );
 }

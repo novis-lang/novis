@@ -209,6 +209,27 @@ pub enum Validate {
 }
 
 impl Validate {
+    /// [ADR 0091] § 3a's row for this directive: the value a host **starts** with when `[opcache]`
+    /// writes none, `never` in `production` and the timestamp check in `development`.
+    ///
+    /// It is `mtime` rather than `hash` on the permissive side because the row's cell reads "on"
+    /// and PHP's own `validate_timestamps = 1` — the thing an operator is transcribing, per
+    /// [`validate_of`] — is the stamp. A mode that is neither of the two is `production`, which is
+    /// § 5's answer for a host that wrote nothing at all and the fail-closed direction besides.
+    ///
+    /// A § 3a row is fixed at boot and never re-derived, so this is read where the policy is built
+    /// and nowhere on the request path; § 4's runtime mode flip re-derives only § 3's rows.
+    ///
+    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
+    #[must_use]
+    pub fn started_in(mode: &str) -> Self {
+        if mode == crate::mode::DEVELOPMENT {
+            Self::Mtime
+        } else {
+            Self::Never
+        }
+    }
+
     /// The value `written` names, and `None` for a word that names none of them.
     #[must_use]
     pub fn of(written: &str) -> Option<Self> {
@@ -250,6 +271,10 @@ impl Default for Revalidation {
     /// migrating from already has: an edit becomes visible without a restart, and a hot path pays
     /// at most one `stat` every two seconds for it.
     ///
+    /// **This is the type's own value and not what a configured host runs**: `validate`'s startup
+    /// default is the run mode's ([`from_config`](Self::from_config)), and it reaches this one only
+    /// for the `freq` beside it.
+    ///
     /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
     fn default() -> Self {
         Self {
@@ -260,12 +285,38 @@ impl Default for Revalidation {
 }
 
 impl Revalidation {
-    /// The policy `config`'s `[opcache]` block writes, with [`Revalidation::default`]'s value for
-    /// every key it leaves out — and for a value that spells nothing, which the module doc records
-    /// as the refusal this crate does not make yet.
+    /// The policy `config`'s `[opcache]` block writes, with the startup default for every key it
+    /// leaves out — and for a value that spells nothing, which the module doc records as the
+    /// refusal this crate does not make yet.
+    ///
+    /// **`validate`'s fallback is the run mode's, not [`Revalidation::default`]'s**, because it is
+    /// an [ADR 0091] § 3a row: [`Validate::started_in`] over `[mode] default`, which a tree that
+    /// writes no mode at all leaves at `production`. The cap beside it is deliberately *not* a row
+    /// — § 3a says so in its own words, there being no value of `revalidate_freq` a developer's
+    /// machine needs that an operator's does not — so it keeps [`Revalidation::default`]'s two
+    /// seconds under either mode. § 3's first property is what makes the pair coherent: an
+    /// `[opcache] validate` written beside `mode = "development"` still wins, because the mode
+    /// supplies a default and nothing more.
+    ///
+    /// The mode read here is the tree's own `[mode] default`. An `[[app]]` block's mode
+    /// ([ADR 0104] § 4) is deliberately not consulted: `[opcache]` is `System`-class and one
+    /// process holds one unit cache, so a per-application answer would be a second policy over a
+    /// table the applications share.
+    ///
+    /// [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
+    /// [ADR 0104]: ../../../docs/adr/0104-an-application-is-an-entry-file-path.md
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let fallback = Self::default();
+        let fallback = Self {
+            validate: Validate::started_in(
+                config
+                    .mode
+                    .as_ref()
+                    .and_then(|mode| mode.default.as_deref())
+                    .unwrap_or(crate::mode::PRODUCTION),
+            ),
+            ..Self::default()
+        };
         let Some(opcache) = config.opcache.as_ref() else {
             return fallback;
         };
