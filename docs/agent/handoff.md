@@ -2,58 +2,57 @@
 
 ## State
 
-**Goal 6, M7, stage 6b — ADR 0006's entry rule is complete.** `spawn script Class::method(...)`
-lowers to `CORE_SCRIPT_SPAWN_METHOD` with **four** arguments — the label, `args:`, `output:`, and
-the entry's parameter names as a `ConstStr`, comma-separated in declaration order
-(`crates/nvs-ir/src/lower/expr.rs:2985`'s `spawn_method_entry` owns the encoding) — and
-`nvs_stdlib::script` binds the map's entries to those parameters by name. `E0804` is retired;
-`nvs_types::expr::isolate`'s `check_entry` now refuses nothing about a method entry.
+**Goal 6, M7, ADR 0083 § 2 — `Core\Socket::upgrade` is a registry row.** A new
+`crates/nvs-stdlib/src/socket.rs` holds the five edits of *A `Core` member*: the row, its card, an
+`address` arm, and three `.nvst` cases. **The body throws** — § 1's root isolate is not built, so
+the member reports that rather than answering as though a peer were attached, and the module doc
+owns what is missing behind it. `Core\Sse` (§ 5) and `Core\Topic` (§ 4) are still unregistered.
 
-**The names come from the typed-expression table**, not from the runtime:
-`nvs_types::expr_table::ResolvedCall::param_names` is new beside `param_tys`, filled in
-`crates/nvs-types/src/expr/calls.rs:998`. `nvs_runtime::MethodRow` has arity and parameter tags
-and never names, which is why this route exists at all.
+**Two design calls are recorded in that module's doc, not here.** `upgrade` answers `void` where
+ADR 0083 § 2 writes a returned `Http\Response`: ADR 0077 § 4 and ADR 0102 § 1 are one rule — the
+server matches and "never decides what a return value means" — so nothing in this tree can read a
+handler's return, and `Core\Response` is a class of `void` members rather than a value type. **ADR
+0083 § 2's own sentence still says "returning the upgrade is what performs it" and is now wrong**;
+folding that into the ADR body is the first Backlog item. And the row declares only `entry` and
+`args`: `nvs_types::expr::isolate` refuses `spawn script`'s `limits:`, `grants:` and `on:` with
+`E_SPAWN_OPTION_UNSUPPORTED`, so declaring them here would be the silent drop that refusal exists
+to prevent — a program writing `grants: {}` gets `E0486` instead.
 
-**The judgement is split, and the split is the ADR's.** `entry_names_agree` compares the map's
-keys against the entry's parameters *at the spawn*, in the parent's frame, and throws a
-`LogicError` there — ADR 0006 § *Decision*'s "reported … at the spawn" for a map the compiler did
-not compare. `nvs_runtime::call_static_bound` judges arity and each parameter's required tag in
-the *child*, where the copied values reach a compiled callee's slots, through
-`nvs_runtime::closure`'s `check_param_tags`.
+**No `CAPABILITIES` row yet**, and that is about the body: what throws performs no effect. The
+slice that opens the connection owes the declaration.
 
-**Known gap, recorded at `check_entry`:** the ADR also reports that mismatch at *compile time*
-when `args:` is a literal, and nothing asks that yet. What it costs is when the error arrives,
-never whether it does.
-
-**The stage's first acceptance check is green** — five tests in
-`crates/nvs-cli/tests/spawn_entry.rs`, its four plus the new spawn-time refusal.
+**The driver's failing check was the machine, not the tree.** `examples/cache.nvs` failed because
+every `novis-db-*` container had exited; the stack is back up and the check is green with no tree
+change. See the new playbook bullet.
 
 ## Next group
 
-**ADR 0083 §§ 1-2 — the connection isolate and its entry**, over
-`crates/nvs-stdlib/src/registry.rs`, a new `crates/nvs-stdlib/src/socket.rs`,
-`crates/nvs-stdlib/src/lib.rs` and `crates/nvs-server/src/serve.rs`. **None of that surface
-exists**: there is no `Core\Socket`, `Core\Sse` or `Core\Topic` row, and no `tungstenite`
-dependency in any manifest — so the next check's eight `-p nvs-server` tests are all cause 2, and
-item 1 is where the goal's standing decision on `tungstenite` gets spent.
+**ADR 0083 § 2's entry rule at its second site**, over `crates/nvs-types/src/expr/isolate.rs`,
+`crates/nvs-types/src/expr/calls.rs` and `tests/conformance/core/`. Item 1 landed the row; the
+method-reference half of the operand rule does **not** type-check through it yet.
 
-- [ ] **`Core\Socket::upgrade` as a registry class** (ADR 0083 §§ 1-2) — the five edits of
-      *A `Core` member*, in a new `socket.rs` registered at
-      `crates/nvs-stdlib/src/registry.rs:1224` and reached at `crates/nvs-stdlib/src/lib.rs:348`.
-      The operand is `spawn script`'s, so the row's first parameter is the entry, not a callable.
-- [ ] **The entry rule at its second site** (ADR 0083 § 2) — `check_entry` is the rule's one home
-      (`crates/nvs-types/src/expr/isolate.rs:206`) and an `upgrade` operand has to reach it rather
-      than grow a second copy; `crates/nvs-types/src/expr/isolate.rs:122` is where `spawn script`'s
-      own operand reaches it.
-- [ ] **Where the upgrade hands the connection to a root isolate** (ADR 0083 § 1) — decide and
-      record it against `crates/nvs-server/src/serve.rs:540`, whose doc at
-      `crates/nvs-server/src/serve.rs:470` already states the request-ends-here rule the ADR needs
-      inverted for a connection that outlives it.
+- [ ] **`check_entry` runs at `Core\Socket::upgrade` too** (ADR 0083 § 2, ADR 0006 § *Decision*) —
+      `crates/nvs-types/src/expr/isolate.rs:206` is the rule's one home and is `fn`, not
+      `pub(crate)`; the call site to route is the `Core` static call at
+      `crates/nvs-types/src/expr/calls.rs:232` (`infer_static_call`), with the resolved signature
+      built at `crates/nvs-types/src/expr/calls.rs:984` (`resolved_call`). Today `Chat::run(...)`
+      reaches a `CoreTy::Text(Qual::Sink)` parameter and is reported as an ordinary
+      `callable`/`string` mismatch, where the ADR wants `E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD` and
+      wants the method form *accepted*. Decide whether the row marks itself (a `CoreTy` for an
+      entry) or the checker names the member; the first is the one that generalises to `Core\Sse`.
+- [ ] **The `.nvst` half of that rule** (ADR 0083 § *Verification*, "Entry by callable") —
+      `tests/conformance/core/a-socket-upgrade-declines-the-options-its-sibling-does-not-enforce.nvst:1`
+      is the shape to copy for the refusal, and
+      `tests/conformance/core/a-socket-upgrade-reports-the-connection-it-cannot-open-yet.nvst:1`
+      for the accepting form. ADR 0006's own fixture for `spawn script`, run at this second site.
+- [ ] **Fold ADR 0083 § 2's return sentence** (`docs/adr/0083-persistent-connections-are-isolates.md:125`)
+      — the body must state the current rule, and "returning the upgrade is what performs it" is
+      not it. `crates/nvs-stdlib/src/socket.rs:1`'s module doc holds the reasoning to move.
 
 ## Backlog
 
-- ADR 0006's compile-time half for a *literal* `args:` — `nvs_types::expr::isolate`'s known gap.
-- `[context] adrs` printed **no ADR 0083 section** this session and the next group is all 0083;
-  add §§ 1-3, 4 and 7 — `docs/agent/loop-goal.toml`.
-- ADR 0083 § 4's `Core\Topic` and § 7's bounds are two further checks in the same stage —
-  `docs/agent/loop-goal.toml` stage 6b.
+- ADR 0083 § 2's return sentence contradicts the landed row — `docs/adr/0083-…:125`.
+- `Core\Sse::upgrade` (§ 5) and `Core\Topic` (§ 4) are unregistered — `crates/nvs-stdlib/src/socket.rs`'s module doc.
+- No `tungstenite` in any manifest; the framing crate is pre-authorized but unspent — `docs/agent/loop-goal.md` § *Standing decisions*.
+- `spawn script`'s `limits:`/`grants:`/`on:` are still refused — `crates/nvs-types/src/expr/isolate.rs:131`.
+- **`orient.py` gap:** the item named ADR 0083 §§ 1-2 and the pack sliced neither. Add `0083` to `[context] adrs` in `docs/agent/loop-goal.toml`; it cost two calls to fetch what the pack exists to inline.

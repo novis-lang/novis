@@ -2636,6 +2636,18 @@ is why" — is this file.
   green `cargo test -p nvs-stdlib` does not, because a test binary is its own. So the failure reads
   exactly like a registry row that never landed, three `E0405`s deep, and the fix is one `cargo
   build` before `try.py` rather than anything in `registry.rs`.
+- **The `novis-db` compose stack can be *stopped* rather than broken, and then a `[1 floor]`
+  acceptance check fails naming a database the program under test never opens.** The driver
+  reported `native examples/cache.nvs [1 floor]: exit 1 -- warning: no queue worker started:
+  `[db.main]` at 127.0.0.1:15432 did not open`, which reads as a regression in `Core\Cache` or in
+  the queue worker; `cache.nvs` names neither, and its `shared()` tier and `Core\RateLimit` both
+  need the **Redis** in the same stack, so the visible message is about the first service `nvs.toml`
+  tries rather than about the one the case needs. `docker ps -a --format "{{.Names}}\t{{.Status}}"`
+  is the whole triage and it is one call: every `novis-db-*` container read `Exited (255)` with the
+  same timestamp, which is a Docker daemon or host restart and not anything a session did.
+  `docker compose -f tests/db/compose.yaml up -d` restored it and the check went green with no tree
+  change at all. The sibling bullets are about checks that are *misfiled*; this is the third
+  outcome — the check is right, the tree is right, and the machine moved underneath both.
 
 ## Writing a test case
 
