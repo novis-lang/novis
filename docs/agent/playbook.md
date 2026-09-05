@@ -2035,6 +2035,18 @@ is why" — is this file.
   half is that a by-hand commit had fixed it an hour before the session read the ledger: run
   `python tools/chain.py --check`, which validates every queued entry in one call, before spending
   anything on what the message says.
+- **A test you are about to write may already have its name fixed by `loop-goal.toml`, and the
+  handoff item will not carry it.** Stage 2's item said "an outstanding key carries its owner in a
+  column" and named the file and the line; the goal's own `[[check]]` for that stage named three
+  exact tests — `every_outstanding_key_names_an_owner`,
+  `an_owner_that_is_not_a_live_chain_entry_fails`,
+  `a_key_whose_member_is_now_registered_fails_as_a_stale_line` — and a gate written to the item
+  alone was one test under a fourth name, which would have left the stage red with everything
+  implemented. The names are also a *design*: three of them means the refusal is exercised on
+  synthetic input and the stale direction is asserted separately, which is more than the item asks
+  for. The sibling bullets are all about a check that names a test the tree cannot host; this is the
+  cheap opposite — before writing a new test for a goal item, `grep -n -A8 'stage = "<the stage>"'
+  docs/agent/loop-goal.toml` and take the names from the `tests = [` block.
 
 ## Running things
 

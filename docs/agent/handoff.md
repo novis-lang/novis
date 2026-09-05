@@ -2,45 +2,58 @@
 
 ## State
 
-**Goal 21 — The gaps no goal owned — has just started; nothing of it has landed yet.** Goal 6's whole
-list is this goal's Stage 1 floor.
+**Goal 21 — the gaps no goal owned. Stage 2, the keystone, has landed whole**; stage 1's floor is
+green and untouched. Every outstanding key in `crates/nvs-stdlib/tests/`'s four `*-outstanding.txt`
+ratchets now carries `# <owner>` — a goal number from
+[goals/chain.toml](goals/chain.toml) or the word `unowned` — and three tests in
+`spec_registry_coverage.rs` hold it: the roster gate, the refusal on synthetic input, and the stale
+direction. That file's own module doc, § *An outstanding key names its owner, in a column*, is the
+design and says what the gate deliberately does not check (whether an owner is still *ahead* — the
+chain holds the order, not the position).
 
-Every item is a gap already written down in the module that owns it, and the module doc is the design:
-nothing here is a new decision, and `21-carried-gaps.md` § *Standing decisions* answers the four that
-were left open (the wildcard's matching rule, what `nvs check` does with a broken `nvs.toml`, where an
-`open`'s pool bounds come from, and that spec § 12's two decoders answer `bytes`). **Do not re-derive
-any of those.** The audit that produced this goal is in `docs/agent/carried-gaps.md`, which is also
-where a gap this goal does *not* take is recorded — that file survives a goal switch and this one does
-not.
+**Twenty keys were seeded, not fifteen.** The item scoped this to the three `spec-*` lists;
+`migration-members-outstanding.txt` is the same kind of file read by the same function, and a gate
+over three of four ratchets would have been a half-gate. Two of the twenty came out `unowned` and
+are bullets in [carried-gaps.md](carried-gaps.md) § *Unowned* under that file's own contract —
+strike the owner, not the entry: `Core\Metrics` (goal 6 went green without registering the class)
+and `Core\Process::spawn` (no chain entry builds it). Both are the user's to schedule.
+
+Nothing is blocked. `python tools/chain.py --check` — stage 2's other check — passes, but it walks
+the chain only; it does not read `carried-gaps.md`'s owner column, so the check's name promises more
+than the tool does today.
 
 ## Next group
 
-**Stage 2: the keystone — an outstanding key names a goal that is still on the chain.** One file set:
-`crates/nvs-stdlib/tests/spec_registry_coverage.rs` and the three `spec-*-outstanding.txt` lists beside
-it, plus `docs/agent/carried-gaps.md`.
+**Stage 3's first half: ADR 0067 § 3's `db.open` wildcard, decided in the goal's § *Standing
+decisions* and needing no new decision.** One file set: `crates/nvs-config/src/capability.rs` and
+its own `#[cfg(test)]` module at the foot of the same file.
 
-- [ ] **An outstanding key carries its owner in a column, not in a comment** —
-      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:583` is where the walk excludes § 13 and is
-      the function that parses a key today. `§18 stream  # 21` is the shape. Once this box is ticked a
-      key names the goal that will strike it, in a field a program reads.
-- [ ] **The test fails on an owner that is not a live `[[goal]]`** — read out of
-      `docs/agent/goals/chain.toml`. This is the whole point of the stage: `§18 stream` has been
-      grouped under "goal 5's" since goal 5 went green on 2026-08-31, and nothing noticed.
-- [ ] **Seed every one of the fifteen keys with an owner.** Two are this goal's (`§18 stream`,
-      `§18 streamAs`); five are goal 17's (`§15 Request::clientIp`/`host`/`scheme` by that goal's own
-      § 2, `§15 Response::html`/`sendFile`); the eight §§ 16–17 classes in
-      `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` have **no owner on the chain** —
-      record them in `docs/agent/carried-gaps.md` and leave the scheduling to the user rather than
-      inventing an entry.
+- [ ] **A `*.` entry matches a host at a label boundary** — `crates/nvs-config/src/capability.rs:269`
+      is `host_granted`, the single home for the comparison (both `allows` at
+      `crates/nvs-config/src/capability.rs:281` and `allows_host` go through it, and ADR 0057 § 4
+      forbids the two disagreeing). Case-insensitive, and `*.tenants.internal` matches
+      `a.b.tenants.internal` and not `tenants.internal` or `evil-tenants.internal`. The goal names
+      the tests: `a_wildcard_grant_matches_a_subdomain_at_a_label_boundary`,
+      `a_wildcard_grant_does_not_match_the_bare_domain`,
+      `a_wildcard_grant_does_not_match_a_suffix_inside_a_label`.
+- [ ] **A bare `*` is refused as a second spelling of every host** — `Grant::Everything` already
+      means it, and R20 forbids the second way in. `crates/nvs-config/src/capability.rs:253` is
+      `grant_of`, which turns a `Setting` into a `Grant`. Test:
+      `a_bare_star_is_refused_as_a_second_spelling_of_every_host`.
+- [ ] **`net.connect` takes no wildcard** — it is asked of a *resolved address*
+      (`crates/nvs-config/src/capability.rs:43` is `Cap::NetConnect`, and the comment at
+      `crates/nvs-config/src/capability.rs:85` says why the question arrives already resolved), so
+      there is no name left to match. Test:
+      `net_connect_takes_no_wildcard_because_it_is_asked_of_an_address`.
+
+Strike `carried-gaps.md`'s first *Owned* row with the first slice, and the wildcard's line in
+`crates/nvs-config/src/capability.rs`'s own § *Known gaps*.
 
 ## Backlog
 
-- Stage 3 (grants) is the next cheapest group and shares no files with stage 2:
-  `crates/nvs-config/src/capability.rs:269`, `crates/nvs-cli/src/main.rs:623` and `:695`,
-  `crates/nvs-types/src/check.rs:108`. Two items, both ADR 0067, both priority 1.
-- Stage 4 (the array-closed cycle) is one file — `crates/nvs-runtime/src/object.rs:1816` and `:1658` —
-  and its check is the WSL valgrind leg rather than stdout.
-- Everything this goal does **not** take is in `docs/agent/carried-gaps.md`, not here: that file is
-  read by the next goal and this section is overwritten by the next goal switch.
-- When this goal's last check goes green the driver takes goal 22 — the on-disk artifact cache.
-  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
+- Stage 3's second half — `nvs check` resolves `nvs.toml` as `nvs run` does; `crates/nvs-types/src/intrinsics.rs`
+  gap 6 (checking has no configuration in front of it), three `-p nvs-cli` tests the goal names.
+- `tools/chain.py --check` does not read `carried-gaps.md`; stage 2's second check reads as though
+  it does. Either the tool gains the walk or the check's name is narrowed.
+- Goal 27 is the same column one level down — ~110 module-doc `# Known gaps` items with no owner
+  ([carried-gaps.md](carried-gaps.md), last *Owned* rows).

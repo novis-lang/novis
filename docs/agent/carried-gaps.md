@@ -21,6 +21,11 @@ same fix, one file up.
   word **`unowned`** with the reason it is nobody's yet. `unowned` is a legitimate state — it is a
   scheduling question for the user — but it is never the *absence* of an answer, and it is never what a
   *future* milestone's scheduled work is called. Goal 27 turns these three kinds into a gate.
+- **The ratchet files carry the same column.** `crates/nvs-stdlib/tests/`'s four `*-outstanding.txt`
+  lists write `# <owner>` after every key, and `every_outstanding_key_names_an_owner` in
+  `spec_registry_coverage.rs` fails on one no `[[goal]]` answers for. Two kinds rather than three
+  there: a key is struck by a session and only a chain entry runs sessions, so a milestone nobody has
+  cut into goals reads as `unowned` on a key.
 - **An entry leaves exactly one way: the gap is closed.** Not when it is rewritten, not when it stops
   being convenient. An entry whose owner went green without closing it is the failure this file
   exists to make visible; strike the owner, not the entry.
@@ -65,11 +70,20 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 
 ## Unowned
 
-Nobody's, and each is a scheduling question rather than a session's. **One entry, on 2026-09-05** — the
-six that stood here before were made reachable as goals 23–28, and the two facts this section had wrong
-were corrected at the same time: `Core\Metrics` was listed here and is goal 6's item 19, and spec § 17's
-four classes were filed under M9, which carries the extension system and none of them.
+Nobody's, and each is a scheduling question rather than a session's. **Three entries, on 2026-09-05.**
+The six that stood here before were made reachable as goals 23–28, and spec § 17's four classes — filed
+under an M9 that carries the extension system and none of them — are goals 25 and 26 now. The two that
+came back are the contract's second rule in plain sight: an owner that went green without closing its
+gap is struck, not renamed.
 
+- **`Core\Metrics`** — spec § 16's class, filed as goal 6's item 19 and left behind by it.
+  [ADR 0076](../adr/0076-observability-export.md)'s exporter, both of its config blocks and the nine
+  metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
+  through, so no Novis program can name one. `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
+- **`Core\Process::spawn`** — `proc_open`'s and `popen`'s streaming half, which
+  `docs/spec/02-php-migration.md` points a migrating program at and which no entry on the chain builds.
+  `Core\Process::run` is registered and is the whole of what there is.
+  `crates/nvs-stdlib/tests/migration-members-outstanding.txt`.
 - **[ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)'s optional in-flight cycle
   collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
   *Consequences* says outright that it "remains open"; goal 21's item 7 closes the *leak* at teardown
