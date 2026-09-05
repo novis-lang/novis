@@ -1,4 +1,4 @@
-# Actions only, and deliberately nothing else.
+# Actions and container base images, and deliberately nothing else.
 #
 # Every `uses:` in this repository is pinned to a full commit SHA, which is the only pin a tag
 # cannot be moved out from under -- a `@v4` is a mutable pointer in someone else's repository, and
@@ -21,4 +21,17 @@ updates:
     commit-message:
       # docs/agent/conventions.md's shape. `chore` because an action bump is not a change to the
       # language, and the commit-msg hook rejects the trailers Dependabot does not add anyway.
+      prefix: 'chore(ci)'
+
+  # `docker/Dockerfile`'s two runtime bases. They are on floating tags today —
+  # `gcr.io/distroless/cc-debian12:nonroot` and `debian:bookworm-slim` — because a digest written
+  # by hand and never revisited stops taking the base's security updates silently, which is the
+  # worse of the two failures while nothing is watching. The first PR this opens is the one that
+  # adds the digests, and from then on it is what moves them.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
       prefix: 'chore(ci)'

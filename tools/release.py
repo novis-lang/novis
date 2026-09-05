@@ -203,6 +203,60 @@ def next_version(current: str, bump: str) -> str:
     return f"{major}.{minor}.{patch + 1}"
 
 
+# ---------------------------------------------------------------------------
+# Container image tags
+# ---------------------------------------------------------------------------
+
+# Suffix per runtime base. The default image carries none, so `novis:0.4.1` is the one most
+# people ever type; the variant appends rather than prefixes, giving `latest-debian` and
+# `0.4-debian` -- which sort beside their defaults in a registry listing where `debian-latest`
+# would not.
+DOCKER_VARIANTS = {"distroless": "", "debian": "-debian"}
+
+
+def docker_tags(version: str, image: str, variant: str, floating: bool) -> list[str]:
+    """The registry tags one variant of one release claims.
+
+    Here rather than in `docker/metadata-action` because that action's `type=semver` implements
+    SemVer, and ADR 0068 § 3 is not SemVer below 1.0 -- it moves the breaking slot left, so
+    `0.MINOR` is what carries a breaking change. Under plain SemVer a bare `0` tag is the stable
+    line; under this scheme it would follow 0.0 -> 0.1 straight across a breaking change, which
+    is the one thing a floating tag must never do. So there is no bare-major tag until there is
+    a major, and the rule is one sentence for both regimes: **the compatible line is always
+    MAJOR.MINOR, and MAJOR alone is a tag only where MAJOR is the breaking slot.**
+
+    `floating` selects the tags that *move*. The release run pushes only the immutable ones; the
+    promote workflow adds these when a human publishes the draft, because until that click the
+    notes for this version are not readable by anyone -- and a `latest` resolving to a version
+    nobody can read about is worse than a `latest` one release behind.
+    """
+    if variant not in DOCKER_VARIANTS:
+        die(f"{variant!r} is not a known image variant ({', '.join(sorted(DOCKER_VARIANTS))})")
+    major, minor, _ = parse(version)
+    suffix = DOCKER_VARIANTS[variant]
+    # `--short` and not the full hash: this is the human-readable pin, and the digest is already
+    # the cryptographic one. Seven is what `git log --oneline` and every GitHub URL show.
+    short = git("rev-parse", "--short=7", "HEAD").strip()
+
+    chosen = [f"{version}{suffix}", f"sha-{short}{suffix}"]
+    if floating:
+        known = tags()
+        # Publishing an older draft after a newer release has already gone out would otherwise
+        # walk `latest` backwards. The immutable tags above are still correct in that case, so
+        # this drops the moving ones rather than failing the run.
+        if known and parse(version) < known[0][0]:
+            print(
+                f"release.py: {version} is behind {known[0][1]}; not moving the floating tags.",
+                file=sys.stderr,
+            )
+        else:
+            chosen.append(f"{major}.{minor}{suffix}")
+            if major >= 1:
+                chosen.append(f"{major}{suffix}")
+            chosen.append(f"latest{suffix}")
+    return [f"{image}:{tag}" for tag in chosen]
+
+
 def resolve(bump: str, exact: str | None, allow_contract: bool) -> tuple[str, str, str | None]:
     """(current, next, previous tag) -- every guard a release has to clear before it writes."""
     current = workspace_version()
@@ -508,6 +562,25 @@ def emit_output(to_github: bool, **values: str) -> None:
                 handle.write(f"{key}={value}\n")
 
 
+def emit_lines(to_github: bool, key: str, lines: list[str]) -> None:
+    """A multi-line step output, in the heredoc form `$GITHUB_OUTPUT` requires.
+
+    `key=a\\nb` would be read as `key=a` followed by a malformed line, so a value with newlines
+    in it has to be delimited. The delimiter is fixed rather than random because the only thing
+    written through here is a tag list this file just built out of a version and a short hash --
+    none of which can contain it. A value from anywhere less controlled would need a random one,
+    and would be the wrong thing to pass through a step output at all.
+    """
+    for line in lines:
+        print(line)
+    path = os.environ.get("GITHUB_OUTPUT")
+    if to_github and path:
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(f"{key}<<NVS_RELEASE_EOF\n")
+            handle.write("".join(f"{line}\n" for line in lines))
+            handle.write("NVS_RELEASE_EOF\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -519,6 +592,7 @@ def main() -> int:
     mode.add_argument("--apply", metavar="VERSION", help="rewrite the manifests and prepend the changelog")
     mode.add_argument("--package", action="store_true", help="archive a built binary")
     mode.add_argument("--check", action="store_true", help="the manifests, the tags and the changelog agree")
+    mode.add_argument("--docker-tags", metavar="VERSION", help="the registry tags one image variant claims")
 
     parser.add_argument("--version", default="", help="exact version, overriding --plan/--preview's arithmetic")
     parser.add_argument("--allow-contract", action="store_true", help="permit crossing into 0.1.0 (ADR 0068 § 1)")
@@ -530,6 +604,13 @@ def main() -> int:
     parser.add_argument("--target", help="--package: the Rust target triple that was built")
     parser.add_argument("--name", help="--package: the platform name used in the archive filename")
     parser.add_argument("--archive", choices=["tar.gz", "zip"], default="tar.gz", help="--package: format")
+    parser.add_argument("--image", help="--docker-tags: the registry repository, e.g. ghcr.io/novis-lang/novis")
+    parser.add_argument(
+        "--variant", choices=sorted(DOCKER_VARIANTS), default="distroless", help="--docker-tags: the runtime base"
+    )
+    parser.add_argument(
+        "--floating", action="store_true", help="--docker-tags: also the tags that move (latest, the MAJOR.MINOR line)"
+    )
     parser.add_argument(
         "--max-per-section", type=int, default=SECTION_CAP, help=f"entries a section lists before it counts (default {SECTION_CAP})"
     )
@@ -537,6 +618,20 @@ def main() -> int:
 
     if args.check:
         return check()
+
+    if args.docker_tags:
+        parse(args.docker_tags)
+        if not args.image:
+            die("--docker-tags needs --image (e.g. ghcr.io/novis-lang/novis)")
+        # Lowercased because a registry reference must be, and `GITHUB_REPOSITORY` carries the
+        # owner and repository as they were typed -- `Novis-Lang/Novis` would be pushed as-is and
+        # rejected by the registry after the whole build had already run.
+        emit_lines(
+            args.github_output,
+            "tags",
+            docker_tags(args.docker_tags, args.image.strip().lower(), args.variant, args.floating),
+        )
+        return 0
 
     if args.package:
         if not (args.version and args.target and args.name and args.out):

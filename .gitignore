@@ -79,4 +79,10 @@ __pycache__/
 /benches/proxied/.bin/
 /benches/proxied/generated/
 
+# The Docker build context's staged binaries (docs/docker.md § *Building an
+# image locally*). `docker/Dockerfile` compiles nothing: the release workflow
+# unpacks the published archives into here, so these are release outputs that
+# happen to sit in the tree for the length of one build.
+/docker/bin/
+
 a.out

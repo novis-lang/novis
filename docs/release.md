@@ -16,6 +16,11 @@ exactly one trigger, and it is a person choosing `Run workflow`.
 | 2 | `test` — the whole of [ci.yml](../.github/workflows/ci.yml), called, not copied | nothing |
 | 3 | `build` — seven targets, each at the version being released | nothing |
 | 4 | `publish` — bump, changelog, commit, tag, push, draft release | **everything, at once** |
+| 5 | `docker` — two image variants, from the binaries step 3 built | the immutable image tags |
+
+Then, on the click that publishes the draft, [release-promote.yml](../.github/workflows/release-promote.yml)
+moves `latest` and the `MAJOR.MINOR` image tags. It rebuilds nothing — it re-points a tag at a
+digest that already exists — and [docs/docker.md](docker.md) is the user-facing half of all this.
 
 Steps 1–3 write nothing to the repository on purpose: a build that fails after the tag was pushed
 would leave a version commit and a tag on `main` for a release that does not exist, and both would
@@ -89,10 +94,26 @@ public-repository feature at the free tier.
 If the repository is private at first release, delete the two `aarch64` legs and the
 `attest-build-provenance` step, or expect them to fail. Everything else is unaffected.
 
-### 6. Nothing else
+### 6. After the *first* release: make the container package public
+
+Nothing is needed to *push* the images — `GITHUB_TOKEN` may write packages owned by this
+repository's owner, and the package is created and linked to the repository on the first push.
+
+But **a new GHCR package is private even when its repository is public**, so until you change it
+once, `docker pull ghcr.io/novis-lang/novis:…` fails with an authentication error for everyone
+who is not you. After the first release run:
+
+**Your profile → Packages → `novis` → Package settings → Danger Zone → Change visibility →
+Public.** Leave *Inherit access from source repository* on; it is what makes the release workflow
+able to push to it without any credential of its own.
+
+This is once, ever. Subsequent releases push to the same package.
+
+### 7. Nothing else
 
 There is no secret to create, no PAT to store, no deploy key, no signing key and no registry
-token. If a future step asks you to add one, that step is the thing to question.
+token — the container registry included. If a future step asks you to add one, that step is the
+thing to question.
 
 ## Cutting a release
 
@@ -122,6 +143,11 @@ token. If a future step asks you to add one, that step is the thing to question.
 
 5. **Review the draft** at *Releases*, then press **Publish**. The workflow never does: everything
    it produces is a draft, and announcing it is a separate human decision.
+
+6. That click starts [release-promote.yml](../.github/workflows/release-promote.yml), which points
+   the `latest` and `MAJOR.MINOR` container tags at the digest already published under the version
+   tag. Nothing is rebuilt. If the `docker` job had to be re-run by hand and the promotion was
+   therefore missed, dispatch that workflow with the tag — it is idempotent.
 
 ## The version scheme is not plain SemVer
 
@@ -175,4 +201,7 @@ ordering puts last.
 | An `optional` build leg failed | `linux-x86_64-musl` and `windows-aarch64` are marked optional because `wasmtime` and `corosensei` carry assembly and neither lists Windows on ARM64 as supported. The release still ships; drop `optional:` from that leg once a run has proved it. |
 | A **required** leg failed | `publish` refuses by name rather than shipping a quietly incomplete release. Fix and re-run; nothing was written. |
 | The push in `publish` was rejected | `main` moved (see step 2) or is protected (see setup § 4). Nothing was written — re-run. |
-| A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. Nothing else moved. |
+| A release went out wrong | The draft is a draft. Delete it, delete the tag, revert the one `chore(release)` commit. **Unless `docker` ran** — a pushed image tag is the one write here that force-pushing a branch does not undo; delete that package version by hand, from the package's *Versions* page. |
+| `docker pull` says *denied* or asks for a login | The package is still private. Setup § 6 — it is a one-time switch and it is not the repository's own visibility. |
+| The `docker` job failed after the release was tagged | Re-run that job alone. It is idempotent and needs nothing from the earlier jobs but their artifacts. Then dispatch `release-promote.yml` with the tag, since the publish click has already been and gone. |
+| `latest` did not move | It moves on *publish*, not on draft (see step 6 above), and `release.py` refuses to move it backwards onto a version older than the newest tag. Dispatch `release-promote.yml` to retry. |

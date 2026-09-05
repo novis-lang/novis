@@ -10,7 +10,14 @@
 # both have to be reverted by hand on the default branch. So nothing is written to the repository
 # until every test and every binary is green:
 #
-#     plan → test → build → publish
+#     plan → test → build → publish → docker
+#
+# `docker` is last for the same reason read from the other end: it needs a tag that already
+# exists, so an image can never be pushed for a release the repository has no record of. A
+# registry tag is also the one write here that cannot be undone by force-pushing a branch —
+# deleting a published package version is manual and irreversible — so it goes last, after the
+# cheap reversible writes have all succeeded. It compiles nothing: it packages the binaries
+# `build` already produced and attested, so the bytes in the image are the bytes in the archive.
 #
 # The cost is that the version bump happens twice: `build` applies it to its own working copy and
 # throws it away, `publish` applies it for real. That is deliberate. `nvs --version` prints
@@ -421,3 +428,171 @@ jobs:
             dist/SHA256SUMS dist/nvs-*
           echo "### Draft release \`$TAG\` is ready to review" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 5. The container images, from the binaries `build` already produced.
+  #
+  # Only the *immutable* tags are pushed here — `X.Y.Z` and `sha-<short>`. `latest` and the
+  # `MAJOR.MINOR` line are moved by release-promote.yml when a human publishes the draft: until
+  # that click nobody can read this version's notes, and a `latest` resolving to a release with
+  # no readable notes is worse than a `latest` one release behind.
+  #
+  # No `environment:` on this job. `publish` above already took the human click, and a second
+  # gate here would ask for approval in the middle of a run that is already committed — the tag
+  # is pushed by then, so there would be nothing left to approve.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: container images (${{ matrix.variant }})
+    needs: [plan, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Writes to ghcr.io and to nothing else — narrower than it looks, since the commit and tag
+      # are already pushed by `publish` and this job cannot write to the repository at all.
+      packages: write
+      # The attestation, as for the archives: one `gh attestation verify` verb covers both.
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The default tag: no shell, no package manager, nonroot. `docker/Dockerfile` owns why
+          # `cc` and not `base` or `static`.
+          - variant: distroless
+          # `:X.Y.Z-debian` — the same binary, in an image you can get inside.
+          - variant: debian
+    steps:
+      # At the tag, not at `main`: this repository's default branch takes commits from an
+      # unattended loop and may be several past the release by now. The Dockerfile and the tag
+      # arithmetic must both be the ones this version was cut from.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.plan.outputs.tag }}
+          # `--docker-tags` reads `git rev-parse` and the tag list, so the history has to be here.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.x'
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: dist-linux-*
+          merge-multiple: true
+          path: dist
+
+      # The build context is `docker/`, and this fills `bin/` in it. Unpacking the published
+      # archive rather than rebuilding is the entire point of the job: `gh attestation verify`
+      # on the tarball and on the image are then two statements about the same bytes.
+      #
+      # `linux-x86_64`/`linux-aarch64` are this repository's platform names and `amd64`/`arm64`
+      # are what BuildKit calls the same two things in `TARGETARCH`. The rename happens here,
+      # once, rather than being a second naming scheme the Dockerfile has to know about.
+      - name: Stage the release binaries
+        shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p docker/bin/notices
+          for pair in "linux-x86_64:amd64" "linux-aarch64:arm64"; do
+            ours="${pair%%:*}"
+            theirs="${pair##*:}"
+            archive="dist/nvs-$VERSION-$ours.tar.gz"
+            test -f "$archive" || { echo "::error::$archive is missing" >&2; exit 1; }
+            mkdir -p "docker/bin/$theirs"
+            tar -xzf "$archive" -C "docker/bin/$theirs" --strip-components=1
+            # The notices ADR 0065 makes every distribution carry. Both archives hold identical
+            # copies, so they are moved aside into one directory and the last writer wins.
+            for notice in LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md; do
+              mv "docker/bin/$theirs/$notice" docker/bin/notices/
+            done
+            test -x "docker/bin/$theirs/nvs"
+          done
+          find docker/bin -type f | sort
+
+      # Only the `debian` stage's one `RUN` executes anything, and only for the foreign
+      # architecture. The distroless stage copies and nothing else, so it builds for both at
+      # native speed whether this is here or not.
+      - uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      # The per-run token again, and the only registry authentication in this repository. No PAT:
+      # `GITHUB_TOKEN` can write packages owned by this repository's owner, so there is no
+      # long-lived registry credential to store, rotate or leak.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Labels only — its `tags` output is deliberately unused. This action's `type=semver`
+      # implements SemVer, and under ADR 0068 § 3 that would emit a bare `0` tag that follows
+      # 0.0 → 0.1 across a breaking change. Labels have no such problem, and deriving them from
+      # the repository is what keeps the source URL correct across the move to `novis-lang/novis`.
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          labels: |
+            org.opencontainers.image.title=Novis
+            org.opencontainers.image.version=${{ needs.plan.outputs.version }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/blob/${{ needs.plan.outputs.tag }}/docs/docker.md
+
+      - id: tags
+        name: The tags this variant claims
+        shell: bash
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          python tools/release.py --docker-tags "$VERSION" \
+            --image "$IMAGE" --variant "$VARIANT" --github-output
+
+      - id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: docker
+          file: docker/Dockerfile
+          target: ${{ matrix.variant }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # BuildKit's own provenance is off and its SBOM is on, deliberately. Two provenance
+          # statements about one digest, made by different mechanisms, are two things to keep
+          # true and one more way to disagree; `attest-build-provenance` below is the one this
+          # project already verifies binaries with. An SBOM competes with nothing.
+          provenance: false
+          sbom: true
+
+      # The image digest, signed the same keyless way the archives are:
+      #     gh attestation verify oci://ghcr.io/novis-lang/novis:0.1.0 --repo novis-lang/novis
+      # `push-to-registry` stores it beside the image as an OCI referrer, so it travels with the
+      # image instead of being something a user has to know to go and look up.
+      - uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Summary
+        shell: bash
+        env:
+          TAGS: ${{ steps.tags.outputs.tags }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Pushed \`$DIGEST\`"
+            echo '```'
+            echo "$TAGS"
+            echo '```'
+            echo "\`latest\` moves when the draft is published — see release-promote.yml."
+          } >> "$GITHUB_STEP_SUMMARY"
