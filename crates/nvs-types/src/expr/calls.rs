@@ -385,6 +385,15 @@ pub(crate) fn infer_static_call(
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
         crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+        // A member that opens an isolate, which its row says by marking an
+        // entry parameter — ADR 0083 § 2's `Core\Socket::upgrade`. Its entry
+        // takes ADR 0006 § *Decision*'s operand rule and its other arguments
+        // take ADR 0033 § 4's crossing refusal, both of them the `spawn
+        // script` site's own rather than a second copy. Static-only, like
+        // every marked row: this is the one call path where an argument's
+        // *written shape* still decides whether it is accepted. See
+        // [`super::isolate::check_core_isolate_call`].
+        super::isolate::check_core_isolate_call(owner, name, args, &arg_types, &slots, env);
     }
     // See [`infer_method_call`]: first-class callable syntax names a `Closure`,
     // not the resolved method's return type, and records `CallableRef` rather

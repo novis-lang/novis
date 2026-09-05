@@ -383,6 +383,7 @@ mod tests {
             | CoreTy::Void
             | CoreTy::Mixed
             | CoreTy::Callable
+            | CoreTy::Entry
             | CoreTy::IntLiteral(_) => false,
         }
     }

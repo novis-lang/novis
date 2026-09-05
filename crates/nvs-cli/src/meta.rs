@@ -294,7 +294,11 @@ fn ty_string(ty: &CoreTy) -> String {
         CoreTy::Uint => "uint".into(),
         CoreTy::Float => "float".into(),
         CoreTy::Decimal => "decimal".into(),
-        CoreTy::Str | CoreTy::Text(_) => "string".into(),
+        // ADR 0006's entry is a `string` in the spec's column: the method form
+        // it also accepts is a *written shape* rather than a second type, so
+        // spelling it as a union here would document a `callable` variable as
+        // accepted where `nvs_types::expr::isolate` refuses one.
+        CoreTy::Str | CoreTy::Text(_) | CoreTy::Entry => "string".into(),
         CoreTy::Bytes | CoreTy::Blob(_) => "bytes".into(),
         CoreTy::SecretBytes | CoreTy::SecretBlob(_) => "secret bytes".into(),
         CoreTy::TaintedStr => "tainted string".into(),

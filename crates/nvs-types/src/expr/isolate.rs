@@ -8,6 +8,16 @@
 //! a path nor a static method (`E0802`). [`check_entry`] owns the operand rule
 //! itself, and the one thing it does not yet ask.
 //!
+//! **The operand rule has a second site and no second implementation.** ADR
+//! 0083 § 2 opens a persistent connection with "0006's operand", so a `Core`
+//! row that marks a parameter
+//! [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry) reaches
+//! [`entry_operand`] through [`check_core_isolate_call`] and gets the same
+//! three outcomes with the construct's own name in them — as does ADR 0033
+//! § 4's refusal over what crosses beside it. That is why this module is the
+//! home of two rules whose second caller is a member call rather than a
+//! construct.
+//!
 //! `spawn script` answers with the handle class and `await` answers with the
 //! shape below, which is what lets a program hear about the *rest* of a line it
 //! wrote rather than only about the construct itself.
@@ -96,6 +106,7 @@ use nvs_hir::QName;
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind, SpawnOption, SpawnOptionKey};
 use rustc_hash::FxHashSet;
 
+use crate::expr_table::ArgSlot;
 use crate::locals::LocalScope;
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env};
@@ -214,7 +225,23 @@ fn check_entry(
     // reporting whichever of the three it turns out to be, and with no expected
     // type for the reason above.
     let ty = check_expr(path, None, live, scope, ctx, env);
+    entry_operand(path, ty, "`spawn script`", env);
+}
 
+/// The rule itself, over an operand that has already been checked — the half
+/// [`check_entry`] and [`check_core_entry_argument`] share.
+///
+/// Split out rather than duplicated because ADR 0083 § 2 opens a connection
+/// with "0006's operand", so the second site is the *same* rule and not a rule
+/// like it: a reader who has seen `E0802` at a `spawn script` sees the same
+/// three outcomes, the same labels and the same help at `Core\Socket::upgrade`,
+/// with only the construct's name differing. `form` is that name, and it is the
+/// only thing either caller contributes.
+///
+/// It takes the operand's type rather than checking the expression itself, so
+/// the `Core` caller — where the argument has already been walked against the
+/// parameter — reports nothing twice.
+fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
     if is_method_reference(path) {
         return;
     }
@@ -227,13 +254,70 @@ fn check_entry(
         env.interner.get(ty),
         Ty::Callable | Ty::CallableTo(_) | Ty::CallableShapeTo(_)
     ) {
-        env.diags.report(refuse_entry(path.span, path));
+        env.diags.report(refuse_entry(path.span, path, form));
         return;
     }
 
     let string = env.interner.string();
     if !is_assignable(ty, string, env.interner, env.graph, env.signatures) {
         report_mismatch(path.span, string, ty, env);
+    }
+}
+
+/// A `Core` member that **opens an isolate** — one whose registry row marks a
+/// parameter [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry), which is
+/// ADR 0083 § 2's `Core\Socket::upgrade` and § 5's `Core\Sse` when it lands.
+///
+/// The hook [`super::calls::infer_static_call`] reaches after the target has
+/// resolved, beside the other refusals over a `Core` call's own arguments.
+/// **Which parameter is an entry is read off the row**, never off a roster kept
+/// here: `nvs_stdlib::registry::entry_parameter` is the one home of that
+/// question, and a member that opens an isolate is checked by declaring the
+/// mark. A row marking an *instance* parameter would go unchecked, which is why
+/// `nvs-stdlib` holds the marked rows to static ones rather than this function
+/// growing a second call site for a member that does not exist.
+///
+/// **Two rules, because such a call is two things.** The entry takes ADR 0006's
+/// operand rule, [`entry_operand`]'s. Every *other* argument is what crosses
+/// into the child, so it takes ADR 0033 § 4's refusal at the graph copy —
+/// [`reject_secret_crossing`], the same one `spawn script`'s `args:` reaches
+/// from [`check_spawn_script`], with only the clause naming the carrier
+/// differing. The mark identifies the member for both: an isolate opener is
+/// what a row declaring an entry *is*, so the second rule needs no second
+/// mark, and a `Core\Socket::upgrade` whose `args:` quietly carried a `secret`
+/// where the sibling construct refuses one would be a hole in a boundary
+/// rather than a missing convenience.
+///
+/// The entry's declared type is `mixed`, so nothing below the argument walk can
+/// tell what filled it — the written expression is the last place the shape is
+/// still visible, exactly as it is for [`reject_secret_crossing`]'s carriers.
+/// The mapping is the call's own [`ArgSlot`]s rather than a position, because a
+/// `name:` argument fills the entry as surely as a positional one and a `...`
+/// spread fills no single parameter at all.
+pub(crate) fn check_core_isolate_call(
+    qname: &QName,
+    member: &str,
+    args: &CallArgs,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    env: &mut Env<'_>,
+) {
+    let owner = qname.to_string();
+    let Some(index) = nvs_stdlib::registry::entry_parameter(&owner, member) else {
+        return;
+    };
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let form = format!("`{owner}::{member}`");
+    let carrier =
+        format!("{form} copies it into a root isolate whose arena this request cannot reach into");
+    for ((arg, &ty), &slot) in list.iter().zip(arg_types).zip(slots) {
+        if slot == ArgSlot::Param(index) {
+            entry_operand(&arg.value, ty, &form, env);
+            continue;
+        }
+        reject_secret_crossing(&arg.value, ty, &carrier, env);
     }
 }
 
@@ -263,10 +347,16 @@ fn is_method_reference(path: &Expr) -> bool {
 /// worker` *does* capture, and one spelling with two meanings is what the
 /// refusal exists to prevent. A variable has none to offer: what it holds is
 /// not visible here, so the help can only name the two forms that are.
-fn refuse_entry(span: Span, path: &Expr) -> Diagnostic {
+///
+/// `form` names the construct the entry was written for and is the only part
+/// either site contributes — see [`entry_operand`]. The help below says "here"
+/// rather than "at the spawn site" for the same reason: the rule is that the
+/// entry is written where it is used rather than carried to it, which is as
+/// true of a call's argument as of a `spawn script`'s operand.
+fn refuse_entry(span: Span, path: &Expr, form: &str) -> Diagnostic {
     let diag = Diagnostic::error(
         code::E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD,
-        "a `spawn script` entry is a path or a static method",
+        format!("a {form} entry is a path or a static method"),
     );
     if matches!(path.kind, ExprKind::Fn(_)) {
         diag.with_primary(span, "this is an `fn` literal")
@@ -277,9 +367,9 @@ fn refuse_entry(span: Span, path: &Expr) -> Diagnostic {
             )
     } else {
         diag.with_primary(span, "this is a `callable`").with_help(
-            "write the entry at the spawn site — a path, or `Class::method(...)`. \
-                 Whether a `callable` in a variable captures is not knowable here, and an \
-                 isolate shares nothing but compiled code",
+            "write the entry here rather than passing it in — a path, or \
+                 `Class::method(...)`. Whether a `callable` in a variable captures is not \
+                 knowable here, and an isolate shares nothing but compiled code",
         )
     }
 }

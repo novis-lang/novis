@@ -260,6 +260,31 @@ pub enum CoreTy {
     Text(Qual),
     /// A `bytes` parameter carrying its classification — [`Self::Text`]'s twin.
     Blob(Qual),
+    /// An **isolate entry** —
+    /// [ADR 0006](/docs/adr/0006-isolated-script-execution.md) § *Decision*'s
+    /// operand, written as a parameter.
+    ///
+    /// The spec's column is `string` and a path is what the member reads. What
+    /// this adds to [`Self::Text`] is the *other* accepted spelling: a static
+    /// method written `Chat::run(...)`, which is a `callable`-typed expression
+    /// and would be an ordinary mismatch at a `string` parameter. The two are
+    /// told apart by how the operand is **written** and never by its type — a
+    /// variable holding the callable that reference produces is refused — so
+    /// the rule cannot be a parameter type at all, and this is a mark rather
+    /// than a type. `nvs_types::expr::isolate`'s `check_entry` is its one home,
+    /// at `spawn script` and at every row marked here alike, and
+    /// [`entry_parameter`] is how it finds the argument.
+    ///
+    /// It therefore interns as `mixed`, exactly as `Core\Debug::dump`'s and
+    /// `Core\Serialize::encode`'s parameters do for their own call-site rules:
+    /// a declared type admitting one of the two shapes would report half the
+    /// rule as a type mismatch before the rule ran, and a union admitting both
+    /// would name `callable` as accepted in every message. The `string`
+    /// comparison the checker still makes is `check_entry`'s own, which is why
+    /// a `tainted` path is refused here with no cell to write [`Qual::Sink`]
+    /// in — [`Self::classification`] answers `Sink` for it regardless, because
+    /// every entry is one and a row has no way to say otherwise.
+    Entry,
     /// `secret bytes` — [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 1's qualifier written into a row's own signature, unclassified, and
     /// [`Self::SecretBlob`]'s twin exactly as [`Self::Bytes`] is
@@ -999,6 +1024,12 @@ impl CoreTy {
     pub const fn classification(&self) -> Option<Qual> {
         match self {
             Self::Text(qual) | Self::Blob(qual) | Self::SecretBlob(qual) => Some(*qual),
+            // The one spelling whose classification is fixed by the variant
+            // rather than written beside it: an entry's content becomes the
+            // instruction "execute this file", so ADR 0088 § 1 makes every one
+            // of them a sink and there is no cell for a row to say otherwise
+            // in. See [`Self::Entry`].
+            Self::Entry => Some(Qual::Sink),
             _ => None,
         }
     }
@@ -2205,6 +2236,29 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Db\Transaction", "queryAs"),
 ];
 
+/// Which positional parameter of `class::method` is ADR 0006's isolate entry,
+/// if any is — the slot `nvs_types::expr::isolate`'s `check_entry` applies its
+/// rule at.
+///
+/// Read off the row's own [`CoreTy::Entry`] rather than from a roster the
+/// checker holds, and that is the whole reason the mark is on the type instead
+/// of being a `(class, member)` pair like [`WRITTEN_CLASS_MEMBERS`]: a member
+/// that opens an isolate gets the rule in the edit that writes its signature,
+/// so `Core\Sse`'s row cannot land accepting a `callable` the ADR refuses
+/// because a second table was not updated. There is no roster to forget.
+///
+/// `None` for a member with no entry parameter, which is every member but the
+/// two ADR 0083 § 2 and § 5 name.
+#[must_use]
+pub fn entry_parameter(class: &str, method: &str) -> Option<usize> {
+    self::class(class)?
+        .members()
+        .find(|member| member.name == method)?
+        .positional()
+        .iter()
+        .position(|param| matches!(param, CoreTy::Entry))
+}
+
 /// Whether `class::method` is one of [`WRITTEN_CLASS_MEMBERS`].
 #[must_use]
 pub fn takes_written_class(class: &str, method: &str) -> bool {
@@ -3391,6 +3445,44 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// [`CoreTy::Entry`] is checked at one call path only —
+    /// `nvs_types::expr::calls`'s `infer_static_call`, where an argument's
+    /// *written shape* is still visible — so the mark on an **instance** row
+    /// would be a parameter that quietly accepts the `callable` ADR 0006
+    /// refuses. Nothing in the checker can see that mistake, and this roster
+    /// can: the mark is legal on a static row and nowhere else.
+    ///
+    /// The second assertion is that some row still writes it. The rule's whole
+    /// mechanism — the variant, `entry_parameter`, the hook — is reachable only
+    /// through a marked row, so a registry that stopped marking one would leave
+    /// every piece of it compiling and testing green while checking nothing.
+    #[test]
+    fn an_entry_parameter_is_declared_only_on_a_static_row() {
+        let mut marked = 0_usize;
+        for class in CLASSES {
+            for method in class.instance {
+                assert!(
+                    !method.params.iter().any(|ty| matches!(ty, CoreTy::Entry)),
+                    "{}::{} marks an isolate entry on an instance row, where the \
+                     checker's rule never runs",
+                    class.name,
+                    method.name
+                );
+            }
+            for method in class.methods {
+                marked += method
+                    .params
+                    .iter()
+                    .filter(|ty| matches!(ty, CoreTy::Entry))
+                    .count();
+            }
+        }
+        assert!(
+            marked > 0,
+            "ADR 0083 § 2's `Core\\Socket::upgrade` declares one"
+        );
     }
 
     /// Every row, enum and constant carries its ADR 0117 card — the second of

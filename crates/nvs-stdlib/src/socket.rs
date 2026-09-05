@@ -26,22 +26,20 @@
 //! any one of its members is declared, so the row cannot be written ahead of
 //! what it would be describing.
 //!
-//! # Why the member answers `void` where the ADR writes `Http\Response`
+//! The `entry` parameter is a [`CoreTy::Entry`](crate::registry::CoreTy::Entry)
+//! and that is the whole of how § 2's operand rule reaches a call site: the
+//! mark is what `nvs_types::expr::isolate` finds, so `Chat::run(...)` is
+//! accepted here and a `callable` in a variable is refused with the same
+//! `E0802` a `spawn script` reports. Its variant doc is the home of why the
+//! rule cannot be a parameter type.
 //!
-//! § 2's example ends `return Core\Socket::upgrade(...)`, on the reading that
-//! returning the upgrade is what performs it. **Nothing in this tree can read
-//! that return.** [ADR 0077](/docs/adr/0077-compile-time-routing.md) § 4 and
-//! [ADR 0102](/docs/adr/0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md)
-//! § 1 are one rule — the server matches and stops, and "never decides what a
-//! return value means" — so a handler's return value reaches no interpreter,
-//! and [`crate::response`] is a class of `void` members writing the response
-//! the request already has rather than a value type to hand one back.
+//! # Why the member answers `void`
 //!
-//! So calling this **is** performing the upgrade, exactly as
-//! `Core\Response::redirect` is, and ADR 0083 § 2's sentence is folded to say
-//! so. The alternative — a response value type, interpreted by a dispatcher —
-//! is a second response model and a crossing of 0077 § 4's refusal list, which
-//! is a larger change than the one sentence it would buy back.
+//! Because calling it performs the upgrade — ADR 0083 § 2's own bullet, which
+//! is the home of the reasoning and of what the alternative would cost. The
+//! short of it: nothing in this language reads a handler's return, so
+//! [`crate::response`] is a class of `void` members writing the response the
+//! request already has, and this is one more of them.
 //!
 //! # Why `limits:`, `grants:` and `on:` are not parameters
 //!
@@ -64,7 +62,7 @@
 
 use nvs_runtime::Fault;
 
-use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
+use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 /// `Core\Socket`'s registry rows — ADR 0083 § 2's `upgrade`, and so far
 /// nothing else. See [`crate::registry::CLASSES`].
@@ -73,17 +71,19 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[CoreMethod {
         name: "upgrade",
         names: &["entry", "args"],
-        // The entry is a *sink* where `spawn script`'s operand is a plain
-        // `string`: its content becomes the instruction "execute this file",
-        // which is ADR 0088 § 1's definition, and
+        // [`CoreTy::Entry`] is § 2's "0006's operand", as the one mark that
+        // carries that ADR's whole rule to a call site: a path or a static
+        // method written `Chat::run(...)`, and never a `callable` in a
+        // variable. It classifies as a sink for the reason a path always does
+        // — its content becomes the instruction "execute this file", ADR 0088
+        // § 1's definition, and
         // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-        // § 2 is the same rule written for the server — a filesystem path is
-        // never derived from a URL at request time, and the upgrade is a
-        // request-time call. `args` takes no expected type at all, for the
-        // reason the sibling site takes none: ADR 0023 § 2's walk decides what
-        // may cross, and that is a run-time question for everything a declared
-        // type does not already settle.
-        params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
+        // § 2 is the same rule written for the server, a filesystem path never
+        // derived from a URL at request time. `args` takes no expected type at
+        // all, for the reason the sibling site takes none: ADR 0023 § 2's walk
+        // decides what may cross, and that is a run-time question for
+        // everything a declared type does not already settle.
+        params: &[CoreTy::Entry, CoreTy::Mixed],
         defaults: &[Const::Null],
         return_ty: CoreTy::Void,
         symbol: UPGRADE_SYMBOL,

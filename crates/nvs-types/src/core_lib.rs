@@ -352,12 +352,15 @@ fn lower_const(value: &Const) -> ConstArg {
 /// position onward is checked against — and classified by — the element.
 fn qual_of(ty: &CoreTy) -> Option<Qual> {
     match ty {
-        CoreTy::Text(qual) | CoreTy::Blob(qual) | CoreTy::SecretBlob(qual) => Some(*qual),
         CoreTy::Variadic(elem) => qual_of(elem),
-        // Every other spelling has no classification of its own, including an
-        // `array<text>` element and an options bag's members: no registry row
-        // writes one nested, and `MethodSig::param_quals` owns that limit.
-        _ => None,
+        // Which spellings carry one is the registry's own question and this is
+        // not a second answer to it: every other walk here reads a row, and a
+        // leaf list restated on this side is how the two drift. What this adds
+        // is the variadic rule above, which the registry has no reason to know
+        // — an `array<text>` element and an options bag's members are
+        // unclassified for the reason `MethodSig::param_quals` records, and a
+        // `None` refuses a qualified argument exactly as `Sink` does.
+        _ => ty.classification(),
     }
 }
 
@@ -397,6 +400,15 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // pattern without a row saying so — and it is the reason a union can
         // never be given an *accepting* mark without widening this function.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
+        // ADR 0006's entry operand accepts two written shapes and is a
+        // *syntactic* rule over them, so there is no declared type that states
+        // it: `string` would report the accepted `Chat::run(...)` as a
+        // mismatch, and `string|callable` would name a variable holding a
+        // callable as accepted. It interns as the type that reports nothing
+        // and `super::expr::isolate`'s `check_entry` states the whole rule,
+        // exactly as `Core\Debug::dump`'s `mixed` leaves its own refusal to
+        // the call site. `nvs_stdlib::registry::CoreTy::Entry` owns why.
+        CoreTy::Entry => interner.mixed(),
         CoreTy::Bytes | CoreTy::Blob(_) => interner.bytes(),
         // The one pair that carries a *qualifier* rather than a
         // classification, so unlike every other spelling above it interns as a
