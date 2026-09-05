@@ -349,6 +349,28 @@ and is not comparable across machines, which is why the cross-machine history in
 [ADR 0026](../adr/0026-performance-measurement-methodology.md) is counted in instructions instead. This
 suite is that ADR's § 3 secondary figure, in runnable form.
 
+## The server's throughput, in two legs that are not one series
+
+```sh
+python tools/bench.py --serve-vs-fpm --record benches/serve.json      # Windows-native, no proxy
+python tools/bench-proxied.py --record benches/serve-proxied.json     # nginx in front of both, in Docker
+python tools/bench-proxied.py --arm deployed --backend-cpus 8         # PHP's pool against our one core
+python tools/bench-proxied.py --nvs-bin /var/tmp/nvs-target-wsl/release/nvs   # skip the image build
+python tools/bench-proxied.py --down                                  # tear both stacks down
+```
+
+**Two legs, two artifacts, and no arithmetic between them.** The first runs on this box with no
+containers and no proxy, drives `php-cgi -b` over FastCGI with a generator written into `bench.py`, and
+is goal 6's acceptance check — so it must keep working where there is no Docker and no `wrk`. The second
+is [`benches/proxied/`](../../benches/proxied/README.md), which owns every decision it makes: nginx in
+front of both peers because that is the only deployment either has, two compose files brought up one at a
+time, equal CPU budgets, and `oha` as the generator M7's *Verify* line actually names. Their inputs
+differ in every dimension, so the two files are separate and a row from one is never a baseline for the
+other.
+
+`tools/bench.py`'s `## The serve-versus-FPM leg` and that README are the two homes; neither restates the
+other, and this block is only the commands.
+
 ## What a feature still owes, and the loop that pays it
 
 ```sh

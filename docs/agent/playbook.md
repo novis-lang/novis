@@ -8682,3 +8682,27 @@ every session. Nothing below was reworded on the way.
   sleeping 30s, cleared it. The same collision makes
   `log::tests::the_engine_floor_rotates_and_rate_limits_itself` fail on a missing rotation while passing
   when run alone: two `cargo test` runs share the rotation path.
+- **A new directory under `benches/` breaks the whole workspace, and the error names a crate you never
+  wrote.** `Cargo.toml`'s `members` glob is `benches/*`, so `benches/proxied/` made every `cargo`
+  command in the repository fail with *"failed to read `/src/benches/proxied/Cargo.toml`"* — including,
+  confusingly, a Docker build whose stage had nothing to do with it. The `exclude` list beside that glob
+  is the fix and its comment already warned of exactly this; the trap is that nothing fails until the
+  next `cargo` invocation, which may be minutes and one container later. `cargo metadata --no-deps`
+  settles it in a second, and is the cheap check after adding any non-crate directory under `benches/`.
+- **On Git Bash, an absolute path in a `docker` argument is rewritten to a Windows one before docker
+  sees it.** `docker run --rm img cat /etc/debian_version` reads
+  `C:/Program Files/Git/etc/debian_version` and reports it missing. MSYS path conversion does this to
+  any argument that looks like a POSIX path, so it hits `docker exec`, volume flags and container-side
+  commands alike. `MSYS_NO_PATHCONV=1` in front of the call is the whole fix, and the tell is an error
+  naming a path under `C:/Program Files/Git/` that you never typed.
+- **`docker compose build | tail` reports success for a failed build.** The pipeline's status is
+  `tail`'s, so the exit code is 0 and the failure is only visible in the text scrolled past. This is the
+  `;`-chain rule in AGENTS.md wearing a different hat — redirect to a file and echo `$?`, or read the
+  status before the output.
+- **Two PHP-container traps, both silent.** `zend_extension=opcache` in an ini fails in the official
+  `php:8.5-fpm` images because OPcache is linked in statically — the settings still apply, so the run
+  works and only stderr says *"Failed loading Zend extension"*. And php-fpm interpolates **no**
+  environment variable in a pool file: `pm.max_children = $N` fails the whole configuration with
+  *"Unable to include"* and no key named, which is why `benches/proxied/php/pool.conf.in` is rendered by
+  the driver rather than parameterised. `php -d opcache.enable_cli=1 -r '…opcache_get_status()…'` is how
+  to prove the ini actually took, since `enable_cli=0` makes the obvious check return `false`.
