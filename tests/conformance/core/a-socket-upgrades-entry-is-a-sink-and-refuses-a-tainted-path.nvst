@@ -1,0 +1,23 @@
+--TEST--
+`Core\Socket::upgrade`'s entry is a sink, so a path that came from outside the program cannot select what a connection runs — ADR 0083 § 2, ADR 0097 § 2
+--ARGS--
+sockets/chat.nvs
+--FILE--
+<?nvs
+// The entry's content becomes the instruction "execute this file", which is
+// ADR 0088 § 1's definition of a sink, and ADR 0097 § 2 is the same rule
+// written for the server: a filesystem path is never *constructed* at request
+// time, only selected from a set enumerated before the request arrived. An
+// upgrade is a request-time call, so a word that arrived from outside is shut
+// out here even though it names a file that exists.
+foreach (Core\Cli::arguments() as tainted string $word) {
+    Core\Socket::upgrade($word);
+    echo "unreachable\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:9:26
+%A
+error: aborting due to 1 error

@@ -1430,6 +1430,14 @@ pub const CLASSES: &[CoreClass] = &[
     // presented identifier this store cannot have issued is *absent* rather
     // than a second question about validity.
     crate::session::CLASS,
+    // ADR 0083 §§ 1-2, and no spec § of its own: the spec's roster has no
+    // `Core\Socket` row, so that ADR is the whole specification. Last of the
+    // request-facing group because it is where a request stops being one — §
+    // 1 makes the connection a *root* isolate, so the request that upgraded it
+    // ends normally and shares nothing onward. [`crate::socket`] owns why the
+    // member answers `void` where the ADR writes a returned response, and why
+    // three of § 2's four options are absent rather than accepted.
+    crate::socket::CLASS,
     // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the

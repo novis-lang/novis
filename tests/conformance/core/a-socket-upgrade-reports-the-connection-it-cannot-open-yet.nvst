@@ -1,0 +1,31 @@
+--TEST--
+`Core\Socket::upgrade` takes `spawn script`'s operand and reports the root isolate it cannot open, rather than answering as though a peer were attached — ADR 0083 §§ 1-2
+--FILE--
+<?nvs
+// ADR 0083 § 2 makes the operand `spawn script`'s, so a path is one of the two
+// forms the entry may take and the compiler accepts this line. What is behind
+// it is § 1's root isolate -- its own arena, its own budget, its own grants --
+// and that is not built, so the member says so on the ladder's ordinary rung.
+// The alternative is the one this case exists to refuse: answering `void` and
+// leaving a program to believe it had upgraded.
+try {
+    Core\Socket::upgrade("sockets/chat.nvs");
+    echo "upgraded\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The second parameter is optional, and omitting it above is not what was
+// refused -- an entry declaring no parameter needs no `args:`, exactly as
+// `spawn script` with no `with(args:)` clause does. So the same report arrives
+// either way, which is what says the refusal is about the isolate and not
+// about the call's shape.
+try {
+    Core\Socket::upgrade("sockets/chat.nvs", args: {room: "lobby"});
+    echo "upgraded\n";
+} catch (RuntimeError $refused) {
+    echo "refused again\n";
+}
+--EXPECT--
+`Core\Socket::upgrade` cannot open a connection yet: the root isolate a WebSocket connection runs in is not built, so there is nothing to hand this connection to
+refused again

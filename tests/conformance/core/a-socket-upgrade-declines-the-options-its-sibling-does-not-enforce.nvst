@@ -1,0 +1,28 @@
+--TEST--
+`Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — ADR 0083 § 2, ADR 0006
+--FILE--
+<?nvs
+// ADR 0083 § 2 lists four options and calls them 0006's. Three of the four --
+// `limits:`, `grants:` and `on:` -- are refused at the sibling site with
+// `E_SPAWN_OPTION_UNSUPPORTED`, because a `grants:` narrowing that were
+// silently dropped would hand the child the parent's authority. Declaring them
+// on this row would be that same drop with a different spelling, so the row
+// declares `entry` and `args` and nothing else, and the call below has no
+// parameter to bind to.
+//
+// This is the fail-closed direction stated as a case: what a reader has to be
+// able to tell apart is a narrowing that was applied from one that was
+// accepted and ignored, and only a refusal does that.
+Core\Socket::upgrade("sockets/chat.nvs", grants: {});
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `grants`
+   --> case.nvs:13:42
+   |
+13 | Core\Socket::upgrade("sockets/chat.nvs", grants: {});
+   |                                          ^^^^^^ no such parameter
+   = help: the parameters are: `entry:`, `args:`
+
+error: aborting due to 1 error
