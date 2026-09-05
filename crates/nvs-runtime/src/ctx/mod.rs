@@ -976,6 +976,16 @@ pub struct Ctx {
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,
+    /// [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md) § 1's
+    /// socket, on the connection isolate the upgrade opened and on nothing else
+    /// — [`crate::peer`] is the home of the seam and of why it is a trait
+    /// object.
+    ///
+    /// `None` for every other kind of context, which is what makes
+    /// `Core\Socket::current()` a refusal outside a connection rather than a
+    /// rule to remember. It is dropped with this context, and dropping it is
+    /// what closes the descriptor.
+    peer: Option<Box<dyn crate::peer::PeerSocket>>,
     /// Every object this context has allocated and not yet dismantled — ADR
     /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of

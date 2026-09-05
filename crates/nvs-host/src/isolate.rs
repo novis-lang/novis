@@ -81,7 +81,8 @@ use std::rc::Rc;
 
 use nvs_runtime::graph::{GraphError, copy_graph, copy_graph_into};
 use nvs_runtime::{
-    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, SseSlot, TaskRoot, UpgradeSlot, Value,
+    Ctx, ErrorClass, Fault, Inbound, Limit, OutputSink, PeerSocket, SseSlot, TaskRoot, UpgradeSlot,
+    Value,
 };
 
 use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_current};
@@ -103,7 +104,14 @@ pub struct Isolate {
     output: Output,
     charge: Charge,
     entry: Entry,
-    inbound: Option<Inbound>,
+    /// Boxed, and not for the size of this struct alone: [`Ctx::set_inbound`]
+    /// boxes a carrier anyway, so allocating it here hands the same allocation
+    /// on rather than moving three hundred bytes twice. What it also buys is
+    /// that `nvs_server::Reply` — an enum with this type in one variant and a
+    /// response in the other — stays a value a handler can return without one
+    /// arm dwarfing the other.
+    inbound: Option<Box<Inbound>>,
+    peer: Option<Box<dyn PeerSocket>>,
 }
 
 /// Whose budget an isolate spends: ADR 0006's answer, and ADR 0020 § 3's one
@@ -145,6 +153,7 @@ impl Isolate {
             charge: Charge::Tree,
             entry: Entry::Path,
             inbound: None,
+            peer: None,
         }
     }
 
@@ -185,7 +194,7 @@ impl Isolate {
     /// context.
     #[must_use]
     pub fn answering(mut self, inbound: Inbound) -> Self {
-        self.inbound = Some(inbound);
+        self.inbound = Some(Box::new(inbound));
         self
     }
 
@@ -236,6 +245,33 @@ impl Isolate {
         if let Some(inbound) = self.inbound.as_mut() {
             inbound.offer_sse(cell);
         }
+        self
+    }
+
+    /// Moves [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 1's socket into the isolate this builds.
+    ///
+    /// **The opposite direction from the two above**, and that is the whole of
+    /// what separates a connection isolate from the request that asked for one.
+    /// Those offer a *request* somewhere to leave an upgrade it prepared; this
+    /// hands the isolate the socket the server then framed, so it is called on
+    /// the connection's own isolate and never on a request's.
+    ///
+    /// It is a builder and not an argument of [`Isolate::new`] for
+    /// [`Self::running_a_method_of_the_parents_unit`]'s reason: every other
+    /// isolate in this tree has
+    /// no peer, and a parameter would make forty call sites pass a `None` to
+    /// say so. What it changes is one field of the child's context —
+    /// [`Ctx::set_peer`] owns what that field means and when it may be read.
+    ///
+    /// **It is called after the upgrade was framed and never before.** § 1's
+    /// socket does not exist until the `101` is on the wire, so an isolate
+    /// started with the program in hand and the peer still to come would run
+    /// its first `receive()` against nothing; `nvs_server::serve_connection`'s
+    /// own docs are the home of that ordering.
+    #[must_use]
+    pub fn over_socket(mut self, peer: Box<dyn PeerSocket>) -> Self {
+        self.peer = Some(peer);
         self
     }
 
@@ -296,6 +332,7 @@ impl Isolate {
             charge,
             entry,
             inbound,
+            peer,
         } = self;
         // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -378,6 +415,13 @@ impl Isolate {
         // once and never cleared.
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);
+        }
+        // ADR 0083 § 1's socket, on the same context and for the same reason:
+        // it is what this isolate *is*, so it is there before the program's
+        // first statement rather than reached back for. [`Isolate::over_socket`]
+        // owns why nothing but a connection's own isolate has one.
+        if let Some(peer) = peer {
+            isolate_ctx.set_peer(peer);
         }
 
         Ok(match Wake::current() {

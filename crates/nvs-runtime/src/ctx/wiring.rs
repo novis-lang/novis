@@ -149,6 +149,7 @@ impl Ctx {
             open_files: Vec::new(),
             open_connections: Vec::new(),
             session: None,
+            peer: None,
             live: std::rc::Rc::new(crate::object::LiveList::default()),
         };
         ctx.arm_stack_limit(base, STACK_CEILING);

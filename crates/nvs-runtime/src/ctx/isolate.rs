@@ -18,6 +18,40 @@
 use super::*;
 
 impl Ctx {
+    /// Moves [ADR 0083](/docs/adr/0083-persistent-connections-are-isolates.md)
+    /// § 1's socket onto the connection isolate's own context.
+    ///
+    /// Written once, by `nvs_host::Isolate::over_socket`, before the isolate's
+    /// program runs and after the server framed the upgrade — which is the same
+    /// point [`Ctx::set_inbound`] is written at, and here for the same reason:
+    /// a context that had to reach back for one of these would be reaching into
+    /// a request that has ended.
+    ///
+    /// Nothing clears it. The socket lives as long as the isolate does and
+    /// closes when this context is dropped, so § 1's "a connection that exceeds
+    /// a limit is closed with a defined code" arrives through the ordinary
+    /// teardown rather than through a second path that has to agree with it.
+    /// [`crate::peer`] is the home of the seam itself.
+    pub fn set_peer(&mut self, peer: Box<dyn crate::peer::PeerSocket>) {
+        self.peer = Some(peer);
+    }
+
+    /// The socket, for the isolate that has one.
+    ///
+    /// `None` everywhere else, and that is what makes `Core\Socket::current()`
+    /// a refusal outside a connection rather than a rule to remember: an
+    /// ordinary request, a `spawn script` child and a CLI program each answer
+    /// it, because none of them was handed a peer.
+    pub fn peer(&mut self) -> Option<&mut (dyn crate::peer::PeerSocket + 'static)> {
+        self.peer.as_deref_mut()
+    }
+
+    /// Whether this context is a connection's, without borrowing the socket.
+    #[must_use]
+    pub fn has_peer(&self) -> bool {
+        self.peer.is_some()
+    }
+
     /// Arms this request's static-property storage: one slot per entry in
     /// `defaults`, in that order, each materialized from its declared
     /// initializer.

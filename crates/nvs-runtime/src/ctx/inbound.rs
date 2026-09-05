@@ -46,7 +46,14 @@ impl Ctx {
     /// Called once, by whoever accepted the request, before the program runs.
     /// There is no member that clears one: a context answers one request for
     /// its whole life, and the isolate is what is discarded between two.
-    pub fn set_inbound(&mut self, inbound: Inbound) {
+    ///
+    /// **It takes either the carrier or a box of one**, which is not a
+    /// convenience: this context boxes it regardless, so a caller already
+    /// holding a `Box<Inbound>` — `nvs_host::Isolate`, whose own field is one
+    /// so that a `nvs_server::Reply` stays small — hands the allocation on
+    /// instead of moving the carrier twice to make a second.
+    pub fn set_inbound(&mut self, inbound: impl Into<Box<Inbound>>) {
+        let inbound = inbound.into();
         // ADR 0076 § 2's trace is the door's decision and rides on the carrier
         // ([`Inbound::set_trace_context`]), so this is where it becomes the
         // context's — the one write [`Self::set_trace_context`] describes, made
@@ -56,7 +63,7 @@ impl Ctx {
         if let Some(trace) = inbound.trace_context() {
             self.set_trace_context(trace);
         }
-        self.inbound = Some(Box::new(inbound));
+        self.inbound = Some(inbound);
     }
     /// The request this context is answering, or `None` where there is none.
     ///
