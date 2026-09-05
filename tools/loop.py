@@ -2668,6 +2668,9 @@ class Chain:
             raise ChainError(f"{rel_to_root(self.path)} does not exist")
         self.goals = self._load()
         self.index = self._restore()
+        fail = self._retired_error(self.goals, self.index)
+        if fail:
+            raise ChainError(fail)
 
     def _load(self):
         """Every `[[goal]]` in the file, validated. `ChainError` on anything unwalkable."""
@@ -2679,12 +2682,21 @@ class Chain:
         if not goals:
             raise ChainError(f"{rel_to_root(self.path)} holds no [[goal]] entry")
         for i, g in enumerate(goals, 1):
-            for key in ("name", "md", "toml", "handoff"):
+            # A **retired** entry is one the run has already left. `chain.py --retire` proved its
+            # whole acceptance list had been folded forward, deleted the two files that held it,
+            # and left the block and the `.md` in place so no position moved and nothing citing the
+            # prose broke. So there is one file to validate and no list to run: it is history with
+            # a number, and `install_next` never reaches back for it. `_retired_error` is the other
+            # half -- that it really is behind the run, and not something about to be installed.
+            keys = ("name", "md") if "retired" in g else ("name", "md", "toml", "handoff")
+            for key in keys:
                 if key not in g:
                     raise ChainError(f"goal {i} in {rel_to_root(self.path)} has no `{key}`")
-            for key in ("md", "toml", "handoff"):
+            for key in keys[1:]:
                 if not (ROOT / g[key]).is_file():
                     raise ChainError(f"goal {i} ({g['name']}) names {g[key]}, which does not exist")
+            if "retired" in g:
+                continue
             # Existing is not the same as walkable. A misspelled key in entry 20's list is an
             # authoring mistake with a three-day fuse: nothing reads that file until the switch
             # into it, which is hours of sessions after the entry before it went green, and the
@@ -2695,6 +2707,31 @@ class Chain:
                 raise ChainError(f"goal {i} ({g['name']}) names {g['toml']}, whose acceptance list "
                                  f"this driver cannot run -- {fail}")
         return goals
+
+    @staticmethod
+    def _retired_error(goals, index):
+        """A retired entry the run has not already left, as one line, or `""`.
+
+        Retirement is only ever true *behind* the run: it deletes the acceptance list an entry was
+        walked on, so an entry at or after the live one is one the driver would be asked to install
+        off files that are gone. `-1` -- a tree with no `.loop/chain.json` -- has left nothing
+        behind it at all, and a retired prefix there is refused rather than inferred into a
+        position: which entries have been walked is exactly what that file is for, and guessing it
+        from what somebody deleted is how a floor gets folded in twice.
+        """
+        for i, g in enumerate(goals):
+            if "retired" not in g or i < index:
+                continue
+            name = g.get("name", f"entry {i + 1}")
+            if index < 0:
+                return (f"goal {i + 1} ({name}) is retired -- the acceptance list it was walked on "
+                        f"has been deleted -- but {rel_to_root(CHAINSTATE)} records no installed "
+                        f"entry, so this run would start by trying to install it. Restore that "
+                        f"file, or start the run against a chain whose first entry still has one.")
+            return (f"goal {i + 1} ({name}) is retired but the run stands at position {index + 1}, "
+                    f"so it is the live goal or ahead of it. Retiring is what says an entry's "
+                    f"checks are already somebody's floor; this one's are not.")
+        return ""
 
     def refresh(self):
         """Re-read the file, so a chain edited under the run is walked as it now stands.
@@ -2721,6 +2758,9 @@ class Chain:
             fresh = self._load()
         except ChainError as e:
             return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {e}"
+        fail = self._retired_error(fresh, self.index)
+        if fail:
+            return f"chain: {rel_to_root(self.path)} changed and is not walkable -- {fail}"
         # `-1` is "nothing installed yet", which protects nothing: no switch has folded a floor
         # into anything, so every entry is still free to move.
         walked = max(self.index + 1, 0)
@@ -2829,17 +2869,52 @@ class Chain:
         # switch would let a check the previous goal memoized stand in for one the new goal names.
         GOALCACHE.unlink(missing_ok=True)
 
+        # The entry the run has just LEFT. Every one of its checks is in the file above -- that is
+        # what the fold did four calls ago -- so this is the one moment its own copy is provably
+        # redundant, and `chain.py --retire` re-proves it before unlinking anything. Without this
+        # the goals directory keeps a full floor per walked entry forever: six of them were 830K of
+        # text no tool reads, and `dossier.py` is about to append 93 more entries.
+        #
+        # It is hygiene, so a refusal is printed and the run goes on. Nothing downstream needs the
+        # file to be gone, and stopping a three-hundred-session run over a deleted file that is
+        # still there would be the tail wagging the dog.
+        retired = []
+        prev = self.goals[self.index - 1] if self.index >= 1 else None
+        num = (prev or {}).get("name", "").split(" ", 1)[0]
+        if prev is not None and "retired" not in prev and num.isdigit():
+            r = capture(sys.executable, [str(ROOT / "tools" / "chain.py"), "--retire", num])
+            for line in stdout_lines(r.out):
+                say(f"  {line}", C.GRAY)
+            if r.code == 0:
+                retired = [prev["toml"], prev["handoff"], self.path.as_posix()]
+                # The snapshot has to stop naming files that are no longer there: `refresh` leaves
+                # `self.goals` alone when only keys changed, and `_retired_error` reads this list.
+                prev.pop("toml", None)
+                prev.pop("handoff", None)
+                prev["retired"] = f"{datetime.now():%Y-%m-%d}"
+            else:
+                say(f"  chain: goal {num} was not retired -- {r.first_err_line}", C.GRAY)
+
         message = (
             f"docs(loop): the chain advances to {nxt['name']}\n\n"
             f"Written by tools/loop.py --chain from {rel_to_root(self.path)}. The previous goal's\n"
             f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
             f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
         )
+        if retired:
+            message += (
+                f"\nThe entry it left is retired in the same commit: every check of {prev['name']}\n"
+                f"is in the floor above, so the copy it kept is deleted and its block keeps only\n"
+                f"the prose. chain.py --retire is what proved that before unlinking anything.\n"
+            )
         msg_file = ROOT / ".agent-tmp" / "chain-switch.txt"
         msg_file.parent.mkdir(parents=True, exist_ok=True)
         msg_file.write_text(message, encoding="utf-8", newline="\n")
+        # `git add` on a path that is gone stages the deletion, so the retirement -- two removals
+        # and the chain edit that stopped naming them -- rides in this commit rather than sitting
+        # in the tree for whichever session commits next.
         git("add", nxt["toml"], "docs/agent/loop-goal.toml", "docs/agent/loop-goal.md",
-            "docs/agent/handoff.md")
+            "docs/agent/handoff.md", *retired)
         git("commit", "-F", str(msg_file))
         say(f"chain: goal {self.index + 1} of {len(self.goals)} is live -- {nxt['name']}", C.GREEN)
         return ""
