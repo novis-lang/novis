@@ -1472,6 +1472,13 @@ pub const CLASSES: &[CoreClass] = &[
     // ADR 0083 § 3's message, immediately after the class whose `receive`
     // is the only thing that produces one.
     crate::socket::MESSAGE,
+    // ADR 0083 § 4, and beside the class whose `receive` is the only thing a
+    // topic delivery arrives through: the bus is the *second* of § 3's two
+    // sources, so it is not a facility of its own but the far end of a member
+    // already registered above. [`crate::topic`] owns why the subscriber table
+    // is per core and holds a weak reference, and why `publish` — § 4's third
+    // row — is not here yet.
+    crate::topic::CLASS,
     // ADR 0083 § 5, and beside `Core\Socket` because the two are one model with
     // two doors: the same root isolate, reached through the cell the hand-over
     // needs. [`crate::sse`] owns why that is a second cell rather than a second

@@ -1,0 +1,37 @@
+--TEST--
+Both `Core\Topic` members take the name as a sink, so neither a subscription nor its undoing can be chosen by the input the program is answering — ADR 0083 § 4, ADR 0076 § 1
+--ARGS--
+room:someone-elses
+--FILE--
+<?nvs
+// § 4 states the rule and names the reason: a name derived from user input is
+// how one tenant subscribes to another's stream. It is the same refusal ADR
+// 0076 § 1 applies to a metric label, and it is a *compile* error rather than a
+// check inside the member, so a program cannot reach the bus with an unchecked
+// name at all -- there is no run in which the wrong subscription happened once.
+//
+// The two are asked together because the interesting property is that they
+// *agree*: a member that refused a tainted name on the way in and accepted one
+// on the way out would let a request cancel a subscription it was never able to
+// make, which is the same tenant-crossing read backwards.
+foreach (Core\Cli::arguments() as tainted string $word) {
+    Core\Topic::subscribe($word);
+    Core\Topic::unsubscribe($word);
+    echo "unreachable\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:27
+   |
+13 |     Core\Topic::subscribe($word);
+   |                           ^^^^^ this is `tainted string`
+
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:29
+   |
+14 |     Core\Topic::unsubscribe($word);
+   |                             ^^^^^ this is `tainted string`
+
+error: aborting due to 2 errors

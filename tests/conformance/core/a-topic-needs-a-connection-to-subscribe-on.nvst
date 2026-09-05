@@ -1,0 +1,30 @@
+--TEST--
+`Core\Topic::subscribe` and `unsubscribe` refuse a program that is not a connection, rather than recording a subscription nothing could ever drain — ADR 0083 §§ 3-4
+--FILE--
+<?nvs
+// § 4 makes a topic the only way two *connections* meet, and § 3 makes the one
+// wait that drains a delivery `Core\Socket::receive()` -- which only a script
+// an upgrade opened can call. A subscription made anywhere else would therefore
+// be an entry in the bus's table with no reader behind it, and the value
+// published to it would be copied, queued and never seen. So the refusal is the
+// member's answer rather than a silent no-op: a command-line script that meant
+// to be a connection learns so at the call it got wrong.
+try {
+    Core\Topic::subscribe("room:lobby");
+    echo "subscribed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The pair cannot disagree about what a call means, so leaving a topic is
+// refused by the same question in the same wording -- and not, for instance,
+// answered as though the connection had simply never joined it.
+try {
+    Core\Topic::unsubscribe("room:lobby");
+    echo "unsubscribed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+`Core\Topic::subscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` opened runs inside a connection isolate
+`Core\Topic::unsubscribe` needs a connection and this program is not one: only a script `Core\Socket::upgrade` opened runs inside a connection isolate

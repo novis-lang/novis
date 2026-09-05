@@ -269,6 +269,7 @@ mod taint;
 mod task;
 mod test;
 pub mod time;
+mod topic;
 mod totp;
 pub mod uri;
 pub mod uuid;
@@ -408,6 +409,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
         .or_else(|| time::address(symbol))
+        .or_else(|| topic::address(symbol))
         .or_else(|| totp::address(symbol))
         .or_else(|| uri::address(symbol))
         .or_else(|| uuid::address(symbol))

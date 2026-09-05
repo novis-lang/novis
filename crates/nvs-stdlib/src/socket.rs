@@ -18,11 +18,12 @@
 //! the isolate as a [`nvs_runtime::PeerSocket`] — so an upgrade prepared here
 //! opens a root isolate that **has** a peer.
 //!
-//! What is missing is the surface over it: § 3's
-//! `current()`/`receive()`/`send()` are unwritten, so a connection isolate can
-//! reach its socket from Rust and not yet from Novis, and `Core\Topic` (§ 4) is
-//! unregistered because `receive()` is the one wait a topic delivery arrives
-//! through. Those two are this module's known gap. `nvs_server::socket`'s own
+//! § 3's surface is over it as well — `current()`, `receive()` and the two
+//! `send` rows, plus the [`MESSAGE`] each wait answers with. What is missing is
+//! the far half of `receive()`'s second source: [`crate::topic`] registers
+//! § 4's `subscribe` and `unsubscribe`, and its `publish` — the fan-out, and
+//! the only thing that can fill a connection's queue — is unwritten. That is
+//! this module's known gap. `nvs_server::socket`'s own
 //! docs § *What is not here yet* carry the other half of it — § 1's `[limits]
 //! idle` and § 3's send timeout — which is the same list read from under the
 //! seam.

@@ -1,0 +1,39 @@
+--TEST--
+An empty topic name is refused by both `Core\Topic` members, and refused before either asks whether this program is a connection — ADR 0083 § 4
+--FILE--
+<?nvs
+// A name is a topic's whole identity, and the empty one is the name no
+// publisher can mean and no subscriber can be reached by. It is wrong wherever
+// it is written, which is why it is the *call* that is reported rather than the
+// host: a program that ran this outside a connection has two things wrong with
+// it, and the one it can fix from the line it wrote is this one.
+try {
+    Core\Topic::subscribe("");
+    echo "subscribed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+try {
+    Core\Topic::unsubscribe("");
+    echo "unsubscribed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The order is what this case pins, and a name built at run time is where it
+// shows: neither call above is on a connection, so a member that asked about
+// the host first would answer both of them with the same sentence and this one
+// with a third. Concatenating to nothing is how an empty name is actually
+// reached -- nobody writes the literal.
+var $room = "";
+try {
+    Core\Topic::subscribe("" . $room);
+    echo "subscribed\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+--EXPECT--
+`Core\Topic::subscribe` needs a topic name and was given an empty one
+`Core\Topic::unsubscribe` needs a topic name and was given an empty one
+`Core\Topic::subscribe` needs a topic name and was given an empty one
