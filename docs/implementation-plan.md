@@ -59,8 +59,8 @@
 > 0078's endpoint lands**: `E0629` refuses a network `socket`, a local one is created 0600, `reload`
 > its only operation, a changed `Boot` key named. **ADR 0093's installer refuses**: `E0630`-`E0634`;
 > `nvs service unit` prints § 5's. **ADR 0017 is guarded**: `never` never `stat`s, one window is one
-> check, a swap publishes, § 3a picks `validate`. **ADR 0079 §§ 14, 17-18 land**: a snapshot
-> asserts, a request runs in-process and on a listener, a `db:` test rolls back. Conformance 1543,
+> check, a swap publishes, § 3a picks `validate`. **ADR 0079 §§ 14, 17-18 land**: `--update`
+> splices, a request runs in-process and on a listener, a `db:` test rolls back. Conformance 1543,
 > differential 256, migration 100%; valgrind green.
 >
 > **Blocking:** Nothing waiting on a decision — every design call goals 1–6 reach is pre-authorized

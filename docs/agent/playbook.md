@@ -7946,6 +7946,16 @@ sibling in the same namespace unqualified.
   looks like the *table* being empty rather than like the wrong table being asked. The rule: match
   on the side that holds the compiled unit, and treat a `ctx.routes()` in a helper that may run
   under `nvs test` as a bug.
+- **"Which declaration is this expression inside" is a *stamp* on the table, not a field on
+  `nvs_types::Ctx`.** ADR 0079 § 14's updater needs each written `assertMatchesInline`'s enclosing
+  `Class::method`, and the obvious move — `current_method` beside `current_class` — costs an edit at
+  every one of that struct's thirteen construction sites (`grep -n 'Ctx {' crates/nvs-types/src/`),
+  in `signatures.rs` and `retrieval.rs` and `lower.rs`, for a fact one table wants. The expression
+  walk records its rows owner-less; `check::check_method` takes a mark before the body
+  (`ExprTypeTable::inline_snapshot_mark`) and names the owner of everything recorded after it, at
+  both of that function's exits. Two lines, no signature moves, and it reaches a call written inside
+  a closure inside the method for free. The shape generalises to any per-declaration fact an
+  expression-level table wants.
 
 ## Divergences and refusals already pinned
 
