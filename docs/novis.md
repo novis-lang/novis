@@ -122,6 +122,7 @@ Conventions the whole file uses:
 | [`Core\Response`](#core-core-response) |  |
 | [`Core\Session`](#core-core-session) |  |
 | [`Core\Socket`](#core-core-socket) |  |
+| [`Core\Socket\Message`](#core-core-socket-message) |  |
 | [`Core\Sse`](#core-core-sse) |  |
 | [`Core\Fatal`](#core-core-fatal) | the one hook that runs after a resource limit has stopped the request — what `register_shutdown_function` was for on a fatal |
 | [`Core\Log`](#core-core-log) |  |
@@ -16493,11 +16494,15 @@ Forgets the record in the store and closes the session on this request, which is
 <a id="core-core-socket"></a>
 ### `Core\Socket`
 
-Keywords: upgrade
+Keywords: upgrade, current, receive, send, sendBytes
 
 | Member | Signature |
 |---|---|
 | [`Core\Socket::upgrade`](#core-core-socket-upgrade) | `upgrade(string $entry, mixed $args = null): void` |
+| [`Core\Socket::current`](#core-core-socket-current) | `current(): Core\Socket` |
+| [`Core\Socket->receive`](#core-core-socket-receive) | `receive(): ?Core\Socket\Message` |
+| [`Core\Socket->send`](#core-core-socket-send) | `send(string $frame): void` |
+| [`Core\Socket->sendBytes`](#core-core-socket-sendbytes) | `sendBytes(bytes $frame): void` |
 
 <a id="core-core-socket-upgrade"></a>
 #### `Core\Socket::upgrade`
@@ -16516,6 +16521,122 @@ Turns this request into a WebSocket connection running `$entry` as a root isolat
 **Returns** `void` — Nothing. Calling it performs the upgrade — this is not a response value a handler hands back, because nothing interprets a handler's return.
 
 **Throws** `RuntimeError` — A request that arrived on no connection a server could upgrade; an `$entry` path `script.spawn` does not grant or that does not compile; a second call on one request.; `LogicError` — An `$args` value with no meaning on the other side of an isolate boundary — a resource, or a `secret` the call site could not see through; and, for a static method entry, an `$args` map that omits a parameter the method declares or names one it does not.
+
+<a id="core-core-socket-current"></a>
+#### `Core\Socket::current`
+
+```nvs skip
+Core\Socket::current(): Core\Socket
+```
+
+This connection, inside the isolate the upgrade opened — the first line of every script a `Core\Socket::upgrade` runs.
+
+**Returns** `Core\Socket` — The connection, whose `receive` and `send` are the whole of what a program does with one. Two calls answer two objects rather than the same one: there is exactly one connection per isolate, so a handle carries no state and identity has nothing to distinguish.
+
+**Throws** `LogicError` — This program is not a connection isolate — an ordinary request, a `spawn script` child and a command each get this, because none of them was handed a socket.
+
+<a id="core-core-socket-receive"></a>
+#### `Core\Socket->receive`
+
+```nvs skip
+$socket->receive(): ?Core\Socket\Message
+```
+
+Waits for the next thing from either side — a frame the peer sent, or a value published to a topic this connection subscribed to — and answers it as one message.
+
+**Returns** `?Core\Socket\Message` — The next message, or `null` once the peer has closed, which is what ends the `while (var $msg = $conn->receive())` loop a connection script is written as. A peer frame's payload is `tainted`; a delivery carries the published value and the topic's name, which is how the loop tells the two apart.
+
+**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to wait on.
+
+<a id="core-core-socket-send"></a>
+#### `Core\Socket->send`
+
+```nvs skip
+$socket->send(string $frame): void
+```
+
+Sends one text frame to the peer, suspending until it is buffered.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$frame` | `string` (neutral) | The payload, which goes out as RFC 6455's text frame. A `tainted` one is accepted — a frame is not an instruction on this side of the wire — so forwarding what a peer sent needs no laundering that would change none of the bytes. |
+
+**Returns** `void` — Nothing, once the frame is buffered for the peer.
+
+**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to send to.; `RuntimeError` — The socket failed, or the send wait expired — a peer that has stopped reading is a throw at the call site and never an unbounded wait.
+
+<a id="core-core-socket-sendbytes"></a>
+#### `Core\Socket->sendBytes`
+
+```nvs skip
+$socket->sendBytes(bytes $frame): void
+```
+
+Sends one binary frame to the peer, suspending until it is buffered — `send`'s twin for the other payload kind RFC 6455 has.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$frame` | `bytes` (neutral) | The payload, which goes out as a binary frame and is not checked for anything. |
+
+**Returns** `void` — Nothing, once the frame is buffered for the peer.
+
+**Throws** `LogicError` — This program is not a connection isolate, so there is no peer to send to.; `RuntimeError` — The socket failed, or the send wait expired, exactly as for a text frame.
+
+<a id="core-core-socket-message"></a>
+### `Core\Socket\Message`
+
+Keywords: topic, text, bytes, value
+
+| Member | Signature |
+|---|---|
+| [`Core\Socket\Message->topic`](#core-core-socket-message-topic) | `topic(): ?string` |
+| [`Core\Socket\Message->text`](#core-core-socket-message-text) | `text(): ?tainted string` |
+| [`Core\Socket\Message->bytes`](#core-core-socket-message-bytes) | `bytes(): ?tainted bytes` |
+| [`Core\Socket\Message->value`](#core-core-socket-message-value) | `value(): mixed` |
+
+<a id="core-core-socket-message-topic"></a>
+#### `Core\Socket\Message->topic`
+
+```nvs skip
+$message->topic(): ?string
+```
+
+The topic this value was published to, and the one question that tells a bus delivery from a frame the peer sent.
+
+**Returns** `?string` — The topic's name for a delivery, `null` for a peer frame. It is the name this connection subscribed under and not anything the peer chose, so it is not `tainted`.
+
+<a id="core-core-socket-message-text"></a>
+#### `Core\Socket\Message->text`
+
+```nvs skip
+$message->text(): ?tainted string
+```
+
+A text frame's payload, as the peer sent it.
+
+**Returns** `?tainted string` — The payload, `tainted` because it is untrusted input arriving over a network exactly as a request body is — `Core\Validate` is the only way to launder it. `null` for a binary frame and for a bus delivery, which carry `bytes` and `value` instead.
+
+<a id="core-core-socket-message-bytes"></a>
+#### `Core\Socket\Message->bytes`
+
+```nvs skip
+$message->bytes(): ?tainted bytes
+```
+
+A binary frame's payload, unchecked bytes as the peer sent them.
+
+**Returns** `?tainted bytes` — The payload, `tainted` for `text`'s reason. `null` for a text frame and for a bus delivery.
+
+<a id="core-core-socket-message-value"></a>
+#### `Core\Socket\Message->value`
+
+```nvs skip
+$message->value(): mixed
+```
+
+What a publisher put on the topic, copied across the isolate boundary the way every other value crosses one.
+
+**Returns** `mixed` — The published value for a delivery, `null` for a peer frame. It is a copy and never a shared reference, so writing to it changes nothing the publisher can see.
 
 <a id="core-core-sse"></a>
 ### `Core\Sse`
