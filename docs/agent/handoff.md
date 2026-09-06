@@ -2,44 +2,44 @@
 
 ## State
 
-**Goal 7 — ADR 0131's temporary-directory sweep — has §§ 2-5 on disk, and stage 3 is green on both
-sides.** The request-path pair lives beside the queue it is ordered against, in
-`crates/nvs-runtime/src/deferred.rs`: the drain finds the directory the request was handed, and the
-teardown behind it is what takes it away. `crates/nvs-runtime/src/ctx/hooks.rs:660` is the same claim
-against § 3's CLI ending, so both of § 3's orderings are now asserted from the side that can observe
-them.
+**Goal 7 — ADR 0131's temporary-directory sweep — has §§ 2-5 on disk, and every test its acceptance
+list names is now in the tree**: 610 `cargo-named` tests and 183 `.nvst` cases, none missing. The last
+one, `a_finished_scripts_temporary_dir_is_gone_from_the_owned_root`, landed this session at
+`crates/nvs-cli/src/script.rs:1079` — a whole script compiled from a file, run as an isolate under a
+configured `[io] temp_root`, with the directory it filled gone afterwards and the owned root left
+standing and empty.
 
-`crate::sweep::at_script_end` still has exactly one caller — `crates/nvs-runtime/src/ctx/mod.rs:1172`,
-inside `Ctx::drop` — which is why a cancelled request is swept at all: ADR 0106's worker survives the
-request and drops the context it is left holding. The aborted case pins that the abort runs none of
-§ 6's registrations while still owing the sweep.
+That end-to-end reading rests on two facts the case does not arrange and deliberately does not mock:
+`Ctx::isolate` copies the parent's configuration (`crates/nvs-runtime/src/ctx/isolate.rs:356`), so the
+child reads the same `[io] temp_root`, and `Ctx::drop` is the sweep's only caller
+(`crates/nvs-runtime/src/ctx/mod.rs:1172`), so the context `nvs_host::Isolate::run` makes and drops is
+what takes the directory away. Nothing in `nvs-cli` calls the sweep; the isolate ending is the call.
 
-**One test the goal's acceptance list names is not in the tree yet**:
-`a_finished_scripts_temporary_dir_is_gone_from_the_owned_root`, stage 5, `-p nvs-cli`. Everything else
-stages 2, 3, 4 and 5 name is on disk and green.
-
-`[context] modules` now names this goal's own modules — `sweep.rs`, `deferred.rs`, `ctx/hooks.rs` — in
-both `docs/agent/loop-goal.toml` and `docs/agent/goals/7-temp-sweep.toml`, closing the missing-map-line
-gap the previous handoff reported.
+**Whether the goal is met is the driver's gate to say.** Every named test and case exists, but the
+list also carries 17 `command`, 53 `exact` and 29 `nvs-suite` checks that only a real run decides, so
+the status line is `CONTINUE` and `tools/loop.py`'s own acceptance pass is what ends the run.
 
 ## Next group
 
-**Stage 5's last test, end to end through the CLI.** One file set: `crates/nvs-cli/src/script.rs`,
-`crates/nvs-cli/src/tmp.rs`.
+**§ 5's mirror of § 3, in the file that just grew § 3's.** One file:
+`crates/nvs-cli/src/script.rs`.
 
-- [ ] **`a_finished_scripts_temporary_dir_is_gone_from_the_owned_root`** (0131 §§ 2-3, stage 5) — a
-      whole script run under a configured `[io] temp_root`, and the root holding nothing afterwards:
-      the end-to-end reading of what `-p nvs-runtime` already pins per context.
-      `crates/nvs-cli/src/script.rs:602` is the run shape (`run_serving`, with the capability grant at
-      `crates/nvs-cli/src/script.rs:542` — the playbook's bullet on a `spawn script` fixture owns the
-      scheduler-and-reactor order it needs), and `crates/nvs-cli/src/tmp.rs:133` is the test module
-      already building a root of its own to drive `nvs tmp clean`.
+- [ ] **`[debug] keep_temporary = true` end to end** (0131 § 5) — the same fixture and the same helper
+      as the case below it, and the temporary directory *still there* after the script ends: the
+      negative reading that makes the positive one mean something, since a sweep that never ran at all
+      passes § 3's case only by accident of the root being empty for another reason.
+      `crates/nvs-cli/src/script.rs:1042` is `rooted_at`, which grows a second argument for the key,
+      and `crates/nvs-cli/src/script.rs:1079` is the case to mirror. The branch under test is
+      `crates/nvs-runtime/src/sweep.rs:90`; asserting the *kept path is named in the log* is the
+      harder half — it goes through `crate::floor::report`, so start with the directory surviving and
+      add the record only if this crate can already read one.
+- [ ] **The plan's `Open now` says nothing about ADR 0131** — `docs/implementation-plan.md:44`. The
+      field is 1998 B of its 2000 B ceiling, so this is a `## plan-edit:` that **replaces** a sentence
+      with one about the sweep, never one that adds a sentence; an addition alone is refused.
 
 ## Backlog
 
-- After that item the goal may be closed: the driver's ledger reports only the *first* failing check,
-  so the next acceptance run is what says whether stages 2-5 are all green
-  (`docs/agent/loop-goal.toml:4319-4430`).
-- `nvs-cli`'s fixture root wants the same `CARGO_MANIFEST_DIR` care a `[db.<name>]` block does — a
-  relative path in a tree assembled in Rust resolves against whatever directory `cargo test` chose
-  (`docs/agent/playbook.md`, *Writing a test case*).
+- `[debug] keep_temporary` has no CLI-layer reading at all — `crates/nvs-cli/src/script.rs` owns it.
+- The goal's completion is decided by `python tools/loop.py --goal-only` and by nothing a session
+  writes — `docs/agent/loop-goal.toml` is the list.
+- `benches/abi-probe/tests/` is part of this goal's acceptance list — see the playbook bullet.

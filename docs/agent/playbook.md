@@ -2141,6 +2141,13 @@ is why" — is this file.
   which *pass* here: nvs-cli does depend on nvs-server, which is exactly why the name resemblance
   survives every test but this one. Triage a check naming a `nvs <verb>` behaviour by where the entry
   point is, not by what the crate may do.
+- **A `loop-goal.toml` acceptance list is not all under `crates/` and `tests/` — `benches/abi-probe/`
+  hosts a whole leg of it.** Sanity-checking the current goal's list by grepping `fn <name>` over
+  `crates tests` reported 19 of its 610 named tests missing, all of them phantom: `perf_guards.rs`
+  and `invariants.rs` under `benches/abi-probe/tests/` are the ABI and cost-class guards, they are a
+  workspace member the goal names like any other, and they are the only tests in the tree outside
+  those two roots. Grep the repository root, or you will file a slice to write a test that has
+  existed since M2.
 
 ## Running things
 
