@@ -46,10 +46,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Every job below carries a `timeout-minutes`, and this is the one home for why. GitHub's own
-# default is 360 minutes, which is not a bound anyone chose. The nightly run of 2026-09-06 wedged
-# in `is_draining_answers_during_a_graceful_shutdown` on the Windows leg and sat there for three
-# hours before it was cancelled by hand — billed the whole way at Windows's 2× rate, and reporting
-# nothing at the end that the first sixty seconds had not already reported.
+# default is 360 minutes, which is not a bound anyone chose: a wedged job can sit idle for that
+# whole stretch before anyone notices, billed the entire time at whatever the runner costs, and
+# reporting nothing at the end that the first minute had not already reported.
 #
 # The numbers are roughly twice each job's measured wall clock on a warm cache, which leaves room
 # for a cold one and still turns a wedged test into a red build inside the hour. They bound the
@@ -211,8 +210,8 @@ jobs:
       # Every `[`Foo::bar`]` in a doc comment resolves. This crate set states its
       # architecture in its doc comments and cross-references it by name, and
       # `broken_intra_doc_links` is warn-by-default and invisible to both steps
-      # above — so 391 warnings had accumulated, 96 of them naming an item that
-      # does not exist. `private_intra_doc_links` is allowed rather than fixed:
+      # above, so a dangling reference accumulates silently without this gate.
+      # `private_intra_doc_links` is allowed rather than fixed:
       # these are internal crates nobody publishes, so a link to a crate-private
       # item is a correct reference rustdoc simply will not turn into an anchor.
       - name: rustdoc links
@@ -315,15 +314,14 @@ jobs:
         run: python tools/reference.py --check
 
   # ---------------------------------------------------------------------------
-  # The docs have linters of their own and, until this job existed, nothing ran
-  # them — six findings had accumulated across four ADRs, including two links
-  # citing files by names they were renamed out of. Every script here is Python
-  # only, needs no toolchain and they finish in about a second together, which is
-  # why they are one job rather than steps bolted onto a build.
+  # The docs have linters of their own. Every script here is Python only, needs
+  # no toolchain and they run quickly together, which is why they are one job
+  # rather than steps bolted onto a build.
   #
   # Each of these gates on *structure* and never on a length: a stale index row,
   # a table row that does not parse, a layout row naming a crate that is not on
-  # disk, a playbook selector that resolves to two bullets or none. Sizes stay
+  # disk, a playbook selector that resolves to two bullets or none, a `rule:`
+  # citation naming a rule the rulebook does not carry. Sizes stay
   # reports in every one of them, for the reason
   # docs/agent/doc-style.md gives — a number is weighed, not enforced — so a
   # green run here never means the docs are short, only that the tools can still
@@ -338,6 +336,15 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.x'
+      # The rulebook first, because it is the authority the rest of the tree cites. `--check`
+      # reads every topic JSON against its fragments and resolves every `rule:` citation;
+      # `--render --check` writes nothing and fails when a committed generated page —
+      # docs/rules/<topic>.md, ground-rules.md, divergences.md — no longer matches what the
+      # fragments and the JSON say.
+      - name: Every rule loads, and every `rule:` citation resolves
+        run: python tools/rules.py --check
+      - name: The generated rulebook pages match the fragments they are rendered from
+        run: python tools/rules.py --render --check
       - name: ADR field set, heading order, cross-links and the derived index table
         run: python tools/adr.py --check
       - name: Every markdown link resolves, with matching case
@@ -346,11 +353,18 @@ jobs:
         run: python tools/layout.py --check
       - name: Every milestone row parses and agrees with the file it names
         run: python tools/plan.py --check
+      # The schedule the loop actually walks, which `plan.py` above does not see: every entry's
+      # three files exist, the driver can run its acceptance list, and its `[context]` manifest
+      # resolves. That last one is why this is here — five queued goals were naming shapes
+      # `conventions.md` has no heading for, which costs nothing until the run reaches the entry
+      # and then costs one 3am session the section it needed. About two seconds, Python only.
+      - name: Every chain entry is walkable and its [context] manifest resolves
+        run: python tools/chain.py --check
       - name: Every playbook bullet is reachable by exactly one selector
         run: python tools/playbook.py --check
-      # The workspace version, the fourteen `[workspace.dependencies]` pins that restate it and
+      # The workspace version, the `[workspace.dependencies]` pins that restate it and
       # the newest release tag all agree, and a released version has a changelog section. Cheap
-      # and Python-only like the four above. It belongs here rather than in `verify.py` for the
+      # and Python-only like the checks above. It belongs here rather than in `verify.py` for the
       # same reason they do: that script's green cache deliberately does not hash `docs/`, and
       # this reads CHANGELOG.md.
       - name: The version is consistent across the manifest, the tags and the changelog

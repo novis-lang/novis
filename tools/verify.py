@@ -130,9 +130,10 @@ of up to `DOC_GATE_EVERY` sessions wide, and it let two red `lint` jobs reach CI
 
 ## Why the documentation gates are not steps here
 
-`adr.py --check`, `check-links.py`, `plan.py --check` and `playbook.py --check` all exit non-zero
-on a structural finding, and all four are Python-only and finish in about a second together, so
-they look like four cheap steps to add in front of `build`. They are CI's `docs` job instead, and
+`rules.py --check`, `adr.py --check`, `check-links.py`, `plan.py --check` and `playbook.py --check`
+all exit non-zero on a structural finding, and all of them are Python-only and finish in about a
+second together, so they look like cheap steps to add in front of `build`. They are CI's `docs` job
+instead, and
 the reason is the paragraph above: the green cache hashes `crates/`, `benches/`, `tests/`,
 `examples/`, `editors/` and `docs/reference/` -- and nothing else under `docs/`, on purpose,
 because "prose cannot break a build" is exactly what makes a re-run after step 4 free.
@@ -147,9 +148,11 @@ the cache.
 The one docs check that *is* a step here is `reference.py`, and it is not an exception: it reads
 the binary `build` produced, so its input is hashed already, and `docs/novis.md` is written
 rather than read. The session-side gate for the rest is `session.py --wrap`, which refuses at the
-moment a wrap would write the breakage -- see its `playbook_collisions` and its `link_findings`. The
-second of those is `check-links.py` over the tree, diffed against HEAD: a link *this* session broke
-refuses the wrap, and one it inherited does not, so the gate never charges a session for another's.
+moment a wrap would write the breakage -- see its `playbook_collisions`, its `link_findings` and its
+`rulebook_findings`. The second of those is `check-links.py` over the tree, diffed against HEAD: a
+link *this* session broke refuses the wrap, and one it inherited does not, so the gate never charges
+a session for another's. The third is the same idea for the rulebook, where there is no per-file
+baseline to diff against, so the session's own edit under `docs/rules/` is what arms it.
 """
 
 from __future__ import annotations

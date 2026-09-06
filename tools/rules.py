@@ -36,7 +36,9 @@ A file that teaches this spelling rather than using it carries the marker `rules
 anywhere in its text, and its `rule:` tokens are then read as examples rather than as citations.
 This docstring carries it, which is why its own `rule:types/conversion` above is not a finding.
 
-See docs/agent/docs-migration.md for the migration that builds this tree, and why it exists.
+`--check` and `--render --check` are CI's `docs` job, and `tools/session.py`'s `rulebook_findings`
+runs both in-process for any session that has edited `docs/rules/` -- so a wrap cannot commit a
+renamed rule with its citations left dangling, or a fragment with its chapter left un-rendered.
 """
 
 from __future__ import annotations
@@ -75,24 +77,18 @@ CITATION_GLOBS = ("crates/**/*.rs", "docs/**/*.md", "docs/**/*.toml", "tests/**/
 
 #: A file that *explains* the citation format rather than using it carries this marker anywhere in
 #: its text, and its `rule:` tokens are read as examples. Without it, every document that teaches
-#: the spelling would report its own examples as dangling citations -- which is what this file and
-#: docs/agent/docs-migration.md did on the first run.
+#: the spelling would report its own examples as dangling citations -- which is what this file did
+#: on the first run.
 EXAMPLES_ONLY = "rules-py:examples"
 
 def decision_link(record: str) -> str:
-    """Where a decision record lives *now*, relative to a generated page in `docs/rules/`.
+    """Where a decision record lives, relative to a generated page in `docs/rules/`.
 
-    Records sit in `docs/adr/NNNN-slug.md` until migration unit C1 freezes them into
-    `docs/decisions/NNNN.md`, so a chapter has to link to the one that is on disk. Emitting the C1
-    path unconditionally made 49 dead links in the first chapter -- dead for the whole of Phase B,
-    which is many sessions of that chapter being the read surface -- and at the wrong depth besides,
-    since `decisions/NNNN.md` from `docs/rules/` resolves to `docs/rules/decisions/`. C8's sweep
-    re-points a `docs/adr/` link once C1 has moved the file.
+    The `../` is the whole content of this function and the reason it is one: a chapter is written
+    to `docs/rules/<topic>.md`, so a bare `decisions/NNNN.md` resolves to `docs/rules/decisions/`
+    and every one of them is a dead link. `check-links.py` catches that, and did.
     """
-    if (ROOT / "docs" / "decisions" / f"{record}.md").exists():
-        return f"../decisions/{record}.md"
-    found = sorted((ROOT / "docs" / "adr").glob(f"{record}-*.md"))
-    return f"../adr/{found[0].name}" if found else f"../decisions/{record}.md"
+    return f"../decisions/{record}.md"
 
 
 STATUSES = ("shipped", "designed")

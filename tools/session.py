@@ -592,6 +592,7 @@ def validate(sections: list[Section]) -> list[str]:
             f"before the push -- `check-links.py` is CI's `docs` job, and `verify.py` deliberately "
             f"does not run it (its own docstring says why), so a green verify says nothing here. "
             f"A link already dead at HEAD is not counted: that one is not yours.")
+    errors += rulebook_findings()
     return errors
 
 
@@ -801,6 +802,57 @@ def link_findings() -> tuple[list[str], list[str]]:
         for lineno, target, kind in hits:
             (found if target in old else broke).append(f"{rel}:{lineno} -> {target} ({kind})")
     return broke, found
+
+
+#: The two `rules.py` gates, and what a failure of each one means to the session reading it.
+RULEBOOK_GATES = (
+    (("--check",),
+     "a rule does not load, or a `rule:` citation somewhere in the tree names one that is not "
+     "there. A renamed or deleted rule breaks its citations in files this session never opened, "
+     "which is the same shape as the link gate above and the reason both are whole-tree."),
+    (("--render", "--check"),
+     "a generated page no longer matches the fragments it is rendered from. `docs/rules/<topic>.md`, "
+     "`docs/ground-rules.md` and `docs/divergences.md` are all written by "
+     "`python tools/rules.py --render`, and editing a fragment without re-running it commits the "
+     "old rendering beside the new rule."),
+)
+
+
+def rulebook_findings() -> list[str]:
+    """What `tools/rules.py` refuses, but only for a session that touched `docs/rules/`.
+
+    The rulebook is the home of every rule that is currently true, and the tree cites it about
+    18,500 times -- so it is the most-read structure in `docs/` and, until this gate, the only part
+    of `docs/` nothing checked. `verify.py` deliberately does not run a docs gate (its own docstring
+    says why), and CI's `docs` job is after the push, so a session that renamed a rule learned about
+    its 40 dead citations from a red `lint` job rather than from the wrap that wrote them.
+
+    **The trigger is the session's own edit, not the rulebook's state.** `link_findings` can ask
+    HEAD whether a finding is inherited because a link resolves per file; a rulebook finding is a
+    property of the whole tree and there is nothing per-file to compare. So the conservative
+    equivalent is to run these only when this session has changed something under `docs/rules/` --
+    including a rename, which is what makes a citation elsewhere go dead. A rulebook already red
+    under a session that never opened it is CI's finding and a human's to schedule, exactly as an
+    inherited dead link is.
+    """
+    done = git("status", "--porcelain", "--", "docs/rules", check=False)
+    if done.returncode != 0 or not done.stdout.strip():
+        return []
+    out: list[str] = []
+    for args, why in RULEBOOK_GATES:
+        ran = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / "rules.py"), *args],
+            cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        if ran.returncode == 0:
+            continue
+        detail = (ran.stdout + ran.stderr).strip().split("\n")
+        shown = "\n      ".join(detail[:12])
+        more = f"\n      ... and {len(detail) - 12} more line(s)" if len(detail) > 12 else ""
+        out.append(
+            f"`python tools/rules.py {' '.join(args)}` fails, and this session edited "
+            f"`docs/rules/`: {why}\n      {shown}{more}")
+    return out
 
 
 def body_links(sections: list[Section]) -> list[str]:
@@ -1313,6 +1365,17 @@ def check() -> int:
         say(f"  none of the {len(found)} is this session's, so `--wrap` will not refuse over them")
     else:
         say("  `--wrap` refuses while a YOURS line stands: fix the link, not the citation's line")
+
+    say()
+    say("== RULEBOOK  (python tools/rules.py -- the same job, and only when you edited docs/rules/)")
+    rule_problems = rulebook_findings()
+    if not rule_problems:
+        touched = git("status", "--porcelain", "--", "docs/rules", check=False)
+        say("  clean -- this wrap is not gated on it"
+            if touched.returncode != 0 or not touched.stdout.strip()
+            else "  every rule loads, every citation resolves, and the rendered pages are current")
+    for p in rule_problems:
+        say(f"  YOURS  {p}")
 
     say()
     say("== TREE")
