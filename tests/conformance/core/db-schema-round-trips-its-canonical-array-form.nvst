@@ -1,0 +1,71 @@
+--TEST--
+Core\Db\Schema's array form is canonical: what fromArray reads, toArray answers back, key for key and in order — ADR 0145 § 1
+--FILE--
+<?nvs
+// § 1 gives a schema three interchangeable spellings — built, serialized,
+// introspected — and no privileged one, and the property that holds them
+// together is this: `toArray(fromArray(a)) == a` over every construct in the
+// vocabulary. It is stated over the *array* rather than over the objects
+// because ADR 0090 § 4 makes `==` on two objects identity, so the array form
+// is the comparison, and it is also what the diff normalizes into.
+
+array<mixed> $canonical = [
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "null" => false, "identity" => true],
+                ["name" => "title", "type" => "text(200)", "null" => false, "identity" => false],
+                ["name" => "body", "type" => "text", "null" => true, "identity" => false],
+            ],
+            "primary_key" => ["id"],
+            "unique" => [["name" => "notes_title", "columns" => ["title"]]],
+            "indexes" => [],
+        ],
+    ],
+];
+
+var $schema = Core\Db\Schema::fromArray($canonical);
+if ($schema->toArray() == $canonical) {
+    echo "the canonical form round-trips\n";
+} else {
+    echo "the canonical form changed\n";
+}
+
+// The same schema read twice is the same value, which is what "two schemas are
+// the same schema exactly when their array forms agree" has to mean for a
+// program that saved one to a file and read it back.
+if (Core\Db\Schema::fromArray($canonical)->toArray() == $schema->toArray()) {
+    echo "two readings agree\n";
+} else {
+    echo "two readings disagree\n";
+}
+
+// Every construct in the vocabulary, not just the ones above: a default, an
+// index, a composite primary key and the unbounded text type all survive the
+// same trip.
+array<mixed> $whole = [
+    "tables" => [
+        [
+            "name" => "tags",
+            "columns" => [
+                ["name" => "note_id", "type" => "int64", "null" => false, "identity" => false],
+                ["name" => "tag", "type" => "text(40)", "null" => false, "identity" => false],
+                ["name" => "weight", "type" => "int32", "null" => false, "identity" => false, "default" => ["int" => 1]],
+                ["name" => "seen_at", "type" => "instant", "null" => true, "identity" => false, "default" => ["now" => true]],
+            ],
+            "primary_key" => ["note_id", "tag"],
+            "unique" => [],
+            "indexes" => [["name" => "tags_weight", "columns" => ["weight"]]],
+        ],
+    ],
+];
+if (Core\Db\Schema::fromArray($whole)->toArray() == $whole) {
+    echo "every construct round-trips\n";
+} else {
+    echo "a construct did not survive\n";
+}
+--EXPECT--
+the canonical form round-trips
+two readings agree
+every construct round-trips

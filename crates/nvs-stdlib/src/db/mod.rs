@@ -301,6 +301,7 @@ mod open;
 mod pool;
 mod registry;
 mod row;
+mod schema;
 mod span;
 mod stream;
 mod transaction;
@@ -318,6 +319,7 @@ pub use self::open::*;
 pub(crate) use self::pool::*;
 pub(crate) use self::registry::*;
 pub use self::row::*;
+pub use self::schema::*;
 pub(crate) use self::span::*;
 pub use self::stream::*;
 pub use self::transaction::*;
@@ -437,6 +439,18 @@ const ROWS_COLUMNS_AT: usize = 2;
 
 /// `Core\Db\Row`'s fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const ROW_NAME: &str = r"Core\Db\Row";
+
+/// `Core\Db\Schema`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
+/// ADR 0145 § 1's value.
+pub(crate) const SCHEMA_NAME: &str = r"Core\Db\Schema";
+
+/// The one slot a [`SCHEMA`] holds: that schema's canonical array form,
+/// normalized when the value was built. [`mod@schema`]'s own doc is why the
+/// array is the whole of the state.
+const SCHEMA_ARRAY_SLOT: &str = "array";
+
+/// Where [`SCHEMA_ARRAY_SLOT`] sits, for the members that read it back.
+const SCHEMA_ARRAY_AT: usize = 0;
 
 /// The one slot a [`ROW`] holds: that row's own columns, string-keyed and in
 /// the server's order — **the very array [`ROWS_SLOT`] already holds one of per
@@ -589,6 +603,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_db_row_date" => (nvs_core_db_row_date as *const ()).cast(),
         "nvs_core_db_row_time" => (nvs_core_db_row_time as *const ()).cast(),
         "nvs_core_db_row_uuid" => (nvs_core_db_row_uuid as *const ()).cast(),
+        "nvs_core_db_schema_from_array" => (nvs_core_db_schema_from_array as *const ()).cast(),
+        "nvs_core_db_schema_to_array" => (nvs_core_db_schema_to_array as *const ()).cast(),
         "nvs_core_db_write_affected" => (nvs_core_db_write_affected as *const ()).cast(),
         "nvs_core_db_write_changed" => (nvs_core_db_write_changed as *const ()).cast(),
         "nvs_core_db_write_last_id" => (nvs_core_db_write_last_id as *const ()).cast(),

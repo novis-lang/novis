@@ -1522,6 +1522,78 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
     constants: &[],
 };
 
+/// [ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)
+/// § 1's `Core\Db\Schema` — a database schema as a value, in the array form
+/// that is its canonical spelling.
+///
+/// **Two members here and no builders.** § 1 gives a schema three
+/// interchangeable spellings and no privileged one, and the array form is the
+/// one the other two are defined against — so `fromArray` is the door and
+/// `toArray` is the window, and a typed builder surface would be a second way
+/// to say what this one already says. § 9's `planAgainst`, `applySafe` and
+/// `applyIncludingRisky` are the members that do something with the value; they
+/// need a connection and this class needs none.
+pub(crate) const SCHEMA: CoreClass = CoreClass {
+    name: SCHEMA_NAME,
+    methods: &[CoreMethod {
+        name: "fromArray",
+        names: &["array"],
+        params: &[CoreTy::Array(&CoreTy::Mixed)],
+        defaults: &[],
+        return_ty: CoreTy::Instance(SCHEMA_NAME),
+        symbol: "nvs_core_db_schema_from_array",
+        doc: Some(&SCHEMA_FROM_ARRAY_DOC),
+    }],
+    instance: &[CoreMethod {
+        name: "toArray",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Array(&CoreTy::Mixed),
+        symbol: "nvs_core_db_schema_to_array",
+        doc: Some(&SCHEMA_TO_ARRAY_DOC),
+    }],
+    slots: &[SCHEMA_ARRAY_SLOT],
+    constants: &[],
+};
+
+/// `Core\Db\Schema::fromArray`'s reference card — ADR 0117.
+const SCHEMA_FROM_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "Reads a schema out of its canonical array form — the same form `toArray` writes, a \
+            file holds and `nvs schema dump` prints. Every rule the vocabulary has is checked \
+            here, so a schema value that exists is one all five backends can be asked for.",
+    params: &[ParamDoc {
+        name: "array",
+        desc: "The schema, as `[\"tables\" => [...]]`. A table is `name`, `columns`, and \
+               optionally `primary_key`, `unique` and `indexes`; a column is `name` and `type`, \
+               with `null`, `identity` and a one-key `default` where it has them. A key that is \
+               left out is the empty list or `false`.",
+        shape: &[],
+    }],
+    ret: "A `Core\\Db\\Schema` holding the **normalized** form: tables in name order, columns in \
+          declaration order, every optional key filled in. So `toArray` answers the same array \
+          for every spelling of one schema, which is what makes two schemas comparable.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "A key is missing or holds the wrong kind of value, a type spelling is outside the \
+               vocabulary, an identifier is not a plain identifier, or the schema reads but is \
+               not coherent — a table with no columns, a second identity column, an identity \
+               column outside the primary key, or an index over a column that is not there.",
+    }],
+};
+
+/// `Core\Db\Schema::toArray`'s reference card — ADR 0117.
+const SCHEMA_TO_ARRAY_DOC: MethodDoc = MethodDoc {
+    short: "The schema in its canonical array form — what a program saves to a file, hands to \
+            `Core\\Json::encode`, or compares against another schema.",
+    params: &[],
+    ret: "The array `fromArray` would read back as the same schema. Tables come in name order and \
+          columns in the order they were declared, since a `create table` reproduces it; \
+          constraints and indexes come in name order, since nothing observable depends on the \
+          order they were added in.",
+    errors: &[],
+};
+
 /// `Core\Db::connect`'s reference card — ADR 0117.
 pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
     short: "Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and \

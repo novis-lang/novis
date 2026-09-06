@@ -1688,6 +1688,12 @@ pub const CLASSES: &[CoreClass] = &[
     // memberless because § 18's own table accepts it nowhere but a bound
     // parameter. [`crate::db`] owns why the expansion itself stays in `nvs-db`.
     crate::db::IN_LIST,
+    // ADR 0145 § 1's schema value, beside the connection classes because that is
+    // what it is asked about: a schema is compared against a live database and
+    // applied to one. It needs no connection to exist, which is why its two
+    // members here are the array form alone — § 9's three are the ones that take
+    // a `Core\Db\Connection`.
+    crate::db::SCHEMA,
     // ADR 0084 § 1's durable background job, immediately after the database classes
     // because that is what it is made of: a job is a row in one of these connections,
     // which is the whole of why § 3's enqueue can commit with the write that caused

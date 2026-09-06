@@ -1,0 +1,65 @@
+--TEST--
+Core\Db\Schema::fromArray normalizes what it reads, so a sparse array and a differently ordered one answer the same canonical form — ADR 0145 § 1
+--FILE--
+<?nvs
+// § 1's canonical form is **ordered**, not merely structural: key order is part
+// of an array's value (ADR 0090 § 4), so `toArray` emits tables in name order,
+// columns in declaration order — a `create table` has to reproduce it — and
+// constraints and indexes in name order, since nothing observable depends on
+// the order they were added in. An introspector answering the server's own
+// catalog order would otherwise fail § 5's round trip against a database that
+// is not wrong in any way.
+//
+// The normalization happens where a value is *built*, so no member downstream
+// has to remember to: a key left out, and tables written in whatever order the
+// author typed them, come back as one array.
+
+array<mixed> $sparse = [
+    "tables" => [
+        ["name" => "tags", "columns" => [["name" => "tag", "type" => "text(40)"]], "primary_key" => ["tag"]],
+        ["name" => "notes", "columns" => [["name" => "id", "type" => "int64", "identity" => true]], "primary_key" => ["id"]],
+    ],
+];
+echo Core\Json::encode(Core\Db\Schema::fromArray($sparse)->toArray()), "\n";
+
+// The same schema written the long way round — tables in name order already,
+// every optional key spelled out — is the same value, which is the whole of
+// what "canonical" buys: two programs that wrote one schema differently can be
+// compared without either of them being rewritten first.
+array<mixed> $spelled = [
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [["name" => "id", "type" => "int64", "null" => false, "identity" => true]],
+            "primary_key" => ["id"],
+            "unique" => [],
+            "indexes" => [],
+        ],
+        [
+            "name" => "tags",
+            "columns" => [["name" => "tag", "type" => "text(40)", "null" => false, "identity" => false]],
+            "primary_key" => ["tag"],
+            "unique" => [],
+            "indexes" => [],
+        ],
+    ],
+];
+if (Core\Db\Schema::fromArray($sparse)->toArray() == Core\Db\Schema::fromArray($spelled)->toArray()) {
+    echo "one schema, one array\n";
+} else {
+    echo "two spellings, two arrays\n";
+}
+
+// A type spelling is normalized too, since it is what the emitter writes and
+// the introspector reads back: whitespace inside the parameters is accepted on
+// the way in and gone on the way out.
+array<mixed> $spaced = [
+    "tables" => [
+        ["name" => "notes", "columns" => [["name" => "body", "type" => "decimal( 10 , 2 )"]]],
+    ],
+];
+echo Core\Json::encode(Core\Db\Schema::fromArray($spaced)->toArray()), "\n";
+--EXPECT--
+{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true}],"primary_key":["id"],"unique":[],"indexes":[]},{"name":"tags","columns":[{"name":"tag","type":"text(40)","null":false,"identity":false}],"primary_key":["tag"],"unique":[],"indexes":[]}]}
+one schema, one array
+{"tables":[{"name":"notes","columns":[{"name":"body","type":"decimal(10,2)","null":false,"identity":false}],"primary_key":[],"unique":[],"indexes":[]}]}

@@ -1,0 +1,67 @@
+--TEST--
+Core\Db\Schema::fromArray refuses a type outside the vocabulary and a value the form has no place for, rather than carrying either through — ADR 0145 §§ 1-2
+--FILE--
+<?nvs
+// § 2's vocabulary is closed and there is no raw escape hatch anywhere inside a
+// schema value. That is what makes the diff **total** — nothing opaque can be
+// in a value, so "this tool does not understand part of your schema" is not a
+// state that exists — and it is only true if the refusals land at the door,
+// where the caller who wrote the array is still on the stack.
+
+// A vendor's own type name is exactly what the vocabulary does not carry: the
+// column type enum is ADR 0067 § 9's type map in the write direction, and a
+// spelling outside it is refused rather than passed through to a server that
+// might have accepted it.
+try {
+    Core\Db\Schema::fromArray(["tables" => [["name" => "notes", "columns" => [["name" => "id", "type" => "serial"]]]]]);
+    echo "a type outside the vocabulary was accepted\n";
+} catch (LogicError $unknown) {
+    echo $unknown->message, "\n";
+}
+
+// `null` is not a value the form has a place for: a key a schema does not set
+// is left out, which is what makes a sparse array and a fully spelled one the
+// same schema rather than two.
+try {
+    Core\Db\Schema::fromArray(["tables" => [["name" => "notes", "columns" => [["name" => "id", "type" => "int64", "default" => null]]]]]);
+    echo "a null was accepted\n";
+} catch (LogicError $absent) {
+    echo $absent->message, "\n";
+}
+
+// An identifier is validated and never delimited — the judgement
+// `Core\Db::quoteIdentifier` already made for this project, which ADR 0024
+// allows only one answer to — so a name that is not a plain identifier is
+// refused where it enters the value rather than escaped into safety later.
+try {
+    Core\Db\Schema::fromArray(["tables" => [["name" => "notes; drop table users", "columns" => [["name" => "id", "type" => "int64"]]]]]);
+    echo "an identifier was escaped instead of refused\n";
+} catch (LogicError $name) {
+    echo $name->message, "\n";
+}
+
+// And the refusals are the array's own coherence too, not just its leaves: an
+// identity column must be in the primary key, which is SQLite's requirement and
+// the other four backends' assumption.
+try {
+    Core\Db\Schema::fromArray(["tables" => [["name" => "notes", "columns" => [["name" => "id", "type" => "int64", "identity" => true]]]]]);
+    echo "an identity column outside the primary key was accepted\n";
+} catch (LogicError $identity) {
+    echo $identity->message, "\n";
+}
+
+// Four refusals leave nothing behind: a schema value is built or it is not, so
+// the next array the vocabulary does accept answers its canonical form with no
+// trace of what was refused before it.
+array<mixed> $accepted = [
+    "tables" => [
+        ["name" => "notes", "columns" => [["name" => "id", "type" => "int64", "identity" => true]], "primary_key" => ["id"]],
+    ],
+];
+echo Core\Json::encode(Core\Db\Schema::fromArray($accepted)->toArray()), "\n";
+--EXPECT--
+Core\Db\Schema::fromArray(): `serial` is not one of the column types the vocabulary contains
+Core\Db\Schema::fromArray(): the array["tables"][0]["columns"][0]["default"] holds `null`, where a key a schema does not set is left out instead. A schema array holds only strings, integers, floats, booleans and arrays of those — ADR 0145 § 2's vocabulary is closed and there is nowhere in it to put anything else
+Core\Db\Schema::fromArray(): `notes; drop table users` is not a bare identifier — a letter or `_`, then letters, digits or `_`
+Core\Db\Schema::fromArray(): identity column `id` is not in its table's primary key, which SQLite requires and the other four assume
+{"tables":[{"name":"notes","columns":[{"name":"id","type":"int64","null":false,"identity":true}],"primary_key":["id"],"unique":[],"indexes":[]}]}
