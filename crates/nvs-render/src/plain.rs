@@ -1,5 +1,4 @@
-//! `rule:errors/renderings`'s plaintext rendering — the one the terminal sink selects, and the
-//! first of the three to exist.
+//! `rule:errors/renderings`'s plaintext rendering — the one the terminal sink selects.
 //!
 //! # What it looks like, and why
 //!
@@ -19,7 +18,7 @@
 //! `Cli::colorDepth() != None`, and reads that one answer from
 //! `rule:tooling/the-terminal-profile-resolves-once` rather
 //! than resolving `NO_COLOR`/`CLICOLOR_FORCE`/`TERM` again here. `Core\Cli`
-//! does not exist yet (M8, and `nvs_stdlib::cli`'s own gap 2), so this
+//! does not exist yet (`nvs_stdlib::cli`'s own gap 2), so this
 //! rendering is uncoloured and there is deliberately no second resolution of
 //! that question standing in for it — structure, substitution and redaction
 //! never vary with a tty, so nothing about *what* is rendered waits on it.
@@ -27,9 +26,8 @@
 //! # The renderings agree because the cuts are in the model
 //!
 //! Nothing here decides what to truncate. An [`Elision`] arrived as a node,
-//! and this rendering prints it — so the JSON and HTML renderings, when they
-//! land, print the same cut of the same value rather than each choosing its
-//! own.
+//! and this rendering prints it — so the JSON and HTML renderings print the
+//! same cut of the same value rather than each choosing its own.
 
 use crate::{Elision, Envelope, Node, Record, Scalar};
 
@@ -66,7 +64,7 @@ pub fn render(record: &Record) -> String {
 /// `request_id` and no level for a reader to want, and printing an empty
 /// header above every dumped value would be noise on the one output a
 /// developer reads most often. The record still *has* an envelope — that is
-/// what the log record built from the same walk carries at M8.
+/// what the log record built from the same walk carries.
 #[must_use]
 pub fn render_nodes(nodes: &[Node]) -> String {
     let mut out = String::new();
@@ -283,8 +281,8 @@ mod tests {
         assert_eq!(line(node), "Point#1 (1) {\n  $x => int(1)\n}");
     }
 
-    /// The three node kinds a rendering must not invent an answer for: what
-    /// was cut, what was hidden and what repeated all arrived as nodes.
+    /// The node kinds a rendering must not invent an answer for: what was
+    /// cut, what was hidden and what repeated all arrived as nodes.
     #[test]
     fn a_cut_a_redaction_and_a_cycle_are_rendered_as_themselves() {
         assert_eq!(line(Node::Redacted), "[redacted]");
@@ -350,7 +348,7 @@ mod tests {
     }
 
     /// The caps are the model's, not a rendering's — this rendering reads none
-    /// of them, which is what makes the three agree on a cut.
+    /// of them, which is what makes every rendering agree on a cut.
     #[test]
     fn the_caps_are_not_a_rendering_input() {
         let caps = Caps::default();

@@ -8,7 +8,7 @@
 //!
 //! # Layout is part of the ABI
 //!
-//! The three hot words come first, in a `#[repr(C)]` struct, because compiled
+//! The hot words come first, in a `#[repr(C)]` struct, because compiled
 //! code loads them inline rather than calling anything:
 //!
 //! * [`SAFEPOINT_OFFSET`] — the safepoint poll `nvs-codegen` emits at every
@@ -58,13 +58,13 @@
 //!
 //! **Known gap: the ceiling is asserted, not discovered.** [`Ctx::new`] arms
 //! from the stack pointer at construction and [`STACK_CEILING`], which is
-//! correct on a stack at least that deep and permissive — behaving exactly as
-//! the runtime did before this existed — on a shallower one, where the guard
-//! page is still reached first and `nvs-codegen`'s `enable_probestack` still
-//! turns that into a clean crash rather than a stack clash. Reading a thread's
-//! true bounds needs a platform call this crate has no dependency for; the
-//! request's stack becomes Novis's own to size at M6, and until then an embedder
-//! that knows its bounds calls [`Ctx::arm_stack_limit`] with them.
+//! correct on a stack at least that deep and permissive on a shallower one,
+//! where the guard page is still reached first and `nvs-codegen`'s
+//! `enable_probestack` still turns that into a clean crash rather than a stack
+//! clash. Reading a thread's true bounds needs a platform call this crate has
+//! no dependency for; the request's stack becomes Novis's own to size at M6,
+//! and until then an embedder that knows its bounds calls
+//! [`Ctx::arm_stack_limit`] with them.
 //!
 //! # The request's deadline
 //!
@@ -238,12 +238,12 @@ pub struct Ctx {
     /// handle and not the word.**
     /// `rule:security/isolate-shares-nothing` gives a
     /// tree "one ceiling to divide" and charges a child's CPU to the root. A
-    /// copied flag satisfied that only in one direction — a child built *after*
-    /// the timer fired was born expired, while one built a microsecond before
-    /// it ran on with a zero of its own, and nothing would ever have set that
-    /// zero, because the timer holds the root and no registry of live children
-    /// exists for it to walk. So [`Self::child`] and [`Self::isolate`] clone the
-    /// handle, and the tree stops on the one store.
+    /// copied flag would satisfy that only in one direction — a child built
+    /// *after* the timer fired would be born expired, while one built a
+    /// microsecond before it would run on with a zero of its own that nothing
+    /// would ever set, because the timer holds the root and no registry of live
+    /// children exists for it to walk. So [`Self::child`] and [`Self::isolate`]
+    /// clone the handle, and the tree stops on the one store.
     ///
     /// **What it spends:** one allocation per request *tree* — the children
     /// share the root's — and one pointer hop on a poll already amortised over
@@ -283,9 +283,10 @@ pub struct Ctx {
     /// read per *request*, and what maintaining it costs.
     ///
     /// **Cold, and here rather than beside the stack limit it reads like.**
-    /// Compiled code never loads it: the first five words are an arrangement
-    /// this crate's tests pin by offset, so a field added among them moves
-    /// `statics` and fails them. Nothing below `statics` has that constraint.
+    /// Compiled code never loads it: the hot words at the top are an
+    /// arrangement this crate's tests pin by offset, so a field added among
+    /// them moves `statics` and fails them. Nothing below `statics` has that
+    /// constraint.
     memory_base: isize,
     /// The thread's output-byte count when this context was made — the zero
     /// point [`Self::output_used`] measures this request's own writing from.
@@ -307,7 +308,7 @@ pub struct Ctx {
     /// — the response-size ceiling beside the memory one, cached for
     /// [`Self::memory_limit`]'s reason.
     ///
-    /// **No reserved slice, unlike its two siblings.**
+    /// **No reserved slice, unlike its siblings.**
     /// `rule:errors/on-limit` carves
     /// one out of `memory` and one out of `cpu_time` because a tier-1 handler
     /// cannot run without allocating and cannot run without taking time. It can
@@ -413,7 +414,7 @@ pub struct Ctx {
     /// once, as the last user code of the script.
     ///
     /// **A queue rather than a slot**, which is the one way it differs from the
-    /// two handlers above it: a hook does not replace the hook before it, so
+    /// handlers above it: a hook does not replace the hook before it, so
     /// registering twice registers twice and § 1's FIFO order is this vec's
     /// order. A hook registered *by* a hook joins the tail of the same drain,
     /// which is why [`Self::run_exit_hooks`] walks by index rather than
@@ -506,7 +507,7 @@ pub struct Ctx {
     /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`, and later for the log
     /// target's own records.
     ///
-    /// A second sink rather than a fourth [`OutputSink`] variant, because the
+    /// A second sink rather than another [`OutputSink`] variant, because the
     /// two channels differ in *where they go* and not in what is written to
     /// them: a request may capture its output ([`Self::captures`]) without
     /// capturing its diagnostics, and a dump must reach the developer whether
@@ -781,12 +782,12 @@ pub struct Ctx {
     /// nesting level, holding what that level has captured, charged to the
     /// request and freed when the level ends. The cost on the `echo` path is
     /// one predictable not-taken branch, which is the priority-3 price of not
-    /// giving [`OutputSink`] a fourth variant that every other writer would
+    /// giving [`OutputSink`] another variant that every other writer would
     /// have to match on.
     captures: Vec<Vec<u8>>,
     /// The media type this request's output has been *declared* to be —
     /// `rule:security/response-body-is-one-typed-member`
-    /// 's five body members, each of which owns one body shape and sets its
+    /// 's body members, each of which owns one body shape and sets its
     /// own `Content-Type`. `None` for a request that only echoed, which § 4's
     /// last bullet reads as `text/html`.
     ///
@@ -849,7 +850,7 @@ pub struct Ctx {
     /// The request this context is answering, as it arrived — spec § 15's
     /// `Core\Request`, and `None` in every process that is not serving one.
     ///
-    /// The three fields above are the response half of the same channel and
+    /// The fields above are the response half of the same channel and
     /// this is the inbound half, which is why it sits here rather than beside
     /// the configuration: what is on it is per *request*, written once before
     /// the program runs and never again.
@@ -873,7 +874,7 @@ pub struct Ctx {
     /// cookies, the mount captures — grows [`Inbound`] and not this struct.
     ///
     /// **What it spends:** one word per request that has none, and one
-    /// allocation holding an [`Inbound`] — itself three short allocations — for
+    /// allocation holding an [`Inbound`] — itself a few short allocations — for
     /// one that does.
     inbound: Option<Box<Inbound>>,
     /// `rule:testing/debug-probes`'s statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
@@ -1010,7 +1011,7 @@ pub struct Ctx {
     /// in the order it handed them out — see [`Ctx::track_temporary_dir`], and
     /// `rule:core-classes/temporary-dir-sweep` for the sweep that reads it.
     ///
-    /// Unlike its three neighbours this is a list and not a table: a directory
+    /// Unlike its neighbours this is a list and not a table: a directory
     /// is a path rather than a handle, nothing in Novis holds a key to one, and
     /// a program removing its own directory is § 3's goal state reached early
     /// rather than a slot to empty. So an entry is never taken back out
@@ -1021,7 +1022,7 @@ pub struct Ctx {
     ///
     /// `rule:core-api/session-roster` makes every other member of that class throw while this is `None`,
     /// which is the whole of what
-    /// `rule:core-classes/session-is-started-explicitly` was buying:
+    /// `rule:core-classes/session-is-started-explicitly` buys:
     /// "this request uses sessions" is a line in the source, and it is worth
     /// nothing if the first `get` can silently start one.
     session: Option<Session>,
@@ -1046,7 +1047,7 @@ pub struct Ctx {
     /// connection ends.
     ///
     /// **An [`Option`] because the allocation is on the request path.** The
-    /// queue is a separate allocation now that § 4's subscriber table shares it
+    /// queue is a separate allocation because § 4's subscriber table shares it
     /// ([`crate::peer::Inbox`]), and an eager one would charge every request
     /// ever served for a connection's facility; [`Ctx::inbox`] makes it the
     /// first time something asks, which is a subscribe or a delivery and
@@ -1222,8 +1223,8 @@ pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 /// Linux thread stack. Stated as
 /// `rule:programs/memory-priority` requires: what
 /// the number buys is how deep a program may recurse and how much one runaway
-/// commits before it is stopped, and at `benches/abi-probe`'s measured 1.32 ns
-/// per call that is ≈86 µs either way.
+/// commits before it is stopped, and at `benches/abi-probe`'s per-call cost
+/// that depth is microseconds of work either way.
 pub const STACK_CEILING: usize = 8 << 20;
 
 /// The slice between [`Ctx::arm_stack_limit`]'s soft address and its hard one.
@@ -1246,10 +1247,10 @@ pub const STACK_RESERVE: usize = 256 << 10;
 /// written. What it spends is two allocations out of § 1's reserved slice, once
 /// per request that both registers a handler and is stopped.
 ///
-/// **Four variants, because four limits are enforced.** § 1 lists six; wall
-/// time and call-stack depth each gain a variant in the slice that gives them a
-/// breach to report, since a variant nothing can produce is a word in this
-/// report's vocabulary that no handler could see.
+/// **A variant per enforced limit.** § 1 lists more than these; wall time and
+/// call-stack depth each gain a variant in the slice that gives them a breach
+/// to report, since a variant nothing can produce is a word in this report's
+/// vocabulary that no handler could see.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Limit {
     /// `[limits] memory`, reached at a helper boundary ([`crate::run_helper`])

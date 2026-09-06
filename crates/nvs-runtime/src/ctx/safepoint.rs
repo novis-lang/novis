@@ -159,7 +159,7 @@ impl Ctx {
 /// `rule:errors/escalation-ladder` makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
-/// Two of the four flags act; see the crate docs' known gap 5.
+/// Not every flag acts; see the crate docs' known gap 5.
 ///
 /// # Safety
 ///
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     // boundary ([`crate::run_helper`]): this poll sits between two Novis
     // statements, which is the one place a limit can stop a program that is
     // allocating without calling anything. `crate::budget`'s module doc owns
-    // which allocations that reaches today and which it does not.
+    // which allocations that reaches and which it does not.
     if let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() {
         // `rule:errors/on-limit`'s tier 1, ahead of the status this returns: the handler
         // is the last thing the program gets to run, and it runs before the

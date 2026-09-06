@@ -3,8 +3,8 @@
 //! `[limits] max_output` ceilings a request is measured against.
 //!
 //! `rule:errors/on-limit` names
-//! memory as the first of the five resource limits whose breach is a `FATAL`,
-//! and [`crate::affordable`]'s own doc comment already says why the count lives
+//! memory among the resource limits whose breach is a `FATAL`,
+//! and [`crate::affordable`]'s own doc comment says why the count lives
 //! here rather than at the members that allocate: a guard written per call site
 //! is a guard the next call site forgets, which is the shape of PHP's own
 //! history — its `memory_limit` is enforced in the allocator precisely because
@@ -19,9 +19,10 @@
 //! that ships never has it. This one is the opposite in every one of those —
 //! it is compiled into every build, it is read by the request path, and a tree
 //! without it has no enforceable cap. They share an arithmetic and nothing
-//! else, so `Counting` feeds `add` rather than keeping a third count: a test
-//! build registers `Counting` as its global allocator, so without that call the
-//! very builds the unit tests run in would be the only ones not counting.
+//! else, so `Counting` feeds `add` rather than keeping a count of its own: a
+//! test build registers `Counting` as its global allocator, so without that
+//! call the very builds the unit tests run in would be the only ones not
+//! counting.
 //!
 //! # Per *thread*, read as per *request*
 //!
@@ -51,20 +52,20 @@
 //! balance, because bytes written to a response are never given back, so it
 //! needs no sign.
 //!
-//! # Where the breach is noticed — and the one shape it does not reach yet
+//! # Where the breach is noticed — and the shape it does not reach yet
 //!
 //! Counting is universal; *noticing* is not, and the difference is worth
-//! knowing before trusting the cap. Two places ask
-//! [`Ctx::memory_breach`](crate::Ctx::memory_breach): [`crate::run_helper`], on
-//! the way in to every `Core` member, and [`crate::nvs_safepoint`], the poll
-//! compiled code makes between statements. Together those bound any program
-//! that calls anything.
+//! knowing before trusting the cap.
+//! [`Ctx::memory_breach`](crate::Ctx::memory_breach) is asked by
+//! [`crate::run_helper`], on the way in to every `Core` member, and by
+//! [`crate::nvs_safepoint`], the poll compiled code makes between statements.
+//! Together those bound any program that calls anything.
 //!
 //! **Known gap.** A compiled loop that allocates only through the ctx-less
 //! runtime helpers — `nvs_str_concat`, `nvs_array_append` — reaches neither
 //! until it next calls a member, because the safepoint's *fast* path branches
 //! on `Ctx`'s flags word and nothing sets that word for a breach. Closing it
-//! means giving the allocator a way to publish into that word, and the two
+//! means giving the allocator a way to publish into that word, and the
 //! candidates are a thread-local `*const AtomicU64` armed for the running
 //! request, and a poll word compiled code reads out of thread-local storage.
 //! The first is the small change and it is the one with a real question under
@@ -76,14 +77,14 @@
 //! # What it spends
 //!
 //! Per `rule:programs/memory-priority`'s *say what
-//! you spend*: three words per thread — never per request, and never growing
-//! with requests served — and on the allocation path one thread-local
-//! read-modify-write per `dealloc` and three per `alloc`. Each is a
-//! register-relative load, an add and a store against a `const`-initialized
-//! cell, a few instructions in front of an allocation that costs tens of
-//! nanoseconds even out of the pool. It is bought deliberately: AGENTS.md's
-//! priority ordering puts request isolation above latency, and a cap nothing
-//! counts against is not a cap.
+//! you spend*: the counter cells below, one set per thread — never per request,
+//! and never growing with requests served — and on the allocation path a
+//! thread-local read-modify-write of the live balance per `dealloc`, and of
+//! each memory counter per `alloc`. Each is a register-relative load, an add
+//! and a store against a `const`-initialized cell, a few instructions in front
+//! of an allocation that costs far more than they do even out of the pool. It
+//! is bought deliberately: AGENTS.md's priority ordering puts request
+//! isolation above latency, and a cap nothing counts against is not a cap.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
@@ -161,7 +162,7 @@ pub fn written_bytes() -> usize {
 
 /// Charges `bytes` to this thread's output count.
 ///
-/// One caller — [`Ctx::write_output`](crate::Ctx::write_output), at the point
+/// Called from [`Ctx::write_output`](crate::Ctx::write_output), at the point
 /// the bytes reach the sink rather than at the point a program hands them over,
 /// which is the distinction that doc comment owns. Saturating, because a count
 /// that wrapped would answer "under the ceiling" for the one request that most
@@ -172,10 +173,10 @@ pub(crate) fn wrote(bytes: usize) {
 
 /// Charges `bytes` to this thread's counters — negative for a release.
 ///
-/// `pub(crate)` and called from exactly two places: [`Accounting`] below, and
+/// `pub(crate)`, and called from [`Accounting`] below and from
 /// `counting_alloc`'s own arithmetic in a test build. A positive delta is one
-/// allocation *request*, which is why the three counters move together here
-/// rather than at four call sites each.
+/// allocation *request*, which is why the memory counters move together here
+/// rather than at each allocating call site.
 pub(crate) fn add(bytes: isize) {
     LIVE.with(|live| live.set(live.get().wrapping_add(bytes)));
     if bytes > 0 {

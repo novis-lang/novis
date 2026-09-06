@@ -3,7 +3,7 @@
 use nvs_diagnostics::{Severity, SourceMap, code};
 
 /// The whole of `tests/config/duplicate-key.toml`, inline, because a case that reads a fixture
-/// tests the fixture's path as much as the refusal. The file on disk is the same three lines and is
+/// tests the fixture's path as much as the refusal. The file on disk holds the same text and is
 /// what the `nvs config check` acceptance runs against.
 const DUPLICATE: &str = "[limits]\nmemory = \"128M\"\nmemory = \"256M\"\n";
 

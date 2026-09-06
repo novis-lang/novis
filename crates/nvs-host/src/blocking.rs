@@ -84,8 +84,8 @@ struct Shared {
     work: Condvar,
 }
 
-/// The queue itself, and the two counts that decide whether a new thread is
-/// started for a job or an existing one is woken for it.
+/// The queue itself, and the state that decides whether a new thread is started
+/// for a job or an existing one is woken for it.
 struct Queue {
     jobs: VecDeque<Job>,
     /// How many threads are parked on [`Shared::work`] waiting for a job. A
@@ -258,8 +258,8 @@ fn run_jobs(shared: &Shared) {
             queue.idle -= 1;
         };
         drop(queue);
-        // The lock is not held while the job runs — the point of the pool is
-        // that this call takes milliseconds — and a panic escaping a job is
+        // The lock is not held while the job runs — a slow call is the whole
+        // reason the pool exists — and a panic escaping a job is
         // swallowed rather than allowed to end this thread, which would shrink
         // the pool below what its bound accounts for. `run` has already turned
         // its own function's panic into a value by this point; what this

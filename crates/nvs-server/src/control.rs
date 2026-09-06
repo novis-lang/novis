@@ -9,7 +9,7 @@
 //! **`reload` is the only operation, and that is a scope decision rather than the whole of § 3.**
 //! That section also reserves `ctl config` — `rule:config/check-and-dump-audit-the-tree-offline`'s read of the live snapshot with each
 //! directive's origin — and this surface does not answer it yet. Nothing here is shaped to prevent
-//! it: [`Operation`] is an enum with one variant and gains a second when that lands, and the
+//! it: [`Operation`] is an enum that gains a variant when that lands, and the
 //! refusal below names the operation it did not know rather than claiming the roster is closed.
 //!
 //! **No control operation runs Novis code, ever**, which is § 3's own sentence and the reason the
@@ -65,14 +65,14 @@ impl Operation {
     /// The operation `method` and `target` name, or why they name none.
     ///
     /// The target is compared whole and never normalized, which is the opposite of what a router
-    /// does and is deliberate: this roster has one entry, so there is no traversal to resolve and
-    /// nothing a `..` or an escape could resolve *to*. A target that is not exactly `/reload` is
-    /// refused rather than folded into it, so no spelling of the one operation exists that a log
-    /// line would not show verbatim.
+    /// does and is deliberate: this roster is a fixed set of exact names, so there is no traversal
+    /// to resolve and nothing a `..` or an escape could resolve *to*. A target that is not exactly
+    /// `/reload` is refused rather than folded into it, so no spelling of the operation exists that
+    /// a log line would not show verbatim.
     ///
     /// # Errors
     ///
-    /// [`Denied`], whose two halves are an unknown target and the wrong method for a known one.
+    /// [`Denied`]: an unknown target, or the wrong method for a known one.
     pub fn of(method: &str, target: &str) -> Result<Self, Denied> {
         // A query string is not part of the operation's name, and a control operation takes no
         // parameters at all — so one that arrives is part of the target that must not match.
@@ -98,7 +98,7 @@ mod tests {
 
     /// A directory of this case's own, empty, beside the test binary under `target/`.
     ///
-    /// Not `std::env::temp_dir()`, which is what this was: on Unix that is `/tmp`, mode 1777, and
+    /// Not `std::env::temp_dir()`: on Unix that is `/tmp`, mode 1777, and
     /// the `rule:config/ownership-is-the-trust-boundary` check § 3's socket directory is held to refuses a directory the world can
     /// write. It runs on the named directory *and* on its parent, so a scratch directory of our own
     /// is refused for the `/tmp` above it however tight its own bits are. That refusal is § 3
@@ -141,7 +141,7 @@ mod tests {
     /// `ERROR_PIPE_BUSY` counts as yes, and distinguishing it is the whole reason this is a match
     /// rather than an `is_ok`. One `CreateNamedPipeW` creates **one** instance, and reading a
     /// pipe's security descriptor opens it, so a case that has just asked what the DACL says finds
-    /// the only instance already taken. The three answers that matter are all different numbers:
+    /// the only instance already taken. The answers that matter are all different numbers:
     /// `2` is a name that is not there, `5` is one this account is refused, and `231` is one that
     /// exists and let this account through.
     fn exists(name: &std::path::Path) -> bool {

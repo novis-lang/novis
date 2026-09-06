@@ -163,10 +163,10 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
 /// § 1's response body row: the `200` response's schema is the handler's
 /// declared return type, through the same `schema` mapping a parameter's is.
 ///
-/// The three answers the emitter has to tell apart, in one fixture: a type it
+/// The answers the emitter has to tell apart, in one fixture: a type it
 /// maps (`uint`, floor and all), a type it does not (a class, whose fields are
 /// `rule:core-classes/derive-attribute`'s codec rather than this document's guess), and `void`, which
-/// carries no `content` at all. The third is the one that would go wrong
+/// carries no `content` at all. That last one is what would go wrong
 /// silently — an empty schema means *any body*, and *no body* is a different
 /// promise to a generated client.
 #[test]
@@ -206,12 +206,12 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
 /// `enum: [en, de, fr]` with no further work".
 ///
 /// Asserted as whole schema objects rather than as `doc.contains("enum")`,
-/// because the two things that would go wrong here are both invisible to a
-/// substring: a set emitted in some order other than the union's, which § 3's
-/// determinism forbids, and a set emitted *beside* a `type` the row never
-/// carried. The `int` union is the second case — its members are the segment
-/// text they are written with, so they are strings here and `1` in the URL
-/// either way, which [`nvs_types::RouteParam::allowed`] owns.
+/// because what would go wrong here is invisible to a substring: a set emitted
+/// in some order other than the union's, which § 3's determinism forbids, and a
+/// set emitted *beside* a `type` the row never carried. The `int` union is where
+/// a stray `type` would show — its members are the segment text they are
+/// written with, so they are strings here and `1` in the URL either way, which
+/// [`nvs_types::RouteParam::allowed`] owns.
 #[test]
 fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
     let (doc, err, ok) = build(&fixture("narrowed"));
@@ -248,8 +248,8 @@ fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
 
 /// § 1 by way of `rule:routing/a-capture-narrows-to-a-closed-set`'s other named capture type: `Core\Uuid` is the one
 /// class a segment converts to, and `format: uuid` is what the JSON Schema
-/// dialect 3.1 uses already registers for it. The empty schema this used to emit
-/// said *any string, or any number, or any object*.
+/// dialect 3.1 uses already registers for it. An empty schema in its place would
+/// say *any string, or any number, or any object*.
 #[test]
 fn a_uuid_capture_is_a_string_with_the_registered_format() {
     let (doc, err, ok) = build(&fixture("narrowed"));
@@ -273,9 +273,9 @@ fn a_uuid_capture_is_a_string_with_the_registered_format() {
 // two frozen files agreeing with each other.
 // -------------------------------------------------------------------------
 
-/// One fixture of `tests/fixtures/api`, each one file. The diff family below is
-/// three of them: `base`, `base` with an operation deleted, and `base` with one
-/// optional `#[Query]` parameter added.
+/// One fixture of `tests/fixtures/api`, each one file. The diff family below
+/// takes `base`, `base` with an operation deleted, and `base` with one optional
+/// `#[Query]` parameter added.
 fn fixture(stem: &str) -> String {
     format!(
         "{}/tests/fixtures/api/{stem}.nvs",
@@ -286,10 +286,10 @@ fn fixture(stem: &str) -> String {
 /// `nvs build --openapi` for a fixture, written to a file under the target
 /// directory cargo gives an integration test for exactly this.
 ///
-/// **A fresh file per call, not one per stem.** Three tests here ask for
+/// **A fresh file per call, not one per stem.** Several tests here ask for
 /// `base`, `cargo test` runs them on their own threads, and a reader that
 /// catches another thread's `fs::write` half-done gets a truncated document and
-/// a diff that reports nothing — which is a flake in exactly the four cases
+/// a diff that reports nothing — which is a flake in exactly the cases
 /// `loop-goal.toml` names as acceptance checks. The counter is what stops two
 /// calls sharing a path at all; the documents are byte-identical either way, so
 /// nothing about what is compared changes.
@@ -399,15 +399,15 @@ fn an_api_diff_of_an_unreadable_document_is_a_failure() {
 // § 2 -- `#[Api]` may add and may not contradict.
 //
 // One fixture per contradiction plus one that agrees, and the bound is
-// asserted on both sides on purpose: four refusing fixtures alone would pass
+// asserted on both sides on purpose: the refusing fixtures alone would pass
 // just as well against an `#[Api]` that refused everything it was handed, and
 // the accepting one alone would pass against an `#[Api]` nothing checked at
 // all. `crates/nvs-types/src/routes.rs`'s `check_api` owns which half of § 2's
 // `security` rule is askable today and why the other half is not.
 // -------------------------------------------------------------------------
 
-/// § 2's four contradictions, each named by the message that tells it from the
-/// other three -- they share `E0771`, because § 2 states one rule that four
+/// § 2's contradictions, each named by the message that tells it from the
+/// others -- they share `E0771`, because § 2 states one rule that several
 /// different writings can break.
 #[test]
 fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
@@ -433,7 +433,7 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
         );
     }
 
-    // The other side of the bound: the same four fields, agreeing.
+    // The other side of the bound: the same fields, agreeing.
     let (doc, err, ok) = build(&fixture("api-that-agrees"));
     assert!(ok, "an `#[Api]` that agrees with its code builds: {err}");
     assert!(
@@ -442,11 +442,11 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
     );
 }
 
-/// § 2's four values in the document, read back off the operation they annotate
+/// § 2's values in the document, read back off the operation they annotate
 /// — and absent from the operation beside it that declares no `#[Api]`.
 ///
-/// One test over one fixture holding both rows, rather than four tests over
-/// four values: § 2's promise is that the annotation reaches the document *as
+/// One test over one fixture holding both rows, rather than a test per
+/// value: § 2's promise is that the annotation reaches the document *as
 /// written*, and a per-value test passes just as well against an emitter that
 /// writes each value into a member of its own choosing. The `#[Api]`-less row
 /// is the half that catches the opposite mistake — a `tags: []` or a `security:

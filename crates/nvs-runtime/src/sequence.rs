@@ -1,9 +1,9 @@
-//! Draining `rule:iteration/foreach-subjects`'s three iterable shapes from native code.
+//! Draining `rule:iteration/foreach-subjects`'s iterable shapes from native code.
 //!
-//! `Core\Arr::from` is the first member whose parameter is *whatever `foreach`
-//! accepts* — `nvs_stdlib::registry::CoreTy::Iterated`, which owns why an
-//! `array<T>` is one of the three — and this is the one place such an argument
-//! is read. All three arrive in one 16-byte [`Value`]: an `array<T>` as
+//! `Core\Arr::from`'s parameter is *whatever `foreach` accepts* —
+//! `nvs_stdlib::registry::CoreTy::Iterated`, which owns why an `array<T>` is
+//! one of them — and this is the one place such an argument is read. Each of
+//! them arrives in one 16-byte [`Value`]: an `array<T>` as
 //! [`Tag::Array`](crate::Tag::Array), an `Iterable<T>` or an `Iterator<T>` as
 //! [`Tag::Object`](crate::Tag::Object). Nothing else can reach here, because the
 //! checker already refused it.
@@ -15,10 +15,10 @@
 //! name — the class the member is handed decides, and it is a class this crate
 //! knows nothing about. [`crate::object`]'s descriptor carries exactly the
 //! table that answers it, and [`crate::call_closure`] already reaches a
-//! closure's `invoke` through it. This is the same lookup with three names
-//! instead of one, and it is the same dispatch a `foreach` over the same value
-//! performs — [`crate::dispatch`] is where it lives, since more than one
-//! member asks an object something by name.
+//! closure's `invoke` through it. This is that same lookup, over a cursor's
+//! names rather than a closure's one, and it is the same dispatch a `foreach`
+//! over the same value performs — [`crate::dispatch`] is where it lives, since
+//! more than one member asks an object something by name.
 //!
 //! An object answering [`ITERATE`] is driven through the cursor that returns,
 //! and one that does not is the cursor. A class implementing both interfaces
@@ -37,9 +37,9 @@
 //! `None` is trusting its own.
 //!
 //! [`for_each`] is the entry for the member that *can* consume one element at
-//! a time, and `Core\IO::writeStream` is the first — a stream reaching disk
+//! a time, such as `Core\IO::writeStream` — a stream reaching disk
 //! (`rule:core-classes/io-write-stream`) must not hold the file it is writing. It is the same drive
-//! with the `Vec` taken out: [`drain`] is now written over it, so there is one
+//! with the `Vec` taken out, and [`drain`] is written over it, so there is one
 //! cursor loop rather than a second one that could disagree about when
 //! `iterate()` is called or who owns an element.
 
@@ -81,7 +81,7 @@ pub const CURRENT: &str = "current";
 /// carrying that call's own status so the exception reaches the request
 /// unchanged. [`Fault::Fatal`] when `sequence` is neither an array nor an
 /// object, or the object declares none of the members its interface owes —
-/// both engine faults: the checker admits only `rule:iteration/foreach-subjects`'s three shapes
+/// both engine faults: the checker admits only `rule:iteration/foreach-subjects`'s shapes
 /// here, and a class claiming one of the two interfaces owes its members by
 /// `nvs_types::conformance`.
 pub fn drain(
@@ -147,7 +147,7 @@ pub fn for_each(
     each(ctx, sequence, None, what, sink)
 }
 
-/// The drive both entries share: `rule:iteration/foreach-subjects`'s three shapes, split into the
+/// The drive both entries share: `rule:iteration/foreach-subjects`'s shapes, split into the
 /// two representations they arrive in.
 fn each(
     ctx: &mut Ctx,

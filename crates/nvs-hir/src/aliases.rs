@@ -32,7 +32,7 @@
 //! **Known gap:** an atom that resolves to nothing declared at all — not a
 //! class, not an alias, not `Core` — is not diagnosed here. Whether a name
 //! names *something* real is a general type-atom question the type checker
-//! (`nvs-types`, not yet started) owns; this module only concerns itself with
+//! (`nvs-types`) owns; this module only concerns itself with
 //! the alias-substitution question `rule:types/type-alias` asks, the same narrowing
 //! [`crate::members`] already applies to `Class::member` references.
 

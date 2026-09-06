@@ -1,17 +1,14 @@
 //! Cost of the extension sandbox boundary.
 //!
-//! These four numbers decide whether extensions can be sandboxed wasm rather
-//! than `dlopen`'d native code. Baselines from the M0 spike on
-//! x86_64-pc-windows-msvc, against a 1.3 ns built-in call frame:
+//! These numbers decide whether extensions can be sandboxed wasm rather than
+//! `dlopen`'d native code: a host → guest call, a guest → host accessor call, a
+//! bulk copy into guest memory, and a fresh pooled instance plus one call, each
+//! read against the cost of a built-in call frame. A crossing is priced in
+//! nanoseconds and an instantiation in microseconds, so the pooling strategy is
+//! what decides whether a fresh instance per request is affordable.
 //!
-//! | measurement | baseline |
-//! |---|---|
-//! | host → guest call | 11.5 ns |
-//! | guest → host accessor call | 9.0 ns |
-//! | 1 KiB bulk copy into guest memory | 11.7 ns |
-//! | fresh pooled instance + one call | 7.57 µs |
-//!
-//! See `docs/decisions/0003.md`.
+//! Baselined on x86_64-pc-windows-msvc; the figures are in
+//! `docs/decisions/0003.md`.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]

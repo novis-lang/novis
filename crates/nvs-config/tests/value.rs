@@ -121,8 +121,8 @@ fn an_incomparable_pair_exceeds() {
     assert_eq!(Quantity::Bytes(1).partial_cmp(&Quantity::Nanos(1)), None);
 }
 
-/// One limit is written in five places and must parse the same in all of them, so `unit_of` is
-/// keyed on the last segment — including the bare name `Core\Config::set` uses.
+/// One limit is written in every block that can bound it and must parse the same in all of them,
+/// so `unit_of` is keyed on the last segment — including the bare name `Core\Config::set` uses.
 #[test]
 fn one_limit_has_one_unit_in_every_block_that_spells_it() {
     let spellings = [

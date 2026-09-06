@@ -1,9 +1,9 @@
 //! `rule:types/arithmetic`'s operator table — the scalar rows, `decimal`'s own set, the
-//! short-circuiting three, and the widening that places a mixed pair.
+//! short-circuiting operators, and the widening that places a mixed pair.
 //!
-//! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
-//! rule that file's own header states: every item moved here unchanged, and the
-//! methods `pub(crate)` so they reach across these modules and no further.
+//! Part of [`super`]'s one `impl Lowering`, under the rule [`super::expr`]'s own
+//! header states: the methods are `pub(crate)`, so they reach across these modules
+//! and no further.
 //!
 //! `lower_binary` is § 4's table and `emit_binop` in `nvs-codegen` is its other
 //! end; a compound assignment reaches both by desugaring to the binary form it
@@ -31,13 +31,13 @@ impl<'a> Lowering<'a> {
     /// `rule:types/arithmetic`'s whole
     /// table, as [`Helper`] calls rather than machine instructions.
     ///
-    /// Three helpers cover all six comparisons, which is why this is a
-    /// rewrite rather than a lookup: `!=` is [`Helper::DecimalEq`] under a
-    /// [`UnOp::Not`], and `>`/`>=` are [`Helper::DecimalLt`]/
-    /// [`Helper::DecimalLtEq`] with their operands swapped. That is not
-    /// merely fewer variants — it is what gives an unordered operand (a
-    /// `NaN` on the `float` side of § 3's comparison row) PHP's answer to all
-    /// six at once, which a single compare-to-zero result could not encode.
+    /// Fewer helpers than comparisons, which is why this is a rewrite rather
+    /// than a lookup: `!=` is [`Helper::DecimalEq`] under a [`UnOp::Not`], and
+    /// `>`/`>=` are [`Helper::DecimalLt`]/[`Helper::DecimalLtEq`] with their
+    /// operands swapped. That is not merely fewer variants — it is what gives
+    /// an unordered operand (a `NaN` on the `float` side of § 3's comparison
+    /// row) PHP's answer to every comparison at once, which a single
+    /// compare-to-zero result could not encode.
     ///
     /// Neither operand is ever refcounted, so nothing is released here.
     fn lower_decimal_binary(
@@ -61,27 +61,27 @@ impl<'a> Lowering<'a> {
             BinaryOp::LtEq => (Helper::DecimalLtEq, Ty::Bool, vec![lhs, rhs], false),
             BinaryOp::GtEq => (Helper::DecimalLtEq, Ty::Bool, vec![rhs, lhs], false),
             // The one row here whose answer is neither a `bool` nor a
-            // `decimal`: `<=>` is the ordering the four above each ask one
-            // question of, returned whole. `rule:types/arithmetic` grants it on the same
+            // `decimal`: `<=>` is the ordering the comparisons above each ask
+            // one question of, returned whole. `rule:types/arithmetic` grants it on the same
             // grounds it grants them — an exact comparison is computable
             // across every pairing, including the `decimal`/`float` one
             // arithmetic refuses.
             BinaryOp::Cmp => (Helper::DecimalCmp, Ty::Int, vec![lhs, rhs], false),
-            // `BinaryOp`'s roster is 22 and this arm has no reachable target
-            // left. Twelve are the rows above, which is exactly what `rule:types/arithmetic` grants a `decimal`: the five arithmetic operators, `==`/`!=`,
-            // the four orderings and `<=>`. Of the ten it does not grant, six
-            // are refused a phase up and four never arrive at all.
+            // Every `BinaryOp` is accounted for and this arm has no reachable
+            // target left. The rows above are exactly what `rule:types/arithmetic`
+            // grants a `decimal`: the arithmetic operators, `==`/`!=`, the
+            // orderings and `<=>`. What it does not grant is either refused a
+            // phase up or never arrives at all.
             //
-            // The six: `**` by
+            // Refused: `**` by
             // `nvs_types::expr::operators::power_result`, which names
             // `Core\Decimal::pow` and the rounding it does; and `&`, `|`, `^`,
             // `<<` and `>>` by `reject_bitwise_operand`, `rule:types/arithmetic`'s
             // bitwise row being over `int` and `uint` alone — a `decimal` is a
             // coefficient and a scale, so there is no bit pattern for them to
-            // read, and until that refusal existed a `decimal` operand landed
-            // here rather than anywhere it could be answered.
+            // read.
             //
-            // The four: `.`, `&&`, `||` and `??` are taken by
+            // Never arriving: `.`, `&&`, `||` and `??` are taken by
             // `Self::lower_expr` before the general `Binary` arm that is
             // `Self::lower_binary`'s only caller, and `lower_binary` is this
             // function's only caller in turn — so they cannot reach a
@@ -400,7 +400,7 @@ impl<'a> Lowering<'a> {
         //
         // The operand is staged and released exactly as the binary arms stage
         // theirs, and for the same reason: both helpers carry `rule:errors/propagation`'s error
-        // edge — the closed table and the negation overflow are two ways one
+        // edge — the closed table and the negation overflow are each a way one
         // throws — so an operand released inline would be abandoned on the edge
         // a throw leaves by.
         if ty == Ty::Tagged && matches!(op, AstUnaryOp::Neg | AstUnaryOp::BitNot) {
@@ -441,8 +441,8 @@ impl<'a> Lowering<'a> {
             // `+"5"` is a *numeric conversion* and `rule:types/conversion` has no implicit
             // one for it to be.
             AstUnaryOp::Plus => return (v, ty),
-            // `UnaryOp`'s roster is five, and this arm has no reachable target
-            // left. `-`, `~` and `+` are the three above; `!` is split out by
+            // Every `UnaryOp` is accounted for, and this arm has no reachable
+            // target left. `-`, `~` and `+` are the arms above; `!` is split out by
             // `Self::lower_expr` into `Self::lower_not` before this function is
             // called at all (`rule:expressions/truthy-positions`'s truthy table answers `Ty::Bool`
             // whatever the operand's own type is); and `@` never reaches the
@@ -484,9 +484,8 @@ impl<'a> Lowering<'a> {
     ///
     /// `==`/`!=` are the whole of it:
     /// `rule:expressions/one-equality-operator` leaves one spelling, and its § 3 makes that spelling this tag
-    /// test rather than PHP's truthy-table question (`0 == null` was
-    /// *true* there, which is why this arm read `===`/`!==` while both
-    /// spellings existed).
+    /// test rather than PHP's truthy-table question, under which `0 == null`
+    /// is *true*.
     pub(crate) fn lower_null_identity(
         &mut self,
         op: BinaryOp,
@@ -706,10 +705,10 @@ impl<'a> Lowering<'a> {
         }
         // `rule:types/arithmetic`'s ordering rows for the same operand shape the arm
         // above answers for equality: a `mixed` or a union names no row, so
-        // the tag names it at run time. `>`/`>=` are the two `<` helpers with
+        // the tag names it at run time. `>`/`>=` are the `<` helpers with
         // their operands swapped, the arrangement `lower_decimal_binary` and
         // the `NumericLt` pair above both use, which is what gives a `NaN`
-        // operand PHP's `false` for all four at once.
+        // operand PHP's `false` for every ordering at once.
         //
         // The one comparison in this function emitted with `rule:errors/propagation`'s error
         // edge, and `Helper::ValueLt`'s own doc comment is that decision's
@@ -747,7 +746,7 @@ impl<'a> Lowering<'a> {
         // names no row where it is written, so the tags name it when they
         // arrive. See `Helper::ValueAdd`, which is this family's home.
         //
-        // The result is `Ty::Tagged` for every one of the eleven, because which
+        // The result is `Ty::Tagged` for every row here, because which
         // row a pair of tags takes is exactly what is not known here — `$m + 1`
         // is an `int`, a `float` or a throw. `Lowering::coerce` absorbs it into
         // whatever the position declares, by the same rows it already absorbs
@@ -756,7 +755,7 @@ impl<'a> Lowering<'a> {
         // The operands are staged and released exactly as the ordering arm
         // stages its own, and for the same reason: these helpers carry ADR
         // 0002's error edge — a closed table, an overflow and the `int ⊕ uint`
-        // pair are three ways one throws — so an operand released inline would
+        // pair are each a way one throws — so an operand released inline would
         // be abandoned on the edge a throw leaves by.
         if matches!(
             op,
@@ -944,11 +943,11 @@ impl<'a> Lowering<'a> {
         // mixed numeric pair is settled by a helper here — the same shape and
         // the same reason as `Helper::NumericEq` next door — rather than by
         // the widening below, which past 2^53 would raise `ArithmeticError`
-        // where PHP answers an ordering. `>`/`>=` are the same two helpers
+        // where PHP answers an ordering. `>`/`>=` are the same helpers
         // with their operands swapped, the arrangement `lower_decimal_binary`
         // already uses. See `Helper::NumericLt`.
         // `<=>` over a mixed numeric pair, by the same route and for the same
-        // reason as the four ordering operators below — one exact answer over
+        // reason as the ordering operators below — one exact answer over
         // the whole domain, where the widening past this point would raise
         // `ArithmeticError` above 2^53 for a pair that orders perfectly well.
         // Split out rather than folded in with them because its result is an
@@ -1027,7 +1026,7 @@ impl<'a> Lowering<'a> {
             // *emission*: see `BinOp::Pow`, which is a loop over an integer
             // pair and a call over a float one.
             BinaryOp::Pow => (BinOp::Pow, lty),
-            // `rule:types/arithmetic`'s bitwise rows, all five of which preserve the
+            // `rule:types/arithmetic`'s bitwise rows, each of which preserves the
             // operand type. `>>` is the one that reads its operand's
             // signedness rather than only its width — arithmetic on an `int`,
             // logical on a `uint` — and `nvs-codegen` picks that from the
@@ -1048,11 +1047,11 @@ impl<'a> Lowering<'a> {
             // numeric or `decimal` pair has already returned above — so what
             // is left is one representation and one `BinOp` over it. The
             // result is an `int` whatever the operands hold, which alongside
-            // `Div` makes it the second row whose type is not `lty`.
+            // `Div` makes it one of the rows whose type is not `lty`.
             BinaryOp::Cmp => (BinOp::Cmp, Ty::Int),
-            // `BinaryOp`'s roster is 22 and this arm has no reachable target
-            // left. Eighteen of them are the rows above (`Div` twice, guarded
-            // by its operands' representation). The other four never arrive
+            // Every `BinaryOp` is accounted for and this arm has no reachable
+            // target left. Most of them are the rows above (`Div` twice,
+            // guarded by its operands' representation). The rest never arrive
             // here at all, because `Self::lower_expr` takes each of them
             // *before* the general `Binary` arm that is this function's only
             // caller: `.` goes to `Self::lower_concat`, which flattens the
@@ -1061,7 +1060,7 @@ impl<'a> Lowering<'a> {
             // branches rather than an instruction with two evaluated operands;
             // and `??` is `Self::lower_coalesce`'s null test over a value
             // that must not be evaluated twice. A compound assignment reaches
-            // the same four the same way — `AssignOp::to_binary_op` hands back
+            // the same ones the same way — `AssignOp::to_binary_op` hands back
             // an ordinary `BinaryOp` and the desugar re-enters `lower_expr`.
             // That subtraction is the proof; the message below is not.
             other => panic!(
@@ -1079,7 +1078,7 @@ impl<'a> Lowering<'a> {
         // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow
         // rather than wrapping, `%` and `/` throw it on a zero divisor, and
         // `**` throws it on a negative exponent as well.
-        // `nvs-codegen` raises all six inline rather than through a helper,
+        // `nvs-codegen` raises them inline rather than through a helper,
         // so each needs an error edge exactly the way a call does.
         //
         // `/` is the one that is not an integer row: § 4 refuses the zero
@@ -1087,7 +1086,7 @@ impl<'a> Lowering<'a> {
         // throws where the integer one does and carries the same edge. It is
         // recognised by its *result* either way — `Ty::Tagged` is the integer
         // row, whose quotient is `int|float`, and `Ty::Float` the other. Every
-        // other operator — the comparisons, and the remaining four on floats —
+        // other operator — the comparisons, and the remaining float rows —
         // returns no status at all, see `Inst::on_error`.
         let inst = InstKind::BinOp {
             op: bop,

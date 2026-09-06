@@ -10,24 +10,24 @@
 //! [`resolve`](crate::resolve)'s `include_targets` puts the check on the directory the file would
 //! appear in, which is the only place a promise about a file that does not exist yet can be kept.
 //!
-//! **Unix is the mode bits. Windows is the DACL, and § 6 left which ACEs it accepts to M6** — the
-//! answer, which that ADR's body now states, is implemented here: the owner must be this account,
+//! **Unix is the mode bits. Windows is the DACL**, and § 6's answer for which ACEs it accepts is
+//! implemented here: the owner must be this account,
 //! `BUILTIN\Administrators` or `NT AUTHORITY\SYSTEM`, and no *effective* write right may reach
 //! `Everyone`, `NT AUTHORITY\Authenticated Users`, `BUILTIN\Users`, `BUILTIN\Guests` or
 //! `ANONYMOUS LOGON`. Effective rather than by ACE, so a deny entry counts, an inherited grant is
 //! seen, and the question asked is the one that matters — can that principal write this file —
-//! rather than how the ACL happens to be spelled. Those five SIDs are the Windows spelling of "the
+//! rather than how the ACL happens to be spelled. Those SIDs are the Windows spelling of "the
 //! group and the world"; the write rights are every one that changes the bytes, the name or the
 //! ACL itself, `WRITE_DAC` and `WRITE_OWNER` included, because either of those buys the rest.
 //! `platform::effective_rights` computes that in one pass over the DACL rather than through
 //! `GetEffectiveRightsFromAclW`, and its own doc owns why — the answer is the same one, and the
-//! call it replaces cost 0.8 ms per principal.
+//! call it stands in for is orders of magnitude dearer per principal.
 //!
 //! **Canonicalization is part of the check, not a side effect of it.** [`check`] returns the
 //! canonical path, and that is what makes the resolver's cycle test compare files rather than
 //! spellings — a cycle assembled out of symlinks is invisible to a lexical comparison. It is also
 //! the one path comparison `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching is built on, so it is written once
-//! here rather than three times.
+//! here rather than at each site that needs it.
 //!
 //! **[`exposure`] is the same question asked about reading, and it only ever advises.** § 7 refuses
 //! a secret file another account can write and warns about one another account can read, because a
@@ -39,7 +39,7 @@
 //! Windows, at boot and again at each `nvs ctl reload`, plus one more of either for each secret
 //! file's advisory. Nothing here runs per request. `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache is the one caller
 //! outside boot — it checks its own directory once per process, which is why the Windows half is
-//! measured in microseconds rather than milliseconds.
+//! kept cheap enough to disappear beside the work around it.
 //!
 
 use std::path::{Path, PathBuf};
@@ -351,8 +351,8 @@ mod platform {
         found
     }
 
-    /// Each of § 6's five principals against `FILE_READ_DATA`, which is the one right that hands
-    /// over the credential itself.
+    /// Each of § 6's untrusted principals against `FILE_READ_DATA`, which is the one right that
+    /// hands over the credential itself.
     fn readable_by_others(dacl: *const ACL) -> Option<String> {
         if dacl.is_null() {
             return Some("has a null DACL, which grants every account every right".to_string());
@@ -408,11 +408,11 @@ mod platform {
     /// hands over already carries them materialized.
     ///
     /// **This is the answer `GetEffectiveRightsFromAclW` gives, computed here instead, and the
-    /// reason is the clock.** That call costs about 0.8 ms per principal on a Windows 11 box —
-    /// § 6 asks about five of them, on the path and on its parent, so one [`check`](super::check)
-    /// came to 8 ms, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache pays it on every `nvs run` before it may look
-    /// at a single artifact. The walk costs microseconds and answers the same question, because
-    /// the two rules that make the answer *effective* rather than a spelling are both in it: the
+    /// reason is the clock.** That call costs on the order of a millisecond per principal — § 6
+    /// asks about each untrusted one, on the path and on its parent, so a [`check`](super::check)
+    /// built on it is milliseconds of pure overhead, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache pays it on every `nvs run` before it may look
+    /// at a single artifact. The walk is orders of magnitude cheaper and answers the same question,
+    /// because the rules that make the answer *effective* rather than a spelling are all in it: the
     /// entries are evaluated in order, so a `DENY` removes the bits it names from anything a later
     /// `ALLOW` grants, and an inherited entry is an ordinary entry in this ACL by the time anyone
     /// reads it. An `INHERIT_ONLY` entry is skipped — it describes what children get and not this

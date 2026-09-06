@@ -9,7 +9,7 @@
 //! that `tools/holes.py`'s inventory of what the language still refuses holds
 //! only entries a session could close. [`internal`] is the one spelling.
 //!
-//! # One walk, two `Module`s
+//! # One walk, any `Module`
 //!
 //! Nothing in this file names a concrete module. The walk takes
 //! `&mut dyn Module`, so the same emission serves the in-process
@@ -42,7 +42,7 @@
 //!
 //! # A runtime call that is not a helper
 //!
-//! Four symbols this file calls take neither `rule:errors/propagation`'s helper convention nor
+//! Some symbols this file calls take neither `rule:errors/propagation`'s helper convention nor
 //! the status check above: `nvs_str_eq`, `nvs_array_eq`, `nvs_float_pow` and
 //! the refcount primitives. The rule they share is that the operand
 //! *representation* is already statically known at the emit site and the
@@ -58,7 +58,7 @@
 //! instruction and no `LibCall::Pow` either — the row has to be *some* call,
 //! and given that, the cheap shape is the honest one. AGENTS.md's priority
 //! ordering puts latency (3) above simplicity (4), and the cost is one
-//! `Signature`, one `RuntimeSig` arm and a thirty-line runtime module. The
+//! `Signature`, one `RuntimeSig` arm and a small runtime module. The
 //! integer row of the same operator stays inline as a square-and-multiply
 //! loop; see `Emitter::emit_int_pow`.
 
@@ -98,7 +98,7 @@ fn trusted() -> MemFlagsData {
     MemFlagsData::trusted()
 }
 
-/// Memory flags for reading [`nvs_runtime::Ctx`]'s two hot words.
+/// Memory flags for reading [`nvs_runtime::Ctx`]'s hot words.
 ///
 /// Deliberately *not* [`MemFlagsData::trusted`]: `trusted` asserts nothing about
 /// aliasing today, but the safepoint word is written from outside the running
@@ -116,7 +116,7 @@ fn ctx_word() -> MemFlagsData {
 ///
 /// Bundled rather than passed one by one because every field has the same
 /// lifetime and the same "read this, don't rebuild it" role — and because
-/// eight parameters is where the shape stops being readable.
+/// a parameter list that long stops being readable.
 pub(crate) struct UnitTables<'a> {
     pub sigs: &'a Signatures,
     /// Every function the unit defines, by Novis name — see
@@ -253,10 +253,11 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 ///
 /// Read as "does it transfer control anywhere that could recurse": a `Call`,
 /// a virtual or dynamic one, a constructor, a runtime helper or a `Core`
-/// member. The last two cannot recurse into Novis by themselves, but a `Core`
-/// member taking a closure does, and telling those apart would mean a table
-/// this pass has no reason to own — so the predicate is deliberately the
-/// conservative one, and a function is a leaf only if it calls *nothing*.
+/// member. A runtime helper and a `Core` member cannot recurse into Novis by
+/// themselves, but a `Core` member taking a closure does, and telling those
+/// apart would mean a table this pass has no reason to own — so the predicate
+/// is deliberately the conservative one, and a function is a leaf only if it
+/// calls *nothing*.
 ///
 /// Cranelift decides the real frame size long after this runs, so a frame
 /// bound is not available to check the reserve against directly. A function
@@ -696,12 +697,12 @@ impl Emitter<'_, '_> {
                     internal("a value-defining instruction with no representation")
                 })?;
                 // An internal-consistency check with no reachable target, and
-                // the roster is `nvs-ir`'s three producers of this instruction.
-                // Two are `rule:types/conversion`'s enum rows in either direction, and
+                // the roster is `nvs-ir`'s producers of this instruction.
+                // `rule:types/conversion`'s enum rows go in either direction, and
                 // `Ty::Enum` is a zero-byte tag over the very integer it
-                // relabels to; the third is `rule:types/conversion`'s `string as bytes`,
-                // where a `bytes` *is* the string's allocation minus the UTF-8
-                // promise. All three therefore share a machine type by
+                // relabels to; `rule:types/conversion`'s `string as bytes` relabels a
+                // `bytes` that *is* the string's allocation minus the UTF-8
+                // promise. Every producer therefore shares a machine type by
                 // construction, so an arrival here is a `nvs-ir` site emitting
                 // a relabelling between two representations that are not one —
                 // a bug in that site, never a shape the language admits, which
@@ -714,9 +715,9 @@ impl Emitter<'_, '_> {
                 }
                 self.define(inst, value)?;
             }
-            // The three tagged-value instructions. None of them calls, none
+            // The tagged-value instructions. None of them calls, none
             // allocates, and only `IsNull` reads a tag — see
-            // `nvs_ir::Ty::Tagged` for the representation all three assume.
+            // `nvs_ir::Ty::Tagged` for the representation they all assume.
             InstKind::Tag { operand } => {
                 let (value, from) = self.value(*operand)?;
                 // A `decimal` already *is* a `Value` at the tagged width, so
@@ -737,7 +738,7 @@ impl Emitter<'_, '_> {
                     // A float's payload is its bit pattern, which is what the
                     // `Value` slot holds and what `Tag::Float` promises.
                     Ty::Float => self.b.ins().bitcast(types::I64, MemFlagsData::new(), value),
-                    // The pair with no reachable target, for one reason each.
+                    // The arms with no reachable target, for one reason each.
                     // `Lowering::coerce` is the only producer of this
                     // instruction and it answers `(a, b) if a == b` before
                     // anything else, so a `Ty::Tagged` operand is the identity
@@ -768,7 +769,7 @@ impl Emitter<'_, '_> {
                 let to = inst.ty.ok_or_else(|| {
                     internal("a value-defining instruction with no representation")
                 })?;
-                // Two identities. A `decimal` for `InstKind::Tag`'s reason
+                // The identity rows. A `decimal` for `InstKind::Tag`'s reason
                 // exactly; a still-tagged target because narrowing a union to
                 // a *narrower union* is a checker fact, not a change of
                 // representation — which is what `??` over a `?(float|decimal)`
@@ -781,8 +782,8 @@ impl Emitter<'_, '_> {
                 let value = match to {
                     Ty::Bool => self.b.ins().ireduce(types::I8, bits),
                     Ty::Float => self.b.ins().bitcast(types::F64, MemFlagsData::new(), bits),
-                    // The `Tag` arm's check, read the other way, and with one
-                    // target rather than two: `Ty::Tagged` is a row above
+                    // The `Tag` arm's check, read the other way, and over a
+                    // smaller set of targets: `Ty::Tagged` is a row above
                     // rather than a refusal, since narrowing a union to a
                     // narrower union is a checker fact. What is left is a
                     // `void` call's result standing in a narrowing position,
@@ -892,8 +893,8 @@ impl Emitter<'_, '_> {
                 self.define(inst, value)?;
             }
             // A by-reference parameter's caller-staged one-cell slot — see
-            // `nvs_ir::Ty::Ref`, which owns the representation decision. All
-            // three arms are pure address/load/store: the retain and release
+            // `nvs_ir::Ty::Ref`, which owns the representation decision. Every
+            // arm is pure address/load/store: the retain and release
             // that keep the slot owning exactly one reference are ordinary
             // `Retain`/`Release` instructions `nvs_ir::lower` emits around
             // them, so nothing here has an ownership rule of its own.
@@ -939,9 +940,9 @@ impl Emitter<'_, '_> {
     }
 
     /// `rule:errors/on-limit`'s
-    /// call-stack limit: one load of [`nvs_runtime::Ctx`]'s third word, one
-    /// compare against this frame's stack pointer, one predicted-not-taken
-    /// branch, and an out-of-line call to
+    /// call-stack limit: one load of [`nvs_runtime::Ctx`]'s stack-limit word,
+    /// one compare against this frame's stack pointer, one
+    /// predicted-not-taken branch, and an out-of-line call to
     /// [`nvs_runtime::nvs_stack_check`] whose status is checked like any other.
     ///
     /// The stack grows down, so exhaustion is an *unsigned less-than*: the
@@ -979,8 +980,8 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// The safepoint poll: one load of [`nvs_runtime::Ctx`]'s first word, one
-    /// predicted-not-taken branch, and an out-of-line call to
+    /// The safepoint poll: one load of [`nvs_runtime::Ctx`]'s safepoint word,
+    /// one predicted-not-taken branch, and an out-of-line call to
     /// [`nvs_runtime::nvs_safepoint`] whose status is checked like any other.
     ///
     /// This is also where the call-stack check rides, at the **first**
@@ -1018,7 +1019,7 @@ impl Emitter<'_, '_> {
     }
 
     /// `rule:testing/debug-probes`'s statement-boundary probe: the identical load-and-branch shape as
-    /// [`Self::emit_safepoint`], against the *second* hot word, with no status
+    /// [`Self::emit_safepoint`], against the *debug-flags* word, with no status
     /// to check because [`nvs_runtime::nvs_probe_stmt`] cannot fail.
     ///
     /// Emitted unconditionally, in every compiled unit, whether or not any
@@ -1072,8 +1073,8 @@ impl Emitter<'_, '_> {
     /// section and materializes its address.
     ///
     /// Every call site gets its own data object: identical literals are not
-    /// shared, which is the crate docs' known gap 4 and costs a few bytes of
-    /// unit rather than anything on the request path.
+    /// shared, which the crate docs carry as a known gap and costs a few bytes
+    /// of unit rather than anything on the request path.
     fn emit_immortal_str(&mut self, bytes: &[u8]) -> Result<Value, CodegenError> {
         let mut object =
             Vec::with_capacity(nvs_runtime::PAYLOAD_OFFSET.saturating_add(bytes.len()));
@@ -1210,10 +1211,11 @@ impl Emitter<'_, '_> {
         }
 
         // `rule:expressions/equality-semantics`'s object row is *identity*, so here the pointer
-        // comparison the two rows above refuse is exactly right — and it is
-        // one instruction, which is why an object pair calls nothing at all.
-        // Comparing contents is `Comparable::compareTo`, a method call that
-        // never reaches this instruction (`nvs_ir`'s `lower_object_comparison`).
+        // comparison the string and array rows above refuse is exactly right —
+        // and it is one instruction, which is why an object pair calls nothing
+        // at all. Comparing contents is `Comparable::compareTo`, a method call
+        // that never reaches this instruction (`nvs_ir`'s
+        // `lower_object_comparison`).
         if matches!(ty, Ty::Object) && matches!(op, BinOp::Eq | BinOp::NotEq) {
             let cc = if matches!(op, BinOp::Eq) {
                 IntCC::Equal
@@ -1238,32 +1240,31 @@ impl Emitter<'_, '_> {
         let integral = matches!(ty, Ty::Int | Ty::Uint | Ty::Bool);
         if !float && !integral {
             // An internal-consistency check with no reachable target left, and
-            // the roster is the four rows above plus this one. Equality is
+            // the roster is the rows above plus this one. Equality is
             // answered for a `string`, a `bytes`, an `array<T>`, an object, an
             // enum case (through `Reinterpret` to its backing integer, in
-            // `nvs-ir`, at all four sites that compare one — a written `==`,
+            // `nvs-ir`, at every site that compares one — a written `==`,
             // `rule:types/literal-types`'s membership chain, and a `match` or a `switch`
             // label chain) and `null`; ordering is refused where it is *written*
             // for every representation that is not a number or a `bool`
             // (`E0715`, and `E0411` for the object family), and `decimal`'s own
-            // twelve rows never arrive here at all — `lower_decimal_binary`
+            // rows never arrive here at all — `lower_decimal_binary`
             // rewrites each into a helper call.
-            // `Ty::Tagged` has left entirely: its equality is
+            // `Ty::Tagged` never arrives either: its equality is
             // `Helper::Identical`, its ordering the `Helper::ValueLt` family
-            // and its arithmetic and bitwise rows the eleven-member
-            // `Helper::ValueAdd` one, each chosen from the operands' runtime
-            // tags in `nvs-ir` rather than from a representation neither side
-            // has. What is left is two representations no source expression
-            // has at all (`ClassDesc`, `Ref`) and one it *can* produce and
-            // never hands to an operator: a `void` call is refused wherever it
-            // is written, as an operand of every binary and unary spelling
-            // (`E0718`), as the value a condition tests (`E0719`) and as an
-            // operand of `.` (`E0707`), so `Ty::Void` reaches no instruction
-            // rather than being absent from the language. The `float` rows do
-            // not reach here at all — they are `integral`'s sibling below —
-            // and arithmetic over an operand `rule:types/arithmetic` tabulates no row
-            // for, which used to arrive here as a `Sub` over a `Str` or a
-            // `Div` over an `Array`, is `E0716` where it is written now.
+            // and its arithmetic and bitwise rows the `Helper::ValueAdd` one,
+            // each chosen from the operands' runtime tags in `nvs-ir` rather
+            // than from a representation neither side has. What is left is the
+            // representations no source expression has at all (`ClassDesc`,
+            // `Ref`) and one it *can* produce and never hands to an operator:
+            // a `void` call is refused wherever it is written, as an operand
+            // of every binary and unary spelling (`E0718`), as the value a
+            // condition tests (`E0719`) and as an operand of `.` (`E0707`), so
+            // `Ty::Void` reaches no instruction rather than being absent from
+            // the language. The `float` rows do not reach here at all — they
+            // are `integral`'s sibling below — and arithmetic over an operand
+            // `rule:types/arithmetic` tabulates no row for is `E0716` where it
+            // is written.
             // An empty roster is what makes this an `internal` rather than an
             // `Unsupported`: see this module's docs.
             return Err(internal(&format!("a `{op:?}` over representation {ty:?}")));
@@ -1282,13 +1283,13 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_div(inst, l, r, signed);
         }
-        // The remaining three integer rows, which own a continuation block for
+        // The remaining integer rows, which own a continuation block for
         // the same reason: `rule:types/arithmetic` makes `+`, `-` and `*` throw on
         // overflow rather than wrap. See `Self::emit_checked_int_arith`.
         if matches!(op, BinOp::Add | BinOp::Sub | BinOp::Mul) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_checked_int_arith(inst, op, l, r, signed);
         }
-        // And the two shifts, whose count is a value PHP judges rather than a
+        // And the shifts, whose count is a value PHP judges rather than a
         // field the machine masks. See `Self::emit_shift`.
         if matches!(op, BinOp::Shl | BinOp::Shr) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_shift(cur, inst, op, l, r, signed);
@@ -1344,16 +1345,16 @@ impl Emitter<'_, '_> {
                 let call = self.b.ins().call(callee, &[l, r]);
                 self.b.inst_results(call)[0]
             }
-            // Reached only by `Ty::Bool`, the third member of `integral`
+            // Reached only by `Ty::Bool`, the non-numeric member of `integral`
             // above: every `Ty::Int`/`Ty::Uint` pair has already gone to
             // `Self::emit_checked_int_arith`, which is where `rule:types/arithmetic`'s
             // overflow throw lives. No `bool` arithmetic exists in the
-            // language, so in practice these three arms are the table's
+            // language, so in practice these arms are the table's
             // exhaustiveness and nothing else.
             BinOp::Add => self.b.ins().iadd(l, r),
             BinOp::Sub => self.b.ins().isub(l, r),
             BinOp::Mul => self.b.ins().imul(l, r),
-            // `rule:types/arithmetic` preserves the operand type across these three and
+            // `rule:types/arithmetic` preserves the operand type across these rows and
             // they cannot fail, so unlike the shifts they are one instruction
             // in the straight-line table. `Ty::Bool` reaches them too and is
             // exactly right there: a `bool` is one byte holding 0 or 1.
@@ -1419,10 +1420,10 @@ impl Emitter<'_, '_> {
             // An internal-consistency check with no reachable target left, and
             // it is the *operator* half of the representation one above rather
             // than a second copy of it. Everything arriving here shares one
-            // representation and it is `float` or `bool`, the two `integral`
-            // and `float` admit that the six early returns above do not
-            // handle — so the roster is five pairs, and each is refused where
-            // it is written. `Shl`/`Shr` over either is `E0706`, `rule:types/arithmetic`'s `& | ^ ~ << >>` row being `int` and `uint` alone.
+            // representation and it is `float` or `bool`, the ones `integral`
+            // and `float` admit that the early returns above do not handle —
+            // so every pair left over is refused where it is written.
+            // `Shl`/`Shr` over either is `E0706`, `rule:types/arithmetic`'s `& | ^ ~ << >>` row being `int` and `uint` alone.
             // `Div`/`Mod`/`Pow` over a `bool` is `E0716`: that section's
             // arithmetic rows are the numeric types, and a `bool` is PHP's
             // "convert to an `int` first" and nothing else. `Mod` over a
@@ -1431,8 +1432,8 @@ impl Emitter<'_, '_> {
             // operator, so the floating-point remainder is that member.
             // `Ty::Decimal` and `Ty::Tagged` never arrive: `nvs-ir` rewrites
             // the first into the `Helper::Decimal*` family and the second into
-            // the eleven-member `Helper::ValueAdd` one, both chosen a crate up
-            // from a representation this function would have to guess.
+            // the `Helper::ValueAdd` one, both chosen a crate up from a
+            // representation this function would have to guess.
             other => {
                 return Err(internal(&format!("the binary operator {other:?}")));
             }
@@ -1499,7 +1500,7 @@ impl Emitter<'_, '_> {
     ///
     /// Which of the two it produces is a **runtime** question, so it is a
     /// branch and not a type: the quotient is an integer exactly where the
-    /// remainder is zero. Three guards stand in front of it, and each is a
+    /// remainder is zero. Guards stand in front of it, and each is a
     /// trap — a request-isolation failure, AGENTS.md's priority 1 — rather
     /// than a wrong answer, so none may reach `sdiv`/`udiv`:
     ///
@@ -1648,7 +1649,7 @@ impl Emitter<'_, '_> {
     }
 
     /// `<<` and `>>`, whose count PHP *judges* where the machine merely masks
-    /// it — three rules, none of which x86 or aarch64 gives for free:
+    /// it — rules none of which x86 or aarch64 gives for free:
     ///
     /// * **A negative count throws** `ArithmeticError`, carrying PHP's own
     ///   `Bit shift by negative number` message. Only the signed row can
@@ -1716,10 +1717,10 @@ impl Emitter<'_, '_> {
     /// it is one because no target has an integer power instruction: the
     /// exponent's bits are walked low to high, the accumulator taking a factor
     /// on each set bit and the running square doubling its exponent on each
-    /// step. At most 64 iterations, and the usual small exponent leaves after
-    /// two or three.
+    /// step. At most 64 iterations, and the usual small exponent leaves long
+    /// before that.
     ///
-    /// Three details are load-bearing:
+    /// These details are load-bearing:
     ///
     /// * **The square is not taken after the last set bit.** `2 ** 62` would
     ///   otherwise overflow on a `base` nothing then multiplies by, reporting
@@ -1898,8 +1899,8 @@ impl Emitter<'_, '_> {
     /// Raise spec § 10's `ArithmeticError` inline and leave the current block
     /// on [`nvs_ir::ir::Inst::on_error`]'s edge.
     ///
-    /// Every arithmetic throw in this file goes through here — the two zero
-    /// divisors and the four overflow rows — and none of them goes through a
+    /// Every arithmetic throw in this file goes through here — the zero
+    /// divisors and the overflow rows — and none of them goes through a
     /// helper's `Fault`, which could only ever name `RuntimeError`. The
     /// exception is built by [`nvs_runtime::nvs_raise_new`] from a descriptor
     /// address relocated in, see [`crate::Classes`].
@@ -1966,26 +1967,26 @@ impl Emitter<'_, '_> {
                 self.b.ins().icmp(IntCC::Equal, v, zero)
             }
             // An internal-consistency check with no reachable target left, and
-            // the roster is the three rows above plus the checked negation
-            // ahead of them. `UnOp` is three variants: `!` arrives only over a
+            // the roster is the rows above plus the checked negation ahead of
+            // them. `!` arrives only over a
             // `Ty::Bool`, `rule:expressions/truthy-positions`'s truthy table having already answered one
             // whatever the operand's own type was, and `-` and `~` arrive only
             // over the numeric representations `rule:types/arithmetic` tabulates, because
             // `nvs_types::expr::operators::reject_unary_arith_operand` refuses
             // every other operand where it is written (`E0705`, and `E0706` for
             // the `float`/`decimal` pair `~` leaves out). Unary `+` never
-            // reaches an instruction at all — it is the identity over all four
-            // numeric types, so `nvs-ir` returns the operand itself.
+            // reaches an instruction at all — it is the identity over every
+            // numeric type, so `nvs-ir` returns the operand itself.
             //
-            // `Ty::Decimal` and `Ty::Tagged` have both left: a `decimal`
+            // `Ty::Decimal` and `Ty::Tagged` never arrive: a `decimal`
             // negation is `Helper::DecimalNeg`, and a tagged operand's `-` and
             // `~` are the `Helper::ValueNeg` pair, chosen from the operand's
             // runtime tag in `nvs-ir` rather than from a representation it does
             // not have. What is left is `Self::emit_binop`'s residue exactly,
-            // including why the third of it is not quite like the other two:
+            // including why a `void` call is not quite like the rest of it:
             // `ClassDesc` and `Ref` are representations no source expression
             // has, while a `void` call *is* one and is refused where it is
-            // written instead — `E0718` covers the three unary prefixes, unary
+            // written instead — `E0718` covers the unary prefixes, unary
             // `+` among them, by the same rule and the same code.
             (op, ty) => {
                 return Err(internal(&format!(
@@ -2000,11 +2001,11 @@ impl Emitter<'_, '_> {
     /// materialized into a stack slot of 16-byte [`nvs_runtime::Value`]s, a
     /// second slot for the result, and the status check after.
     ///
-    /// `sig` is [`RuntimeSig::Helper`] for all but one row of the table.
-    /// [`RuntimeSig::HelperVariadic`] is the same call with the argument
-    /// **count** passed beside the slot, which one helper needs because its
-    /// arity is a property of the call site rather than of its own
-    /// declaration — see `nvs_ir::Helper::CallClosure`, the only one so far.
+    /// `sig` is [`RuntimeSig::Helper`] for every row of the table but the
+    /// variadic one. [`RuntimeSig::HelperVariadic`] is the same call with the
+    /// argument **count** passed beside the slot, which a helper needs when
+    /// its arity is a property of the call site rather than of its own
+    /// declaration — see `nvs_ir::Helper::CallClosure`.
     fn emit_helper(
         &mut self,
         cur: Block,
@@ -2058,8 +2059,7 @@ impl Emitter<'_, '_> {
 
         // `Ty::Void` is filtered out for [`Self::emit_call`]'s reason: a helper
         // still writes its `out` slot, but nothing may *read* one — `void` has
-        // no register representation at all (`crate::ty::clif_ty`). The first
-        // helper this mattered for is `Core\Time::sleep`.
+        // no register representation at all (`crate::ty::clif_ty`).
         if let Some(ty) = inst.ty.filter(|ty| !matches!(ty, Ty::Void)) {
             let value = self.load_value(out_p, 0, ty)?;
             self.define(inst, value)?;
@@ -2200,8 +2200,8 @@ impl Emitter<'_, '_> {
     /// cached per function the way [`Self::callee_ref`] caches an import.
     ///
     /// The caller checks that the unit declares the class. This does not: it
-    /// is reached from three lowerings whose refusals name three different
-    /// things, and a symbol name is derivable either way.
+    /// is reached from lowerings whose refusals name different things, and a
+    /// symbol name is derivable either way.
     fn class_desc_value(&mut self, class: &str) -> Result<Value, CodegenError> {
         if let Some(global) = self.desc_globals.get(class) {
             return Ok(self.b.ins().symbol_value(types::I64, *global));
@@ -2363,7 +2363,7 @@ impl Emitter<'_, '_> {
     /// Nothing is retained: the receiver is only read, the way a `FieldGet`
     /// reads its own.
     ///
-    /// **Two entry points, picked by the subject's representation.** A proven
+    /// **The entry point is picked by the subject's representation.** A proven
     /// [`Ty::Object`] passes its bare pointer and pays nothing new. A
     /// [`Ty::Tagged`] — a `mixed`, or a `?Box` no test narrowed, which is the
     /// shape `instanceof` exists to interrogate — goes through
@@ -2372,7 +2372,7 @@ impl Emitter<'_, '_> {
     /// stores, on the only path that needs them; the branch is here rather
     /// than in the runtime because the proven case is the common one and it
     /// already had a pointer in hand.
-    /// [`nvs_ir::ir::InstKind::ClassDescIn`] — `rule:types/class-reference`'s two checked rows
+    /// [`nvs_ir::ir::InstKind::ClassDescIn`] — `rule:types/class-reference`'s checked rows
     /// into a `class<T>`, as a **branch-free chain** over
     /// [`Classes::conforming_to`]'s closed set.
     ///
@@ -2625,9 +2625,9 @@ impl Emitter<'_, '_> {
 
     /// `$obj->$key = v;`: one call to `nvs_runtime::nvs_object_key_set`,
     /// [`Self::emit_key_get`]'s write half and [`Self::emit_slot_set`] with the
-    /// same one substitution. Three values travel by address here — the
-    /// receiver, the key and the stored value — for the three reasons those two
-    /// functions already state.
+    /// same one substitution. The receiver, the key and the stored value all
+    /// travel by address here, each for the reason those functions already
+    /// state.
     fn emit_key_set(
         &mut self,
         inst: &Inst,
@@ -2854,11 +2854,11 @@ impl Emitter<'_, '_> {
     ///
     /// **It costs one instruction per call and nothing else.** Measured with
     /// callgrind over `benches/userland` (`rule:testing/perf-two-mechanisms`'s currency): naive
-    /// `fib(30)` is 2·F(31)−1 = 2,692,537 calls and gains 2,698,113 retired
-    /// instructions, so 1.002 of them per call, and at +1.14% it is the worst
-    /// case in the suite. Everything not call-bound is inside the noise floor
-    /// — json-encode −0.000%, array-map-filter −0.005%, method-dispatch
-    /// +0.001%, that last because an instance method already dispatches
+    /// `fib`, the most call-bound case in the suite and so the worst one,
+    /// gains almost exactly one retired instruction per call it makes.
+    /// Everything not call-bound is inside the noise floor — json-encode,
+    /// array-map-filter and method-dispatch alike, that last because an
+    /// instance method already dispatches
     /// through `call_indirect` and never took this path. `rule:programs/memory-priority`'s ordering
     /// spends priority-3 latency to buy off a priority-2 crash, which is the
     /// direction it allows and not the reverse.
@@ -3064,8 +3064,8 @@ impl Emitter<'_, '_> {
         Ok(self.b.inst_results(call)[0])
     }
 
-    /// `$a[] = expr;`: the one array write that can fail, so the one emitted
-    /// as a status check rather than as a value.
+    /// `$a[] = expr;`: an array write that can fail, so one emitted as a
+    /// status check rather than as a value.
     ///
     /// PHP 8.5 refuses an append whose next integer key is already live, and
     /// `nvs_runtime::nvs_array_append` matches that refusal — see its own doc
@@ -3102,7 +3102,7 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// `[...$a]`: the whole-array copy, and the second write emitted as a
+    /// `[...$a]`: the whole-array copy, and the other write emitted as a
     /// status check.
     ///
     /// [`Self::emit_array_append`] with an array pointer where that one builds
@@ -3183,7 +3183,7 @@ impl Emitter<'_, '_> {
             (Ty::Array, false) => "nvs_array_release",
             // An internal-consistency check on `nvs-ir`, not on the language,
             // which is why it is an `Internal` rather than an `Unsupported`:
-            // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s five
+            // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s,
             // with `Ty::Tagged` taken out of line by the branch above, and
             // every other representation is a scalar with no reference to
             // count. `InstKind::Retain`/`Release` is the only producer of an
@@ -3281,10 +3281,9 @@ impl Emitter<'_, '_> {
             }
             // A compare chain, not a jump table. Correct for any case set —
             // the IR deliberately does not require a dense or sorted one —
-            // and the arms are few in the one producer there is today (one
-            // per `yield` in a generator, plus the entry and the exhausted
-            // arm). A `br_table` over a dense case set is this module's
-            // known gap 6.
+            // and its one producer keeps the arms few (one per `yield` in a
+            // generator, plus the entry and the exhausted arm). A `br_table`
+            // over a dense case set is one of this module's known gaps.
             Terminator::Switch {
                 value,
                 arms,
@@ -3352,12 +3351,12 @@ impl Emitter<'_, '_> {
                     &[codegen::ir::BlockArg::Value(status)],
                 );
             }
-            // No reachable target: `nvs_ir::ir::Terminator` is seven variants
-            // and the arms above are all seven — `Return` in both its shapes,
-            // `Jump`, `Branch`, `Switch`, `Throw`, and the two a landing block
-            // ends in, `Propagate` and `Catch`. `crate::lower` is that enum's
-            // only producer and every block it builds ends in one of the
-            // seven, so no program reaches here and this is an `Internal`
+            // No reachable target: the arms above are every variant of
+            // `nvs_ir::ir::Terminator` — `Return` in both its shapes,
+            // `Jump`, `Branch`, `Switch`, `Throw`, and the pair a landing
+            // block ends in, `Propagate` and `Catch`. `crate::lower` is that
+            // enum's only producer and every block it builds ends in one of
+            // them, so no program reaches here and this is an `Internal`
             // rather than an `Unsupported`: it names no shape the language
             // refuses, and an item on `tools/holes.py`'s worklist could never
             // close it. The arm exists because that enum is `#[non_exhaustive]`
@@ -3501,8 +3500,8 @@ impl Emitter<'_, '_> {
         // (`nvs_runtime::decimal`), so `Self::load_value` has to be able to
         // read them back for a tagged slot that turns out to hold one. Writing
         // the word here is what makes them zero for every other tag, which is
-        // the invariant that read depends on — and it costs one `I64` store
-        // where an `I8` store stood.
+        // the invariant that read depends on — and an `I64` store costs no
+        // more here than a tag-byte one would.
         let tag_value = self.b.ins().iconst(types::I64, i64::from(tag as u8));
         self.b.ins().store(trusted(), tag_value, base, tag_offset);
         let bits = match bits {
@@ -3530,11 +3529,6 @@ impl Emitter<'_, '_> {
             }
             Ty::Float => self.b.ins().load(types::F64, trusted(), base, bits_offset),
             Ty::Void => return Err(internal("reading a value of representation `void`")),
-            // Both halves, as the register pair `crate::ty::clif_ty` describes.
-            // The tag is read as one **byte** and zero-extended rather than as
-            // the whole low word: the seven padding bytes beside it are zero in
-            // every `Value` this runtime writes, but reading them would make
-            // that a thing to trust rather than a thing that cannot matter.
             // Both halves, as the register pair `crate::ty::clif_ty`
             // describes. The low half is read as a whole **word** rather than
             // as the tag byte alone: a tagged slot may hold a `decimal`, whose

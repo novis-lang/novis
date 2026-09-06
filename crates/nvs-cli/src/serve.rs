@@ -3,11 +3,11 @@
 //!
 //! [`nvs_server::serve::serve_on_this_core`] is the loop and
 //! `rule:concurrency/one-future-per-connection`
-//! is what drives a connection on it; what this module owns is the four things
-//! only the binary can supply — the socket the loop accepts on, the clock it
-//! holds a connection to, the handler that says which isolate a request is, and
+//! is what drives a connection on it; what this module owns is what only the
+//! binary can supply — the socket the loop accepts on, the clock it holds a
+//! connection to, the handler that says which isolate a request is, and
 //! [`Scheduled`], which says the same for a `[[schedule]]` entry that fires
-//! beside it ([`nvs_server::schedule`], `rule:config/a-scheduled-run-is-a-root-isolate`). All four are the same
+//! beside it ([`nvs_server::schedule`], `rule:config/a-scheduled-run-is-a-root-isolate`). Every one is the same
 //! split: this crate has the front end, so turning a path into a program is
 //! here, and the loop and the ticker are there.
 //!
@@ -148,7 +148,7 @@ pub(crate) fn run(
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
     // written under `[http.headers]` it is the whole of what every response this
     // server writes carries beside its body, and `nvs_server::secure` owns the
-    // three details § 1 calls decisions rather than transcription.
+    // details § 1 calls decisions rather than transcription.
     // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`: who may assert a client address or a scheme, resolved once
     // here beside the two above. An entry that names no network is dropped and
     // reported — `nvs_server::forwarded`'s module doc owns why dropping is the
@@ -314,8 +314,8 @@ pub(crate) fn run(
         let table = Rc::clone(&table);
         let draining = draining.clone();
         move |request: Request<Incoming>, origin: Origin| {
-            // Ahead of the table, because a verb outside `Core\Http\Method`'s
-            // eight names no application on this server rather than none at
+            // Ahead of the table, because a verb `Core\Http\Method` does not
+            // carry names no application on this server rather than none at
             // this path: `Reply::not_implemented` owns why that is a `501` and
             // not the route table's `405`. Asked of `nvs_stdlib::request`,
             // which is the roster's one home — the door does not keep a list.
@@ -358,7 +358,7 @@ pub(crate) fn run(
             let (program, routes): (Program, Option<Arc<nvs_runtime::routes::Routes>>) =
                 match compiler.compiled(&file.to_string_lossy()) {
                     Ok((program, routes)) => (program, Some(routes)),
-                    // Reachable now that step 4 can name a file the boot compile
+                    // Reachable because step 4 can name a file the boot compile
                     // never saw: under `dispatch = "path"` a `.nvs` under the mount
                     // root compiles on the request that first asks for it. It is a
                     // failing program rather than a panic because a handler answers
@@ -572,10 +572,10 @@ pub(crate) fn run(
 ///
 /// The ticker in `nvs-server` owns *when* a `[[schedule]]` entry runs and *where* —
 /// a task of its own, with its own context, so that a run taking an hour is not
-/// why the next minute's entry is late. What is left is the two things that need
-/// a compiler and a logger: which isolate the entry's `script` is, and what its
-/// result says. Both are this crate's, for the reason the module doc gives for
-/// the handler.
+/// why the next minute's entry is late. What is left is what needs a compiler
+/// and a logger: which isolate the entry's `script` is, and what its result
+/// says. Both are this crate's, for the reason the module doc gives for the
+/// handler.
 ///
 /// Nothing is carried on it: the resolver is installed for the whole run
 /// (`nvs_runtime::script::scoped` below), so a fire reaches the same compiler and
@@ -653,8 +653,8 @@ impl nvs_server::Fires for Scheduled {
     }
 }
 
-/// `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep — one of the two places in the product that
-/// runs it, and the reason a hard-killed script's leftovers ever go away.
+/// `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep — run at a server boot and by hand from
+/// `nvs tmp clean`, and the reason a hard-killed script's leftovers ever go away.
 ///
 /// **Boot, and no other invocation.** A `nvs run` does not sweep and neither
 /// does any other subcommand: taxing every CLI start with a walk of the root to

@@ -1,18 +1,18 @@
-//! Static-property storage, and the three ways a context makes another one.
+//! Static-property storage, and the ways a context makes another one.
 //!
 //! `docs/adr/README.md` § *Decisions taken at project start* makes a static
 //! property's slot request-scoped: [`Ctx::install_statics`] materializes one
 //! per declared default when the request is armed and [`Ctx`]'s `Drop` releases
 //! them, so nothing outlives the request that wrote it.
 //!
-//! The four constructors are here because they are the same question asked of
+//! The constructors are here because they are the same question asked of
 //! a *tree* of contexts.
 //! `rule:security/isolate-shares-nothing` gives a tree one
 //! ceiling to divide, so [`Ctx::child`], [`Ctx::isolate`],
 //! [`Ctx::method_isolate`] and [`Ctx::handler_isolate`] each decide what the
 //! new context shares with its root and what it starts fresh — and the statics
-//! are the largest thing it does *not* share. They are also the one thing the
-//! fourth has to arm for itself, `rule:security/isolate-shares-nothing`'s method entry being the only child
+//! are the largest thing it does *not* share. They are also the one thing
+//! [`Ctx::method_isolate`] has to arm for itself, `rule:security/isolate-shares-nothing`'s method entry being the only child
 //! that runs its parent's unit.
 
 use super::*;
@@ -72,10 +72,10 @@ impl Ctx {
     /// A delivery queued while this isolate is already parked inside
     /// [`crate::peer::PeerSocket::receive`] is answered by the *next*
     /// `receive()` rather than waking the parked one, because the park is on
-    /// the socket alone. § 4's `publish` has landed, so this is now
-    /// **observable**: a connection parked with nothing coming from its peer
-    /// sits on a value another connection on the same core already published
-    /// to a topic it joined. Closing it needs the park to be over both
+    /// the socket alone. § 4's `publish` makes that **observable**: a
+    /// connection parked with nothing coming from its peer sits on a value
+    /// another connection on the same core already published to a topic it
+    /// joined. Closing it needs the park to be over both
     /// sources, which is a wake seam the framing layer has to take part in —
     /// `nvs_stdlib::socket`'s `receive()` and `nvs_server::socket`, not this
     /// method.
@@ -227,11 +227,12 @@ impl Ctx {
     ///
     /// Everything a *task* owns rather than a request starts fresh: the output
     /// buffer, the capture stack, the assertion ledger, the pending failure,
-    /// the yielder and the stack bounds — the last two because the child will
-    /// run on a stack of its own that this context has never seen. So does the
-    /// diagnostic sink, which starts at [`OutputSink::Stderr`] like any fresh
-    /// context's: an [`OutputSink`] is not `Clone`, and a redirected one is a
-    /// test reading its own dumps back rather than a property of the request.
+    /// the yielder and the stack bounds — the yielder and the bounds because
+    /// the child will run on a stack of its own that this context has never
+    /// seen. So does the diagnostic sink, which starts at
+    /// [`OutputSink::Stderr`] like any fresh context's: an [`OutputSink`] is
+    /// not `Clone`, and a redirected one is a test reading its own dumps back
+    /// rather than a property of the request.
     ///
     /// **The configuration crosses including the parent's overlay**, exactly as
     /// it does for [`Self::isolate`] and for that constructor's reason: `rule:security/isolate-shares-nothing`'s
@@ -435,7 +436,7 @@ impl Ctx {
     /// an ordinary isolate spends the tree's budget, which is exactly wrong for
     /// the one isolate whose job is to report that the tree ran out of it.
     /// Everything `rule:security/isolate-shares-nothing` calls request-wide still crosses — the sibling above
-    /// is the one home of that list — and three things part from it:
+    /// is the one home of that list — and these part from it:
     ///
     /// - **Its own deadline word**, not the tree's. The parent's word is set
     ///   the moment its wall clock runs out, so a handler sharing it would be
@@ -477,11 +478,11 @@ impl Ctx {
     /// the word at [`STATICS_OFFSET`], handed out rather than re-derived.
     ///
     /// Null before [`Ctx::install_statics`] has run, which is safe because a
-    /// unit declaring no static emits no instruction that reads it. Two callers
-    /// want it and neither can reach the field: `nvs-host`'s group runner,
-    /// which gives a child the *same* base so a request has one copy of every
-    /// static rather than one per task ([`Ctx::child`]), and a test asserting
-    /// that it did.
+    /// unit declaring no static emits no instruction that reads it. It is
+    /// handed out because the callers that want it cannot reach the field:
+    /// `nvs-host`'s group runner, which gives a child the *same* base so a
+    /// request has one copy of every static rather than one per task
+    /// ([`Ctx::child`]), and a test asserting that it did.
     #[must_use]
     pub fn statics_base(&self) -> *mut Value {
         self.statics
@@ -726,9 +727,9 @@ mod tests {
     }
 
     /// `rule:security/isolate-shares-nothing`'s "one ceiling to divide": the flag is the tree's own word, so
-    /// the store reaches a child built before the timer fired. A copy answered
-    /// the other order correctly and this one not at all, which is why the
-    /// child here is spawned first.
+    /// the store reaches a child built before the timer fired. The child here
+    /// is spawned first because that is the order a copied flag would answer
+    /// wrongly, where spawning afterwards would pass either way.
     #[test]
     fn expiring_a_deadline_reaches_a_child_spawned_before_the_timer_fired() {
         let root = Ctx::buffered();

@@ -22,8 +22,9 @@
 //! is a task beneath the call: under a scheduler the child gets a stack of its
 //! own, and with nothing installed it runs inline on the caller's stack instead
 //! (`nvs_host::isolate`). A round trip timed from `#[test]` or from criterion's
-//! own loop takes the second path and reads about 80 ns on this box — a true
-//! figure about a boundary nobody crosses that way. So the scheduler and the
+//! own loop takes the second path and reads a small fraction of a real
+//! crossing — a true figure about a boundary nobody crosses that way. So the
+//! scheduler and the
 //! task are built here, outside the clock, and the loop runs *inside* the task.
 
 use std::cell::Cell;
@@ -83,8 +84,8 @@ pub(crate) fn spawn_to_result_batch(iters: u64) -> Duration {
 ///
 /// Answers with the child's returned value, which is always the integer `7` —
 /// an integer, so what crosses back owns no heap and the parent's ownership
-/// root has nothing to release when it is dropped. That matters over a batch of
-/// twenty thousand: a heap answer would make this a growth measurement.
+/// root has nothing to release when it is dropped. That matters over a long
+/// batch: a heap answer would make this a growth measurement.
 fn spawn_to_result(parent: &mut Ctx) -> Value {
     // A fresh `Box` per round trip because a `Program` is `FnOnce` — and
     // because a real `spawn script` allocates exactly one here too, out of the

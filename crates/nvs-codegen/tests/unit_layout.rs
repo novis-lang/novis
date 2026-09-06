@@ -1,8 +1,7 @@
 //! What a compiled unit contains and how it disassembles.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -24,8 +23,8 @@ fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
 
 #[test]
 fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
-    // What `nvs run --dump-asm` prints. The two structural claims worth
-    // holding: every compiled frame gets a section headed by its Novis name, and
+    // What `nvs run --dump-asm` prints. The structural claims worth holding:
+    // every compiled frame gets a section headed by its Novis name, and
     // the section carries the probe sites this backend emits unconditionally —
     // so a disassembly cannot silently be of some differently-configured
     // second compile.
@@ -39,17 +38,12 @@ fn disassembling_names_each_frame_and_shows_the_code_that_would_have_run() {
     assert!(text.matches("load_ext_name").count() >= 2, "{text}");
 }
 
-// Two tests stood here — `an_unlowered_shape_is_an_error_naming_it_rather_than
-// _a_panic` and its disassembly twin — and both used `float` `%` as the shape
-// the front end accepted and this backend did not. `E0717` refuses that pair
-// where it is written now, so the fixture no longer type-checks and the
-// property they guarded has no source-reachable instance left in this area:
-// every refusal left in `emit_binop` is an internal-consistency check whose
-// roster comment names what subtracts to nothing, which is why each is a
-// `CodegenError::Internal` now rather than an `Unsupported`. Hand-building an
-// IR to keep them would contradict this file's whole reason for going through
-// the real pipeline (see the module doc above), so the guard moved rather than
-// being rebuilt: `nvs_types`' `a_float_modulo_is_a_compile_error` and
-// `an_arithmetic_operand_with_no_row_is_a_compile_error` hold the rule, and
+// No shape the front end accepts and this backend does not is reachable from
+// source in this area: every refusal in `emit_binop` is an
+// internal-consistency check whose roster comment names what subtracts to
+// nothing, which is why each is a `CodegenError::Internal` rather than an
+// `Unsupported`. `E0717` refuses `float` `%` where it is written, so that rule
+// is guarded by `nvs_types`' `a_float_modulo_is_a_compile_error` and
+// `an_arithmetic_operand_with_no_row_is_a_compile_error`, and
 // `tests/conformance/lang/the-arithmetic-table-is-closed.nvst` holds what a
 // program actually sees.

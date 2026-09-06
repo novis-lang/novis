@@ -9,8 +9,8 @@
 //! not `getX()` accessors, and makes user classes extend it directly. So an
 //! exception is a [`crate::NvsObj`] like any other: allocated by
 //! `nvs_object_new`, refcounted by `nvs_object_retain`/`nvs_object_release`,
-//! read by an ordinary `FieldGet`. There is no second representation here any
-//! more, and no `Ty::Throwable` in the IR.
+//! read by an ordinary `FieldGet`. There is no second representation here, and
+//! no `Ty::Throwable` in the IR.
 //!
 //! What survives is the part the *runtime* owns: which object is pending, and
 //! growing its backtrace as a throw travels. Both need to reach two slots of
@@ -24,7 +24,7 @@
 //! `message` is slot 0 and `backtrace` slot 2 for `LogicError`, for a user's
 //! `ConfigError extends Throwable`, and for anything else that can be thrown.
 //! `nvs_hir::errors::PROPERTIES` is the one home for that order; the constants
-//! below restate the two indices this crate needs because `nvs-runtime`
+//! below restate the indices this crate needs because `nvs-runtime`
 //! depends on nothing (see [`crate`]'s own docs), and
 //! `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
 //! is the test that holds the two together.
@@ -60,8 +60,8 @@ pub const LOCATION_SLOT: usize = 3;
 /// operation here refuses it rather than reading past the allocation.
 pub const SLOT_COUNT: usize = 4;
 
-/// The slot `ParseError::$issues` occupies — the one property any class in the
-/// tree declares beyond the root's four
+/// The slot `ParseError::$issues` occupies — the one property that class
+/// declares beyond the root's own
 /// (`rule:core-classes/derive-reports-every-field`).
 ///
 /// `ParseError` inherits exactly [`SLOT_COUNT`] slots and adds this one, so a
@@ -76,11 +76,10 @@ pub const ISSUES_SLOT: usize = SLOT_COUNT;
 /// which `nvs_stdlib::db`'s `statement_failure` fills through
 /// [`Ctx::raise_with_slots`].
 ///
-/// Equal to [`ISSUES_SLOT`] and derived the same way rather than from it: the
-/// two classes are unrelated siblings that each declare one property beyond the
-/// root's four, so both first own slots land immediately after [`SLOT_COUNT`],
-/// and writing either in terms of the other would make an accident look like a
-/// rule. `nvs_hir::errors::KIND_SLOT` is the compiler's copy, held to this one
+/// Equal to [`ISSUES_SLOT`] and derived the same way rather than from it: these
+/// are unrelated siblings that each declare one property beyond the root's own,
+/// so each first own slot lands immediately after [`SLOT_COUNT`], and writing
+/// either in terms of the other would make an accident look like a rule. `nvs_hir::errors::KIND_SLOT` is the compiler's copy, held to this one
 /// by `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const KIND_SLOT: usize = SLOT_COUNT;
 
@@ -140,13 +139,12 @@ pub const SQL_SLOT: usize = KIND_SLOT + 4;
 /// worded by the program that abandoned it.
 ///
 /// Equal to [`ISSUES_SLOT`] and [`KIND_SLOT`], and derived the same way rather
-/// than from either: three unrelated classes each declaring one property beyond
-/// the root's four is a coincidence of arithmetic, not a rule any of them
-/// shares. `nvs_hir::errors::REASON_SLOT` is the compiler's copy, held to this
+/// than from either: unrelated classes each declaring one property beyond the
+/// root's own is a coincidence of arithmetic, not a rule any of them shares. `nvs_hir::errors::REASON_SLOT` is the compiler's copy, held to this
 /// one by `nvs-codegen`'s
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 ///
-/// Unlike the other two this slot's value **is the message**: § 7 gives
+/// Unlike its siblings this slot's value **is the message**: § 7 gives
 /// `rollBack` one string and it is both what the exception says and what the
 /// property holds, so [`Thrown::new_as`] seeds it rather than making every
 /// thrower pass the same text twice.
@@ -160,8 +158,8 @@ pub const REASON_SLOT: usize = SLOT_COUNT;
 /// a silent *runtime* miss — the `catch` clause that was meant to handle it
 /// simply would not match — rather than a compile error. The roster is
 /// `nvs_hir::errors::TREE` minus its root, since a helper that means "anything
-/// at all" means [`Self::Runtime`] — spec § 10's tree, plus the one class an
-/// ADR adds to it ([`Self::TestFailure`]).
+/// at all" means [`Self::Runtime`] — spec § 10's tree, plus the classes the
+/// rules add to it ([`Self::TestFailure`] among them).
 ///
 /// `nvs-runtime` depends on nothing (see [`crate`]'s own docs), so the names
 /// below restate `nvs_hir::errors::TREE`'s; `nvs-codegen`'s
@@ -200,7 +198,7 @@ pub enum ThrownClass {
     /// intercept one by name.
     ///
     /// `Core\Test\Failure`, [`Self::CliNotInteractive`], [`Self::DbError`] and
-    /// [`Self::DbRolledBack`] are the four entries in this roster whose names
+    /// [`Self::DbRolledBack`] are the entries in this roster whose names
     /// are namespaced; `nvs_hir::errors::TREE` says why they are classes in the
     /// tree rather than `nvs_stdlib::registry` rows, and nothing here has to
     /// care, the lookup below being by name either way.
@@ -219,10 +217,10 @@ pub enum ThrownClass {
     ///
     /// One class rather than ten, because § 8 normalises the condition into a
     /// `kind` instead of naming a type per condition — some of those boundaries
-    /// are a driver's rather than the language's. That `kind` is not a slot on
-    /// the object yet, and `nvs_hir::errors::OWN_PROPERTIES` says what it is
-    /// waiting for, so what a `catch` reads today is the message — which § 8
-    /// requires to carry no bound value.
+    /// are a driver's rather than the language's. That `kind` is [`KIND_SLOT`]
+    /// on the object, beside the raw `sqlState` it was normalised from and the
+    /// rest of the row `nvs_hir::errors::OWN_PROPERTIES` declares; the message
+    /// next to them is one § 8 requires to carry no bound value.
     DbError,
     /// `Core\Db\RolledBack` — a transaction the program itself rolled back
     /// (`rule:core-classes/db-transactions`), propagated out of
@@ -705,7 +703,7 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader) {
 /// request's pending one — [`nvs_raise`] for a throw compiled code raises by
 /// itself, with no Novis `new` behind it.
 ///
-/// The one caller today is `nvs-codegen`'s integer `%`, whose zero divisor
+/// The one caller is `nvs-codegen`'s integer `%`, whose zero divisor
 /// must throw spec § 10's `ArithmeticError` rather than trap the process. That
 /// site has no Novis expression to construct the exception from and no helper
 /// call to carry a [`crate::Fault`] out of — the operator is inline machine

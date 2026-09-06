@@ -6,9 +6,8 @@
 //!
 //! One `impl Lowering` split across this directory, which Rust allows for an
 //! inherent impl inside a single crate. Each module's methods are
-//! `pub(crate)`, reaching exactly as far as `lower/` and no further — the
-//! visibility they had when this was one 9,000-line file. The split is for
-//! collision surface: `for`, `switch`, `match`, `$fn(...)` and `rule:classes/no-traits`'s
+//! `pub(crate)`, reaching exactly as far as `lower/` and no further. The split
+//! is for collision surface: `for`, `switch`, `match`, `$fn(...)` and `rule:classes/no-traits`'s
 //! `by`-delegation all land here, and two sessions adding two of them should
 //! not conflict.
 //!
@@ -19,7 +18,7 @@
 //! | [`expr`] | expression dispatch, conversions, truthiness, short-circuiting operators |
 //! | [`control`] | `if`, `while`, both `foreach` shapes, `break`/`continue`, the env merge |
 //! | [`exception`] | `throw`, `try`/`catch`, the landing blocks, the synthesized `Throwable` constructor |
-//! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the three synthesized methods |
+//! | [`generator`] | `rule:iteration/generators`'s state machine — the frame, the spills, the synthesized methods |
 //! | [`call`] | argument ownership, options-bag flattening, an `inout $x` argument staged and written back |
 //! | [`closure`] | `rule:types/closure-literal` closure literals and their captured-environment class |
 //!
@@ -67,7 +66,7 @@
 //! at function entry ([`lower_method`]) and on a `while`'s actual back edge
 //! (the last thing appended to the body block before it jumps to the
 //! header) — see that variant's own doc comment for why only the shape is
-//! reserved this session.
+//! reserved.
 
 use nvs_diagnostics::{SourceFile, SourceId, Span};
 use nvs_syntax::ast::{
@@ -91,9 +90,9 @@ use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
 
 // One `impl Lowering` split across this directory — see each module's own
-// header. Rust allows that for an inherent impl inside one crate, so this is
-// a move and nothing else; the methods there are `pub(crate)`, which reaches
-// exactly as far as `lower/` and no further.
+// header. Rust allows that for an inherent impl inside one crate; the methods
+// there are `pub(crate)`, which reaches exactly as far as `lower/` and no
+// further.
 pub(crate) mod call;
 pub(crate) mod closure;
 pub(crate) mod control;
@@ -105,7 +104,7 @@ pub(crate) mod operator;
 pub(crate) mod stmt;
 
 // `call`, `control`, `expr` and `stmt` only add methods to the one
-// `impl Lowering` below, so they export nothing to import. The three named
+// `impl Lowering` below, so they export nothing to import. The ones named
 // here also carry free items this module and its siblings call.
 use self::{call::delegation_forward, closure::*, exception::*, generator::*};
 
@@ -608,8 +607,8 @@ pub fn lower_program(
                                     continue;
                                 };
                                 // `rule:iteration/generators`: a body containing `yield` is
-                                // a generator, and becomes three functions
-                                // and a state class rather than one function
+                                // a generator, and becomes a state class and
+                                // its own functions rather than one function
                                 // — see `lower_generator`.
                                 let body = m
                                     .body
@@ -763,7 +762,7 @@ pub fn lower_program(
         .collect();
     // `rule:iteration/generators`'s generator state classes have no source declaration and
     // therefore no `nvs_types::layout` entry — `nvs-ir` synthesizes both the
-    // class and its two methods, so it is the one thing here that adds to the
+    // class and its methods, so it is the one thing here that adds to the
     // table rather than copying it.
     classes.extend(synthesized);
     // The table behind `iter()` is a hash map, so its order varies run to run.
@@ -889,8 +888,8 @@ pub fn lower_method(
     let mut param_tys = Vec::new();
 
     // Reserved safepoint poll site (recursion) — see `InstKind::Safepoint`'s
-    // own doc comment for why function entry is one of the two fixed sites
-    // and why this slice reserves only the shape, not a functional check.
+    // own doc comment for why function entry is a fixed site and why this
+    // slice reserves only the shape, not a functional check.
     low.emit_safepoint(entry);
 
     // The implicit receiver, always parameter index 0 — seeded
@@ -967,9 +966,8 @@ pub fn lower_method(
         "lower_method requires a method with a body — nothing to lower for an abstract one",
     );
     low.lower_stmts(&body.stmts, &mut cur, &mut env);
-    // No explicit final `return` — the same fallback the straight-line slice
-    // always had, now expressed as sealing whatever block is still open.
-    // Nothing transfers out on this path (there is no return value), so
+    // No explicit final `return` — the fallback seals whatever block is still
+    // open. Nothing transfers out on this path (there is no return value), so
     // every refcounted local still live here gets released, same as an
     // explicit `return;`.
     if !low.is_terminated(cur) {
@@ -1057,7 +1055,7 @@ fn promoted_stores(
 /// [`ExprInfo::HookedProperty`], which is where a *read* or *write* turns
 /// into a call to one of these.
 ///
-/// The two accessors differ in exactly three places:
+/// Everything the two accessors differ in:
 ///
 /// - **`get`** returns the property's declared type; **`set`** returns
 ///   nothing and takes the incoming value as parameter slot 1, named by the
@@ -1218,7 +1216,7 @@ pub enum ScriptRole {
 /// label the listing/a future codegen symbol table uses; the caller picks
 /// it, exactly as for [`lower_method`].
 ///
-/// Two things differ from [`lower_method`], and nothing else does:
+/// Everything that differs from [`lower_method`]:
 ///
 /// - **No implicit receiver.** A script frame has no `$this`, so parameter
 ///   index 0 is not reserved and `params` is empty — matching
@@ -1256,8 +1254,8 @@ pub fn lower_script(
     let mut env = Env::default();
 
     // The same reserved function-entry safepoint poll site `lower_method`
-    // emits — a script body is a function, so it is one of the two fixed
-    // sites for the same reason.
+    // emits — a script body is a function, so it is a fixed site for the same
+    // reason.
     low.emit_safepoint(entry);
 
     low.lower_script_stmts(stmts, &mut cur, &mut env);
@@ -1327,7 +1325,7 @@ pub(crate) struct Lowering<'a> {
     /// Parallel to `block_insts`/`block_terms`: the [`BlockId`] each was
     /// created with, in creation order. [`IdGen::next_block`] hands out ids
     /// sequentially from zero, so a block's id and its position in these
-    /// three vectors always coincide — that equality is what lets
+    /// vectors always coincide — that equality is what lets
     /// `is_terminated`/`seal`/`emit` index straight off `BlockId::index`
     /// rather than carrying a separate lookup table.
     block_ids: Vec<BlockId>,
@@ -1490,9 +1488,9 @@ pub(crate) struct Lowering<'a> {
     /// (`Adder::bump($n) . " then " . $n`) sees the written-back value, and a
     /// call with an `inout $x` argument lowers in any expression position at all
     /// rather than only as a bare statement or a plain assignment's right-hand
-    /// side. [`Self::lower_stmts`] still asserts this list is empty once a
-    /// statement has been lowered, which is now an internal-consistency check
-    /// on the call sites rather than a refusal of the program.
+    /// side. [`Self::lower_stmts`] asserts this list is empty once a statement
+    /// has been lowered — an internal-consistency check on the call sites
+    /// rather than a refusal of the program.
     ///
     /// **What that does not buy is PHP's operand order**, and it is not meant
     /// to. Novis evaluates a binary operator's operands strictly left to right,
@@ -1556,8 +1554,8 @@ struct StagedRef {
 /// AST's, so parking a borrowed `Expr` in [`Lowering::pending_refs`] would
 /// need a second one.
 ///
-/// These are exactly the two shapes [`is_aliasing_read`] recognises as durable
-/// storage, and exactly the two `nvs_types`' `check_inout_arg` accepts.
+/// These are exactly the shapes [`is_aliasing_read`] recognises as durable
+/// storage, and exactly the ones `nvs_types`' `check_inout_arg` accepts.
 pub(crate) enum RefHolder {
     /// A bare local — the `Env` name it is bound under.
     Local(String),
@@ -1711,9 +1709,9 @@ impl ArgSig {
     /// # Panics
     ///
     /// Panics through [`lower_checked_ty`] for a parameter type this crate has
-    /// no lowering for on a *non*-helper callee — the unchanged behaviour, and
-    /// the one that has to stay: a compiled Novis function's parameter slot is
-    /// typed, so there is nothing to fall back to.
+    /// no lowering for on a *non*-helper callee, and that has to stay: a
+    /// compiled Novis function's parameter slot is typed, so there is nothing
+    /// to fall back to.
     fn expectation(&self, index: usize, checked_types: &TypeInterner) -> Option<Ty> {
         let pty = self.param_tys[index];
         if self.helper && matches!(checked_types.get(pty), CheckedTy::Union(_)) {
@@ -1938,8 +1936,8 @@ impl<'a> Lowering<'a> {
     ///
     /// * **Propagating** out of the frame, every refcounted local still live
     ///   here is dropped, exactly the sweep [`Self::release_all_locals`]
-    ///   already performs at an ordinary `return`. This is `nvs-codegen`'s
-    ///   known gap 3 — a backend that leaks on every throw — closed.
+    ///   already performs at an ordinary `return`. Without it a throw would
+    ///   leak every one of them.
     /// * **Reaching a `catch` in this same frame** releases nothing the
     ///   handler still names: it and everything after it name those locals,
     ///   and the binding each one has on the exception path travels through
@@ -1954,7 +1952,7 @@ impl<'a> Lowering<'a> {
     /// than this one is what goes on [`TryFrame::edges`]. A landing site is
     /// the one place two exits leave through a single block, so anything
     /// written into it lands on both — and [`Self::merge_envs`] writes into
-    /// its incoming blocks. See the body for the double release that bought.
+    /// its incoming blocks. See the body for the double release that avoids.
     ///
     /// [`Self::owned_temporaries`] is released on **both** exits, ahead of
     /// either, and that is the one thing the asymmetry does not reach: a
@@ -1986,11 +1984,11 @@ impl<'a> Lowering<'a> {
                 // (`Self::release_merged_away`), and what it writes there is
                 // owed on the way *into* the handler alone: a name the
                 // dispatch drops is still swept by `onward` below on the way
-                // out of the frame. Recording `b` put that release ahead of a
-                // terminator both exits leave through, so a `FATAL` raised
+                // out of the frame. Recording `b` would put that release ahead
+                // of a terminator both exits leave through, so a `FATAL` raised
                 // under a `try` holding any conditionally-bound refcounted
                 // name — a `foreach`'s own reserved binding is the one every
-                // program has — released it twice.
+                // program has — would release it twice.
                 let caught = self.new_block();
                 self.seal(caught, Terminator::Jump(handler));
                 self.try_stack[at].edges.push((caught, env.clone()));
@@ -2029,8 +2027,8 @@ impl<'a> Lowering<'a> {
         format!("{}() at {}:{}", self.fn_label, self.src.name(), line + 1)
     }
     /// Appends a reserved [`InstKind::Safepoint`] marker to `b` — see that
-    /// variant's own doc comment for the two call sites this has today
-    /// (function entry, a loop's back edge) and why it defines no value.
+    /// variant's own doc comment for the call sites this has (function entry,
+    /// a loop's back edge) and why it defines no value.
     pub(crate) fn emit_safepoint(&mut self, b: BlockId) {
         self.block_insts[b.index() as usize].push(Inst {
             result: None,
@@ -2341,7 +2339,7 @@ impl<'a> Lowering<'a> {
     /// reference to the same allocation and this is a pure bookkeeping change
     /// with no runtime cost at all — which is the whole point of `rule:types/arrays`'s copy-on-write being a *write*-side cost.
     ///
-    /// Exactly three holders can be written back to, which are the three
+    /// The holders that can be written back to are exactly the ones
     /// [`is_aliasing_read`] already recognises as durable storage: a bare
     /// local, a compile-time-known property, and a static property. That the
     /// list is the same list is the whole reason the paragraph above holds —
@@ -2357,8 +2355,8 @@ impl<'a> Lowering<'a> {
     ///
     /// The property arm's own `else` is unreachable, and its message carries
     /// the proof: a `PropertyAccess` span carries a `HookedProperty`, a
-    /// `ShapeProperty`, a `Property` or nothing, and only the third survives
-    /// to here. A *hooked* property (`rule:classes/property-hooks`) is a pair of accessors
+    /// `ShapeProperty`, a `Property` or nothing, and only a `Property`
+    /// survives to here. A *hooked* property (`rule:classes/property-hooks`) is a pair of accessors
     /// rather than a slot and an *erased* one (`rule:types/erased-member-access`) is resolved by
     /// name at run time, so neither could be written back to at all;
     /// `nvs_types::expr::assign`'s `check_write_target` refuses both where the
@@ -2366,7 +2364,7 @@ impl<'a> Lowering<'a> {
     /// overloaded property" — and `E0480`. Nothing recorded means the access
     /// was diagnosed instead, and a body holding a diagnostic is never
     /// lowered. That is the whole reason this function needs no rule for any
-    /// of the three.
+    /// of the others.
     pub(crate) fn write_back_array(
         &mut self,
         base: &Expr,
@@ -2595,7 +2593,7 @@ impl<'a> Lowering<'a> {
         // Parentheses group and never change what an expression *is*
         // (`nvs_syntax::ast::Expr::unparenthesized`), so every question below
         // is asked of what they wrap: `($a)` aliases the local exactly as `$a`
-        // does, and answering `false` here for one is what made
+        // does, and answering `false` here for one would make
         // `array<string> $b = ($a);` release the array twice. The staged
         // lookup runs on both spans because a rewritten target's staged
         // sub-expression is recorded under the span it was *written* with.
@@ -2888,7 +2886,7 @@ pub(crate) fn lower_decl_type(
         // `Ty::Tagged`. Reached only for an annotation the checker never
         // visited; everything it did visit takes the `declared_ty` shortcut
         // above and goes through `lower_checked_ty`, which is the *narrower*
-        // answer since `rule:types/literal-types`'s fold landed there: it folds `"a"|"b"`
+        // answer since `rule:types/literal-types`'s fold lives there: it folds `"a"|"b"`
         // back to the one representation its members share, which needs the
         // resolved members and so cannot be answered from the AST alone.
         TypeKind::Nullable(_) | TypeKind::Union(_) => Ty::Tagged,
@@ -2967,7 +2965,7 @@ pub(crate) fn shape_class_label(sorted_fields: &[String]) -> String {
 /// erases to [`Ty::Str`] and `Bytes` to [`Ty::Bytes`] — the same
 /// representations [`lower_decl_type`] already gives a local/parameter/return
 /// type spelled directly in source — see [`crate::lower`]'s module docs for
-/// the retain policy this now needs at a call-argument/return/property-field
+/// the retain policy this needs at a call-argument/return/property-field
 /// boundary, which [`Lowering::bind_local`], [`Lowering::lower_call_args`] and
 /// `StmtKind::Return`'s own arm all apply via [`is_aliasing_read`].
 ///
@@ -3006,8 +3004,8 @@ pub(crate) fn lower_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
 /// Split out for the [`CheckedTy::Union`] arm alone. Folding a union to the
 /// one representation its members share means asking each member for its own,
 /// and a member outside this slice's scope must answer that question rather
-/// than panic — a `object|A` union is still [`Ty::Tagged`], the same answer it
-/// gave before the fold existed, not a new internal error.
+/// than panic — a `object|A` union is [`Ty::Tagged`], not a new internal
+/// error.
 pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Option<Ty> {
     Some(match checked_types.get(id) {
         CheckedTy::Bool => Ty::Bool,
@@ -3021,7 +3019,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `rule:security/tainted-qualifier` and `rule:security/secret-qualifier`: `tainted` and `secret` are two
         // independent bits on the *checker's* type and add **zero** runtime
         // representation, exactly as `rule:types/literal-types`'s literal types do above. So
-        // all six qualified atoms erase to the base they share a tag and an
+        // every qualified atom erases to the base it shares a tag and an
         // allocation with, and everything below this boundary sees a plain
         // `string` or `bytes`.
         //
@@ -3059,12 +3057,12 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         // `rule:types/property-key`: **a key is a name**, so its values are exactly the
         // `string`s `T`'s public properties are declared under and the
         // representation is the one a `string` already has — no descriptor
-        // field, no tag of its own, and § 2's third row (`property<T>` →
-        // `string`) free by construction.
+        // field, no tag of its own, and § 2's `property<T>` → `string` row
+        // free by construction.
         //
         // The argument is dropped here the way `class<T>`'s is one arm above,
         // and it costs the same thing in the same place: the *set* a key may
-        // hold does not survive, so § 2's two checked rows cannot re-derive it
+        // hold does not survive, so § 2's checked rows cannot re-derive it
         // below this boundary. They do not have to — the checker records the
         // resolved roster at the conversion
         // (`nvs_types::expr_table::ExprInfo::PropertyKey`) and
@@ -3185,8 +3183,8 @@ fn shared_erasure(members: &[TypeId], checked_types: &TypeInterner) -> Ty {
             // descriptor is an address and no class lives at address zero, so
             // [`Ty::ClassDesc`] has a spare value that means "no class" and
             // `null` is spelled with it. See that variant's own doc comment
-            // for the four sites that then have to ask a `ClassDesc` whether
-            // it is null rather than reading `Ty::Tagged` off the operand.
+            // for the sites that then have to ask a `ClassDesc` whether it is
+            // null rather than reading `Ty::Tagged` off the operand.
             (Some(Ty::Null), Some(Ty::ClassDesc)) | (Some(Ty::ClassDesc), Some(Ty::Null)) => {
                 shared = Some(Ty::ClassDesc);
             }
@@ -3331,11 +3329,10 @@ pub(crate) const FN_PARAM_NAMES: &str = "fn#names";
 ///
 /// Deliberately not a `nvs_runtime::Tag` discriminant, and parked at the
 /// **top** of the nibble rather than one past the roster's end so that it
-/// stays that way: it was twelve until `rule:classes/an-unwritten-property-read-throws`'s never-written storage
-/// state took that discriminant, and a nibble chosen as "one past the last
-/// tag" is a nibble that collides the next time the roster grows.
-/// `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` is what caught it
-/// and is the guard either way.
+/// stays that way: the discriminant just past the tags is `rule:classes/an-unwritten-property-read-throws`'s never-written
+/// storage state, and a nibble chosen as "one past the last tag" is a nibble
+/// that collides the next time the roster grows. `nvs-codegen`'s
+/// `the_any_nibble_denotes_no_tag_at_all` is the guard.
 pub const FN_PARAM_TAG_ANY: u8 = 15;
 
 /// The [`FN_PARAM_TAGS`] nibble a parameter represented as `ty` requires.

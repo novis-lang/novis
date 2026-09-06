@@ -1,15 +1,15 @@
 //! What a request holds open, and gives back when it ends.
 //!
-//! Started scripts, open files and open connections: three tables of handles a
-//! member takes out and a key it hands back, so that a value in Novis code is a
-//! number rather than a pointer and a handle awaited twice reads an empty slot
-//! rather than another request's resource.
+//! Started scripts, open files and open connections: a table of handles each,
+//! where a member takes one out and hands back a key, so that a value in Novis
+//! code is a number rather than a pointer and a handle awaited twice reads an
+//! empty slot rather than another request's resource.
 //!
 //! And one thing that is not a handle at all — the temporary directories
 //! `rule:core-classes/temporary-dir-sweep` has the runtime delete when the script ends. It is here for the second
 //! half of this file's title rather than the first: nothing in Novis holds a key
 //! to one, but the request gives them back when it ends exactly as it gives back
-//! the three tables. [`Ctx::track_temporary_dir`] is the one writer.
+//! every table above. [`Ctx::track_temporary_dir`] is the one writer.
 //!
 //! [`HeldConnection`] is the trait that lets this crate hold a
 //! `rule:core-classes/db-drivers-are-an-enum`
@@ -55,8 +55,7 @@ pub trait HeldConnection: std::fmt::Debug + std::any::Any {
     /// **The default is `false`**, which is § 13's "a driver with no reset
     /// primitive is not poolable at all" written as the answer a driver gets
     /// for saying nothing. A driver that has not decided is one whose
-    /// connections are closed with the request, which is the behaviour that
-    /// existed before there was a pool.
+    /// connections are closed with the request.
     ///
     /// This is a state question and never an I/O one: it is asked from inside
     /// [`Drop`], where nothing may wait. The reset itself is the acquiring
@@ -308,7 +307,7 @@ impl Ctx {
     /// check refused, or one the operating system did, leaves nothing on disk
     /// and so leaves nothing here for § 3's sweep to fail to delete.
     ///
-    /// No handle and no key, unlike the three tables above. A directory's name
+    /// No handle and no key, unlike the tables above. A directory's name
     /// is the whole of it, a program never asks this context for one back, and
     /// a program that removes its own directory has reached the goal state early
     /// (§ 3) — so there is nothing to take out of the middle of the list and the

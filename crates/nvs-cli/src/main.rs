@@ -1,14 +1,14 @@
 //! The `nvs` binary.
 //!
-//! Thirteen subcommands so far, one per milestone that needed one:
+//! One subcommand per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
 //!   `rule:programs/autoload`'s last sentence; the shape is `nvs_hir::autoload`'s module doc.
-//! * `nvs run` (M3) — all of the above, then compile and execute. Its two
-//!   dump flags stop one stage earlier and print instead of running:
+//! * `nvs run` (M3) — all of the above, then compile and execute. Its dump
+//!   flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
 //! * `nvs test` (M4) — run a tree of `.nvst` conformance cases, or a program's
 //!   own `#[Test]` methods. `rule:testing/nvst-is-separate` keeps the two formats apart and puts
@@ -385,9 +385,9 @@ enum Command {
 
 /// `nvs api`'s own subcommands.
 ///
-/// One so far. It is a subcommand group rather than a bare `nvs diff` because
-/// what is being diffed is the *API*, and a bare verb would own a name the
-/// next artifact would want.
+/// A subcommand group rather than a bare `nvs diff` because what is being
+/// diffed is the *API*, and a bare verb would own a name the next artifact
+/// would want.
 #[derive(Subcommand)]
 enum ApiCommand {
     /// Classify every change between two OpenAPI documents, exiting non-zero on
@@ -408,8 +408,8 @@ enum ApiCommand {
 
 /// `nvs config`'s own subcommands.
 ///
-/// `rule:config/check-and-dump-audit-the-tree-offline` names three of these — `check`, `dump` and `ctl config` — and
-/// this enum holds the two that are offline. `ctl config` belongs to the
+/// `rule:config/check-and-dump-audit-the-tree-offline` names `check`, `dump` and `ctl config`, and
+/// this enum holds the offline ones. `ctl config` belongs to the
 /// control socket `rule:config/one-local-control-socket`
 /// reserves and arrives with `nvs ctl`.
 #[derive(Subcommand)]
@@ -450,7 +450,7 @@ enum ConfigCommand {
 
 /// `nvs queue`'s own subcommands.
 ///
-/// One today, and `migrate` is the one `rule:core-classes/queue-storage-is-a-table` names outright. Everything
+/// `migrate` is the one `rule:core-classes/queue-storage-is-a-table` names outright. Everything
 /// else an operator might want of a queue — its depth, a job retried by hand —
 /// is a question `Core\Queue::stats` already answers from inside a request, and
 /// a second answer here would need this binary to open a connection for it,
@@ -500,7 +500,7 @@ enum TmpCommand {
 
 /// `nvs service`'s own subcommands.
 ///
-/// One so far, and it is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
+/// `unit` is the one `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` makes the default on Linux:
 /// generate the unit and **print** it, because the operator's configuration
 /// management already owns the directory it belongs in and a binary that writes
 /// there behind Ansible's back is a worse citizen than one that prints. On
@@ -707,14 +707,14 @@ fn run_ast(path: &std::path::Path) -> ExitCode {
 
 /// A **program** that has been through the whole front end with no error.
 ///
-/// `run` needs everything `check` produces plus the three tables `nvs-ir`
-/// lowering reads back — the resolved-target table, the type interner that
-/// backs it, and the class-layout table — so the pipeline is shared rather
-/// than written twice.
+/// `run` needs everything `check` produces plus the tables `nvs-ir` lowering
+/// reads back — the resolved-target table, the type interner that backs it,
+/// and the class-layout table — so the pipeline is shared rather than written
+/// twice.
 struct Checked {
     map: SourceMap,
     /// The entry point's own file. It names the program (`nvs run <path>`),
-    /// so it stays a single id even though `files` is now a set.
+    /// so it stays a single id even though `files` is a set.
     id: nvs_diagnostics::SourceId,
     /// Every file the entry point's `require`/`autoload` graph reached, the
     /// entry file first — `nvs_hir::resolve_program`'s order contract.
@@ -790,9 +790,8 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 ///
 /// The tree is read **before the program is parsed**, so a `nvs.toml` that does
 /// not resolve fails the check as the configuration error it is rather than as
-/// whatever the program's own diagnostics happen to be. That is this goal's
-/// § *Standing decisions* item 6, and it answers `nvs_types::intrinsics`' gap 6:
-/// checking now has a configuration in front of it.
+/// whatever the program's own diagnostics happen to be. That answers
+/// `nvs_types::intrinsics`' gap 6: checking has a configuration in front of it.
 fn front_end_granted(
     path: &std::path::Path,
     config: Option<&[std::path::PathBuf]>,
@@ -1215,8 +1214,7 @@ fn run_run(
     // `cache::unit_for` is the whole of that decision — every way the cache can
     // fail to answer is a compile, so nothing here reports one.
     //
-    // **This is why the compile sits below the snapshot rather than above it**,
-    // which is where it stood while nothing but Cranelift could produce a unit.
+    // **This is why the compile sits below the snapshot rather than above it.**
     // Both halves of the key are configuration: § 7's `[opcache]` block says
     // where artifacts live and whether they are used at all, and `rule:config/the-extension-set-is-in-every-unit-key`'s
     // environment digest — which covers the loaded extension set — is the other
@@ -1247,8 +1245,8 @@ fn run_run(
     // `rule:core-classes/queue-storage-is-a-table`'s `workers` is per *instance*, and a CLI run is one — so a
     // run of this tree claims jobs beside its script, including ones another
     // instance enqueued and never finished. Read here rather than inside the
-    // worker because the snapshot is moved onto the context a dozen lines
-    // below, and `queue_for` is the same resolution boot already accepted
+    // worker because the snapshot is moved onto the context below, and
+    // `queue_for` is the same resolution boot already accepted
     // (`nvs_config::queue`), so a refusal is impossible by the time this runs
     // and `.ok()` is not swallowing one. `workers = 0` is § 2's enqueue-only
     // deployment and starts nothing.
@@ -1280,7 +1278,7 @@ fn run_run(
     // moment: `[opcache]` decides when a `spawn script` path is re-checked, and
     // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key it holds
     // (`script`'s module doc). The compiler itself is built where it is
-    // installed, a few hundred lines below.
+    // installed, below.
     let for_compiler = std::sync::Arc::clone(&snapshot);
     ctx.set_config(snapshot);
     // `rule:tooling/commands-are-compiled`: `Core\Command`'s members are generated from the table the
@@ -1360,20 +1358,19 @@ fn run_run(
     // *after* the script, below; `worker`'s module doc owns what that order is
     // worth to a run that never gives one a turn.
     let workers = queued.as_ref().map(|_| worker::Workers::new());
-    // Two things have to come back out of the task, and they come back by
-    // different routes. The call's status is written into a cell the body
-    // captures, since a task's body returns nothing; the `Ctx` arrives in the
-    // `Finished` the scheduler hands back, because it was moved into the task
-    // rather than borrowed by it, and everything reported below is read off
-    // that one.
+    // The call's status and the `Ctx` come back out of the task by different
+    // routes. The status is written into a cell the body captures, since a
+    // task's body returns nothing; the `Ctx` arrives in the `Finished` the
+    // scheduler hands back, because it was moved into the task rather than
+    // borrowed by it, and everything reported below is read off that one.
     let status: std::rc::Rc<std::cell::Cell<Option<Result<(), i32>>>> =
         std::rc::Rc::new(std::cell::Cell::new(None));
     let root = sched.spawn(ctx, nvs_runtime::TaskRoot::Request, {
         let status = std::rc::Rc::clone(&status);
         let workers = workers.clone();
         move |ctx| {
-            // The returned value is discarded exactly as it was when this was a
-            // direct call: the script frame answers with null.
+            // The returned value is discarded: the script frame answers with
+            // null.
             let outcome = entry.call(ctx).map(|_| ());
             // `rule:concurrency/after-response-outlives-the-connection`: a CLI run has no response, so the script's own
             // frame returning is when "after the response" is —
@@ -1400,8 +1397,8 @@ fn run_run(
                 // It happens **here, inside the task**, rather than beside the
                 // exit code below, because tier 3 is an isolate and an isolate
                 // wants the scheduler, the reactor and the script resolver this
-                // run installed — all three of which are taken down with the
-                // run itself, a dozen lines before the exit code is decided.
+                // run installed — each of which is taken down with the run
+                // itself, before the exit code is decided.
                 let thrown = ctx.take_thrown();
                 // `rule:errors/on-uncaught-throw`'s tier 2, and this is the "request root" that
                 // section names for a CLI run: every frame below returned
@@ -1454,8 +1451,7 @@ fn run_run(
     // And the workers, after the task above rather than before it. The order is
     // a cost and not a preference: a worker's first act is a database handshake
     // and the run queue is FIFO, so a program that never parks would otherwise
-    // wait one out before it could exit. `worker`'s module doc has the two
-    // numbers.
+    // wait one out before it could exit. `worker`'s module doc has the numbers.
     if let (Some((bounds, block)), Some(workers), Some(snapshot)) =
         (&queued, &workers, &for_workers)
     {

@@ -12,10 +12,10 @@
 //!
 //! So this module is the same inversion on the other axis. The trait is
 //! declared in the crate both sides already depend on, whoever *can* compile
-//! implements it — `nvs-cli` today, the server at M7 — and the lowered
+//! implements it — `nvs-cli`, and the server at M7 — and the lowered
 //! `spawn script` reaches it without naming either.
 //!
-//! # Why this is a second seam rather than a third `Host` method
+//! # Why this is a second seam rather than another `Host` method
 //!
 //! A host is **per core** and its subject is a task: run this group, give the
 //! core back, wake me. A resolver is **per program** and its subject is code:
@@ -117,7 +117,7 @@ pub type Program = Box<dyn FnOnce(&mut Ctx, Value) -> Value>;
 
 /// Why a path did not become a [`Program`].
 ///
-/// Two variants because the two mean different things to the isolate that
+/// Separate variants because they mean different things to the isolate that
 /// asked. Neither is a [`crate::Thrown`]: `rule:security/isolate-shares-nothing`'s failure-is-a-value rule
 /// starts at the boundary, and this is one step before it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,8 +137,8 @@ pub enum ResolveError {
     ///
     /// A variant rather than a `Fault` in the error type: this enum is plain
     /// data that `nvs-cli`'s tests match on, and the caller that turns one into
-    /// an exception is the one that already decides which of the other two
-    /// throws and which is fatal.
+    /// an exception is the one that already decides which of the other
+    /// variants throws and which is fatal.
     Denied(String),
 }
 
@@ -222,10 +222,10 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 /// satisfies that by being a
 /// unit struct in a `static` — a resolver cannot, because it holds the unit
 /// cache and a compiled unit is `Rc`-shared, so the whole type is `!Sync`.
-/// Leaking one per process is 56 bytes and well inside
+/// Leaking one per process is well inside
 /// `rule:programs/memory-priority`'s bound, but it
 /// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
-/// is worth more than the 56 bytes: a sweep with one known-red fixture is a
+/// is worth more than those bytes: a sweep with one known-red fixture is a
 /// sweep nobody reads.
 ///
 /// `run`'s own panic unwinds straight through — the guard is a local here, so

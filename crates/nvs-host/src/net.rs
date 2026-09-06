@@ -98,8 +98,8 @@
 //! landing in one of the two is silence in the other. That is priority 2
 //! against priority 4, and `AGENTS.md`'s ordering says how that goes.
 //!
-//! The cost is the type *name*: a mismatch now reads `NvsStream<TcpStream>`
-//! where it read `NvsTcp`. The aliases bound it — no caller writes the generic
+//! The cost is the type *name*: a mismatch reads `NvsStream<TcpStream>` rather
+//! than `NvsTcp`. The aliases bound it — no caller writes the generic
 //! form — and it is the whole cost, because a generic monomorphizes and the run
 //! time is unchanged. The alternative that would have cost something is `&mut
 //! dyn Source`: a vtable on the parking path, buying nothing the generic does
@@ -124,8 +124,8 @@
 use std::io::{self, Read, Write};
 use std::net::SocketAddr;
 // `mio::Poll` is a poller and `std::task::Poll` is an answer; both are spelled
-// `Poll` and this module now names them in adjacent functions, so the poller
-// takes the alias — it appears once, in `block_until_ready`.
+// `Poll` and this module names them in adjacent functions, so the poller takes
+// the alias — it appears once, in `block_until_ready`.
 use std::task::Poll;
 use std::time::{Duration, Instant};
 

@@ -1,5 +1,5 @@
-//! What a `[db.<name>]` block still owes once it has deserialized: the two paths that name a file,
-//! resolved — one of them trust-checked as well — and the two durations `rule:core-classes/db-one-api` states in prose —
+//! What a `[db.<name>]` block still owes once it has deserialized: the paths that name a file,
+//! resolved — the CA bundle trust-checked as well — and the durations `rule:core-classes/db-one-api` states in prose —
 //! § 13's pool bounds and § 11's `slow_query` threshold — read into numbers. All of it at boot.
 //!
 //! The paths are [`Database::tls_ca_file`](crate::tree::Database::tls_ca_file), the PEM bundle
@@ -21,13 +21,13 @@
 //! "whose certificates do you believe".
 //!
 //! **A SQLite `path` is resolved and nothing more**, and the difference is worth stating because
-//! the two fields sit one line apart in the block. [`Files::trust`] asks who *else* may write a
+//! the fields sit one line apart in the block. [`Files::trust`] asks who *else* may write a
 //! file, which is the right question about a set of trust anchors and the wrong one about a
 //! database: that file is the deployment's own data, written by exactly the account the check would
 //! be objecting to, and it usually does not exist at boot at all — SQLite creates it on first open,
 //! so a boot-time `trust` would refuse every first run. What a `path` still owes is § 5's
 //! resolution, for the reason below — and only when it is a relative file at all, which
-//! [`is_relative_file`] is and owns, three of SQLite's spellings not being paths.
+//! [`is_relative_file`] is and owns, several of SQLite's spellings not being paths.
 //!
 //! **A path a *program* supplies is not resolved here and is deliberately not resolved like this
 //! one.** `Db\Settings.path` reaches `Core\Db::open` as `rule:core-classes/db-capabilities`'s path sink, needing
@@ -47,9 +47,9 @@
 //! `validate` in this crate runs at boot: an operator who wrote `lifetime = "30 minutes"` learns it
 //! from the boot that refuses, naming the file and the line, rather than from the first request
 //! whose acquire fails at three in the morning. [`validate`] is that pass and [`pool_for`] is the
-//! reader under it, which the pool calls again when it builds itself — four integers, once per pool,
-//! against carrying a derived value through [`crate::Snapshot`] that a reload would have to keep in
-//! step with the tree it came from.
+//! reader under it, which the pool calls again when it builds itself — a few integers, once per
+//! pool, against carrying a derived value through [`crate::Snapshot`] that a reload would have to
+//! keep in step with the tree it came from.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -129,11 +129,11 @@ fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -> &'a Path 
 /// Whether a written `path` is a relative file, and so something `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` has anything to say
 /// about.
 ///
-/// **Three of SQLite's spellings are not paths at all, and resolving one destroys it.** `:memory:`
+/// **Some of SQLite's spellings are not paths at all, and resolving one destroys it.** `:memory:`
 /// is the private in-memory database, the empty string is a private temporary file the engine names
 /// itself, and a `file:` scheme is a URI whose query carries `mode=memory` and `cache=shared` — the
 /// spelling two handles onto one in-memory database need, which `crates/nvs-db/src/sqlite.rs`'s
-/// deadlock case is written on. Prefixing any of the three with a directory produces a file name
+/// deadlock case is written on. Prefixing any of them with a directory produces a file name
 /// nothing can open, which is exactly the failure this predicate exists to have already prevented.
 ///
 /// **A rooted path is skipped for the other half of the same reason**: § 5 resolves what is
@@ -174,8 +174,8 @@ fn rewrite(table: &mut toml::value::Table, name: &str, key: &str, value: &str) {
 
 /// `rule:security/db-pool-reset-is-a-boundary`'s pool, resolved: every bound a number, and nothing left to decide at acquire time.
 ///
-/// Held by value and `Copy`, because the acquire path reads it and a pool is per core: five words
-/// beside a connection costs less than the pointer chase that would save four of them.
+/// Held by value and `Copy`, because the acquire path reads it and a pool is per core: a few words
+/// beside a connection cost less than the pointer chase that would save most of them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolBounds {
     /// Whether a released connection rejoins a pool at all. `false` is § 13's `pool = false`, which
@@ -197,7 +197,7 @@ pub struct PoolBounds {
 impl PoolBounds {
     /// § 13's own example, which is this crate's default set — finite with nothing configured, per
     /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`. The ADR writes these
-    /// four numbers out, so they are transcribed here rather than chosen.
+    /// numbers out, so they are transcribed here rather than chosen.
     pub const DEFAULT: PoolBounds = PoolBounds {
         enabled: true,
         max: 16,
@@ -253,17 +253,17 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 
 /// The bounds `name`'s block asks for, over [`PoolBounds::DEFAULT`] — every unwritten key keeps the
 /// default, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per key and a partly-written `[db.x.pool]` is
-/// four independent decisions rather than one.
+/// an independent decision per key rather than one.
 ///
 /// `origins` names the file a refusal points at, and an empty map simply leaves the note off.
 ///
 /// # Errors
 ///
-/// `E0601` for a bound that is not a duration at all, and for the three that parse and still cannot
+/// `E0601` for a bound that is not a duration at all, and for the ones that parse and still cannot
 /// describe a pool: a `max` of `0` (which can never hand out a connection), an `idle` above `max`
 /// (which asks for more warm connections than may exist), and a `lifetime` of `0` or `false` — the
 /// first retires a connection before it can be reused and the second is a bound `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` does not
-/// allow to be missing. Each of the three has one correct spelling and the help names it.
+/// allow to be missing. Each has one correct spelling and the help names it.
 pub fn pool_for(
     name: &str,
     db: &Database,
@@ -379,7 +379,7 @@ pub fn bounds_for(
     }
 }
 
-/// What a refused pool bound is told to write instead. Held once because two bounds share it, and
+/// What a refused pool bound is told to write instead. Held once because the bounds share it, and
 /// named because [`slow_query_for`] deliberately does not: `pool = false` is this family's way out
 /// and a threshold has its own.
 const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the pool is not wanted at \
@@ -390,8 +390,8 @@ const POOL_HELP: &str = "write a duration, as `30m`, or `pool = false` if the po
 /// than a number this crate picks.
 ///
 /// Not part of [`PoolBounds`] and not read by [`pool_for`], because it is not a bound on the pool:
-/// it is a property of the statements that run on the connection, and § 13's four bounds are
-/// resolved once per acquire where this is asked once per statement.
+/// it is a property of the statements that run on the connection, and § 13's bounds are resolved
+/// once per acquire where this is asked once per statement.
 ///
 /// **The unwritten case costs a lookup and nothing else**, which is why the setting is tested before
 /// the key is built: `Core\Db` asks this per statement, so the deployment that never opted in must

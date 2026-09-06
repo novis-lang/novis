@@ -3,8 +3,8 @@
 //! here, over [`nvs_host`]'s parking stream.
 //!
 //! `rule:core-classes/db-drivers-are-an-enum`
-//! is this crate's charter and its four decisions are the four things a reader
-//! most needs before writing a connection. **A codec is borrowed, a state
+//! is this crate's charter and its decisions are what a reader most needs
+//! before writing a connection. **A codec is borrowed, a state
 //! machine is written** (§ 2): message framing, value encoding and
 //! authentication mechanisms are large, fiddly and the same for everyone, and
 //! that is exactly what the sans-IO crates are; *sequencing* — what to send
@@ -104,7 +104,7 @@
 //! [`Connection`]'s `match`-once entry points, and [`matrix`]. Of the five wire
 //! implementations, [`pg`] has its opening and its statement path: the socket,
 //! § 3's in-band upgrade, the SASL exchange, and the extended-query state
-//! machine that walks [`State`]'s four values over one flushed round trip, and
+//! machine that walks [`State`]'s values over one flushed round trip, and
 //! `rule:security/db-pool-reset-is-a-boundary`'s reset — six commands pipelined into a second round trip, with
 //! `PgConn::reset` taking `self` by value so a reset that failed cannot hand a
 //! connection back. [`sql`] is the shared half of the statement path, plain
@@ -112,14 +112,14 @@
 //! `rule:core-classes/db-parameters`'s `?`/`:name` rewriter and `inList` expansion over four
 //! dialects, holding the bind order a driver cannot recover by counting, and
 //! § 1's [`StatementCache`] keyed by SQL text plus that expansion's arity.
-//! [`pg`] is the first driver to spend it: a hit drops the `Parse` from the
-//! batch, and an eviction's `Close` rides in the batch that replaced it.
+//! [`pg`] spends it: a hit drops the `Parse` from the batch, and an
+//! eviction's `Close` rides in the batch that replaced it.
 //!
-//! [`mysql`] is the second driver and is complete from a `[db.<name>]` block
-//! to a decoded row: [`MySqlTarget::resolve`] reads the block, then the
-//! greeting, § 3's `CLIENT_SSL` upgrade, the authentication exchange over
-//! `mysql_common`'s plugins, the forced `utf8mb4` collation, § 9's declared
-//! zone as a session variable, § 13's `COM_RESET_CONNECTION`, and § 1's two
+//! [`mysql`] is complete from a `[db.<name>]` block to a decoded row:
+//! [`MySqlTarget::resolve`] reads the block, then the greeting, § 3's
+//! `CLIENT_SSL` upgrade, the authentication exchange over `mysql_common`'s
+//! plugins, the forced `utf8mb4` collation, § 9's declared zone as a
+//! session variable, § 13's `COM_RESET_CONNECTION`, and § 1's two
 //! round trips over `COM_STMT_PREPARE`/`COM_STMT_EXECUTE` with § 9's whole type
 //! map decoded off the binary rows. § 1's cache is on it as well, keyed the
 //! same way and holding the id the server hands back rather than a name this
@@ -129,8 +129,8 @@
 //! pool is above this crate — `nvs_runtime::pool` is the store and `nvs-stdlib`
 //! the acquire path — so what is here is the halves only a driver can hold:
 //! [`Connection::is_poolable`]'s release gate and [`pg`]'s reset, met over a
-//! real server in `tests/pool_reuse.rs`. [`maria`] is the third, and is that
-//! same framing under an authentication roster and a § 8 code table of its own
+//! real server in `tests/pool_reuse.rs`. [`maria`] is that same framing
+//! under an authentication roster and a § 8 code table of its own
 //! — which is the whole of why `rule:core-classes/db-one-api` makes MariaDB a driver rather than a
 //! flag.
 //!
@@ -141,24 +141,23 @@
 //! because a token is cut wherever that size lands rather than at a message
 //! boundary. Its handshake is whole on top of that — a `[db.<name>]` block,
 //! PRELOGIN, § 3's TLS tunnelled inside PRELOGIN packets, LOGIN7 and the tokens
-//! that answer it — so [`TdsConn`] holds a live wire and is no longer the stub
-//! its own doc used to describe. What is left there is the statement: the row
-//! path, § 1's cache and § 13's reset.
-//! SQLite is then what is left, PostgreSQL having gone first throughout because
-//! its extended protocol pays nothing extra for a prepare and so exercises the
+//! that answer it — so [`TdsConn`] holds a live wire. What is left there is
+//! the statement: the row path, § 1's cache and § 13's reset.
+//! SQLite is then what is left. PostgreSQL comes first throughout because its
+//! extended protocol pays nothing extra for a prepare and so exercises the
 //! design rather than the driver's own quirks.
 //!
 //! **The anchor seam `rule:security/one-tls-client` anticipated exists**, so a handshake against
 //! `tests/db/compose.yaml`'s PostgreSQL completes: `NvsTls::over_bundle`
 //! verifies against a named PEM bundle alone, `[db.<name>] tls_ca_file` is
 //! where a program names one, and [`matrix`]'s `NVS_DB_MATRIX_CA` is where
-//! this crate's own cases get theirs. **All four servers now serve one**, the
-//! last two by `tests/db/compose.yaml`'s own arrangement rather than by their
-//! images' — that file's two block comments own how — so `tools/db-matrix.py`
-//! runs every leg rather than reporting any `n/a`. [`pg`]'s exchange is still
-//! asserted against a scripted SCRAM server as well as against a container: a
-//! unit test that needs neither socket nor certificate is the one that keeps
-//! failing usefully when the servers are down.
+//! this crate's own cases get theirs. **Every server there serves one**, some
+//! of them by `tests/db/compose.yaml`'s own arrangement rather than by their
+//! images' — that file's block comments own how — so `tools/db-matrix.py` runs
+//! every leg. [`pg`]'s exchange is asserted against a scripted SCRAM server as
+//! well as against a container: a unit test that needs neither socket nor
+//! certificate is the one that keeps failing usefully when the servers are
+//! down.
 
 pub mod catalog;
 pub mod conn;

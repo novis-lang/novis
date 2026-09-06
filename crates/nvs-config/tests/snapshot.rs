@@ -433,10 +433,10 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
 /// `rule:config/the-extension-set-is-in-every-unit-key`: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
 /// it — the on-disk `BLAKE3(content_hash ‖ env_hash)` and the in-memory
 /// `UnitKey { path, content_hash, env_hash }`. Asked of both keys together, because § 4's whole
-/// content is that they move as one: a key that kept the pre-§ 4 shape still looks right beside a
-/// case that only asks the other one. The last block is § 4's "hashed once": both keys take the
-/// source's digest, and the on-disk key is a derivation of it rather than either input passed
-/// through.
+/// content is that they move as one: a key built out of the source digest alone still looks right
+/// beside a case that only asks the other one. The last block is § 4's "hashed once": both keys
+/// take the source's digest, and the on-disk key is a derivation of it rather than either input
+/// passed through.
 #[test]
 fn env_hash_is_carried_by_both_cache_keys() {
     let one = env_hash(&pinned(&["aa", "bb"]).config);
@@ -538,10 +538,10 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
     );
 }
 
-/// `rule:config/a-startup-default-is-never-flipped`'s third row, which is the only one of the three that is `System`-class: what
+/// `rule:config/a-startup-default-is-never-flipped`'s `validate` row, the only row in that table that is `System`-class: what
 /// `validate` starts at when `[opcache]` writes nothing, chosen by the mode before any request
 /// exists. Asserted on both sides, because a default that stopped at one mode reads plausibly
-/// against either half alone — and asserted beside the two things the row does **not** reach: an
+/// against either half alone — and asserted beside what the row does **not** reach: an
 /// explicitly written `validate` (§ 3's first property) and the rate cap (§ 3a's own list of what a
 /// mode deliberately does not govern).
 #[test]

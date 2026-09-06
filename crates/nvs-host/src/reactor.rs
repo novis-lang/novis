@@ -732,12 +732,11 @@ pub fn is_installed() -> bool {
 /// Runs `sched` under this thread's reactor until neither has anything left to
 /// do.
 ///
-/// The loop is the whole of this crate's I/O story in five lines:
-/// [`Scheduler::run`] returns when the run queue empties, every task it
-/// finished is retired from the reactor's table, and a non-zero parked count is
-/// the "block in the reactor now" test. This is what a worker's body is, and
-/// `Worker::spawn` hands the scheduler to a closure precisely so that closure
-/// can be this.
+/// The loop is the whole of this crate's I/O story: [`Scheduler::run`] returns
+/// when the run queue empties, every task it finished is retired from the
+/// reactor's table, and a non-zero parked count is the "block in the reactor
+/// now" test. This is what a worker's body is, and `Worker::spawn` hands the
+/// scheduler to a closure precisely so that closure can be this.
 ///
 /// The reactor is not a parameter: it is borrowed out of the thread-local
 /// [`install`] put it in, once per turn and never across [`Scheduler::run`],
@@ -1050,9 +1049,9 @@ mod tests {
         assert!(!is_installed(), "the guard did not uninstall the reactor");
     }
 
-    /// The decision this module's docs record, exercised the way `NvsTcp` will:
+    /// The decision this module's docs record, exercised the way `NvsTcp` does:
     /// the task is handed no reactor and no `Ctx`, and reaches both from free
-    /// functions the way a `std::io::Read` will have to.
+    /// functions the way a `std::io::Read` has to.
     #[test]
     fn a_task_registers_and_parks_with_neither_a_reactor_nor_a_ctx_in_hand() {
         let (mut server, mut client) = connected_pair();

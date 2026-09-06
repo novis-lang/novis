@@ -130,8 +130,8 @@ use crate::ctx::HeldConnection;
 /// Carried beside the connection for the request's whole life rather than
 /// re-derived at teardown, because the crate that knows a block's name is
 /// `nvs-stdlib` and the crate that learns when a request ends is this one.
-/// [`PoolBounds`] is `Copy` and five words, so a ticket is one allocation — the
-/// key — per connection a request opens.
+/// [`PoolBounds`] is `Copy` and owns nothing, so a ticket is one allocation —
+/// the key — per connection a request opens.
 #[derive(Clone, Debug)]
 pub struct Ticket {
     /// § 2's key: a block's name scoped to its generation for
@@ -289,7 +289,7 @@ struct Waiter {
 thread_local! {
     /// Every task on this core waiting for a slot, oldest first — the order is
     /// the queue itself, which is why this is a `Vec` and not a map even more
-    /// plainly than the two stores above: `max` is sized so that this is empty.
+    /// plainly than the stores above: `max` is sized so that this is empty.
     static WAITING: RefCell<Vec<Waiter>> = const { RefCell::new(Vec::new()) };
     /// The next registration's number, never reused within a core's life.
     static TICKETS: Cell<u64> = const { Cell::new(0) };
@@ -421,8 +421,8 @@ impl Drop for Lease {
 /// so a key with anyone waiting is a key this function still finds full.
 ///
 /// A key whose pool is off (§ 13's `pool = false`) has no ceiling and is not
-/// counted: that switch restores connect-per-request *exactly*, and a limit the
-/// old behaviour never had would not be that.
+/// counted: that switch restores connect-per-request *exactly*, and a limit
+/// connect-per-request does not have would not be that.
 #[must_use]
 pub fn admit(ticket: Ticket) -> Option<Lease> {
     if !ticket.bounds.enabled {
@@ -545,7 +545,7 @@ impl Drop for Waiting {
 /// It is closed rather than pooled when § 13 says it must be: the pool is off
 /// for that key (`pool = false`), the driver cannot prove the wire clean
 /// ([`HeldConnection::is_poolable`]), or the key already holds
-/// [`PoolBounds::idle`] connections doing nothing. All three drop the box
+/// [`PoolBounds::idle`] connections doing nothing. Each of them drops the box
 /// before this returns, which is the same close a request without a pool
 /// already performed.
 ///
@@ -718,7 +718,7 @@ mod tests {
 
     /// The slot a request holds while one connection under `[db.<name>]` is
     /// open — what a release and a take both need, and what the default `max`
-    /// of 16 grants every case below without a case having to say so.
+    /// grants every case below without a case having to say so.
     fn lease(generation: &Arc<Snapshot>, name: &str, idle: u32) -> Lease {
         admit(ticket(generation, name, idle))
             .expect("the default `max` admits a case's connections")
@@ -963,7 +963,7 @@ mod tests {
             ..PoolBounds::OFF
         };
         // § 13's `pool = false` restores connect-per-request *exactly*, and
-        // that behaviour never had a ceiling to arrive at.
+        // connect-per-request has no ceiling to arrive at.
         let held: Vec<_> = (0..4)
             .map(|_| {
                 admit(Ticket::for_block(&generation, "main", bounds))

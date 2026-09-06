@@ -1,9 +1,9 @@
 //! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
-//! two shapes, four bounds that are finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), the three values that
+//! two shapes, bounds that are finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), the values that
 //! parse and still cannot describe a pool, and a threshold that is off until an operator writes one.
 //!
 //! The refusals are asserted by **counting**, not by reading one off a line: a reader that grew a
-//! hole in one of its four checks still answers plausibly for the other three.
+//! hole in one of its checks still answers plausibly for every other.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -48,7 +48,7 @@ fn refusal(text: &str) -> Diagnostic {
 }
 
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 13 writes its example against: a block that configures no pool at all still has
-/// four finite bounds, and they are the ADR's own numbers.
+/// a finite bound on every side, and they are the ADR's own numbers.
 #[test]
 fn nothing_configured_is_a_finite_pool() {
     let pool = bounds(MAIN);
@@ -83,15 +83,15 @@ fn the_switch_and_the_table_are_one_key_in_two_shapes() {
     assert_eq!(table.acquire, Duration::from_secs(1));
 }
 
-/// `pool = true` is the default written down and not a third meaning — the case that fails if the
-/// switch is ever read as "the table is absent, so nothing is configured" the other way round.
+/// `pool = true` is the default written down and not a meaning of its own — the case that fails if
+/// the switch is ever read as "the table is absent, so nothing is configured" the other way round.
 #[test]
 fn the_switch_written_on_changes_nothing() {
     assert_eq!(bounds(&format!("{MAIN}pool = true\n")), PoolBounds::DEFAULT);
 }
 
-/// A partly-written block is four independent decisions, not one: `rule:config/later-wins-and-every-override-is-recorded` records an override
-/// per key, so a `max` written alone must leave the other three at the default.
+/// A partly-written block is an independent decision per bound, not one: `rule:config/later-wins-and-every-override-is-recorded` records an override
+/// per key, so a `max` written alone must leave every other bound at the default.
 #[test]
 fn a_written_bound_replaces_only_itself() {
     let pool = bounds(&format!("{MAIN}[db.main.pool]\nmax = 64\n"));

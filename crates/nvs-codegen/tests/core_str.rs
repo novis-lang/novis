@@ -1,8 +1,7 @@
 //! `Core\\Str` end to end, and `rule:core-api/shape-rules` R2's options bag: omission, name-matching, and a rejected option.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 

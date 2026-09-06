@@ -265,9 +265,9 @@ fn setting_both_halves_of_the_pair_is_refused() {
     );
 }
 
-/// § 7's three content refusals, each of which would otherwise become a credential: an empty file,
-/// a whitespace-only one, and one over the 64 KiB cap. All three are `E0608` and all three name the
-/// path, because the operator's next move is to look at that file.
+/// § 7's content refusals, each of which would otherwise become a credential: an empty file, a
+/// whitespace-only one, and one over the 64 KiB cap. Each is `E0608` and each names the path,
+/// because the operator's next move is to look at that file.
 #[test]
 fn an_empty_a_whitespace_only_and_an_oversized_file_are_all_refused() {
     let oversized = "x".repeat(MAX_SECRET_BYTES + 1);
@@ -424,7 +424,7 @@ fn a_secret_survives_into_the_snapshot_without_entering_the_table() {
 /// `rule:programs/framework-core-half` needs so that `nvs_stdlib::mail` would accept it.
 const MAIL_ROOT: &str = "[mail.relay]\nhost = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\npassword_file = \"secrets/mail\"\n";
 
-/// § 7 is about the pairs the registry marks, and `[mail.<name>] password` is the second one: an
+/// § 7 is about the pairs the registry marks, and `[mail.<name>] password` is one of them: an
 /// SMTP submission credential is written by an operator into a named block and injected into a
 /// container as a file, exactly as a database password is.
 ///
@@ -527,13 +527,12 @@ fn tree_structs() -> Vec<(String, Vec<String>)> {
 }
 
 /// `rule:config/a-secret-is-a-file-whose-content-is-the-value` marks *directives*, plural: a credential added to the typed tree with no
-/// [`SECRETS`] row is a `_file` sibling that silently does nothing, which is exactly how
-/// `[mail.<name>] password` came to have no file half for as long as it did.
+/// [`SECRETS`] row is a `_file` sibling that silently does nothing.
 ///
-/// Nothing about that omission failed to compile, and no behavioural case could have found it,
-/// because the missing code and the missing case were the same absence. So this asserts both
-/// directions over the tree's own source: a credential field implies a `_file` sibling and a row,
-/// and a row implies a credential field that has one.
+/// Nothing about such an omission fails to compile, and no behavioural case can find it, because
+/// the missing code and the missing case are the same absence. So this asserts both directions
+/// over the tree's own source: a credential field implies a `_file` sibling and a row, and a row
+/// implies a credential field that has one.
 #[test]
 fn every_credential_on_the_tree_has_a_file_sibling_and_a_secrets_row() {
     let structs = tree_structs();

@@ -236,7 +236,7 @@ impl Watchdog {
     /// Watches `cpu`'s core through `view` until the returned handle is dropped.
     ///
     /// Called from the core's own thread, right after it installs its reactor —
-    /// this module's docs carry the two lines. The first call starts the
+    /// this module's docs carry the snippet. The first call starts the
     /// watchdog thread; a thread the OS refuses leaves the core registered and
     /// unwatched rather than failing a worker's startup for it, which is the
     /// same trade [`crate::blocking`] makes for a pool thread.
@@ -476,8 +476,8 @@ mod tests {
         // nanosecond after that base, so a deadline armed at the base itself
         // reads back a nanosecond late and a sweep at exactly `start + margin`
         // finds it one nanosecond short of overdue. Two adjacent
-        // `Instant::now()` calls can return the same value, so taking the
-        // second one for `start` made this test fail under a loaded machine.
+        // `Instant::now()` calls can return the same value, so `start` has to
+        // be strictly later rather than a second reading of the clock.
         let start = Instant::now() + Duration::from_millis(1);
         let _watched = dog.register(a_cpu(), timers.view());
 

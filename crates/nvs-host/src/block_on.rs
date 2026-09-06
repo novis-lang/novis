@@ -63,7 +63,7 @@
 //!
 //! # Off a core it blocks the thread, which is not the rule being bent
 //!
-//! Three routes, chosen once when the drive starts because a task never
+//! The route is chosen once, when the drive starts, because a task never
 //! migrates and the answer cannot change underneath it: a core with a reactor
 //! parks and is woken by its permission; a core with no reactor — a
 //! scheduler-only test — yields, because there is nothing there to arrange a
@@ -133,7 +133,7 @@ struct Signal {
     route: Route,
 }
 
-/// The three places a drive can be standing, and what a park means in each.
+/// Where a drive can be standing, and what a park means in each place.
 ///
 /// `rule:concurrency/the-park-route-is-chosen-once`'s table. Not re-derived per park: a task never migrates, and a
 /// thread that has no core when the drive starts does not acquire one.
@@ -150,7 +150,7 @@ enum Route {
 }
 
 impl Signal {
-    /// Reads which of the three routes this thread is on, right now.
+    /// Reads which route this thread is on, right now.
     fn here() -> Self {
         let route = match current_task() {
             // Borrowed and dropped on the spot, only to ask whether this thread

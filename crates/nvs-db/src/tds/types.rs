@@ -168,8 +168,8 @@ pub enum Length {
 /// here that has an opinion about that, and [ADR 0067
 /// § 9](/docs/decisions/0067.md)'s decode into a value belongs to
 /// `nvs-stdlib`, which is the crate that can allocate a `Core\Time\DateTime`.
-/// The fields are all four things a `TYPE_INFO` can carry, and a type that
-/// carries none of them leaves them at their zero.
+/// The fields are everything a `TYPE_INFO` can carry, and a type that carries
+/// none of them leaves them at their zero.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeInfo {
     /// The type byte, which is the identity of the type and the only thing

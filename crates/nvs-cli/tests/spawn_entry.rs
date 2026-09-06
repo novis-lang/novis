@@ -1,6 +1,6 @@
 //! [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
 //! operand rule: an isolate's entry is a path or a static method, decided
-//! syntactically at the spawn site, and the two spellings that are neither are
+//! syntactically at the spawn site, and the spellings that are neither are
 //! refused where they are written.
 //!
 //! Through the built binary rather than against `nvs_types` directly, for the

@@ -1,8 +1,7 @@
 //! Concatenation and comparison over `NvsStr`, including the refcount edges a loop exposes.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -23,7 +22,7 @@ fn concatenation_joins_its_operands_and_converts_a_scalar_one_first() {
 /// are one `nvs_str_concat_n` over a stack array rather than a fold of
 /// `nvs_str_concat` calls. What that changes is the allocation count, which no
 /// program can observe — so what this pins is that the bytes and their order
-/// survive the new path, including the two shapes the flattening in
+/// survive the n-ary path, including the shapes the flattening in
 /// `Lowering::lower_concat` has to get right: a parenthesized right operand,
 /// and the same local appearing more than once.
 #[test]
@@ -51,11 +50,8 @@ echo \"<\" . $tag . \">$i</\" . $tag . \">\", \"\\n\";
 /// land at different addresses.
 #[test]
 fn a_string_literal_is_one_address_rather_than_an_allocation_per_evaluation() {
-    // Neither method takes a parameter. They used to declare one they ignored,
-    // because calling either with an empty slice faulted — which was this
-    // crate's own reading of a missing *receiver* slot, not a missing
-    // argument. `Unit::call_static` fills that slot, so the dummy parameter is
-    // gone and the calls below say what they mean.
+    // Neither method takes a parameter: `Unit::call_static` fills the receiver
+    // slot itself, so an empty argument slice is all either call needs.
     let source = "<?nvs
 class Label {
     public static function pinned(): string {
@@ -108,14 +104,14 @@ fn a_concatenation_in_a_loop_keeps_producing_the_right_bytes() {
     );
 }
 
-/// The one fact three crates each hold a copy of: which slot a `Throwable`
+/// The one fact several crates each hold a copy of: which slot a `Throwable`
 /// property occupies.
 ///
 /// `nvs_hir::errors::PROPERTIES` is the home; `nvs_runtime::throwable`
-/// restates two indices because it depends on nothing, and `nvs_ir::lower`
-/// restates the field *names* for the same reason. This test is the seam that
-/// keeps the three from drifting — it is here because this is the only crate
-/// that can see all of them at once.
+/// restates the indices it needs because it depends on nothing, and
+/// `nvs_ir::lower` restates the field *names* for the same reason. This test
+/// is the seam that keeps them from drifting — it is here because this is the
+/// only crate that can see all of them at once.
 #[test]
 fn two_strings_compare_by_bytes_rather_than_by_pointer() {
     // `Ty::Str` is a pointer, so an `icmp` would compare identity — which is

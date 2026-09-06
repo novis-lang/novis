@@ -139,12 +139,13 @@ fn checked(text: &str) -> Diagnostic {
         .expect_err("this tree should have been refused")
 }
 
-/// `rule:http-server/a-mount-table-expands-at-boot`'s own example, over a disk that holds three module directories and one that is not
+/// `rule:http-server/a-mount-table-expands-at-boot`'s own example, over a disk that holds module directories and one that is not
 /// a module at all.
 ///
 /// The count is the assertion that matters: § 2's claim is that the executable set is *enumerated*,
 /// so a reading that expanded a `*` per request — or one that kept a candidate whose entry is not
-/// there — would still print two plausible mounts on the two lines below while answering three.
+/// there — would satisfy every per-mount assertion below while leaving an extra entry in the
+/// table.
 #[test]
 fn a_mount_globs_is_expanded_against_disk_at_boot() {
     let fs = Fake::with(&[
@@ -318,7 +319,7 @@ fn an_entry_that_resolves_outside_server_root_is_refused() {
     }
 }
 
-/// § 3's capture charset, which is `rule:errors/path-component-refusals` on every platform. The three refusals are named
+/// § 3's capture charset, which is `rule:errors/path-component-refusals` on every platform. The refusals are named
 /// together because each is a different half of that rule, and a reading that held only the
 /// charset would mount a directory called `CON`.
 #[test]

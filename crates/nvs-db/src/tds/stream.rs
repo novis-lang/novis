@@ -74,8 +74,8 @@ impl<'a> Tokens<'a> {
     ///
     /// [`TdsRows`] is the caller: it parses a token out of a buffer it filled
     /// from packets and needs to know what to drop off the front, and the token
-    /// itself says nothing about its own extent — three of the six carry a
-    /// length, `DONE` is fixed, and `COLMETADATA` is neither.
+    /// itself says nothing about its own extent — some carry a length, `DONE`
+    /// is fixed, and `COLMETADATA` is neither.
     #[must_use]
     pub const fn consumed(&self) -> usize {
         self.at
@@ -749,7 +749,7 @@ mod tests {
         );
     }
 
-    /// § 8's four fields for a refusal this backend words, all of them at once.
+    /// § 8's fields for a refusal this backend words, all of them at once.
     ///
     /// Both absences are asserted here rather than left to a reader's
     /// assumption: TDS sends no `SQLSTATE`, and no constraint name outside the
@@ -781,10 +781,10 @@ mod tests {
             "an absent SQLSTATE is omitted from the sentence, not rendered empty"
         );
 
-        // A `THROW` past a `u16`, which is the width this field used to be and
-        // the reason it is not any more: the whole user-defined range is above
-        // it, so a narrower field would answer `None` for every error an
-        // application raised itself.
+        // A `THROW` past a `u16`, which is why this field is wider than one:
+        // the whole user-defined range sits above that width, so a narrower
+        // field would answer `None` for every error an application raised
+        // itself.
         let mut raised = message_token(TOKEN_ERROR, 90_001, 16, "the application said no");
         raised.extend_from_slice(&done_token(DONE_ERROR, 0));
         let mut wire = logging_in(&raised);
@@ -805,7 +805,7 @@ mod tests {
         assert_eq!(server.severity, "FATAL");
     }
 
-    /// The three answers that are neither an acceptance nor a refusal.
+    /// The answers that are neither an acceptance nor a refusal.
     ///
     /// Each is a stream this driver could read *something* out of and must not:
     /// a login that ended with no verdict, a server speaking another dialect,

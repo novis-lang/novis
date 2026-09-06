@@ -1,32 +1,32 @@
-//! The five drivers as an enum, and the busy state each one carries.
+//! The drivers as an enum, and the busy state each one carries.
 //!
 //! [ADR 0132 § 5](/docs/decisions/0132.md)
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
 //! in this project's priority order: the set is **closed** (`rule:core-classes/db-one-api` makes
 //! a new backend an ADR rather than a plugin, and wasm extensions cannot host
 //! one anyway, so open-set extensibility is the one property a trait buys and
-//! this design does not want it); a trait wide enough for all five would be
+//! this design does not want it); a trait wide enough for every driver would be
 //! half `unimplemented!()`, since `executeMany` is one prepare and N executions
-//! on four drivers and a bulk protocol message on the fifth, a prepare is a
-//! round trip on two and free on one, and a reset is four different command
-//! sequences and a rollback on the fifth; and a `Box<dyn Driver>` is an
+//! on most of them and a bulk protocol message on MariaDB, a prepare is a round
+//! trip on some and free on SQLite, and a reset is its own command sequence on
+//! each wire driver and a rollback on SQLite; and a `Box<dyn Driver>` is an
 //! allocation and an indirect call per connection operation where a `match` is
 //! something the compiler can see through.
 //!
-//! So where a signature repeats five times, **it repeats**. Five `fn query`
-//! bodies that each say what their own protocol does are cheaper to read and to
-//! fix than one that makes four of them lie, and what keeps them honest is not
-//! a type — it is `tools/db-matrix.py` running one assertion set against five
-//! real servers.
+//! So where a signature repeats per driver, **it repeats**. A `fn query` body
+//! per protocol, each saying what its own does, is cheaper to read and to fix
+//! than one that makes most of them lie, and what keeps them honest is not a
+//! type — it is `tools/db-matrix.py` running one assertion set against every
+//! real server.
 //!
-//! This module holds the five shapes and the one rule they share. A driver's
-//! own wire code — its handshake, its sequencing, its error table — is in that
-//! driver's module beside this one ([`crate::pg`] is the first), so the enum
+//! This module holds those shapes and the one rule they share. A driver's own
+//! wire code — its handshake, its sequencing, its error table — is in that
+//! driver's module beside this one ([`crate::pg`] is one), so the enum
 //! stays readable as an enum while a protocol grows to the size a protocol is.
 //!
 //! What is *not* per driver is § 4's rule about when a connection may be
 //! written to and when it may be pooled: that is one rule over [`State`], and
-//! it lives on that type rather than being restated in five places. What each
+//! it lives on that type rather than being restated once per driver. What each
 //! driver decides for itself is which state a given wire event leaves it in —
 //! whether an abandoned result set can be cancelled and drained back to
 //! [`State::Idle`], or is [`State::Poisoned`].
@@ -41,7 +41,7 @@ use crate::pg::{CancelKey, Wire};
 use crate::sql::StatementCache;
 use crate::tds::Wire as TdsWire;
 
-/// The five backends [ADR 0067 § 12](/docs/decisions/0067.md) closes
+/// The backends [ADR 0067 § 12](/docs/decisions/0067.md) closes
 /// the set at.
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
@@ -66,8 +66,8 @@ pub enum Driver {
 impl Driver {
     /// Every driver, in the order `rule:core-classes/db-one-api`'s own tables use.
     ///
-    /// The matrix harness iterates this rather than a list of its own, so a
-    /// sixth backend cannot be added to the language without appearing in the
+    /// The matrix harness iterates this rather than a list of its own, so a new
+    /// backend cannot be added to the language without appearing in the
     /// verification matrix on the same commit.
     pub const ALL: [Driver; 5] = [
         Driver::Postgres,
@@ -161,17 +161,17 @@ impl Driver {
 /// block refuses the same way every time until an operator edits the file.
 ///
 /// **It is here rather than in a driver because every driver refuses the same
-/// eight things**, differing only in which backend was expected — that is the
-/// `expected` field on the three variants whose sentence names one. A driver
+/// things**, differing only in which backend was expected — that is the
+/// `expected` field on the variants whose sentence names one. A driver
 /// with a fault none of these covers adds a variant here; it does not grow an
 /// error type of its own, because an operator reading two of those would be
 /// reading two vocabularies for one file format.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockError<'a> {
     /// The block names no `driver` at all, so nothing decides which of ADR
-    /// 0067 § 12's five backends it is.
+    /// 0067 § 12's backends it is.
     NoDriver,
-    /// `driver` names one of the five, and it is not the one that read it.
+    /// `driver` names a backend Novis has, and it is not the one that read it.
     OtherDriver {
         /// What the block wrote.
         written: &'a str,
@@ -369,8 +369,9 @@ impl State {
 ///
 /// The set is the SQL standard's four plus [`Isolation::Snapshot`], which SQL
 /// Server has as a level of its own and the others reach under another name —
-/// so this is one enum with a per-driver rendering rather than five overlapping
-/// ones, for the same reason [`State`] is one rule rather than five.
+/// so this is one enum with a per-driver rendering rather than one overlapping
+/// enum per driver, for the same reason [`State`] is one rule rather than one
+/// per driver.
 ///
 /// § 7 requires a driver that **lacks** a level to throw rather than quietly
 /// run the closure at a weaker one. A driver that renders a level as a
@@ -402,7 +403,7 @@ pub enum Isolation {
 }
 
 /// What a result column was *declared* as — spec § 18's `ColumnType`, whose
-/// fourteen cases `Core\Db\Column::type` answers with.
+/// cases `Core\Db\Column::type` answers with.
 ///
 /// **This is not a summary of what a read of the column produces**, and the two
 /// questions are deliberately different. [ADR 0067
@@ -548,11 +549,11 @@ pub struct ServerError {
     /// `SQLSTATE` at all, and the five characters PDO reports for it are ODBC's
     /// own mapping from the error number rather than anything the server said.
     /// An empty string is not a `SQLSTATE` any server can send, so it carries
-    /// the absence without widening the field to an `Option` every reader of
-    /// the other four drivers would then have to unwrap; the two readers there
+    /// the absence without widening the field to an `Option` every reader on a
+    /// backend that does send one would then have to unwrap; the readers there
     /// are — this type's `Display` below, and `nvs_stdlib`'s `sqlState` slot —
-    /// both treat it as one, which is what makes the program-visible value
-    /// `null` rather than `""`.
+    /// treat it as one, which is what makes the program-visible value `null`
+    /// rather than `""`.
     pub sql_state: String,
     /// The server's non-localized severity — `ERROR`, `FATAL`, `PANIC`.
     pub severity: String,
@@ -565,9 +566,8 @@ pub struct ServerError {
     ///
     /// `u32` because SQL Server's is a `LONG` and a `THROW` may raise one past
     /// 65535 — the whole user-defined range starts at 50000 — where MySQL's
-    /// `ERR` packet carries a `u16`. The narrower width was this field's until
-    /// SQL Server arrived, and keeping it would have lost `driverCode` for
-    /// every error an application raised itself, which is the half of § 8 a
+    /// `ERR` packet carries a `u16`. A narrower field would lose `driverCode`
+    /// for every error an application raised itself, which is the half of § 8 a
     /// normalised kind cannot cover. § 8 spells the field `?int`, so nothing
     /// above this widens with it.
     ///
@@ -597,13 +597,13 @@ impl ServerError {
 }
 
 impl std::fmt::Display for ServerError {
-    /// Severity, message and `SQLSTATE`: the three fields an operator acts on.
+    /// Severity, message and `SQLSTATE`: the fields an operator acts on.
     ///
-    /// The third is omitted rather than rendered empty where the backend sends
-    /// none — see [`ServerError::sql_state`]. `(SQLSTATE )` would read as a
-    /// server that answered nothing when the truth is a protocol that has no
-    /// such field, and the number that *is* this backend's code is already in
-    /// the sentence the server wrote.
+    /// The `SQLSTATE` is omitted rather than rendered empty where the backend
+    /// sends none — see [`ServerError::sql_state`]. `(SQLSTATE )` would read
+    /// as a server that answered nothing when the truth is a protocol that has
+    /// no such field, and the number that *is* this backend's code is already
+    /// in the sentence the server wrote.
     ///
     /// Bound parameters are not among them and never will be — `rule:core-classes/db-error`
     /// makes a `Throwable` message a `secret` sink, and this sentence is what
@@ -829,7 +829,7 @@ pub struct TdsConn {
     /// Whether this session sits at an isolation level a `transaction()` asked
     /// for rather than at the server's own default.
     ///
-    /// **The one piece of state the other three drivers do not need.** T-SQL's
+    /// **The one piece of state no other driver needs.** T-SQL's
     /// `SET TRANSACTION ISOLATION LEVEL` is *session*-scoped: MySQL's applies to
     /// the next transaction and PostgreSQL's rides the `BEGIN`, but this one
     /// outlives the transaction that asked for it and would silently become the
@@ -885,12 +885,9 @@ pub struct SqliteConn {
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
 ///
 /// `clippy::large_enum_variant` is allowed here and the reasoning is `rule:core-classes/db-drivers-are-an-enum`'s third argument, unchanged: a `Box` around a variant is an allocation
-/// and an indirection on every message this enum's own hot path reads, and the
-/// lint is measuring a transitional shape rather than a real disparity —
-/// [`PgConn`] carries a TLS session because its driver landed first, and the
-/// other four are one byte only until theirs do. Nothing holds these in an
-/// array either: a `Connection` is one live object per pooled connection, which
-/// at `rule:security/db-pool-reset-is-a-boundary`'s ceiling of 16 a core is kilobytes.
+/// and an indirection on every message this enum's own hot path reads. Nothing
+/// holds these in an array either: a `Connection` is one live object per pooled
+/// connection, which at `rule:security/db-pool-reset-is-a-boundary`'s ceiling of 16 a core is kilobytes.
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum Connection {
@@ -960,7 +957,7 @@ impl Connection {
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `{timeout?: Duration}`.
     ///
     /// **One clock per connection, on the thing that waits**, which is the same
-    /// clock [`PgConn::connect`] and its four siblings already file for the
+    /// clock [`PgConn::connect`] and its siblings already file for the
     /// handshake. It bounds a whole *conversation* and not a syscall: a
     /// statement is a prepare, an execute and every row of the answer over one
     /// socket, and it is the statement a caller asked to bound.
@@ -973,7 +970,7 @@ impl Connection {
     /// # Errors
     ///
     /// Only the SQLite arm can fail, and only as `sqlite3_busy_timeout` fails:
-    /// the other four write a field on their own socket. See
+    /// the others write a field on their own socket. See
     /// [`crate::sqlite::set_busy_timeout`] for why that arm bounds a lock wait
     /// where the others bound a read.
     pub fn set_deadline(&mut self, at: Option<std::time::Instant>) -> std::io::Result<()> {
@@ -1177,8 +1174,8 @@ mod tests {
 
     /// § 4's rule, asserted on both sides: `Idle` is the only state that
     /// accepts a statement and the only one that may be pooled. Asserting it
-    /// over the whole roster rather than on one state is what catches a fifth
-    /// state added later without a decision about either question.
+    /// over the whole roster rather than on one state is what catches a state
+    /// added later without a decision about either question.
     #[test]
     fn only_an_idle_connection_accepts_a_statement_or_rejoins_the_pool() {
         for state in [
@@ -1214,9 +1211,9 @@ mod tests {
     /// violation as [`DbErrorKind::Other`] — plausible, since that is exactly
     /// what its own table answers for a code it does not name — passes its case
     /// and still breaks the only promise § 8 makes: that an application
-    /// branches on the condition and not on the dialect. Three tables that each
-    /// look right and disagree with each other is what PDO leaves a caller
-    /// with, and it is why real PHP code matches on `"Duplicate entry"`.
+    /// branches on the condition and not on the dialect. Tables that each look
+    /// right and disagree with each other are what PDO leaves a caller with,
+    /// and it is why real PHP code matches on `"Duplicate entry"`.
     ///
     /// **SQL Server and SQLite are absent because they have no table yet, not
     /// because they are exempt.** § 8's "four drivers and five dialects" is not
@@ -1308,7 +1305,7 @@ mod tests {
             ),
         ] {
             // The condition in words, and a `match` rather than a `{kind:?}`
-            // for what it costs a later author: it is exhaustive, so a twelfth
+            // for what it costs a later author: it is exhaustive, so a
             // condition added to `DbErrorKind` stops this crate building until
             // someone stands in this table and decides what each server calls
             // it. A row missing from here is a kind nothing holds the drivers

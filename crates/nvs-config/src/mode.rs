@@ -5,7 +5,7 @@
 //! directives that are each settable on their own, so what a mode *is* can be printed as five rows
 //! rather than described as a behaviour. That property only holds while the table has one home, and
 //! this module is it: a second copy anywhere is a mode that changes something the first copy does not
-//! list. § 3a's three startup rows are deliberately **not** here — they are fixed at boot, never
+//! list. § 3a's startup rows are deliberately **not** here — they are fixed at boot, never
 //! re-derived and never flippable, and mixing the two tables is exactly the confusion that section
 //! was split out to prevent.
 //!

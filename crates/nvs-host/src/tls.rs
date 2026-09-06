@@ -2,17 +2,17 @@
 //! [`NvsTcp`], and the trust anchor set it verifies against.
 //!
 //! [`crate::net`] promises that an unmodified protocol implementation runs over
-//! its stream, and its `a_rustls_session_streams_over_it_unmodified` has proven
-//! that for TLS since `rule:concurrency/try-the-syscall-then-park` was written. What was missing to make that
-//! usable was never the transport — it was a **client**, and a client is a
+//! its stream (`rule:concurrency/try-the-syscall-then-park`), and its
+//! `a_rustls_session_streams_over_it_unmodified` proves that for TLS. What
+//! makes the promise usable is a **client**, and a client is a
 //! session plus an answer to "whose certificates do you believe". This module
 //! is those two things and nothing else: [`NvsTls::over`] takes a connected
 //! stream, completes a handshake on it, and hands back a plaintext
 //! `Read`/`Write` that parks exactly like the stream underneath it.
 //!
 //! Nothing here knows about HTTP or SMTP. `Core\Http\Client` reaches it for an
-//! `https` URL and `Core\Mail` reaches it for `STARTTLS`, and both of those are
-//! the same three lines, because a protocol that was written against a socket
+//! `https` URL and `Core\Mail` reaches it for `STARTTLS`, and both of those
+//! reach it the same way, because a protocol that was written against a socket
 //! is written against this too.
 //!
 //! # The transport is generic, and `NvsTcp` is its default
@@ -51,7 +51,7 @@
 //! # The trust anchors are compiled in, and an operator may name their own
 //!
 //! Novis trusts **Mozilla's CA set, carried in the binary** (`webpki-roots`),
-//! and not the host's own certificate store. Three reasons, in this project's
+//! and not the host's own certificate store. The reasons, in this project's
 //! priority order:
 //!
 //! 1. **The same binary trusts the same certificates everywhere.** A platform
@@ -85,10 +85,10 @@
 //!
 //! What that spends, per `rule:programs/memory-priority`:
 //! one parsed root store and one `ClientConfig` for the whole **process**, built
-//! once on first use and shared by every session after it — roughly 150 trust
-//! anchors, a few hundred kilobytes, O(1) in requests served. Per session it is
-//! `rustls`'s own connection state, which is O(in-flight) and released with the
-//! stream.
+//! once on first use and shared by every session after it — the whole Mozilla
+//! anchor set, a few hundred kilobytes, O(1) in requests served. Per session
+//! it is `rustls`'s own connection state, which is O(in-flight) and released
+//! with the stream.
 //!
 //! # `ring` is the provider, and it is spent under `rule:packaging/a-c-dependency-answers-two-questions`
 //!
@@ -272,8 +272,8 @@ impl<T: Read + Write> Write for NvsTls<T> {
 /// The one seam a configured anchor bundle plugs into: a handshake against a
 /// caller-supplied configuration rather than the compiled-in one.
 ///
-/// Private, and it stays private now that an operator *can* name a bundle:
-/// [`NvsTls::over_bundle`] is that door and it takes a path, so the only two
+/// Private, even though an operator *can* name a bundle:
+/// [`NvsTls::over_bundle`] is that door and it takes a path, so the only
 /// configurations this module will build are the compiled-in set and a file
 /// `nvs_config` resolved. A caller handing in its own `ClientConfig` is a
 /// program choosing anchors, which this module's docs § *The trust anchors are
@@ -307,10 +307,10 @@ fn upgraded<T: Read + Write>(
 
 /// The process-wide client configuration, built on first use.
 ///
-/// One root store for the process and not one per session: parsing ~150 anchors
-/// per outbound call would be priority 3 spent on a constant. `ClientConfig` is
-/// `Send + Sync` and is only ever read after this, so sharing it across cores
-/// costs an `Arc` clone and no lock.
+/// One root store for the process and not one per session: parsing the whole
+/// anchor set per outbound call would be priority 3 spent on a constant.
+/// `ClientConfig` is `Send + Sync` and is only ever read after this, so sharing
+/// it across cores costs an `Arc` clone and no lock.
 fn anchors() -> Arc<ClientConfig> {
     static DEFAULT: OnceLock<Arc<ClientConfig>> = OnceLock::new();
     Arc::clone(DEFAULT.get_or_init(|| {
@@ -328,7 +328,7 @@ fn anchors() -> Arc<ClientConfig> {
 /// `ssl-ca`'s on MySQL, so it is what an operator writing the key already
 /// expects; and it is the stricter of the two readings, which decides it under
 /// priority 1. A server behind a private CA is precisely the deployment where
-/// one of ~150 public CAs still being able to vouch for its name is the attack
+/// any public CA still being able to vouch for its name is the attack
 /// the bundle was written to prevent. An operator who wants both writes both
 /// into the file.
 ///
@@ -440,7 +440,7 @@ mod tests {
 
     /// A path under the system temporary directory, named for its case.
     ///
-    /// No `tempfile` dependency for two files: what these cases need is a name
+    /// No `tempfile` dependency for this: what these cases need is a name
     /// nothing else writes, and the case's own is that.
     fn scratch(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!("nvs-anchors-{name}.pem"))

@@ -1,9 +1,9 @@
 //! `rule:config/ini-set-is-core-config-set` and `rule:config/three-changeability-classes`: what one request may move, how far, and how far that move reaches.
 //!
-//! The three cases `m6.md`'s *Verify* names in one sentence are here under its own words, because
-//! the third — invisibility to the next request on the same core — is the one a shared mutable
-//! registry passes every other test while getting wrong. It is asked of two `Request`s built from
-//! **one** `Arc<Snapshot>`, which is exactly what two requests on a core hold.
+//! The cases `m6.md`'s *Verify* names in one sentence are here under its own words, because
+//! invisibility to the next request on the same core is the one a shared mutable registry passes
+//! every other test while getting wrong. It is asked of two `Request`s built from **one**
+//! `Arc<Snapshot>`, which is exactly what two requests on a core hold.
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -91,7 +91,7 @@ memory = \"512M\"
 ";
 
 /// `rule:config/three-changeability-classes`: `[limits]` states the **default**, and a request may move above it for itself as far
-/// as the ceiling — the first of `m6.md`'s three clauses.
+/// as the ceiling — the first of `m6.md`'s clauses.
 #[test]
 fn config_set_above_the_default_takes_effect() {
     let mut request = Request::new(snapshot_of(BOUNDED));
@@ -328,12 +328,12 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
 /// m6.md's *Verify*, adversarially: **every** `System` row is refused, counted over the registry
 /// rather than asked of one key.
 ///
-/// `a_system_directive_is_not_settable_by_a_request` above pins the class rule on two keys, which is
-/// what the rule means. What this adds is that no row escapes it: a directive landing in
-/// [`DIRECTIVES`] as `System` is swept the day it lands, and a `set` that grew a special case for
-/// one block fails here while still passing every case above it. Both spellings of a row are asked
-/// — the key itself and a key beneath it — because `lookup` is longest-prefix and a block row
-/// answers for everything inside it.
+/// `a_system_directive_is_not_settable_by_a_request` above pins the class rule on the keys it
+/// names, which is what the rule means. What this adds is that no row escapes it: a directive
+/// landing in [`DIRECTIVES`] as `System` is swept the day it lands, and a `set` that grew a
+/// special case for one block fails here while still passing every case above it. Both spellings
+/// of a row are asked — the key itself and a key beneath it — because `lookup` is longest-prefix
+/// and a block row answers for everything inside it.
 #[test]
 fn a_script_attempting_to_set_a_system_directive_fails() {
     let mut request = Request::new(snapshot_of(BOUNDED));
@@ -407,7 +407,7 @@ read = [\"nvs.toml\"]
     let mut widened: Vec<String> = Vec::new();
     for cap in Cap::ALL {
         // The grant's own key and the block above it, against the widest value `rule:security/capability-check-at-the-door` spells and
-        // against two narrower widenings — a root outside what was granted, and the one inside it,
+        // against narrower widenings — a root outside what was granted, and the one inside it,
         // which is not narrowing either once it is the whole grant.
         for key in [
             format!("capabilities.{}", cap.name()),

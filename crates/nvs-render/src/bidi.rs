@@ -2,19 +2,20 @@
 //! predicate: a bidirectional control that opens a directional scope and never
 //! closes it inside the span that opened it.
 //!
-//! **One rule, three callers.** The lexer calls it per source span and makes a
-//! failure a hard compile error; `Core\Html::escape` (M7) and `Core\Cli`'s
-//! output sink (M8) call it and substitute `U+FFFD` for each control it names.
-//! None of the three restates the rule — that is the whole reason the predicate
-//! lives in one module rather than beside the lexer's string handling.
+//! **One rule, and every caller reads it from here.** The lexer calls it per
+//! source span and makes a failure a hard compile error; `Core\Html::escape`
+//! and `Core\Cli`'s output sink call it and substitute `U+FFFD` for each
+//! control it names. No caller restates the rule — that is the whole reason
+//! the predicate lives in one module rather than beside the lexer's string
+//! handling.
 //!
 //! **It lives in this crate rather than in `nvs-syntax` because this crate is
 //! the leaf.** `rule:errors/diagnostic-record` puts the record model below both the runtime and the compiler front end,
 //! and § 5 routes the bidi transformation through this predicate — so with
 //! `nvs-runtime` a dependent, `nvs-render` → `nvs-syntax` → `nvs-diagnostics`
-//! would have closed a cycle. The module moved down whole rather than being
-//! copied, so `rule:security/bidi-predicate`'s one rule is still one implementation and `nvs-syntax`
-//! now reads it from below. The crate docs' § *Where this sits* is the home of
+//! would close a cycle. Living here keeps
+//! `rule:security/bidi-predicate`'s one rule one implementation, which `nvs-syntax`
+//! reads from below. The crate docs' § *Where this sits* is the home of
 //! that reasoning.
 //!
 //! **What a span is, is the caller's decision**, per that ADR § 2's table: the

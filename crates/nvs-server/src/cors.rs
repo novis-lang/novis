@@ -63,21 +63,21 @@
 //! and stating it once is what keeps the refusal from being a second matcher that could disagree
 //! with the first.
 //!
-//! The granting answer carries § 2's three configured lines beside the allow: `Allow-Methods` from
+//! The granting answer carries § 2's configured lines beside the allow: `Allow-Methods` from
 //! `methods` — `GET, HEAD, POST` with nothing written — `Allow-Headers` from `headers`, and
 //! `Max-Age` from `max_age` in the whole seconds that header is counted in. **Each is written
 //! verbatim out of the block and never reflected back off the request.** A preflight that echoed
 //! `Access-Control-Request-Headers` would allow whatever was asked for, which is a policy the
 //! operator did not write and could not read out of their own configuration; § 2 configures what
 //! may be allowed, so the request's own asking is the browser's side of the exchange and not the
-//! server's. A list that is empty — written so, or the shipped default for the two that ship
+//! server's. A list that is empty — written so, or the shipped default for the lists that ship
 //! empty — is **no header at all** rather than an empty one, because a line naming nothing permits
 //! nothing and a blank value asks every browser to agree on what that means.
 //!
 //! **`204` and not `200`**: a preflight's answer is its headers, there is no body to send, and a
 //! status that promises one invites a peer to wait for it.
 //!
-//! The refusal carries none of the three, a refusal having no permission to describe — but it does
+//! The refusal carries none of them, a refusal having no permission to describe — but it does
 //! carry the `Vary` an open list owes every answer it touched, for the cache reason above: a `403`
 //! stored under the URL alone is replayed to the origin that would have been granted one.
 //!
@@ -87,7 +87,7 @@
 //!
 //! # `credentials` and `expose`
 //!
-//! The other two keys § 2 configures are carried by [`Crossing`], and one rule covers both:
+//! The other keys § 2 configures are carried by [`Crossing`], and one rule covers them:
 //! **nothing but the `Vary` is written onto an answer with no origin to allow.** A refused origin
 //! and a closed policy have no permission to qualify, and `Access-Control-Allow-Credentials` beside
 //! no `Access-Control-Allow-Origin` describes a crossing that was not granted.
@@ -99,7 +99,7 @@
 //!
 //! `expose` is `Access-Control-Expose-Headers` and goes on an ordinary answer only. A preflight's
 //! answer is read by the browser rather than by script, so an exposed-header list on it describes a
-//! response that does not exist — the same empty-list rule as the preflight's own three lines
+//! response that does not exist — the same empty-list rule as the preflight's own lines
 //! applies, and nothing is sent where nothing is named.
 //!
 //! # What is elsewhere
@@ -174,7 +174,7 @@ pub struct Crossing {
 ///
 /// It carries a [`Crossing`] rather than deciding an origin again: which origins may cross is one
 /// question with one answer, and a preflight that matched separately could permit what an ordinary
-/// request from the same peer is refused. What this adds is the status and the three lines § 2
+/// request from the same peer is refused. What this adds is the status and the lines § 2
 /// configures.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Preflight {
@@ -201,8 +201,8 @@ impl Cors {
     /// The policy in force for a tree.
     ///
     /// Takes the whole `[http]` block rather than `[http.cors]`, so that a caller holding a
-    /// [`nvs_config::Config`] passes `config.http.as_ref()` and never has to know which of the
-    /// five sub-blocks this reads — the same argument as [`crate::secure::Secure::of`]'s.
+    /// [`nvs_config::Config`] passes `config.http.as_ref()` and never has to know which
+    /// sub-block this reads — the same argument as [`crate::secure::Secure::of`]'s.
     #[must_use]
     pub fn of(http: Option<&Http>) -> Self {
         let cors = http.and_then(|http| http.cors.as_ref());
@@ -325,7 +325,7 @@ impl Crossing {
         }
         // The module doc's one rule for the rest: an answer with no origin to allow carries
         // nothing that qualifies one. Returning here rather than guarding each line is what keeps
-        // a third qualifier from being added outside it.
+        // a later qualifier from being added outside it.
         let Some(allow) = self.allow.as_ref() else {
             return;
         };
@@ -354,8 +354,8 @@ impl Preflight {
 
     /// Writes this answer's headers onto the response the door is about to send.
     ///
-    /// [`Crossing::fill`]'s rule for all three: a name the response already spelled is left alone,
-    /// and `Vary` appends. Nothing here is reached by an application's answer today — the door
+    /// [`Crossing::fill`]'s rule for each of them: a name the response already spelled is left
+    /// alone, and `Vary` appends. Nothing here is reached by an application's answer — the door
     /// builds this response itself — but writing it the other way would make that a fact about the
     /// call site rather than about the writer.
     pub fn fill(&self, answer: &mut HeaderMap) {
@@ -377,7 +377,7 @@ impl Preflight {
 /// nothing to send.
 ///
 /// An absent key is `default`, which is § 2's shipped value for that key — a list for `methods`
-/// and empty for the other two. An empty list either way is no header at all, which the module
+/// and empty for the rest. An empty list either way is no header at all, which the module
 /// doc's preflight section owns.
 ///
 /// A value the wire cannot carry answers [`None`] as well, and that is not a repair:
@@ -418,7 +418,7 @@ fn seconds_of(written: Option<&str>) -> HeaderValue {
 /// Whether `answer` already says it varies by `Origin`, under any spelling a cache accepts.
 ///
 /// `Vary` may arrive as several header lines and each line as a comma-separated list, and its
-/// names are case-insensitive, so all three have to be walked to answer "is it already there".
+/// names are case-insensitive, so each of those has to be walked to answer "is it already there".
 /// Writing a duplicate would harm nothing a cache does; it is the reader of the response who
 /// pays, and the walk is over the handful of names one answer varies on.
 fn varies_on_origin(answer: &HeaderMap) -> bool {

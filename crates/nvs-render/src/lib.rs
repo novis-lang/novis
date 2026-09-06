@@ -5,19 +5,18 @@
 //! plus a tree of [`Node`]s. The model is **closed** — a node is one of a
 //! fixed set of kinds and there is no extension point — and it is **content,
 //! not presentation**: it carries no colour, no indentation, no width and no
-//! ordering-for-display. A rendering supplies all four. That separation is the
-//! whole of `rule:errors/diagnostic-record`, and it is why adding a fourth rendering later costs one
-//! implementation rather than five.
+//! ordering-for-display. A rendering supplies them all. That separation is the
+//! whole of `rule:errors/diagnostic-record`, and it is why adding a rendering costs one
+//! implementation rather than one per producer.
 //!
 //! # What is here, and what is not yet
 //!
-//! M4's half: the model, the plaintext rendering ([`plain`]), and § 5's four
-//! transformations. M8 adds the JSON one ([`json`]), which is what a log target
-//! emits; the HTML rendering and the record's other three producers — a
-//! `Throwable` and its trace, a `#[Test]` result and a compiler diagnostic —
-//! arrive at their own milestones. `Core\Debug::dump` and `Core\Log::write` are
-//! the producers that exist, and both live in `nvs-stdlib` for the reason
-//! § *Where this sits* gives.
+//! The model, the plaintext rendering ([`plain`]), § 5's four transformations,
+//! and the JSON one ([`json`]) that a log target emits. The HTML rendering and
+//! the record's remaining producers — a `Throwable` and its trace, a `#[Test]`
+//! result and a compiler diagnostic — are still to come. `Core\Debug::dump`
+//! and `Core\Log::write` are the producers that exist, and both live in
+//! `nvs-stdlib` for the reason § *Where this sits* gives.
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
@@ -26,7 +25,7 @@
 //! already put every rendering in this crate; a JSON writer in `nvs-runtime`
 //! for the floor plus this one for everything else would be two writers that
 //! agree today. The price is the dependency edge below, which § 1 sanctions and
-//! this section prices — it is paid when the floor lands, not before.
+//! this section prices.
 //!
 //! # § 5's four transformations, and why they are the model's
 //!
@@ -62,17 +61,17 @@
 //! `nvs-runtime` depends on no `nvs-*` crate but this one, so the dependency
 //! has to run the other way.
 //!
-//! **This crate is a leaf, and that is what the second producer cost.** Its
+//! **This crate is a leaf, and that is what a dependent producer costs.** Its
 //! dependents are `nvs-runtime` — `rule:errors/log-write`'s tier-4 floor, which renders an uncaught `Throwable` through
 //! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
 //! render reached from the other caller. Its only dependency is `serde_json`.
-//! It used to depend on `nvs-syntax` for `rule:security/bidi-predicate`'s
-//! bidi predicate, and `nvs-syntax` depends on `nvs-diagnostics`, so the floor
-//! becoming a dependent would have closed a cycle. The predicate **moved** down
-//! into [`bidi`] instead and `nvs-syntax` reads it from below — a move, not a
-//! copy, so `rule:security/bidi-predicate`'s "one rule, three callers" is one implementation still.
-//! `nvs check` rendering from `nvs-diagnostics` is the third producer and needs
-//! nothing further: that edge is already the way round it has to run.
+//! Depending on `nvs-syntax` for `rule:security/bidi-predicate`'s
+//! bidi predicate would close a cycle, since `nvs-syntax` depends on
+//! `nvs-diagnostics` and the floor is a dependent here. The predicate lives in
+//! [`bidi`] instead and `nvs-syntax` reads it from below, so
+//! `rule:security/bidi-predicate`'s one rule is one implementation.
+//! `nvs check` rendering from `nvs-diagnostics` needs
+//! nothing further: that edge already runs the way round it has to.
 //!
 //! # What it spends
 //!
@@ -92,9 +91,9 @@ pub mod text;
 /// The mapping is fixed because `rule:errors/engine-floor` names `syslog` as a target and a severity is not optional there.
 ///
 /// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
-/// takes is `nvs_stdlib::registry`'s and lands with that member at M8; when it
-/// does, its cases are these and its integer backings are
-/// [`Self::syslog_severity`], read from here rather than written again.
+/// takes is `nvs_stdlib::registry`'s: its cases are these and its integer
+/// backings are [`Self::syslog_severity`], read from here rather than written
+/// again.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub enum Level {
     /// `Core\Debug::dump`'s destination — `rule:errors/debug-dump`.
@@ -169,7 +168,7 @@ impl Level {
     /// The level's own case name, as `rule:errors/log-level`'s roster writes it —
     /// `Log\Level::Debug` — and as [`Self::of`] reads `[log] level`.
     ///
-    /// A third match over the roster rather than a case fold of [`Self::name`],
+    /// Another match over the roster rather than a case fold of [`Self::name`],
     /// because there is no `const` fold and because these are two spellings of
     /// one level rather than one spelling seen twice.
     #[must_use]
@@ -357,8 +356,7 @@ pub enum Node {
         /// in the order the walk first met each object.
         id: usize,
     },
-    /// A source range with a label — what a compiler diagnostic is made of
-    /// (M10).
+    /// A source range with a label — what a compiler diagnostic is made of.
     Span {
         /// The file the range is in.
         file: String,

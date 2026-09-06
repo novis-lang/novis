@@ -1,6 +1,6 @@
 //! The user code a limit, an uncaught throw or the request's end runs.
 //!
-//! Four callables, each held by the context for the length of one request:
+//! The callables a context holds for the length of one request:
 //! `rule:errors/handler-script`'s limit handler,
 //! its uncaught handler, the exit hooks a program registers, and
 //! `rule:concurrency/after-response-outlives-the-connection`'s
@@ -219,7 +219,7 @@ impl Ctx {
     ///
     /// Whatever a hook answers is dropped, and a hook that fails is abandoned
     /// where it stands with the queue continuing — [`Self::abandon_exit_hook`]
-    /// is the home of § 5's three failure readings.
+    /// is the home of § 5's failure readings.
     #[expect(
         unsafe_code,
         reason = "the queue owns one reference per registration and this is the \
@@ -257,7 +257,7 @@ impl Ctx {
     /// Reports one failed exit hook and answers whether the drain continues —
     /// `rule:observability/a-hook-observes-and-never-steers`.
     ///
-    /// Three readings, and only the last stops the queue:
+    /// The readings § 5 gives, and only the last stops the queue:
     ///
     /// - **A throw** is written to the same record `Core\Log` writes, through
     ///   [`crate::floor`], and abandoned — § 5's "logged with the request's
@@ -459,7 +459,7 @@ impl Ctx {
     /// limit that stopped the request in the spelling [`Limit::name`] owns. A
     /// handler declaring no parameter still runs — [`crate::call_closure`] trims
     /// the call to the arity the closure recorded — so the report costs nothing
-    /// to a program that does not read it beyond the two allocations building it.
+    /// to a program that does not read it beyond the allocations building it.
     #[expect(
         unsafe_code,
         reason = "this context owned the reference it just took out of the \
@@ -604,10 +604,9 @@ mod tests {
     /// A closure value declaring one parameter whose `invoke` is a plain Rust
     /// function.
     ///
-    /// [`crate::call_closure`] reads exactly three things off a closure — the
-    /// arity slot, the parameter tags slot, and the `invoke` method's address
-    /// in its class — so a test needs no compiler in front of it to register a
-    /// hook. Everything else in `nvs_ir::lower::lower_closure`'s representation
+    /// [`crate::call_closure`] reads only the arity slot, the parameter tags
+    /// slot, and the `invoke` method's address in its class off a closure — so
+    /// a test needs no compiler in front of it to register a hook. Everything else in `nvs_ir::lower::lower_closure`'s representation
     /// is captured state, and a native callback captures nothing.
     ///
     /// The table is leaked because a descriptor's *address* is its identity and

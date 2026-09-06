@@ -113,13 +113,13 @@ pub const CLOSURE_PARAM_NAMES_SLOT: usize = 2;
 /// tag chosen at run time, so no argument can be wrong for it.
 ///
 /// Fifteen is the **top** of the nibble rather than the first number past the
-/// tag roster, and that is deliberate: it was twelve until `rule:classes/an-unwritten-property-read-throws`'s
-/// never-written storage state took that discriminant ([`Tag::Unset`]), so a
-/// nibble chosen as "one past the last tag" is one that collides the next
-/// time the roster grows. [`Tag::from_byte`] answering `None` for it is half
-/// of `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all`, which is what
-/// caught that collision; `nvs_ir::lower::FN_PARAM_TAG_ANY` is the other end
-/// of the same number and the two are held together by that test.
+/// tag roster, and that is deliberate: the roster grows — `rule:classes/an-unwritten-property-read-throws`'s
+/// never-written storage state ([`Tag::Unset`]) is one of its tags — so a
+/// nibble chosen as "one past the last tag" is one a later tag collides with.
+/// [`Tag::from_byte`] answering `None` for it is half of `nvs-codegen`'s
+/// `the_any_nibble_denotes_no_tag_at_all`, which holds the two apart;
+/// `nvs_ir::lower::FN_PARAM_TAG_ANY` is the other end of the same number and
+/// the two are held together by that test.
 pub const CLOSURE_PARAM_TAG_ANY: u8 = 15;
 
 /// How many parameters [`CLOSURE_PARAM_TAGS_SLOT`] can describe: one nibble

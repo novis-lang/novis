@@ -17,8 +17,8 @@
 //! ## Determinism (§ 3)
 //!
 //! Two builds of the same source produce byte-identical output, because § 4's
-//! diff is worthless otherwise. The emitter has exactly two orderings and both
-//! are [`BTreeMap`]s built here rather than left to the JSON map's own: paths
+//! diff is worthless otherwise. Every ordering the emitter has is a
+//! [`BTreeMap`] built here rather than left to the JSON map's own: paths
 //! sorted by their written text, and the operations within a path sorted by
 //! lowercased verb. Everything else is a fixed member list or the row order the
 //! table was built in, which `rule:programs/implementing` already makes independent of
@@ -78,7 +78,7 @@ const VERSION: &str = "3.1.0";
 pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
     let ids = operation_ids(routes);
 
-    // Both orderings § 3 requires, in the type that holds them, before anything
+    // The orderings § 3 requires, in the type that holds them, before anything
     // is handed to the JSON map — so the sort is this module's own fact rather
     // than a property of whichever map `serde_json` was compiled with.
     //
@@ -340,8 +340,8 @@ fn parameter(param: &RouteParam) -> Value {
 /// `allowed` is [`RouteParam::allowed`], and it *joins* the type mapping rather
 /// than replacing it: `enum` constrains a value, it does not describe one. A
 /// union of literal types has no entry in the list above and never will — its
-/// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so today the
-/// set joins the empty schema and is the whole of what the parameter says,
+/// rendering is `"en"|"de"|"fr"`, which names no JSON Schema type — so the set
+/// joins the empty schema and is the whole of what the parameter says,
 /// which is exactly
 /// `rule:routing/a-capture-narrows-to-a-closed-set`
 /// 's `enum: [en, de, fr]`.

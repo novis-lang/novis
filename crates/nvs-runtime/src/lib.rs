@@ -14,7 +14,7 @@
 //! from [`symbols`]. That keeps this crate testable on its own — every test
 //! below runs without a backend existing at all.
 //!
-//! # The three normative shapes
+//! # The normative shapes
 //!
 //! 1. **The calling convention** is
 //!    `rule:errors/propagation`'s
@@ -31,15 +31,15 @@
 //! 2. **The value representation** is `docs/implementation-plan.md`'s
 //!    § *Value representation*: a 16-byte tagged [`Value`]. Not NaN-boxed —
 //!    PHP semantics need the full `i64` range.
-//! 3. **Memory is refcounted**, copy-on-write. [`NvsStr`] is the first such
-//!    representation to land, and the one the `Hello, World!` slice needs;
-//!    [`NvsObj`] is the second, and [`object`]'s own docs are the one home for
+//! 3. **Memory is refcounted**, copy-on-write. [`NvsStr`] is the string
+//!    representation, and the one the `Hello, World!` slice needs; [`NvsObj`]
+//!    is the instance one, and [`object`]'s own docs are the one home for
 //!    every decision behind it — the field-slot width, the subclass layout
-//!    rule and the opaque [`ClassDesc`]; [`NvsArray`] is the third, and
+//!    rule and the opaque [`ClassDesc`]; [`NvsArray`] is the array one, and
 //!    [`mod@array`]'s own docs are the one home for its ordered hash, its
 //!    consume-one-reference-return-one mutation protocol, and the only place
-//!    "copy-on-write" is literally true today. [`release`] owns the single
-//!    worklist all three are freed through.
+//!    "copy-on-write" is literally true. [`release`] owns the single worklist
+//!    every one of them is freed through.
 //!
 //! # A tagged value's heap half: none
 //!
@@ -95,7 +95,7 @@
 //! every exhaustive match on [`Tag`] grows a row, and the compiler is what
 //! collects that debt rather than a convention anyone has to remember.
 //!
-//! Two readers state a rule of their own rather than copying `string`'s.
+//! A reader may state a rule of its own rather than copying `string`'s.
 //! [`value_to_string`] **refuses** a `bytes`, because `rule:types/conversion` makes
 //! `bytes as string` checked and an implicit `.` or `echo` is not that check;
 //! [`helpers::bytes_to_string`] is that check, reached only from the explicit `as` and
@@ -108,8 +108,8 @@
 //! # What is here, and what is deliberately not
 //!
 //! This is the runtime half of milestone M3's vertical slice (see
-//! `docs/agent/loop-goal.md`), landed before `nvs-codegen` exists because it is
-//! testable without one. It covers exactly:
+//! `docs/agent/loop-goal.md`), and every part of it is testable without a
+//! backend. It covers exactly:
 //!
 //! * the ABI surface — [`OK`]/[`THROWN`]/[`FATAL`], [`Value`], [`Ctx`],
 //!   [`NvsFn`], [`nvs_helper!`], and the safe [`call`] wrapper tests and
@@ -128,9 +128,9 @@
 //!   itself is an ordinary [`ObjHeader`] — see [`throwable`]'s own docs for
 //!   why there is no second representation, which slots the runtime reaches by
 //!   index, and why the backtrace is built as the throw propagates rather than
-//!   at construction. It **subsumes** the message [`Ctx`] used to carry on its
-//!   own rather than sitting beside it — see that module's `Pending` for why
-//!   one field carries both levels of detail;
+//!   at construction. It **subsumes** the bare message rather than sitting
+//!   beside one in [`Ctx`] — see that module's `Pending` for why one field
+//!   carries both levels of detail;
 //! * [`FaultSite`], the closed set of failures a run can be *asked* to
 //!   produce, so a contained engine panic — which has no user-facing trigger
 //!   by definition — is testable at all;
@@ -138,15 +138,15 @@
 //!   representation, with the `nvs_object_new`/`_retain`/`_release`/
 //!   `_instanceof`/`_field_get`/`_field_set`/`_class_name` primitives behind
 //!   `nvs_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
-//!   `InstKind::Call`'s receiver. Landed before `nvs-codegen` can emit any of
-//!   them, for the same reason [`NvsStr`] was: it is testable without a
-//!   backend, and the layout is what codegen queries rather than restates;
+//!   `InstKind::Call`'s receiver. It does not wait on the codegen that emits
+//!   any of them, for [`NvsStr`]'s reason: it is testable without a backend,
+//!   and the layout is what codegen queries rather than restates;
 //! * [`NvsArray`]/[`ArrayHeader`], M4's array representation, with the
 //!   `nvs_array_new`/`_retain`/`_release`/`_get`/`_set`/`_append`/`_unset`/
 //!   `_has_key`/`_count`/`_next_slot`/`_key_at`/`_value_at` primitives behind
 //!   `nvs_ir::InstKind::ArrayNew`/`ArrayGet`/`ArraySet`/`ArrayAppend` and the
-//!   `foreach` cursor. Landed ahead of the codegen that emits them, same as
-//!   the two above;
+//!   `foreach` cursor. Independent of the codegen that emits them, for the
+//!   same reason;
 //! * [`Decimal`], `rule:types/decimal`'s scalar — sign, a 96-bit mantissa and a scale of
 //!   0 to 28, with the whole of § 3's arithmetic and § 4's conversions. It is
 //!   **not a second heap shape or a second register shape**: a `decimal` is a
@@ -175,15 +175,15 @@
 //!   you spend*: at most **~2 MB per thread** that has touched every size
 //!   class — 16 classes of 16 bytes up to 256, 512 blocks each — held until
 //!   the process exits and never returned to the platform. That is a
-//!   priority 5 cost bought with a priority 3 gain measured at 0.31× → 0.54×
-//!   of PHP on the userland suite, and it is **O(threads), never
-//!   O(requests served)**: the cache is not per request, does not grow with
-//!   traffic, and holds no request-owned bytes. A debug build is left on the
-//!   platform heap so valgrind still sees every free, and the `sanitizer`
-//!   feature extends that to this crate's own test binary — the one build
-//!   where the pool would otherwise sit under a memory checker
-//!   (`counting_alloc`). That module's own doc
-//!   owns each of those decisions and is the only place they are argued.
+//!   priority 5 cost bought with a priority 3 gain the userland suite
+//!   measures, and it is **O(threads), never O(requests served)**: the cache
+//!   is not per request, does not grow with traffic, and holds no
+//!   request-owned bytes. A debug build is left on the platform heap so
+//!   valgrind still sees every free, and the `sanitizer` feature extends that
+//!   to this crate's own test binary — the one build where the pool would
+//!   otherwise sit under a memory checker (`counting_alloc`). That module's
+//!   own doc owns each of those decisions and is the only place they are
+//!   argued.
 //!
 //! ## Known gaps
 //!
@@ -193,8 +193,7 @@
 //! 1. **`Closure` and `Resource` have no runtime representation yet**, so
 //!    [`Value::release`] ignores those two tags rather than decrementing
 //!    anything. They exist in [`Tag`] because the plan's § *Value
-//!    representation* names them; nothing constructs one. `Object` and `Array`
-//!    no longer belong on this list — see [`object`] and [`mod@array`].
+//!    representation* names them; nothing constructs one.
 //! 2. **Appending is the only string operation with an in-place fast path.**
 //!    [`nvs_str_append`] writes into its target's spare capacity at a
 //!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
@@ -202,28 +201,29 @@
 //!    allocates its result. That is a widening of [`NvsStr`] wherever a
 //!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
 //!    copy-on-write is the shape it would take.
-//! 3. **`Ctx` carries a coroutine yielder and no request arena, and neither
-//!    is a gap any more.** `Ctx::yielder`/`Ctx::set_yielder` landed with M5's
-//!    scheduler and a helper suspends through them, which is the shape ADR
-//!    0002 § *Consequences* commits to. The arena is not missing but decided
-//!    against: `rule:security/arena-is-an-ownership-root` rejected a region per isolate, and [`object`]'s
-//!    per-context live list plus [`object::sweep`] are what took its place.
+//! 3. **Not a gap: `Ctx` carries a coroutine yielder, and the request arena is
+//!    decided against.** A helper suspends through
+//!    `Ctx::yielder`/`Ctx::set_yielder`, which is the shape ADR 0002
+//!    § *Consequences* commits to. The arena is not missing but refused:
+//!    `rule:security/arena-is-an-ownership-root` rejects a region per isolate, and [`object`]'s
+//!    per-context live list plus [`object::sweep`] are the ownership root
+//!    instead.
 //! 4. **No custom panic hook is installed.** `rule:errors/helper-abi` wants the
 //!    panic message routed to the request log with its request id. The request
-//!    log exists now — `Ctx::write_log_record` under `nvs_stdlib::log` — so
+//!    log is there — `Ctx::write_log_record` under `nvs_stdlib::log` — so
 //!    what is left is the hook itself, and the request id that module's own
 //!    envelope note is waiting on beside it; the default hook's stderr output
 //!    is still the right destination for a CLI script. [`nvs_helper!`] already
 //!    captures the message into [`Ctx`], so the hook is presentation, not
 //!    containment.
-//! 5. **`nvs_safepoint` acts on two of its four flags.** `CPU_LIMIT` and
+//! 5. **`nvs_safepoint` acts on only some of its flags.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; `COLLECT` and `DEBUG_BREAK` are cleared and
 //!    ignored, since neither the cycle collector nor `nvs dap` exists.
 //! 6. **An exception *this crate* builds carries a message and nothing
 //!    else.** [`Thrown::new`] — reached from [`nvs_raise_new`] and from a
 //!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
-//!    and `location`, and leaves `previous` null, because none of the three
-//!    has a value to pass at that point. An exception Novis code constructs is
+//!    and `location`, and leaves `previous` null, because none of them has a
+//!    value to pass at that point. An exception Novis code constructs is
 //!    unaffected: it is an ordinary [`ObjHeader`] built by an ordinary
 //!    constructor, and `nvs_ir::lower` fills `location` at the `throw`. That
 //!    `previous` cannot be set *at all* yet is a different gap, owned by

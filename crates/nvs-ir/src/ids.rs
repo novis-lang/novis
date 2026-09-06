@@ -2,11 +2,12 @@
 //!
 //! `rule:testing/debug-probes`
 //! needs every lowered statement and every conditional CFG edge to carry an id
-//! a coverage/branch probe can address — reserved here from this crate's
-//! first commit because retrofitting it once M3's codegen builds probe sites
-//! on top of the IR would mean re-numbering (and re-validating) every
-//! already-lowered program, exactly the "cheap now, expensive later" case
-//! `docs/implementation-plan.md`'s M2 paragraph calls out by name.
+//! a coverage/branch probe can address, so the ids are reserved here rather
+//! than by the code that consumes them: introducing them once M3's codegen
+//! builds probe sites on top of the IR would mean re-numbering (and
+//! re-validating) every already-lowered program, exactly the "cheap now,
+//! expensive later" case `docs/implementation-plan.md`'s M2 paragraph calls
+//! out by name.
 //!
 //! # Stability
 //!

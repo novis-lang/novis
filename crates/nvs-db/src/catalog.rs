@@ -15,26 +15,24 @@
 //!
 //! The point of keying on [`Dialect`] rather than on
 //! [`Driver`](crate::Driver) is not that the SQL is shared — none of it is —
-//! but that the **rows are**. [`Read`] names the two reads an introspection
-//! makes and [`Read::row`] names the columns each answers, in order, so the
-//! code that turns rows into a schema is written once over positions rather
-//! than five times over one server's column names. Every value that could
-//! differ in spelling is normalised in the statement instead: a boolean is
-//! `0`/`1` on all four, an ordinal is one-based on all four, and the type is
-//! one string in the server's own declared spelling rather than the three or
-//! four `information_schema` columns it is scattered across.
+//! but that the **rows are**. [`Read`] names the reads an introspection makes
+//! and [`Read::row`] names the columns each answers, in order, so the code
+//! that turns rows into a schema is written once over positions rather than
+//! once per server's column names. Every value that could differ in spelling
+//! is normalised in the statement instead: a boolean is `0`/`1` everywhere, an
+//! ordinal is one-based everywhere, and the type is one string in the server's
+//! own declared spelling rather than the `information_schema` columns it is
+//! scattered across.
 //!
-//! Two consequences of that are worth stating because they look like
-//! omissions:
+//! Consequences of that are worth stating because they look like omissions:
 //!
 //! - **The primary key arrives through [`Read::Indexes`], not through
-//!   [`Read::Columns`]** — with `primary` set — because three of the four
-//!   report it as an index and the fourth can be made to. SQLite is the one
-//!   that cannot: an `INTEGER PRIMARY KEY` is the rowid and has no entry in
-//!   `pragma_index_list` at all, so its statement is a `UNION ALL` whose first
-//!   branch synthesises the key from `pragma_table_info`'s `pk` and whose
-//!   second branch drops the `origin = 'pk'` index that would otherwise report
-//!   it twice.
+//!   [`Read::Columns`]** — with `primary` set — because a server reports it as
+//!   an index, or can be made to. SQLite is the one that has to be made to: an
+//!   `INTEGER PRIMARY KEY` is the rowid and has no entry in `pragma_index_list`
+//!   at all, so its statement is a `UNION ALL` whose first branch synthesises
+//!   the key from `pragma_table_info`'s `pk` and whose second branch drops the
+//!   `origin = 'pk'` index that would otherwise report it twice.
 //! - **SQL Server's index read is the one statement that reaches `sys`.** Its
 //!   `INFORMATION_SCHEMA` has views for constraints and none for indexes, so a
 //!   plain non-unique index is invisible there. Its *column* read is
@@ -64,14 +62,14 @@
 //!    cost is the other way round: a plan that creates an index whose name is
 //!    already taken by a partial one fails on the server rather than in the
 //!    plan.
-//! 2. **SQL Server's type spelling is assembled from three columns and covers
-//!    lengths and `decimal` only.** `DATETIME_PRECISION` is not folded in, so a
-//!    `datetime2(7)` reads back as `datetime2`. That is § 5's normalisation to
-//!    own rather than this module's, since the write direction in
-//!    [`crate::ddl`] emits one precision for every instant column.
+//! 2. **SQL Server's type spelling is assembled out of the catalog's separate
+//!    columns and covers lengths and `decimal` only.** `DATETIME_PRECISION` is
+//!    not folded in, so a `datetime2(7)` reads back as `datetime2`. That is
+//!    § 5's normalisation to own rather than this module's, since the write
+//!    direction in [`crate::ddl`] emits one precision for every instant column.
 //! 3. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
-//!    The map back is not injective — three of the four dialects have no
-//!    unsigned integer and spell one as the width above it — so a column
+//!    The map back is not injective — a dialect with no unsigned integer
+//!    spells one as the width above it — so a column
 //!    written as `uint32` reads back as `int64` and the plan is empty only
 //!    once § 5 normalises the *declared* side the same way. Every case is
 //!    named in that function's own doc; nothing here hides one.
@@ -79,12 +77,12 @@
 //!    [`unquote`] falls back to the whole string where a server printed no
 //!    quotes, because MySQL's `information_schema` prints a literal that way —
 //!    but PostgreSQL, SQL Server and SQLite always quote a string default, so
-//!    on those three an unquoted spelling is an *expression* and reading it as
-//!    a value is the direction [`column_default`]'s own doc calls
-//!    unrecoverable: the plan then proposes a default the server will never
-//!    report back, and no number of applies converges. Narrowing the fallback
-//!    to the dialect that needs it is a change to that function and the three
-//!    tests over it, not to [`assemble`].
+//!    on those an unquoted spelling is an *expression* and reading it as a
+//!    value is the direction [`column_default`]'s own doc calls unrecoverable:
+//!    the plan then proposes a default the server will never report back, and
+//!    no number of applies converges. Narrowing the fallback to the dialect
+//!    that needs it is a change to that function and the tests over it, not to
+//!    [`assemble`].
 //! 5. **The read is one schema deep.** A PostgreSQL search path with two
 //!    schemas on it, or a SQL Server object under a schema other than the
 //!    login's default, is out of view. § 11 has no cross-schema construct, so
@@ -97,9 +95,8 @@ use crate::sql::Dialect;
 
 /// One of the two reads an introspection makes.
 ///
-/// Each answers a fixed row shape — [`Read::row`] — that is the same on all
-/// five drivers, which is what lets the assembly above this module be written
-/// once.
+/// Each answers a fixed row shape — [`Read::row`] — that is the same on every
+/// driver, which is what lets the assembly above this module be written once.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Read {
     /// Every column of every base table, one row each.
@@ -122,10 +119,10 @@ impl Read {
     /// it. The bug is invisible against an empty database, where there are no
     /// rows to collapse.
     ///
-    /// The `nvs_` prefix is what makes one alias legal on all five backends
+    /// The `nvs_` prefix is what makes one alias legal on every backend
     /// unquoted: `table`, `column`, `type`, `default`, `index`, `unique` and
-    /// `primary` are reserved words somewhere, and the five do not agree on how
-    /// an identifier is delimited — which is the same wall
+    /// `primary` are reserved words somewhere, and the backends do not agree on
+    /// how an identifier is delimited — which is the same wall
     /// `Core\Db::quoteIdentifier` states.
     ///
     /// - [`Read::Columns`] — `nvs_table`, `nvs_column`, `nvs_ordinal` (one-based
@@ -174,7 +171,7 @@ impl Read {
 /// Keyed on [`Dialect`] and never on [`Driver`](crate::Driver), as
 /// [`crate::ddl`] is: MariaDB reads MySQL's `information_schema` with the same
 /// text, and `the_catalog_queries_follow_dialect_rather_than_driver` asserts
-/// that as an agreement over all five drivers.
+/// that as an agreement over every driver.
 #[must_use]
 pub fn query(read: Read, dialect: Dialect) -> &'static str {
     match (read, dialect) {
@@ -434,13 +431,13 @@ ORDER BY 1, 2, 4"#;
 ///
 /// # The map is not injective, and these are the choices it makes
 ///
-/// The emitter writes one spelling for two types in six places, so reading is
-/// a choice and each one costs a normalisation § 5 must make on the declared
-/// side for the round trip to be empty:
+/// The emitter writes one spelling for two types in the places below, so
+/// reading is a choice and each one costs a normalisation § 5 must make on the
+/// declared side for the round trip to be empty:
 ///
 /// - **`INTEGER`/`INT` is [`IntWidth::Normal`] signed, and `BIGINT` is
-///   [`IntWidth::Big`] signed**, on the three dialects with no unsigned
-///   integer. A `uint16` reads back as `int32` and a `uint32` as `int64` —
+///   [`IntWidth::Big`] signed**, on the dialects with no unsigned integer. A
+///   `uint16` reads back as `int32` and a `uint32` as `int64` —
 ///   the server genuinely holds the wider column, so the *reading* is right
 ///   and it is the declared side that has to be widened before the diff.
 /// - **`NUMERIC(20, 0)`/`DECIMAL(20, 0)` is a [`ScalarType::Decimal`]**, never
@@ -669,8 +666,8 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 /// any other way would need to know what the server meant, which is the
 /// question § 4 refuses to answer with a parser.
 ///
-/// Three wrappers are the server's and were never written by an emitter, and
-/// each is removed before the literal is read:
+/// The wrappers below are the server's and never an emitter's, and each is
+/// removed before the literal is read:
 ///
 /// - **SQL Server parenthesises a default, sometimes twice** — `((0))`,
 ///   `(N'hi')`, `(getdate())` — and the parentheses carry no meaning.
@@ -726,7 +723,7 @@ pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Opti
         _ => return None,
     };
     // The one rule, and the same one the builder applies: a literal that could
-    // not have been written on all five backends is not one an introspection
+    // not have been written on every backend is not one an introspection
     // invents either.
     default.fits(ty).then_some(default)
 }
@@ -782,8 +779,8 @@ fn strip_cast(text: &str) -> &str {
     text
 }
 
-/// The spellings the five servers print for `CURRENT_TIMESTAMP`, with the
-/// precision one of them adds ignored.
+/// The spellings a server prints for `CURRENT_TIMESTAMP`, with the precision
+/// some of them add ignored.
 fn is_now(text: &str) -> bool {
     let lower = text.to_ascii_lowercase();
     let head = lower
@@ -838,8 +835,8 @@ fn unquote(text: &str, dialect: Dialect) -> Option<String> {
 /// The fields are [`Read::row`]'s positions in order, and each carries the
 /// neutral type rather than any driver's value — `nvs-db` exports `PgRow`,
 /// `MySqlRow` and `SqliteValue` and nothing common, so a row of a catalog read
-/// is read by `nvs-stdlib` off whichever of the five answered and filled in
-/// here. That is what lets [`assemble`] be one function instead of five, and
+/// is read by `nvs-stdlib` off whichever driver answered and filled in here.
+/// That is what lets [`assemble`] be one function rather than one per driver, and
 /// what keeps this crate sans-io per `rule:core-classes/db-drivers-are-an-enum`: the statement is text, the row
 /// is a struct, and neither end of the module touches a socket.
 ///
@@ -909,8 +906,8 @@ pub struct IndexRow {
 ///
 /// # What is refused, and what is merely dropped
 ///
-/// Two of the three answers a row can be unreadable in are not the same kind of
-/// mistake, and the direction of the error is what separates them:
+/// The answers a row can be unreadable in are not the same kind of mistake,
+/// and the direction of the error is what separates them:
 ///
 /// - **A type spelling outside the vocabulary fails the whole read**, as
 ///   [`SchemaError::UnknownType`]. Dropping the column instead would
@@ -931,8 +928,8 @@ pub struct IndexRow {
 ///
 /// [`SchemaError::UnknownType`] as above, and every refusal the builders state
 /// — a name that is not a bare identifier, a duplicate key name, an identity
-/// column outside its primary key. A server can hold all three; this is where
-/// they are found rather than at the sink.
+/// column outside its primary key. A server can hold any of them; this is
+/// where they are found rather than at the sink.
 pub fn assemble(
     columns: &[ColumnRow],
     indexes: &[IndexRow],
@@ -1013,10 +1010,10 @@ mod tests {
     use crate::ddl;
     use crate::schema::Ident;
 
-    /// The two reads, in the order [`Read`] declares them.
+    /// Every read, in the order [`Read`] declares them.
     const READS: [Read; 2] = [Read::Columns, Read::Indexes];
 
-    /// The four dialects, in the order [`Dialect`] declares them.
+    /// Every dialect, in the order [`Dialect`] declares them.
     const DIALECTS: [Dialect; 4] = [
         Dialect::PostgreSql,
         Dialect::MySql,
@@ -1055,10 +1052,11 @@ mod tests {
 
     #[test]
     fn the_catalog_queries_follow_dialect_rather_than_driver() {
-        // An agreement rather than eight expected texts: MariaDB and MySQL are
-        // two drivers for their authentication plugins and error tables, and
-        // neither of those reaches a catalog query. The other four pairings
-        // must differ, or a dialect would be reading a catalog it has not got.
+        // An agreement rather than a table of expected texts: MariaDB and
+        // MySQL are two drivers for their authentication plugins and error
+        // tables, and neither of those reaches a catalog query. Every other
+        // pairing must differ, or a dialect would be reading a catalog it has
+        // not got.
         const DRIVERS: [Driver; 5] = [
             Driver::Postgres,
             Driver::MySql,
@@ -1301,12 +1299,12 @@ mod tests {
     /// spelling that emitter writes.
     ///
     /// Asserted as a **round trip over the emitters** rather than as a table
-    /// of eighty expected names, because the map is deliberately not injective
-    /// — `INTEGER` is both `int32` and `uint16` on three of the four — and a
-    /// table would have to state the choice twice, once here and once in the
-    /// map. What matters is not which of the two comes back but that what
-    /// comes back is the **same column**: its own emission must be the string
-    /// that was read.
+    /// of expected names, because the map is deliberately not injective —
+    /// `INTEGER` is both `int32` and `uint16` wherever there is no unsigned
+    /// integer — and a table would have to state the choice twice, once here
+    /// and once in the map. What matters is not which of the two comes back but
+    /// that what comes back is the **same column**: its own emission must be
+    /// the string that was read.
     #[test]
     fn every_catalog_spelling_the_emitter_wrote_reads_back_as_its_own_type() {
         let types = every_type();
@@ -1410,8 +1408,8 @@ mod tests {
         }
     }
 
-    /// Every case of § 2's closed set, on a type it fits, with the two text
-    /// values that carry an escape.
+    /// Every case of § 2's closed set, on a type it fits, with the text values
+    /// that carry an escape.
     fn every_default() -> Vec<(ColumnDefault, ScalarType)> {
         vec![
             (ColumnDefault::Int(-7), ScalarType::Int(IntWidth::Big)),
@@ -1474,8 +1472,8 @@ mod tests {
         }
     }
 
-    /// The three wrappers a server adds that no emitter wrote, and the
-    /// expressions that are refused rather than guessed at.
+    /// The wrappers a server adds that no emitter wrote, and the expressions
+    /// that are refused rather than guessed at.
     #[test]
     fn a_default_is_read_in_the_servers_words_and_not_the_emitters() {
         let text20 = ScalarType::Text { max: Some(20) };
@@ -1576,8 +1574,8 @@ mod tests {
     /// identity primary key, a composite one, a unique constraint, a plain
     /// index, a nullable column and both kinds of default.
     ///
-    /// It carries **no `uint` and no bounded `bytes`**, which are the two
-    /// families where what comes back depends on which server answered —
+    /// It carries **no `uint` and no bounded `bytes`**, the families where
+    /// what comes back depends on which server answered —
     /// `scalar_type`'s own doc names every case, and § 5 owes the declared
     /// side the same normalisation. A fixture carrying one would be asserting
     /// that gap closed rather than that the assembly is one function.
@@ -1627,9 +1625,9 @@ mod tests {
     /// positions.
     ///
     /// The type and the default are [`ddl`]'s own spellings, which makes the
-    /// assertion below a round trip over the emitters rather than a table of a
-    /// hundred strings written out twice. Two things are deliberately hostile:
-    /// the ordinals are **gapped**, because PostgreSQL leaves a hole in
+    /// assertion below a round trip over the emitters rather than a table of
+    /// strings written out twice. The rows are deliberately hostile: the
+    /// ordinals are **gapped**, because PostgreSQL leaves a hole in
     /// `attnum` where a column was dropped and an assembly indexing with one
     /// would lose a column on any altered table, and the rows of each group
     /// arrive **backwards**, because the ordinal is what orders them and not
@@ -1706,12 +1704,12 @@ mod tests {
         rows
     }
 
-    /// `rule:core-classes/schema-introspection`: the two reads answer one [`Schema`], whichever of the five
-    /// drivers answered them.
+    /// `rule:core-classes/schema-introspection`: the two reads answer one [`Schema`], whichever driver
+    /// answered them.
     ///
     /// The claim is an **agreement across the drivers**, not a value written
     /// out here: each server is handed the spelling [`ddl`] wrote for it, and
-    /// all five must arrive back at the schema that produced it. A reader that
+    /// every one must arrive back at the schema that produced it. A reader that
     /// grew a per-server special case still passes its own dialect's round
     /// trip and fails here.
     #[test]
@@ -1836,8 +1834,8 @@ mod tests {
     /// emitted and applied again, must be answered back unchanged. That is the
     /// half of § 5's acceptance criterion this crate can prove alone. The
     /// other half — that the value applied and the value read are the same
-    /// schema — is § 5's normalisation, and the three places it is owed here
-    /// are pinned below rather than left for it to discover.
+    /// schema — is § 5's normalisation, and the places it is owed here are
+    /// pinned below rather than left for it to discover.
     #[test]
     fn a_schema_applied_to_sqlite_assembles_back_into_itself() {
         let applied = Schema::new(sqlite_fixture()).unwrap();
@@ -1875,12 +1873,12 @@ mod tests {
             "the composite key lost its order"
         );
 
-        // The three differences from the value that was applied, none of them
-        // this module's to hide. § 5 normalises each out of the *comparison*
+        // The differences from the value that was applied, none of them this
+        // module's to hide. § 5 normalises each out of the *comparison*
         // and not out of the value — `crate::plan`'s `same_key` and
         // `same_column` are where, and
         // `an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite` is
-        // what that buys — so all three are still true of what a read answers,
+        // what that buys — so each is still true of what a read answers,
         // and a session that changes the read itself fails here.
         assert_eq!(
             read.tables()
@@ -1918,10 +1916,10 @@ mod tests {
     /// the two is **empty**.
     ///
     /// This is the property the whole goal reduces to, and the reason every
-    /// normalisation in [`crate::plan::diff`] exists — the three differences
+    /// normalisation in [`crate::plan::diff`] exists — the differences
     /// `a_schema_applied_to_sqlite_assembles_back_into_itself` pins in the
-    /// *value* are the three this asserts are not differences in the *plan*.
-    /// The other four backends ask the same question of a container, and
+    /// *value* are what this asserts are not differences in the *plan*. The
+    /// other backends ask the same question of a container, and
     /// `docs/agent/loop-goal.toml` runs those.
     #[test]
     fn an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite() {

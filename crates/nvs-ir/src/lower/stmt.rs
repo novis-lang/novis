@@ -1,10 +1,8 @@
 //! Statement lowering — the dispatch every statement kind goes through, plus assignment and `unset`.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)`, so they reach across these modules and no further.
 
 use super::*;
 
@@ -58,7 +56,7 @@ impl<'a> Lowering<'a> {
                 break;
             }
             self.lower_stmt(stmt, cur, env);
-            // Every `inout $x` argument is copied back at its own call now, so the
+            // Every `inout $x` argument is copied back at its own call, so the
             // list is empty again by the time the statement ends. A leftover
             // means some call site lowered an argument list without flushing
             // its own `pending_refs_mark` — an internal inconsistency rather
@@ -239,31 +237,29 @@ impl<'a> Lowering<'a> {
             StmtKind::Destructure { target, value } => {
                 self.lower_destructure(target, value, cur, env);
             }
-            // Nothing the checker accepts reaches this arm any more, and the
-            // proof is the roster rather than the message below it.
-            // `StmtKind` has 31 variants; the arms above cover 18 of them,
-            // plus three of `LocalDecl`'s four shapes. Of the thirteen with no
-            // arm and the one `LocalDecl` shape:
+            // Nothing the checker accepts reaches this arm, and the proof is
+            // the roster rather than the message below it. The arms above
+            // cover every `StmtKind` a body can hold, and every `LocalDecl`
+            // shape but one. Of what is left:
             //
             // * `global`, `goto` and a function-scope `static` are reported by
             //   the parser that built them (`rule:statements/no-function-static-and-no-global`), and `Error` is a
-            //   parse error already reported — none of the four survives to a
+            //   parse error already reported — none of them survives to a
             //   compilation that lowers.
             // * `var $x;` with no initializer is `E0101` at the missing `=`;
             //   `var` has nothing else to infer a type from.
             // * a top-level `function` or `const` is `E0215`/`E0216` from
             //   `nvs_hir::members` at every scope (`rule:classes/no-free-functions-or-constants`).
-            // * the remaining seven are declarations — `class`, `interface`,
+            // * the rest are declarations — `class`, `interface`,
             //   `enum`, `type`, `namespace`, `use` and `autoload`. At file
-            //   scope `lower_script_stmts` above skips all seven; anywhere
+            //   scope `lower_script_stmts` above skips them; anywhere
             //   else they are `E0233` from `nvs_types::locals`, whose walk is
             //   reached only from inside a body. The decision is in
             //   `docs/adr/README.md` § *Decisions taken at project start*,
             //   since PHP's "declared when the statement runs" has no reading
             //   a static table built before any code runs can give it.
             //
-            // `rule:types/grammar`.3's destructuring, the other shape that used to
-            // arrive here, lowers one arm above.
+            // `rule:types/grammar`.3's destructuring lowers one arm above.
             other => panic!(
                 "nvs-ir's control-flow slice only lowers a typed local declaration with or \
                  without an initializer, a plain reassignment, destructuring, `echo`, inline \
@@ -480,8 +476,8 @@ impl<'a> Lowering<'a> {
     /// `f()->count += 1` would call `f()` twice where PHP calls it once.
     ///
     /// **`.=` on a plain `string` local is the one exception**, and it takes
-    /// [`Self::lower_string_append`] instead. The rewrite is correct for it —
-    /// it is what this function did until the append existed — but its
+    /// [`Self::lower_string_append`] instead. The rewrite would be correct for
+    /// it, but its
     /// `InstKind::Concat` can only build a fresh buffer and copy the whole
     /// accumulation into it, so `$out .= $piece` in a loop is quadratic in the
     /// number of appends. Every other target keeps the rewrite, because a
@@ -651,9 +647,9 @@ impl<'a> Lowering<'a> {
         };
         let (new, new_ty) = self.lower_expr(&combined, Some(old_ty), env, cur);
         // The read and the `1` are dropped before the write: the store lowers
-        // the target's own sub-expressions again — which is what keeps a plain
-        // `=` emitting exactly what it always did — and those are the entries
-        // that have to still be standing when it does.
+        // the target's own sub-expressions again — which is where a plain `=`
+        // lowers its own — and those are the entries that have to still be
+        // standing when it does.
         self.unstage_to(reads);
         let (new, new_ty) =
             self.lower_store(target, &Stored::Value(new, new_ty), extra_owner, env, cur);
@@ -693,9 +689,9 @@ impl<'a> Lowering<'a> {
     /// rewrite would otherwise evaluate twice, and stages the results — see
     /// [`Self::staged_targets`].
     ///
-    /// Only what [`Self::reevaluable_target`] refuses is staged, so a target
-    /// that already lowered before this existed emits exactly the instructions
-    /// it emitted then. A refcounted one goes on [`Self::owned_temporaries`]:
+    /// Only what [`Self::reevaluable_target`] refuses is staged, so a
+    /// re-readable target emits exactly the instructions it would with no
+    /// staging at all. A refcounted one goes on [`Self::owned_temporaries`]:
     /// it is a fresh producer with no other owner — that is precisely why it
     /// could not be re-read — so this frame owes its release, on the throwing
     /// edge as much as the normal one.
@@ -721,7 +717,7 @@ impl<'a> Lowering<'a> {
     /// evaluated once is the receiver underneath it; the level itself names a
     /// *slot*, and staging its value would hide that slot from
     /// [`Self::write_back_array`], which re-points the holder by lowering the
-    /// receiver again. Staging the read instead of the receiver is what made
+    /// receiver again. Staging the read instead of the receiver would make
     /// `$b->self()->rows["k"] .= "x"` call `self()` twice — once for the read
     /// and once for the write-back — where PHP calls it once.
     fn stage_address_of(&mut self, e: &Expr, env: &mut Env, cur: &mut BlockId) {
@@ -813,8 +809,8 @@ impl<'a> Lowering<'a> {
     /// [`Self::lower_compound_assignment`]'s `.=`-on-a-`string`-local fast
     /// path: [`Self::lower_string_append`] re-points the holder in place and
     /// has no value to hand back, and a `.=` in value position is rare enough
-    /// that the general rewrite — which is what that fast path replaced, and
-    /// is correct — is the right trade against a second append lowering.
+    /// that the general rewrite — which is correct for it — is the right trade
+    /// against a second append lowering.
     ///
     /// **Unlike an increment, this owes a retain.** `rule:types/arithmetic` leaves an
     /// increment only non-refcounted targets, but an assignment's target is
@@ -866,9 +862,9 @@ impl<'a> Lowering<'a> {
     /// Split out because a read-modify-write has no right-hand-side
     /// expression to hand this — its value is already in a register by the
     /// time the store runs ([`Self::lower_read_modify_write`]). The target's
-    /// own sub-expressions are still lowered *here*, at the point in the
-    /// evaluation order they have always been lowered at, so a plain `=` emits
-    /// exactly the instructions it did before the split; for the
+    /// own sub-expressions are lowered *here*, at their own point in the
+    /// evaluation order, so a plain `=` emits exactly the instructions that
+    /// order calls for and nothing more; for the
     /// read-modify-write path they are staged
     /// ([`Self::staged_targets`]) and this second lowering costs nothing and
     /// runs nothing twice.
@@ -998,7 +994,7 @@ impl<'a> Lowering<'a> {
                 // receiver's — a plain `object` and a `mixed` both record the
                 // same variant — so § 4's write half, incoming-value check
                 // included, is here rather than in the `panic!` below, which
-                // now has no reachable target at all.
+                // has no reachable target at all.
                 if let Some(ExprInfo::ShapeProperty { name, slot, ty }) =
                     self.exprs.lookup(target.span)
                 {

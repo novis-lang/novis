@@ -1,8 +1,7 @@
 //! Integer arithmetic whose edges diverge from a native instruction — `%`'s signs, a divisor that throws rather than traps, `rule:types/arithmetic`'s overflow throw, and the integer compare an enum pair reaches one representation down.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -24,7 +23,7 @@ fn integer_modulo_answers_php_s_value_for_every_sign() {
 
 #[test]
 fn a_modulo_by_minus_one_answers_zero_rather_than_trapping() {
-    // `i64::MIN % -1` is the second input `srem` traps on, and a trap takes
+    // `i64::MIN % -1` is the other input `srem` traps on, and a trap takes
     // the whole process down. It is *not* an overflow — `x % -1` is `0` for
     // every `x`, which is representable, and PHP 8 answers `0` — so
     // `Emitter::emit_int_mod` rewrites the divisor rather than throwing.
@@ -38,8 +37,8 @@ fn a_modulo_by_minus_one_answers_zero_rather_than_trapping() {
 
 #[test]
 fn a_modulo_by_zero_throws_arithmetic_error_rather_than_trapping() {
-    // The whole reason this operator waited for the throw path: `srem` on a
-    // zero divisor traps, which is a request-isolation failure rather than a
+    // The whole reason this operator needs the throw path: `srem` on a zero
+    // divisor traps, which is a request-isolation failure rather than a
     // wrong answer. The message is PHP's own, and the class is spec § 10's
     // `ArithmeticError` — raised by naming a descriptor from the inline code,
     // since there is no helper call here to carry a `Fault` out of.
@@ -194,7 +193,7 @@ echo ($s != Signal::Go) as string;
         ),
         "1||1"
     );
-    // `rule:enums/one-backing-type`'s second backing type, at a value with no `int`: the other
+    // `rule:enums/one-backing-type`'s unsigned backing type, at a value with no `int`: the other
     // `EnumRepr` arm, and the one that would silently fall through to a
     // `Ty::Enum` compare if only the signed row were relabelled.
     assert_eq!(
@@ -212,7 +211,7 @@ echo ($m != Mask::None) as string;
 
 #[test]
 fn an_integer_subtraction_and_multiplication_trap_on_overflow() {
-    // The other two binary rows and the unary one, each named at the value
+    // The remaining binary rows and the unary one, each named at the value
     // that has no answer. `-i64::MIN` is the whole reason unary `-` joined the
     // checked set: it is the one `int` whose negation is not an `int`.
     assert_eq!(
@@ -281,7 +280,7 @@ try {
         "caught: Integer negation overflowed"
     );
     // One step inside each bound still answers, so "refuse everything" is not
-    // a way to pass the three assertions above.
+    // a way to pass the assertions above.
     assert_eq!(
         output_of(
             "<?nvs
@@ -304,16 +303,16 @@ echo $a * $b;
     );
 }
 
-/// `rule:classes/ordering-lowers-to-compare-to`'s `<=>` over a *scalar*, which until now had only an object
+/// `rule:classes/ordering-lowers-to-compare-to`'s `<=>` over a *scalar*, beside its object
 /// row: `-1`, `0` or `1` as an `int`, never the operands' own type, over every
 /// representation the relational operators already order.
 ///
 /// Swept rather than spot-checked, because what is being pinned is that the
-/// three routes into this operator — the inline `BinOp::Cmp` for a matched
-/// pair, `Helper::NumericCmp` for a mixed numeric one and `Helper::DecimalCmp`
-/// for a `decimal` — **agree**, rather than what any one of them answered.
+/// routes into this operator — the inline `BinOp::Cmp` for a matched pair,
+/// `Helper::NumericCmp` for a mixed numeric one and `Helper::DecimalCmp` for a
+/// `decimal` — **agree**, rather than what any one of them answers.
 ///
-/// The `NaN` row is the one that had a choice to make, and it is why the
+/// The `NaN` row is the one with a choice to make, and it is why the
 /// emission is a three-way "less, else equal, else 1" and not the tidier
 /// `(a > b) - (a < b)`: PHP answers `1` for an unordered pair, and the
 /// arithmetic formula would answer `0` — that is, "equal" — for two values
@@ -344,9 +343,9 @@ fn a_spaceship_answers_minus_one_zero_or_one_for_a_scalar() {
     // `float` throws above 2^53, and a pair that far apart still orders.
     assert_eq!(output_of("<?nvs\necho 1 <=> 1.5, 2.5 <=> 2;\n"), "-11");
     // Unordered, in both directions and against itself. The `NaN` comes from
-    // the constant and not from `0.0 / 0.0`, which `rule:types/arithmetic` now makes a
+    // the constant and not from `0.0 / 0.0`, which `rule:types/arithmetic` makes a
     // throw — the zero divisor is refused before the operand types are
-    // consulted, so there is no float division left that answers one.
+    // consulted, so no float division answers one.
     assert_eq!(
         output_of(
             "<?nvs\nfloat $n = Core\\Math::NAN;\nfloat $x = 1.5;\n\

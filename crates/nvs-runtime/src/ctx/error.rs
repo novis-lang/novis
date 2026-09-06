@@ -103,9 +103,9 @@ impl ErrorClass {
 /// What is behind a pending non-[`crate::OK`] status.
 ///
 /// One field on [`Ctx`], not two: the exception object **subsumes** the
-/// message a [`crate::Fault`] used to leave behind, rather than sitting beside
-/// it. Two fields would mean two places to ask "what failed", and every read
-/// would have to state which one wins.
+/// message a [`crate::Fault`] leaves behind, rather than sitting beside it.
+/// Two fields would mean two places to ask "what failed", and every read would
+/// have to state which one wins.
 ///
 /// The two variants are not two kinds of failure — they are the same failure
 /// at two levels of detail:
@@ -114,9 +114,10 @@ impl ErrorClass {
 ///   every [`crate::FATAL`] produce. It allocates nothing when the message is
 ///   `'static`, which is the property
 ///   `rule:errors/throw-is-not-slower`
-///   depends on: `benches/abi-probe` measured a throw at 2.8x a normal return
-///   with an allocating message and *cheaper* than a return without one, and
-///   PHP code throws on ordinary control-flow paths.
+///   depends on: `benches/abi-probe` measures a throw against a normal return,
+///   and where the message allocates a throw costs a multiple of one while a
+///   `'static` message makes it *cheaper* than one — and PHP code throws on
+///   ordinary control-flow paths.
 /// * [`Pending::Thrown`] is what Novis's own `throw` produces, and the only one
 ///   carrying a backtrace. A `Message` is promoted to one on demand — by
 ///   [`Ctx::take_thrown`] when a `catch` dispatch takes it, or by
@@ -206,9 +207,9 @@ impl Ctx {
     /// table*: every other § 10 class is reached from it by name
     /// ([`ErrorClass::sibling`]), so a helper that throws a
     /// [`ThrownClass::Parse`] needs no second installation call. One handle
-    /// rather than six because the six are not independent — they all come
-    /// from the one table a `Unit` owns, and installing a subset would make
-    /// "which classes can this request throw" a property of the embedder.
+    /// rather than one per class because they are not independent — they all
+    /// come from the one table a `Unit` owns, and installing a subset would
+    /// make "which classes can this request throw" a property of the embedder.
     ///
     /// A caller that never installs one gets the degraded behaviour
     /// [`Pending`] describes, never a crash.
@@ -224,9 +225,9 @@ impl Ctx {
     /// naming a class the receiving side cannot resolve, which is a question
     /// only the compiled unit's own table can answer. It reads the table
     /// [`Self::set_runtime_error_class`] installed rather than a second
-    /// registration, for that method's own reason — the six § 10 classes and
-    /// every class the program declares are all rows of one table, and a
-    /// second handle on it would be a second thing to keep in step.
+    /// registration, for that method's own reason — § 10's classes and every
+    /// class the program declares are all rows of one table, and a second
+    /// handle on it would be a second thing to keep in step.
     ///
     /// The pointer is live for as long as this context is: the handle shares
     /// ownership of the table ([`ErrorClass`]).
@@ -308,9 +309,9 @@ impl Ctx {
     /// Records a `THROWN` of `class` carrying `message`, with each pair in
     /// `slots` written into that slot of the object it builds —
     /// [`crate::Fault::ThrownWithSlots`]' one destination, and so the whole of
-    /// how a native member fills a property below `Throwable`'s four
-    /// (`ParseError::$issues`, `Core\Db\DbError::$kind` and the raw
-    /// `$sqlState` beside it).
+    /// how a native member fills a property of a subclass's own, below the
+    /// ones `Throwable` declares (`ParseError::$issues`,
+    /// `Core\Db\DbError::$kind` and the raw `$sqlState` beside it).
     ///
     /// The object is built **here** rather than left as a [`Pending::Message`]
     /// to be promoted later, which is what keeps the pending state free of an

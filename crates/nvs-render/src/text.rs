@@ -4,8 +4,8 @@
 //! 's, unchanged, and the bidi rule is
 //! `rule:security/bidi-predicate`'s
 //! predicate called rather than restated. What `rule:errors/diagnostic-record` adds is *where* they
-//! run: on the way into the record, not on the way out of a rendering, so all
-//! three renderings inherit one answer and none may weaken it.
+//! run: on the way into the record, not on the way out of a rendering, so
+//! every rendering inherits one answer and none may weaken it.
 //!
 //! # Why the JSON rendering pays for it too
 //!

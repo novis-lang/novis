@@ -1,11 +1,11 @@
 //! SQLite: a file rather than a socket, so every call goes to `nvs-host`'s
 //! blocking pool and the rows are in hand before the core is taken back.
 //!
-//! This is the fifth driver and the only one whose shape is not
+//! This is the one driver whose shape is not
 //! `rule:core-classes/db-crate-boundary`'s borrowed codec over § 3's parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
-//! the four things the other four get from their own machinery — § 3's
+//! what every other driver gets from its own machinery — § 3's
 //! handoff off the core, `rule:core-classes/db-statement-members`'s
 //! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
 //! nesting with the § 13 reset that closes it.
@@ -17,7 +17,7 @@
 //! neither of which the kernel will report as readiness, so this driver has only
 //! the second. [`nvs_host::blocking::run`] takes `FnOnce() -> T + Send +
 //! 'static`, and that bound is the whole reason this module's surface differs
-//! from the other four's:
+//! from every other driver's:
 //!
 //! - **The handle is an `Arc<Mutex<rusqlite::Connection>>`.** A
 //!   `rusqlite::Connection` is `Send` and not `Sync`, so an `Arc` alone will not
@@ -25,7 +25,7 @@
 //!   that two callers may hold it. It is never contended — § 4's [`State`] gives
 //!   one request the connection at a time — so the cost is one uncontended
 //!   atomic per statement.
-//! - **Parameters arrive owned**, `Vec<SqliteValue>` where the other four take
+//! - **Parameters arrive owned**, `Vec<SqliteValue>` where the others take
 //!   `&[Option<&[u8]>]` of already-encoded wire bytes. A borrowed slice cannot
 //!   be `'static`, and copying one per statement to satisfy the bound would be a
 //!   copy nobody asked for: `nvs-stdlib` builds this vector out of the call's own
@@ -253,15 +253,15 @@ impl rusqlite::types::ToSql for SqliteValue {
 
 /// One bound parameter as the storage class SQLite will hold it in —
 /// [`crate::encode`]'s, [`crate::mysql::encode`]'s and [`crate::tds::encode`]'s
-/// opposite number, and the one of the four that renders no text at all.
+/// opposite number, and the one that renders no text at all.
 ///
-/// The other three answer octets because their protocols carry a parameter as
+/// The others answer octets because their protocols carry a parameter as
 /// octets. SQLite carries a *value*, so this converts rather than renders and
 /// [`SqliteValue`]'s five arms are the whole target — which is also why it
 /// answers a bare [`SqliteValue`] where the others answer `Option<Vec<u8>>`:
 /// `NULL` is a storage class here rather than the absence of one.
 ///
-/// Four of the arms are decisions and not mappings:
+/// These arms are decisions and not mappings:
 ///
 /// - **A `bool` is `1`/`0`.** SQLite has no boolean storage class and its own
 ///   `true` and `false` keywords *are* the integers, so this is the engine's
@@ -384,7 +384,7 @@ impl SqliteColumn {
     /// column, off the *declared* name — the one backend where that is the only
     /// thing to key on.
     ///
-    /// The other four drivers read a type code the server sent and the value's
+    /// The other drivers read a type code the server sent and the value's
     /// encoding follows from it. SQLite has five storage classes and a value
     /// carries its own, so `20260903` in a column declared `date` arrives as an
     /// `INTEGER` and `'2026-09-03'` in the same column arrives as `TEXT`.
@@ -403,7 +403,7 @@ impl SqliteColumn {
     /// give it. Order matters inside the first group too: `DATETIME` and
     /// `TIMESTAMP` are checked before `TIME`, and `DATETIME` before `DATE`.
     ///
-    /// Three answers this map deliberately does not give:
+    /// The answers this map deliberately does not give:
     ///
     /// - **Never [`ColumnType::Uint`].** SQLite has no unsigned storage class,
     ///   and a column declared `UNSIGNED BIG INT` — a real spelling from
@@ -519,8 +519,8 @@ impl Drop for SqliteRows<'_> {
 /// The open itself goes off the core: creating or reading a database header is
 /// a filesystem call, which is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s first named example.
 ///
-/// Three things are set on the way out, and only the first is a number from the
-/// block:
+/// What the open sets on the way out, of which only the first is a number from
+/// the block:
 ///
 /// - **§ 1's statement cache is `rusqlite`'s own**, sized here. That crate keeps
 ///   an LRU of `sqlite3_stmt` handles keyed on the SQL text, which is exactly
@@ -529,13 +529,13 @@ impl Drop for SqliteRows<'_> {
 /// - **`PRAGMA foreign_keys = ON`**, which SQLite leaves off and PDO leaves off
 ///   after it. § 8 declares `ForeignKeyViolation` as a kind *every* driver
 ///   normalises onto, and with the pragma off that condition cannot arise at
-///   all: the same schema and the same write would refuse on the other four and
-///   silently corrupt the reference here. Correctness of semantics is priority 2
-///   and the compatibility this costs is with a PHP default that is a known
-///   footgun, so it is not configurable to the unsafe value — § 3's own three
+///   all: the same schema and the same write would refuse on every other driver
+///   and silently corrupt the reference here. Correctness of semantics is
+///   priority 2 and the compatibility this costs is with a PHP default that is
+///   a known footgun, so it is not configurable to the unsafe value — § 3's own
 ///   defaults are settled on the same footing.
 /// - **No busy timeout.** A lock contention answers `SQLITE_BUSY` at once, which
-///   § 8 normalises to `Deadlock`, which is one of the two kinds § 7's `retries`
+///   § 8 normalises to `Deadlock`, which is one of the kinds § 7's `retries`
 ///   re-runs a closure on. A timeout set here would block a pool thread inside C
 ///   for the duration and hide the conflict from the mechanism written to handle
 ///   it.
@@ -569,7 +569,7 @@ impl SqliteConn {
     /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone, in
     /// seconds east of UTC.
     ///
-    /// Public where the other four drivers keep theirs private, because they
+    /// Public where the other drivers keep theirs private, because they
     /// decode a zone-less column inside their own codec and this one has no
     /// codec to decode inside: a [`SqliteValue::Int`] out of a column declared
     /// `datetime` is still an integer here, and whoever turns it into a
@@ -666,10 +666,10 @@ impl SqliteConn {
     ///
     /// The nesting, the names and the depth accounting are
     /// [`crate::PgConn::begin`]'s — one rule for every backend that has
-    /// savepoints, which is all five — and what is this driver's own is the two
-    /// options.
+    /// savepoints, which is all of them — and what is this driver's own is the
+    /// two options.
     ///
-    /// **Every one of § 7's five isolation levels is accepted, and none of them
+    /// **Every one of § 7's isolation levels is accepted, and none of them
     /// renders to anything.** SQLite is always serializable, so a level asked
     /// for here is delivered *at least* as strongly as it was asked for, which
     /// [`Isolation`]'s own doc makes explicitly not the case § 7 says to throw
@@ -847,7 +847,7 @@ impl SqliteConn {
     }
 }
 
-/// § 7's three commands and § 13's rollback, run off the core as one batch.
+/// § 7's commands and § 13's rollback, run off the core as one batch.
 ///
 /// None of them takes a parameter or answers a row, so `execute_batch` is the
 /// whole call: it is also the only `rusqlite` entry point that will run the two
@@ -901,8 +901,8 @@ struct Read {
 /// method on [`SqliteConn`] can only be reached through a [`SqliteTarget`] and a
 /// file. It happens that SQLite's file may be `:memory:`, so this one *could*
 /// have been a method — the shape is shared anyway, because a reader comparing
-/// the five drivers should not have to work out that one of them is different
-/// for a reason that is not about the protocol.
+/// the drivers should not have to work out that one of them is different for a
+/// reason that is not about the protocol.
 fn step(
     handle: &Mutex<rusqlite::Connection>,
     sql: &str,
@@ -952,7 +952,7 @@ fn step(
 /// `rule:core-classes/db-statement-members`'s statement deadline, spelled as the only wait this backend
 /// takes.
 ///
-/// The other four drivers file the instant on the socket, because a statement
+/// The other drivers file the instant on the socket, because a statement
 /// there is a conversation and every leg of it is a read that can hang. There is
 /// no socket here: once this connection has the database the statement runs to
 /// completion on `nvs-host`'s blocking pool, and the one thing it *waits* for
@@ -1011,7 +1011,7 @@ fn busy(state: State) -> io::Error {
 
 /// SQLite's refusal as an `io::Error` carrying § 8's normalised kind.
 ///
-/// Two of [`ServerError`]'s fields are empty by nature of this backend rather
+/// Some of [`ServerError`]'s fields are empty by nature of this backend rather
 /// than by accident. `sql_state` is empty because SQLite sends none — the same
 /// absence SQL Server has, carried the same way — and `severity` is always
 /// `ERROR` because there is no server to have a log level. `driver_code` is the
@@ -1044,12 +1044,12 @@ fn server_error(error: rusqlite::Error) -> io::Error {
 /// extended result code.
 ///
 /// Keyed on the extended code because the primary one is too coarse to answer
-/// the question § 8 asks: `SQLITE_CONSTRAINT` covers four of the eleven kinds at
+/// the question § 8 asks: `SQLITE_CONSTRAINT` covers several of § 8's kinds at
 /// once, and an application branching on `UniqueViolation` would get nothing
 /// from it. Where the extended code adds nothing, the primary code is its low
 /// byte and the fallthrough reads that.
 ///
-/// § 8 names two of these rows itself: `SQLITE_BUSY` and `SQLITE_LOCKED` are
+/// § 8 names these rows itself: `SQLITE_BUSY` and `SQLITE_LOCKED` are
 /// `Deadlock`, so § 7's `{retries: n}` works on this backend too.
 fn kind_of(extended: i32) -> DbErrorKind {
     use rusqlite::ffi;
@@ -1129,8 +1129,7 @@ mod tests {
 
     /// A connection to a private in-memory database, which is a real SQLite
     /// engine and not a fixture: every case below runs the statements it claims
-    /// to, which is the one thing the other four drivers cannot do in a unit
-    /// test.
+    /// to, which is the one thing the other drivers cannot do in a unit test.
     fn connect() -> crate::conn::SqliteConn {
         open(&SqliteTarget::resolve(&block()).expect("the block resolves")).expect("it opens")
     }
@@ -1185,8 +1184,8 @@ mod tests {
         }
     }
 
-    /// The three ways the block says it is not this driver's, and the missing
-    /// `path` that says it is not openable.
+    /// The ways the block says it is not this driver's, and the missing `path`
+    /// that says it is not openable.
     #[test]
     fn a_block_of_another_driver_or_with_no_path_is_refused() {
         let mut other = block();
@@ -1564,7 +1563,7 @@ mod tests {
     }
 
     /// § 7's `Isolation` on the one backend that has a single level: every one
-    /// of the five is accepted at the outermost level because serializable is
+    /// of them is accepted at the outermost level because serializable is
     /// stronger than any of them, none of them renders to a command, and a
     /// nested call naming one is still refused — the level belongs to the whole
     /// transaction.
@@ -1857,9 +1856,9 @@ mod tests {
         );
     }
 
-    /// The three values with no storage class, refused rather than narrowed —
-    /// and the infinity that is not one of them, which is where this driver
-    /// parts from MySQL's and SQL Server's encoders.
+    /// The values with no storage class, refused rather than narrowed — and the
+    /// infinity that is not one of them, which is where this driver parts from
+    /// MySQL's and SQL Server's encoders.
     ///
     /// A bound on both sides for the `uint`: the widest one an `INTEGER` holds
     /// is asserted above, and the first one past it is asserted here, so an

@@ -23,7 +23,7 @@
 //!   [`ir::Helper::EchoStr`] call `echo` emits, over the raw span),
 //!   reassignment, `return`, nested blocks, `echo`, `unset`, `if`, `while`,
 //!   `do`/`while`, `for`, `switch`,
-//!   `foreach` over all three of `rule:iteration/foreach-subjects`'s subjects, `break`/`continue`
+//!   `foreach` over every one of `rule:iteration/foreach-subjects`'s subjects, `break`/`continue`
 //!   at any level ([`lower::Lowering::lower_break`] counts every enclosing
 //!   loop and `switch`, PHP's own rule), `try`/`catch`, `throw`.
 //! - **Expressions** — arithmetic and comparison, `.` concatenation and string
@@ -37,8 +37,8 @@
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
 //!   `bytes`,
 //!   `array<T>` (element type erased — see [`ty::Ty`]), `object` (a class or
-//!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (all
-//!   three tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for an `inout $x`
+//!   enum, likewise erased), `mixed`, `null`, `?T` and any other union (each
+//!   tagged — see [`ty::Ty::Tagged`]), and [`ty::Ty::Ref`] for an `inout $x`
 //!   parameter. `string`, `bytes` and `array<T>` are refcounted and cross a
 //!   local, call-argument, return and property boundary alike.
 //! - **Generators** — `rule:iteration/generators`'s state-machine transform, in
@@ -49,12 +49,12 @@
 //!
 //! - **SSA, not a plain CFG.** `if`/`while`/`for` are each a hand-rolled
 //!   merge, not a dominance-based phi-placement algorithm — sufficient for any
-//!   structured nesting, since none produces a join of another shape. There
-//!   are two building blocks, and every construct added so far has reused
-//!   them: `merge_envs` for a set of incoming edges known up front (`if`,
-//!   `for`'s step block, a `switch` case body's label and fall-through edges,
-//!   a `match`'s arm phi), and `lower_while`'s seed-then-patch phi dance for a
-//!   join whose back edge is not known until its body is lowered.
+//!   structured nesting, since none produces a join of another shape. Every
+//!   construct reuses the same building blocks: `merge_envs` for a set of
+//!   incoming edges known up front (`if`, `for`'s step block, a `switch` case
+//!   body's label and fall-through edges, a `match`'s arm phi), and
+//!   `lower_while`'s seed-then-patch phi dance for a join whose back edge is
+//!   not known until its body is lowered.
 //! - **IR types are representation-level, not the checker's types.** See
 //!   [`ty`]'s own module docs for why [`ty::Ty`] is a small, flat lattice
 //!   rather than a reuse of `nvs_types::ty::Ty`.
@@ -78,18 +78,17 @@
 //! - **Refcount insertion is naive and syntactic, not a liveness analysis.**
 //!   Correctness first; elision is a named later optimizer pass. Reading a
 //!   value out of storage another binding still owns — [`lower::is_aliasing_read`]
-//!   names the three shapes, and `Lowering::aliasing_read` is the judgment
-//!   every decision actually goes through, because two of them are not
+//!   names the syntactic shapes, and `Lowering::aliasing_read` is the judgment
+//!   every decision actually goes through, because not all of them are
 //!   syntactic: an `rule:classes/property-observer` `get` hook is a call, and a field or element read
 //!   whose *base* is a temporary owns its own result — and copying it into a second
 //!   durable slot needs a retain; a freshly constructed value needs none,
 //!   since it already has one natural owner. A slot's previous value is released when overwritten,
 //!   every live slot is released at frame exit, and a binding **control flow
 //!   drops** is released at the point it disappears — a local declared inside
-//!   a loop body or inside one `if` branch. That last half was missed until
-//!   `examples/report.nvs`'s valgrind leg found it, which is why AGENTS.md
-//!   says to run `tools/leak-check.sh` against a fixture exercising any new
-//!   refcount edge.
+//!   a loop body or inside one `if` branch. That last edge is the one a
+//!   syntactic pass most easily gets wrong, which is why AGENTS.md says to run
+//!   `tools/leak-check.sh` against a fixture exercising any new refcount edge.
 //! - **A closed, engine-owned runtime helper gets [`ir::InstKind::HelperCall`]
 //!   with a `#[non_exhaustive]` [`ir::Helper`] tag**, not [`ir::InstKind::Call`]
 //!   with a synthetic target. A helper has neither a class-graph origin nor a
@@ -101,27 +100,27 @@
 //!   second entry. Cranelift accepts one, so M3's backend does not care — this
 //!   is a constraint on any later pass added here.
 //! - **Ids are stable, not global.** See [`ids`]'s own module docs.
-//! - **An array key is a `string`, and an `int` subscript no longer spells
+//! - **An array key is a `string`, and an `int` subscript does not spell
 //!   it.** [`ir::InstKind::ArrayGet`]'s and [`ir::InstKind::ArraySet`]'s `key`
 //!   operand carries either [`ty::Ty::Str`] or [`ty::Ty::Int`], and codegen
 //!   picks the runtime primitive off the operand's own representation — there
 //!   is no second instruction, no key-kind field and no new [`ir::Helper`].
-//!   The alternative shapes were each worse for a reason worth recording: a
+//!   The alternative shapes are each worse for a reason worth recording: a
 //!   separate `ArrayGetIndex` doubles every array instruction and every match
 //!   arm over them for one operand's type, and a `key_is_int: bool` states
 //!   twice what `ty::Ty` already states once. The consequence a widening
-//!   contributor must hold: **a key operand's `Ty` is now load-bearing**, so
+//!   contributor must hold: **a key operand's `Ty` is load-bearing**, so
 //!   the refcount decision at each of `lower_array_key`'s call sites turns on
 //!   it — an `int` key owns nothing to retain or release. `rule:types/arrays` is
-//!   untouched by any of this; every key still *is* a `string`, `"08"` is
-//!   still distinct from `"8"`, and `$a[8]` is still `$a["8"]`. What moved is
-//!   only where the decimal is produced, which is `nvs_runtime::array`'s
-//!   packed form deciding it never has to be. Two subscripts still render:
+//!   unaffected; every key *is* a `string`, `"08"` is distinct from `"8"`,
+//!   and `$a[8]` is `$a["8"]`. The decimal is never produced at all, which is
+//!   `nvs_runtime::array`'s packed form making it unnecessary. A subscript
+//!   renders where that form cannot take the key:
 //!   a `uint`, because the runtime's index ABI is an `i64` and a `uint` above
 //!   `i64::MAX` has no `i64` spelling naming the same key, and any key
 //!   reaching [`ir::InstKind::ArrayUnset`], which has no index-shaped
 //!   primitive beside it. `lower::Lowering::lower_array_key` and
-//!   `lower_rendered_array_key` own both exceptions.
+//!   `lower_rendered_array_key` own those exceptions.
 //! - **A nested element write always separates the inner row, and that is
 //!   the price of having no branch.** `$grid[0][1] = v` flattens to its root
 //!   plus one key per level and descends with [`ir::Helper::ArrayRowForWrite`]
@@ -149,8 +148,8 @@
 //! rather than renumbering the ones below it — the same rule the diagnostic
 //! registry states for a retired `E`-code, and for the same reason.
 //!
-//! 1. **Every control-flow statement lowers; two restrictions on their parts
-//!    do not.** `while` and `do`/`while` are both
+//! 1. **Every control-flow statement lowers; some restrictions on their parts
+//!    remain.** `while` and `do`/`while` are both
 //!    [`lower::Lowering::lower_while`] and
 //!    [`lower::Lowering::lower_do_while`]. What is left is a `for`
 //!    ([`lower::Lowering::lower_for`]) whose condition
@@ -180,8 +179,8 @@
 //!    a declared type ([`lower::Lowering::coerce`]); and `??`
 //!    ([`lower::Lowering::lower_coalesce`]), whose non-`null` arm narrows
 //!    against the type `nvs_types::expr_table::ExprInfo::Coalesce` records.
-//!    `rule:expressions/nullable-conversion`'s `as ?T` ([`lower::Lowering::convert_or_null`]) is the first
-//!    thing here that *reads* a tag instead — its helper dispatches on the
+//!    `rule:expressions/nullable-conversion`'s `as ?T` ([`lower::Lowering::convert_or_null`]) *reads* a
+//!    tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
 //!    rest of this gap closes in. `.` and `echo` read one the same way
 //!    ([`ir::Helper::TaggedToString`]). `?->` reads one only to *test* it
@@ -194,24 +193,23 @@
 //!    owns the proof). Narrowing there rather than at each consumer is what
 //!    lets a subscript base, a `foreach` subject, an array-write root and an
 //!    argument all see the narrow representation with no site to forget;
-//!    [`lower::Lowering::untag_receiver`] is the same move for the one
-//!    consumer that predates it.
+//!    [`lower::Lowering::untag_receiver`] is the same move for a call
+//!    receiver.
 //!    `rule:expressions/truthy-positions`'s truthy table is read from the tag the same way
 //!    ([`ir::Helper::ValueTruthy`]), and so is `rule:types/arithmetic`'s **ordering**
 //!    table: `<`/`<=`/`>`/`>=`/`<=>` with a tagged operand take
 //!    [`ir::Helper::ValueLt`] and its two siblings, which answer the rows the
 //!    tags name and *throw* where that closed table names none — the one
 //!    comparison helper family carrying `rule:errors/propagation`'s error edge, and its own doc
-//!    comment is that decision's home. A subscript through a tagged base is no
-//!    longer here either: `nvs_types` refuses it where it is written
+//!    comment is that decision's home. A subscript through a tagged base is
+//!    not here either: `nvs_types` refuses it where it is written
 //!    (`E0482`), an `array<T>` binding being what has an element type to check
 //!    a read against.
 //!    What does not: **arithmetic** on a `mixed`, which is the one reading of
 //!    a tagged value without a checker-proven narrowing that still panics
 //!    naming itself. Closing it adds [`ir::Helper`] variants dispatching on
 //!    the tag, not a second representation.
-//! 4. **One conversion row is missing, and `rule:expressions/nullable-conversion`'s `as ?T` has no helper
-//!    for the one target that produces a container.**
+//! 4. **One conversion row is missing.**
 //!    `rule:types/conversion`'s free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and `rule:expressions/nullable-conversion`'s
 //!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
@@ -223,12 +221,11 @@
 //!    a conversion that cannot fail (`$i as ?string`) is
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
 //!    does not exist at all (`$arr as ?int`) is `E_NO_CONVERSION`, that
-//!    table's closure asked of the `T` inside the sugar. What is left is the
-//!    other direction — a row § 3 calls **available** with no `?` helper to
-//!    run it — and it is closed too: `$m as ?array<U>` is
+//!    table's closure asked of the `T` inside the sugar. The other direction —
+//!    a row § 3 calls **available** — has its `?` helper: `$m as ?array<U>` is
 //!    [`ir::Helper::ToArrayOfOrNull`], the same element walk the checked
-//!    spelling runs, answering `null` where that one throws. Both text
-//!    targets are closed:
+//!    spelling runs, answering `null` where that one throws. The text
+//!    targets have theirs:
 //!    [`ir::Helper::ToStringOrNull`] is [`ir::Helper::TaggedToString`]'s twin
 //!    over one implementation of `rule:types/conversion`'s rows, answering `null` where
 //!    that one throws, and it takes `$b as ?string` with it — `rule:types/conversion`'s
@@ -236,27 +233,24 @@
 //!    `null` answer of its own rather than a second helper — and
 //!    [`ir::Helper::ToBytesOrNull`] is [`ir::Helper::TaggedToBytes`]'s twin
 //!    over that pair's other direction, the two rows a tag can take into a
-//!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is the third of
+//!    `bytes` being the `string` and the `bytes` itself. The **class-target** refusal is
 //!    § 3's —
 //!    `nvs_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
-//!    so no class reaches this crate through `as` at all. It used to carry a
-//!    two-class exception, the *parse roster*, lowered here to one
-//!    [`ir::InstKind::CoreCall`] on a symbol the expression table had to carry
-//!    because every `?T` erases to [`ty::Ty::Tagged`]. § 3 withdrew it, and
-//!    `Core\Uri::tryParse` is an ordinary member call now.
+//!    so no class reaches this crate through `as` at all: `Core\Uri::tryParse`
+//!    is an ordinary member call.
 //! 5. **A ternary — or a `match` — whose branches lower to two different
 //!    [`ty::Ty`] representations panics.** Neither has a recorded result type
 //!    to widen its arms to, which is the one thing
 //!    `nvs_types::expr_table::ExprInfo::Coalesce` supplies for `??` — so
 //!    closing it is that same recording, plus [`lower::Lowering::coerce`] on
 //!    each arm. *Where* a short-circuit may
-//!    appear is no longer a restriction: [`lower::Lowering::lower_expr`] owns
+//!    appear is not a restriction: [`lower::Lowering::lower_expr`] owns
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
-//! 6. **Array access is compile-time-known-target-only, and `nvs_types` now
-//!    says so rather than leaving it here; property access is not
-//!    compile-time-known-target-only any more.** A subscript whose base
+//! 6. **Array access is compile-time-known-target-only, and `nvs_types` is
+//!    what says so rather than this crate; property access is not
+//!    compile-time-known-target-only.** A subscript whose base
 //!    declares no element type — a `mixed`, a scalar, a `?array<T>` no test
 //!    narrowed — is `E0482` where it is written, and `$a[]` anywhere but an
 //!    assignment target is `E0481`, so both of
@@ -264,7 +258,7 @@
 //!    matching one are invariant checks no source file reaches.
 //!    Every `rule:types/erased-member-access` receiver lowers: a shape naming one
 //!    of its own fields, a shape asked for a name it does not list, a
-//!    plain `object`, and a `mixed`. All four are one
+//!    plain `object`, and a `mixed`. Each is one
 //!    [`ir::InstKind::SlotGet`] — § 4's
 //!    **name-keyed** fetch, which is therefore right through a widened view
 //!    too — or one [`ir::InstKind::SlotSet`], which additionally checks the
@@ -274,7 +268,7 @@
 //!    the checker could record: no slot to hint (so `0`, which the runtime's
 //!    by-name search corrects) and no type (so [`ty::Ty::Tagged`]), which
 //!    makes § 4's missing-name throw reachable rather than theoretical. A
-//!    `mixed` receiver adds the one thing the other three cannot: an
+//!    `mixed` receiver adds the one thing the others cannot: an
 //!    unproven *tag*, so `lower::expr`'s `ReceiverProof::Erased` emits no
 //!    [`ir::InstKind::Untag`] and the whole tagged value reaches the runtime,
 //!    which throws in PHP's own wording for a receiver that is not an object
@@ -288,10 +282,10 @@
 //!    what PHP refuses too. An array-element write through a hooked property
 //!    is `E0478` and one through an erased property `E0480`, both for the
 //!    reason those codes' own rows state, and one whose root is no place at
-//!    all — `$h->rows()["a"] = v`, `[1, 2]["0"] = v` — is `E0700`, the fourth
-//!    entry the same `check_write_target` grew and the one shape
-//!    [`lower::Lowering::write_back_array`]'s catch-all was still reached
-//!    through. Parentheses are not such a root:
+//!    all — `$h->rows()["a"] = v`, `[1, 2]["0"] = v` — is `E0700`, another
+//!    entry in the same `check_write_target` and the one shape
+//!    [`lower::Lowering::write_back_array`]'s catch-all would otherwise be
+//!    reached through. Parentheses are not such a root:
 //!    `nvs_syntax::ast::Expr::unparenthesized` is what every walk on this path
 //!    uses to find the holder, so `($a)["0"] = v` writes `$a` as it does in
 //!    PHP. An *increment* is a write like any
@@ -345,12 +339,12 @@
 //!    in the emitted call and a spread's is not — and a `name:` one is refused
 //!    where it is written (`E0712`), § 1 leaving no parameter for a name to
 //!    fill at either end. The type gap is **not** this
-//!    crate's to close and is older than this lowering — a `callable` carries
+//!    crate's to close — a `callable` carries
 //!    no parameter list (§ 1), so a closure declaring `string $s` reads a
 //!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
 //!    `Core\Arr::map` over an `array<int>`; `nvs_runtime::closure`'s module
 //!    doc owns it and states what closing it costs. Neither half of `inout $x` is
-//!    a gap any more: a closure *capturing* an enclosing `inout $x` parameter takes
+//!    a gap: a closure *capturing* an enclosing `inout $x` parameter takes
 //!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
 //!    the literal, at the pointee type, retained like any other captured
 //!    value, which is what lets the closure outlive the call that staged the
@@ -358,9 +352,9 @@
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
 //! 11. **A `secret` value compared against a `mixed` one is not compared in
-//!     constant time.** The qualifiers themselves are no longer a gap: all
-//!     six of `rule:security/tainted-qualifier`/0033's atoms erase to the plain `string`/`bytes` they
-//!     share an allocation with ([`lower::lower_checked_ty`]), and `rule:security/secret-comparison-is-constant-time`
+//!     constant time.** The qualifiers themselves are not a gap: every
+//!     atom of `rule:security/tainted-qualifier`/0033 erases to the plain `string`/`bytes` it
+//!     shares an allocation with ([`lower::lower_checked_ty`]), and `rule:security/secret-comparison-is-constant-time`
 //!     's constant-time `==` reaches every pair whose two operands are
 //!     both that representation, through [`ir::Helper::SecretEq`] and the
 //!     `nvs_types::expr_table::ExprInfo::SecretEquality` the checker records
@@ -370,7 +364,7 @@
 //!     poisoning makes the shape rare, and closing it means teaching
 //!     `nvs_runtime::value_identical` the property rather than adding a
 //!     lowering arm.
-//! 14. **Two of the safepoint's four flags still do nothing.**
+//! 14. **Not every safepoint flag is acted on.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
 //!     `CANCEL` stop the request, and the function-entry site also carries
@@ -379,11 +373,11 @@
 //!     to hand the frame to. Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
 //! 15. **`decimal` lowers, but `<=>` over one does not.** `rule:types/decimal`'s scalar
-//!     has a representation now — [`ty::Ty::Decimal`], the same register pair
+//!     has a representation — [`ty::Ty::Decimal`], the same register pair
 //!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
-//!     and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the five
-//!     arithmetic operators, negation, three comparisons that
-//!     [`lower::Lowering::lower_decimal_binary`] rewrites into all six,
+//!     and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the
+//!     arithmetic operators, negation, the comparisons that
+//!     [`lower::Lowering::lower_decimal_binary`] rewrites into the rest,
 //!     truthiness, and both directions of every conversion. What is left is the
 //!     spaceship operator, which has no `decimal` row here and no `int` one
 //!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
@@ -396,8 +390,8 @@
 //!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
 //!     compound form exactly when its binary form lowers (`.=` on a plain
 //!     `string` local is the one exception, and it takes
-//!     [`ir::InstKind::StrAppend`] instead). The bitwise five closed that way
-//!     rather than one at a time — `&`, `|`, `^`, `<<`, `>>` and unary `~` now
+//!     [`ir::InstKind::StrAppend`] instead). The bitwise operators come that
+//!     way rather than one at a time — `&`, `|`, `^`, `<<`, `>>` and unary `~`
 //!     have their [`ir::BinOp`]/[`ir::UnOp`] variants, so `&=`, `|=`, `^=`,
 //!     `<<=` and `>>=` cost nothing — which leaves `**=` out for the same
 //!     reason `**` itself is: [`ir::BinOp`] has no row for it, so
@@ -414,16 +408,16 @@
 //!     `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.nvst`
 //!     the observable half.
 //!
-//!     One level further down was open until the same staging reached it: an
-//!     element write whose root is a *property* used to lower that property's
-//!     receiver twice, once to read the array and once in
+//!     The same staging reaches one level further down. An element write whose
+//!     root is a *property* would otherwise lower that property's receiver
+//!     twice, once to read the array and once in
 //!     [`lower::Lowering::write_back_array`] to store the separated copy back,
-//!     so `$b->self()->rows["k"] = "z"` ran `self()` twice and
-//!     `$b->self()->grid["r"]["k"] .= "b"` three times where PHP runs it once.
-//!     [`lower::Lowering::lower_store`]'s element arm now stages the root's
-//!     address itself, and `stage_address_of` descends a property or element
-//!     level rather than staging the level's *value*, which is what leaves the
-//!     slot visible to the write-back at all. Pinned by
+//!     so `$b->self()->rows["k"] = "z"` and
+//!     `$b->self()->grid["r"]["k"] .= "b"` would run `self()` more often than
+//!     PHP's once. [`lower::Lowering::lower_store`]'s element arm stages the
+//!     root's address itself, and `stage_address_of` descends a property or
+//!     element level rather than staging the level's *value*, which is what
+//!     leaves the slot visible to the write-back at all. Pinned by
 //!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst`.
 //! 17. **The environment is one flat, function-wide map**, so a nested block
 //!     declaring a local that shadows an outer one is not distinguished from a
@@ -447,8 +441,8 @@
 //!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
 //!     pin the rest.
 //! 19. **`rule:expressions/one-equality-operator` is built; what a cross-representation pair still cannot do
-//!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` no
-//!     longer lex, `== null` takes
+//!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
+//!     not lex, `== null` takes
 //!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
 //!     representation pair is [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a
 //!     `string`, `array` or `object` pair is that `BinOp` with the row's own
@@ -461,8 +455,8 @@
 //!     The disjoint-operand refusal of § 2 is `nvs_types`' half, not this
 //!     crate's.
 //!
-//!     The same mismatch under a *different* operator is closed too, and it
-//!     splits in two rather than following equality — which is
+//!     The same mismatch under a *different* operator lowers too, and it
+//!     splits rather than following equality — which is
 //!     `rule:types/arithmetic`'s own
 //!     division, not a new one. **Arithmetic widens**: `$n + $f` is that
 //!     table's "either operand a `float`" row, so the integer side is
@@ -482,15 +476,15 @@
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
 //!
 //! 20. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
-//!     whole, a `mixed` source included; what is left is § 2's two
+//!     whole, a `mixed` source included, and so do § 2's
 //!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::lower_checked_ty`]), so `"a"|"b"` is a
 //!     `Ty::Str`, `1|2` a `Ty::Int` and `Mode::Read|Mode::Write` the enum's
-//!     own tag rather than the `Ty::Tagged` every union used to be, and § 4's
+//!     own tag rather than a `Ty::Tagged`, and § 4's
 //!     checked row runs the membership test
 //!     [`lower::Lowering::lower_literal_membership`] emits — a comparison per
 //!     member, throwing through [`ir::Helper::LiteralMismatch`] with the
-//!     accepted set named. § 3's enum-case subset is in that set now: every
+//!     accepted set named. § 3's enum-case subset is in that set: every
 //!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
 //!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/declaration`/§ 2's declaration errors are not reported twice), which is where a
 //!     case's constant lives — [`nvs_types::ExprInfo::EnumCase`] carries one only for
@@ -514,7 +508,7 @@
 //!     representation is skipped entirely: `nvs_types` refuses a conversion
 //!     between two *different* enums, so it names a case by construction.
 //!
-//!     A [`ty::Ty::Tagged`] source is no longer the hole it was: it is one
+//!     A [`ty::Ty::Tagged`] source is one
 //!     helper per *target*, chosen by the operand's runtime tag because
 //!     nothing static names a row — [`ir::Helper::TaggedToString`],
 //!     [`ir::Helper::ToDecimal`], and [`ir::Helper::TaggedToInt`] with its
@@ -535,12 +529,12 @@
 //!     from its runtime tag instead ([`ir::Helper::TaggedToBytes`]), which is
 //!     the only shape of `as bytes` that reaches a call at all.
 //!
-//!     **Nothing panics any more.** Every operand/target pair naming no row of
+//!     **Nothing panics.** Every operand/target pair naming no row of
 //!     `rule:types/conversion`'s closed table is `E0708` where it is written
 //!     (`nvs_types::expr::operators`' `reject_unconvertible`), every object
-//!     target with no class to test against is `E0711` beside it, and the last
-//!     row that used to arrive with no lowering — `rule:core-classes/html-auto-escape`'s
-//!     `string as Core\Html\Markup` — is
+//!     target with no class to test against is `E0711` beside it, and
+//!     `rule:core-classes/html-auto-escape`'s
+//!     `string as Core\Html\Markup` is
 //!     `lower::Lowering::lower_markup_lift`. That one is a *rule* rather than
 //!     a test: the operand is a source literal or it is `E0417`, so what the
 //!     lowering does is **build** the carrier rather than check anything, and
@@ -548,7 +542,7 @@
 //!     because a `Helper` is a symbol `nvs-runtime` exports and that crate
 //!     cannot reach a `Core` class's layout.
 //!
-//!     `array<T> as array<U>` used to be the other, and it is a **walk**
+//!     `array<T> as array<U>` is a **walk**
 //!     rather than a row: what decides it is the target's element type, which
 //!     [`ty::Ty::Array`] has erased, so `lower::Lowering::lower_array_restamp`
 //!     reads it off the annotation and hands
@@ -564,9 +558,9 @@
 //!     it is written (`reject_uncheckable_element_type`), which is the one
 //!     home of that roster.
 //!
-//!     A [`ty::Ty::Tagged`] operand converted to an *object* used to be the
-//!     second — `$m as Plain` over a `mixed`, `rule:types/unions-and-mixed`'s checked way out
-//!     of the one unchecked position — and it wanted no helper in the end.
+//!     A [`ty::Ty::Tagged`] operand converted to an *object* —
+//!     `$m as Plain` over a `mixed`, `rule:types/unions-and-mixed`'s checked way out
+//!     of the one unchecked position — wants no helper.
 //!     [`ir::InstKind::InstanceOf`] already takes a tagged subject and already
 //!     answers `false` for a tag that is not an object, so
 //!     `lower::Lowering::lower_checked_downcast` is that test, a
@@ -577,14 +571,14 @@
 //!     object target names no class to test against — plain `object`, a
 //!     shape, a `callable`, a `Core` class — and `nvs_types` refuses those
 //!     from a non-object operand where they are written (`E0711`). The
-//!     *statically* typed downcasts are in neither list and always ran:
+//!     *statically* typed downcasts are in neither list:
 //!     `object as Plain` and `Comparable as Cell` are one representation on
 //!     both sides, so `rule:types/erased-member-access` leaves the check to the member access.
 //!
-//!     `null as string` used to be here and is a row now — the empty string,
-//!     the answer `concat_operand` already gave the same value.
+//!     `null as string` is a row — the empty string, the same answer
+//!     `concat_operand` gives that value.
 //!
-//!     A statically settled operand needs no check and already worked, since
+//!     A statically settled operand needs no check, since
 //!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
 //!     (`rule:expressions/nullable-conversion`'s
 //!     non-throwing form) runs no membership test either: its yield-`null`
@@ -593,8 +587,8 @@
 //! 21. **`rule:types/property-key`'s `property<T>` lowers whole, and what it inherits is ADR
 //!     0036 § 4's own gap and not one of its own.** A key is a name, so the type erases to
 //!     [`ty::Ty::Str`] ([`lower::lower_checked_ty`]) and a parameter, a return,
-//!     a local and a property hold one for nothing. § 2's three conversions all
-//!     run: `property<T> as string` is the free `from == to` row, and the two
+//!     a local and a property hold one for nothing. § 2's conversions all
+//!     run: `property<T> as string` is the free `from == to` row, and the
 //!     rows *into* a key are the same membership chain gap 20 describes, built
 //!     from the roster `nvs_types::ExprInfo::PropertyKey` carries — the set is
 //!     what erasure loses, and that variant's own doc comment owns why the

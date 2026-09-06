@@ -1,9 +1,9 @@
 //! `rule:types/conversion`'s conversion table — the implicit widenings `convert` applies at
 //! a binding, and the explicit `as` the § 2 grid decides.
 //!
-//! Part of [`super`]'s one `impl Lowering`, split out of [`super::expr`] under the
-//! rule that file's own header states: every item moved here unchanged, and the
-//! methods `pub(crate)` so they reach across these modules and no further.
+//! Part of [`super`]'s one `impl Lowering`, split across this directory under the
+//! rule [`super::expr`]'s own header states: the methods are `pub(crate)`, so they
+//! reach across these modules and no further.
 //!
 //! The closed-set machinery at the bottom — [`AcceptedSet`], `closed_literal_set`
 //! and the two membership lowerings — is here rather than beside the operators
@@ -17,7 +17,7 @@ impl<'a> Lowering<'a> {
     /// Lowers one `expr as T` — `rule:types/conversion`'s conversion table, plus
     /// `rule:types/conversion`'s two enum rows.
     ///
-    /// Three shapes of row exist, and this slice implements the first two:
+    /// Each row is one of these shapes:
     ///
     /// * **Free.** The two representations are identical, so nothing runs. A
     ///   conversion to the same representation is the operand itself; an enum
@@ -74,8 +74,8 @@ impl<'a> Lowering<'a> {
             // local, the argument or the returned value a reference nobody
             // took, and the second release of the pair corrupts the heap. One
             // retain makes the free row honour the contract every other row
-            // already does. `$s as string` is the shape this was always true
-            // of; `rule:types/literal-types`'s erasure made `$s as "a"|"b"` a second one.
+            // already does. `$s as string` is one spelling of it, and
+            // `rule:types/literal-types`'s erasure makes `$s as "a"|"b"` another.
             if to.is_refcounted() && self.aliasing_read(operand) {
                 self.emit_retain(cur, v);
             }
@@ -231,9 +231,9 @@ impl<'a> Lowering<'a> {
                     out
                 }
             },
-            // The same four rows again, from a union operand — one fallible
-            // helper picking by runtime tag, shared verbatim with `.` and
-            // `echo` (`Self::concat_operand`). See `Helper::TaggedToString`.
+            // The same rows again, from a union operand — one fallible helper
+            // picking by runtime tag, shared verbatim with `.` and `echo`
+            // (`Self::concat_operand`). See `Helper::TaggedToString`.
             (Ty::Tagged, Ty::Str) => {
                 let out = self.emit_fallible(
                     cur,
@@ -358,12 +358,12 @@ impl<'a> Lowering<'a> {
                 }
                 out
             }
-            // Nothing reaches here any more, and that is now the claim rather
-            // than a hope: `nvs_types`' `reject_unconvertible` refuses every
-            // pair `rule:types/conversion`'s closed table has no row for (`E0708`) and
-            // every object target with no class to test against (`E0711`), and
-            // the rows whose decision is a *label* `Ty` has erased are arms of
-            // `Self::lower_conversion` rather than of this table.
+            // Nothing reaches here: `nvs_types`' `reject_unconvertible` refuses
+            // every pair `rule:types/conversion`'s closed table has no row for
+            // (`E0708`) and every object target with no class to test against
+            // (`E0711`), and the rows whose decision is a *label* `Ty` has
+            // erased are arms of `Self::lower_conversion` rather than of this
+            // table.
             _ => panic!(
                 "nvs-ir lowers `rule:types/conversion`'s scalar conversion rows, `rule:types/conversion`'s `string` ↔ \
                  `bytes` pair, both of `rule:types/conversion`'s enum ones, a `Ty::Tagged` operand into \
@@ -407,12 +407,12 @@ impl<'a> Lowering<'a> {
     ///
     /// Panics for a row `rule:expressions/nullable-conversion-availability` calls **available** and this crate has no
     /// `?` helper to run — `$m as ?array<T>`.
-    /// Both of that section's *refusals* are `nvs_types`' now, so neither
+    /// Both of that section's *refusals* belong to `nvs_types`, so neither
     /// reaches here: a conversion that cannot fail is `E0709` and a pair
     /// naming no row is `E0708`, both where the conversion is written. The
     /// remaining target is the same missing lowering [`Self::convert`]'s own
-    /// catch-all names, minus the two this form adds — `string` and `bytes`,
-    /// each a row that throws in the checked spelling and so needs a
+    /// catch-all names, minus the targets this form adds — `string` and
+    /// `bytes`, each a row that throws in the checked spelling and so needs a
     /// null-answering twin rather than the same helper.
     pub(crate) fn convert_or_null(
         &mut self,
@@ -676,12 +676,7 @@ impl<'a> Lowering<'a> {
         //
         // Every `as ?T` that reaches here is a row of `rule:types/conversion`'s table or
         // one of `rule:types/literal-types`'s types. A **class** target never does: `rule:expressions/nullable-conversion-availability`'s class row is absolute, so `nvs_types` has already refused it
-        // with `E0473`. That row used to carry a two-class exception — the
-        // parse roster, `$s as ?Core\Uri` — lowered here to one non-member
-        // `CoreCall` on a symbol the expression table had to carry, since
-        // every `?T` erases to `Ty::Tagged` and the class written did not
-        // survive. § 3 withdrew it, and `Core\Uri::tryParse` is an ordinary
-        // member call now, so nothing about a class reaches this function.
+        // with `E0473`, so nothing about a class reaches this function.
         match nullable_target(ty) {
             Some(target) => {
                 // `rule:types/class-reference`'s `as ?class<T>`, ahead of everything below:
@@ -957,8 +952,8 @@ impl<'a> Lowering<'a> {
     /// descriptor* already, so the null test below — the only thing the
     /// checked form adds — is what the `?` takes away. `?class<T>` erases to
     /// [`Ty::ClassDesc`] rather than to [`Ty::Tagged`] for exactly that
-    /// reason; that variant's own doc comment owns the decision and names the
-    /// four sites it obliges. The compile-time fold above is taken under `?`
+    /// reason; that variant's own doc comment owns the decision and names every
+    /// site it obliges. The compile-time fold above is taken under `?`
     /// as well, and safely: § 2's written-out `::class` operand is decided by
     /// `nvs_types` under **both** spellings — a name outside the hierarchy is
     /// refused either way, by that crate's own
@@ -1381,7 +1376,7 @@ impl<'a> Lowering<'a> {
     /// was. It is also the last place they exist at all — `lower_decl_type`
     /// erases the whole set to the one base its members share.
     ///
-    /// `None` in three cases, and each is a decision:
+    /// `None` in each of these cases, and each is a decision:
     ///
     /// * The target is not a closed set. One wider atom — `string`, or the
     ///   `null` an `as ?T` adds — is a member the operand may reach, so there
@@ -1497,8 +1492,8 @@ impl<'a> Lowering<'a> {
         }
         // One pass, not a `closed` predicate and then a map over the same
         // atoms: two matches over one list is two places to add an atom kind
-        // to, and the second one's catch-all was a panic no program could
-        // reach — an internal-consistency check between a list and itself.
+        // to, and the second one's catch-all could only be a panic no program
+        // reaches — an internal-consistency check between a list and itself.
         // `collect::<Option<_>>` makes "this target is not a closed set" the
         // same answer here as it is above.
         let members: Vec<LiteralAtom> = atoms
@@ -1530,8 +1525,8 @@ impl<'a> Lowering<'a> {
                 }
                 // One wider atom and the target is not a closed set at all —
                 // `string`, or the `null` an `as ?T` adds. See this function's
-                // own doc comment: that is one of its three `None`s, not a
-                // shape it declines to lower.
+                // own doc comment: that is one of its `None`s, not a shape it
+                // declines to lower.
                 _ => None,
             })
             .collect::<Option<_>>()?;
@@ -1555,8 +1550,8 @@ impl<'a> Lowering<'a> {
     /// nested `Type` node has no entry at all and
     /// [`lower_decl_type`] would fall back to answering `?Mode`'s target from
     /// the AST — where a name-shaped atom is a class and an enum is
-    /// indistinguishable from one. That fallback is what made `$m as ?Mode`
-    /// panic on `Tagged as ?Object`.
+    /// indistinguishable from one. That fallback is what would make
+    /// `$m as ?Mode` panic on `Tagged as ?Object`.
     ///
     /// `None` where the checker never visited the annotation, which is the
     /// same shape [`lower_decl_type`] answers from the AST alone.
@@ -1579,7 +1574,7 @@ impl<'a> Lowering<'a> {
     /// `nvs_types::expr::operators::reject_impossible_literal_conversion` has
     /// already decided this conversion's outcome at compile time.
     ///
-    /// The same three expression shapes that checker's own
+    /// The same expression shapes that checker's own
     /// `conversion_operand_singleton` accepts, asked here only as a yes/no:
     /// what the value *is* does not matter, because a singleton the target
     /// rejects is `E0469`/`E0470` and never reaches lowering, so one that

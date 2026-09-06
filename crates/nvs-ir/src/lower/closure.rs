@@ -1,10 +1,9 @@
 //! `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class with one field per capture.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)` so they reach across these modules and no further, which
+//! is the reach a single-file `lower` would give them.
 
 use super::*;
 
@@ -115,9 +114,9 @@ pub(crate) fn drain_closures(
 /// design, and it is a reuse decision rather than a new mechanism —
 /// refcounting, field slots, class descriptors and the indirect call through
 /// [`nvs_runtime::nvs_class_method`] all already exist for ordinary objects,
-/// and a closure needs exactly those four things and nothing else. The
-/// alternative, a dedicated code-pointer-plus-environment header, would be a
-/// second refcounted heap shape for the runtime to know about, a second thing
+/// and a closure needs exactly those and nothing else. The alternative, a
+/// dedicated code-pointer-plus-environment header, would be a second
+/// refcounted heap shape for the runtime to know about, a second thing
 /// `nvs_runtime::object::dismantle` has to sweep, and a second call path in
 /// `nvs-codegen` — for no capability the object shape does not already have.
 ///
@@ -313,11 +312,11 @@ pub(crate) fn lower_closure(
 }
 
 /// The class an annotation names and a run-time test can compare against, or
-/// `None` where nothing can check it. Two callers ask the same question: a
-/// closure parameter's entry check below, and
+/// `None` where nothing can check it. The same question is asked by a closure
+/// parameter's entry check below and by
 /// [`Lowering::lower_checked_downcast`](super::Lowering::lower_checked_downcast),
 /// `rule:types/unions-and-mixed`'s checked way out of `mixed`. `nvs_types` refuses the `None`
-/// case at the conversion (`E0711`), so the second caller's `None` is a
+/// case at the conversion (`E0711`), so the downcast's `None` is a
 /// conversion this crate has no lowering for rather than a shape it declines.
 ///
 /// The declaration has to be a class *name* and nothing wider: `object`, a
@@ -451,8 +450,8 @@ fn check_param_class(
 /// ahead of it — [`FN_ARITY`], [`FN_PARAM_TAGS`] and
 /// [`FN_PARAM_NAMES`](crate::lower::FN_PARAM_NAMES) — is the one those
 /// constants already state. Nothing reads this field by index: the thunk
-/// reads it by name, which is why adding a reserved field in front of it
-/// changed a sentence here and no code anywhere.
+/// reads it by name, so a reserved field placed in front of it costs a
+/// sentence here and no code anywhere.
 pub(crate) const FCC_RECV: &str = "fcc#recv";
 
 /// One `Class::method(...)`/`$obj->method(...)` met while lowering a body,
@@ -487,7 +486,7 @@ pub(crate) struct PendingCallable {
 /// synthesized for that one site — `rule:types/callable-is-a-closure`, on top of
 /// [`lower_closure`]'s representation and adding nothing to it.
 ///
-/// # Why a thunk rather than a fourth call shape
+/// # Why a thunk rather than another call shape
 ///
 /// `rule:types/closure-literal` makes `callable` the only closure type, so the *value* a
 /// `(...)` produces has to be the same object every `fn` literal produces:
@@ -578,7 +577,7 @@ pub(crate) fn lower_callable(
     // Everything the target is handed is staged as an owned temporary first,
     // so a class check's refusal below releases the whole argument list
     // rather than the prefix bound so far. Which way it is *un*staged is what
-    // the two calling conventions differ in, at the bottom.
+    // the calling conventions differ in, at the bottom.
     let mark = low.temporaries_mark();
     let receiver = takes_receiver.then(|| {
         let (v, _) = low.emit(
@@ -675,7 +674,7 @@ pub(crate) fn lower_callable(
             },
             // A static target's slot 0 carries the called class, as it does
             // at an ordinary call site. `static_class` is the class the site
-            // *wrote*; the declaring class stands in for the three forwarding
+            // *wrote*; the declaring class stands in for the forwarding
             // spellings, which is this function's stated divergence.
             None => {
                 let called = call
@@ -732,10 +731,10 @@ pub(crate) fn lower_callable(
             label: class.clone(),
             // `FN_ARITY` first and `FN_PARAM_TAGS` second, as for every
             // closure — a native caller reads both by index — then
-            // `FN_PARAM_NAMES`, which only this kind of closure has and which
-            // is why `FCC_RECV`'s "third" is now fourth. Nothing reads the
-            // receiver by index, so that move is a comment's problem and not a
-            // reader's; see both constants.
+            // `FN_PARAM_NAMES`, which only this kind of closure has, and
+            // `FCC_RECV` last. Nothing reads the receiver by index, so where
+            // it lands is a comment's problem and not a reader's; see those
+            // constants.
             fields: [
                 FN_ARITY.to_owned(),
                 FN_PARAM_TAGS.to_owned(),

@@ -2,8 +2,8 @@
 //! wrote, compiled into a [`Program`] an isolate can run.
 //!
 //! The seam's own module doc owns why the compiler is reached this way round
-//! rather than from `nvs-host`. This file owns the two things only an
-//! implementor can decide.
+//! rather than from `nvs-host`. This file owns what only an implementor can
+//! decide.
 //!
 //! # Decision: a relative path is anchored at the working directory
 //!
@@ -220,7 +220,7 @@ impl Default for Compiler {
     /// This is what a caller with no snapshot in hand holds, and it is a
     /// correct answer rather than a placeholder: the digest separates
     /// environments, and a run that read no configuration has exactly this one.
-    /// Every subcommand that installs a resolver now holds one — `nvs test`
+    /// Every subcommand that installs a resolver holds one — `nvs test`
     /// resolves the tree above the suite's compile, because `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact
     /// key is half configuration — so what is left here is this crate's own
     /// tests.
@@ -429,8 +429,8 @@ impl Compiler {
 /// a check happens at all, which is what a file rewritten twice inside one
 /// timestamp tick needs.
 ///
-/// **The source is read once more than it was before this cache revalidated**:
-/// this read hashes it, and the front end opens it again through its own
+/// **The source is read once more than the compile alone would need**: this
+/// read hashes it, and the front end opens it again through its own
 /// `SourceMap`. One extra read of one file per compile, and per check that
 /// observes a change, against a compile — the ADR's own accounting makes the
 /// hash the thing that is trusted, and there is no `SourceMap` to hand here.

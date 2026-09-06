@@ -2,7 +2,7 @@
 //!
 //! `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`
 //! is this policy's only home; what follows is how it is spelled here and
-//! the two facts about the platforms that make it true.
+//! the facts about the platforms that make it true.
 //!
 //! # Reserved is not resident
 //!
@@ -10,7 +10,7 @@
 //! the whole width with no access rights and then makes the usable part
 //! writable (`mmap` + `mprotect` on Unix, `VirtualAlloc(MEM_RESERVE)` plus a
 //! commit of the first page and the guard pages on Windows) — so a page a task
-//! never touches is never backed by memory on any of the three platforms. A
+//! never touches is never backed by memory on any platform this runs on. A
 //! shallow handler costs the handful of pages its frames actually wrote, and
 //! 100k concurrent tasks is 100 GiB of *address space* in a 64-bit process
 //! against a resident cost measured in what the handlers touched.

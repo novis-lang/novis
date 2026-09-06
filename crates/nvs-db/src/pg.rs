@@ -194,8 +194,8 @@ pub struct PgTarget<'a> {
     /// which zone they are in.
     ///
     /// [`crate::sql::time_zone_for`] is what turns the written field into this
-    /// number, and it is the same reader for all five drivers: what arrives
-    /// here is already seconds, so this path never sees a zone name.
+    /// number, and it is the same reader for every driver: what arrives here is
+    /// already seconds, so this path never sees a zone name.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
     /// server, [ADR 0067 § 1](/docs/decisions/0067.md)'s
@@ -239,12 +239,11 @@ impl<'a> PgTarget<'a> {
     /// **The target borrows the block and copies nothing**, which is what the
     /// `'a` is for: a resolved target has to outlive the [`PgConn::connect`]
     /// call that opens with it, and the thing that already does is the
-    /// configuration snapshot the block lives in. Owning the four strings
-    /// instead would mean a second copy of the password — a `secret` at the
-    /// language level ([ADR 0067 § 3](/docs/decisions/0067.md)) — in
-    /// a struct nothing zeroes, for no gain: `nvs_config`'s snapshot is held
-    /// for the whole of a boot generation and a connection is opened inside
-    /// one.
+    /// configuration snapshot the block lives in. Owning the strings instead
+    /// would mean a second copy of the password — a `secret` at the language
+    /// level ([ADR 0067 § 3](/docs/decisions/0067.md)) — in a struct
+    /// nothing zeroes, for no gain: `nvs_config`'s snapshot is held for the
+    /// whole of a boot generation and a connection is opened inside one.
     ///
     /// **Every field is decided here and none of it in the connect path.**
     /// [`statement_cache_for`] and [`crate::sql::time_zone_for`] are
@@ -265,8 +264,8 @@ impl<'a> PgTarget<'a> {
     /// [`BlockError`], in the order the checks run: the `driver` first, since a
     /// MySQL block resolved as PostgreSQL would send this handshake to a server
     /// that cannot answer it; then a field belonging to another driver; then
-    /// the four the startup exchange sends, each by its own key; then § 9's
-    /// zone.
+    /// every field the startup exchange sends, each by its own key; then
+    /// § 9's zone.
     pub fn resolve(block: &'a Database) -> Result<PgTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -1033,7 +1032,7 @@ fn authenticate<S: Read + Write>(
 /// no [`ServerError`], because there is no code to classify.
 ///
 /// The sentence is [`ServerError`]'s `Display` and is unchanged by the kind
-/// riding beside it: a caller that prints this reads what it always read, and
+/// riding beside it: a caller that prints this reads the sentence alone, and
 /// one that branches — § 7's retry rule is the first — asks
 /// [`ServerError::of`].
 fn server_error(body: &backend::ErrorResponseBody) -> io::Error {
@@ -1401,10 +1400,10 @@ impl std::fmt::Debug for PgTime {
 /// minted in [`PgScalar::into_value`] and nowhere else, and that function is
 /// one arm per variant with nothing left to get wrong.
 ///
-/// It is also this driver's public answer beside a [`Value`], because five of
+/// It is also this driver's public answer beside a [`Value`], because some of
 /// § 9's rows are not values at all: a `DATE` is a `Core\Time\Date`, an
 /// *instance* of an `nvs-stdlib` class, and that crate is the only one that
-/// can allocate one. Those five arrive here as parsed components — see
+/// can allocate one. Those rows arrive here as parsed components — see
 /// [`PgDate`] — and `into_value` answers `None` for them, as it does for an
 /// array holding one of them at any depth.
 pub enum PgScalar<'a> {
@@ -1495,11 +1494,11 @@ impl PgScalar<'_> {
     /// The Novis value, taking on the one reference a `string` or a `bytes`
     /// costs and nothing at all for the rest.
     ///
-    /// `None` for § 9's five structured rows, whose Novis type is a class
-    /// instance this crate cannot allocate at all — [`PgDate`] owns why — and
-    /// for an array holding one of them at any depth, which is as much
+    /// `None` for § 9's structured rows, whose Novis type is a class instance
+    /// this crate cannot allocate at all — [`PgDate`] owns why — and for an
+    /// array holding one of them at any depth, which is as much
     /// `nvs-stdlib`'s to finish as a bare one is. A caller that wants the
-    /// whole table matches those five variants first, and an [`Self::Array`]
+    /// whole table matches those variants first, and an [`Self::Array`]
     /// whose elements it has finished itself, and reaches this for everything
     /// left.
     pub fn into_value(self) -> Option<Value> {
@@ -1731,7 +1730,7 @@ impl PgColumn {
     /// instance no driver can allocate. [`Self::scalar`] is what reads those,
     /// and this is the scalar half in full — plus § 9's array row, which is a
     /// `Value` like any other once its elements are. An array whose elements
-    /// are one of those five is the same `Ok(None)` as a single one, whole and
+    /// are one of those rows is the same `Ok(None)` as a single one, whole and
     /// at any nesting.
     ///
     /// The `tainted` half of `tainted string` is nowhere in this signature and
@@ -1758,7 +1757,7 @@ impl PgColumn {
     /// and every row of § 9's table rather than the scalar half.
     ///
     /// `nvs-stdlib` calls this one: it is the only crate that can turn a
-    /// [`PgScalar::Date`] and its four siblings into the `Core\Time` and
+    /// [`PgScalar::Date`] and its siblings into the `Core\Time` and
     /// `Core\Uuid` instances the table names.
     ///
     /// # Errors
@@ -2438,7 +2437,7 @@ pub struct PgRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     wire: &'a mut Wire<S>,
     state: &'a Cell<State>,
     /// Everything about this stream that is not the borrow — [`PgCursor`] owns
-    /// why that is a split rather than five fields here.
+    /// why that is a split rather than its fields inlined here.
     reading: PgCursor,
 }
 
@@ -3534,7 +3533,7 @@ mod tests {
     use crate::sql::{DEFAULT_STATEMENT_CACHE, StatementCache};
 
     /// A cache that never caches, so a test about the wire asserts the unnamed
-    /// statement it has always asserted. The cached path has its own case.
+    /// statement rather than a cached name. The cached path has its own case.
     fn no_cache() -> StatementCache {
         StatementCache::new(0)
     }
@@ -3678,9 +3677,9 @@ mod tests {
             // not on a bare `r=`. RFC 5802's nonce is printable ASCII with the
             // comma excluded — `postgres_protocol` draws 24 of those — so it
             // may contain `r=` and cannot contain `,r=`. Splitting on the
-            // shorter needle read a *suffix* of the nonce roughly one time in
-            // 368, the server echoed a prefix the client never sent, and the
-            // driver correctly refused its own exchange.
+            // shorter needle takes a *suffix* of the nonce whenever one holds
+            // `r=`, so the server echoes a prefix the client never sent and the
+            // driver refuses its own exchange.
             let client_nonce = self
                 .client_first_bare
                 .split_once(",r=")
@@ -3733,14 +3732,14 @@ mod tests {
     /// The fake server echoes the client's **whole** nonce, including one that
     /// contains `r=`.
     ///
-    /// This pins the fixture rather than the driver, and it is here because the
-    /// fixture's own bug is indistinguishable from a driver bug at the point it
+    /// This pins the fixture rather than the driver, and it is here because a
+    /// fixture bug here is indistinguishable from a driver bug at the point it
     /// shows: `authenticate` refuses a `server-first` whose nonce does not begin
-    /// with the one it sent, so a fake that echoed a suffix failed inside
-    /// whichever SCRAM case the run happened to reach. `postgres_protocol` draws
+    /// with the one it sent, so a fake that echoes a suffix fails inside
+    /// whichever SCRAM case the run happens to reach. `postgres_protocol` draws
     /// 24 characters from RFC 5802's comma-free printable set, so `r=` lands in
-    /// a nonce about one run in 368 — often enough to have failed an acceptance
-    /// check, rarely enough to pass every re-run of it.
+    /// a nonce about one run in 368 — often enough to fail an acceptance check,
+    /// rarely enough to pass every re-run of it.
     #[test]
     fn the_fake_server_echoes_a_client_nonce_that_contains_the_attribute_marker() {
         const NONCE: &str = "abcr=defr=ghi";
@@ -3907,7 +3906,7 @@ mod tests {
 
     /// The discriminant, and what a block belonging to another driver does
     /// here: it is refused rather than opened as PostgreSQL, whether the name
-    /// is another of the five or none of them. The case a silent resolver
+    /// is another driver's or none at all. The case a silent resolver
     /// loses is `path` — a valid field on the struct, and one this handshake
     /// has nothing to do with, so ignoring it would open a *server*
     /// connection for a block that named a file.
@@ -3933,8 +3932,8 @@ mod tests {
             BlockError::UnknownDriver { written: "pgsql" }
         );
 
-        // A file is written by a human, so the capital is a spelling and not a
-        // sixth backend.
+        // A file is written by a human, so the capital is a spelling and not
+        // another backend.
         block.driver = Some("Postgres".to_owned());
         assert!(PgTarget::resolve(&block).is_ok());
 
@@ -4029,8 +4028,7 @@ mod tests {
         );
         // § 9's rendering parameters are pinned in the startup message: a text
         // rendering this driver parses positionally has to be the rendering it
-        // asked for, not the one the server was configured with. The charset —
-        // the third of them — is
+        // asked for, not the one the server was configured with. The charset is
         // [`the_connection_charset_is_forced_to_utf8`]'s.
         let startup = &wire.peer().sent[0];
         assert!(
@@ -4075,10 +4073,10 @@ mod tests {
     /// § *Parameters and results are in text format* owns why: a server is a
     /// network peer, `rule:types/bytes`'s guarantee is read unchecked downstream, and
     /// `client_encoding` is a request rather than a proof. It is asserted over
-    /// **every** OID that reads back as text — § 9's five text rows, its two
-    /// JSON ones and the "no Novis type" row every unnamed OID falls to — by
-    /// counting, so an OID added later that decodes text without the check
-    /// fails here rather than passing on the rows it shares with these.
+    /// **every** OID that reads back as text — § 9's text rows, its JSON ones
+    /// and the "no Novis type" row every unnamed OID falls to — by counting, so
+    /// an OID added later that decodes text without the check fails here rather
+    /// than passing on the rows it shares with these.
     #[test]
     fn the_connection_charset_is_forced_to_utf8() {
         let mut scram = Scram::new("Novis-Test-Pw1");
@@ -4274,8 +4272,8 @@ mod tests {
         message(b'E', &body)
     }
 
-    /// An `ErrorResponse` carrying the three fields [`super::server_error`]
-    /// reads, and the trailing zero that ends the field list.
+    /// An `ErrorResponse` carrying the fields [`super::server_error`] reads,
+    /// and the trailing zero that ends the field list.
     fn error_response(code: &str, said: &str) -> Vec<u8> {
         let mut body = vec![b'S'];
         body.extend_from_slice(b"ERROR\0");
@@ -4291,7 +4289,7 @@ mod tests {
 
     /// An `ErrorResponse` carrying whatever further fields the case names, for
     /// the § 8 rule that turns on the fields [`super::server_error`] *drops*
-    /// rather than on the four it keeps.
+    /// rather than on the ones it keeps.
     fn error_response_with(code: &str, said: &str, extra: &[(u8, &str)]) -> Vec<u8> {
         let mut body = vec![b'S'];
         body.extend_from_slice(b"ERROR\0");
@@ -4752,7 +4750,7 @@ mod tests {
         out
     }
 
-    /// `rule:core-classes/db-statement-members`'s fourth row on the wire: **one** `Parse` for N executions,
+    /// `rule:core-classes/db-statement-members`'s `executeMany` on the wire: **one** `Parse` for N executions,
     /// all of it in one flush, and the counts summed. The `Sync` per execution
     /// is the section's "no transaction of its own" — one for the whole batch
     /// would make a failure at the last set roll back every set before it.
@@ -4860,7 +4858,7 @@ mod tests {
         assert!(state.get().is_poolable());
     }
 
-    /// The four values of `rule:core-classes/db-connection-busy-state`, walked by one statement: `Idle` before,
+    /// The values of `rule:core-classes/db-connection-busy-state`, walked by one statement: `Idle` before,
     /// `Streaming` while rows are unread, and `Idle` again once the
     /// `ReadyForQuery` the `Sync` guaranteed has been read. A `NULL` column is
     /// `None` and not an empty slice — the distinction `rule:core-classes/db-column-types` maps to
@@ -5064,9 +5062,9 @@ mod tests {
     /// widest message in it.
     ///
     /// Measured at two sizes an order of magnitude apart so that the bound is
-    /// visibly not a function of the row count. Both readings come out in the
-    /// tens of *bytes*, because the inbox is already allocated by the time the
-    /// stream opens and streaming reuses it; the bound is left at several
+    /// visibly not a function of the row count. Both readings come out far
+    /// under it, because the inbox is already allocated by the time the stream
+    /// opens and streaming reuses it; the bound is left at several
     /// `READ_CHUNK`s anyway, since what it is written to catch is a driver
     /// holding megabytes and not one holding a buffer more.
     #[test]
@@ -5180,7 +5178,7 @@ mod tests {
             "§ 4 permits a statement on an idle connection and on no other"
         );
 
-        // The two busy states that are *healthy*. `Poisoned` refuses for its
+        // The busy states that are *healthy*. `Poisoned` refuses for its
         // own reason and is below.
         for busy in [State::Executing, State::Streaming] {
             let state = Cell::new(busy);
@@ -5547,8 +5545,8 @@ mod tests {
                 "`{command}` is in the reset and no § 13 property asks for it"
             );
         }
-        // The eighth property — "no prepared statement the cache does not still
-        // account for" — is the one the list *keeps*, and it is asserted by
+        // The one property the list *keeps* — "no prepared statement the cache
+        // does not still account for" — is asserted by
         // `postgres_resets_without_losing_its_statement_cache` above.
         assert_eq!(sent.len(), super::RESET_COMMANDS.len());
     }
@@ -6003,8 +6001,8 @@ mod tests {
         assert_eq!(depth.get(), 2);
     }
 
-    /// § 8's kind, `SQLSTATE` and constraint ride inside the same `io::Error`
-    /// the sentence always was, and the errors this driver words itself carry
+    /// § 8's kind, `SQLSTATE` and constraint ride inside the `io::Error` that
+    /// carries the sentence, and the errors this driver words itself carry
     /// none — which is what makes asking cheaper than matching on text.
     #[test]
     fn a_refused_statement_carries_section_8s_kind_beside_the_sentence() {
@@ -6556,8 +6554,8 @@ mod tests {
         );
     }
 
-    /// § 9's structured rows: the five whose Novis type is a class instance,
-    /// and so are components here rather than a value.
+    /// § 9's structured rows: those whose Novis type is a class instance, and
+    /// so are components here rather than a value.
     ///
     /// Asserted through `scalar`, which is the seam itself — `decode` answers
     /// `None` for every one of these, and the test below pins that. The last

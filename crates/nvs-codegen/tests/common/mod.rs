@@ -1,13 +1,11 @@
 //! Fixtures shared by `nvs-codegen`'s end-to-end tests.
 //!
-//! Each `tests/*.rs` file is its own binary, so the four helpers these tests
-//! were written against live here and are reached through `mod common;`. They
-//! moved out of the single `compile_and_run.rs` unchanged except for becoming
-//! `pub(crate)`.
+//! Each `tests/*.rs` file is its own binary, so the helpers these tests are
+//! written against live here and are reached through `mod common;`.
 //!
 //! Every test that uses them goes through the *real* pipeline — `nvs-syntax`,
 //! `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-codegen` — rather than hand-building
-//! IR, because the property worth guarding is that the five crates agree. That
+//! IR, because the property worth guarding is that those crates agree. That
 //! is also why the assertions are on output bytes and statuses rather than on
 //! generated instructions: what `nvs run` prints is the observable contract,
 //! and `benches/abi-probe` is where instruction-level costs are held.

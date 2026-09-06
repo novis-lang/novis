@@ -67,12 +67,13 @@ fn the_next_fire_is_the_expression_the_boot_read() {
 }
 
 /// § 2, and POSIX's own two-field rule: when `day-of-month` and `day-of-week` **both** narrow, a
-/// date matching *either* fires. Asserted with the two single-narrowing spellings beside it, because
-/// an implementation that intersected the two fields would answer the third and fourth rows
-/// correctly and only differ on the first two.
+/// date matching *either* fires. Asserted with the single-narrowing spellings beside it, because
+/// an implementation that intersected the two fields would answer those correctly and differ only
+/// where both fields narrow.
 #[test]
 fn a_day_of_month_and_a_day_of_week_that_both_narrow_fire_on_either() {
-    // 2026-08-01 is a Saturday, so the first of the month and the first Monday are different days.
+    // `2026-08-01` is a Saturday, so the first of the month and the first Monday are different
+    // days.
     assert_eq!(
         next("0 12 1 * MON", "UTC", "2026-07-31T00:00:00Z"),
         "2026-08-01T12:00:00Z",
@@ -97,7 +98,7 @@ fn a_day_of_month_and_a_day_of_week_that_both_narrow_fire_on_either() {
 }
 
 /// § 6: a local-time schedule landing in a spring-forward **gap** fires **once**, at the first valid
-/// instant after the gap. `02:30` does not exist on 2026-03-08 in New York — the clocks go from
+/// instant after the gap. `02:30` does not exist on `2026-03-08` in New York — the clocks go from
 /// `01:59:59-05` to `03:00:00-04` — so the fire is `03:00`, and the day after is back to `02:30`.
 #[test]
 fn a_fire_in_a_spring_forward_gap_lands_on_the_first_instant_after_it() {
@@ -114,10 +115,10 @@ fn a_fire_in_a_spring_forward_gap_lands_on_the_first_instant_after_it() {
 }
 
 /// § 6: one landing in a fall-back **repeat** fires **once**, on the first occurrence. `01:30`
-/// happens twice on 2026-11-01 in New York, at `05:30Z` under `-04` and again at `06:30Z` under
-/// `-05`; the second is not a fire. The third case is the one an implementation gets wrong by
-/// reading the civil clock alone — asked from *inside* the repeated hour, the first occurrence is
-/// already behind, and answering it would run the job twice.
+/// happens twice on `2026-11-01` in New York, at `05:30Z` under `-04` and again at `06:30Z` under
+/// `-05`; the second is not a fire. The case asked from *inside* the repeated hour is the one an
+/// implementation gets wrong by reading the civil clock alone: the first occurrence is already
+/// behind, and answering it would run the job twice.
 #[test]
 fn a_fire_in_a_fall_back_repeat_happens_on_the_first_occurrence_only() {
     assert_eq!(

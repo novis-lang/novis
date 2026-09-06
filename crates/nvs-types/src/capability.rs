@@ -26,7 +26,7 @@
 //!
 //! Which member this is, and which names are capabilities, are
 //! [`nvs_stdlib::cap::is_query`] and [`nvs_stdlib::cap::is_capability`]. The
-//! second reads `nvs_config::capability::Cap` — the same roster a `[grants]`
+//! latter reads `nvs_config::capability::Cap` — the same roster a `[grants]`
 //! line is read against — so a capability added there is one this refusal
 //! accepts in the same edit, and the checker holds no copy of a name. That
 //! matters more than usual here: a stale copy would refuse a capability the

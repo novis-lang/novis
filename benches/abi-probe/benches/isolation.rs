@@ -3,7 +3,7 @@
 //! [ADR 0006](/docs/decisions/0006.md) gives Novis a
 //! language construct for running another `.nvs` file with its own heap, globals
 //! and limits inside the same process. PHP can only express that by spawning
-//! another interpreter, so the decision rests on the gap between the two numbers
+//! another interpreter, so the decision rests on the gap between the numbers
 //! measured here.
 //!
 //! * `os_process/noop` — the floor of the mechanism being replaced: the cheapest
@@ -13,10 +13,10 @@
 //!   isolate is a task with an arena and a fresh set of globals; this is the task
 //!   part, and it is deliberately the same measurement as in `coroutine.rs` so
 //!   that the ratio comes from one bench run rather than from two.
-//! * `isolate/spawn_to_result` — the thing itself, now that M5 and M6 have
-//!   landed it: `nvs_host::Isolate::run`, which copies the argument across the
-//!   heap boundary, builds the child's own ownership root and context, runs it
-//!   as a child task, copies the answer back and releases the root. It is the
+//! * `isolate/spawn_to_result` — the thing itself: `nvs_host::Isolate::run`,
+//!   which copies the argument across the heap boundary, builds the child's own
+//!   ownership root and context, runs it as a child task, copies the answer back
+//!   and releases the root. It is the
 //!   figure [M5's acceptance](/docs/plan/m5.md) asks for, and the gap
 //!   between it and `task/create_and_finish` is what the boundary itself costs
 //!   over the coroutine underneath it.

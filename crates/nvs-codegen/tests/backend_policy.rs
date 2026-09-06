@@ -54,13 +54,13 @@ fn a_reference_to_the_units_own_data_is_not_colocated() {
     // true and `symbol_value` lowers to a PC-relative address; `cranelift-jit`
     // allocates the data blob separately from the code that reads it, and the
     // ASan leg spreads them far enough apart to overflow the relocation. A
-    // class descriptor is an `Import` and arrives non-colocated already, which
-    // is why only the literal path had the bug and why both go through the
-    // helper now.
+    // class descriptor is an `Import` and arrives non-colocated already, so
+    // only the literal path is exposed — and both go through the helper all
+    // the same.
     //
     // Every site is checked, not just one, because a grep for the helper's
-    // name passes as soon as *any* caller keeps it — which is how the first
-    // version of this test would have let the literal path regress in silence.
+    // name passes as soon as *any* caller keeps it, which would let the
+    // literal path regress in silence.
     let source = emitter();
     let sites: Vec<_> = source
         .lines()
@@ -110,9 +110,9 @@ fn a_frame_over_the_probe_threshold_compiles_and_runs() {
     // `Jit::new`'s `builder.symbol` loop supplies the runtime's helpers and
     // nothing else. So the default is not "protection with a call": it is
     // `cranelift-jit` panicking `can't resolve libcall __cranelift_probestack`
-    // the first time a frame crosses `probestack_size_log2`'s 4 KiB, which is
-    // roughly fifty statements at a script's file scope and is why this is a
-    // run rather than another source grep.
+    // the first time a frame crosses `probestack_size_log2`'s 4 KiB, which a
+    // script's file scope reaches in a modest run of statements — and is why
+    // this is a run rather than another source grep.
     let mut source = String::from(
         "<?nvs
 class Pad {

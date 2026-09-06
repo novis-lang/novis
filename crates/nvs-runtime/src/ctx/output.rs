@@ -208,16 +208,16 @@ impl Ctx {
     /// one of the two spellings a reader cannot get backwards.
     ///
     /// **`[log] format` picks the rendering, which is why this takes a
-    /// [`Record`] and not bytes.** `rule:errors/renderings` gives a log target two of its
-    /// three renderings — JSON Lines and plaintext — and § 6's producers name
-    /// none of them, so the choice belongs at the sink and nowhere else. A
+    /// [`Record`] and not bytes.** `rule:errors/renderings` gives a log target
+    /// its JSON Lines and plaintext renderings, and § 6's producers name
+    /// neither, so the choice belongs at the sink and nowhere else. A
     /// caller that rendered first would be a caller that had chosen, and the
     /// two of them would have chosen separately: the same drift the record's
     /// shape, its destination and its floor are each held here to avoid. The
     /// price is one `String` per written record, which is what the caller
     /// allocated before.
     ///
-    /// The three directives are read once — see [`Self::set_config`] — and the
+    /// Those directives are read once — see [`Self::set_config`] — and the
     /// sink `target` names is held for the life of the context, because a
     /// rotation bound counted against a handle needs the handle to survive the
     /// record.
@@ -268,11 +268,11 @@ impl Ctx {
     /// **All four come from the request, and a context answering none stamps
     /// nothing.** That is why `ts` is here rather than read off the clock
     /// unconditionally: § 6's four keys are what a *request* contributes to a
-    /// record, and a bare clock read would give a CLI run a third envelope
-    /// shape — neither the two keys the floor writes with no request in front
-    /// of it nor the six a served one carries. Two shapes, not three, is
-    /// § 6's sameness. An absent key is omitted rather than written empty,
-    /// which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s rule
+    /// record, and a bare clock read would give a CLI run an envelope shape of
+    /// its own — neither the bare envelope the floor writes with no request in
+    /// front of it nor the full one a served request carries. Those two shapes
+    /// and no third is § 6's sameness. An absent key is omitted rather than
+    /// written empty, which is `rule:observability/a-log-record-carries-trace-ids-when-a-trace-is-active`'s rule
     /// for `trace_id`/`span_id` applied to the whole envelope.
     ///
     /// `request_id` is the trace id, because `rule:observability/a-trace-id-exists-for-every-request` has that be Novis's
@@ -306,8 +306,8 @@ impl Ctx {
     ///
     /// [`nvs_config::log::Target`] is that grammar and it has two readers:
     /// this one, and the boot check that refuses a tree naming a target § 4
-    /// does not spell. So a value that reached here is one of three, and
-    /// [`LogTarget::Unnamed`] covers two facts rather than one:
+    /// does not spell. So a value that reached here is one the grammar spells,
+    /// and [`LogTarget::Unnamed`] covers two facts rather than one:
     ///
     /// - **`syslog` is spelled and not yet transported.** A syslog sink is a
     ///   datagram to a platform endpoint carrying `rule:errors/log-level`'s severity in a
@@ -600,7 +600,7 @@ impl Ctx {
 /// One header a program declared for its response, and how it joins the ones
 /// whoever answers wrote for itself.
 ///
-/// A row rather than the pair this used to be, because two members declare
+/// A row rather than a bare name-and-value pair, because two members declare
 /// headers and they mean opposite things about a name that is already present.
 /// [`Ctx::declare_header`] is
 /// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`'s
@@ -752,7 +752,7 @@ mod tests {
         assert_eq!(ctx.capture_depth(), 0);
     }
 
-    /// Every sink that exists today is a terminal or a stand-in for one, so
+    /// Every sink but the response body is a terminal or a stand-in for one, so
     /// each names the same carrier — `rule:tooling/echo-always-has-a-sink`'s default row.
     #[test]
     fn every_sink_today_carries_cli_text() {

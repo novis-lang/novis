@@ -55,8 +55,8 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// name-resolved `module` for symbol/alias lookups. `interner` accumulates
 /// every type this run interns; `exprs` accumulates every call's/`new`'s
 /// resolved target this run records — see [`crate::expr_table`]'s own module
-/// docs; a caller with no use for it yet (today, only `nvs-ir` reads it back)
-/// still passes one and may simply drop it afterward.
+/// docs; a caller with no use for it (only `nvs-ir` reads it back) still
+/// passes one and may simply drop it afterward.
 ///
 /// `files` is the whole `require`/`autoload` graph — `nvs_hir::resolve_program`'s
 /// second return value, in entry-first load order, mapped to
@@ -100,9 +100,9 @@ pub fn check_program(
 /// that door's refusals earlier (`rule:expressions/preparation-preserves-behaviour`). Every fixture in the tree checks with `None` for that reason, and
 /// says nothing about capabilities at all.
 ///
-/// A second entry point rather than a sixth parameter on the first: one call
-/// site in the whole workspace has a `Capabilities` to pass, and threading an
-/// argument twenty harnesses would all spell `None` prices the seam to the
+/// A second entry point rather than another parameter on the first: hardly any
+/// call site in the whole workspace has a `Capabilities` to pass, and threading
+/// an argument every other harness would spell `None` prices the seam to the
 /// callers that do not use it.
 pub fn check_program_granted(
     files: &[crate::ProgramFile<'_>],
@@ -349,9 +349,9 @@ pub(crate) fn check_stmts(
                     env,
                 );
             }
-            // Two more declarations this walk has nothing to check, matched
-            // here rather than left to fall through, because what
-            // `crate::locals::check_stmt` does with one now is refuse it as
+            // Declarations this walk has nothing to check, matched here
+            // rather than left to fall through, because what
+            // `crate::locals::check_stmt` does with one is refuse it as
             // `E0233` — and there the fact that it arrived at all *is* the
             // proof it was nested. `nvs_hir` is what reads both: a `type`
             // alias into the type table, an `autoload` into `rule:programs/no-runtime-autoload`'s map.
@@ -608,7 +608,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
     let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
 
-    // `rule:security/response-body-is-one-typed-member`'s sixth row is a fact about one body, so what answers it is
+    // `rule:security/response-body-is-one-typed-member` is a fact about one body, so what answers it is
     // installed here and put back at every exit below — `crate::response`'s
     // module doc owns which bodies it arms and why a method's is the reach.
     let entering = crate::response::entering_body(m, ctx, env);
@@ -662,7 +662,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// closing brace (`E0739`).
 ///
 /// [`crate::returns`] owns the analysis and the asymmetry that makes reporting
-/// safe. Two gates come first and neither is that analysis: a declaration
+/// safe. The gates that come first are not that analysis: a declaration
 /// writing **no** return type at all promises nothing — that is a constructor,
 /// and [`lower_optional_type`] typed it `mixed` — and `void`/`never` promise
 /// nothing to write. Everything else, a declared `mixed` included, owes a
@@ -674,13 +674,13 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 ///
 /// [`crate::signatures::MethodSig::returns_static`] owns why this is a refusal
 /// rather than a pinned hole, and the diagnostic's own doc owns why refusing
-/// is the PHP-compatible answer even though PHP accepts the declaration. Three
-/// expression shapes keep the promise and they are the whole list:
+/// is the PHP-compatible answer even though PHP accepts the declaration. These
+/// expression shapes keep the promise, and they are the whole list:
 ///
 /// * `$this` — the receiver *is* the called class.
 /// * `new static(...)` — `rule:statements/static-is-a-member-modifier`'s allocation of it.
 /// * a call written on `static`/`self`/`parent`/`$this` whose target itself
-///   returns `static`, since all four forward the caller's called class.
+///   returns `static`, since each of those forwards the caller's called class.
 ///
 /// An explicitly named class (`Base::make()`) is deliberately not on that
 /// list: naming a class *sets* the called class, so its answer is that class

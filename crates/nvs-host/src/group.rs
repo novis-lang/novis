@@ -5,7 +5,7 @@
 //! declared in `nvs-runtime`, why it is reached through a thread-local, and why
 //! what crosses is a whole group rather than a `spawn`/`wait`/`cancel` for
 //! `nvs-stdlib` to sequence. This module is the other side of it, and what it
-//! owns is the two decisions that only the implementor can make.
+//! owns is the decisions that only the implementor can make.
 //!
 //! # 1. What a child gets for a `Ctx`
 //!
@@ -73,8 +73,8 @@
 //! § 4's second throw is *written* rather than swallowed, which is all
 //! `rule:concurrency/nothing-is-still-running-when-a-call-returns` asks. It goes to the failing
 //! child's diagnostic channel — [`OutputSink::Stderr`](nvs_runtime::OutputSink) unless a test
-//! moved it — and not to `Core\Log`: that class has since landed (`nvs_stdlib::log`), and
-//! re-pointing this seam at it is still owed. The destination is the only thing that changes then.
+//! moved it — and not to `Core\Log` (`nvs_stdlib::log`): pointing this seam at that class is
+//! owed, and the destination is the only thing it changes.
 //!
 //! # What it spends
 //!
@@ -334,7 +334,7 @@ impl Drop for Child {
     }
 }
 
-/// The module doc's four-step sequence, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
+/// The module doc's § 2 sequence, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`.
 fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>) -> Outcome {
     let count = jobs.len();
     let group = Rc::new(RefCell::new(Group {

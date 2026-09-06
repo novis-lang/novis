@@ -303,7 +303,7 @@ fn a_request_owned_panic_leaves_the_worker_running() {
 
 #[test]
 fn a_teardown_path_that_panics_does_not_recurse() {
-    // ADR 0106 § 3's two bullets, which only bite together: a value graph is
+    // ADR 0106 § 3's bullets, which only bite together: a value graph is
     // released *while a panic is unwinding*, which is the one place where a
     // recursive teardown or a fallible one stops being containable. A stack
     // overflow or a second panic there aborts the process before any
@@ -352,9 +352,9 @@ fn engine_recursion_is_bounded_before_the_stack_is() {
     // only bound — and the stack that bound has to stay under is not this
     // thread's. Every request runs on a coroutine stack, which is where the
     // margin is smallest, so both halves are asked for there: the deepest
-    // document the default `maxDepth` accepts still decodes, and one four
-    // orders of magnitude past it comes back as an ordinary catchable failure
-    // rather than as a fault or as an overflow.
+    // document the default `maxDepth` accepts still decodes, and one far
+    // past it comes back as an ordinary catchable failure rather than as a
+    // fault or as an overflow.
     //
     // Counted PHP's way, so a scalar is depth 1 and `[1]` is depth 2: 511
     // brackets is the last document a `maxDepth` of 512 accepts, and

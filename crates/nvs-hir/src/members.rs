@@ -10,14 +10,14 @@
 //! That same ADR's other half is refused here too, and it is the reason
 //! [`walk_class_side`] exists: a **bare name in value position** (`PHP_EOL`)
 //! is `E0319` and a **bare name called** (`strlen($s)`) is `E0320`, since
-//! ADR 0011 §§ 1 and 3 removed the global-function and global-constant
-//! storage rows outright — and `self`/`static`/`parent` in value position is
-//! `E0321`, all three naming a class where a value is expected. All four are
+//! ADR 0011 §§ 1 and 3 leave no global-function and no global-constant
+//! storage row to name — and `self`/`static`/`parent` in value position is
+//! `E0321`, each naming a class where a value is expected. These are
 //! the *same* [`ExprKind`]s that mean a class on the left of a `::`, so every
 //! class-side position skips the value-position walk rather than recursing
 //! into it. Reported here, in resolution, rather than in `nvs-types`: the
 //! mistake is that the name resolves against nothing, which needs no type,
-//! and the `E04xx` band has two numbers left.
+//! and the `E04xx` band has room for it.
 //!
 //! Also carries M2 item 5, the property-access counterpart: `$this->name`
 //! must name an instance property actually declared on the enclosing class
@@ -123,7 +123,7 @@ impl MemberTable {
 }
 
 /// Which kind of member a `Class::member` reference names — decides which of
-/// [`ClassMembers`]' three sets is checked.
+/// [`ClassMembers`]' sets is checked.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum MemberKind {
     Method,
@@ -309,7 +309,8 @@ struct Ctx<'a> {
 }
 
 /// The read-only tables and the diagnostics sink every walking function
-/// needs, bundled so a recursive call threads one argument instead of four.
+/// needs, bundled so a recursive call threads one argument rather than one
+/// per table.
 struct Env<'a> {
     symbols: &'a SymbolTable,
     graph: &'a ClassGraph,
@@ -514,8 +515,8 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             step,
             body,
         } => {
-            // `rule:iteration/for-init-clause`: an init clause may be the same `LocalDecl` the
-            // line above the loop used to hold, so it walks as a statement.
+            // `rule:iteration/for-init-clause`: an init clause may be the same `LocalDecl` that
+            // would otherwise sit on the line above the loop, so it walks as a statement.
             if let Some(decl) = init.decl() {
                 s!(decl);
             }
@@ -675,7 +676,8 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             e!(expr);
             walk_class_side(class, src, ctx, env);
         }
-        // A bare `strlen($s)` is `rule:classes/no-free-functions-or-constants`'s removed row, not a call on a
+        // A bare `strlen($s)` names a storage row
+        // `rule:classes/no-free-functions-or-constants` does not have, not a call on a
         // value: the callee is reported here rather than recursed into, so
         // that it names the *function* replacement instead of the constant
         // one `ExprKind::ConstFetch`'s own arm below would give it.
@@ -858,7 +860,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         }
         ExprKind::Await(inner) => e!(inner),
         ExprKind::Require { path } => e!(path),
-        // The two name-shaped expressions that only ever mean a class are
+        // The name-shaped expressions that only ever mean a class are
         // refused here, in value position, because every position where they
         // *do* mean a class goes through `walk_class_side` instead and never
         // reaches this match at all.

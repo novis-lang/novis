@@ -121,9 +121,9 @@ pub fn canonicalize(
 /// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
 /// and the operator finds out at the first request that hits the real ceiling.
 ///
-/// Two things this deliberately does not check, because § 3 does not state them: a per-app default
-/// above the block's *own* lowered ceiling, and the same shape globally. Both are incoherent rather
-/// than unsafe — the value in force is still bounded by the ceiling the request is held to.
+/// What this deliberately does not check, because § 3 does not state it: a per-app default above
+/// the block's *own* lowered ceiling, and the same shape globally. Each is incoherent rather than
+/// unsafe — the value in force is still bounded by the ceiling the request is held to.
 ///
 /// # Errors
 ///
@@ -161,7 +161,7 @@ pub fn bound(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), 
 /// One key of one block against the host's ceiling for it.
 ///
 /// A key with no unit is left alone rather than compared: [`unit_of`] answers for every limit the
-/// tree spells, and a sixth one added to [`Limits`](crate::tree::Limits) without a unit is a gap in
+/// tree spells, and a limit added to [`Limits`](crate::tree::Limits) without a unit is a gap in
 /// that table rather than a reason to panic here.
 fn bounded(
     block_path: &str,
@@ -194,8 +194,8 @@ fn bounded(
     ))
 }
 
-/// The five `[limits]` keys of a per-app block, named and in the tree's own order — the same five
-/// [`ceilings`] returns, so the two zip row for row.
+/// The `[limits]` keys of a per-app block, named and in the tree's own order — the same keys
+/// [`ceilings`] returns, in the same order, so the two zip row for row.
 fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
     [
         ("memory", limits.memory.as_ref()),
@@ -206,8 +206,8 @@ fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
     ]
 }
 
-/// The same five keys of a `[limits.hard]`, carrying their names — one table, so a sixth limit is a
-/// row here and not five places to forget.
+/// The same keys of a `[limits.hard]`, carrying their names — one table, so a new limit is a row
+/// here rather than a scattering of places to forget.
 pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 5] {
     [
         ("memory", set.memory.as_ref()),

@@ -27,7 +27,7 @@
 //! false` is not a bound this module can read. `QueueBounds::DEFAULTS` transcribes § 2's own
 //! example rather than choosing numbers.
 //!
-//! Cost: one pass over one optional block at boot and at reload, and four words held per
+//! Cost: one pass over one optional block at boot and at reload, and one [`QueueBounds`] held per
 //! configuration generation. Nothing here runs on a request path.
 
 use std::collections::BTreeMap;
@@ -62,8 +62,8 @@ pub struct QueueBounds {
 }
 
 impl QueueBounds {
-    /// § 2's own example, which is this module's default set. The ADR writes the three numbers out,
-    /// so they are transcribed here rather than chosen; `connection` has no default because § 2's
+    /// § 2's own example, which is this module's default set. The ADR writes the numbers out, so
+    /// they are transcribed here rather than chosen; `connection` has no default because § 2's
     /// whole point is that an operator names the database.
     const DEFAULTS: (u32, u32, Duration) = (4, 5, Duration::from_secs(5 * 60));
 }
@@ -86,12 +86,12 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 /// tree that writes no `[queue]` at all.
 ///
 /// Every unwritten key keeps its default independently, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per
-/// key and a partly-written `[queue]` is four decisions rather than one. `origins` names the file a
-/// refusal points at, and an empty map simply leaves the note off.
+/// key and a partly-written `[queue]` is a decision per key rather than one. `origins` names the
+/// file a refusal points at, and an empty map simply leaves the note off.
 ///
 /// # Errors
 ///
-/// `E0617` for the four things a `[queue]` can say that leave nothing runnable: no `connection`, a
+/// `E0617` for the things a `[queue]` can say that leave nothing runnable: no `connection`, a
 /// `connection` naming a `[db.<name>]` the tree does not hold, a `max_attempts` of `0`, and a
 /// `visibility` of `0`. A `visibility` that is not a duration at all is `E0601` from
 /// [`mod@crate::value`], in that module's words rather than this one's.

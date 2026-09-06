@@ -144,8 +144,8 @@ pub fn sp_prepexec_request(
 /// names the marker one of them was bound at.
 ///
 /// Done once per statement and before anything is written, so a refusal costs
-/// no bytes on the wire and neither of § 1's two request shapes has to repeat
-/// the conversion to decide which of them is being sent.
+/// no bytes on the wire and choosing between § 1's request shapes does not
+/// repeat the conversion.
 ///
 /// # Errors
 ///
@@ -238,7 +238,7 @@ pub(super) fn unprepare_request(handle: i32, descriptor: u64) -> Vec<u8> {
 /// The `SQL_BATCH` message one text goes out as, carrying no headers of its own
 /// beyond the transaction descriptor every request needs.
 ///
-/// Two callers and both of them this driver's own text: § 13's
+/// Every caller is this driver's own text: § 13's
 /// [`RESET_STATEMENT`] and § 7's commands. **No caller's SQL ever reaches this
 /// function** — a program's statement is an `sp_prepexec` with its values as
 /// parameters ([`start_statement`]), which is § 1's no-emulated-prepares rule,
@@ -251,8 +251,8 @@ pub(super) fn batch_request(sql: &str, descriptor: u64) -> Vec<u8> {
     out
 }
 
-/// One argument per marker, in § 5's order, for either of the two procedures
-/// that take them.
+/// One argument per marker, in § 5's order, for whichever procedure takes
+/// them.
 ///
 /// # Errors
 ///
@@ -420,7 +420,7 @@ pub(super) fn text_param(out: &mut Vec<u8>, value: Option<&[u8]>, what: &str) ->
 
 /// One bound parameter as the octets [`text_param`] carries it in:
 /// [`crate::encode`]'s and [`crate::mysql::encode`]'s opposite number on this
-/// protocol, and a third text rendering rather than a copy of either.
+/// protocol, and a text rendering of its own rather than a copy of either.
 ///
 /// **Every parameter goes out as one `nvarchar` and the server casts it to
 /// whatever the statement compares it against** — [`start_statement`] says why

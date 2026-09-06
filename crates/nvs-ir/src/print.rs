@@ -107,10 +107,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    static.set {class}::${name}, v{}", value.index());
         return;
     }
-    // A value-less `HelperCall`, of which there are two kinds and both are
-    // invoked for an effect: `Helper::EchoStr` writes and returns nothing, and
-    // `Helper::LiteralMismatch` never returns at all. Neither has a `result`
-    // for the general arm below to print, so both print here.
+    // A value-less `HelperCall` is invoked purely for an effect:
+    // `Helper::EchoStr` writes and returns nothing, `Helper::LiteralMismatch`
+    // never returns at all. Such a call has no `result` for the general arm
+    // below to print, so it prints here.
     if let InstKind::HelperCall { helper, ref args } = inst.kind
         && inst.result.is_none()
     {

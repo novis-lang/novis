@@ -1,8 +1,8 @@
 //! The typed block tree one configuration file deserializes into: every block an ADR states, with
 //! its own fields, and an unknown key refused.
 //!
-//! This is the type [`crate::file::parse`] was written generic over. Substituting it for the
-//! `toml::Table` stand-in is the whole of what makes [ADR 0064 § 3]'s unknown-key refusal real:
+//! This is the type [`crate::file::parse`] is generic over, and its standing where a bare
+//! `toml::Table` could is the whole of what makes [ADR 0064 § 3]'s unknown-key refusal real:
 //! `deny_unknown_fields` sits on every struct here, so a typo'd `capabilties` fails at boot with
 //! the line under it instead of reading as "granted nothing". That refusal is `serde`'s, not ours —
 //! this module is the *roster*, and the roster is the security-relevant half.
@@ -15,7 +15,7 @@
 //! **This tree answers which keys exist, not whether a value is usable.** A `memory = "12 bananas"`
 //! deserializes into a [`Setting::Text`] here and is refused where sizes are parsed; a
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
-//! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). Two reasons the split is deliberate: a value refusal wants to name the unit it
+//! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). The split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
 //! [ADR 0103 § 3](/docs/decisions/0103.md) resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
@@ -64,8 +64,8 @@ pub enum Setting {
 /// One configuration file, whole.
 ///
 /// The root table holds no directives of its own — `rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables` puts every directive inside a
-/// block — so every field here names a block, and the array-of-tables blocks are the four that are
-/// repeated records: `[[include]]`, `[[app]]`, `[[extension]]` and `[[schedule]]`.
+/// block — so every field here names a block, and the array-of-tables blocks are the repeated
+/// records: `[[include]]`, `[[app]]`, `[[extension]]` and `[[schedule]]`.
 ///
 /// A file that sets nothing deserializes into [`Config::default`], which is what makes an empty
 /// include legal rather than a parse failure.
@@ -91,7 +91,7 @@ pub struct Config {
     pub io: Option<Io>,
     /// `[log]` — the handler ladder's rungs (`rule:errors/escalation-ladder`) and the record's shape (`rule:errors/diagnostic-record`).
     pub log: Option<Log>,
-    /// `[http.*]` — the five sub-blocks ADRs 0020 § 7 and 0074 own.
+    /// `[http.*]` — the sub-blocks ADRs 0020 § 7 and 0074 own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.
@@ -138,7 +138,7 @@ pub struct Include {
 /// One `[[app]]` block — `rule:config/an-application-is-its-entry-file-path`.
 ///
 /// `root` or `entry`, never both and never neither; `mode` and `origin` sit directly on the block
-/// while its directives live in the three sub-tables. Which of those two rules this struct can hold
+/// while its directives live in the sub-tables below. Which of those two rules this struct can hold
 /// is the difference between a type and a check: TOML gives no way to spell "one of these two
 /// keys", so the exclusivity is the resolver's (§ 2) and only the field set is here.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -199,11 +199,11 @@ pub struct Limits {
     /// does not run forever, it exhausts the tree's heap, and m6.md's *Verify* asks for that spawn
     /// to be stopped as a depth rather than reported as an out-of-memory.
     pub max_script_depth: Option<Setting>,
-    /// `[limits.hard]` — the same five keys, `System`-class, and `false` removes a ceiling.
+    /// `[limits.hard]` — the same keys, `System`-class, and `false` removes a ceiling.
     pub hard: Option<LimitSet>,
 }
 
-/// `[limits.hard]`, `[app.limits.hard]` and a `[[schedule]]`'s `limits` — the five keys with no
+/// `[limits.hard]`, `[app.limits.hard]` and a `[[schedule]]`'s `limits` — the keys with no
 /// ceiling nested under them.
 ///
 /// A separate struct rather than [`Limits`] recursing, because `[limits.hard.hard]` is not a thing
@@ -223,7 +223,7 @@ pub struct LimitSet {
     pub max_output: Option<Setting>,
 }
 
-/// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose two keys `rule:config/three-changeability-classes` gives two different classes.
+/// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose keys `rule:config/three-changeability-classes` gives different classes.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mode {
@@ -368,8 +368,8 @@ pub struct Io {
     pub temp_root: Option<String>,
 }
 
-/// `[log]` — the escalation ladder's two configured rungs (`rule:errors/handler-script` and `rule:errors/panics-bypass-user-code`) and the record's own
-/// two keys (`rule:errors/log-level`).
+/// `[log]` — the escalation ladder's configured rungs (`rule:errors/handler-script` and `rule:errors/panics-bypass-user-code`) and the record's own
+/// keys (`rule:errors/log-level`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Log {
@@ -383,14 +383,14 @@ pub struct Log {
     /// Tier 4, the floor: `stderr`, `file:<path>` or `syslog`, hardcoded in Rust and bounded
     /// against the disk it writes to.
     pub target: Option<String>,
-    /// Which rendering the target emits — `rule:errors/renderings` gives this one **two** of its three, since
-    /// the HTML one is a response's and never a destination's.
+    /// Which rendering the target emits — `rule:errors/renderings`'s set **minus** the HTML one, since
+    /// that one is a response's and never a destination's.
     pub format: Option<String>,
     /// The minimum level written; its per-mode default is `rule:config/a-mode-is-five-defaults`'s.
     pub level: Option<String>,
 }
 
-/// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s four defaults blocks.
+/// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s defaults blocks.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Http {
@@ -546,7 +546,7 @@ pub struct StorageDisk {
 /// described for itself through `Core\Db::open`. That connection names no block, so no per-block key
 /// can ever reach it. So `[db]` carries the switch and flattens the blocks beside it.
 ///
-/// **Reserving a *name* inside the map was the other shape, and it collides.** `pool` is a name an
+/// **Reserving a *name* inside the map is the other shape, and it collides.** `pool` is a name an
 /// operator may already have given a block, and a map that reinterpreted it would silently stop
 /// opening that connection. Against this shape a block written `[db.pool]` fails to deserialize as a
 /// [`Pool`] and names the key it could not read, which is the loud half of the same trade.
@@ -634,8 +634,8 @@ pub struct Database {
     ///
     /// Unset is the driver's own default rather than a number written here, because the size that
     /// suits a request is a property of the protocol and not of this file. A written `0` is not a
-    /// broken cache: it is the unnamed statement every time, which is what a connection did before
-    /// § 1's cache existed. The reader is `nvs_db::sql::StatementCache::capacity_for`, which is
+    /// broken cache: it is the unnamed statement every time, which is what a connection keeping no
+    /// statements alive does. The reader is `nvs_db::sql::StatementCache::capacity_for`, which is
     /// also where the default lives — this crate names no driver's constant.
     pub statement_cache: Option<u32>,
     /// How long a statement on this connection may take before it is also written to `Core\Log`
@@ -670,22 +670,22 @@ pub struct Database {
 ///
 /// § 13 writes `pool = false` to restore connect-per-request and `[db.<name>.pool] max = 16` for the
 /// bounds, and neither spelling can be moved without contradicting the ADR. `true` is the default
-/// said out loud rather than a third meaning.
+/// said out loud rather than a meaning of its own.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Pool {
     /// `pool = false`, and the `pool = true` that changes nothing.
     Switch(bool),
-    /// `[db.<name>.pool]` — one or more of the four bounds.
+    /// `[db.<name>.pool]` — one or more of the bounds.
     Bounds(DatabasePool),
 }
 
 /// Hand-written rather than `#[serde(untagged)]`, and it is the only one in this module.
 ///
-/// Untagged buys the same two shapes for four lines, but it buffers the value through `serde`'s
-/// private `Content` first, so a typo inside the table is reported as *data did not match any
-/// variant* with no key and no line — throwing away the unknown-key refusal this module's doc calls
-/// its security-relevant half. A visitor dispatches on the shape instead and hands a table straight
-/// to [`DatabasePool`]'s own derive, where `deny_unknown_fields` still names the key.
+/// Untagged buys the same shapes for a fraction of the code, but it buffers the value through
+/// `serde`'s private `Content` first, so a typo inside the table is reported as *data did not match
+/// any variant* with no key and no line — throwing away the unknown-key refusal this module's doc
+/// calls its security-relevant half. A visitor dispatches on the shape instead and hands a table
+/// straight to [`DatabasePool`]'s own derive, where `deny_unknown_fields` still names the key.
 impl<'de> Deserialize<'de> for Pool {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -722,12 +722,12 @@ impl<'de> serde::de::Visitor<'de> for PoolVisitor {
     }
 }
 
-/// `[db.<name>.pool]` — `rule:security/db-pool-reset-is-a-boundary`'s four bounds.
+/// `[db.<name>.pool]` — `rule:security/db-pool-reset-is-a-boundary`'s bounds.
 ///
 /// The numbers are not here: this struct is the roster, exactly as every other block's is, and
 /// `nvs_config::db::PoolBounds` holds the default set beside the parse that reads `"30m"`. Which is
-/// also why the two counts are typed and the two durations are a [`Setting`]: a count has one
-/// spelling, so the field's own type is the whole refusal, while a duration has seven suffixes and
+/// also why the counts are typed and the durations are a [`Setting`]: a count has one
+/// spelling, so the field's own type is the whole refusal, while a duration has a suffix set and
 /// a bare-seconds form that only [`mod@crate::value`] can tell apart.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -744,7 +744,7 @@ pub struct DatabasePool {
     pub acquire: Option<Setting>,
 }
 
-/// `[deferred]` — `rule:concurrency/deferred-is-bounded-by-two-directives`'s two bounds on after-response work.
+/// `[deferred]` — `rule:concurrency/deferred-is-bounded-by-two-directives`'s bounds on after-response work.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Deferred {
@@ -858,8 +858,8 @@ pub struct Server {
     pub health_path: Option<String>,
     /// The in-flight ceiling.
     pub max_in_flight: Option<u64>,
-    /// The header read wait — one of four waits, all finite with nothing configured and all *idle*
-    /// rather than total. [`mod@crate::server`] reads all four into durations and owns what each
+    /// The header read wait — one of the waits below, all finite with nothing configured and all
+    /// *idle* rather than total. [`mod@crate::server`] reads them into durations and owns what each
     /// one bounds; a `Setting` rather than a `String` so that `"10s"` and a bare `10` spell the
     /// same wait, which is [`mod@crate::value`]'s rule for every duration in the tree.
     pub header_timeout: Option<Setting>,
@@ -875,7 +875,7 @@ pub struct Server {
 
 /// One `[[server.mount]]` entry — `rule:http-server/a-request-resolves-in-five-steps`.
 ///
-/// There is no `mode` key: `rule:config/a-mount-routes-and-an-app-block-sets-policy` moved a mount's mode onto the `[[app]]` block, so an
+/// There is no `mode` key: `rule:config/a-mount-routes-and-an-app-block-sets-policy` puts a mount's mode on the `[[app]]` block, so an
 /// application's mode is one answer wherever the entry file is reached from.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
@@ -896,7 +896,7 @@ pub struct Mount {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
-    /// `System` **and** `Boot` — one of the four directives `rule:config/reloadability-is-its-own-field` names as needing a restart,
+    /// `System` **and** `Boot` — one of the directives `rule:config/reloadability-is-its-own-field` names as needing a restart,
     /// because moving it re-creates the runtime's mapping of every cached unit.
     pub dir: Option<String>,
     /// `[cache.local]` — `rule:concurrency/cache-memory-is-charged-to-the-core`'s bound on the per-core tier, for the reason `shared` below
@@ -927,8 +927,8 @@ pub struct CacheLocal {
 
 /// `[cache.shared]` — where `Core\Cache::shared()` connects, and what bounds a command.
 ///
-/// Two keys and no third: the URL and the wait. Which store a fleet's coherent state lives in is a
-/// deployment decision and both keys are `System`-class, per `crate::directive`'s `cache.shared`
+/// The URL and the wait, and nothing beside them. Which store a fleet's coherent state lives in is
+/// a deployment decision and both keys are `System`-class, per `crate::directive`'s `cache.shared`
 /// row. Authentication, a database index and TLS are refused rather than configured — the reasons
 /// are `nvs_stdlib::cache`'s module doc, which is the one home for them.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -944,7 +944,7 @@ pub struct CacheShared {
 /// `[session]` — where a `Core\Session` record lives, what it is called on the way back, and how
 /// long an untouched one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
 ///
-/// Three keys and no fourth, all `System`/`Boot` per `crate::directive`'s `session` row: where a
+/// Every key here is `System`/`Boot` per `crate::directive`'s `session` row: where a
 /// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
 /// strand every live record in the store nobody reads any more. There is no `gc_probability` pair
 /// and no `save_path` — § 5 gives expiry to the store, and § 3 gives it no backend that keeps files.

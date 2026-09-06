@@ -500,11 +500,11 @@ fn nesting_past_the_cap_is_refused() {
     );
 }
 
-/// § 6: `optional = true` covers **absence and nothing else**, and the three halves are asserted
-/// together — a resolver that skipped every failing include would pass on the first alone. The last
-/// is the one a naive implementation gets wrong: a file that is *there* and cannot be read is a
-/// hard refusal even under `optional`, because otherwise a stray `chmod` silently drops half a
-/// configuration and the server comes up looking healthy.
+/// § 6: `optional = true` covers **absence and nothing else**, and every half is asserted
+/// together — a resolver that skipped every failing include would pass on the absent-and-optional
+/// one alone. The unreadable file is the one a naive implementation gets wrong: a file that is
+/// *there* and cannot be read is a hard refusal even under `optional`, because otherwise a stray
+/// `chmod` silently drops half a configuration and the server comes up looking healthy.
 #[test]
 fn optional_covers_absence_and_not_unreadability() {
     let present = Fake::with(&[(
@@ -1009,7 +1009,7 @@ fn an_overlap_that_is_none_of_the_three_refuses_the_boot() {
     }
 }
 
-/// A tree whose only content is `block`, for the two `[http]` pairs `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` refuses.
+/// A tree whose only content is `block`, for the `[http]` pairs `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` refuses.
 fn http(block: &str) -> Fake {
     Fake::with(&[("etc/nvs.toml", block)])
 }
@@ -1146,7 +1146,7 @@ fn a_same_site_that_is_none_of_the_three_is_refused() {
     );
 }
 
-/// `rule:http-server/cors-is-closed-until-origins-are-named`: the three lists reach a preflight's answer as one header line each and `max_age`
+/// `rule:http-server/cors-is-closed-until-origins-are-named`: the lists reach a preflight's answer as one header line each and `max_age`
 /// reaches it as a number of seconds, so a boot refuses here what `nvs_server::cors` would
 /// otherwise have to repair while answering — an entry the wire cannot carry, and a duration that
 /// is not one. Both halves are one case because they are one rule: § 2's block is resolved into
@@ -1195,7 +1195,7 @@ fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
     );
 }
 
-/// `rule:http-server/secure-headers-with-nothing-written`: the three free-text policies go onto every response verbatim, so a byte a header
+/// `rule:http-server/secure-headers-with-nothing-written`: the free-text policies go onto every response verbatim, so a byte a header
 /// line cannot carry is refused at boot. `nvs_server::secure` declines to spell such a value and
 /// emits the shipped default instead, which is right for a request in flight and is exactly what
 /// makes the boot refusal necessary — otherwise the deployment's policy is silently not the one in
@@ -1215,7 +1215,7 @@ fn an_http_headers_value_the_wire_cannot_carry_is_refused() {
         diagnostic.message,
     );
 
-    // All three, because a check written over one key would leave two response splits open — and
+    // Every one of them, because a check written over one key would leave the rest open — and
     // the policies are the values most likely to be assembled from somewhere else.
     for key in [
         "referrer_policy",

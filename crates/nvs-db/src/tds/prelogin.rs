@@ -108,8 +108,9 @@ impl Encryption {
 /// ignore is not free.
 ///
 /// **The offsets and lengths are big-endian and are counted from the start of
-/// this payload**, not of the packet — the module doc's second trap. The
-/// version blob they point at is little-endian, in the same eighteen bytes.
+/// this payload**, not of the packet — the exception inside the exception the
+/// module doc names. The version blob they point at is little-endian, in the
+/// same eighteen bytes.
 pub(super) fn prelogin_request() -> Vec<u8> {
     let mut out = Vec::with_capacity(usize::from(PL_ENCRYPTION_AT + PL_ENCRYPTION_LEN));
 
@@ -320,8 +321,9 @@ pub(super) fn take_front(held: &mut Vec<u8>, buf: &mut [u8]) -> usize {
 /// This adapter buffers but never waits: every wait a tunnelled handshake takes
 /// is the stream underneath issuing a syscall, so the deadline belongs there and
 /// this is the one hop that lets [`crate::tds`]'s session name it. It is what
-/// makes `NvsTls<Tunnel<NvsTcp>>` bound its exchanges like the other four
-/// drivers' `NvsTls<NvsTcp>` does, rather than being the one connection `rule:core-classes/db-statement-members`'s statement deadline could not reach.
+/// makes `NvsTls<Tunnel<NvsTcp>>` bound its exchanges like every other driver's
+/// `NvsTls<NvsTcp>` does, rather than being the one connection
+/// `rule:core-classes/db-statement-members`'s statement deadline could not reach.
 impl<S: Read + Write + nvs_host::net::Deadline> nvs_host::net::Deadline for Tunnel<S> {
     fn set_deadline(&mut self, at: Option<std::time::Instant>) {
         self.stream.set_deadline(at);

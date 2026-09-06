@@ -105,10 +105,10 @@ pub enum Fault {
     /// declares beyond `Throwable`'s four — named by its slot index, so every
     /// such property reaches its slot through this one variant.
     ///
-    /// Two fill it today, and a third owes a caller rather than a variant:
-    /// `rule:core-classes/derive-reports-every-field`'s `issues` on
+    /// The classes that fill it, any further one owing a caller rather than a
+    /// variant: `rule:core-classes/derive-reports-every-field`'s `issues` on
     /// `ParseError`, so a member that found *several* things wrong with one
-    /// input tells a form about all four bad fields rather than the first, and
+    /// input tells a form about every bad field rather than the first, and
     /// `rule:core-classes/db-error`'s `kind` on
     /// `Core\Db\DbError`, so a `catch` branches on the condition the server
     /// named rather than on the wording of the message. A sibling variant per
@@ -117,7 +117,7 @@ pub enum Fault {
     /// every reader added later, all to say the same thing with a different
     /// constant in it. The slot index is passed rather than derived from the
     /// class because deriving it would bake "one own property per class" into
-    /// the ABI, which is true of all three classes today and of neither ADR.
+    /// the ABI, which is true of those classes today and of neither ADR.
     ///
     /// This variant is the one place a [`Fault`] carries a reference at all: the
     /// values are transferred into those slots the moment the fault is recorded,
@@ -198,9 +198,8 @@ impl Fault {
     }
 
     /// [`Self::thrown_with_slot`] at [`crate::ISSUES_SLOT`] — `rule:core-classes/derive-reports-every-field`'s
-    /// "report every bad field at once", which is the caller this shape was
-    /// first written for. Spelled once here rather than at each of
-    /// `nvs_stdlib::json`'s five sites, none of which should have to name a
+    /// "report every bad field at once". Spelled once here rather than at each
+    /// of `nvs_stdlib::json`'s throw sites, none of which should have to name a
     /// slot index to throw a `ParseError`.
     ///
     /// Takes over `issues`' reference.
@@ -226,16 +225,15 @@ impl Fault {
 /// `member` is the fully qualified name for the message, e.g.
 /// `"Core\\Arr::fill"`.
 ///
-/// # Why this is a function and not four copies of three lines
+/// # Why this is a function and not a check per call site
 ///
-/// It was four copies. `Core\Bytes` had one, `Core\Str::repeat` and both of
-/// `Core\Random`'s drawing members had their own, and the members with the
-/// largest appetite of all — `Core\Arr::fill`/`padStart`/`padEnd` through
-/// `append_copies`, and `Core\Str::padStart`/`padEnd` through `padding_run` —
-/// had none, because a guard that is written per call site is a guard the next
-/// call site forgets. That is the shape of PHP's own history here: its
-/// `memory_limit` is enforced in the allocator precisely because per-function
-/// checks did not hold.
+/// A guard that is written per call site is a guard the next call site
+/// forgets, and the members with the largest appetite of all —
+/// `Core\Arr::fill`/`padStart`/`padEnd` through `append_copies`, and
+/// `Core\Str::padStart`/`padEnd` through `padding_run` — are exactly the ones
+/// such a convention reaches last. That is the shape of PHP's own history
+/// here: its `memory_limit` is enforced in the allocator precisely because
+/// per-function checks did not hold.
 ///
 /// # What it does and does not promise
 ///
@@ -243,9 +241,9 @@ impl Fault {
 /// `isize::MAX`, or a computation that already overflowed to `None`. It is
 /// **not** a budget: nothing here knows what a request may spend.
 /// `rule:programs/memory-priority` settles that
-/// it will be, through the `[limits.hard]` per-request ceiling the M6 arena
+/// it will be, through the `[limits.hard]` per-request ceiling the arena
 /// enforces, and this function is the seam that ceiling attaches to — one
-/// place to change rather than seven.
+/// place to change rather than one per call site.
 ///
 /// # Errors
 ///
@@ -456,7 +454,7 @@ where
                 // Not a helper bug: this thread is tearing a task's stack down
                 // and the unwind belongs to it. A helper is on that stack
                 // whenever a member *parks* — `Core\Time::sleep` through
-                // [`crate::host::Host::sleep`] is the first — and a cancelled
+                // [`crate::host::Host::sleep`] is one — and a cancelled
                 // task is resumed into a forced unwind rather than into its
                 // body, so the unwind passes through this frame on its way out.
                 // Containing it here would leave the coroutine's own runtime

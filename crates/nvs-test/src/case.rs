@@ -53,9 +53,9 @@ pub enum Oracle {
 /// one spelling would make the format's one required section conditional.
 ///
 /// The roster is **closed**, and a `--format` spelling is a variant of it
-/// rather than a flag string carried along: § 22's three formats are a closed
-/// list too, so this stays one enum whose every value is a command line this
-/// binary has, and a misspelling is still refused where it is written.
+/// rather than a flag string carried along: § 22's formats are a closed list
+/// too, so this stays one enum whose every value is a command line this binary
+/// has, and a misspelling is refused where it is written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Subcommand {
     /// `nvs run case.nvs` — the program is the case.
@@ -246,10 +246,6 @@ const KNOWN: &[&str] = &[
 
 /// The `.phpt` sections that parse for the M11 importer's sake but have nothing
 /// to act on yet, each with the milestone that changes that.
-///
-/// `ENV` left this list when `Core\Env` landed: a case can now set a variable
-/// and read it back, so honouring the section is what the runner owes rather
-/// than something it has to refuse.
 const NOT_YET: &[(&str, &str)] = &[(
     "INI",
     "`nvs.toml` is not read until M6 (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), so an --INI-- section cannot be honoured",
@@ -264,9 +260,9 @@ const RESERVED_NAMES: &[&str] = &["case.nvs", "skipif.nvs", "clean.nvs", "oracle
 
 /// Returns a header's section name and its argument, if `line` is a header.
 ///
-/// A header is `--NAME--` or `--NAME argument--`; the name keeps the narrow
-/// character set it always had, so widening this cannot reclassify a body
-/// line that merely contains dashes.
+/// A header is `--NAME--` or `--NAME argument--`; the name is uppercase ASCII,
+/// digits and `-` alone, so a body line that merely contains dashes is not
+/// read as one.
 fn header(line: &str) -> Option<(&str, Option<&str>)> {
     let line = line.trim_end();
     let inner = line.strip_prefix("--")?.strip_suffix("--")?;
@@ -718,9 +714,9 @@ mod tests {
         assert!(why.contains("M6"), "{why}");
     }
 
-    /// The three halves of [`Case::env`]'s rule at once: a line is split at its
-    /// **first** `=` so a value may hold one, a blank line is not a pair, and
-    /// the section no longer marks the case unsupported.
+    /// [`Case::env`]'s rule at once: a line is split at its **first** `=` so a
+    /// value may hold one, a blank line is not a pair, and the section leaves
+    /// the case supported.
     #[test]
     fn every_env_line_is_one_pair_split_at_the_first_equals() {
         let parsed = case(
@@ -756,7 +752,7 @@ mod tests {
     }
 
     /// One line is one argument whatever it holds, and an empty line is not an
-    /// argument at all — the two halves of [`Case::args`]'s rule, which is what
+    /// argument at all — both halves of [`Case::args`]'s rule, which is what
     /// makes a section written with a blank line the same as an absent one.
     #[test]
     fn every_args_line_is_one_argument_and_a_blank_one_is_none() {

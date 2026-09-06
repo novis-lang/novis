@@ -176,7 +176,7 @@ pub struct Origin {
 /// `, written in ...` when the merge recorded where, and nothing when it did not.
 ///
 /// One copy, beside [`Origin`] itself: every refusal that can name a file phrases it this way, and
-/// three modules spelling it three ways is three phrasings an operator has to learn.
+/// a module spelling it its own way is one more phrasing an operator has to learn.
 pub(crate) fn origin_note(written_in: Option<&Origin>) -> String {
     written_in.map_or_else(String::new, |origin| {
         format!(", written in `{}`", origin.path.display())
@@ -204,7 +204,7 @@ pub struct Resolved {
     /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
-    /// What the tree is only *advised* about — today § 7's readable secret file (`W1005`) and its
+    /// What the tree is only *advised* about — § 7's readable secret file (`W1005`) and its
     /// credential with an edge space (`W1007`). A
     /// refusal is never here: it arrives as the `Err` of [`resolve`] instead, so a caller that
     /// ignores this field has lost a warning and never a boundary.
@@ -307,10 +307,10 @@ pub fn resolve(
     // has a block to point at is a question only the merged `[db]` map can answer.
     crate::queue::validate(&resolved.config, &origins)?;
     // `rule:config/an-application-is-its-entry-file-path`'s keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
-    // so the roster only exists once the merge is done. Alone among the three passes above it
+    // so the roster only exists once the merge is done. Alone among the passes above it
     // rewrites `config` and never the table, which reaches a driver only because the roster is read
     // off `resolved.config` and then dropped — `Snapshot::retype`'s doc § *The seam every
-    // `resolve()` pass is measured against* is where that rule lives, and what a fourth pass here
+    // `resolve()` pass is measured against* is where that rule lives, and what a later pass here
     // is checked against.
     crate::app::canonicalize(&mut resolved.config, &origins, files)?;
     // `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, once the roster is keyed: what a block asks for is compared against the
@@ -323,7 +323,7 @@ pub fn resolve(
     // `[http.cookies] secure` are in force is a question only the whole stream has answered, and a
     // per-file check would refuse a base file an include was about to correct.
     crate::http::validate(&resolved.config, &origins)?;
-    // `rule:http-server/the-server-block-is-boot-class`'s four inbound waits, beside the outbound half above: what the merge settled is
+    // `rule:http-server/the-server-block-is-boot-class`'s inbound waits, beside the outbound half above: what the merge settled is
     // the wait the listener will actually be started with, and a `false` there is the one spelling
     // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` has no version of.
     crate::server::validate(&resolved.config, &origins)?;
@@ -451,7 +451,7 @@ fn include_targets(
             }
             // § 6 on the directory itself. Every file below it is checked as it is read, but an
             // empty one is checked by nothing at all — and a directory anyone can write is a slot
-            // in exactly the sense that section means, whether or not it holds a file today.
+            // in exactly the sense that section means, whether or not it holds a file yet.
             files.trust(&target).map_err(|why| {
                 untrusted(&target, &why, "an `[[include]]` reads every `*.toml` in it")
             })?;
@@ -591,9 +591,9 @@ impl Merge {
 /// anything else and say so.
 ///
 /// The replace/append split is decided **structurally** — an array whose entries are all tables is
-/// an array of tables — rather than from a list of the five `[[block]]` spellings § 4 names. That is
+/// an array of tables — rather than from a list of the `[[block]]` spellings § 4 names. That is
 /// the same distinction TOML itself draws, which is § 4's own argument for the split: appending is
-/// what two `[[schedule]]` blocks already mean inside one file, so a sixth such block added by a
+/// what two `[[schedule]]` blocks already mean inside one file, so a further such block added by a
 /// later ADR gets the right behaviour with nothing here to update. An empty array is ambiguous
 /// under that rule and does not need to be: appending nothing and replacing with nothing agree.
 pub(crate) fn merge_table(

@@ -34,8 +34,8 @@
 //!
 //! The same worklist runs
 //! `rule:programs/autoload`'s autoload resolution, as a fixpoint rather than a second pass. Each
-//! file's walk harvests three things, not one: its `require` targets, its
-//! `autoload` declarations, and every name it uses where a class, interface,
+//! file's walk harvests more than its `require` targets: its `autoload`
+//! declarations too, and every name it uses where a class, interface,
 //! enum or `type` alias is meant. When the `require` graph is drained the
 //! declarations become an [`crate::autoload::AutoloadMap`] — that module owns
 //! the map's own rules — and the first harvested name that is still
@@ -208,7 +208,7 @@ pub fn resolve_program(
     let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
         vec![(entry_id, entry_stmts, entry_chain)];
 
-    // `rule:programs/no-runtime-autoload`'s three accumulators: every `autoload` declaration the
+    // `rule:programs/no-runtime-autoload`'s accumulators: every `autoload` declaration the
     // bootstrap chain wrote, every name that might need one, and the names
     // already probed, so a miss costs one probe rather than one per mention.
     let mut sites: Vec<Site> = Vec::new();
@@ -443,8 +443,8 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 /// ), so `nvs_diagnostics::embedded` answers first and a path it does not
 /// carry is exactly as unloadable as a missing file — which is § 3's rule, and
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
-/// would report. Outside a bundle the table is empty and this is the syscall it
-/// always was.
+/// would report. Outside a bundle the table is empty and this is the plain
+/// syscall.
 fn canonicalize(path: &Path) -> Option<PathBuf> {
     if nvs_diagnostics::embedded::is_active() {
         return nvs_diagnostics::embedded::canonicalize(path);
@@ -531,17 +531,17 @@ fn check_path_case(
     }
 }
 
-/// Everything one file's walk yields. The three lists answer the three
-/// questions the graph walk asks of a file: what does it pull in, what does
-/// it say about where *other* names live, and which names does it use that
-/// something will have to declare.
+/// Everything one file's walk yields. The lists answer the questions the graph
+/// walk asks of a file: what does it pull in, what does it say about where
+/// *other* names live, which names does it use that something will have to
+/// declare, and does it ask for the scan.
 ///
 /// The namespace and imports are carried here rather than threaded as a
 /// parameter because a `namespace`/`use` declaration only ever appears in a
 /// file's own top-level statement sequence: every nested walk below inherits
 /// what the enclosing sequence set and can never change it, so a field the
-/// sequence writes as it goes is the same thing a parameter would be, minus
-/// nine signatures.
+/// sequence writes as it goes is the same thing a parameter would be, minus a
+/// parameter on every walk function's signature.
 #[derive(Default)]
 struct Harvest {
     /// Each statically-known `require` target's cooked path text and span.
@@ -593,11 +593,11 @@ fn record_name(name: &Name, src: &SourceFile, out: &mut Harvest) {
 /// anywhere in the program turn every autoload root's whole tree into files
 /// to load.
 ///
-/// Two classes ask for the same scan. `Core\Program::implementing<T>()` is
+/// More than one class asks for the same scan. `Core\Program::implementing<T>()` is
 /// § 3's own query; `Core\Router`'s link half needs the compile-time route
 /// table, which `rule:routing/table-is-opt-in`
 /// builds by filtering *this* enumeration by a `#[Core\Route]` attribute
-/// rather than by an implemented interface. That is why the second is a
+/// rather than by an implemented interface. That is why the router's half is a
 /// member list here and not a second walk: a program calling either pays
 /// § 5's directory-listing dependency once, and a program calling neither
 /// still performs no scan at all.
@@ -611,8 +611,8 @@ const ROUTER_CLASS: &str = r"Core\Router";
 /// the member, not before it.
 const ROUTER_SCAN_MEMBERS: &[&str] = &["url", "urlAbsolute"];
 
-/// Whether this static call is one of the two that opt a program into the
-/// scan — `Core\Program::implementing<T>()`, or a `Core\Router` link.
+/// Whether this static call opts a program into the scan —
+/// `Core\Program::implementing<T>()`, or a `Core\Router` link.
 ///
 /// Matched nominally against the *resolved* class name, so a `use Core;` plus
 /// `Program::implementing<Module>()` is the same call as the fully written
@@ -696,7 +696,7 @@ fn record_implements(clauses: &[ImplementsClause], src: &SourceFile, out: &mut H
 /// concatenation, an interpolated string) is left out entirely — that is
 /// the dynamic-fallback case this module does not touch.
 ///
-/// The same walk harvests `rule:programs/no-runtime-autoload`'s two other inputs — every `autoload`
+/// The same walk harvests `rule:programs/no-runtime-autoload`'s other inputs — every `autoload`
 /// declaration, and every name that might need one — because they are found
 /// in the same places by the same recursion, and a second walker over the
 /// whole AST would be a second walker to keep in step with the first.
@@ -1339,8 +1339,8 @@ mod tests {
     }
 
     /// The edge `nvs-ir` cannot re-derive: which file a written `require`
-    /// actually named. Two files require the same target, so one of the
-    /// three edges is recorded from the already-loaded branch rather than
+    /// actually named. Two files require the same target, so one of those
+    /// edges is recorded from the already-loaded branch rather than
     /// from the load itself, and both must still name the one `SourceId`
     /// that file was loaded as — the whole point of keeping `by_path`
     /// beside `done`. The target that does not exist contributes none.
@@ -1565,7 +1565,7 @@ require './Lib/Helper.nvs';
 
     /// The contract [`resolve_program`]'s callers rely on: the entry file is
     /// first, every file in the graph is there exactly once, and each carries
-    /// its own parsed statements. The order of the four is the walk's and is
+    /// its own parsed statements. The order of the rest is the walk's and is
     /// deterministic, but only the entry's position is a promise — a caller
     /// that needs more than "entry first" should say so here.
     #[test]

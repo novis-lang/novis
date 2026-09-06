@@ -1,12 +1,11 @@
-//! `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, as the boot reads it: the `[db.<name>]` it names, three bounds that are
-//! finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and the four things a block can say that leave nothing
-//! able to run a job.
+//! `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, as the boot reads it: the `[db.<name>]` it names, the bounds that are
+//! finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and every way a block can be written that leaves
+//! nothing able to run a job.
 //!
 //! The refusals are asserted by **counting**, not read off one line: a reader that grew a hole in
-//! one of its four checks still answers plausibly for the other three. The two `0`s are named
-//! together for the opposite reason — `workers = 0` is § 2's enqueue-only deployment and
-//! `max_attempts = 0` is a refusal, so a reader that treats "zero" as one question passes either
-//! half alone.
+//! one of its checks still answers plausibly for the rest. The two `0`s are named together for the
+//! opposite reason — `workers = 0` is § 2's enqueue-only deployment and `max_attempts = 0` is a
+//! refusal, so a reader that treats "zero" as one question passes either half alone.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -41,7 +40,7 @@ fn refusal(text: &str) -> Diagnostic {
 }
 
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 2's example is written against: a block that configures nothing but the
-/// connection still has three finite bounds, and they are the ADR's own numbers.
+/// connection still has finite bounds, and they are the ADR's own numbers.
 #[test]
 fn nothing_configured_is_a_finite_queue() {
     let queue = bounds(&format!("{MAIN}\n[queue]\nconnection = \"main\"\n"));

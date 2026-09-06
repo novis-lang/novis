@@ -1,10 +1,9 @@
 //! Call lowering: argument ownership, `rule:core-api/shape-rules` R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-field`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)` so they reach across these modules and no further, which
+//! is the reach a single-file `lower` would give them.
 
 use super::*;
 use crate::lower::expr::ReceiverProof;
@@ -47,11 +46,11 @@ impl<'a> Lowering<'a> {
     /// or a by-reference argument that is neither a bare local nor a
     /// compile-time-known property.
     ///
-    /// The first-class callable sentinel is the fourth, and its roster is
-    /// closed: `rule:types/callable-is-a-closure`'s two member spellings record
+    /// The first-class callable sentinel panics too, and its roster is closed:
+    /// `rule:types/callable-is-a-closure`'s member spellings record
     /// `nvs_types::expr_table::ExprInfo::CallableRef` rather than `Call`, so
-    /// [`super::expr`]'s call arms never dispatch here for one, and the two
-    /// shapes that name no member are diagnostics where they are written
+    /// [`super::expr`]'s call arms never dispatch here for one, and the shapes
+    /// that name no member are diagnostics where they are written
     /// (`E0732` for a `mixed` receiver, `E0740` for `new C(...)`).
     ///
     /// # A `name:` argument
@@ -336,7 +335,7 @@ impl<'a> Lowering<'a> {
     /// always a *prefix*: a positional argument cannot follow a `...`, and a
     /// `name:` never reaches the variadic parameter at all
     /// (`nvs_types::expr::args::map_arguments` rules 1 and 3). So a call with
-    /// no spread emits exactly the instruction it emitted before.
+    /// no spread emits that one instruction and nothing beside it.
     ///
     /// The subject is **borrowed** by the copy and the half-built array is
     /// named by nothing, so both go on [`Self::owned_temporaries`] while the
@@ -1139,8 +1138,8 @@ impl<'a> Lowering<'a> {
 /// `$timestamped->touch()` reaching nothing. `lower_program` adds the same
 /// name to the class's method table, which is what that dispatch reads.
 ///
-/// The body is § 4's own one-liner, `return $this->field->method(...);`, in
-/// four instructions: read the field, retain it (a field read borrows, and
+/// The body is § 4's own one-liner, `return $this->field->method(...);`: read
+/// the field, retain it (a field read borrows, and
 /// [`InstKind::CallVirtual`] transfers its receiver), then the call, then the
 /// return. The call is late-bound with **no fallback** — the field's declared
 /// type is the interface, whose member has no body to name — so the target is
@@ -1228,7 +1227,7 @@ pub(crate) fn delegation_forward(
         },
     ));
     // `rule:classes/an-unwritten-property-read-throws`'s guard, which splits the entry block: an unguarded
-    // forward lowers to exactly the blocks it always did.
+    // forward keeps the single entry block the rest of this function builds.
     let mut guard_blocks = Vec::new();
     if never_written {
         let is_unset = ids.next_value();

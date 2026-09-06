@@ -2,7 +2,7 @@
 //! connection bounds: the numbers an open WebSocket is held inside, every one
 //! of them finite before anything is configured.
 //!
-//! § 7's first bullet is a list of eight, and its load-bearing word is
+//! § 7's first bullet lists them, and its load-bearing word is
 //! *nothing*: "every bound is finite with nothing configured". A connection is
 //! the one thing this server holds that no request ever ends, so a bound left
 //! to a later configuration pass is a bound that is absent on every deployment
@@ -12,16 +12,16 @@
 //! it destructures the struct, so a bound added here without a finite default
 //! fails to compile rather than shipping open.
 //!
-//! # Which of the eight are here
+//! # Which of the bounds are here
 //!
-//! Six, and they are the six the framing layer arms: [`crate::socket::Framed`]
+//! The ones the framing layer arms: [`crate::socket::Framed`]
 //! reads this struct once at the `101` and every wait, every frame and every
 //! message on that descriptor is inside it from there.
-//! [`Connection::drain`] is a seventh field and not a seventh of the eight — it
+//! [`Connection::drain`] is a field here without belonging to that bullet — it
 //! is § 7's *third* bullet, the period after which a draining server closes a
 //! connection, and it lives here because it is one more instant the same
-//! framing layer arms a wait by. The other two of the eight are named by § 7
-//! and owned elsewhere on purpose:
+//! framing layer arms a wait by. The bounds § 7 names that are not fields here
+//! are owned elsewhere on purpose:
 //!
 //! - **Connections per process** is [`Slot`], counted here because the resource
 //!   is the process's rather than a core's, and taken at the moment the socket
@@ -39,7 +39,7 @@
 //!
 //! # What it spends, and what it costs a program
 //!
-//! Nothing per connection: the struct is seven fields copied into
+//! Nothing per connection: the struct is copied field for field into
 //! [`crate::socket::Framed`] at the `101`, and the deadline it arms is the one
 //! `nvs_host::NvsStream` already carries for every wait. The cost is paid in
 //! *behaviour* instead, and it is worth stating plainly because it is
@@ -52,9 +52,9 @@
 //!
 //! § 7 asks for finite, not for configurable, so this module answers § 7 in
 //! full. What it does not yet answer is an operator who wants a different
-//! number: `nvs_config::tree::Server` has no key for any of the seven, so
+//! number: `nvs_config::tree::Server` has no key for any field here, so
 //! changing one is a rebuild. The keys are the obvious follow-on and belong
-//! beside [`nvs_config::server::waits_for`]'s four, which is where a `[server]`
+//! beside [`nvs_config::server::waits_for`]'s, which is where a `[server]`
 //! duration is already parsed, refused at zero and given an origin note.
 
 use std::time::Duration;
@@ -95,7 +95,7 @@ pub struct Connection {
 }
 
 impl Default for Connection {
-    /// § 7's eight numbers, chosen against § 1's own worked example rather than
+    /// § 7's numbers, chosen against § 1's own worked example rather than
     /// against the codec's defaults.
     ///
     /// The example in § 2 gives a connection `{memory: 8mb, idle: 5m}`, and
@@ -208,9 +208,8 @@ mod tests {
     ///
     /// Destructured rather than read field by field, so that a bound added to
     /// [`Connection`] without a default fails this test by failing to compile —
-    /// which is the only way a list of eight stays a list of eight, and how
-    /// § 7's drain period joined it as a field the moment it existed. Two of
-    /// § 7's eight are not fields and are asserted beside them: the process
+    /// which is the only way the list stays complete. The bounds § 7 names
+    /// that are not fields are asserted beside them: the process
     /// ceiling is
     /// [`Slot`]'s and is exercised here at a ceiling of one, and the per-tenant
     /// bound is `rule:core-classes/ratelimit-two-members`'s rate limit on the upgrade request, which is an

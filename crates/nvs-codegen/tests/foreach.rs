@@ -1,8 +1,7 @@
 //! `foreach` over an array: insertion order, nesting, `break`/`continue`, `return`, and `unset`.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 

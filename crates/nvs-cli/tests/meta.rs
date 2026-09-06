@@ -96,8 +96,8 @@ fn the_golden_for_str_length_matches_the_contract() {
 /// would show here. `names` is beside it on every row, because `rule:core-api/shape-rules` R2's
 /// by-name surface is signature and not documentation. The omission rule
 /// itself — no key for a field with nothing written — is proven over
-/// synthetic cards in `meta.rs`'s own tests, since no shipped row is
-/// undocumented any more.
+/// synthetic cards in `meta.rs`'s own tests, because every shipped row
+/// carries a card.
 #[test]
 fn every_member_carries_a_doc_key() {
     let (doc, _) = meta(&["--json"]);
@@ -122,7 +122,7 @@ fn every_member_carries_a_doc_key() {
     );
 }
 
-/// The two other members documented as proof: an options bag is one `params`
+/// The other members documented as proof: an options bag is one `params`
 /// entry per option under the option's own name, and a thrown error is an
 /// `errors` entry naming the class a `catch` writes.
 #[test]
@@ -192,9 +192,10 @@ fn the_golden_for_math_pi_matches_the_contract() {
 }
 
 /// Every enum and every constant carries its card too — the same guard, on
-/// the two rosters a member's card points at. `Core\SetOn` and `Core\Math::TAU`
-/// were the last two undocumented entries when this was a test that they
-/// carried *no* key, which is why they are the ones named.
+/// the rosters a member's card points at. `Core\SetOn` and `Core\Math::TAU` are
+/// named outright beside the walk, so one entry of each roster is asserted
+/// directly and a roster that emptied would fail here rather than pass over
+/// nothing.
 #[test]
 fn every_enum_and_constant_carries_a_doc_key() {
     let (doc, _) = meta(&["--json"]);

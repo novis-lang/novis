@@ -100,8 +100,8 @@ pub struct Decimal {
 /// Public because `rule:types/arithmetic` puts the mode itself in `Core\RoundMode`, which
 /// is `nvs-stdlib`'s: `Core\Decimal::divRound` reads this and applies the case
 /// the caller named. Half is stated as its own answer rather than folded into
-/// one of its neighbours precisely because the four `Half*` modes exist to
-/// part there.
+/// one of its neighbours precisely because the `Half*` modes exist to part
+/// there.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Discard {
     /// The division came out even: the quotient is exact at that scale.
@@ -114,8 +114,8 @@ pub enum Discard {
     AboveHalf,
 }
 
-/// The state [`Decimal::long_divide`] stops in, which its three callers read
-/// three different ways.
+/// The state [`Decimal::long_divide`] stops in, which each of its callers
+/// reads its own way.
 struct LongDivision {
     negative: bool,
     mantissa: u128,
@@ -391,7 +391,7 @@ impl Decimal {
     /// division stopped one decision earlier, before the rounding that is the
     /// only inexactness `rule:types/arithmetic` admits.
     ///
-    /// `None` covers all three refusals `Core\Decimal::divExact` makes: a zero
+    /// `None` covers every refusal `Core\Decimal::divExact` makes: a zero
     /// divisor, a quotient that repeats, and a quotient this type cannot hold.
     /// They are not distinguished because the member does not distinguish
     /// them either — "not exact" and "wider than a `decimal` holds" are one
@@ -607,8 +607,8 @@ fn align(a: Decimal, b: Decimal) -> Option<(u8, u128, u128)> {
 /// half, and on exactly half only when that makes the last digit even.
 ///
 /// The operator's mode, and the only one fixed in the language — `rule:types/arithmetic`.
-/// `Core\Decimal::divRound`'s five other modes read the same [`Discard`] and
-/// part from this one only at the tie.
+/// `Core\Decimal::divRound`'s other modes read the same [`Discard`] and part
+/// from this one only at the tie.
 fn rounds_away(discard: Discard, mantissa: u128) -> bool {
     match discard {
         Discard::Nothing | Discard::BelowHalf => false,

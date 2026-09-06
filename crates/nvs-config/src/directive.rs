@@ -1,13 +1,13 @@
 //! The directive registry: what class a `nvs.toml` directive is, and what applying a change to it
 //! requires.
 //!
-//! A [`Directive`] carries three fields and no more: its dotted [`key`](Directive::key), the
-//! changeability class `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
-//! **orthogonal** to it. The two answer different questions — [`Class`] is *who may set it*,
-//! [`Apply`] is *what applying a change requires* — and the whole reason 0078 gave reloadability a
-//! field of its own is that `System` had been carrying both meanings at once. A registry that
-//! derived either field from the other would re-create that conflation while still typechecking, so
-//! `tests/directives.rs` holds a census of the pairs and fails if it ever does.
+//! A [`Directive`] carries its dotted [`key`](Directive::key), the changeability class
+//! `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
+//! **orthogonal** to it, and nothing else. The two answer different questions — [`Class`] is *who
+//! may set it*, [`Apply`] is *what applying a change requires* — and the reason 0078 gives
+//! reloadability a field of its own is that `System` would otherwise carry both meanings at once.
+//! A registry that derived either field from the other would re-create that conflation while still
+//! typechecking, so `tests/directives.rs` holds a census of the pairs and fails if it ever does.
 //!
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
@@ -60,7 +60,7 @@ pub enum Apply {
     Boot,
 }
 
-/// One directive, as three fields: what it is called, who may set it, and what applying it requires.
+/// One directive: what it is called, who may set it, and what applying it requires.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Directive {
     /// The dotted key, `limits.hard.memory`. A key naming a block governs every key beneath it —
@@ -93,17 +93,17 @@ pub const DIRECTIVES: &[Directive] = &[
     // is keyed on the whole dotted path and not on the last segment.
     Directive { key: "limits", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "limits.hard", class: Class::System, apply: Apply::Reload },
-    // The two keys in `[limits]` that are not `Runtime`: `rule:errors/on-limit` makes the tier-1 handler's
-    // reserved slice `System` on the grounds that a script choosing the size of its own safety net
-    // is the case where the choice most needs to be made by someone else. Both halves of the slice
-    // are the same net, so they are the same class.
+    // The reserve keys in `[limits]`, which are not `Runtime`: `rule:errors/on-limit` makes the tier-1
+    // handler's reserved slice `System` on the grounds that a script choosing the size of its own
+    // safety net is the case where the choice most needs to be made by someone else. Both halves
+    // of the slice are the same net, so they are the same class.
     Directive { key: "limits.fatal_reserve_memory", class: Class::System, apply: Apply::Reload },
     Directive { key: "limits.fatal_reserve_time", class: Class::System, apply: Apply::Reload },
-    // The third, on the same grounds and not under `[limits.hard]` for the same reason: a script
-    // able to raise its own recursion ceiling would exhaust the tree's heap before any depth
+    // The recursion ceiling, on the same grounds and not under `[limits.hard]` for the same
+    // reason: a script able to raise its own would exhaust the tree's heap before any depth
     // stopped it, which is the confusion m6.md's *Verify* asks this key to remove.
     Directive { key: "limits.max_script_depth", class: Class::System, apply: Apply::Reload },
-    // `[mode]` is the second and last block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
+    // `[mode]` is the other block with that same two-halves shape (`rule:config/three-changeability-classes`, `rule:config/two-modes-and-the-default-is-production`).
     Directive { key: "mode.default", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "mode.ceiling", class: Class::System, apply: Apply::Reload },
     // Every grant in the block is the same class — a script may drop a right it holds and never add
@@ -115,14 +115,14 @@ pub const DIRECTIVES: &[Directive] = &[
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
-    // Its one sibling that is, and a more specific row for the reason the two `[cache]` rows below
+    // Its sibling that is, and a more specific row for the reason the `[cache]` rows below
     // are: `rule:errors/handler-script` makes the tier-3 handler a `System` directive on exactly the grounds
     // `limits.fatal_reserve_memory` above is one — a script naming the script that reports its own
     // failure is the case where the choice most needs to be made by someone else, and this one
     // names a file to *run*. `Reload` and not `Boot`: the path is resolved when a failure reaches
     // the ladder, so a new value is in force at the next one and nothing is re-created.
     Directive { key: "log.handler", class: Class::System, apply: Apply::Reload },
-    // Its two ceilings, `System` for a reason of their own rather than by inheritance from the row
+    // Its ceilings, `System` for a reason of their own rather than by inheritance from the row
     // above: `rule:errors/handler-script`'s reserve exists so that the tier reporting a request's failure is not
     // stopped by that request, and a script that could widen or narrow it would be deciding how
     // loudly its own failure is reported. `Reload` for the handler's reason — both are read when a
@@ -136,11 +136,11 @@ pub const DIRECTIVES: &[Directive] = &[
     // resolved when a record is first written, so a new value is in force for the next context and
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
-    // The four `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
+    // The `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
     // records as unspelled. `[server]`'s whole block is `Boot` per `rule:http-server/the-server-block-is-boot-class`, which is more than
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
-    // Neither of the other two `[cache]` keys is an artifact directory at all, and both are more
+    // Neither of the other `[cache]` keys is an artifact directory at all, and both are more
     // specific rows than `cache.dir`'s sibling and so found by `lookup` first. `rule:core-api/two-cache-tiers`'s
     // shared tier is `System` because where a fleet's coherent state lives is not a decision a
     // request may make for itself, and `Boot` because each core holds one connection to it — moving

@@ -7,19 +7,19 @@
 //! that a refcount reached zero only proves the *bookkeeping* balanced — not
 //! that the allocation was handed back. Measuring the allocator proves both.
 //!
-//! # What it wraps, and why the counts still mean what they did
+//! # What it wraps, and what the counts mean
 //!
 //! Every method below forwards to `Backing` — [`Pooled`](crate::alloc::Pooled)
 //! normally — rather than to the platform heap, so a test build measures the
-//! allocator an optimized build actually runs on instead of the one it
-//! replaced. `Counting` sits *outside* the size-class cache: a request served
-//! from a recycled block is still exactly one `alloc` here, and returning that
-//! block to the cache is still exactly one `dealloc`, so both counters carry
-//! the same meaning they carried over [`System`](std::alloc::System) —
-//! [`live_bytes`] a balance and [`allocated_bytes`] a monotonic total, both in
-//! *requested* bytes rather than in the class-rounded block a request lands
-//! in. What changes is the shape underneath them: a leak or a transient
-//! allocation is now caught against the code path the release binary takes.
+//! allocator an optimized build actually runs on. `Counting` sits *outside*
+//! the size-class cache: a request served from a recycled block is exactly one
+//! `alloc` here, and returning that block to the cache is exactly one
+//! `dealloc`, so the counters mean what they say over
+//! [`System`](std::alloc::System) and over the pool alike — [`live_bytes`] a
+//! balance and [`allocated_bytes`] a monotonic total, both in *requested*
+//! bytes rather than in the class-rounded block a request lands in. A leak or
+//! a transient allocation is therefore caught against the code path the
+//! release binary takes.
 //!
 //! # Why a sanitizer needs `Backing` to be the platform heap
 //!

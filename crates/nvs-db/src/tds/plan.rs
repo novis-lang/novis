@@ -30,8 +30,8 @@ pub struct TdsPlan {
     /// narrow is *truncated* by SQL Server rather than refused, which is silent
     /// data loss, so this is carried and compared and a mismatch is a miss that
     /// unprepares the plan it did not fit. The key itself is left alone: § 1
-    /// states it once, for four drivers, and this is one driver's reason to
-    /// reject a hit rather than a fifth way to spell the key.
+    /// states it once, for every driver, and this is one driver's reason to
+    /// reject a hit rather than another way to spell the key.
     ///
     /// `Rc<str>` because [`StatementCache::lookup`] clones the handle on every
     /// hit, and a hit is the path the cache exists for.
@@ -245,7 +245,7 @@ pub(super) fn execute_one<S: Read + Write>(
 /// the `SAVE TRANSACTION` a nested `transaction()` is.
 ///
 /// [`crate::mysql::begin`]'s shape and its depth accounting, with T-SQL's
-/// spellings and the two facts that are this backend's alone.
+/// spellings and the facts that are this backend's alone.
 ///
 /// **SQL Server has no read-only transaction at all**, so `read_only` is
 /// refused at any depth rather than dropped. Every other backend § 7 reaches
@@ -335,11 +335,11 @@ pub(crate) fn begin<S: Read + Write>(
     Ok(span)
 }
 
-/// The `SET TRANSACTION ISOLATION LEVEL` one of § 7's five levels renders to.
+/// The `SET TRANSACTION ISOLATION LEVEL` one of § 7's levels renders to.
 ///
 /// **Nothing collapses here, and this is the backend [`Isolation::Snapshot`] is
 /// named after**: SQL Server implements it as a level of its own rather than as
-/// a spelling of `REPEATABLE READ`, which is what the other two row-versioning
+/// a spelling of `REPEATABLE READ`, which is what the other row-versioning
 /// drivers fold it onto. A database with `ALLOW_SNAPSHOT_ISOLATION` off refuses
 /// the command, and that refusal is § 7's "throwing where a driver lacks the
 /// level" arriving as the server's own error rather than as a guess this driver
@@ -974,8 +974,8 @@ mod tests {
     /// `START TRANSACTION`; `SAVE TRANSACTION`, not `SAVEPOINT`;
     /// `ROLLBACK TRANSACTION <name>`, not `ROLLBACK TO SAVEPOINT` — and a
     /// dialect error in any of them is a runtime refusal from the server that no
-    /// type checks. The claim that cannot be read off a spelling is the fourth
-    /// message that is *not there*: T-SQL has no `RELEASE SAVEPOINT`, and a
+    /// type checks. The claim that cannot be read off a spelling is the message
+    /// that is *not there*: T-SQL has no `RELEASE SAVEPOINT`, and a
     /// nested commit that sent `COMMIT TRANSACTION` in its place would commit
     /// the whole transaction while the depth still said two levels were open.
     #[test]
@@ -1115,11 +1115,11 @@ mod tests {
     /// it is put back when the outermost transaction ends, and a transaction
     /// that asked for nothing pays for none of it.
     ///
-    /// The restore is what the other three drivers do not need and what
+    /// The restore is what the other drivers do not need and what
     /// `sp_reset_connection` does not cover — § 13 resets a connection on its way
     /// back to the pool, and a second `transaction()` in the *same request* never
-    /// goes near it. Without the fifth message here, that second transaction
-    /// would silently run `SERIALIZABLE`.
+    /// goes near it. Without the restore here, that second transaction would
+    /// silently run `SERIALIZABLE`.
     #[test]
     fn a_session_isolation_level_is_put_back_when_the_outermost_transaction_ends() {
         let mut wire = answering_each(&[done(), done(), done(), done(), done(), done()]);
@@ -1163,8 +1163,8 @@ mod tests {
         );
     }
 
-    /// The two refusals § 7 owes a program on this backend, neither of which
-    /// touches the wire.
+    /// The refusals § 7 owes a program on this backend, none of which touches
+    /// the wire.
     ///
     /// **`readOnly` is refused rather than dropped**: SQL Server has no
     /// read-only transaction, and every other backend § 7 reaches enforces the

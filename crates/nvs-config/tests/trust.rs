@@ -3,7 +3,7 @@
 //! `tests/resolve.rs` runs against an in-memory reader on purpose and so cannot see this half: that
 //! the check reads the platform's own idea of who owns a path and who may write it, and that what
 //! it hands back is canonical. Each case works under a directory of its own beneath the system
-//! temporary directory — the one place all three target platforms give the invoking account and
+//! temporary directory — the one place every target platform gives the invoking account and
 //! nobody else, which is what makes a *passing* case meaningful rather than accidental.
 //!
 //! Making a path group-writable is one `chmod` on Unix and an ACL edit on Windows, so each
@@ -140,8 +140,8 @@ fn icacls(dir: &std::path::Path, args: &[&str]) {
 #[cfg(windows)]
 const USERS: &str = "*S-1-5-32-545";
 
-/// § 6's DACL half: an entry granting one of the five untrusted principals a write right is a
-/// breach, and the refusal names the principal rather than a mode.
+/// § 6's DACL half: an entry granting an untrusted principal a write right is a breach, and the
+/// refusal names the principal rather than a mode.
 #[cfg(windows)]
 #[test]
 fn a_directory_a_well_known_group_may_write_is_a_breach() {

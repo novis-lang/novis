@@ -1,8 +1,7 @@
 //! `rule:classes/property-observer`'s property hooks: when each runs, how each is compiled, and a throwing one reaching a `catch`.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -14,8 +13,6 @@ use common::*;
 /// this" for `get` and "store this" for `set`, and inside a hook the property
 /// is its own backing slot — which is what lets `$n`'s pair round-trip
 /// without recursing.
-///
-/// Before this landed, every one of these read the slot nothing had written.
 #[test]
 fn a_property_hook_runs_on_every_read_and_write_of_its_property() {
     let source = "<?nvs

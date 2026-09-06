@@ -2,21 +2,19 @@
 //! shapes with nowhere more specific to be: member access, the nullsafe chain,
 //! `match`, the literals and the array forms.
 //!
-//! Two of its former areas are their own modules, reached the way `lower_expr`
+//! Two neighbouring areas are modules of their own, reached the way `lower_expr`
 //! reaches any other: `rule:types/conversion`'s conversions and `rule:expressions/truthy-positions`'s truthiness are
 //! [`super::convert`], and § 4's operator table is [`super::operator`].
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)` so they reach across these modules and no further.
 
 use super::*;
 
 /// What `nvs_types::expr_table::ExprInfo::ShapeProperty` resolved for one
-/// `$shape->field` access, read or write, carried as one argument because the
-/// three parts are only ever used together — see
+/// `$shape->field` access, read or write, carried as one argument because its
+/// parts are only ever used together — see
 /// [`Lowering::lower_shape_property_access`] and
 /// [`Lowering::lower_shape_property_assign`].
 pub(crate) struct ShapeField {
@@ -37,11 +35,10 @@ impl<'a> Lowering<'a> {
     /// ends in -- unchanged unless the expression branched. That is why it is
     /// a `&mut`: `&&`, `||`, `!`, a ternary and `??` each lower to a
     /// branch/merge, and a caller that could not learn the merge block would
-    /// go on emitting into a block control has already left. There used to be
-    /// a second, "top-level only" entry point that owned the mutable block and
-    /// a plain one that did not, which is what made `string $s = $a ?? "d";`
-    /// compile while `echo "x=" . ($a ?? "d")` panicked; the two are one
-    /// function now, so every position composes.
+    /// go on emitting into a block control has already left. One entry point
+    /// rather than a "top-level only" one beside it is what makes every
+    /// position compose: `echo "x=" . ($a ?? "d")` lowers by exactly the route
+    /// `string $s = $a ?? "d";` does.
     ///
     /// `expected` is the representation the position wants where it has one.
     /// It steers a literal (`rule:types/arithmetic`'s `int`/`uint` choice) and nothing
@@ -71,13 +68,13 @@ impl<'a> Lowering<'a> {
             // the explicit parens, which the parser keeps as their own node
             // rather than discarding.
             ExprKind::Paren(inner) => self.lower_expr(inner, expected, env, cur),
-            // The four shapes that branch. They sit here, in the one
+            // The shapes that branch. They sit here, in the one
             // expression-lowering entry point, rather than in a second
-            // "top-level only" one — that split was this crate's known gap 5,
-            // and it is what made `echo "x=" . ($a ?? "d")` panic while
-            // `string $s = $a ?? "d";` compiled. `cur` is redirected to
-            // whichever block the expression's own control flow ends in, so
-            // every caller composes with them for free.
+            // "top-level only" one — a split that leaves `echo "x=" . ($a ??
+            // "d")` with no route while `string $s = $a ?? "d";` has one.
+            // `cur` is redirected to whichever block the expression's own
+            // control flow ends in, so every caller composes with them for
+            // free.
             ExprKind::Binary {
                 op: BinaryOp::And,
                 lhs,
@@ -266,7 +263,7 @@ impl<'a> Lowering<'a> {
                 self.lower_instanceof(inner, class, expr, env, cur)
             }
             ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
-            // Two things wear this syntax, and both are inlined constants.
+            // Everything that wears this syntax is an inlined constant.
             // `rule:enums/no-class-machinery` makes `EnumName::CaseName` "an integer constant,
             // inlined at every use site"; `rule:classes/no-free-functions-or-constants`'s `Core\Math::PI` is the
             // same rule for a class constant. So each lowers to exactly the
@@ -292,10 +289,10 @@ impl<'a> Lowering<'a> {
                     let value = value.clone();
                     self.emit_const_arg(&value, env, *cur)
                 }
-                // Unreachable since `nvs_types::expr::members` grew `E0792`:
-                // a read of a constant whose declaration folds to no value is
-                // refused there, at the span the author can act on, and a unit
-                // that failed to check never reaches lowering. Kept as a panic
+                // Unreachable: a read of a constant whose declaration folds to
+                // no value is `E0792` in `nvs_types::expr::members`, refused
+                // at the span the author can act on, and a unit that failed to
+                // check never reaches lowering. Kept as a panic
                 // rather than deleted because the arm is what makes that
                 // refusal load-bearing — if it is ever removed, this is where
                 // the missing value surfaces.
@@ -309,11 +306,11 @@ impl<'a> Lowering<'a> {
             },
             // `Foo::class` — the class's own fully qualified name, and a
             // `Ty::Str` constant with no storage behind it, exactly like the
-            // two constants one arm above. The *name* is resolved by
+            // constants one arm above. The *name* is resolved by
             // `nvs_types::expr::members::check_class_name_const` and travels
             // in the same `ExprInfo::CoreConst` a `Core` class constant does,
             // for two reasons that point the same way: a constant is inlined
-            // at its use site whichever of the three it is, and this crate
+            // at its use site whichever spelling it wears, and this crate
             // cannot name a `nvs_hir::QName` to do the resolution itself.
             //
             // `static::class` and `$obj::class` are the two sides that have no
@@ -502,36 +499,28 @@ impl<'a> Lowering<'a> {
                 self.lower_spawn_script(path, options, env, cur)
             }
             ExprKind::Await(operand) => self.lower_await(operand, env, cur),
-            // Nothing the checker accepts reaches this arm any more, and the
-            // proof is the roster rather than the message below it. `ExprKind`
-            // has 46 variants; the arms above cover 37 of them, plus one of
-            // `Assign`'s two `inout` shapes. Of the nine with no arm and
-            // the one `Assign` shape:
+            // Nothing the checker accepts reaches this arm, and the proof is
+            // the roster rather than the message below it. The arms above
+            // cover every `ExprKind` variant that has a lowering, plus one of
+            // `Assign`'s `inout` shapes. Of the variants with no arm, and that
+            // other `Assign` shape:
             //
             // * `Error` is a parse error already reported, and does not
             //   survive to a compilation that lowers.
             // * a bare `NAME` (`ConstFetch`) is `E0319` — `rule:statements/storage-that-outlives-a-call` gives
             //   a constant no home but a class — and `self`/`static`/`parent`
             //   used as a *value* are `E0321`, both from `nvs_hir::members`.
-            //   All four still appear as the class *side* of a `::`, which is
+            //   Each still appears as the class *side* of a `::`, which is
             //   not this dispatch's business: `walk_class_side` skips them and
             //   the arms above read the checker's own resolution instead.
-            // * `$a = &$b` is `E0701`: `rule:types/implicit-capture` removed by-reference
-            //   capture, so there is no owner for the `&`.
+            // * `$a = &$b` is `E0701`: `rule:types/implicit-capture` leaves by-reference
+            //   capture out of the language, so there is no owner for the `&`.
             // * every `yield` shape is `E0448` where it has no lowering — a
-            //   key half, a `yield from`, a missing value, and (since this
-            //   pass) one used as a *value*, `rule:iteration/one-way-only` giving a generator
+            //   key half, a `yield from`, a missing value, and one used as a
+            //   *value*, `rule:iteration/one-way-only` giving a generator
             //   no `send()` for it to answer with. The statement form goes
             //   through `Self::lower_yield` one file over, reached from
             //   `nvs_types::expr::check_expr_stmt`'s matching split.
-            //   Their neighbour used to be `spawn script` and `await`, both
-            //   refused where they were written; both lower two arms above
-            //   now, and `E0703`, `E0704` and `E0776` are all retired.
-            //   `$obj::class` used to be here as `E0702`; it lowers now, and
-            //   so does `static::class`, both through `Helper::ClassDescName`.
-            //
-            // `Ternary`, `Match`, `Paren` and `ObjectLiteral`, which used to
-            // arrive here, all lower above.
             //
             // That subtraction is the proof; the message below is not.
             other => panic!(
@@ -578,8 +567,8 @@ impl<'a> Lowering<'a> {
             // can arrive under, and both go to `Helper::EchoValue` with no
             // conversion in front: that helper renders through the same
             // `stringify` `Self::convert_operand` would have called, after
-            // asking the class. Everything else is converted here as before
-            // and takes `Helper::EchoStr`, which no carrier can reach.
+            // asking the class. Everything else is converted here and takes
+            // `Helper::EchoStr`, which no carrier can reach.
             let (v, ty) = self.lower_expr(operand, None, env, cur);
             let (v, aliasing, helper) = match ty {
                 Ty::Object | Ty::Tagged => (v, self.aliasing_read(operand), Helper::EchoValue),
@@ -772,9 +761,8 @@ impl<'a> Lowering<'a> {
     /// Split out for [`Self::lower_echo`], which has to see the operand's
     /// [`Ty`] *before* deciding whether to convert it at all: `rule:tooling/terminal-output-is-a-sink`'s
     /// raw path is a class, so the sink recognises it from the static type and
-    /// then does its own rendering. Nothing about the rows below changed in the
-    /// split — `.` concatenation reaches them through `concat_operand` exactly
-    /// as it did.
+    /// then does its own rendering. `.` concatenation reaches the rows below
+    /// through `concat_operand` instead.
     pub(crate) fn convert_operand(
         &mut self,
         expr: &Expr,
@@ -821,7 +809,7 @@ impl<'a> Lowering<'a> {
             // way for the `?string` holding one. A *statically* `null`
             // operand is the same value one type earlier, so it renders the
             // same rather than being refused a phase up — the checker's
-            // `require_stringable` names the four types that are refused, and
+            // `require_stringable` names the types that are refused, and
             // this is not one of them. The operand itself is lowered for its
             // effects and then unused; `Ty::Null` is not refcounted, so there
             // is nothing to release.
@@ -879,13 +867,13 @@ impl<'a> Lowering<'a> {
                     (sv, false)
                 }
             },
-            // [`crate::ty::Ty`]'s roster is fifteen and this arm has no
-            // reachable target left. Nine are the rows above: `Ty::Str`, the
-            // five scalars each through their own helper, `Ty::Null` as the
-            // empty string, `Ty::Tagged` through the runtime tag and
-            // `Ty::Object` through `rule:classes/stringable`'s `toString`.
+            // [`crate::ty::Ty`]'s whole roster is accounted for and this arm
+            // has no reachable target left. The rows above take `Ty::Str`,
+            // each scalar through its own helper, `Ty::Null` as the empty
+            // string, `Ty::Tagged` through the runtime tag and `Ty::Object`
+            // through `rule:classes/stringable`'s `toString`.
             //
-            // Four are refused a phase up by
+            // The rest a source expression can have are refused a phase up by
             // `nvs_types::expr::operators::require_stringable`, the one check
             // every implicit site goes through, each naming the spelling that
             // says what was meant: `Ty::Bytes` (`rule:types/conversion` grants
@@ -894,7 +882,7 @@ impl<'a> Lowering<'a> {
             // `Ty::Enum` (`rule:enums/no-class-machinery`'s named integer, `$case as int`) and
             // `Ty::Void` (a call with no value at all).
             //
-            // The last two are not types a *source expression* ever has.
+            // What is left is no type a *source expression* ever has.
             // `Ty::ClassDesc` is produced only as a static call's receiver
             // slot, by `InstKind::ClassDescOf`/`ClassDescConst` — never
             // `Self::lower_expr`'s answer, `Foo::class` folding to a `string`
@@ -912,8 +900,8 @@ impl<'a> Lowering<'a> {
     /// [`Ty::Object`]. `.`, an interpolated piece, `echo`/`print` and
     /// `as string` all reach it, because
     /// `nvs_types::expr::operators::require_stringable` is the single check
-    /// all four go through — so it is also the single place that records the
-    /// resolved target, under the operand's own span.
+    /// every one of them goes through — so it is also the single place that
+    /// records the resolved target, under the operand's own span.
     ///
     /// `None` when nothing was recorded there, which both callers answer the
     /// same way: `Helper::TaggedToString` over the receiver, which dispatches
@@ -1143,8 +1131,8 @@ impl<'a> Lowering<'a> {
     /// the narrowing on the read's own span
     /// (`nvs_types::expr_table::ExprInfo::NarrowedRead`) and it is discharged
     /// **once, here**, where the value is produced — which is what leaves no
-    /// site to forget. [`Self::untag_receiver`] is the same move written for
-    /// the one consumer that predates this, and is a no-op once this has run.
+    /// site to forget. [`Self::untag_receiver`] is the same move written for a
+    /// member access's own receiver, and is a no-op once this has run.
     ///
     /// The [`InstKind::Untag`] is unchecked for [`Self::untag_receiver`]'s
     /// reason, and transfers ownership unchanged — so a borrowed slot read
@@ -1819,8 +1807,8 @@ impl<'a> Lowering<'a> {
 
         // The env each arm body is entered with is the label chain's as of the
         // label that jumped there — the same bookkeeping `Self::lower_switch`
-        // keeps, and needed for the same reason now that a label or an arm
-        // body may rebind a local (`match ($x) { 1 => $c++, default => 0 }`).
+        // keeps, and needed for the same reason: a label or an arm body may
+        // rebind a local (`match ($x) { 1 => $c++, default => 0 }`).
         let pre_env = env.clone();
         let mut entry_edges: Vec<Vec<(BlockId, Env)>> = vec![Vec::new(); arms.len()];
         let mut test_cur = *cur;
@@ -2113,14 +2101,14 @@ impl<'a> Lowering<'a> {
     /// whichever of the two representations the crate docs' *an array key is
     /// a `string`, and an `int` subscript no longer spells it* allows.
     ///
-    /// `rule:types/arrays` is unchanged by this: every key still *is* a `string`
-    /// and `$a[8]` is still `$a["8"]`. What changed is that reaching it no
-    /// longer renders the decimal. A [`Ty::Int`] subscript is handed to the
-    /// instruction as the `int` it already was, and `nvs-codegen` calls
+    /// `rule:types/arrays` holds throughout: every key *is* a `string` and
+    /// `$a[8]` is `$a["8"]`. What an `int` subscript buys is reaching that
+    /// key without rendering the decimal. A [`Ty::Int`] subscript is handed
+    /// to the instruction as the `int` it is, and `nvs-codegen` calls
     /// `nvs_array_get_index`/`nvs_array_set_index`, which answer from the
     /// packed form with nothing rendered and nothing allocated and
     /// synthesize a key only where the array is already `Hashed` — exactly
-    /// the case that was building one anyway (`nvs_runtime::array`'s module
+    /// the case that builds one anyway (`nvs_runtime::array`'s module
     /// doc, *the ABI was the part that expired*).
     ///
     /// A [`Ty::Uint`] subscript still renders, deliberately: that ABI's
@@ -2136,14 +2124,14 @@ impl<'a> Lowering<'a> {
     /// Also used, identically, for an array literal's explicit `key =>`
     /// element (see [`ir::InstKind::ArrayNew`]'s own doc comment). A
     /// `float`, `bool`, or `null` key is a compile-time rejection
-    /// `nvs_types::expr::check_array_key_type` now enforces at both call
+    /// `nvs_types::expr::check_array_key_type` enforces at both call
     /// sites (an `Index` subscript and an array-literal explicit key alike),
     /// so the `other` arm below is an internal-invariant panic — unreachable
     /// for anything that already passed `nvs_types::check_program` — rather
     /// than a live known gap.
     ///
     /// Returns the key value, **the representation it is in** — `Ty::Str` or
-    /// `Ty::Int`, which is what every caller's refcount decision now turns
+    /// `Ty::Int`, which is what every caller's refcount decision turns
     /// on, since an `int` owns nothing to retain or release — and whether it
     /// [`is_aliasing_read`]s storage a durable slot still owns, exactly the
     /// same second half [`Self::concat_operand`] returns and for the same
@@ -2184,7 +2172,7 @@ impl<'a> Lowering<'a> {
     ///
     /// [`ir::InstKind::ArrayUnset`] is the one key-taking array instruction
     /// with no index-shaped runtime primitive beside it — `nvs-runtime`
-    /// added `nvs_array_get_index` and `nvs_array_set_index` and no third —
+    /// carries `nvs_array_get_index` and `nvs_array_set_index` and no third —
     /// so `unset($a[$i])` renders the decimal here rather than having
     /// codegen discover it cannot. Widening the runtime ABI to close that
     /// is a separate decision, not a side effect of this one; `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
@@ -2902,8 +2890,8 @@ impl<'a> Lowering<'a> {
     /// argument vector by hand rather than through
     /// [`Self::lower_call_args`](crate::lower::Lowering::lower_call_args), and
     /// a value lowered but never *staged* is one `release_temporaries_since`
-    /// cannot see — `Core\Router::url("…", ["id" => 7])` leaked its literal
-    /// array once per call until both lines below existed.
+    /// cannot see — without both lines below, `Core\Router::url("…", ["id" =>
+    /// 7])` leaks its literal array once per call.
     /// `spawn script <path> with(…)` — ADR 0006 § *Decision*'s isolate spawn,
     /// as one [`InstKind::CoreCall`] answering a `Core\Script\Handle`.
     ///
@@ -3285,7 +3273,7 @@ impl<'a> Lowering<'a> {
         // the reason `Lowering::temporaries_mark` gives.
         let mark = self.temporaries_mark();
         // `?->` guards everything below on the receiver not being
-        // `null`; `->` opens no guard and lowers exactly as before.
+        // `null`; `->` opens no guard at all.
         let (object_v, receiver_ty, guard) =
             self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
         // A `static` method reached through an instance
@@ -3801,8 +3789,8 @@ impl<'a> Lowering<'a> {
         // `lower_property_hook`. A property with only a `set` hook
         // still reads its own slot, since Novis's hooked properties are
         // always backed (`nvs_types::signatures::PropertyHooks` owns
-        // that decision), so both shapes recover the same three
-        // fields and only the `get` label decides between them.
+        // that decision), so both shapes recover the same fields
+        // and only the `get` label decides between them.
         // An `rule:types/erased-member-access` shape receiver naming one of its own fields is the
         // one access with no class to resolve: the slot index is already in
         // the table, so this reads it and is done. Everything below — the
@@ -3840,8 +3828,8 @@ impl<'a> Lowering<'a> {
                 observer,
                 ..
             }) => (class, name, *ty, get.clone(), observer.clone()),
-            // Every shape a `PropertyAccess` takes is handled above now,
-            // `rule:types/property-key-access`'s keyed one included, so this arm is once again the
+            // Every shape a `PropertyAccess` takes is handled above,
+            // `rule:types/property-key-access`'s keyed one included, so this arm is the
             // consistency claim it reads as and not a lowering still owed.
             _ => panic!(
                 "nvs-ir: a property access at {:?} has neither a resolved declaring class \
@@ -3963,7 +3951,7 @@ impl<'a> Lowering<'a> {
     /// leaves `cur` on the block where it is a real instance.
     ///
     /// **The test is the payload, not the tag**, and that is the whole reason
-    /// this is three instructions rather than a call. The state is only
+    /// this is an inline branch rather than a call. The state is only
     /// reachable on a `lateinit` property (`rule:classes/lateinit`), whose declared type
     /// `rule:classes/lateinit-restrictions` restricts to a non-nullable class or interface — one
     /// pointer, null in this state and in no other, since `rule:classes/definite-property-initialization`
@@ -4395,8 +4383,8 @@ impl<'a> Lowering<'a> {
     /// `[...]`/legacy `array(...)` — see `InstKind::ArrayNew`'s own
     /// doc comment for the full policy this mirrors and its known
     /// gaps. A *purely positional* literal (no element has an
-    /// explicit `key =>`, and none is a `...spread`) keeps the
-    /// original single-`ArrayNew` shape: each element's key is simply
+    /// explicit `key =>`, and none is a `...spread`) takes the
+    /// single-`ArrayNew` shape: each element's key is simply
     /// its index, auto-numbered from `0` exactly like PHP's own
     /// `[$a, $b]` shorthand, computed at lowering time with no runtime
     /// key instruction at all. Anything else instead builds an empty

@@ -30,12 +30,12 @@
 //!
 //! # How a deadline becomes a poll timeout
 //!
-//! `Reactor::turn` already had `rule:concurrency/the-parking-contract` rule 4's three states; a timer
+//! `Reactor::turn` has `rule:concurrency/the-parking-contract` rule 4's states; a timer
 //! changes only *how long* the blocking one blocks. With something parked and a
 //! deadline filed, the poll waits until that deadline instead of indefinitely,
 //! and the tasks it comes back due are woken exactly as readiness wakes one. A
-//! task parked with a timer and nothing else is therefore no longer the "parked
-//! but unwakeable" case that rule returns `0` for.
+//! task parked with a timer and nothing else is therefore not the "parked but
+//! unwakeable" case that rule returns `0` for.
 //!
 //! # A wake is still a hint
 //!
@@ -124,7 +124,7 @@ impl Default for Published {
 /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s watchdog reads a core through this and touches nothing else:
 /// it carries no reference to the scheduler, the reactor or any task's stack,
 /// and reading it neither blocks the core nor can be blocked by it. That makes
-/// it — with `reactor::RemoteWake` — one of the two things in this crate that
+/// it — with `reactor::RemoteWake` — one of the few things in this crate that
 /// is `Send`. This module's docs say what a reading means.
 #[derive(Clone, Debug)]
 pub struct DeadlineView(Arc<Published>);

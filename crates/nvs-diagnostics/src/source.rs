@@ -18,7 +18,7 @@ pub struct SourceFile {
 }
 
 impl SourceFile {
-    /// Both constructors in [`SourceMap`] reject text longer than
+    /// Every constructor in [`SourceMap`] rejects text longer than
     /// [`MAX_SOURCE_LEN`] before calling this, which is what makes the offset
     /// arithmetic below infallible.
     fn new(id: SourceId, name: String, path: Option<PathBuf>, text: String) -> Self {

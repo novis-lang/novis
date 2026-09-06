@@ -1,8 +1,7 @@
 //! A static call end to end — resolution, recursion, declared defaults, `rule:testing/debug-probes`'s call tracing, and `rule:errors/propagation`'s panic containment.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -61,11 +60,10 @@ class Renamed extends Slots {
 /// **Every value here is non-zero and every one is different.** The bug this
 /// guards against shifts every parameter by one slot, so a caller reads its
 /// neighbour and then one `Value` past the end of its own slice — which is
-/// invisible against a `0` argument, invisible against two arguments that
-/// happen to be equal, and was invisible for as long as the workspace's only
-/// hand-built calls passed `Value::int(0)`. It is a live out-of-bounds read
-/// either way: under ASAN the trailing slot reads back as an int-tagged zero,
-/// and under an ordinary build as whatever was next on the stack.
+/// invisible against a `0` argument, and invisible against two arguments that
+/// happen to be equal. It is a live out-of-bounds read either way: under ASAN
+/// the trailing slot reads back as an int-tagged zero, and under an ordinary
+/// build as whatever was next on the stack.
 #[test]
 fn a_hand_built_call_delivers_every_argument_to_its_own_parameter() {
     let unit = compile(SLOTS).expect("the fixture compiles");
@@ -110,8 +108,8 @@ fn a_hand_built_static_call_carries_the_class_it_was_called_on() {
 /// half of the receiver-slot defect: `nvs_runtime::call` is handed a pointer
 /// and never a length, so nothing below this can tell three slots from two.
 ///
-/// The instance path already refuses the same thing
-/// (`nvs_runtime::construct_and_call`); this is the static one catching up.
+/// The instance path refuses the same thing
+/// (`nvs_runtime::construct_and_call`); this is the static one.
 #[test]
 #[should_panic(expected = "declares 3 parameter(s) and this call supplies 2")]
 fn a_hand_built_call_short_of_an_argument_is_refused() {
@@ -229,13 +227,13 @@ fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
     );
 }
 
-// A *non-`OK`* traced exit has no fixture here yet, and deliberately not: the
-// only stop this slice can provoke is a pending safepoint, which fires at the
+// A *non-`OK`* traced exit has no fixture here, and deliberately not: the only
+// stop reachable without a `throw` is a pending safepoint, which fires at the
 // script frame's own entry poll before any call is reached. `nvs_probe_call_
 // exit`'s own unit test covers that it records the status it is handed; that
 // the probe is emitted *before* `rule:errors/propagation`'s compare-and-branch — so a thrown
-// exit is traced rather than skipped along with the rest of the frame — gets
-// its end-to-end fixture with `throw`, which is the next slice.
+// exit is traced rather than skipped along with the rest of the frame —
+// belongs to an end-to-end fixture with `throw`.
 #[test]
 fn a_second_script_runs_after_a_contained_helper_panic() {
     // M3's "leaves the process able to run the next one", which a one-shot

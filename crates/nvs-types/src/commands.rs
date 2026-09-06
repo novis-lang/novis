@@ -1,5 +1,5 @@
 //! `rule:tooling/commands-are-compiled`'s
-//! two command-table attributes: what `#[Command]` and `#[Option]` may carry.
+//! command-table attributes: what `#[Command]` and `#[Option]` may carry.
 //!
 //! # Why these are recognized names rather than shape aliases
 //!
@@ -13,14 +13,14 @@
 //! name is a shape-typed `type` alias — is the rule for the userland names,
 //! which are the only ones that could ever be aliases.
 //!
-//! This module declares what is checked behind those two roster entries: a
+//! This module declares what is checked behind those roster entries: a
 //! name on that closed list with nothing checking its payload would admit
 //! `#[Command(nmae: "deploy")]` silently, which is the whole argument
 //! [`crate::derive`]'s own gap 3 makes for keeping the list short.
 //!
 //! # What is checked here, and what the table still owes
 //!
-//! Two passes, and they are two because they read different things.
+//! The passes below are separate because they read different things.
 //!
 //! **One payload at a time**, from [`crate::attributes`]'s per-attribute walk:
 //! the field names against [`COMMAND_OPTIONS`] / [`OPTION_OPTIONS`], each
@@ -29,15 +29,15 @@
 //! that carries a payload; what this module owns is the two rosters.
 //!
 //! **One method at a time**, from [`crate::check`]'s per-class walk:
-//! [`check_class_commands`] holds each `#[Command]` to the two of § 6's three
-//! compile errors that are decidable from one parameter list — two options
+//! [`check_class_commands`] holds each `#[Command]` to those of § 6's compile
+//! errors that are decidable from one parameter list — two options
 //! sharing a spelling, and an `#[Option]` on a parameter no argument text could
 //! be converted into — and builds that method's [`Command`] rows out of the
 //! same walk, because the parameter list it reads for the first question is the
 //! argument list a row carries.
 //!
 //! **The whole program at once**, from the end of [`crate::check::check_program`]:
-//! [`check_table`] reports § 6's third error, a duplicate command name. It is a
+//! [`check_table`] reports § 6's duplicate command name. It is a
 //! question about the enumeration rather than about a declaration — `rule:programs/implementing`'s scan is what brings two files' commands into one program — so it waits
 //! for every file, exactly as [`crate::routes::check_table`] does.
 //!
@@ -69,7 +69,7 @@
 //!    from a command line, not from a call site — so something about the type
 //!    has to cross. What crosses is [`ArgConv`], the answer
 //!    [`converts_from_string`] already computes for § 6's third compile error,
-//!    and not the type: a closed set of five, decided in the same walk that
+//!    and not the type: a closed set, decided in the same walk that
 //!    builds the row, cannot disagree with the declaration the way a second copy
 //!    of the type lattice could. The one other thing a matcher cannot do without
 //!    crosses the same way: a parameter's *default* rides as the text a command
@@ -346,9 +346,8 @@ impl CommandTable {
     }
 }
 
-/// Every `#[Command]` method `decl` declares, held to the two of § 6's three
-/// compile errors that one parameter list answers, and collected into `env`'s
-/// table.
+/// Every `#[Command]` method `decl` declares, held to those of § 6's compile
+/// errors that one parameter list answers, and collected into `env`'s table.
 ///
 /// A no-op — not even a lookup — for a class carrying no `#[Command]`, which is
 /// what keeps § 6's "a program with no `#[Command]` pays nothing" true of this
@@ -390,7 +389,7 @@ pub(crate) fn check_class_commands(
     }
 }
 
-/// `rule:tooling/commands-are-compiled`'s two facts about the *declaration* a `#[Command]` sits on: it
+/// `rule:tooling/commands-are-compiled`'s facts about the *declaration* a `#[Command]` sits on: it
 /// is `static`, and it returns `void` or `uint`.
 ///
 /// The return half is § 6 in prose — `Core\Command::run(): uint` is the entry
@@ -496,8 +495,8 @@ fn collect_command(attr: &Attribute, handler: &str, args: &[CommandArg], env: &m
     });
 }
 
-/// § 6's first compile error, over the finished table: two commands claiming
-/// one name.
+/// § 6's compile error over the finished table: two commands claiming one
+/// name.
 ///
 /// Run once at the end of [`crate::check::check_program`] rather than as each
 /// class is walked, because `rule:programs/implementing`'s scan is what puts two files'
@@ -664,8 +663,8 @@ fn check_options(
 ///
 /// `None` for a constant no command line could have spelled at all — a
 /// `float`, a `null`, and the shapes only [`crate::core_lib`] produces — so an
-/// argument this answers `None` for stays required, which is exactly what every
-/// argument was before a default crossed.
+/// argument this answers `None` for stays required, which is what an argument
+/// with no spellable default has to be.
 ///
 /// [`ArgConv::Decimal`] and [`ArgConv::Uuid`] convert a *written* argument and
 /// still have no constant to answer with here, which is [`crate::defaults`]'
@@ -737,8 +736,8 @@ fn folded_option(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<(S
     }
 }
 
-/// § 6's third compile error: the parameter an `#[Option]` is attached to must
-/// have a type an argument's text can be converted to.
+/// § 6's compile error about a parameter's type: the parameter an `#[Option]`
+/// is attached to must have a type an argument's text can be converted to.
 fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>) {
     if converts_from_string(ty, env) {
         return;

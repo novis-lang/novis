@@ -15,7 +15,7 @@
 //! [`Program`] handed in and the [`Output`] asked for, not the boundary.
 //!
 //! `rule:concurrency/a-connection-is-a-root-isolate`'s
-//! WebSocket connection is the third caller and needs nothing added here
+//! WebSocket connection is another caller and needs nothing added here
 //! either: it is [`Isolate::start`] from the *connection's* context, with a
 //! [`Program`] the upgrading request prepared and handed over before it ended,
 //! so the connection is that request's sibling rather than a child of its tree.
@@ -88,9 +88,9 @@ use crate::scheduler::{TaskId, Waiting, Wake, cancel_task, spawn_child, suspend_
 
 pub use nvs_runtime::script::Program;
 
-// The three shapes the crossing is described in are declared on the seam
-// itself, in `nvs_runtime::host`, because that is where a `Core` member reaches
-// them from and a name written out in two crates is a name that can drift. They
+// The shapes the crossing is described in are declared on the seam itself, in
+// `nvs_runtime::host`, because that is where a `Core` member reaches them from
+// and a name written out in two crates is a name that can drift. They
 // are re-exported here because this module is where they *mean* something: the
 // seam fixes the shape, and everything below decides the behaviour.
 pub use nvs_runtime::host::{Completion, Entry, Failure, Output, Running};
@@ -105,7 +105,7 @@ pub struct Isolate {
     entry: Entry,
     /// Boxed, and not for the size of this struct alone: [`Ctx::set_inbound`]
     /// boxes a carrier anyway, so allocating it here hands the same allocation
-    /// on rather than moving three hundred bytes twice. What it also buys is
+    /// on rather than moving a wide struct twice. What it also buys is
     /// that `nvs_server::Reply` — an enum with this type in one variant and a
     /// response in the other — stays a value a handler can return without one
     /// arm dwarfing the other.
@@ -259,8 +259,8 @@ impl Isolate {
     /// It is a builder and not an argument of [`Isolate::new`] for
     /// [`Self::running_a_method_of_the_parents_unit`]'s reason: every other
     /// isolate in this tree has
-    /// no peer, and a parameter would make forty call sites pass a `None` to
-    /// say so. What it changes is one field of the child's context —
+    /// no peer, and a parameter would make every one of those call sites pass a
+    /// `None` to say so. What it changes is one field of the child's context —
     /// [`Ctx::set_peer`] owns what that field means and when it may be read.
     ///
     /// **It is called after the upgrade was framed and never before.** § 1's
@@ -355,9 +355,9 @@ impl Isolate {
             // breach becomes the message the ladder prints, so a throw of the
             // handler's own is overwritten by `set_pending` rather than
             // reported in place of the limit that stopped the request. The
-            // report it is handed reads `max_script_depth`, which is the one
-            // thing separating this from the out-of-memory the heap used to
-            // deliver instead (`docs/plan/m6.md`'s *Verify*).
+            // report it is handed reads `max_script_depth`, which is what
+            // separates this from the out-of-memory the heap would deliver
+            // otherwise (`docs/plan/m6.md`'s *Verify*).
             ctx.run_limit_handler(Limit::ScriptDepth);
             ctx.set_pending(message.clone());
             // Not a `GraphError`: that error is the *argument's* and this
@@ -449,9 +449,9 @@ impl Isolate {
 
 /// A child already on a stack of its own, with nobody parked on it yet.
 ///
-/// The state `run_as_task` used to hold across its own park loop, named and
-/// handed to the parent instead — which is the whole of what splitting the
-/// spawn from the await took.
+/// The state the spawn hands back for the parent to hold until the await, which
+/// is what makes those two separate calls: the child's task, where its answer is
+/// filed, and whether its body has ended.
 struct Started {
     /// The child's task, so that a cancelled parent can reach it.
     id: TaskId,
@@ -596,10 +596,10 @@ impl Drop for Ended {
 ///
 /// A single-child sibling of `group::run_as_children`'s loop rather than a call
 /// into it, because that runner gives every child a [`Ctx::child`] — the
-/// *aliased* statics base `rule:statements/an-isolate-has-its-own-statics` says an isolate may not have. What is
-/// **not** here any more is the park: waiting is [`Started::join`]'s, and the
-/// guarantee that control does not leave with the child still running is the
-/// awaiting call's rather than this one's.
+/// *aliased* statics base `rule:statements/an-isolate-has-its-own-statics` says an isolate may not have. The
+/// park is **not** here: waiting is [`Started::join`]'s, and the guarantee that
+/// control does not leave with the child still running is the awaiting call's
+/// rather than this one's.
 fn start_as_task(
     isolate_ctx: Ctx,
     program: Program,
@@ -1925,8 +1925,8 @@ mod tests {
     /// A leak of one pair per request is invisible in the single reading the
     /// case above takes, and it is the failure this shape exists for. Asserted
     /// by **counting** the readings that moved rather than by comparing the
-    /// last one, so a drift that only shows up after fifty requests fails as
-    /// loudly as one that shows up immediately.
+    /// last one, so a drift that only shows up late in the soak fails as loudly
+    /// as one that shows up immediately.
     #[test]
     fn live_bytes_are_flat_across_a_cycle_building_soak() {
         const REQUESTS: usize = 100;

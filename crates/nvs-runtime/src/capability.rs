@@ -5,7 +5,7 @@
 //! without the sentence — a door needs to say what it refused, and `rule:security/optional-capability-degrades`'s `Core\Cap::has`
 //! needs only the yes or no. The decision procedure is
 //! [`nvs_config::capability`] and is pure; this is the half that knows about a request — where the
-//! snapshot comes from, and what a denial looks like to the program that hit it. Twelve below are
+//! snapshot comes from, and what a denial looks like to the program that hit it. Below are
 //! § 2's filesystem doors — [`open_read`], [`metadata`], [`metadata_if_present`], [`exists`],
 //! [`canonicalize`], [`resolve_existing`] and
 //! [`read_dir`] behind `fs.read`, [`write()`],
@@ -65,7 +65,7 @@ pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<()
 /// otherwise.
 ///
 /// For the one door that cannot hand back a [`Fault`] — [`crate::script::resolve`] owns an error
-/// type of its own, because a spawn's two other ways of failing are not capability questions. It
+/// type of its own, because a spawn's other ways of failing are not capability questions. It
 /// asks this rather than re-deriving the sentence, so the message a denial prints has exactly one
 /// author whichever door produced it.
 pub(crate) fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<String> {
@@ -163,8 +163,8 @@ pub fn pin_host(ctx: &Ctx, host: &str, member: &str) -> Result<std::net::IpAddr,
 /// the range check beside it would be a second home for the rule — which is the reason this is a
 /// door here rather than a few lines in `nvs-stdlib`.
 ///
-/// Every caller still owes its own capability check first, and both of this module's callers make
-/// it before they reach here: a host outside the grant is refused before it is looked up, so an
+/// Every caller still owes its own capability check first, and every caller in this module makes
+/// it before it reaches here: a host outside the grant is refused before it is looked up, so an
 /// ungranted program cannot use this as a resolver.
 ///
 /// # Errors
@@ -259,7 +259,7 @@ pub enum Access {
 /// § 2's handle door: the file at `path`, open for what `access` names, once every capability that
 /// access needs has been shown to cover it.
 ///
-/// This is [`open_read`] generalised to the three writing accesses, and the split between them is
+/// This is [`open_read`] generalised to the writing accesses, and the split between them is
 /// deliberate: `open_read` is the whole-file read every `Core\IO` reader shares, and this is the one
 /// a `Core\IO\File` handle comes out of. A writing open **creates** the path it names, which
 /// [`write()`]'s own doc calls a reason to keep the create on the door's side — it is on this side
@@ -306,8 +306,8 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
 /// it, so the handle has to cross. The create is still on this side of it, which is [`write()`]'s own
 /// reason for taking the bytes.
 ///
-/// **`overwrite` is a parameter rather than a fifth [`Access`] case**, because that enum is
-/// `Core\IO\FileMode`'s four cases and nothing else: a case no mode spells would be a variant the
+/// **`overwrite` is a parameter rather than another [`Access`] case**, because that enum is
+/// `Core\IO\FileMode`'s cases and nothing else: a case no mode spells would be a variant the
 /// surface enum could never produce. And **`overwrite == false` refuses through the operating
 /// system** — `create_new`, which is `O_EXCL` — rather than through an [`exists`] call first: a check
 /// followed by a create is a window another process can create the file in, and `rule:core-classes/io-write-stream` makes
@@ -496,7 +496,7 @@ pub fn metadata_if_present(
 /// § 2's `realpath` door: what `path` resolves to **when every component of it already exists**,
 /// once [`Cap::FsRead`] has been shown to cover it.
 ///
-/// The second resolution door, and the difference from [`canonicalize`] is **only** what it does
+/// The other resolution door, and the difference from [`canonicalize`] is **only** what it does
 /// about a path that is not there: that one answers by pinning the deepest existing ancestor,
 /// because `Core\IO::within` has to prove containment for a name about to be created, and this one
 /// refuses, because `Core\IO::canonicalize` is `realpath` and `realpath` has no answer for a name
@@ -703,9 +703,9 @@ pub fn read_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<ReadDir, Fault> 
 
 /// § 2's unlink door: `path` stops existing, once [`Cap::FsWrite`] has been shown to cover it.
 ///
-/// Removal is a write and not a fifth capability, for the reason § 3 gives for not splitting one:
-/// an account that may replace a file's whole content can already destroy it, so a separate grant
-/// would name a distinction the filesystem does not make.
+/// Removal is a write and not a capability of its own, for the reason § 3 gives for not splitting
+/// one: an account that may replace a file's whole content can already destroy it, so a separate
+/// grant would name a distinction the filesystem does not make.
 ///
 /// # Errors
 ///
@@ -833,7 +833,7 @@ fn nonce() -> u64 {
 /// context with no configuration at all, or a door outside a context — gets the default rather than
 /// a refusal, since this decides *where* and the grant still decides *whether*.
 ///
-/// **Public because § 4's two doors need the same answer this one does.** The `nvs serve` boot and
+/// **Public because § 4's doors need the same answer this one does.** The `nvs serve` boot and
 /// `nvs tmp clean` walk the root that [`temp_dir`] created under, and a second reading of `[io]
 /// temp_root` in the CLI is how the walk and the writer come to disagree; [`crate::sweep::orphans`]
 /// takes the path this hands back. It reads a tree rather than a [`Ctx`] for the same reason: those
@@ -1071,9 +1071,9 @@ mod tests {
 
     /// `rule:concurrency/a-child-belongs-to-the-calling-task`'s children "share the request", and this is the half every capability-gated
     /// member depends on: [`Ctx::child`] carries the request's configuration, so a grant the
-    /// request holds is a grant inside a task of it. Before the field crossed, [`granted`] answered
-    /// `false` to *everything* inside a child — `Core\Db::connect` succeeded in a program's main
-    /// body and was refused verbatim inside a `Core\Task::all` child.
+    /// request holds is a grant inside a task of it. Without that field crossing, [`granted`] would
+    /// answer `false` to *everything* inside a child — `Core\Db::connect` succeeding in a program's
+    /// main body and refused verbatim inside a `Core\Task::all` child.
     #[test]
     fn a_task_child_is_granted_what_its_request_was_granted() {
         let mut request = Ctx::buffered();
@@ -1115,7 +1115,7 @@ mod tests {
         .expect("the door agrees with the reporter, which is what makes `granted` honest");
     }
 
-    /// A directory this process alone is using, for the two cases below to point `[io] temp_root`
+    /// A directory this process alone is using, for the cases below to point `[io] temp_root`
     /// at. Under the platform root and never under Novis's own, so that a case asserting where a
     /// temporary landed cannot pass by accident.
     fn scratch(name: &str) -> std::path::PathBuf {

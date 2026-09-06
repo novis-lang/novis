@@ -1,9 +1,9 @@
 //! Novis's refcounted string: one heap allocation, a four-word header, and the
 //! bytes inline behind it.
 //!
-//! This is the first non-scalar representation the runtime owns, and the one
-//! both `nvs_ir::ty::Ty::Str` and `nvs_ir::ty::Ty::Bytes` lower to. They share
-//! it verbatim — the two differ only in the UTF-8 guarantee
+//! This is the representation both `nvs_ir::ty::Ty::Str` and
+//! `nvs_ir::ty::Ty::Bytes` lower to. They share it verbatim — the two differ
+//! only in the UTF-8 guarantee
 //! (`rule:types/bytes`), which is a
 //! checker property, not a layout one — so nothing here validates encoding.
 //! They are told apart at the *tag*, not here; the crate docs'
@@ -36,12 +36,11 @@
 //! both, so a buffer that is still being filled reads as empty rather than as
 //! bytes nobody wrote.
 //!
-//! What the third word costs is **8 bytes per string allocation**, a 16-byte
-//! header becoming 24. What it buys is that `$out .= $piece` stops being
-//! quadratic: without a capacity there is nowhere to append *into*, so every
-//! iteration allocated a fresh buffer and copied the whole accumulation into
-//! it — 50,000 appends took 238 ms and 100,000 took 1,386 ms, the
-//! super-linear shape being the tell. A string that is appended to holds up
+//! What the third word costs is **8 bytes per string allocation**. What it
+//! buys is that `$out .= $piece` is not quadratic: without a capacity there is
+//! nowhere to append *into*, so every iteration would allocate a fresh buffer
+//! and copy the whole accumulation into it, at a cost growing super-linearly
+//! with the number of appends. A string that is appended to holds up
 //! to **twice its payload**, which is [`grown_capacity`]'s doubling; a string
 //! that is never appended to holds exactly its payload. That is priority 5
 //! spent on priority 3, which is the direction [AGENTS.md](/AGENTS.md)
@@ -51,17 +50,16 @@
 //!
 //! `rule:types/string-is-utf8` makes a
 //! `string`'s length a count of extended grapheme clusters, which is O(n)
-//! where PHP's `strlen` is O(1) — so a program asking twice used to pay
-//! twice. The fourth word is that answer, kept: [`NvsStr::grapheme_count`]
+//! where PHP's `strlen` is O(1) — so a program asking twice would otherwise
+//! pay twice. The fourth word is that answer, kept: [`NvsStr::grapheme_count`]
 //! fills it on the first ask and reads it on every later one, and
 //! [`COUNT_UNKNOWN`] is the "nobody has asked" state every fresh allocation
 //! starts in. **Lazily**, because the overwhelming majority of strings a
 //! request builds are never asked their length at all, and scanning each one
 //! eagerly would be paying the cost this word exists to remove.
 //!
-//! What it costs is **8 more bytes per string allocation**, a 24-byte header
-//! becoming 32 — priority 5 spent on priority 3, the direction
-//! [AGENTS.md](/AGENTS.md) asks for.
+//! What it costs is **8 more bytes per string allocation** — priority 5 spent
+//! on priority 3, the direction [AGENTS.md](/AGENTS.md) asks for.
 //!
 //! A concatenation does **not** sum the two counts: a cluster can span the
 //! join — a base letter in one buffer and a combining mark in the next — so
@@ -271,8 +269,8 @@ fn str_layout(cap: usize) -> Layout {
 
 /// [`str_layout`], answering `None` for a capacity no allocation could have.
 ///
-/// The two ways a layout does not exist are the same two `str_layout` used to
-/// `expect` its way past: the header plus `cap` overflowing `usize`, and the
+/// The two ways a layout does not exist are the two [`str_layout`] `expect`s
+/// its way past: the header plus `cap` overflowing `usize`, and the
 /// sum exceeding `isize::MAX`, which `Layout` refuses. Both are reachable from
 /// a `Core` member taking a `uint` count — `nvs_runtime::affordable` accepts
 /// anything up to `isize::MAX` and knows nothing of the header this allocation
@@ -809,17 +807,17 @@ impl StrWriter<'_> {
     /// Grows the allocation to hold `needed` bytes.
     ///
     /// The same doubling `nvs_str_append` grows by, so a producer whose
-    /// capacity was a guess pays exactly what the `String` it replaced paid,
-    /// and one whose capacity was exact never reaches here at all.
+    /// capacity is a guess pays exactly what the `String` it replaces would,
+    /// and one whose capacity is exact never reaches here at all.
     #[cold]
     fn grow(&mut self, needed: usize) {
         let capacity = grown_capacity(self.capacity, needed);
         let bigger = str_layout(capacity);
         // `realloc` and not an allocate-copy-free of our own, for the reason
         // `Vec` uses it: an allocator that can extend the block in place does,
-        // and the bytes already written are then not moved at all. Measured —
-        // `Core\Str::join` copying instead cost the whole saving this seam
-        // exists for, and then some.
+        // and the bytes already written are then not moved at all. Copying
+        // instead costs `Core\Str::join` the whole saving this seam exists
+        // for, and then some.
         #[expect(
             unsafe_code,
             reason = "`self.ptr` was allocated with `str_layout(self.capacity)` \
@@ -1047,10 +1045,11 @@ pub unsafe extern "C" fn nvs_str_concat(
 /// reference count of one — [`nvs_str_concat`] for three or more operands, and
 /// the entry point `nvs_ir::InstKind::Concat` takes once it carries that many.
 ///
-/// **One allocation for the whole expression.** `"<tr><td>" . $i . "</td>"`
-/// used to fold left into a chain of [`nvs_str_concat`] calls, so an n-operand
-/// concatenation allocated n-1 buffers and copied a growing prefix into each
-/// one; here the total length is summed first and every piece is copied once.
+/// **One allocation for the whole expression.** Folding
+/// `"<tr><td>" . $i . "</td>"` left into a chain of [`nvs_str_concat`] calls
+/// allocates n-1 buffers for an n-operand concatenation and copies a growing
+/// prefix into each one; here the total length is summed first and every piece
+/// is copied once.
 ///
 /// Ownership is [`nvs_str_concat`]'s exactly: each piece is only *read*, so
 /// none is retained and none is released — `nvs_ir::ir::InstKind::Concat`'s own
@@ -1137,9 +1136,9 @@ pub unsafe extern "C" fn nvs_str_concat_n(
 ///
 /// Whenever `target` was solely owned and already had the room, the pointer
 /// returned **is** the pointer given and not one byte of the accumulation
-/// moves. That is the whole point: `$out .= $piece` copied the entire
-/// accumulation every iteration before this existed, which is quadratic in
-/// the number of appends.
+/// moves. That is the whole point: without it, `$out .= $piece` copies the
+/// entire accumulation every iteration, which is quadratic in the number of
+/// appends.
 ///
 /// Exactly two things force a fresh allocation instead:
 ///
@@ -1473,8 +1472,8 @@ mod tests {
 
     /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
     /// than asserted about: an n-piece concatenation allocates one buffer,
-    /// where the fold of two-operand `nvs_str_concat` calls it replaced
-    /// allocated n-1 of them and copied its leading pieces n-1 times.
+    /// where a fold of two-operand `nvs_str_concat` calls allocates n-1 of
+    /// them and copies its leading pieces n-1 times.
     ///
     /// Bytes-ever-allocated, for the reason
     /// [`appending_into_spare_capacity_allocates_nothing`] reads the same
@@ -1498,8 +1497,8 @@ mod tests {
             assert_eq!(n_ary, PAYLOAD_OFFSET + total);
             nvs_str_release(joined);
 
-            // The shape it replaced, for the same eight pieces: seven
-            // allocations, each holding the accumulation so far.
+            // The fold, over the same pieces: one allocation per join, each
+            // holding the accumulation so far.
             let before = allocated_bytes();
             let mut folded = nvs_str_concat(pieces[0], pieces[1]);
             for piece in &pieces[2..] {
@@ -1634,9 +1633,9 @@ mod tests {
             let spent = allocated_bytes() - before;
 
             assert_eq!(NvsStr::bytes_of(acc).len(), RUN * PIECE);
-            // Copying the accumulation every iteration would be quadratic —
-            // 5 MB for this run. Doubling makes the reallocations sum to under
-            // four times the final length, headers included.
+            // Copying the accumulation every iteration would be quadratic.
+            // Doubling makes the reallocations sum to under four times the
+            // final length, headers included.
             assert!(
                 spent < 4 * RUN * PIECE,
                 "{RUN} appends allocated {spent} bytes for a {}-byte result: the \
@@ -1706,8 +1705,8 @@ mod tests {
     ///
     /// The zero here is `allocated_bytes`, for the reason
     /// [`an_n_ary_concatenation_allocates_one_buffer`] reads the same counter:
-    /// what a literal used to cost was one `nvs_str_new` per evaluation, freed
-    /// again straight away, which a `live_bytes` delta cannot see at all.
+    /// an `nvs_str_new` per evaluation, freed again straight away, is exactly
+    /// what a `live_bytes` delta cannot see at all.
     #[test]
     fn an_immortal_string_is_never_written_freed_or_allocated_for() {
         use crate::counting_alloc::allocated_bytes;

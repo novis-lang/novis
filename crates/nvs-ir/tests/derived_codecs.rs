@@ -6,8 +6,8 @@
 //! property may carry `#[Json\Field(name: …)]` and `#[Db\Field(name: …)]` at
 //! once, with a different wire key under each — so what this asserts is the
 //! keys per format rather than that a codec is non-empty. A join that read one
-//! table for both formats passes a did-it-lower test and fails the third case
-//! below.
+//! table for both formats passes a did-it-lower test and fails the
+//! both-derives case below.
 //!
 //! `ctor_arity` is asserted on the `#[Db\Derive]`-only class for the reason
 //! `nvs_runtime::ClassTable::set_db_codec` states: the arity belongs to the

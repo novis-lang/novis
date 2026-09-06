@@ -1,12 +1,11 @@
 //! Architecture invariants and cost baselines for Novis's execution model.
 //!
-//! This crate is not part of the compiler. It exists because three decisions in
+//! This crate is not part of the compiler. It exists because decisions in
 //! `docs/adr/` rest on how Cranelift, `corosensei` and Wasmtime actually behave
 //! on the host platform, and those are properties of our dependencies rather
 //! than of our code. A dependency bump can silently invalidate them.
 //!
-//! It grew out of the M0 de-risking spikes, promoted here so the invariants are
-//! checked continuously instead of once:
+//! The invariants are checked continuously rather than once:
 //!
 //! | probe | guards |
 //! |---|---|
@@ -113,10 +112,9 @@ pub struct Ctx {
     /// Message for a pending [`THROWN`] or [`FATAL`] status.
     ///
     /// `Cow` rather than `String` on purpose. Allocating a message on every
-    /// throw would cost more than the entire propagation path — measured at
-    /// ~2.8x a normal return before this was changed — and PHP code throws on
-    /// ordinary control-flow paths. The real runtime should keep the same
-    /// property: a static message must not allocate.
+    /// throw costs several times the entire propagation path, and PHP code
+    /// throws on ordinary control-flow paths. The real runtime should keep the
+    /// same property: a static message must not allocate.
     pub pending: Option<std::borrow::Cow<'static, str>>,
     /// How many times a helper ran. Proves native code actually executed.
     pub helper_calls: u64,
@@ -188,8 +186,8 @@ pub type NvsFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32
 
 /// Defines a runtime helper with Novis's helper ABI.
 ///
-/// Two details are load-bearing and easy to get wrong by hand, which is why this
-/// is a macro rather than a convention:
+/// The details below are load-bearing and easy to get wrong by hand, which is
+/// why this is a macro rather than a convention:
 ///
 /// * `extern "C"`, **not** `extern "C-unwind"`. Since Rust 1.81 a panic escaping
 ///   a plain `extern "C"` function aborts, and an abort in a server that shares
@@ -260,7 +258,7 @@ macro_rules! probe_helper {
 }
 
 probe_helper! {
-    /// Doubles its argument, with two deliberate escape hatches used by the
+    /// Doubles its argument, with deliberate escape hatches used by the
     /// invariant tests:
     ///
     /// * `42` raises an ordinary Novis exception ([`THROWN`]).

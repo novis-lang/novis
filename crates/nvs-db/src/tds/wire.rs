@@ -32,7 +32,7 @@ pub struct Wire<S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// this stream, written by an `ENVCHANGE` the server sent and read by the
     /// next request's `ALL_HEADERS`, and every function on either side of that
     /// already holds the wire. A `Cell` on the connection would be the same
-    /// value threaded through ten signatures that have it in hand — and one of
+    /// value threaded through every signature that has it in hand — and one of
     /// them, [`TdsRows`], reads its tokens with nothing but the wire borrowed.
     /// The depth stays on the connection because § 7's *nesting* is this
     /// driver's own accounting; the descriptor is the server's.
@@ -135,8 +135,8 @@ impl<S: Read + Write> Wire<S> {
     }
 
     /// The stream underneath, for the tests that assert on what was written to
-    /// it. There is no non-test reader: a driver talks through the three
-    /// methods below.
+    /// it. There is no non-test reader: a driver talks through the methods
+    /// below.
     #[cfg(test)]
     pub(super) fn peer(&self) -> &S {
         &self.stream

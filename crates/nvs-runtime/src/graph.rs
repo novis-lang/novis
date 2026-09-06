@@ -140,15 +140,16 @@ pub type Receiving<'a> = &'a dyn Fn(&str) -> Option<*const ClassDesc>;
 
 /// What one node of a walked graph becomes.
 ///
-/// Implemented twice and no more — see the module docs' first decision.
+/// Implemented twice and no more — the module docs' decision that the carrier
+/// is a trait over the walk rather than a second walk.
 trait Carrier {
     /// What this carrier produces per node. [`Live`] produces a [`Value`];
     /// [`Encode`] produces the node's index, which is what a back-reference
     /// names.
     type Node: Clone;
 
-    /// May this allocation be reused rather than rebuilt? See the module docs'
-    /// third decision.
+    /// May this allocation be reused rather than rebuilt? See the module docs
+    /// on a move at refcount 1 being the semantics rather than an optimisation.
     fn adopt(&mut self, value: Value) -> bool;
 
     /// A node with no reachable structure: `null`, a `bool`, an `int`, a
@@ -206,7 +207,7 @@ type Seen<N> = HashMap<*mut ObjHeader, N>;
 ///
 /// Every caller arranges that reference: [`copy_graph`] is handed one, and a
 /// child slot is retained before it is descended into, so an adopted holder and
-/// a freshly built one are handled by the same three lines.
+/// a freshly built one take the same path through here.
 fn walk<C: Carrier>(
     carrier: &mut C,
     value: Value,
@@ -420,7 +421,7 @@ impl Carrier for Live<'_> {
     /// the source context's list is one that context's teardown sweep may
     /// dismantle while the destination is still holding it. Only an object
     /// needs this: a string and an array are on no list, because neither can
-    /// close a cycle (this module's second decision).
+    /// close a cycle (this module's decision that identity is object identity).
     fn adopt(&mut self, value: Value) -> bool {
         // The walk holds one reference; if it is the only one, nothing else
         // can observe that this allocation was reused.
@@ -504,8 +505,8 @@ impl Carrier for Live<'_> {
 }
 
 /// § 2's live carrier, as one call. **Consumes one reference to `value`** and
-/// returns one, which is the same allocation wherever the module docs' third
-/// decision let it be adopted.
+/// returns one, which is the same allocation wherever a move at refcount 1 let
+/// it be adopted.
 ///
 /// # Errors
 ///
@@ -567,7 +568,7 @@ impl Encode {
         self.out.extend_from_slice(bytes);
     }
 
-    /// One array key, tagged by which of [`SlotKey`]'s two shapes it is so a
+    /// One array key, tagged by which of [`SlotKey`]'s shapes it is so a
     /// list's integer keys survive the round trip as integers.
     fn key(&mut self, key: &SlotKey) {
         match key {
@@ -823,7 +824,7 @@ impl Reader<'_> {
         }
     }
 
-    /// One object node — § 3's three refusals, all of them made *before* a
+    /// One object node — § 3's refusals, every one of them made *before* a
     /// single field is read.
     fn object(&mut self, depth: u32) -> Result<Value, GraphError> {
         let name = String::from_utf8(self.blob()?)
@@ -881,8 +882,9 @@ impl Reader<'_> {
 
 /// § 3's `Core\Serialize::decode`: the closed format read back, or a refusal.
 ///
-/// `resolve` answers with the *program's* descriptor for a class name — see the
-/// module docs' known gap 2 for what that leaves out.
+/// `resolve` answers with the *program's* descriptor for a class name — the
+/// module docs' known gap about resolving an encoded `Core` instance is what
+/// that leaves out.
 ///
 /// # Errors
 ///
@@ -1127,8 +1129,8 @@ mod tests {
         );
         assert_eq!(borrow_object(back).field(0).as_int(), Some(1));
 
-        // Each of the three rings holds itself, which is the leak a refcount
-        // cannot see; the field is cleared so these fixtures do not become one.
+        // Each ring holds itself, which is the leak a refcount cannot see; the
+        // field is cleared so these fixtures do not become one.
         for held in [back, copy, ring] {
             borrow_object(held).set_field(1, Value::null());
             release(held);

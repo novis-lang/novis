@@ -61,13 +61,11 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// slice, and a session that adds one has to explain itself to a red test
 /// first. `python tools/holes.py` prints the current number.
 ///
-/// **It went 4 → 17 without a line of `nvs-ir` changing**, which is the one
-/// direction a ratchet is otherwise not allowed to move: the 4 came from a
-/// recognizer matching three fixed phrasings, so it was a floor on the truth
-/// rather than the truth, and 17 is what the same tree holds once a site is
-/// read from the construct that carries it. Nothing was added; thirteen sites
-/// were always there and unseen. A ratchet set from a blind count is not a
-/// ratchet, and this is the last time this number may rise.
+/// **This number may only fall.** A count is a ratchet only when it is the
+/// truth rather than a floor on it, which is why `holes.py` reads a site from
+/// the construct that carries it rather than from a set of fixed phrasings:
+/// a phrasing match leaves sites unseen, and a ratchet set from a blind count
+/// is not a ratchet.
 const CEILING: usize = 15;
 
 /// The repository root — this crate is `crates/nvs-ir`.

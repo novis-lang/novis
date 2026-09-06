@@ -163,7 +163,7 @@ mod tests {
     ///
     /// The live owner's entry is the one that matters — it is a *deletion* if
     /// the liveness question is asked the wrong way round — and the operator's
-    /// own directory is the second: the root is Novis's, but a name this
+    /// own directory matters beside it: the root is Novis's, but a name this
     /// runtime never wrote is still not this command's to remove. The printed
     /// lines are asserted as well as the disk, because § 4 asks for the removals
     /// to be named and a sweep that cleared the root silently would pass every

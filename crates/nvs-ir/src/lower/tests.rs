@@ -1,6 +1,6 @@
 //! Lowering's own tests, one module deep so that `mod.rs` is the lowering
-//! and not the evidence for it. The path is unchanged -- this is still
-//! `lower::tests`, so `super` is `lower` here exactly as it was inline.
+//! and not the evidence for it. The module path is `lower::tests`, so
+//! `super` is `lower` here.
 
 use insta::assert_snapshot;
 use nvs_diagnostics::{Diagnostics, SourceId, SourceMap};
@@ -10,11 +10,10 @@ use nvs_syntax::parse_file;
 use super::*;
 use crate::print::{print_function, print_program};
 
-/// Parses `src`, actually runs it through `nvs_hir::resolve_file` and
-/// `nvs_types::check_program` (unlike this crate's earlier slices, which
-/// only trusted a fixture *would* pass — now that lowering a call/`new`
-/// needs a real [`ExprTypeTable`], a fixture needs a real check run to
-/// produce one), pulls out `T`'s first method, and lowers it.
+/// Parses `src`, runs it through `nvs_hir::resolve_file` and
+/// `nvs_types::check_program` — lowering a call/`new` needs a real
+/// [`ExprTypeTable`], and only a real check run produces one — then pulls
+/// out `T`'s first method and lowers it.
 fn lower_first_method(src: &str) -> (Function, SourceMap, SourceId) {
     let mut map = SourceMap::new();
     let file = map.add("t.nvs", src);
@@ -207,9 +206,9 @@ class T {
 
 /// Outside a `try`, a landing block releases the frame's live refcounted
 /// locals before the status travels onward — stated as IR rather than left
-/// to the backend, which is what closed `nvs-codegen`'s known gap 3 for a
-/// `THROWN`. The two tests below extend the same sweep to every other
-/// non-`OK` status and to the `try`-protected exit.
+/// to the backend, so a `THROWN` sweeps the frame without `nvs-codegen`
+/// having to know which locals are live. The tests below extend the same
+/// sweep to every other non-`OK` status and to the `try`-protected exit.
 #[test]
 fn a_propagating_landing_block_releases_the_frames_live_strings() {
     let (f, map, file) = lower_script_src(
@@ -250,8 +249,8 @@ fn a_script_body_local_is_an_ordinary_local() {
 /// A declaration is skipped by the script frame — `T`'s method is
 /// `lower_method`'s job, not this walk's. The walk still enters a
 /// `namespace X { ... }` block, since a namespace scopes names and not
-/// storage, but no such block reaches this pass any more: the parser refuses
-/// the braced form outright (`E0243`), so that arm is defensive and has no
+/// storage, but no such block reaches this pass: the parser refuses the
+/// braced form outright (`E0243`), so that arm is defensive and has no
 /// fixture to pin it.
 #[test]
 fn a_script_body_skips_declarations() {
@@ -337,8 +336,8 @@ fn a_mixed_numeric_comparison_pays_no_widening() {
     );
 }
 
-/// `rule:types/arithmetic`'s six bitwise rows all reach an instruction, and only the
-/// two that PHP can refuse carry an error edge.
+/// `rule:types/arithmetic`'s bitwise rows all reach an instruction, and only the ones
+/// PHP can refuse carry an error edge.
 ///
 /// Read off the rendering rather than snapshotted, because what is being
 /// pinned is *which* rows are fallible — a snapshot would go red for any
@@ -358,7 +357,7 @@ fn every_bitwise_operator_lowers() {
     }
     // A shift's *count* is the only thing PHP refuses here — a negative
     // one throws `ArithmeticError` — so `<<` and `>>` take `rule:errors/propagation`'s edge
-    // while the three total operators and `~` do not.
+    // while the total operators and `~` do not.
     for line in text.lines() {
         let fallible = line.contains(" ! bb");
         for (name, expected) in [
@@ -376,7 +375,7 @@ fn every_bitwise_operator_lowers() {
     }
 }
 
-/// `$x op= e` is `$x = $x op e`, so the five bitwise compound forms need no
+/// `$x op= e` is `$x = $x op e`, so the bitwise compound forms need no
 /// lowering of their own — `lower_compound_assignment`'s rewrite is what
 /// gives them one, and this is the test that says so rather than a second
 /// table in the lowering.
@@ -558,8 +557,8 @@ fn while_loop_carries_locals_through_a_header_phi() {
 }
 
 /// `if ($n)` with an `int` parameter — `rule:expressions/truthy-positions`'s truthy table for a
-/// scalar condition, converted through the new `Helper::IntTruthy`
-/// rather than requiring `$n` already be `bool`.
+/// scalar condition, converted through `Helper::IntTruthy` rather than
+/// requiring `$n` already be `bool`.
 #[test]
 fn an_int_condition_converts_through_a_truthy_helper() {
     let (f, map, file) = lower_first_method(
@@ -618,12 +617,11 @@ fn an_object_condition_is_always_truthy() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `Ty::Tagged`'s first slice: a `mixed`-typed parameter, returned
-/// straight back through the bare-`$name`-return transfer-out path — the
-/// narrowest possible round-trip, exercising `lower_decl_type`'s new
-/// `TypeAtom::Mixed` arm for both the parameter and the return type with
-/// `Ty::is_refcounted` correctly reporting `false` (no retain/release
-/// appears anywhere in the snapshot).
+/// The narrowest `Ty::Tagged` round-trip: a `mixed`-typed parameter,
+/// returned straight back through the bare-`$name`-return transfer-out
+/// path, exercising `lower_decl_type`'s `TypeAtom::Mixed` arm for both the
+/// parameter and the return type with `Ty::is_refcounted` correctly
+/// reporting `false` (no retain/release appears anywhere in the snapshot).
 #[test]
 fn a_mixed_parameter_round_trips_through_return() {
     let (f, map, file) = lower_first_method(
@@ -672,12 +670,10 @@ fn passing_a_mixed_local_as_a_call_argument_round_trips() {
 
 /// A `mixed` condition is `rule:expressions/truthy-table`'s last table row: the dispatch it
 /// names moves into `Helper::ValueTruthy`, which reads the operand's tag
-/// and applies whichever of the rows above it names. This used to be a
-/// `#[should_panic]` guard over exactly this source — `Ty::Tagged` gave
-/// the value a representation to exist in without giving the table a way
-/// to read it — so what the snapshot pins is one helper call where a
-/// panic stood, and no untag anywhere: an unchecked one over an `int`
-/// payload is a pointer the next instruction would dereference.
+/// and applies whichever of the rows above it names. What the snapshot
+/// pins is that one helper call, and no untag anywhere: an unchecked one
+/// over an `int` payload is a pointer the next instruction would
+/// dereference.
 #[test]
 fn a_mixed_condition_dispatches_the_truthy_table_on_the_tag() {
     let (f, map, file) = lower_first_method(
@@ -989,11 +985,11 @@ fn a_var_local_infers_its_type_from_the_initializer() {
 }
 
 /// A hex/octal/binary integer literal cooks to the same value its
-/// decimal spelling would — `nvs-syntax`'s lexer accepts all three
-/// prefixed forms as one `IntLiteral` token (see
-/// `crates/nvs-syntax/src/lexer.rs`'s `lex_number`), and until this
-/// session `nvs-ir` only cooked a plain decimal run, so `0x1F` would have
-/// panicked as "doesn't fit an `int`" rather than lowering to `31`.
+/// decimal spelling would — `nvs-syntax`'s lexer accepts every prefixed
+/// form as one `IntLiteral` token (see
+/// `crates/nvs-syntax/src/lexer.rs`'s `lex_number`), and `nvs-ir` cooks
+/// the prefix rather than only a plain decimal run, so `0x1F` lowers
+/// to `31`.
 #[test]
 fn multi_base_integer_literals_cook_to_the_same_value() {
     let (f, map, file) = lower_first_method(
@@ -1023,7 +1019,7 @@ class T {
 }
 
 /// A double-quoted literal's numeric escapes (`\101` octal, `\x2A` hex,
-/// `\u{1F600}` a multi-byte Unicode codepoint) now cook to the actual
+/// `\u{1F600}` a multi-byte Unicode codepoint) cook to the actual
 /// byte/codepoint they name, delegated to
 /// `nvs_types::string_lit::cook_double_quoted_text` — see
 /// `cook_str_literal`'s own doc comment for why this crate shares that
@@ -1233,10 +1229,10 @@ fn returning_a_string_returning_calls_result_needs_no_retain() {
 }
 
 /// `self::helper();` with no assignment at all — the ordinary way to
-/// invoke a `void`-returning method. `Lowering::lower_expr_stmt` now
-/// routes a bare call/`new` expression statement through `lower_expr`
-/// for its side effect alone; `helper` returns `void`, so there is
-/// nothing to release afterward.
+/// invoke a `void`-returning method. `Lowering::lower_expr_stmt` routes a
+/// bare call/`new` expression statement through `lower_expr` for its side
+/// effect alone; `helper` returns `void`, so there is nothing to release
+/// afterward.
 #[test]
 fn a_bare_void_call_used_as_a_statement_lowers_with_no_release() {
     let (f, map, file) = lower_first_method(
@@ -1563,15 +1559,14 @@ fn writing_a_bytes_local_to_a_property_retains_it_before_releasing_the_old_value
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-// `array<T>` is the fourteenth slice — `Ty::Array` is a bare, opaque
-// representation exactly like `Ty::Object` (see that variant's own doc
-// comment), and `InstKind::ArrayNew` is the fixed-shape literal
-// instruction it needs. The fixtures immediately below are all
-// *positional* literals — no explicit `key =>` — which keep the single-
-// `ArrayNew` shape; the explicit-`key =>` fixtures further down cover the
-// `ArrayNew` (empty) + `ArraySet`* shape, which a `...spread` element
-// takes too. `&value` never reaches here at all, `nvs_types` refusing
-// it as `E0483`.
+// `array<T>`: `Ty::Array` is a bare, opaque representation exactly like
+// `Ty::Object` (see that variant's own doc comment), and
+// `InstKind::ArrayNew` is the fixed-shape literal instruction it needs.
+// The fixtures immediately below are all *positional* literals — no
+// explicit `key =>` — which keep the single-`ArrayNew` shape; the
+// explicit-`key =>` fixtures further down cover the `ArrayNew` (empty) +
+// `ArraySet`* shape, which a `...spread` element takes too. `&value`
+// never reaches here at all, `nvs_types` refusing it as `E0483`.
 
 /// `[]` — an empty array literal lowers to `InstKind::ArrayNew` with no
 /// entries at all, still a well-formed fresh `Ty::Array` value.
@@ -1699,9 +1694,9 @@ fn a_spread_of_a_call_result_releases_the_subject_after_the_copy() {
 
 /// Passing an `array` local as a call argument retains it first —
 /// `Lowering::lower_call_args`'s aliasing check, exactly mirroring the
-/// `string`/`bytes` analogs above. `lower_checked_ty`'s new
+/// `string`/`bytes` analogs above. `lower_checked_ty`'s
 /// `CheckedTy::Array(_) => Ty::Array` arm is what makes this boundary
-/// work with no new insertion point of its own.
+/// work with no insertion point of its own.
 #[test]
 fn passing_an_array_local_as_a_call_argument_retains_it() {
     let (f, map, file) = lower_first_method(
@@ -1741,12 +1736,12 @@ fn writing_an_array_local_to_a_property_retains_it_before_releasing_the_old_valu
 
 /// `$a[0]` through an `array<int>` parameter — the simplest array-access
 /// read: a fresh, non-refcounted `int` element, and a literal `int` key
-/// that reaches `InstKind::ArrayGet` as the `int` it already was, with no
+/// that reaches `InstKind::ArrayGet` as the `int` it is, with no
 /// `helper.int_to_string` and therefore no key allocation and no release
-/// of one either. `rule:types/arrays` still says the key *is* `"0"`; `nvs-ir`'s
+/// of one either. `rule:types/arrays` says the key *is* `"0"`; `nvs-ir`'s
 /// module doc § *an array key is a `string`, and an `int` subscript no
-/// longer spells it* is why the decimal is no longer rendered to reach
-/// it, and codegen picks `nvs_array_get_index` off this operand's `Ty`.
+/// longer spells it* is why the decimal is not rendered to reach it, and
+/// codegen picks `nvs_array_get_index` off this operand's `Ty`.
 #[test]
 fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered() {
     let (f, map, file) = lower_first_method(
@@ -1755,12 +1750,12 @@ fn reading_an_int_element_through_a_literal_key_carries_the_integer_unrendered()
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$a[$i]` with a `uint` subscript — one of the two subscripts
-/// `Lowering::lower_array_key` still renders, because the runtime's index
-/// ABI is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling
-/// naming the same key. So `helper.uint_to_string` is still in this
-/// output, and the fresh key it produces is still released right after
-/// the borrow — the shape the `int` case above no longer has.
+/// `$a[$i]` with a `uint` subscript — a subscript
+/// `Lowering::lower_array_key` renders, because the runtime's index ABI
+/// is an `i64` and a `uint` above `i64::MAX` has no `i64` spelling naming
+/// the same key. So `helper.uint_to_string` is in this output, and the
+/// fresh key it produces is released right after the borrow — the shape
+/// the `int` case above does not have.
 #[test]
 fn reading_an_element_through_a_uint_subscript_still_renders_the_decimal() {
     let (f, map, file) = lower_first_method(
@@ -1799,7 +1794,7 @@ fn appending_to_a_property_keeps_the_concat_rewrite() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `unset($a[0]);` — the other subscript that still renders.
+/// `unset($a[0]);` — the other subscript that renders.
 /// `InstKind::ArrayUnset` has no index-shaped runtime primitive beside
 /// it, so `Lowering::lower_rendered_array_key` forces the decimal here
 /// rather than letting codegen discover it cannot. Contrast
@@ -1818,7 +1813,7 @@ fn unsetting_an_element_through_an_int_key_still_renders_the_decimal() {
 /// (`is_aliasing_read`), so it needs no conversion and, unlike the
 /// literal-key case above, is *not* released after the read (`$k`'s own
 /// slot still owns it). Binding the `array<string>` element itself to
-/// `$s` retains it first, since `ExprKind::Index` is now one of
+/// `$s` retains it first, since `ExprKind::Index` is one of
 /// `is_aliasing_read`'s recognized shapes — exactly the same policy a
 /// property read already gets.
 #[test]
@@ -1932,14 +1927,14 @@ fn writing_through_a_nested_subscript_separates_every_level() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// A `bool` subscript isn't one of `rule:types/arrays`'s three legal key source
+/// A `bool` subscript is not one of `rule:types/arrays`'s legal key source
 /// types (`int`/`uint`/`string`) — `nvs_types::expr::check_array_key_type`
-/// now rejects it at check time (see `nvs_types::check`'s own
+/// rejects it at check time (see `nvs_types::check`'s own
 /// `a_bool_key_array_literal_is_diagnosed`-style fixtures for the
 /// diagnostic side), so `lower_first_method`'s own `check_program` call
-/// already fails the fixture before lowering ever runs —
+/// fails the fixture before lowering ever runs —
 /// `Lowering::lower_array_key`'s `other` panic arm is unreachable for
-/// this input now, not the thing this test demonstrates.
+/// this input, not the thing this test demonstrates.
 #[test]
 #[should_panic(expected = "fixture failed to check")]
 fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
@@ -1948,11 +1943,10 @@ fn a_bool_subscript_key_is_rejected_before_lowering_even_runs() {
     );
 }
 
-/// `$a && $b` — `rule:expressions/truthy-positions`'s short-circuit `&&`, the nineteenth slice's
-/// first new form: `$a`'s own truthy test branches straight to a merge
-/// block carrying `const.bool false` when falsy, only evaluating `$b`
-/// (through its own truthy test) on the truthy path — `Lowering::
-/// lower_and`'s branch/`Phi`-merge shape.
+/// `$a && $b` — `rule:expressions/truthy-positions`'s short-circuit `&&`: `$a`'s own truthy
+/// test branches straight to a merge block carrying `const.bool false`
+/// when falsy, only evaluating `$b` (through its own truthy test) on the
+/// truthy path — `Lowering::lower_and`'s branch/`Phi`-merge shape.
 #[test]
 fn and_short_circuits_to_a_phi() {
     let (f, map, file) = lower_first_method(
@@ -1972,12 +1966,9 @@ fn or_short_circuits_to_a_phi() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `!$s` with a `string` operand — fixes a latent bug the seventeenth
-/// slice's own table left behind: unary `!` previously passed its
-/// operand's own type straight through as the result type (only
-/// coincidentally correct for the one existing fixture, which negated an
-/// already-`bool` local) instead of always producing `Ty::Bool` per ADR
-/// 0035. `$s` converts through `Helper::StrTruthy` first, then negates —
+/// `!$s` with a `string` operand — unary `!` always produces `Ty::Bool`,
+/// per ADR 0035, whatever representation its operand carries.
+/// `$s` converts through `Helper::StrTruthy` first, then negates —
 /// `$s` is a bare parameter read (`is_aliasing_read`), so no release
 /// follows the helper call, same as any other truthy-tested aliasing
 /// read.
@@ -2000,7 +1991,7 @@ fn not_composes_with_a_short_circuit_and() {
 }
 
 /// `if ($a && $b)` — an `if`'s own condition is itself a short-circuit
-/// `&&`, exercising `Lowering::lower_if`'s updated call into
+/// `&&`, exercising `Lowering::lower_if`'s call into
 /// `Lowering::lower_truthy_cond` with a mutable `cur` that `&&`'s own
 /// branch/merge shape gets to redirect before the `if`'s own `Branch`
 /// terminator is sealed.
@@ -2012,12 +2003,10 @@ fn if_condition_short_circuits_with_and() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `while ($a || $b)` — exercises the loop-header adjustment
-/// `Lowering::lower_while` needed to host a branching condition at all:
-/// the header phi for `$a` still lives in the fixed loop-header block,
-/// but the loop's own `Branch` terminator now seals onto `cond_end`
-/// (wherever `||`'s own merge block ended up), not the header block
-/// itself.
+/// `while ($a || $b)` — the loop header hosting a branching condition:
+/// the header phi for `$a` lives in the fixed loop-header block, but the
+/// loop's own `Branch` terminator seals onto `cond_end` (wherever `||`'s
+/// own merge block ended up), not the header block itself.
 #[test]
 fn while_condition_short_circuits_with_or() {
     let (f, map, file) = lower_first_method(
@@ -2104,11 +2093,11 @@ fn match_arms_in_three_representations_join_at_the_tagged_representation() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// A short-circuiting `&&` nested inside a **call argument** — the
-/// position that had no `&mut BlockId` to redirect and so panicked, which
-/// was this crate's known gap 5. `Lowering::lower_expr` now owns one, so
-/// the argument's own branch/merge is spliced into the caller's block
-/// chain and the call is emitted in whichever block the merge ended in.
+/// A short-circuiting `&&` nested inside a **call argument** — a position
+/// that needs a `&mut BlockId` of its own to redirect.
+/// `Lowering::lower_expr` owns one, so the argument's own branch/merge is
+/// spliced into the caller's block chain and the call is emitted in
+/// whichever block the merge ended in.
 #[test]
 fn a_short_circuit_and_nested_in_a_call_argument_composes() {
     let (f, map, file) = lower_first_method(
@@ -2354,9 +2343,9 @@ fn each_property_hook_is_lowered_as_its_own_function() {
     assert_eq!(set.ret, Ty::Void);
 }
 
-/// The point of the whole slice: `$this->doubled` is a **call**, not a
-/// field read. Before this landed it lowered to a `FieldGet` on a slot
-/// nothing ever wrote, which is why `examples/hooks.nvs` printed `0`.
+/// The point of a hooked property: `$this->doubled` is a **call**, not a
+/// field read — a `FieldGet` here would read a backing slot nothing ever
+/// writes, and `examples/hooks.nvs` would print `0`.
 #[test]
 fn reading_a_get_hooked_property_calls_the_hook_instead_of_reading_the_slot() {
     let (program, map, file) = lower_whole_file_with_src(HOOKED);
@@ -2413,7 +2402,7 @@ fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
         // Read for a `call` naming it rather than for the name anywhere:
         // the signature line names the function, and so does the frame
         // label in an `rule:errors/propagation` landing block's `propagate` — which the
-        // getter's `+ 1` now has, since `rule:types/arithmetic` gives integer
+        // getter's `+ 1` has, since `rule:types/arithmetic` gives integer
         // arithmetic an overflow edge.
         let recursed = text
             .lines()
@@ -2461,7 +2450,7 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `foreach` over an `Iterator<T>` — `rule:iteration/foreach-subjects`'s third shape. Every
+/// `foreach` over an `Iterator<T>` — `rule:iteration/foreach-subjects`'s `Iterator` row. Every
 /// member call is a `call.virtual`, never a static `call`: the interface
 /// declares both without a body, so there is no compiled function to
 /// name. The cursor is retained before each one, since a receiver is
@@ -2672,9 +2661,9 @@ fn a_core_member_call_lowers_to_a_symbol_and_borrows_its_argument() {
 /// A refcounted local declared *inside* a loop body is released on the
 /// back edge, not carried out of the loop: the next iteration restarts
 /// from the header environment, so nothing after this point could ever
-/// reach it. Without the release it leaked one reference per iteration —
-/// found by `examples/report.nvs`'s valgrind leg, which was the first
-/// fixture to declare one. See [`Lowering::end_iteration`].
+/// reach it. Without the release it leaks one reference per iteration,
+/// which only a valgrind leg over a fixture declaring such a local — the
+/// `examples/report.nvs` shape — sees. See [`Lowering::end_iteration`].
 #[test]
 fn a_local_declared_in_a_loop_body_is_released_on_the_back_edge() {
     let (f, map, file) = lower_first_method(concat!(
@@ -2805,7 +2794,7 @@ fn a_spread_argument_through_a_callable_becomes_one_array() {
 
 /// The whole path in one fixture: an `rule:types/closure-literal` `fn` literal bound to a
 /// local, then *called* through the variable holding it — which is what
-/// `examples/callable.nvs`'s `direct` line runs and what used to panic.
+/// `examples/callable.nvs`'s `direct` line runs.
 ///
 /// The call is the runtime's (`Helper::CallClosure` into
 /// `nvs_runtime::call_closure`) rather than a lowered `Call` to a label,
@@ -2850,7 +2839,7 @@ class T {
 /// checker reports `E0496` and records nothing. This crate never sees such
 /// a program — the fixture reaches lowering only because these tests skip
 /// the diagnostics gate — so the miss is an internal-consistency panic
-/// rather than the hole its wording used to describe.
+/// rather than a hole a checked program can reach.
 #[test]
 #[should_panic(expected = "E0496")]
 fn a_dynamic_instanceof_records_nothing_to_lower() {
@@ -2888,8 +2877,8 @@ class T {
     );
     // Slot 0 is the receiver every lowered method carries; the declared
     // `mixed` parameter behind it is what the test walks, and lowering it
-    // at all is the assertion — this fixture used to trip an assert
-    // demanding a `Ty::Object` subject.
+    // at all is the assertion — nothing on this path demands a
+    // `Ty::Object` subject.
     assert_eq!(f.params.get(1), Some(&Ty::Tagged), "{:?}", f.params);
     assert!(
         f.blocks
@@ -2908,9 +2897,9 @@ class T {
 ///
 /// The half worth holding is the float `*` beside them, because the edge is
 /// not free — one on every `BinOp` would be a landing block per arithmetic
-/// expression — and it is `/` alone that earns one on the float row. The
-/// other operand of `%` was that half's fixture until `E0717` refused a
-/// `float` one where it is written.
+/// expression — and it is `/` alone that earns one on the float row. `%`
+/// cannot stand in for that half: `E0717` refuses a `float` operand where
+/// it is written.
 #[test]
 fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
     let (f, _, _) = lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = $a % $b;\n");
@@ -2950,10 +2939,10 @@ fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
 /// one.
 ///
 /// Asserted as a sweep over the whole function rather than off a named line,
-/// because the shapes that used to be exempt were exactly the ones no
-/// `catch` can act on — a conversion helper, the truthy table, a `??` read.
+/// because the shapes an exemption is easiest to grant are exactly the ones
+/// no `catch` can act on — a conversion helper, the truthy table, a `??` read.
 /// A case naming one of them would go green while the rest slipped back, and
-/// what the exemption cost was a leak of every local the frame held.
+/// an exemption costs a leak of every local the frame held.
 /// `BinOp`/`UnOp` are left out here on purpose: only `rule:types/arithmetic`'s checked
 /// integer rows return a status at all, and the neighbouring
 /// `an_integer_modulo_carries_an_error_edge_and_a_float_division_does_not`
@@ -2995,8 +2984,8 @@ fn every_status_returning_instruction_carries_a_landing_block() {
             );
         }
     }
-    // The fixture is only evidence if it actually reaches the shapes the
-    // exemption used to cover, so the count is asserted rather than assumed.
+    // The fixture is only evidence if it actually reaches those shapes, so
+    // the count is asserted rather than assumed.
     assert!(checked >= 8, "{}", print_function(&f, map.file(file)));
 }
 
@@ -3004,7 +2993,7 @@ fn every_status_returning_instruction_carries_a_landing_block() {
 /// above: a landing block inside a `try` releases no local on its way to the
 /// handler, so a status the handler never sees has to leave by a block that
 /// performs the same sweep a `Propagate` at an unprotected site does.
-/// Without it a `FATAL` or an `EXITED` raised inside any `try` leaked the
+/// Without it a `FATAL` or an `EXITED` raised inside any `try` leaks the
 /// whole frame.
 #[test]
 fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals() {
@@ -3047,12 +3036,12 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
 /// A file declaring no class still lowers, and still carries both rosters
 /// no source declares — `nvs_hir::errors`' exception tree, with the
 /// synthesized constructor of every class in it that declares state of its
-/// own, and `nvs_hir::interfaces`' four global
-/// interfaces — the `hello.nvs` shape. Nothing in the file references any
-/// of them and they are emitted anyway: a descriptor has to exist before
-/// `$x instanceof Stringable` has anything to test against, and a class
-/// implementing one only keeps the edge if the label it names is in this
-/// list (`nvs_types::layout::build_class_layouts`).
+/// own, and `nvs_hir::interfaces`' global interfaces — the `hello.nvs`
+/// shape. Nothing in the file references any of them and they are emitted
+/// anyway: a descriptor has to exist before `$x instanceof Stringable` has
+/// anything to test against, and a class implementing one only keeps the
+/// edge if the label it names is in this list
+/// (`nvs_types::layout::build_class_layouts`).
 #[test]
 fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
     let program = lower_whole_file("<?nvs\necho \"hi\";\n");
@@ -3068,8 +3057,8 @@ fn a_file_with_no_class_still_carries_every_compiler_declared_class() {
             "Comparable",
             // `rule:tooling/a-prompt-is-a-core-member`'s refusal to block, `rule:core-classes/db-error`'s driver failure
             // and § 7's deliberate rollback, and `rule:testing/failure-ledger`'s assertion
-            // failure — the exception tree's four namespaced entries, classes
-            // in it for the reason `nvs_hir::errors::TREE` gives.
+            // failure — the exception tree's namespaced entries, classes in
+            // it for the reason `nvs_hir::errors::TREE` gives.
             "Core\\Cli\\NotInteractive",
             "Core\\Db\\DbError",
             "Core\\Db\\RolledBack",
@@ -3221,8 +3210,9 @@ int $n = $u as int;
 
 /// The one line of a printed function naming `needle`.
 ///
-/// These four are the read half of every fault-edge guard below, which asks
-/// what a *named* block releases rather than counting releases in a body.
+/// This and the helpers beside it are the read half of every fault-edge
+/// guard below, which asks what a *named* block releases rather than
+/// counting releases in a body.
 fn line<'t>(text: &'t str, needle: &str) -> &'t str {
     text.lines()
         .find(|l| l.contains(needle))
@@ -3323,7 +3313,7 @@ unset($a[\"outer\"][1]);
 /// the call's own fault edge releasing them as well would be the double drop
 /// this guard would otherwise invite.
 ///
-/// Asserted as an agreement over the three transferring sites — a static call,
+/// Asserted as an agreement over every transferring site — a static call,
 /// an instance call whose *receiver* is a transferred argument like any other,
 /// and a `new` — because each answers plausibly on its own line while the
 /// mechanism behind them is one stack.
@@ -3417,7 +3407,7 @@ echo \"ok\";
 /// [`array_element_tags`]' word instead — one [`param_tag_nibble`] per level
 /// of `U`, outermost first.
 ///
-/// Asserted as an agreement over the four spellings the row has, in one
+/// Asserted as an agreement over every spelling the row has, in one
 /// body, because each of them answers plausibly on its own line: the
 /// checked walk, `rule:expressions/nullable-conversion`'s `?` twin through the helper that answers
 /// `null`, the nesting that makes the word two nibbles rather than one, and
@@ -3554,7 +3544,7 @@ Rank $r = $n as Rank;
 // ------------------------------------------------------------------
 // By-reference parameters -- `Ty::Ref` owns the representation these
 // pin down, and its refcounting section owns the retain/release pairing
-// the third one exists to make visible.
+// the refcounted-pointee case exists to make visible.
 // ------------------------------------------------------------------
 
 /// The caller's half: the holder is read, staged into a one-cell slot
@@ -3695,7 +3685,8 @@ echo Adder::sum(Adder::bump(inout $n), $n);
 /// picked — a version of this test that pinned the `secret` pair alone
 /// would still pass if the lowering had started sending every `string`
 /// comparison through the constant-time row, which is a real regression:
-/// it would spend § 5's ≈+8 ns on every string `==` in the language.
+/// it would spend § 5's constant-time cost on every string `==` in the
+/// language.
 #[test]
 fn a_secret_equality_lowers_to_the_constant_time_helper() {
     let (f, map, file) = lower_script_src(
@@ -3785,13 +3776,13 @@ fn a_subscript_through_a_tagged_base_lowers() {
 
 /// A resolved `Core\Router::url` releases the `$params` array it was handed —
 /// [`Lowering::lower_route_link`]'s own accounting, and the one thing about
-/// that arm which no snapshot of a *passing* program would have shown.
+/// that arm which no snapshot of a *passing* program shows.
 ///
-/// This arm builds its two arguments by hand instead of through
+/// This arm builds its arguments by hand instead of through
 /// [`Lowering::lower_call_args`], so it is the only `Core` call site where
-/// [`Lowering::account_for_arg`] can be forgotten — and it was: every
-/// `Core\Router::url("…", ["id" => 7])` leaked one array header per call, which
-/// only the `examples/` valgrind sweep saw, because a leak is invisible to the
+/// [`Lowering::account_for_arg`] can be forgotten — and forgetting it leaks
+/// one array header per `Core\Router::url("…", ["id" => 7])`, which only the
+/// `examples/` valgrind sweep sees, because a leak is invisible to the
 /// program that causes it. Asserted over the array's own `ValueId` rather than
 /// by counting releases, so a release of the *template* beside it cannot stand
 /// in for this one.

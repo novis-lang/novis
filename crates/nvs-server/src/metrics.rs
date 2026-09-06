@@ -26,7 +26,7 @@
 //! every `rate()` over it. A missing series is a hole in a dashboard; a
 //! recreated one is a wrong number on it, and § 7 chose the hole.
 //!
-//! **§ 1's nine series are seeded past the bound rather than counted through
+//! **§ 1's declared series are seeded past the bound rather than counted through
 //! it.** They are what the ADR promises exists "the moment an exporter is
 //! configured", so a `max_series` small enough to refuse them would quietly turn
 //! that promise into a different configuration; the bound applies to everything
@@ -49,9 +49,9 @@
 //!
 //! # What is not here yet
 //!
-//! **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s two exporters are
+//! **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s exporters are
 //! feature-gated dependencies this crate does not carry yet, so what a core
-//! builds today accumulates and is read only by a test. The registry is the half
+//! builds accumulates and is read only by a test. The registry is the half
 //! that could not be a crate — § 8 says so — and it is deliberately whole
 //! without them: an exporter reads [`Registry::series`] in order and formats it,
 //! and adding one changes nothing above.
@@ -136,7 +136,7 @@ pub struct Family {
     pub buckets: &'static [f64],
 }
 
-/// `rule:observability/default-series`'s nine series, present the moment an exporter is configured.
+/// `rule:observability/default-series`'s declared series, present the moment an exporter is configured.
 ///
 /// Each is read from instrumentation that already exists, which is § 1's own
 /// governing claim and the reason no probe site is added anywhere to carry them.
@@ -282,10 +282,11 @@ impl Value {
 
 /// Why a write reached no series.
 ///
-/// Two of the three are the caller's mistake and one is the deployment's, which
-/// is the distinction a caller acts on: § 3 makes a kind or a label mismatch a
-/// throw naming what the name was fixed to, while § 7's cardinality refusal is a
-/// no-op with a warning behind it ([`Registry::refusals`]).
+/// A mismatch is the caller's mistake and a cardinality refusal is the
+/// deployment's, which is the distinction a caller acts on: § 3 makes a kind or
+/// a label mismatch a throw naming what the name was fixed to, while § 7's
+/// cardinality refusal is a no-op with a warning behind it
+/// ([`Registry::refusals`]).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Refused {
     /// The name is fixed to another kind (§ 3).
@@ -373,7 +374,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    /// A registry bounded at `max_series`, carrying § 1's nine series and no
+    /// A registry bounded at `max_series`, carrying § 1's declared series and no
     /// exporter.
     #[must_use]
     pub fn new(max_series: u64) -> Self {
@@ -573,7 +574,7 @@ impl Registry {
     }
 
     /// Fixes or checks the name's shape, applies § 7's bound, and makes sure the
-    /// series exists — so that the three writers above are one lookup each and
+    /// series exists — so that the writers above are one lookup each and
     /// share every rule.
     fn admit(
         &mut self,

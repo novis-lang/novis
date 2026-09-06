@@ -1,21 +1,21 @@
-//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the four waits as
-//! durations — with the two magnitudes that would leave a connection unbounded — and `listen` as
+//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the idle waits as
+//! durations — refusing the magnitudes that would leave a connection unbounded — and `listen` as
 //! the sockets to bind.
 //!
-//! Those two, `max_in_flight` and `health_path` are the only parts of `[server]` that resolve to
-//! something other than what was written *here*, so this module is small on purpose: everything
-//! else in the block is a path or a word read directly off [`crate::tree::Server`]. The fifth thing
-//! that resolves is the mount table, and it is [`mod@crate::mount`]'s because it needs a disk to
+//! Those, along with `max_in_flight` and `health_path`, are the only parts of `[server]` that
+//! resolve to something other than what was written *here*, so this module is small on purpose:
+//! everything else in the block is a path or a word read directly off [`crate::tree::Server`]. The
+//! mount table resolves as well, and it is [`mod@crate::mount`]'s because it needs a disk to
 //! expand a glob against — [`validate`] runs the half of it that does not.
 //!
-//! **`max_in_flight` resolves to three numbers rather than to one**, which is
+//! **`max_in_flight` resolves to several numbers rather than to one**, which is
 //! `rule:http-server/admission-is-arithmetic-not-a-number`
 //! : the written ceiling, the cap one request may hold, and what this machine has. [`Capacity`]
-//! is those three and nothing more — the division is `nvs_server::admit`'s, because the clamp is an
+//! is those and nothing more — the division is `nvs_server::admit`'s, because the clamp is an
 //! admission decision and the counter that enforces it lives beside it. This module is the half
 //! that reads a file and asks the operating system one question; it decides nothing.
 //!
-//! **All four are *idle* waits and none of them is a total.** A slow 2 GB upload completes while a
+//! **Each of them is an *idle* wait and none is a total.** A slow 2 GB upload completes while a
 //! stalled socket does not, which is § 5's own sentence and the reason the server refreshes a
 //! deadline on every byte that moves rather than arming one when a connection is accepted.
 //! `nvs_server::io`'s phase machine is the home of *which* wait is in force at a given moment;
@@ -44,9 +44,9 @@
 //! reached: a probe that never matches leaves the server looking configured while nothing answers.
 //! `/` on its own is refused from the other side, because it reserves every mount's own entry.
 //!
-//! Cost: one pass over one optional block at boot and at reload, and four `Duration`s plus one
-//! address per written `listen` entry held per configuration generation. Nothing here runs on a
-//! request path.
+//! Cost: one pass over one optional block at boot and at reload, and a `Duration` per wait plus
+//! one address per written `listen` entry held per configuration generation. Nothing here runs on
+//! a request path.
 //!
 
 use std::collections::BTreeMap;
@@ -60,7 +60,7 @@ use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Setting};
 use crate::value::{Quantity, Unit};
 
-/// `rule:http-server/the-server-block-is-boot-class`'s four waits, each a number — the whole clock one connection is bounded by.
+/// `rule:http-server/the-server-block-is-boot-class`'s waits, each a number — the whole clock one connection is bounded by.
 ///
 /// Held by value and copied per configuration generation rather than borrowed from the tree, for
 /// [`crate::queue::QueueBounds`]'s reason: `rule:config/the-config-is-an-immutable-snapshot`
@@ -81,7 +81,7 @@ pub struct Waits {
 }
 
 impl Default for Waits {
-    /// § 5's own example, transcribed rather than chosen — the ADR writes all four numbers out.
+    /// § 5's own example, transcribed rather than chosen — the ADR writes every number out.
     fn default() -> Self {
         Self {
             header: Duration::from_secs(10),
@@ -114,7 +114,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 /// A tree with no `[server]` block at all is the default set and not an absence: § 5's waits are
 /// what makes the server finite, so "unconfigured" and "unbounded" must not be the same state.
 /// Every unwritten key keeps its own default, since `rule:config/later-wins-and-every-override-is-recorded`'s override record is per key and
-/// a partly-written `[server]` is four decisions rather than one. `origins` names the file a
+/// a partly-written `[server]` is a decision per key rather than one. `origins` names the file a
 /// refusal points at, and an empty map simply leaves the note off.
 ///
 /// # Errors
@@ -216,7 +216,7 @@ fn refuse(
     ))
 }
 
-/// One classified `[server] listen` entry: the two transports § 5's flat array spells.
+/// One classified `[server] listen` entry: whichever transport § 5's flat array spells.
 ///
 /// A classification and not a socket — nothing here binds anything, and a process holding this
 /// has not yet decided how many of the entries it will take. The module doc owns why the overload
@@ -309,7 +309,7 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
 ///
 /// A `String` and not a [`std::path::PathBuf`]: this is the path inside a request target and it
 /// never reaches a disk, which is the whole difference between it and every other path in the
-/// block. Matching it is `nvs_server::mount`'s — § 4's five steps run after the probe, not around
+/// block. Matching it is `nvs_server::mount`'s — § 4's steps run after the probe, not around
 /// it — and what this function decides is only that the written value is a target a request could
 /// carry.
 ///
@@ -364,12 +364,12 @@ pub fn health_path(
 /// § 5's own number, transcribed rather than chosen — the ADR writes it out.
 const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
 
-/// The three numbers `rule:http-server/admission-is-arithmetic-not-a-number`'s admission arithmetic is over: what the file asked for, what
+/// The numbers `rule:http-server/admission-is-arithmetic-not-a-number`'s admission arithmetic is over: what the file asked for, what
 /// one request may hold, and what this machine has.
 ///
 /// Deliberately **not** the answer — the division, the clamp and the log line are
 /// `nvs_server::admit`'s, because the ceiling is enforced by a counter that has to live beside the
-/// thing it refuses. What this type says is that all three inputs exist and where each came from;
+/// thing it refuses. What this type says is that every input exists and where each came from;
 /// a configuration crate that also decided the ceiling would be deciding an admission policy from
 /// the wrong end of the process.
 ///
@@ -391,7 +391,7 @@ pub struct Capacity {
     pub budget: Option<u64>,
 }
 
-/// § 5's `max_in_flight` and the two numbers § 13 divides against it.
+/// § 5's `max_in_flight` and the numbers § 13 divides against it.
 ///
 /// A tree with no `[server]` block is § 5's default ceiling and not an absence, for [`waits_for`]'s
 /// reason. The per-request cap is read from `[limits]` rather than from `[server]` because that is
@@ -475,7 +475,7 @@ fn per_request_cap(
 /// where there is not. A cgroup-limited process on a 256 GB host has 256 MB, and an admission
 /// arithmetic that read the host's number there would compute a ceiling whose whole purpose —
 /// keeping the out-of-memory killer from being the real admission control — it had already given
-/// away. That is why this reads the two cgroup files before `/proc/meminfo`.
+/// away. That is why this reads the cgroup files before `/proc/meminfo`.
 ///
 /// `None` is not a failure: it is a host this function has no question for, and § 13's arithmetic
 /// treats it as an absent bound rather than as a zero. Every path here is read once at boot and
@@ -487,9 +487,9 @@ pub fn memory_budget() -> Option<u64> {
 
 #[cfg(unix)]
 mod platform {
-    //! The three files a Unix host answers with, in the order a container makes correct.
+    //! The files a Unix host answers with, in the order a container makes correct.
     //!
-    //! All three are plain reads, so this half needs no `unsafe` and no `libc`: cgroup v2's
+    //! Each is a plain read, so this half needs no `unsafe` and no `libc`: cgroup v2's
     //! `memory.max` is a decimal number or the word `max`, cgroup v1's `memory.limit_in_bytes` is a
     //! decimal number with [`NO_LIMIT`]'s sentinel for the same thing, and `/proc/meminfo` states
     //! `MemTotal` in kibibytes. A host with none of them — macOS is the one that matters — answers
@@ -499,7 +499,7 @@ mod platform {
     /// a number near `u64::MAX` rounded down to a page, and no machine has four exabytes.
     const NO_LIMIT: u64 = 1 << 62;
 
-    /// The first of the three that answers.
+    /// The first of them that answers.
     pub(super) fn memory_budget() -> Option<u64> {
         cgroup("/sys/fs/cgroup/memory.max")
             .or_else(|| cgroup("/sys/fs/cgroup/memory/memory.limit_in_bytes"))
@@ -559,7 +559,7 @@ mod tests {
         toml::from_str(text).expect("the fixture did not deserialize")
     }
 
-    /// A tree that writes no `[server]` block is bounded anyway: § 5's four numbers are what the
+    /// A tree that writes no `[server]` block is bounded anyway: § 5's own numbers are what the
     /// server runs on, and an operator configuring nothing is the deployment they describe.
     #[test]
     fn a_tree_with_no_server_block_still_has_all_four_waits() {
@@ -581,11 +581,11 @@ mod tests {
             .expect("a bare `5` was refused");
         assert_eq!(suffixed.header, Duration::from_secs(5));
         assert_eq!(suffixed, bare);
-        // The other three keep their defaults independently: `rule:config/later-wins-and-every-override-is-recorded`'s override is per key.
+        // Every other wait keeps its default independently: `rule:config/later-wins-and-every-override-is-recorded`'s override is per key.
         assert_eq!(suffixed.keepalive, Waits::default().keepalive);
     }
 
-    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline, as the two refusals that hold it up. Both sides are named in one case
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline, as the refusals that hold it up. Each side is named in one case
     /// because a resolution that refused only `false` would still accept the `0` that closes every
     /// connection as it arrives.
     #[test]
@@ -605,7 +605,7 @@ mod tests {
         }
     }
 
-    /// § 13's three inputs, read from the two blocks they are written in. The *hard* ceiling wins
+    /// § 13's inputs, read from the blocks they are written in. The *hard* ceiling wins
     /// where one is there, because that is the number a request can actually reach — a cap read
     /// from `[limits] memory` under a `[limits.hard] memory` four times its size would afford four
     /// times the concurrency the machine can hold.
@@ -688,7 +688,7 @@ mod tests {
         );
     }
 
-    /// § 5's overload, asserted on both sides of it in one case: the two transports are told apart
+    /// § 5's overload, asserted on both sides of it in one case: the transports are told apart
     /// by the first character and by nothing else, so a case that only looked at an address would
     /// pass against a reading that classified everything as one.
     #[test]
@@ -708,7 +708,7 @@ mod tests {
         );
     }
 
-    /// The two refusals, named together because each is plausible on its own: a name is the entry
+    /// The refusals, named together because each is plausible on its own: a name is the entry
     /// an operator is most likely to write, and an empty array is the one spelling of "listen on
     /// nothing" that § 5 has no version of.
     #[test]
@@ -724,7 +724,7 @@ mod tests {
         }
     }
 
-    /// § 5's "off by default, so no URL is silently reserved", asserted through all three spellings
+    /// § 5's "off by default, so no URL is silently reserved", asserted through every spelling
     /// of off — no block, a block without the key, and the ADR's own `""` — because a reading that
     /// answered `Some("")` for the last one would reserve the empty path from every mount while
     /// looking like the example it was copied from.

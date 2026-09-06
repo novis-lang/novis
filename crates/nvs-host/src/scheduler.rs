@@ -2,9 +2,9 @@
 //!
 //! This is `rule:http-server/a-core-is-never-blocked-on-a-syscall`
 //! 's "one single-threaded scheduler of our own pinned per core", and the
-//! shape `benches/abi-probe` has been modelling since M0 — its `Ctx` doc calls
+//! shape `benches/abi-probe` models — its `Ctx` doc calls
 //! itself "deliberately shaped like the real `Ctx` will be", and this module is
-//! what it was shaped like.
+//! the real one.
 //!
 //! # Why a task never leaves the thread it started on
 //!
@@ -145,7 +145,7 @@
 //! question about a signature. `Core\Task::all` therefore arrives through
 //! [`nvs_runtime::host`], a trait declared in the crate both sides already
 //! depend on and published in a thread-local the way [`crate::reactor`] and
-//! this module's own `TREE` already are. That module's own docs are the one home for the three
+//! this module's own `TREE` already are. That module's own docs are the one home for the
 //! decisions behind it, including why what crosses is a whole group rather than
 //! a `spawn`/`wait`/`cancel` for the caller to sequence: § 4's "nothing still
 //! running" is a property of the sequence, so the seam owns the sequence.
@@ -172,8 +172,8 @@ use crate::stack::StackPool;
 
 /// What a suspended task is waiting for.
 ///
-/// Two variants, because there are two reasons a task is not running and they
-/// need different answers from the scheduler. `rule:concurrency/the-reactor-reports-readiness` adds the I/O
+/// A variant per reason a task is not running, because each needs a different
+/// answer from the scheduler. `rule:concurrency/the-reactor-reports-readiness` adds the I/O
 /// registration that turns [`Waiting::Parked`] into something a reactor can
 /// wait on; the scheduler side of it is already here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -234,8 +234,8 @@ pub enum Resume {
 /// What a suspend answered its caller — the return of [`suspend`] and
 /// [`suspend_current`].
 ///
-/// Three answers rather than [`Resume`]'s two, because "nothing suspended" is a
-/// refusal a caller has to handle and is not a way of being resumed.
+/// [`Resume`]'s answers plus one, because "nothing suspended" is a refusal a
+/// caller has to handle and is not a way of being resumed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Resumed {
@@ -280,15 +280,15 @@ type TaskYielder = Yielder<Resume, Suspended>;
 /// **This is the reason a task's context crosses in a `Box`.**
 /// [`nvs_runtime::Ctx`] is most of a kilobyte by itself, because it is where
 /// every per-request fact accumulates and there is one per request rather than
-/// one per call; captured by value it left this budget with nothing in it, and
-/// the next field added anywhere in the workspace took the whole scheduler
-/// down. [`Scheduler::start`] boxes it for the crossing and moves it back onto
-/// the coroutine's own stack in its first statement, which costs one allocation
-/// and one move per **task** — not per helper call, and not on any path a
-/// request takes more than once. What it buys is that this budget is now spent
-/// by four pointers rather than by a context, so a new per-request field is a
-/// question about memory (priority 5) rather than about whether tasks start at
-/// all.
+/// one per call; captured by value it leaves this budget with nothing in it,
+/// and the next field added anywhere in the workspace takes the whole
+/// scheduler down. [`Scheduler::start`] boxes it for the crossing and moves it
+/// back onto the coroutine's own stack in its first statement, which costs one
+/// allocation and one move per **task** — not per helper call, and not on any
+/// path a request takes more than once. What it buys is that this budget is
+/// spent by a handful of pointers rather than by a context, so a new
+/// per-request field is a question about memory (priority 5) rather than about
+/// whether tasks start at all.
 const CORO_TRANSFER_LIMIT: usize = 1024;
 
 /// A task's identity within one scheduler, and the handle something wakes it
@@ -774,9 +774,9 @@ impl Scheduler {
     /// Builds the coroutine for an id the tree has already issued and puts it on
     /// the run queue.
     ///
-    /// The two callers are [`Scheduler::spawn`] and the drain of
-    /// [`spawn_child`]'s pending list; both have to arm the stack limit the same
-    /// way, and the way it is armed is the whole reason this is not two copies.
+    /// Its callers — [`Scheduler::spawn`] and the drain of [`spawn_child`]'s
+    /// pending list — both have to arm the stack limit the same way, and the
+    /// way it is armed is the whole reason this is not two copies.
     fn start(&mut self, id: TaskId, ctx: Ctx, root: TaskRoot, body: Box<dyn FnOnce(&mut Ctx)>) {
         let stack = self.stacks.take();
         let mut ctx = ctx;
@@ -1200,7 +1200,7 @@ pub fn cancel_task(id: TaskId) -> usize {
 /// work still running" has already been kept by the time this runs.
 ///
 /// `false` when there is no task running here, when no scheduler is turning, and
-/// for a task that is already a root — three refusals a caller treats the same
+/// for a task that is already a root — refusals a caller treats the same
 /// way, since each of them means the link this would have cut is not there.
 pub fn detach_current() -> bool {
     let Some(id) = current_task() else {
@@ -1347,7 +1347,7 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// else's.
 ///
 /// **Every per-stack thread-local this runtime keeps is taken and put back
-/// here, and there are three.** [`RUNNING`], the helper-frame count, and
+/// here.** [`RUNNING`], the helper-frame count, and
 /// [`nvs_runtime::CurrentStack`]'s pair — that last one because it is the only
 /// one whose stale value is a *dangling pointer* rather than a wrong number,
 /// which is what its own doc records.
@@ -1412,10 +1412,10 @@ mod tests {
     ///
     /// The assertion in [`Scheduler::start`] is the one that fires on a real
     /// breach; this is the *headroom*, and it is the number worth watching.
-    /// Spending it back down to nothing is how the limit came to be reached the
-    /// first time — a context captured by value left three bytes, and the next
-    /// field added anywhere in the workspace turned every coroutine in the
-    /// suite into `type is too big to transfer`.
+    /// Spending it back down to nothing is how the limit gets reached: a
+    /// context captured by value leaves a handful of bytes, and the next field
+    /// added anywhere in the workspace turns every coroutine in the suite into
+    /// `type is too big to transfer`.
     #[test]
     fn a_tasks_entry_closure_leaves_the_stack_switch_room_to_spare() {
         let carried = Box::new(ctx());
@@ -1423,7 +1423,7 @@ mod tests {
         let id = TaskId(1);
         let root = TaskRoot::Request;
         // The capture set `Scheduler::start`'s closure has, and nothing else:
-        // what is being pinned is that none of the four is a whole `Ctx`.
+        // what is being pinned is that none of them is a whole `Ctx`.
         let entry = move |_yielder: &TaskYielder, _first: Resume| {
             let _ = (*carried, body, id, root);
         };
@@ -1465,12 +1465,12 @@ mod tests {
         // switch: A installs and parks, B installs and parks, A resumes and
         // *ends* — dropping its context — and only then does B's guard drop.
         //
-        // Before `yield_on` carried the pair, B's guard had saved A's two words
-        // on the way in and wrote them back here, putting a freed `Ctx` and a
-        // freed live list on the thread; the next object allocated on this core
-        // linked itself onto a list that was gone. The assertion is on the
-        // pointer being absent rather than on it being stale, because reading
-        // through the stale one is the very thing that was undefined.
+        // Without `yield_on` carrying the pair, B's guard would save A's two
+        // words on the way in and write them back here, putting a freed `Ctx`
+        // and a freed live list on the thread, and the next object allocated on
+        // this core would link itself onto a list that is gone. The assertion is
+        // on the pointer being absent rather than on it being stale, because
+        // reading through the stale one is the very thing that is undefined.
         let mut sched = Scheduler::new();
         for _ in 0..2 {
             sched.spawn(ctx(), TaskRoot::Request, |ctx| {
@@ -1535,7 +1535,7 @@ mod tests {
 
     #[test]
     fn a_task_s_recursion_limit_is_armed_from_its_own_stack() {
-        // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s last bullet. `Ctx::new` armed from the *worker's*
+        // `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`'s last bullet. `Ctx::new` arms from the *worker's*
         // stack pointer and an asserted ceiling, which describes memory this
         // task never runs on; what the task must see is the pair computed from
         // the stack this crate handed it. Read on the task's own stack and
@@ -1735,8 +1735,8 @@ mod tests {
 
     #[test]
     fn a_scheduler_dropped_with_a_parked_task_tears_it_down_instead_of_aborting() {
-        // A worker retiring with a request still parked. Before
-        // `nvs_runtime::Teardown` existed this killed the whole process, so
+        // A worker retiring with a request still parked. Without
+        // `nvs_runtime::Teardown`'s window this kills the whole process, so
         // the strongest half of this test is that it returns at all; the
         // assertion below is the other half — the stack really unwound, rather
         // than being leaked to dodge the abort.

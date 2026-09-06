@@ -29,7 +29,7 @@
 //!
 //! [`StatementCache`] is here for that reason and no other — it is the half of
 //! § 1 that decides whether a batch carries a `Parse`, and it is the same
-//! decision on all five drivers, so it is plain data with no wire in it. Which
+//! decision on every driver, so it is plain data with no wire in it. Which
 //! messages the answer turns into is each driver's own.
 //!
 //! [`statement_cache_for`] and [`time_zone_for`] are here on that same test and
@@ -64,10 +64,10 @@ use crate::conn::Driver;
 
 /// How one driver spells a bound parameter, and how it quotes and comments.
 ///
-/// Four values for five drivers: MariaDB and MySQL share a syntax exactly, and
-/// `rule:core-classes/db-one-api`'s insistence that they are two
-/// drivers is about auth plugins, error tables and capability flags, none of
-/// which reaches the SQL text.
+/// One value per syntax rather than per driver: MariaDB and MySQL share a
+/// syntax exactly, and `rule:core-classes/db-one-api`'s insistence that they
+/// are two drivers is about auth plugins, error tables and capability flags,
+/// none of which reaches the SQL text.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
     /// `$1`, dollar-quoted bodies, nested block comments, no backslash escape.
@@ -234,7 +234,7 @@ pub const DEFAULT_STATEMENT_CACHE: usize = 16;
 ///
 /// Free rather than an associated function, and beside [`time_zone_for`]
 /// because it is the same kind of thing: one `[db.<name>]` field, read the same
-/// way for all five drivers, with no wire in it. It also has nothing to do with
+/// way for every driver, with no wire in it. It also has nothing to do with
 /// what a driver's [`StatementCache`] holds — PostgreSQL's handle is a name it
 /// mints and MySQL's is the server's own id — so hanging it off that type would
 /// mean writing a handle down to ask a question about a number.
@@ -275,8 +275,8 @@ pub fn statement_cache_for(block: &Database) -> usize {
 /// type's doc gives — rather than reaching into a config tree from the connect
 /// path, so the capacity is still a plain parameter of [`StatementCache::new`]
 /// and a test can size one with no configuration at all. A capacity of `0` is
-/// not a broken cache: it is the unnamed statement every time, which is the
-/// behaviour PostgreSQL had before this type existed.
+/// not a broken cache: it is the unnamed statement every time, which is what
+/// PostgreSQL does with a statement that carries no name.
 ///
 /// # `H` is the handle, and only its owner knows what one is
 ///
@@ -317,9 +317,9 @@ struct Entry<H> {
 
 /// What the cache says about a statement that is about to be sent.
 ///
-/// The three variants are the three shapes the batch takes, which is why this
-/// is an answer and not a lookup: a driver matches once and writes the messages
-/// the answer names.
+/// Each variant is a shape the batch takes, which is why this is an answer and
+/// not a lookup: a driver matches once and writes the messages the answer
+/// names.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Prepared {
     /// The server already has it under this name, so the batch carries no
@@ -867,9 +867,9 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
 ///
 /// The zone a zone-less `DATETIME`/`TIMESTAMP` column is read in, and the one
 /// sent to the server so `CURRENT_TIMESTAMP` agrees with it. It is here rather
-/// than in a driver because it is the same field on all five and has the same
-/// answer on all five: § 9 sends an offset and never a zone name, so nothing
-/// downstream needs a zone database to act on this number.
+/// than in a driver because it is the same field on every driver and has the
+/// same answer on every one: § 9 sends an offset and never a zone name, so
+/// nothing downstream needs a zone database to act on this number.
 ///
 /// **`Some(0)` for a block that names none** — § 9's default is UTC — and
 /// `Some` of the offset for one that writes `UTC`, `Z`, `±HH`, `±HH:MM` or
@@ -1021,8 +1021,8 @@ mod tests {
         );
     }
 
-    /// § 5's reuse asserted as an agreement across the four dialects rather
-    /// than one line each: whatever the marker, the one argument is consumed
+    /// § 5's reuse asserted as an agreement across the dialects rather than
+    /// one line each: whatever the marker, the one argument is consumed
     /// exactly once — never refused as unused, never bound to a second
     /// argument — and the arity § 1's cache keys on is the number of markers
     /// that dialect actually wrote, not the argument count.

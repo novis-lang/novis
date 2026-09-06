@@ -77,7 +77,7 @@ pub fn clif_ty(ty: Ty) -> Option<Type> {
 /// Neither is a shape the language refuses, which is why neither is a
 /// [`CodegenError::Unsupported`]: no program reaches either one, so no item
 /// on `tools/holes.py`'s worklist could ever close it.
-/// An exception is an ordinary [`Tag::Object`] now, with no case of its own.
+/// An exception is an ordinary [`Tag::Object`], with no case of its own.
 pub(crate) fn tag_of(ty: Ty) -> Result<Tag, CodegenError> {
     Ok(match ty {
         Ty::Bool => Tag::Bool,

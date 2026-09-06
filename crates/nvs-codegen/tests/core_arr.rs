@@ -1,8 +1,7 @@
 //! `Core\\Arr` end to end — a callback-bound result type, `values`, and `sort`'s whole options bag.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -120,9 +119,8 @@ echo Core\\Str::join(Core\\Arr::sort($words), \",\");
     assert_eq!(output_of(source), "Apple,banana,fig,pear");
 }
 
-/// `{order: Core\Order::Desc}` — the first `Core`-owned enum reaching a
-/// running program, and PHP's `rsort` in one option rather than a second
-/// member name.
+/// `{order: Core\Order::Desc}` — a `Core`-owned enum reaching a running
+/// program, and PHP's `rsort` in one option rather than a second member name.
 #[test]
 fn a_core_enum_case_selects_the_descending_order() {
     let source = "<?nvs

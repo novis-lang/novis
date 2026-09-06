@@ -1,9 +1,9 @@
 //! Terminal rendering for diagnostics.
 //!
-//! Hand-written rather than delegated to a crate, for three reasons: the output
-//! format is part of a language's user interface and should not shift with a
-//! dependency bump; Novis needs the same layout engine to emit LSP-shaped data;
-//! and it keeps the dependency tree of the compiler front end minimal.
+//! Hand-written rather than delegated to a crate: the output format is part of
+//! a language's user interface and should not shift with a dependency bump;
+//! Novis needs the same layout engine to emit LSP-shaped data; and it keeps the
+//! dependency tree of the compiler front end minimal.
 
 use std::io::{self, Write};
 

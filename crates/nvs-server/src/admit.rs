@@ -1,7 +1,7 @@
 //! `rule:http-server/the-server-block-is-boot-class`
 //! 's in-flight ceiling, as
 //! `rule:http-server/admission-is-arithmetic-not-a-number`
-//! amended it: the arithmetic that turns a written `max_in_flight` into an
+//! states it: the arithmetic that turns a written `max_in_flight` into an
 //! effective one, and the one relaxed counter that refuses a request over it.
 //!
 //! # Why an arithmetic and not a number
@@ -19,7 +19,7 @@
 //! disagree is the worse outage, and the operator learns the same fact either
 //! way.
 //!
-//! The three inputs are `nvs_config::server::Capacity`, and reading them is
+//! The inputs are `nvs_config::server::Capacity`'s, and reading them is
 //! that module's — including the part that asks the operating system what this
 //! machine has, and prefers a container's limit to the host's. The division is
 //! here because the clamp is an admission decision and the counter that
@@ -87,7 +87,7 @@ pub struct Ceiling {
 }
 
 impl Ceiling {
-    /// The arithmetic over the three numbers the configuration resolved.
+    /// The arithmetic over the numbers the configuration resolved.
     ///
     /// **A machine too small for even one request still admits one.** The floor
     /// is not a rounding convenience: a ceiling of zero is a process that

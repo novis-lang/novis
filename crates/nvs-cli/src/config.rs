@@ -44,7 +44,7 @@ use crate::render_diagnostics;
 /// says § 6's check belongs on the reader so that "a caller that has one and a
 /// caller that does not are two implementations of one interface rather than a
 /// flag threaded through the resolver". This is the caller that does not, and
-/// it is one of two rather than a weakening of the boundary:
+/// that is the split itself rather than a weakening of the boundary:
 ///
 /// - § 6 defends a runtime that grants **configured capabilities to requests
 ///   nobody at the keyboard wrote**. `nvs serve` and `nvs ctl reload` are that
@@ -60,8 +60,8 @@ use crate::render_diagnostics;
 ///   inheritance. That is the right price for a served host and the wrong one
 ///   for `nvs run examples/hello.nvs`.
 ///
-/// [`check`] reads through it for a third reason, which is this module's own
-/// doc comment.
+/// [`check`] reads through it for a reason of its own, which is this module's
+/// own doc comment.
 ///
 /// **This is not the whole answer, and the rest is Stage 4's.** Where a
 /// capability check sits so that no member can route around it is the one ADR
@@ -125,11 +125,9 @@ pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
 /// stream, `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` fold for `entry`, and `rule:config/the-config-is-an-immutable-snapshot`'s
 /// immutable result.
 ///
-/// It replaces the hand-rolled one-key `nvs.toml` scanner that stood here for
-/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin, which said in its own doc comment that a second key
-/// added to it would be a second configuration format. This is the reader it
-/// was waiting for, so the origin now arrives through `[[app]]` matching rather
-/// than out of any block in the file.
+/// `rule:routing/an-absolute-link-takes-a-configured-origin`'s origin arrives
+/// through that `[[app]]` fold rather than out of any single block in the file,
+/// so nothing in this binary scans `nvs.toml` for a key of its own.
 ///
 /// `sources` is the caller's so that a refusal can be rendered with the line it
 /// came from: a `nvs.toml` diagnostic carries a span into a file this map is
@@ -231,7 +229,7 @@ pub(crate) fn grants(
 /// carry into the rest of it, so a second refusal found after the first would
 /// be a guess about a tree that was never built.
 ///
-/// The summary line is § 9's, and its four counts are the ones that make § 3's
+/// The summary line is § 9's, and its counts are the ones that make § 3's
 /// precedence auditable: how many files the tree reached, how many keys are in
 /// force, how many of those overrode an earlier assignment, and how many
 /// advisories (§ 7's readable secret file today) were raised. `dump --origin`
@@ -289,7 +287,7 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 /// every override is recoverable, and `--origin` is where it is recovered in
 /// full rather than summarized.
 ///
-/// Three things about what is printed are decisions rather than formatting:
+/// Some of what is printed is a decision rather than formatting:
 ///
 /// - **The dump is the merged table, not the typed configuration.** It is
 ///   therefore complete — a key no reader has a field for is still in force and

@@ -17,7 +17,7 @@
 //! every name the roots declare: § 3's scan, which only a program calling
 //! `Core\Program::implementing<T>()` or writing a `#[Route]` ever pays for.
 //!
-//! Three rules of § 1 live here rather than in the resolver:
+//! These rules of § 1 live here rather than in the resolver:
 //!
 //! - **An explicit prefix beats a `discover` glob** producing the same
 //!   prefix; the glob skips that name. Every *other* duplicate is
@@ -40,12 +40,12 @@
 //!   ([ADR 0062](/docs/decisions/0062.md)
 //!   § 3).
 //!
-//! `nvs check --autoload-map` prints the result, which is why the two things
-//! a `discover` glob does *quietly* — passing over a directory that cannot
+//! `nvs check --autoload-map` prints the result, which is why what a
+//! `discover` glob does *quietly* — passing over a directory that cannot
 //! name a namespace, and producing a prefix an explicit declaration already
-//! owns — are kept on the map rather than dropped where they happen.
-//! [`AutoloadMap::render`] is that printer. Its shape is three counted
-//! sections, one line per prefix with its roots in probe order:
+//! owns — is kept on the map rather than dropped where it happens.
+//! [`AutoloadMap::render`] is that printer. Its shape is a counted section
+//! per kind, one line per prefix with its roots in probe order:
 //!
 //! ```text
 //! prefixes (2)
@@ -94,7 +94,7 @@ pub struct Site {
     pub span: Span,
 }
 
-/// The two forms a [`Site`] takes, with every literal already decoded.
+/// The forms a [`Site`] takes, with every literal already decoded.
 #[derive(Clone, Debug)]
 pub enum SiteKind {
     /// `autoload 'Prefix' from 'root', ...;`
@@ -271,7 +271,7 @@ impl AutoloadMap {
     /// resolution is not lazy (`rule:programs/implementing`).
     ///
     /// `Core\Program::implementing<T>()` and `rule:routing/routes-are-compiled-not-registered`'s compile-time route
-    /// table are its only two callers, under § 3's opt-in rule: a program
+    /// table are its only callers, under § 3's opt-in rule: a program
     /// writing neither never calls this and never pays the directory
     /// listing. What comes back is the *file* set. Which of those files
     /// declares a class satisfying anything is

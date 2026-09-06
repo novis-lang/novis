@@ -25,7 +25,7 @@
 //! Matching stays case-insensitive, because the exact spelling of an entry is not something DNS
 //! preserves either.
 //!
-//! Three refusals hold the rule to that shape:
+//! These refusals hold the rule to that shape:
 //!
 //! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
 //!   a grant reachable two ways is what `rule:core-api/shape-rules` R17 forbids. `*` alone therefore matches no host
@@ -79,7 +79,7 @@ pub enum Cap {
     /// `db.schema` — which `[db.<name>]` blocks a program may issue DDL to (`rule:core-classes/schema-apply-capability`).
     ///
     /// Named by block, which is [`DbConnect`](Self::DbConnect)'s shape, but it gates a different
-    /// question from either of the two above: not *which* database may be reached, but whether this
+    /// question from the grants above: not *which* database may be reached, but whether this
     /// program may change the shape of one at all. Being able to open a connection is not permission
     /// to alter what is behind it, so this does not follow from `db.connect` — the same split
     /// [`ScriptSpawn`](Self::ScriptSpawn) makes against `fs.read`. Computing a plan reads the
@@ -114,10 +114,10 @@ pub enum Scope<'a> {
 ///
 /// **Here rather than in the client**, which is § 5: `Core\Http`, `Core\Net`, `Core\Db::open`'s
 /// program-supplied target and any socket a host import hands a Tier 1 extension are all subject to
-/// the same policy, and a copy of this table in each of them is four copies that agree until one of
-/// them does not. The one class of address it does not govern is a `[db.<name>]` block an operator
-/// wrote into root-owned configuration and granted by name (§ 3), which is why the caller asks this
-/// rather than it being folded into [`Cap::NetConnect`]'s own grant check.
+/// the same policy, and a copy of this table in each of them is a set of copies that agree until
+/// one of them does not. The one class of address it does not govern is a `[db.<name>]` block an
+/// operator wrote into root-owned configuration and granted by name (§ 3), which is why the caller
+/// asks this rather than it being folded into [`Cap::NetConnect`]'s own grant check.
 ///
 /// It is asked of a **resolved address**, never of a hostname: a hostname the operator never named
 /// can resolve into any of these, which is the whole of why § 2's launderer pins.
@@ -406,8 +406,8 @@ impl Capabilities {
     /// when nothing refuses it.
     ///
     /// This is [`denied_by_default`] plus the operator's half of § 3 — `net.internal`, the addresses
-    /// a deployment says it reaches anyway. Three things about the shape, each of them a refusal to
-    /// widen further than the ADR does:
+    /// a deployment says it reaches anyway. Its shape, each part of it a refusal to widen further
+    /// than the ADR does:
     ///
     /// - **An entry is an IP address literal**, and one that does not parse as an address matches
     ///   nothing. A hostname there would be read before resolution and so would exempt whatever the

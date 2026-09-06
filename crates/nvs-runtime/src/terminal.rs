@@ -23,7 +23,7 @@
 //! asks nothing is not a door, and filing it as one would make the roster of
 //! real doors harder to read.
 //!
-//! The four environment variables read below (`NO_COLOR`, `CLICOLOR_FORCE`,
+//! The environment variables read below (`NO_COLOR`, `CLICOLOR_FORCE`,
 //! `FORCE_COLOR`, `TERM`, `COLORTERM`) are read *here* and never handed back as
 //! values. That is deliberate and is the reason `Core\Cli` needs no
 //! `Core\Env`-shaped grant either: what crosses this boundary is a column count
@@ -40,22 +40,22 @@
 //! decides at write time, so there is nothing in the surface that freshness
 //! here could serve.
 //!
-//! # The column count is here, and both of its callers are
+//! # The column count is here, and so are its callers
 //!
 //! [`display_width`] answers `rule:tooling/the-terminal-profile-resolves-once`'s `Core\Cli::displayWidth` and
-//! [`clamp`] cuts a region's row to the same unit. They are one table read
-//! twice on purpose: a row cut against a different answer than the one the
+//! [`clamp`] cuts a region's row to the same unit. They read one table on
+//! purpose: a row cut against a different answer than the one the
 //! program was handed is a frame that wraps, which is the one failure `rule:tooling/the-terminal-is-restored-on-every-exit-path`
 //! 's clamp exists to prevent. The unit itself — UAX #11 columns over the
-//! string *as the sink would write it* — and the three code points that are
+//! string *as the sink would write it* — and the code points that are
 //! not a column at all are [`display_width`]'s own doc comment, which is their
 //! only home.
 //!
 //! It sits in this module rather than beside `Core\Str`'s units because a
 //! column count is a property of the renderer, not of the string
-//! (`rule:types/string-is-utf8` fixed the two
+//! (`rule:types/string-is-utf8` fixed the units
 //! that are properties of the string, and `rule:tooling/the-terminal-profile-resolves-once`'s last paragraph is why
-//! this third one is not a `Core\Str` member).
+//! this one is not a `Core\Str` member).
 //!
 //! # The prompts read the terminal, never `Stream::In`
 //!
@@ -88,8 +88,8 @@
 //! cooked line read still waits for `Enter`, so a wait that returns says
 //! nothing about whether the read after it will. [`ask`] therefore runs whole
 //! on its own thread, owning everything it touches, and [`answer_within`]
-//! waits on the channel: the same bound on every platform, in ten lines that
-//! need no `unsafe`.
+//! waits on the channel: the same bound on every platform, with no `unsafe`
+//! anywhere in it.
 //!
 //! # A live region ends in a `Drop`, because every other ending can be skipped
 //!
@@ -103,7 +103,7 @@
 //! again. `nvs_stdlib::cli` holds the open regions on a stack and drops back to
 //! a depth, which is how the *scope* half is enforced above this line.
 //!
-//! Memory: one [`Profile`] — three `bool`s, two `u32`s and an enum — for the
+//! Memory: one [`Profile`] — scalar fields only, no allocation — for the
 //! life of the process, charged to no request, plus one answer's bytes for the
 //! length of a [`prompt`] call, bounded by `MAX_ANSWER`. A prompt that reaches
 //! its deadline leaves that thread parked in its read until the terminal ends
@@ -449,14 +449,14 @@ pub const ANSWER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(
 
 /// What one prompt got back.
 ///
-/// Three cases and not two, because the surface says a different sentence for
-/// the third: [`Self::Ended`] is *nobody to ask*, which `rule:tooling/a-prompt-is-a-core-member` answers
+/// Silence has its own case apart from *nobody to ask*, because the surface
+/// says a different sentence for it: [`Self::Ended`] is what `rule:tooling/a-prompt-is-a-core-member` answers
 /// with the `default` or with `Core\Cli\NotInteractive`, while
 /// [`Self::TimedOut`] is a terminal that was opened, written to and then said
 /// nothing for [`ANSWER_DEADLINE`]. Both are silence and both take the same
 /// fallback; only the message a program is handed distinguishes them, and a
-/// message naming a terminal that does not exist would be a lie in the second
-/// case.
+/// message naming a terminal that does not exist would be a lie about a
+/// terminal that answered nothing.
 #[derive(Debug)]
 pub enum Answer {
     /// The line typed, without its ending.
@@ -762,17 +762,17 @@ const SHOW_CURSOR: &str = "\x1b[?25h";
 /// The terminal rows one `Core\Cli::live` call owns — `rule:tooling/in-place-output-is-a-scoped-live-region`'s live
 /// region, and § 8's restoration obligation as a destructor.
 ///
-/// Three of the section's five properties are here: the cursor is hidden while
+/// Most of the section's properties are here: the cursor is hidden while
 /// the region is open and shown again when it closes, a frame is coalesced onto
 /// [`FRAME_INTERVAL`] rather than painted per [`set`](Self::set), and a paint
 /// diffs against the frame already on screen so an unchanged row costs a line
-/// feed rather than a repaint. The fourth is that a region with no terminal
+/// feed rather than a repaint. So is the one that says a region with no terminal
 /// **renders nothing at all**: [`open`](Self::open) answers an inert region
 /// where [`is_interactive`] is false, so a piped run produces clean output
 /// rather than a smear of escape sequences, and every method below is then a
 /// no-op rather than a write nobody reads.
 ///
-/// The fifth — repainting on a resize — is not here yet, and the reason is § 3:
+/// Repainting on a resize is not here yet, and the reason is § 3:
 /// the profile is resolved once for the process, so the width a region clamps
 /// to is fixed for its life and a window the reader resizes is not noticed. The
 /// signal that would say so is `Core\Signal`'s, which is not built.
@@ -1053,7 +1053,7 @@ fn screen() -> Option<Box<dyn std::io::Write>> {
 }
 
 /// Neither Unix nor Windows: there is no terminal to draw on, so every region
-/// is inert — the same answer [`ask`]'s third arm gives.
+/// is inert — the same answer [`ask`]'s own fallback arm gives.
 #[cfg(not(any(unix, windows)))]
 fn screen() -> Option<Box<dyn std::io::Write>> {
     None
@@ -1111,7 +1111,7 @@ mod tests {
         assert_eq!(display_width("\u{1b}[31mred\u{1b}[0m"), 12);
     }
 
-    /// The two rows § 1 passes through, each asserted where a fixed count for
+    /// The rows § 1 passes through, each asserted where a fixed count for
     /// it would answer plausibly: the tab lands on the stop wherever it stands,
     /// and the newline ends a row rather than filling one.
     #[test]

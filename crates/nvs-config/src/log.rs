@@ -15,9 +15,9 @@
 //!
 //! The format's grammar is [`Format::of`], and it is here rather than one crate down for the
 //! target's reason and not the level's: § 3 names a *rendering to select*, and `nvs-render` carries
-//! one function per rendering with no enum over them. A third one added there — the HTML rendering
-//! the response sink picks — is deliberately not a value of this directive, which § 3 states
-//! outright, so the two rosters are not the same roster and must not become one type.
+//! one function per rendering with no enum over them. The HTML rendering the response sink picks is
+//! deliberately not a value of this directive, which § 3 states outright, so the two rosters are not
+//! the same roster and must not become one type.
 //!
 //! **Refused where it is written, never where it is used.** The one moment the engine cannot afford
 //! to raise a diagnostic about its configuration is the moment it is already reporting a failure:
@@ -48,7 +48,7 @@ pub enum Target<'a> {
     /// `file:<path>` — a rotating file under `rule:http-server/the-floor-cannot-fill-the-disk`'s bound, carrying the path as written.
     File(&'a str),
     /// `syslog` — spelled by § 4 and not yet transported;
-    /// `nvs_runtime::Ctx::write_log_record`'s own doc owns what that means for a record today.
+    /// `nvs_runtime::Ctx::write_log_record`'s own doc owns what that means for a record.
     Syslog,
 }
 
@@ -197,7 +197,7 @@ fn levelled(
 
 /// [`validate`]'s refusal for one written format, under the key it was merged as.
 ///
-/// The third of this block's three, and the one whose unspelled value costs the least at the sink
+/// The last of this block's checks, and the one whose unspelled value costs the least at the sink
 /// and the most downstream: the records are the right records, written in the rendering the
 /// deployment asked not to have. `E0615`'s own doc is the home of that, and of why `html` — a real
 /// rendering of the same record, and not one of this directive's two — is refused here rather than

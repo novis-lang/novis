@@ -29,10 +29,10 @@ use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation*. Two of its twelve have
+/// The roster is the plan's § *Value representation*. Some of its entries have
 /// no representation behind them yet — see the crate docs' known gap 1 — but
-/// they are numbered now so the discriminants never have to move. The
-/// thirteenth, [`Self::Unset`], is not on that roster at all: it is a storage
+/// they are numbered anyway so the discriminants never have to move.
+/// [`Self::Unset`] is not on that roster at all: it is a storage
 /// state rather than a value, and its own doc comment says why it lives here.
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]

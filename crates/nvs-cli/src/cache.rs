@@ -63,13 +63,13 @@
 //! going through it, so the step that would make those pages executable cannot be reached from an
 //! unverified mapping even by mistake.
 //!
-//! **Two failures also delete the file; three do not.** A checksum mismatch does, which is § 3's own
+//! **Which failures also delete the file.** A checksum mismatch does, which is § 3's own
 //! instruction: the key is the content hash, so a file at that path whose contents hash differently
 //! can only be corrupt or tampered and can never become a second valid version. A `payload_len` that
 //! disagrees with the mapping is treated the same way, one step earlier — that field exists to catch
 //! a truncation before the checksum does, the entry is corrupt on the same argument, and leaving it
 //! costs a re-open on every future run. A wrong magic, `format_version` or `env_hash` is *not*
-//! deleted: those three mean "not this process's file" rather than "broken", and deleting on them
+//! deleted: each of them means "not this process's file" rather than "broken", and deleting on them
 //! would let one build of the compiler evict another's entries out of a shared cache directory.
 //!
 //! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. The ADR's
@@ -147,13 +147,13 @@
 //!
 //! The roll is PHP's `session.gc_probability`/`gc_divisor` shape deliberately, and the floor is
 //! hysteresis: evicting to exactly the cap leaves the next miss's roll finding work again, so a
-//! cache hovering at the boundary would walk on nearly every one. § 7 leaves the three defaults to
+//! cache hovering at the boundary would walk on nearly every one. § 7 leaves the defaults to
 //! the implementation and [`Eviction`] states them with their reasons.
 //!
 //! # Known gaps
 //!
 //! **Every producer of a unit is wired.** [`unit_for`] is the compile site's whole decision, and
-//! all four call sites make it: `main.rs`'s `run_run`, `runner.rs`'s suite compile for `nvs test`,
+//! every call site makes it: `main.rs`'s `run_run`, `runner.rs`'s suite compile for `nvs test`,
 //! and `script.rs`'s [`Compiler`](crate::script::Compiler), which is the one a `spawn script`
 //! isolate and the server both resolve through. Each of them resolves the configuration snapshot
 //! *above* its compile, because both halves of the key are configuration — that ordering is the
@@ -170,8 +170,8 @@
 //! it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
 //! every run compiles.
 //!
-//! **Mach-O's leading underscore is not accounted for**, which is latent rather than live: the one
-//! Mach-O host in CI is `aarch64`, where the paragraph above refuses the payload before a symbol is
+//! **Mach-O's leading underscore is not accounted for**, which is latent rather than live: CI's
+//! Mach-O host is `aarch64`, where the paragraph above refuses the payload before a symbol is
 //! read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
 //! would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
 //! Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
@@ -283,8 +283,8 @@ impl Header {
     }
 }
 
-/// Why [`Cache::load`] is not returning an artifact — and, in the second case, why it is taking the
-/// file with it.
+/// Why [`Cache::load`] is not returning an artifact — and, where the file is corrupt, why it is
+/// taking that file with it.
 ///
 /// The module doc's § 3 section owns which mismatch is which and why the split is where it is.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -975,7 +975,7 @@ impl Cache {
         })
     }
 
-    /// The same cache under a different § 6 policy — `[opcache]`'s three keys, once a caller reads
+    /// The same cache under a different § 6 policy — `[opcache]`'s own keys, once a caller reads
     /// them out of the configuration rather than taking [`Eviction::default`].
     #[must_use]
     pub(crate) fn with_eviction(mut self, eviction: Eviction) -> Self {
@@ -1040,7 +1040,7 @@ impl Cache {
         }
     }
 
-    /// § 3's four checks over a mapped artifact, cheapest first, hash last.
+    /// § 3's checks over a mapped artifact, cheapest first, hash last.
     fn verify(env: EnvHash, bytes: &[u8]) -> Result<Header, Miss> {
         let header = Header::decode(bytes).ok_or(Miss::Foreign)?;
         if header.format_version != FORMAT_VERSION || header.env_hash != *env.digest().as_bytes() {
@@ -1300,7 +1300,7 @@ fn warm_hit(program: &nvs_ir::Program, cache: &Cache, key: Digest) -> Option<nvs
 
 /// § 3's "this process's own addresses", in full.
 ///
-/// Every runtime and `Core` helper by the address this process really calls it at — the same two
+/// Every runtime and `Core` helper by the address this process really calls it at — the same
 /// tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` by the address of
 /// the descriptor `descriptors` built out of the same program's IR.
 ///
@@ -1325,8 +1325,8 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
 /// none.
 ///
 /// [`None`] is `opcache.file_cache = false`, a host with no cache root to default to, and a
-/// directory § 5 refuses. None of the three is reported: a run without a cache is a run that
-/// compiles, which is exactly what it did before this module existed.
+/// directory § 5 refuses. None of them is reported: a run without a cache is a run that compiles,
+/// which is the fallback every miss in this module already takes.
 pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
     let opcache = config.opcache.as_ref();
     if opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
@@ -1394,7 +1394,7 @@ fn build_identity() -> Option<String> {
 ///
 /// A value that spells nothing readable is left at the default rather than refused, which is the
 /// treatment `nvs_config::cache::Revalidation::from_config` already gives `[opcache]`'s other
-/// three keys — the block's refusals are one decision and this is not the place to make a second.
+/// keys — the block's refusals are one decision and this is not the place to make a second.
 fn eviction_of(opcache: Option<&nvs_config::tree::Opcache>) -> Eviction {
     let mut eviction = Eviction::default();
     let Some(opcache) = opcache else {
@@ -1501,7 +1501,7 @@ mod tests {
     }
 
     /// Backdate `path` by `seconds`, which is the only way a case can say which entry is oldest:
-    /// § 6 evicts by `mtime` and seven files written in one loop differ by microseconds.
+    /// § 6 evicts by `mtime` and files written in one loop differ by microseconds.
     fn age(path: &Path, seconds: u64) {
         File::options()
             .write(true)
@@ -1548,9 +1548,9 @@ mod tests {
             ..always
         };
 
-        // Six entries of a kilobyte each under a cache that never walks, oldest first. The
-        // directory ends four times over its cap, which is what makes the next two assertions
-        // measurements of the roll rather than of the writes.
+        // Entries of a kilobyte each under a cache that never walks, oldest first. The directory
+        // ends well over its cap, which is what makes the assertions below measurements of the
+        // roll rather than of the writes.
         let cold = Cache::new(&dir, env())
             .expect("a scratch directory of this test's own")
             .with_eviction(never);
@@ -1839,7 +1839,7 @@ mod tests {
     /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: a tampered artifact is rejected, silently, and the file goes with it — while a
     /// file that is merely *foreign* is left alone.
     ///
-    /// The three foreign cases are the ones § 3 calls a cache miss rather than corruption: a wrong
+    /// The foreign cases are the ones § 3 calls a cache miss rather than corruption: a wrong
     /// magic, a wrong `format_version` and a wrong `env_hash`. Deleting on those would let one build
     /// of the compiler evict another's entries out of a shared cache directory, which the module doc
     /// states as the reason the split is where it is.
@@ -1864,7 +1864,7 @@ mod tests {
         assert!(cache.load(key).is_none(), "a tampered payload is rejected");
         assert!(!path.exists(), "and the entry is deleted");
 
-        // Foreign, three ways: each is a miss, and each file survives.
+        // Foreign in each way the header can be: each is a miss, and each file survives.
         for (label, doctor) in [("magic", 0_usize), ("format_version", 4), ("env_hash", 6)] {
             let mut foreign = good.clone();
             foreign[doctor] ^= 0xff;
@@ -1986,7 +1986,7 @@ mod tests {
     ///
     /// Its `[[extension]]` array is the only contribution to that digest a test in this process
     /// can move — the triple, the CPU feature bitset and the compiler build are all read off the
-    /// running binary — and moving it is enough, because § 4 folds all four into one value.
+    /// running binary — and moving it is enough, because § 4 folds them all into one value.
     fn other_toolchain() -> EnvHash {
         let config: Config =
             toml::from_str("[[extension]]\npath = \"an-extension-this-one-lacks\"")
@@ -2528,14 +2528,12 @@ mod tests {
     ///
     /// Each arm is the **fastest** of its runs rather than the mean, because a minimum is the one
     /// statistic a busy machine cannot inflate: whatever else a sample was charged for, no arm can
-    /// be measured faster than the work it did. The named margin is written well under what this
-    /// prints on a development machine — a debug build here measures 96ms cold against 10ms warm,
-    /// so about 10x — so a loaded machine cannot fail it by being slow, and a slow *disk* only
-    /// moves it the safe way: the `fsync` is in the cold arm. What is asserted is "codegen
-    /// dominates place and
-    /// relocate", not a benchmark's own number; a change that brought the two within this factor
-    /// of each other would mean the loader had grown expensive enough to reopen the decision, which
-    /// is exactly what § *Revisiting* asks this test to detect.
+    /// be measured faster than the work it did. The named margin is written well under the ratio a
+    /// development machine actually prints — so a loaded machine cannot fail it by being slow, and
+    /// a slow *disk* only moves it the safe way: the `fsync` is in the cold arm. What is asserted
+    /// is "codegen dominates place and relocate", not a benchmark's own number; a change that
+    /// brought the two within this factor of each other would mean the loader had grown expensive
+    /// enough to reopen the decision, which is exactly what § *Revisiting* asks this test to detect.
     #[test]
     #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names() {

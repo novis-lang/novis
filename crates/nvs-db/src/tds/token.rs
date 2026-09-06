@@ -100,7 +100,7 @@ pub(super) const FATAL_CLASS: u8 = 20;
 /// are ODBC's invention, mapped from the number by the driver, so a table keyed
 /// on them here would be keyed on a value this driver had to make up first.
 ///
-/// Two rows of it are worth arguing:
+/// The rows of it worth arguing:
 ///
 /// - **`547` is both a foreign key and a `CHECK`**, and SQL Server merges them
 ///   into one number on purpose — only the message text separates them, and
@@ -119,7 +119,7 @@ pub(super) const FATAL_CLASS: u8 = 20;
 ///   else.
 ///
 /// Everything unnamed is [`DbErrorKind::Other`] rather than a guess, as on the
-/// other three drivers, except that a class of [`FATAL_CLASS`] or more is
+/// other drivers, except that a class of [`FATAL_CLASS`] or more is
 /// [`DbErrorKind::ConnectionLost`] whatever the number: at that severity the
 /// server has already closed the socket.
 pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
@@ -154,7 +154,7 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
 
 /// An `ERROR` or `INFO` token: one thing the server has to say.
 ///
-/// The same seven fields carry both, which is the protocol's doing and not a
+/// The same fields carry both, which is the protocol's doing and not a
 /// convenience taken here — [`Token::Error`] and [`Token::Info`] are what say
 /// whether anything was refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -209,7 +209,7 @@ pub struct LoginAck {
 
 /// An `ENVCHANGE` token: one session property, before and after.
 ///
-/// The variants are the four TDS 7.4 spells as text, plus the one it spells as
+/// The variants are the ones TDS 7.4 spells as text, plus the one it spells as
 /// bytes that this driver cannot do without: the transaction descriptor, which
 /// [`EnvChange::Transaction`] owns. Everything else — collation, the routing
 /// answer an Azure failover sends — is [`EnvChange::Other`] carrying its type
@@ -339,8 +339,8 @@ impl ReturnValue {
 /// A `DONE`, `DONEPROC` or `DONEINPROC` token: one statement's answer ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Done {
-    /// The status bits, read through the three methods below rather than
-    /// matched on directly.
+    /// The status bits, read through the methods below rather than matched on
+    /// directly.
     pub status: u16,
     /// Which command this ends, which no caller here reads: the token stream is
     /// already in order.

@@ -44,18 +44,18 @@
 //! # Known gaps
 //!
 //! 1. **The reverse direction reads but does not yet assemble.** § 4's catalog
-//!    queries have landed in [`crate::catalog`] — two reads, one row shape
-//!    each, keyed on `Dialect` — and nothing yet turns those rows back into a
+//!    queries live in [`crate::catalog`] — each a read with one row shape,
+//!    keyed on `Dialect` — and nothing yet turns those rows back into a
 //!    [`Schema`]. The half that is missing is per dialect and is the reverse of
 //!    [`crate::ddl::column_type`]: [`ScalarType::from_spelling`] reads this
 //!    vocabulary's canonical names and a catalog answers the server's. § 8's
-//!    four emitters have landed beside this module, in [`crate::ddl`], keyed on
-//!    `Dialect` rather than on a driver.
+//!    emitters sit beside this module, in [`crate::ddl`], keyed on `Dialect`
+//!    rather than on a driver.
 //! 2. **§ 11's exclusions are not represented and must not be added casually.**
 //!    Foreign keys, partial and expression indexes, index types, collations,
 //!    check constraints and the rest are out of v1 because they have no portable
-//!    spelling, and the vocabulary grows only when a construct exists on all
-//!    five backends *and* something needs it.
+//!    spelling, and the vocabulary grows only when a construct exists on every
+//!    backend *and* something needs it.
 
 use std::fmt;
 
@@ -96,7 +96,7 @@ pub fn is_bare_identifier(name: &str) -> bool {
 
 /// A validated identifier: a table, column, constraint or index name.
 ///
-/// Comparison is case-**insensitive**, because the five backends disagree about
+/// Comparison is case-**insensitive**, because the backends disagree about
 /// folding and a schema that means different things on two of them is not
 /// portable. Two columns named `id` and `ID` are one column here, and declaring
 /// both is refused.
@@ -141,8 +141,8 @@ impl fmt::Display for Ident {
     }
 }
 
-/// How wide an integer column is, since the three widths are not one type on
-/// any backend and a narrowing is a table rewrite.
+/// How wide an integer column is, since the widths are not one type on any
+/// backend and a narrowing is a table rewrite.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IntWidth {
     /// `SMALLINT`, 16 bits.
@@ -196,11 +196,11 @@ impl FloatWidth {
 /// while that function is total.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ScalarType {
-    /// A signed integer of one of the three portable widths.
+    /// A signed integer of one of the portable widths.
     Int(IntWidth),
-    /// An unsigned integer. MySQL and MariaDB spell it `UNSIGNED`; the other
-    /// three have no unsigned integer and take the next width up with a check
-    /// the emitter writes.
+    /// An unsigned integer. MySQL and MariaDB spell it `UNSIGNED`; the others
+    /// have no unsigned integer and take the next width up with a check the
+    /// emitter writes.
     Uint(IntWidth),
     /// Binary floating point.
     Float(FloatWidth),
@@ -208,7 +208,7 @@ pub enum ScalarType {
     /// makes a Novis `decimal`.
     Decimal {
         /// Total significant digits, 1 to 38 — SQL Server's ceiling, which is
-        /// the lowest of the five.
+        /// the lowest any backend imposes.
         precision: u8,
         /// Digits after the point, no greater than `precision`.
         scale: u8,
@@ -272,8 +272,8 @@ impl ScalarType {
         }
     }
 
-    /// Whether this is one of the three integer types, which is what an
-    /// identity column may be.
+    /// Whether this is an integer type, which is what an identity column may
+    /// be.
     #[must_use]
     pub fn is_integer(&self) -> bool {
         matches!(self, ScalarType::Int(_) | ScalarType::Uint(_))
@@ -320,16 +320,15 @@ pub enum ColumnDefault {
     /// A boolean literal.
     Bool(bool),
     /// The server's current timestamp at insert — `CURRENT_TIMESTAMP`, the one
-    /// spelling all five share.
+    /// spelling every backend shares.
     Now,
 }
 
 impl ColumnDefault {
-    /// Whether this literal may be written as `ty`'s default on all five
-    /// backends.
+    /// Whether this literal may be written as `ty`'s default on every backend.
     ///
-    /// Two refusals here are portability rather than typing, and both are
-    /// MySQL's: a `BLOB`, a `TEXT` and a `JSON` column take no literal default
+    /// The refusals here that are portability rather than typing are MySQL's:
+    /// a `BLOB`, a `TEXT` and a `JSON` column take no literal default
     /// at all before 8.0.13 and only a parenthesized expression after, and an
     /// expression is not in this set. So an unbounded [`ScalarType::Text`],
     /// every [`ScalarType::Bytes`], [`ScalarType::Json`] and
@@ -422,8 +421,8 @@ impl Column {
     /// # Errors
     ///
     /// [`SchemaError::DefaultDoesNotFit`] when the literal is not one this type
-    /// takes on all five backends — [`ColumnDefault::fits`] says which pairs
-    /// those are and why two of them are portability rather than typing.
+    /// takes on every backend — [`ColumnDefault::fits`] says which pairs those
+    /// are and why some of them are portability rather than typing.
     pub fn default(mut self, value: ColumnDefault) -> Result<Column, SchemaError> {
         if !value.fits(&self.ty) {
             return Err(SchemaError::DefaultDoesNotFit(self.name));
@@ -1294,7 +1293,7 @@ mod tests {
             Ident::new(&long),
             Err(SchemaError::IdentifierTooLong(_))
         ));
-        // Case is not a distinction, because the five backends disagree about
+        // Case is not a distinction, because the backends disagree about
         // folding and a schema that means two things is not portable.
         assert_eq!(Ident::new("Id").unwrap(), Ident::new("id").unwrap());
     }
@@ -1346,8 +1345,8 @@ mod tests {
         assert!(matches!(twice, Err(SchemaError::Duplicate { .. })));
     }
 
-    /// § 2's closed default set, and the two refusals that are portability
-    /// rather than typing.
+    /// § 2's closed default set, and the refusals that are portability rather
+    /// than typing.
     ///
     /// The last assertion is the "and nothing else": an expression default is
     /// not a thing the canonical form can *say*, so the DDL-injection hole and
@@ -1404,7 +1403,7 @@ mod tests {
     }
 
     /// An identity column is an integer, there is at most one, and it is the
-    /// primary key — the three rules the four spellings of the construct share.
+    /// primary key — the rules every spelling of the construct shares.
     #[test]
     fn an_identity_column_is_an_integer_and_the_primary_key() {
         assert!(matches!(
@@ -1463,7 +1462,7 @@ mod tests {
     }
 
     /// `rule:core-classes/queue-storage-is-a-table`'s jobs table, said in the vocabulary that will replace its
-    /// four hand-written DDL lists.
+    /// hand-written DDL lists.
     ///
     /// The one construct it needs and this vocabulary has not got is
     /// PostgreSQL's partial unique index on `dedupe_key` — § 11 keeps partial

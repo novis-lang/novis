@@ -54,7 +54,7 @@ pub fn method_address(receiver: Value, name: &str, what: &str) -> Result<Option<
 /// `receiver`'s class descriptor, never null.
 ///
 /// `what` names the caller and `looked_for` what it wanted, both for a fault
-/// message neither of the two callers can reach from behaving code.
+/// message no caller can reach from behaving code.
 ///
 /// # Errors
 ///
@@ -156,7 +156,7 @@ pub fn call_static(ctx: &mut Ctx, label: &str, args: &[Value]) -> Result<Option<
 /// slots without asking — so both questions are asked *here*, through
 /// [`crate::closure`]'s `check_param_tags`, which is the one implementation
 /// `rule:types/conversion`'s `int`-into-`float` widening lives in and which `callable`
-/// and an erased method call already share. A third copy of that comparison is
+/// and an erased method call already share. Another copy of that comparison is
 /// exactly what the shared helper exists to prevent.
 ///
 /// A **native** row is refused rather than called: a `Core`-owned member
@@ -374,7 +374,7 @@ pub fn call_erased_method(
 ///
 /// # Errors
 ///
-/// [`method_address`]'s two engine faults, plus [`Fault::Pending`] when the
+/// [`method_address`]'s engine faults, plus [`Fault::Pending`] when the
 /// renderer itself faults.
 pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<Value>, Fault> {
     let desc = descriptor_of(receiver, what, "a renderer")?;
@@ -574,7 +574,7 @@ impl Drop for Fixtures {
 /// that is § 9's own rule rather than a convenience: each row is its own case,
 /// so its values are built where the call is made and released when it
 /// returns, and no two cases ever share one. A row holds only the constants
-/// `nvs_types::defaults::literal_default` folds — the four scalars and a
+/// `nvs_types::defaults::literal_default` folds — the scalars and a
 /// `string` — which is why there is one method per shape and no general
 /// [`Value`] way in: the one reference each carries is this type's, and a
 /// caller that could hand one over could hand over a second.

@@ -1,12 +1,12 @@
 //! Strict identity over two [`Value`]s, and the hash that agrees with it.
 //!
-//! One comparison, defined once, because seven `Core\Arr` members and every
+//! One comparison, defined once, because `Core\Arr`'s members and every
 //! `ObjectSet`/`ObjectMap` operation ask the same question —
 //! `docs/spec/01-core-library.md` § 2 says `contains`, `keyOf`, `unique`,
 //! `diff` and `intersect` "compare by **strict identity**", and a second
 //! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
-//! `rule:expressions/equality-semantics`'s table is this module's rows, reached three ways depending on what the
+//! `rule:expressions/equality-semantics`'s table is this module's rows, reached by whichever door the
 //! operands' static types already settled. A scalar pair is one machine
 //! comparison and never arrives here. An array pair arrives through
 //! [`nvs_array_eq`], a string pair through [`crate::nvs_str_eq`] and an object
@@ -71,7 +71,7 @@
 //!   `rule:classes/comparable`: comparing
 //!   two instances *by their contents* is a `Comparable::compareTo` call the
 //!   class opts into, so a member that walked properties here would be the
-//!   property-walk fallback that ADR removed. A closure is an object
+//!   property-walk fallback that rule refuses. A closure is an object
 //!   ([`crate::closure`]), so two `fn` literals are never identical and one
 //!   closure value is identical to a copy of itself.
 //!
@@ -96,11 +96,11 @@
 //! a quadratic member over request-shaped input is a denial of service, not a
 //! slow path. Its one obligation is the standard one: **identical values hash
 //! equally.** It is deliberately allowed to be coarse in the other direction,
-//! and is, in three places — a `NaN` hashes like any other float though it is
-//! identical to nothing, an array is hashed only [`HASH_DEPTH`] levels deep,
-//! and the numeric domain merges the one trio [`hash_numeric`] describes —
-//! because a collision costs one extra [`value_identical`] call and bounded
-//! work is what keeps the hash itself immune to a deep input.
+//! and is — a `NaN` hashes like any other float though it is identical to
+//! nothing, an array is hashed only [`HASH_DEPTH`] levels deep, and the
+//! numeric domain merges the one trio [`hash_numeric`] describes — because a
+//! collision costs one extra [`value_identical`] call and bounded work is
+//! what keeps the hash itself immune to a deep input.
 //!
 //! The numeric family is the one row where the hash costs more than a write:
 //! an `int` pays two casts, a `float` pays nothing, and a `decimal` pays the
@@ -112,7 +112,7 @@
 //! so the caller's own [`std::collections::HashSet`] supplies the randomly
 //! keyed [`std::collections::hash_map::RandomState`]. A fixed-key hash here
 //! would hand an attacker collision-crafting against a `Core` member, which
-//! is the exact failure the set index was introduced to avoid.
+//! is the exact failure the set index exists to avoid.
 
 use std::cmp::Ordering;
 use std::hash::Hasher;
@@ -178,9 +178,9 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
     match (left.tag(), right.tag()) {
         (Some(Tag::Null), Some(Tag::Null)) => true,
         (Some(Tag::Bool), Some(Tag::Bool)) => left.bits() == right.bits(),
-        // One arm, not four: `rule:expressions/equality-semantics`'s numeric row is a single row, so
-        // the four representations delegate to the one comparison that spans
-        // them rather than to four that disagree across their edges.
+        // One arm, not one per tag: `rule:expressions/equality-semantics`'s numeric row is a single
+        // row, so every representation delegates to the one comparison that
+        // spans them rather than to several that disagree across their edges.
         (
             Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
             Some(Tag::Int | Tag::Uint | Tag::Float | Tag::Decimal),
@@ -202,7 +202,7 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
         // Every remaining representation is an opaque handle: identical to
         // itself and to nothing else. That covers an object (this module's
         // docs say why pointer identity is the answer `rule:classes/comparable` leaves room
-        // for), the two tags nothing constructs yet, and the tag byte only a
+        // for), the tags nothing constructs yet, and the tag byte only a
         // miscompile can produce.
         _ => left.tag_byte() == right.tag_byte() && left.bits() == right.bits(),
     }
@@ -248,17 +248,17 @@ fn entries_identical(
 }
 
 /// Feeds `value` to `state` so that two [`value_identical`] values feed it the
-/// same bytes — see this module's docs for the two places it is deliberately
-/// coarser than the comparison.
+/// same bytes — see this module's docs for where it is deliberately coarser
+/// than the comparison.
 pub fn value_hash<H: Hasher>(value: Value, state: &mut H) {
     hash_to_depth(value, state, HASH_DEPTH);
 }
 
 /// [`value_hash`], carrying how many more levels of array it may descend.
 fn hash_to_depth<H: Hasher>(value: Value, state: &mut H, depth: u32) {
-    // One discriminant per *family*, not per tag: the four numeric
-    // representations share one because they are one domain, and every opaque
-    // handle shares one because it is hashed as its bits either way.
+    // One discriminant per *family*, not per tag: the numeric representations
+    // share one because they are one domain, and every opaque handle shares
+    // one because it is hashed as its bits either way.
     match value.tag() {
         Some(Tag::Null) => state.write_u8(0),
         Some(Tag::Bool) => {
@@ -390,7 +390,7 @@ fn integer_of(decimal: crate::Decimal) -> Option<i128> {
 /// `rule:expressions/equality-semantics`'s numeric row, which its § 2 admits as a compiling pairing and its § 5
 /// resolves a `mixed` operand to.
 ///
-/// It is reached two ways, and answers the same question in both:
+/// It is reached from either side, and answers the same question for both:
 /// `nvs_ir::Helper::NumericEq` when two statically typed operands crossed two
 /// representations, and [`shallow_identical`] when a `mixed` operand's runtime
 /// tags did — which is also `Core\Arr`'s strict identity, so
@@ -458,7 +458,7 @@ fn decimal_eq_integer(decimal: Value, integer: i128) -> bool {
 /// `rule:types/conversion`'s `float →
 /// decimal` row, so `(0.1 as decimal) == 0.1` holds — the answer this pairing
 /// exists to give, and the one the statically typed `nvs_ir::Helper::DecimalEq`
-/// already gave. It differs from [`integer_eq_float`]'s exact reading only for
+/// gives. It differs from [`integer_eq_float`]'s exact reading only for
 /// an integral float past 2^53, which [`hash_numeric`] is coarse enough to
 /// cover.
 fn decimal_eq_float(decimal: Value, float: Value) -> bool {
@@ -852,7 +852,7 @@ mod tests {
     }
 
     /// `rule:expressions/equality-semantics`'s string row, at the door compiled code actually uses.
-    /// The three tests above ask [`value_identical`] what a string is; this
+    /// The tests above ask [`value_identical`] what a string is; this
     /// one asks [`crate::nvs_str_eq`], which is what `$s == $t` calls, and
     /// pins the divergence that row decides: PHP's `==` read two numeric-
     /// looking strings as numbers, so it answered `true` to every pair here.
@@ -1025,7 +1025,7 @@ mod tests {
             Value::float(18_446_744_073_709_551_615_u64 as f64),
         ));
 
-        // A `decimal` reaches every one of the other three, at any scale.
+        // A `decimal` reaches every other representation, at any scale.
         let one = crate::Decimal::parse("1.000").expect("a decimal literal");
         assert!(numeric_identical(Value::decimal(one), Value::int(1)));
         assert!(numeric_identical(Value::uint(1), Value::decimal(one)));

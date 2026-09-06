@@ -24,7 +24,7 @@
 //! is always `false` — head-based `[trace] sample` is the only thing that will ever set it — and
 //! [`TraceContext::span_id`] is a bare drawn id rather than a span's. A continued trace's flag and
 //! parent id come from the header and are already right, which is why an inbound sampled trace is
-//! propagated onward today.
+//! propagated onward.
 //!
 //! **What it spends:** 25 bytes per request, and one 24-byte draw from the thread's CSPRNG when the
 //! context is built. O(in-flight requests), never O(requests served).

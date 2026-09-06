@@ -10,15 +10,15 @@
 //! stores is executed by a privileged account at every boot until somebody
 //! removes it. So [`plan`] is the whole surface's front door and its default is
 //! refusal — every path out of it is either a [`Plan`], which is constructed
-//! nowhere else, or one of § 2's five refusal classes as an `E063x`
+//! nowhere else, or one of § 2's refusal classes as an `E063x`
 //! diagnostic. Nothing downstream re-checks, because nothing downstream can
 //! obtain a `Plan` without having gone through it.
 //!
-//! The five codes are `E0630` (the argv names something other than a server),
+//! The codes are `E0630` (the argv names something other than a server),
 //! `E0631` (a relative path, or no `--config` at all), `E0632` (output with
 //! nowhere to go), `E0633` (a password on a command line) and `E0634` (a
-//! bundle installing itself). § 2's table has seven rows and this is five
-//! codes, because two pairs of those rows are one reason each: the
+//! bundle installing itself). § 2's table carries more rows than there are
+//! codes here, because rows that share a reason share a code: the
 //! subcommand allowlist and `--fault-inject` are both "the stored argv names
 //! an instruction that must not run under a privileged account", and the ADR
 //! itself calls a missing `--config` "the same first-boot failure as a
@@ -176,9 +176,9 @@ pub(crate) enum Delivery {
 ///
 /// # Errors
 ///
-/// One of § 2's five classes, as `E0630`–`E0634`, each naming what was refused
-/// and why — never a bare non-zero exit, which is that section's closing
-/// sentence.
+/// One of § 2's refusal classes, as an `E063x` diagnostic naming what was
+/// refused and why — never a bare non-zero exit, which is that section's
+/// closing sentence.
 pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnostic> {
     if host.from_a_bundle {
         return Err(Diagnostic::error(
@@ -484,7 +484,7 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
 
 /// § 5's systemd unit, rendered from a checked plan.
 ///
-/// Two of its lines are conditions rather than constants, and both are stated
+/// Some of its lines are conditions rather than constants, and each is stated
 /// in that section: `AmbientCapabilities` is emitted **only** when the
 /// configured listen addresses include a privileged port, so the ordinary case
 /// grants nothing at all, and `MemoryMax` is derived from `[limits]` rather
@@ -628,8 +628,8 @@ pub(crate) fn print_unit(
 
 /// What this process and the named configuration answer about themselves.
 ///
-/// The three configuration questions are read off the merged table rather than
-/// the typed tree, because each is one key and the tree would have to be
+/// The configuration questions are read off the merged table rather than the
+/// typed tree, because each is one key and the tree would have to be
 /// deserialized in full to reach them.
 fn describe_host(
     config: &[PathBuf],
@@ -895,7 +895,7 @@ mod tests {
             code::E_SERVICE_OUTPUT_GOES_NOWHERE
         );
 
-        // Either answer satisfies it, and only those two: `--log-file`…
+        // Either answer satisfies it, and nothing else does: `--log-file`…
         let mut logged = request(&argv);
         let path = PathBuf::from(absolute("log/web.log"));
         logged.log_file = Some(&path);
@@ -1020,9 +1020,9 @@ mod tests {
         assert!(text.contains(&format!("ExecStart={} serve", absolute("bin/nvs"))));
         assert!(text.contains(" ctl reload --socket "));
 
-        // § 5's one conditional: nothing is granted unless a privileged port
-        // is configured, asserted on both sides so a generator that always
-        // emitted it would fail here rather than read plausibly.
+        // § 5's capability condition: nothing is granted unless a privileged
+        // port is configured, asserted on both sides so a generator that
+        // always emitted it would fail here rather than read plausibly.
         assert!(!text.contains("AmbientCapabilities"));
         let mut privileged = plan;
         privileged.privileged_port = true;

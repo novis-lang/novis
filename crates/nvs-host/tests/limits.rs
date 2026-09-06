@@ -12,7 +12,7 @@
 //! place both halves are reachable from without a compiler in front of them.
 //!
 //! A closure here is built by hand rather than compiled: `call_closure` reads
-//! exactly three things off a closure value, so a `ClassTable` and a plain
+//! little enough off a closure value that a `ClassTable` and a plain
 //! `extern "C"` function are a whole one. `nvs-stdlib`'s `allocation_policy.rs`
 //! owns that shape and the reason the table is leaked.
 
@@ -164,8 +164,8 @@ unsafe extern "C" fn records_the_report(
     nvs_runtime::OK
 }
 
-/// [`SEEN_LIMIT`]'s twin for the spawn-depth case, and its doc owns why there
-/// are two.
+/// [`SEEN_LIMIT`]'s twin for the spawn-depth case, and its doc owns why they
+/// are separate.
 static SEEN_SPAWN_LIMIT: Mutex<Option<String>> = Mutex::new(None);
 
 /// [`records_the_report`] writing into [`SEEN_SPAWN_LIMIT`] instead.
@@ -415,10 +415,10 @@ fn a_limit_fatal_reaches_on_limit_and_never_a_catch() {
 ///
 /// Asserted from *inside* the handler, because that is the only place the
 /// reserve is observable: from outside, a request that has breached its ceiling
-/// and a request whose handler was given room look identical. The two readings
-/// together are the claim — the ceiling in force is exactly the ordinary one
-/// plus the reserve, and against it the request is no longer over — and the
-/// third, taken after the call returns, is that the room went away again rather
+/// and a request whose handler was given room look identical. The readings
+/// taken inside are the claim — the ceiling in force is exactly the ordinary
+/// one plus the reserve, and against it the request is no longer over — and the
+/// reading after the call returns is that the room went away again rather
 /// than becoming a request that had a larger ceiling all along.
 #[test]
 fn a_fatal_handler_runs_inside_its_reserved_slice() {
@@ -461,11 +461,12 @@ fn a_fatal_handler_runs_inside_its_reserved_slice() {
 /// under it is stopped again at its own first back edge, so its slice is zero
 /// wide however many nanoseconds `fatal_reserve_time` names.
 ///
-/// Four readings, because the claim is that the widening is *temporary and
-/// exact*. Inside, the ceiling is the ordinary one plus the reserve and the
-/// flag is down; outside, both are back as they were. A ladder that lowered the
-/// flag and left it down would pass the first two on its own while leaving a
-/// request that burned its whole ceiling looking as though it never had one.
+/// The readings come in pairs, because the claim is that the widening is
+/// *temporary and exact*. Inside, the ceiling is the ordinary one plus the
+/// reserve and the flag is down; outside, both are back as they were. A ladder
+/// that lowered the flag and left it down would pass the inside pair on its own
+/// while leaving a request that burned its whole ceiling looking as though it
+/// never had one.
 #[test]
 fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
     let mut ctx = Ctx::new(OutputSink::Sink);
@@ -513,7 +514,7 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
 ///
 /// Asserted on the **context**, because that is where the exception to `rule:security/isolate-shares-nothing` lives and where a
 /// regression would land: `Ctx::handler_isolate` is what parts from `Ctx::isolate`, and running a
-/// real `.nvs` through `ladder::escalate` would assert the same three fields through a compiler, a
+/// real `.nvs` through `ladder::escalate` would assert the same fields through a compiler, a
 /// capability and a path resolver, none of which is what this case is about.
 ///
 /// The parent is left in the state the ladder actually meets it in — past its memory ceiling *and*
@@ -660,7 +661,7 @@ impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
 /// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`'s second clause: the configured handler **still
 /// fires** when the request reporting itself is at its own memory ceiling.
 ///
-/// The sibling above asks [`Ctx::handler_isolate`] for the three fields it parts from
+/// The sibling above asks [`Ctx::handler_isolate`] for the fields it parts from
 /// `Ctx::isolate` on. This one asks the **ladder**, end to end and from a request that has already
 /// breached: `nvs_host::ladder::escalate` reading `[log] handler`, passing `rule:security/capability-check-at-the-door`'s spawn
 /// door, resolving the path, running the program under `Charge::EngineReserve` and answering
@@ -754,9 +755,9 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
 }
 
 /// Both halves the name promises are asserted, because either one alone is green against the
-/// failure this replaces. An unbounded recursion of isolates already stopped — it exhausted the
-/// tree's heap — and already stopped as a `FATAL`, so a case asking only whether the spawn was
-/// refused would have passed before any of this was written. What separates the two is the word the
+/// failure this pins. An unbounded recursion of isolates stops on its own — it exhausts the
+/// tree's heap — and stops as a `FATAL`, so a case asking only whether the spawn was
+/// refused would pass with no depth ceiling at all. What separates the two is the word the
 /// handler is handed, so it is read out of `rule:errors/on-limit`'s report rather than out of the message: a
 /// program branches on `max_script_depth`, never on a sentence.
 ///
@@ -823,12 +824,12 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
 /// tell the two apart: read at the end, every context in the tree answers the same number and a
 /// runtime accounting each isolate separately would look identical.
 ///
-/// The row names three budgets and this asks all three. CPU is the deadline word, which crosses as
+/// This asks each budget the row names. CPU is the deadline word, which crosses as
 /// the *word* in that same constructor: one store expires the whole tree, so a spawn cannot buy the
 /// tree more wall time than the request that started it was given — asked below of a child built
 /// before the timer fired, which is the order a copied flag would have failed. Output is the memory
 /// arrangement one field along — `nvs_runtime::budget`'s output count is per thread too and
-/// `Ctx::new` re-bases it too — so it is built in the same loop and asked with the same two
+/// `Ctx::new` re-bases it too — so it is built in the same loop and asked with the same
 /// readings, which is `rule:security/isolate-shares-nothing`'s "child output against the root's `max_output`".
 ///
 /// The safepoint at the end can only ever answer for memory, because that is the branch the poll
@@ -953,9 +954,9 @@ fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
 /// The snapshot `written` resolves to — the typed tree and the table beside it, because a request
 /// reads a directive out of one and a capability out of the other.
 ///
-/// The same three lines as `crates/nvs-runtime/tests/configured_limits.rs`'s `snapshot`, which is
+/// The same lines as `crates/nvs-runtime/tests/configured_limits.rs`'s `snapshot`, which is
 /// where a `[limits]` case wants it. Two test binaries in two crates cannot share a helper without
-/// a crate to put it in, and a shared crate for three lines would cost more than the copy.
+/// a crate to put it in, and a shared crate for a helper this small would cost more than the copy.
 fn snapshot_of(written: &str) -> Arc<Snapshot> {
     let table: toml::Table = written.parse().expect("the case writes valid TOML");
     Arc::new(Snapshot {
@@ -974,7 +975,7 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
 /// refuses the `capabilities` block whichever way it is asked, because that row is
 /// `Class::RuntimeTighten` and a grant is a list with no quantity to narrow *by*
 /// (`crates/nvs-config/src/request.rs:106`). So the grant in force where the spawn happened is the
-/// whole of what a child has, and this case asks the two ways a child could have got more.
+/// whole of what a child has, and this case asks the ways a child could have got more.
 ///
 /// **By inheriting a default.** The grant crosses in the cloned snapshot (`Ctx::isolate`,
 /// `crates/nvs-runtime/src/ctx/isolate.rs:188`), so both answers are asserted rather than the refusal
@@ -986,7 +987,7 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
 /// asking one of them would not separate: widening what is in force is a comparison that cannot be
 /// shown to narrow, and granting what was never granted has nothing in force to narrow *from*.
 ///
-/// The snapshot's identity is the third assertion. A child that re-resolved the tree from disk
+/// The snapshot's identity is asserted too. A child that re-resolved the tree from disk
 /// would answer every question above correctly against an unchanged file and silently widen the
 /// moment the file differed from what the parent was serving — which is the failure `rule:config/the-config-is-an-immutable-snapshot`'s
 /// one-clone-at-start exists to prevent, asked here of the second context in a tree rather than of

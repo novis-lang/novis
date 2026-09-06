@@ -12,7 +12,7 @@
 //! `rule:concurrency/after-response-outlives-the-connection`'s
 //! `afterResponse` work on a request, and has it cover every ending the process
 //! survives — normal, `exit`, an uncaught throw, and a request that died
-//! mid-flight. A context's teardown is all four of those at once and is
+//! mid-flight. A context's teardown is every one of those at once and is
 //! *structurally* last: both queues run against a live [`Ctx`], so anything that
 //! ran them has already returned by the time this does. So [`at_script_end`] is
 //! called from `Ctx::drop` and from nowhere else, and there is no ending a
@@ -45,14 +45,13 @@
 //! # § 4's orphan sweep decides here and acts elsewhere
 //!
 //! A script killed outright ran no [`Drop`] and so ran nothing above. What it
-//! left behind is § 4's, and that sweep runs in exactly two places — the
-//! `nvs serve` boot and `nvs tmp clean` — neither of which is in this crate.
-//! What *is* here is everything they share: [`owner_is_alive`], the predicate
-//! over one path, and [`orphans`], the walk over one root that applies it. The
-//! doors differ only in what they do with the list — the boot hands it to
-//! [`refusals`], `tmp clean` prints it and, with `--dry-run`, does nothing
-//! else — so there is no reading of "whose entry is this" for the two of them
-//! to come to disagree about.
+//! left behind is § 4's, and that sweep runs from the `nvs serve` boot and from
+//! `nvs tmp clean`, neither of which is in this crate. What *is* here is
+//! everything they share: [`owner_is_alive`], the predicate over one path, and
+//! [`orphans`], the walk over one root that applies it. The doors differ only
+//! in what they do with the list — the boot hands it to [`refusals`],
+//! `tmp clean` prints it and, with `--dry-run`, does nothing else — so there is
+//! no reading of "whose entry is this" for them to come to disagree about.
 //!
 //! [`refusals`] is the part with no logging in it, which is what makes the
 //! behaviour testable without a sink to read back.
@@ -193,8 +192,8 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 ///
 /// **A function over a path and nothing else**: no context, no configuration,
 /// no directory walk and no clock. [`orphans`] is the walk that asks it of one
-/// entry at a time, and § 4's two doors reach it through that, so the rule they
-/// share is one function rather than two walks that agree today.
+/// entry at a time, and § 4's doors reach it through that, so the rule they
+/// share is one function rather than separate walks that agree today.
 ///
 /// **Liveness, never age.** An age rule is precisely what deletes a
 /// long-running process's files out from under it; this cannot, because a live
@@ -221,13 +220,13 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
 /// `rule:core-classes/temporary-dir-orphan-sweep`'s walk: the entries of the owned root whose owner is dead,
 /// sorted, and nothing deleted.
 ///
-/// **It answers rather than acts**, because that is the whole of what § 4's two
+/// **It answers rather than acts**, because that is the whole of what § 4's
 /// doors have in common. The `nvs serve` boot hands this list to [`refusals`];
 /// `nvs tmp clean` prints each path and hands over the same list, or, under
 /// `--dry-run`, prints it and hands over nothing. A walk that deleted as it went
-/// could not serve the third of those, and each door would grow its own
-/// predicate — which is the one thing § 4 cannot afford, since the two of them
-/// disagreeing means over-deleting.
+/// could not serve that dry run, and each door would grow its own predicate —
+/// which is the one thing § 4 cannot afford, since doors that disagree mean
+/// over-deleting.
 ///
 /// **A root, not a context.** Each door knows its own root
 /// ([`crate::capability::temp_root`]) and neither has a [`Ctx`] to be asked
@@ -244,9 +243,9 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
 /// write — and following a link out of the owned root is the one move that
 /// would turn the sweep into the deletion primitive an attacker wanted.
 ///
-/// Sorted so that two doors reporting the same root report it in the same
+/// Sorted so that every door reporting the same root reports it in the same
 /// order, rather than in whatever order the filesystem enumerated. The cost is
-/// a sort over one directory, paid twice in the life of a machine.
+/// a sort over one directory, paid only where a door runs.
 ///
 #[must_use]
 pub fn orphans(root: &std::path::Path) -> Vec<PathBuf> {
@@ -484,7 +483,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// § 4's other two answers, in one case because they are one rule read from
+    /// § 4's remaining answers, in one case because they are one rule read from
     /// two sides: a pid no process can hold is dead, and everything this module
     /// did not name is skipped.
     ///

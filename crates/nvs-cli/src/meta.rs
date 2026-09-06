@@ -18,8 +18,8 @@
 //! ## What is omitted, and why
 //!
 //! A row with no documentation has **no `doc` key at all** — a shape the
-//! registry's own `every_registry_row_carries_a_reference_card` no longer lets
-//! a shipped row take, but that a consumer reading an older toolchain still
+//! registry's own `every_registry_row_carries_a_reference_card` forbids a
+//! shipped row, but that a consumer reading an older toolchain still
 //! meets — and a documented row's `short`/`return` strings and
 //! `params`/`shape`/`errors`/`cases` arrays appear **only when non-empty** — a
 //! class with no constants has no `constants` key either, and a member that
@@ -27,10 +27,9 @@
 //! mechanical: the registry spells "not written yet" as the empty value, and a
 //! consumer must be able to tell that apart from "written, and empty" without
 //! learning the convention — an absent key is the one spelling that needs no
-//! explanation. The website's `scripts/lib/meta.mjs` is the consumer this was
-//! built against.
+//! explanation. The website's `scripts/lib/meta.mjs` is the consumer.
 //!
-//! ## The signature half, and the four tables beside the registry
+//! ## The signature half, and the tables beside the registry
 //!
 //! A row is **signature** as well as documentation, and `docs/novis.md` —
 //! the one-file reference `tools/reference.py` generates — is built from this
@@ -40,7 +39,7 @@
 //! `length(string $s): uint`), `params` with each positional parameter's
 //! type, qualifier and default, `options` for a trailing bag, and `returns`;
 //! a class carries `typeParams` and `constructor` when it has them, a
-//! constant its `type` and `value`. Beside `classes` and `enums` sit the four
+//! constant its `type` and `value`. Beside `classes` and `enums` sit the
 //! rosters the compiler declares outside the registry and a program can
 //! reach: `exceptions` ([`nvs_hir::errors::TREE`]), `interfaces`
 //! ([`nvs_hir::interfaces::RESERVED`]), `attributes`
@@ -284,7 +283,7 @@ fn signature(member: &CoreMethod) -> String {
 }
 
 /// A [`CoreTy`] in the spelling a program writes it — the spec's column, so
-/// `Text(Sink)` is `string` and `Iterated(T)` is the three shapes `foreach`
+/// `Text(Sink)` is `string` and `Iterated(T)` is the shapes `foreach`
 /// accepts. The wildcard arm is the one `#[non_exhaustive]` requires, and it
 /// is where a variant this crate has not learned to spell would show up.
 fn ty_string(ty: &CoreTy) -> String {
@@ -580,7 +579,7 @@ mod tests {
 
     /// The signature half spells a row the way the spec's column does:
     /// defaults aligned to the end, a bag last, a written type argument on
-    /// the name — read off three rows the registry ships.
+    /// the name — read off rows the registry ships.
     #[test]
     fn a_signature_is_the_specs_own_spelling() {
         let find = |class: &str, member: &str| -> &'static CoreMethod {
@@ -602,8 +601,8 @@ mod tests {
         assert!(signature(find(r"Core\Json", "decodeAs")).starts_with("decodeAs<T>("));
     }
 
-    /// Every member of every class carries the four signature keys, and the
-    /// four rosters beside the registry are non-empty tables.
+    /// Every member of every class carries its signature keys, and every
+    /// roster beside the registry is a non-empty table.
     #[test]
     fn every_member_carries_its_signature_half_and_every_roster_is_present() {
         let document = document();

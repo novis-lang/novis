@@ -14,7 +14,7 @@ fn governing(key: &str) -> &'static Directive {
 /// `rule:config/reloadability-is-its-own-field`: reloadability answers *what applying a change requires* and the changeability
 /// class answers *who may set it*. The two are independent, and the failure this pins is a registry
 /// that reads one off the other — which typechecks, looks right row by row, and re-creates the very
-/// reading ("`System` means read once at boot") that ADR replaced.
+/// reading ("`System` means read once at boot") that ADR refuses.
 #[test]
 fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     let census = |class: Class, apply: Apply| {
@@ -52,7 +52,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         }
     }
 
-    // `rule:config/reloadability-is-its-own-field`'s own two lists, key by key. `Boot` first — the narrow set.
+    // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
     for key in ["cache.dir", "control.socket", "server.listen"] {
         assert_eq!(
             governing(key).apply,
@@ -91,7 +91,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
 }
 
 /// The longest-prefix rule, and the pair it exists for: `[limits]` and `[limits.hard]` spell the
-/// same five key names under two different classes (`rule:config/three-changeability-classes`), so a registry keyed on the last
+/// same key names under two different classes (`rule:config/three-changeability-classes`), so a registry keyed on the last
 /// segment would answer `Runtime` for a ceiling.
 #[test]
 fn a_more_specific_row_wins_and_a_prefix_must_end_on_a_dot() {
@@ -194,7 +194,7 @@ fn keys_in(block: &str) -> Vec<String> {
 /// to rather than the class of the ones somebody listed.
 #[test]
 fn every_http_response_directive_is_runtime_class() {
-    // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the three blocks a *response* reads. `[http.client]` (§ 5) is the outbound
+    // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the blocks a *response* reads. `[http.client]` (§ 5) is the outbound
     // half and `[http.errors]` is `rule:errors/compile-failure`'s, so neither is this case's question.
     for block in ["http.headers", "http.cors", "http.cookies"] {
         for key in keys_in(block) {

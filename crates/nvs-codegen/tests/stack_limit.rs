@@ -87,8 +87,8 @@ fn a_leaf_function_under_the_slack_emits_no_stack_check() {
 fn a_runaway_recursion_reports_a_limit_rather_than_faulting() {
     let mut ctx = Ctx::buffered();
     // A ceiling of twice the reserve puts the soft address one reserve below
-    // this frame, so the recursion trips after ~256 KiB of real stack and
-    // never approaches whatever this thread actually has.
+    // this frame, so the recursion trips within a reserve's worth of real
+    // stack and never approaches whatever this thread actually has.
     let here = std::ptr::from_ref(&ctx) as usize;
     ctx.arm_stack_limit(here, 2 * STACK_RESERVE);
 

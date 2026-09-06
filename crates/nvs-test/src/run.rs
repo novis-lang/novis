@@ -4,7 +4,7 @@
 //!
 //! Every program a case names is run by spawning the `nvs` binary, not by
 //! calling the compiler in-process. It costs a process launch per case, and
-//! buys three things worth more than that: a case that hits a contained
+//! buys what is worth more than that: a case that hits a contained
 //! engine failure (`rule:errors/escalation-ladder`)
 //! reports as one failure instead of taking the runner down with it; the exit
 //! status and the two output streams are the same ones a user sees; and the
@@ -34,16 +34,15 @@ use crate::expect::{matches, normalize, shown};
 /// How long one case's process may run before the runner gives up on it.
 ///
 /// Not a performance budget. A conformance case compiles and runs a program of
-/// a few dozen lines, and the whole 1570-case tree takes about five seconds on
-/// sixteen threads, so this is three orders of magnitude of headroom over a
-/// case that is merely slow: it is the line past which a case has stopped
-/// running and started being wedged.
+/// a few dozen lines, and the whole tree finishes in seconds on a pooled run,
+/// so this leaves orders of magnitude of headroom over a case that is merely
+/// slow: it is the line past which a case has stopped running and started
+/// being wedged.
 ///
 /// It exists because without it one such case takes the suite with it, and a
 /// suite that hangs reports nothing at all. On a hosted runner that is the
-/// difference between a red build and a six-hour one — which is what a wedged
-/// `nvs-server` case cost on 2026-09-06, before `.github/workflows/ci.yml`
-/// carried a `timeout-minutes` either.
+/// difference between a red build and one that burns the whole job budget
+/// before anything says why.
 pub const CASE_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// How the runner reaches the two binaries it drives.
@@ -57,7 +56,7 @@ pub struct Options {
     pub filter: Option<String>,
     /// How many cases are in flight at once. Every case is its own process
     /// in its own directory already, so this only says how many of those
-    /// run side by side; [`crate::run()`] owns the measurement.
+    /// run side by side; [`crate::run()`] owns what the pool buys.
     pub jobs: usize,
     /// How long one case's process may run before it is killed and reported as
     /// a failure. [`CASE_TIMEOUT`] is the default and owns the reasoning.
@@ -97,9 +96,9 @@ pub enum Outcome {
 /// True when [`Options::php`] names something that can actually be run.
 ///
 /// Probed once per suite rather than per case: a `--ORACLE--` case without an
-/// oracle is unrunnable, not failing, and reporting sixty identical failures
-/// on a machine that simply has no PHP installed would drown the one line
-/// that says so.
+/// oracle is unrunnable, not failing, and one identical failure per case on a
+/// machine that simply has no PHP installed would drown the one line that says
+/// so.
 #[must_use]
 pub fn php_available(opts: &Options) -> bool {
     Command::new(&opts.php).arg("--version").output().is_ok()
@@ -361,9 +360,8 @@ fn spawn(
 /// off a clock. The alternative — a `try_wait` loop with a sleep in it — puts
 /// the whole suite on the host's timer granularity, since `thread::sleep` on
 /// Windows rounds up to the system timer's resolution and a poll asking for a
-/// hundred microseconds can get fifteen milliseconds. Nothing here sleeps, and
-/// the 1570-case conformance tree measures the same as it did without a
-/// deadline at all: 4.8s against 4.7s, five runs each.
+/// hundred microseconds can get fifteen milliseconds. Nothing here sleeps, so
+/// the deadline costs the conformance tree nothing measurable.
 ///
 /// End of file on both pipes means the process has let go of them, which for
 /// every process this runs — one `nvs` or one `php` — means it is on its way

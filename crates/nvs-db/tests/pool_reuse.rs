@@ -2,7 +2,7 @@
 //! server: two requests on one core share one connection, and it is the *same*
 //! connection rather than a second one that answers as well; with
 //! `pool = false` they share nothing, which is the same question asked of the
-//! switch that turns the whole thing off; and the two bounds that decide what a
+//! switch that turns the whole thing off; and the bounds that decide what a
 //! pool keeps — `lifetime` and `idle` — close a socket rather than only drop a
 //! row from a store.
 //!
@@ -38,14 +38,14 @@
 //! single spelling — a missing temporary table is an error rather than a value,
 //! and [`handshake`](/crates/nvs-db/tests/handshake.rs) is where that half is asserted.
 //!
-//! **MariaDB is a third telling of the reuse case and not of the two bounds.**
-//! `lifetime` and `idle` are decided by `nvs_runtime::pool` before any driver is
-//! consulted: the connection they retire is never handed back to anyone, so a
-//! third copy of those two would re-ask a question with no MariaDB anywhere in
-//! it. What is this driver's own is the acquire path — the `Connection::MariaDb`
-//! variant filed and unfiled, and `MariaConn::reset`'s own
-//! `COM_RESET_CONNECTION` standing where `MySqlConn::reset`'s stands, over a
-//! socket that authenticated through a different plugin roster.
+//! **MariaDB retells the reuse case and not the bounds.** `lifetime` and `idle`
+//! are decided by `nvs_runtime::pool` before any driver is consulted: the
+//! connection they retire is never handed back to anyone, so another copy of
+//! them would re-ask a question with no MariaDB anywhere in it. What is this
+//! driver's own is the acquire path — the `Connection::MariaDb` variant filed
+//! and unfiled, and `MariaConn::reset`'s own `COM_RESET_CONNECTION` standing
+//! where `MySqlConn::reset`'s stands, over a socket that authenticated through
+//! a different plugin roster.
 //!
 //! # The teardown is `pool::release`, called the way `Ctx` calls it
 //!
@@ -81,7 +81,7 @@ const DEADLINE: Duration = Duration::from_secs(10);
 /// one.
 ///
 /// Two shapes of `None` and neither is a failure: no harness at all, and a leg
-/// testing one of the other four drivers, which runs every test in this crate
+/// testing one of the other drivers, which runs every test in this crate
 /// including this one.
 fn postgres() -> Option<Server> {
     let endpoint = matrix::endpoint()?;
@@ -172,8 +172,8 @@ fn mysql_open(server: &Server) -> MySqlConn {
 }
 
 /// [`mysql_open`]'s twin, and the target type is the whole of the difference:
-/// `MariaTarget` carries the same seven fields and reaches a different auth
-/// roster and a different error table.
+/// `MariaTarget` carries the same fields and reaches a different auth roster
+/// and a different error table.
 fn mariadb_open(server: &Server) -> MariaConn {
     let target = MariaTarget {
         host: &server.host,
@@ -196,7 +196,7 @@ fn mysql_one_value(conn: &mut MySqlConn, sql: &str) -> Option<String> {
     first_text(conn.query(sql, &[]).expect("the server ran the statement"))
 }
 
-/// [`mysql_one_value`] on the third driver.
+/// [`mysql_one_value`] on the MariaDB driver.
 fn mariadb_one_value(conn: &mut MariaConn, sql: &str) -> Option<String> {
     first_text(conn.query(sql, &[]).expect("the server ran the statement"))
 }
@@ -579,7 +579,7 @@ fn two_requests_on_one_core_share_one_mysql_connection() {
     );
 }
 
-/// § 13 on the third driver: MariaDB's own `COM_RESET_CONNECTION` hands the
+/// § 13 on MariaDB: that driver's own `COM_RESET_CONNECTION` hands the
 /// connection one request released to the next request on that core, clean.
 ///
 /// [`two_requests_on_one_core_share_one_mysql_connection`]'s assertion over the

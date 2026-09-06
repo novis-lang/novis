@@ -7,9 +7,9 @@
 //! `rule:concurrency/a-child-belongs-to-the-calling-task`'s
 //! `Core\Task::all` runs its fields as children of the calling task, and that
 //! task lives on `nvs-host`'s scheduler. A `Core` member is a `nvs-stdlib`
-//! helper. Nothing joined those two before this module, and the three decisions
-//! that join them are recorded here because this is the file neither side can
-//! be read without.
+//! helper. This module is what joins those two, and the decisions that join
+//! them are recorded here because this is the file neither side can be read
+//! without.
 //!
 //! # 1. The edge is inverted through this crate, not added between the two
 //!
@@ -50,9 +50,9 @@
 //!
 //! # 3. What crosses is a group, not a task API
 //!
-//! [`Host`]'s first method is [`Host::run_group`], and it takes a whole group.
-//! It is deliberately **not** `spawn` / `wait` / `cancel` for `nvs-stdlib` to
-//! sequence, and that is the decision worth the most here.
+//! [`Host`]'s central operation is [`Host::run_group`], and it takes a whole
+//! group. It is deliberately **not** `spawn` / `wait` / `cancel` for
+//! `nvs-stdlib` to sequence, and that is the decision worth the most here.
 //!
 //! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s guarantee — "control does not leave the call with work still
 //! running" — is a property of the *sequence*, not of any one call in it. A
@@ -68,21 +68,20 @@
 //! differ in how their jobs are *built* — a shape literal's fields against one
 //! callback over an array — and in nothing about how they run.
 //!
-//! The second method, [`Host::sleep`], is the exception that proves the shape
-//! rather than a crack in it: it is not a piece of a group's sequence, it is a
-//! member that has to *wait* and would otherwise stall the core for every
-//! neighbour on it. Its own doc owns why it is here, and a third method is a
-//! decision to make on the same terms — what does this member wait for that a
-//! group cannot express — rather than a slot to fill.
+//! [`Host::sleep`] is the exception that proves the shape rather than a crack
+//! in it: it is not a piece of a group's sequence, it is a member that has to
+//! *wait* and would otherwise stall the core for every neighbour on it. Its own
+//! doc owns why it is here, and a further method is a decision to make on the
+//! same terms — what does this member wait for that a group cannot express —
+//! rather than a slot to fill.
 //!
-//! [`Outcome`] is § 4's table, all four rows of it, and the last one is a
-//! variant for a reason worth stating: "the calling task is cancelled" would be
-//! no return at all if the caller could be unwound where it stands, which is
-//! how it was first written here. It cannot. The caller of a `Core` member is
-//! standing on an `extern "C"` frame, a forced unwind may not cross one
-//! ([`crate::HelperFrame`]), so the host resumes the caller and this call
-//! returns [`Outcome::Cancelled`] like anything else. The member's answer is
-//! [`Ctx::cancel`], which is § 5's teardown by
+//! [`Outcome`] is § 4's table, every row of it, and the last one is a variant
+//! for a reason worth stating: "the calling task is cancelled" would be no
+//! return at all if the caller could be unwound where it stands. It cannot.
+//! The caller of a `Core` member is standing on an `extern "C"` frame, a forced
+//! unwind may not cross one ([`crate::HelperFrame`]), so the host resumes the
+//! caller and this call returns [`Outcome::Cancelled`] like anything else. The
+//! member's answer is [`Ctx::cancel`], which is § 5's teardown by
 //! `rule:errors/propagation`'s return status: no
 //! `catch` sees it and no script code runs on the way out.
 //!
@@ -240,7 +239,7 @@ pub enum Output {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Entry {
     /// A `.nvs` file the resolver compiled — [`crate::script::resolve`]'s
-    /// answer, and the form that has been here since `rule:security/isolate-shares-nothing` landed.
+    /// answer, and the form `rule:security/isolate-shares-nothing` is written around.
     #[default]
     Path,
     /// A `static` method of the unit the parent is already running, reached
@@ -411,10 +410,9 @@ pub trait Running: std::fmt::Debug {
 /// Whatever is running tasks on this thread, as much of it as a `Core` member
 /// is allowed to want.
 ///
-/// Exactly one implementor is ever expected — `nvs-host`'s scheduler — and
-/// there is none at this commit: the seam is the route, and the body that
-/// travels it is the next slice. The module docs own why the trait is declared
-/// here rather than there, and why it has one method rather than a task API.
+/// Exactly one implementor is ever expected — `nvs-host`'s scheduler. The
+/// module docs own why the trait is declared here rather than there, and why it
+/// carries a whole group rather than a task API.
 ///
 /// `Debug` is a supertrait so that [`Installed`] can derive it; an implementor
 /// is expected to be a unit struct, since every scrap of a scheduler's state is
@@ -433,9 +431,9 @@ pub trait Host: std::fmt::Debug {
     /// Gives the core back for `duration`, resuming the calling task no earlier
     /// than the end of it.
     ///
-    /// The second method, and the smallest one that could be here: a member
-    /// that waits for the *clock* has no readiness to register and no group to
-    /// hand over, so it cannot reach a host through
+    /// The smallest thing that could be here: a member that waits for the
+    /// *clock* has no readiness to register and no group to hand over, so it
+    /// cannot reach a host through
     /// [`Host::run_group`] and would otherwise call
     /// [`std::thread::sleep`] — which stalls every task pinned to the same
     /// core, `rule:http-server/a-core-is-never-blocked-on-a-syscall`

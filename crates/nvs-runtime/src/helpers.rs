@@ -25,8 +25,8 @@
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
 //!
-//! Every `nvs_ir::Helper` variant now has an entry point here. Two entry points
-//! here back no `Helper` variant at all — [`nvs_array_required_get`] and
+//! Every `nvs_ir::Helper` variant has an entry point here. The entry points
+//! that back no `Helper` variant at all are [`nvs_array_required_get`] and
 //! [`nvs_array_optional_get`], the two halves of `nvs_ir::InstKind::ArrayGet`,
 //! which names one of them directly off its own `absent` field. That
 //! instruction's doc comment says why a subscript read rather than a conversion
@@ -163,7 +163,7 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ArrayTruthy` — falsy iff the array holds no entries,
     /// for any element type. [`nvs_str_truthy`]'s structure with a different
-    /// emptiness test, as this module's own docs predicted it would be.
+    /// emptiness test.
     fn nvs_array_truthy(_ctx, args: [1]) {
         let array = args[0]
             .array_ptr()
@@ -283,10 +283,10 @@ crate::nvs_helper! {
     /// `rule:errors/propagation` signature only because it can now fail.
     ///
     /// PHP warns and yields `null` here. Novis has no `null` to put in an
-    /// `array<string>`, and the null-shaped value this used to answer with was
-    /// read by every consumer as its declared type — a string pointer, an
-    /// object pointer — so the failure was a null dereference below the
-    /// language rather than an error inside it. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 records
+    /// `array<string>`, and a null-shaped answer would be read by every
+    /// consumer as its declared type — a string pointer, an object pointer —
+    /// so the failure would be a null dereference below the language rather
+    /// than an error inside it. `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11 records
     /// the divergence, and it is row 8 (an undefined *variable* is a check-time
     /// error) one storage kind along: absent storage is never a zero value.
     ///
@@ -517,7 +517,7 @@ crate::nvs_helper! {
     /// is [`nvs_numeric_lt`]'s row read whole rather than asked one question.
     ///
     /// Total, so no error edge. See [`spaceship`] for the `NaN` row, which is
-    /// the one place the three `<=>` helpers had a choice to make.
+    /// the one place a `<=>` helper has a choice to make.
     fn nvs_numeric_cmp(_ctx, args: [2]) {
         Ok(Value::int(spaceship(crate::numeric_ordering(args[0], args[1]))))
     }
@@ -525,7 +525,7 @@ crate::nvs_helper! {
 
 /// `rule:types/arithmetic`'s ordering table, chosen from two runtime **tags** rather than
 /// from two static types — the row a `mixed` or a union operand defers, and the
-/// one `nvs_ir::Helper::ValueLt` and its two siblings are all reading.
+/// one `nvs_ir::Helper::ValueLt` and its siblings are all reading.
 ///
 /// `Ok(None)` is the unordered answer a `NaN` operand gives, exactly as
 /// [`crate::numeric_ordering`] and [`decimal_ordering`] give it, and it makes
@@ -641,8 +641,8 @@ crate::nvs_helper! {
 }
 
 /// One row of `rule:types/arithmetic`'s arithmetic and bitwise table, named so that the
-/// eleven helpers below share one implementation of it rather than eleven
-/// copies of the tag dispatch.
+/// helpers below share one implementation of it rather than a copy of the tag
+/// dispatch apiece.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ArithRow {
     Add,
@@ -700,8 +700,8 @@ impl ArithRow {
 /// division returns defers, and the one the `nvs_ir::Helper::ValueAdd` family
 /// is all reading. It is [`value_ordering`]'s twin, one table over from it.
 ///
-/// Three refusals live here, where the ordering table has one, and each is the
-/// same refusal `nvs_types` makes wherever the static types show it:
+/// The refusals here outnumber the ordering table's, and each is the same
+/// refusal `nvs_types` makes wherever the static types show it:
 ///
 /// * **A pair the table names no row for** — a `string`, an `array<T>`, an
 ///   object, `null`, a `bool` — has no arithmetic at all rather than PHP's
@@ -713,12 +713,12 @@ impl ArithRow {
 /// * **Overflow throws**, § 4's least tradeable divergence from PHP, which is
 ///   what makes every integer row below a `checked_*` and not a `wrapping_*`.
 ///
-/// Two rows are deliberately narrower than "the operands are numbers", and both
-/// are guarded rather than answered:
+/// Certain rows are deliberately narrower than "the operands are numbers", and
+/// each is guarded rather than answered:
 ///
-/// * The **`decimal`** rows are `rule:types/arithmetic`'s five arithmetic ones and no
+/// * The **`decimal`** rows are `rule:types/arithmetic`'s arithmetic ones and no
 ///   more — its `**` is `E0455` and its bit operators `E0706` — so a `decimal`
-///   under one of the six it grants nothing takes the refusal.
+///   under an operator it grants nothing takes the refusal.
 /// * The **`float`** rows are § 4's "either operand a `float`" for `+ - * / **`
 ///   only. `%` is left out on purpose: `nvs-codegen` lowers no `float` `%`
 ///   either, so refusing here is the answer that *agrees* with the statically
@@ -870,8 +870,8 @@ fn signed_div(left: i64, right: i64) -> Result<Value, Fault> {
 }
 
 /// `rule:types/arithmetic`'s `int ** int` row, square-and-multiply with the overflow throw
-/// checked at every step — `nvs-codegen`'s `emit_int_pow` in Rust, including
-/// its two details: the square is not taken after the last set bit, and a
+/// checked at every step — `nvs-codegen`'s `emit_int_pow` in Rust, down to its
+/// details: the square is not taken after the last set bit, and a
 /// negative exponent throws except over a base of `1` or `-1`, which do have an
 /// integer answer.
 fn signed_pow(base: i64, exponent: i64) -> Result<i64, Fault> {
@@ -904,7 +904,7 @@ fn signed_pow(base: i64, exponent: i64) -> Result<i64, Fault> {
 }
 
 /// `rule:types/arithmetic`'s `<<`/`>>` over an `int`, whose count PHP judges where the
-/// machine masks it — `nvs-codegen`'s `emit_shift` in Rust, and its three rules
+/// machine masks it — `nvs-codegen`'s `emit_shift` in Rust, and its rules
 /// unchanged: a negative count throws, a count of 64 or more answers all-zeros
 /// or all-sign, and `>>` is arithmetic on an `int`.
 fn signed_shift(op: ArithRow, left: i64, count: i64) -> Result<Value, Fault> {
@@ -922,7 +922,7 @@ fn signed_shift(op: ArithRow, left: i64, count: i64) -> Result<Value, Fault> {
     Ok(Value::int(value))
 }
 
-/// The `uint ⊕ uint` rows — [`signed_arith`]'s, minus the two asymmetries an
+/// The `uint ⊕ uint` rows — [`signed_arith`]'s, minus the asymmetries an
 /// unsigned type does not have: no count can be negative, and `**` has no
 /// negative exponent, so neither carries a guard.
 fn unsigned_arith(op: ArithRow, left: u64, right: u64) -> Result<Value, Fault> {
@@ -1053,7 +1053,7 @@ fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
     }))
 }
 
-/// `rule:types/arithmetic`'s five arithmetic rows behind a `mixed`, over
+/// `rule:types/arithmetic`'s arithmetic rows behind a `mixed`, over
 /// [`decimal_operand`]'s one promotion of an `int`/`uint` operand — the same
 /// implementation the statically typed `decimal` helpers use, so the two ends
 /// of the row cannot answer differently.
@@ -1139,7 +1139,7 @@ value_arith_helper! {
 /// a static type — [`value_arith`]'s one-operand twin, and the last shape of
 /// that table an erased operand had no answer for.
 ///
-/// `-` is over the four numeric types and no more. The two integer rows are
+/// `-` is over the numeric types and no more. The integer rows are
 /// `checked_neg` for the table's own reason: `-i64::MIN` has no `int` and every
 /// non-zero `uint` has no negation at all, so § 4's overflow throw reaches the
 /// unary row too, worded exactly as `nvs-codegen`'s `emit_unop` words the
@@ -1174,10 +1174,10 @@ fn value_neg(value: Value) -> Result<Value, Fault> {
 }
 
 /// `rule:types/arithmetic`'s `~` row behind a `mixed`, which is narrower than
-/// [`value_neg`]'s by exactly the two rows `& | ^ << >>` is narrower than the
+/// [`value_neg`]'s by exactly the rows `& | ^ << >>` is narrower than the
 /// arithmetic ones by: the bit operators are over `int` and `uint` alone, so a
 /// `float` or a `decimal` operand is a number with no bit pattern to
-/// complement. It is total over the two rows it does have — every 64-bit
+/// complement. It is total over the rows it does have — every 64-bit
 /// pattern is a value of each — so unlike `-` it cannot overflow.
 fn value_bit_not(value: Value) -> Result<Value, Fault> {
     match value.tag() {
@@ -1201,10 +1201,10 @@ fn negation_overflowed() -> Fault {
     Fault::thrown("Integer negation overflowed".to_owned())
 }
 
-/// The catchable throw the two unary rows raise for an operand `rule:types/arithmetic`
+/// The catchable throw the unary rows raise for an operand `rule:types/arithmetic`
 /// tabulates no row for — [`no_arithmetic`]'s shape with one operand, carrying
 /// the reading `nvs_types::expr::operators::reject_unary_arith_operand` gives
-/// the same refusal (`E0705`, and `E0706` for the two `~` leaves out) wherever
+/// the same refusal (`E0705`, and `E0706` for the rows `~` leaves out) wherever
 /// the static type shows it.
 fn no_unary(spelling: &str, value: Value) -> Fault {
     // The one operand PHP would have converted silently, and [`no_arithmetic`]'s
@@ -1316,8 +1316,8 @@ fn numeric_does_not_fit(what: &str, target: &str) -> Fault {
 /// Every row has two entry points and never a third: the statically chosen
 /// helper below it, which turns a `None` into [`does_not_fit`], and the
 /// tag-dispatching [`to_int`]/[`to_uint`]/[`to_float`], which every operand
-/// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Those
-/// three are read twice each — once throwing, once answering `null` for
+/// whose representation is `nvs_ir::ty::Ty::Tagged` reaches instead. Each of
+/// those is read twice — once throwing, once answering `null` for
 /// `rule:expressions/nullable-conversion`'s
 /// `expr as ?T`. That ADR's "one implementation now exists because there is one
 /// operation" is what this split makes true rather than promised — the throwing
@@ -1650,7 +1650,7 @@ crate::nvs_helper! {
 /// lowering branch per possible source — the same "one tag per target, not one
 /// per (source, target) pair" rule [`to_int`] already follows.
 ///
-/// **Three tags convert to nothing, and each throws** rather than producing
+/// **The tags that convert to nothing each throw** rather than producing
 /// PHP's `"Array"`-plus-warning: `rule:core-api/shape-rules`
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer `rule:types/conversion` removed from the language. An **object** is among them
@@ -1959,7 +1959,7 @@ crate::nvs_helper! {
 /// same "one tag per target" arrangement [`to_int`] and [`value_to_string`]
 /// already follow.
 ///
-/// Exactly two tags have a row, and both are free. A [`Tag::Str`] *is* the
+/// Only the buffer tags have a row, and both are free. A [`Tag::Str`] *is* the
 /// buffer a `bytes` is, minus the UTF-8 promise, so it is handed back under the
 /// other tag over the same allocation; a [`Tag::Bytes`] is `rule:types/conversion`'s
 /// identical-type row, which converts nothing anywhere it is written. Both
@@ -2270,7 +2270,7 @@ fn decimal_ordering(left: Value, right: Value) -> Option<std::cmp::Ordering> {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::DecimalEq` — see [`decimal_ordering`]. `!=` is this
     /// helper under an `nvs_ir::UnOp::Not`, which is also what gives a `NaN`
-    /// operand PHP's answer to every one of the six.
+    /// operand PHP's answer at every comparison operator.
     fn nvs_decimal_eq(_ctx, args: [2]) {
         Ok(Value::bool(decimal_ordering(args[0], args[1]).is_some_and(std::cmp::Ordering::is_eq)))
     }
@@ -2325,7 +2325,7 @@ crate::nvs_helper! {
     }
 }
 
-/// `rule:types/conversion`'s four `→ decimal` rows, chosen by the operand's **runtime**
+/// `rule:types/conversion`'s `→ decimal` rows, chosen by the operand's **runtime**
 /// tag rather than by a static type — the same "one tag per target, not one
 /// per (source, target) pair" arrangement [`to_int`] and [`value_to_string`]
 /// already follow, which is what makes `$mixed as decimal` the same code as
@@ -2411,7 +2411,7 @@ crate::nvs_helper! {
     /// `␡`, a C1 code point and an unterminated bidirectional control both
     /// become `�`, and `LF` and `TAB` pass through. It fires **regardless of
     /// qualifier and regardless of whether the stream is a terminal** — that
-    /// section's two *uniform, not* paragraphs own why, and the short version is
+    /// section's *uniform, not* paragraphs own why, and the short version is
     /// that a rule whose effect depends on a fact invisible at the `echo` line
     /// is a worse implicit than the uniform one.
     ///
@@ -2529,7 +2529,7 @@ crate::nvs_helper! {
     /// "exactly one raw path, `Cli\Text`" read literally: the raw path is a
     /// *type*, so it has to be recognised while the operand still has one.
     /// `nvs-ir` sends every `Ty::Object` and `Ty::Tagged` operand here for that
-    /// reason — those are the two static types a carrier can arrive under, and
+    /// reason — those are the static types a carrier can arrive under, and
     /// a scalar or a `Ty::Str` still takes [`nvs_echo_str`] and one helper call
     /// less. [`is_carrier_value`] owns why the question is asked of the class
     /// rather than of a bit travelling with the bytes.
@@ -2537,10 +2537,9 @@ crate::nvs_helper! {
     /// Without this, `echo Cli\Text::styled("…", $warn)` would print `␛` where
     /// the style belongs: the carrier would lower through [`value_to_string`]
     /// to a `Tag::Str` and the sink would neutralize the very bytes `Cli\Style`
-    /// had just put there. Nothing was broken before styling existed — the one
-    /// producer was `Core\Out::capture`, whose bytes have already been through
-    /// a sink and which the table's idempotence covers — so this is the
-    /// mechanism § 2 needed rather than a fix.
+    /// had just put there. `Core\Out::capture`'s bytes need no such path: they
+    /// have already been through a sink, and the table's idempotence covers
+    /// them.
     ///
     /// The render itself is [`fn@stringify`], unchanged and shared with `.`
     /// concatenation: `rule:classes/stringable`'s `toString` dispatch still runs for an
@@ -2655,8 +2654,8 @@ crate::nvs_helper! {
 /// The per-type helpers above are what compiled code reaches wherever a static
 /// type names the row: the checker already knows an `if`'s operand type, so
 /// the branch is picked at compile time and there is no tag test on the hot
-/// path. This is the row for everything else, and it has two callers that
-/// arrive by different routes at the same question. Native `Core` code holds
+/// path. This is the row for everything else, and its callers arrive by
+/// different routes at the same question. Native `Core` code holds
 /// a [`Value`] a closure just returned, whose static type is `callable`'s
 /// opaque result and therefore nothing; and compiled code holding a
 /// `nvs_ir::ty::Ty::Tagged` operand — a `mixed`, a union, a `?T` no test
@@ -2666,7 +2665,7 @@ crate::nvs_helper! {
 /// case tagged into a `mixed` reads as its backing integer**, so a case backed
 /// by `0` is falsy where `rule:enums/truthiness` makes every statically-typed enum case
 /// truthy. `nvs_codegen::ty::tag_of` is where that is decided — `rule:enums/representation`
-/// reserves an enum tag and nothing writes one yet, so by the time a case is
+/// reserves an enum tag that nothing writes, so by the time a case is
 /// here it is indistinguishable from the `int` behind it.
 ///
 /// A `Tag::Object` value is always truthy, which includes an exception and a
@@ -3287,7 +3286,7 @@ mod tests {
 
     /// `rule:types/conversion`: "integral and in range, or throws. Rounding is
     /// `floor`/`ceil`/`round`, said out loud" — so a fractional value is
-    /// refused rather than silently picking one of the three.
+    /// refused rather than silently picking one of them.
     #[test]
     fn a_float_to_an_integer_refuses_anything_it_would_have_to_round() {
         assert_eq!(
@@ -3391,7 +3390,7 @@ mod tests {
     }
 
     /// A tag `rule:types/conversion` writes no row from throws rather than substituting
-    /// PHP's `"Array"`-plus-warning. An array stands for the four such tags:
+    /// PHP's `"Array"`-plus-warning. An array stands for every such tag:
     /// they share one arm.
     #[test]
     fn a_tag_with_no_string_row_throws() {

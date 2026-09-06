@@ -1,7 +1,7 @@
 //! The CFG/SSA IR itself: a [`Program`] of [`Function`]s, each a graph of
 //! [`BasicBlock`]s of SSA [`Inst`]ructions ending in exactly one
-//! [`Terminator`]. See the crate's own module docs for this first slice's
-//! scope and known gaps.
+//! [`Terminator`]. See the crate's own module docs for this crate's scope and
+//! known gaps.
 
 use nvs_diagnostics::Span;
 
@@ -299,7 +299,7 @@ pub struct Inst {
     /// [`InstKind::Call`], [`InstKind::CallVirtual`], [`InstKind::New`],
     /// [`InstKind::NewDynamic`], [`InstKind::CoreCall`], every
     /// [`InstKind::HelperCall`], [`InstKind::SlotGet`]/[`InstKind::SlotSet`],
-    /// [`InstKind::ArrayGet`] in both of [`crate::ir::AbsentKey`]'s shapes,
+    /// [`InstKind::ArrayGet`] in each of [`crate::ir::AbsentKey`]'s shapes,
     /// [`InstKind::ArrayAppend`], [`InstKind::ArraySpread`], **every
     /// integer arithmetic row** — `+`, `-`, `*`, `/` and `%` over
     /// [`crate::ty::Ty::Int`]/[`crate::ty::Ty::Uint`] as an
@@ -307,12 +307,12 @@ pub struct Inst {
     /// [`InstKind::UnOp`] — and **`/` over
     /// [`crate::ty::Ty::Float`]**. All of those throw
     /// `rule:types/arithmetic`'s
-    /// `ArithmeticError`: the divisions on a zero divisor, and the other
-    /// four on overflow, which that section makes a throw rather than a wrap
+    /// `ArithmeticError`: the divisions on a zero divisor, and the rest
+    /// on overflow, which that section makes a throw rather than a wrap
     /// or a promotion to `float`. The float `/` is on the list because § 4
     /// refuses the zero divisor before the operand types are consulted, so it
-    /// is one rule and not two; it is the *only* float row here, the other
-    /// four being total. None of these is a call at all —
+    /// is one rule and not two; it is the *only* float row here, every other
+    /// float row being total. None of these is a call at all —
     /// `nvs-codegen` tests and raises inline, so this edge is the frame's
     /// cleanup path and nothing else. `None` is for the instructions that
     /// return no status to check: a comparison, the rest of the float rows, an
@@ -327,7 +327,7 @@ pub struct Inst {
     /// non-`OK` status, and a stack-limit or deadline stop can arrive out of
     /// any call at all — each of those is a `FATAL` or an `EXITED` that ends
     /// the request rather than something a `catch` selects. Giving them no
-    /// landing block was cheaper by a cold block per site and cost a leak of
+    /// landing block would be cheaper by a cold block per site and would leak
     /// the entire frame every time one fired, which is `O(requests served)`
     /// growth on a shape an attacker can drive (unbounded recursion) and on
     /// one an ordinary CLI program writes (`exit()`). The block is on the
@@ -357,7 +357,7 @@ pub enum InstKind {
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
     /// A reserved safepoint poll site — function entry (recursion) or a
-    /// loop's back edge, the two sites the project-start "safepoints emitted
+    /// loop's back edge, the sites the project-start "safepoints emitted
     /// from the first backend commit" decision names
     /// ([`docs/adr/README.md`](/docs/adr/README.md)'s "Decisions
     /// taken at project start" section) and that ADR 0018 § *Negative*
@@ -366,8 +366,8 @@ pub enum InstKind {
     /// branch, and the **function-entry** one — the first in the entry
     /// block — also carries `rule:errors/on-limit`'s call-stack compare, which is why
     /// that ADR calls the site "not a new pass and not a new emit site".
-    /// Reserving the shape ahead of any of that was the point: inserting it
-    /// after the fact would have meant re-walking every already-lowered
+    /// Reserving the shape ahead of any of that is the point: inserting it
+    /// after the fact means re-walking every already-lowered
     /// function, the same "cheap now, expensive to retrofit" reason
     /// `crate::ids` already gives for `StmtId`/`EdgeId`. Defines no value.
     Safepoint,
@@ -381,7 +381,7 @@ pub enum InstKind {
     ConstFloat(f64),
     /// A `decimal` constant — `rule:types/numeric-literal-placement`'s untyped-until-placed literal, once a target type has placed it.
     ///
-    /// Carried as the three parts rather than as the sixteen-byte image
+    /// Carried as its parts rather than as the sixteen-byte image
     /// [`crate::ty::Ty::Decimal`] describes, because this crate does not
     /// depend on `nvs-runtime` and that image's bit positions are
     /// `nvs_runtime::decimal`'s one home. `nvs-codegen` depends on both and is
@@ -406,8 +406,7 @@ pub enum InstKind {
     /// exactly one implicit owner (itself), the same "one natural reference"
     /// starting point [`InstKind::New`] gives a freshly constructed object.
     /// See `crate::lower::cook_str_literal`'s own doc comment for exactly
-    /// which escape sequences are cooked this slice and which are a known
-    /// gap.
+    /// which escape sequences are cooked and which are a known gap.
     ConstStr(String),
     /// A `bytes` constant's octets — [`InstKind::ConstStr`]'s row under
     /// [`crate::ty::Ty::Bytes`], and the same one heap allocation with one
@@ -419,7 +418,7 @@ pub enum InstKind {
     /// language, so this exists for a `Core` signature's optional `bytes`
     /// parameter, whose default a call site materializes
     /// (`nvs_types::defaults::ConstArg::Bytes`). `Core\Bytes::join`'s
-    /// `$separator = ""` is the first.
+    /// `$separator = ""` is such a default.
     ConstBytes(Vec<u8>),
     /// Reads the function's own parameter at this positional index.
     Param(u32),
@@ -442,8 +441,8 @@ pub enum InstKind {
     },
     /// A phi node: selects the incoming value based on which predecessor
     /// block control arrived from. One entry per predecessor that can reach
-    /// this instruction's own block — `if`/`while`'s join points are the
-    /// first thing to construct one; see `crate::lower`'s module docs.
+    /// this instruction's own block — `if`/`while`'s join points construct
+    /// them; see `crate::lower`'s module docs.
     /// A single-entry phi is a legal (if degenerate) case: a `while` body
     /// that never reaches its own back edge (e.g. it always returns) leaves
     /// the loop header's phi with only the pre-loop incoming edge.
@@ -729,7 +728,7 @@ pub enum InstKind {
     /// object at all — so `crate::lower::expr`'s `ReceiverProof::Erased` emits no
     /// [`InstKind::Untag`] for it and the whole value travels here. A
     /// non-object receiver is a catchable throw in PHP's own wording; every
-    /// *statically* non-object receiver was already `E0495` at the checker.
+    /// *statically* non-object receiver is `E0495` at the checker.
     ///
     /// Borrows its receiver exactly as [`InstKind::FieldGet`] does: the slot
     /// keeps owning what it holds, so a consumer that outlives the receiver
@@ -892,10 +891,10 @@ pub enum InstKind {
     ///
     /// **N-ary, not binary, and that is what makes it one allocation.** `.` is
     /// left-associative and an interpolated string is a run of pieces, so both
-    /// producers used to fold into a chain of two-operand `Concat`s — and every
-    /// link of that chain allocated a buffer holding the accumulation so far
-    /// and copied it, so an n-piece concatenation allocated n-1 buffers and
-    /// copied its leading pieces n-1 times. One instruction carrying every
+    /// producers could fold into a chain of two-operand `Concat`s — where every
+    /// link of that chain allocates a buffer holding the accumulation so far
+    /// and copies it, so an n-piece concatenation allocates n-1 buffers and
+    /// copies its leading pieces n-1 times. One instruction carrying every
     /// piece is one allocation, sized once, with each piece copied once:
     /// `crate::lower::Lowering::lower_concat` flattens the `.` spine and
     /// `crate::lower::Lowering::lower_interpolated_parts` hands its pieces over
@@ -1146,8 +1145,8 @@ pub enum InstKind {
         operand: ValueId,
     },
     /// Invokes one of a small, closed, engine-owned set of runtime
-    /// conversions — the milestone's third named ingredient, and this
-    /// crate's first. `helper` is a fixed [`Helper`] tag, never a resolved
+    /// conversions — one of the milestone's named ingredients. `helper` is a
+    /// fixed [`Helper`] tag, never a resolved
     /// class/method name: unlike [`InstKind::Call`]'s `target`, nothing here
     /// comes from `nvs_types::expr_table::ExprTypeTable` or a class
     /// hierarchy, so there is no receiver, no virtual dispatch question, and
@@ -1223,13 +1222,13 @@ pub enum InstKind {
     /// Reads the element at `key` off `array` — `$arr[$i]`, whose base
     /// statically resolved to a known `array<T>` element type (an
     /// `nvs_types::expr_table::ExprInfo::Index` entry exists for it; see
-    /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is in one
-    /// of exactly two representations — [`crate::ty::Ty::Str`], or
+    /// `crate::lower::Lowering::lower_expr`'s `Index` arm). `key` is either a
+    /// [`crate::ty::Ty::Str`], or a
     /// [`crate::ty::Ty::Int`] for a subscript that was already an `int` and
     /// therefore never rendered — which is the crate docs' *an array key is
-    /// a `string`, and an `int` subscript no longer spells it*. `rule:types/arrays`'s key normalization is unchanged (`$a[8]` is still `$a["8"]`);
-    /// where the decimal is produced is what moved. A `uint` subscript is
-    /// still rendered by `crate::lower::Lowering::lower_array_key`, with the
+    /// a `string`, and an `int` subscript does not spell it*. `rule:types/arrays`'s key normalization is untouched (`$a[8]` is `$a["8"]`);
+    /// the decimal is simply never produced. A `uint` subscript is
+    /// rendered by `crate::lower::Lowering::lower_array_key`, with the
     /// exact [`Helper::UintToString`] conversion
     /// [`Lowering::concat_operand`](crate::lower::Lowering::concat_operand)
     /// already gives `.`'s scalar operand rather than a new policy; that
@@ -1244,21 +1243,21 @@ pub enum InstKind {
     /// point `nvs_array_required_get` — which is why the two representations
     /// above are told apart there, by the key's own tag, rather than by
     /// picking a symbol here. PHP warns and yields `null`; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
-    /// records the divergence and that helper's doc comment says why the old
-    /// answer was a null dereference rather than a value. A stored `null` is
+    /// records the divergence, and that helper's doc comment says why yielding
+    /// `null` there would be a null dereference rather than a value. A stored `null` is
     /// *not* an absent key and reads back unchanged. Under
     /// [`AbsentKey::Null`] it is infallible, its result is
     /// [`crate::ty::Ty::Tagged`] whatever the element type is, and the entry
     /// point is `nvs_array_optional_get`. The write side asks the
-    /// same question and answers it a third way — an absent key vivifies —
+    /// same question and answers it differently — an absent key vivifies —
     /// which is what [`Helper::ArrayRowForWrite`] exists for. Reads `array`
     /// without
     /// retaining it, the same way `FieldGet` reads its `object` receiver — a
     /// caller copying the result into a second durable slot retains it
-    /// there instead (`crate::lower::is_aliasing_read` now also matches
-    /// `ExprKind::Index`, so the existing `bind_local`/`lower_call_args`/
-    /// `StmtKind::Return` insertion points already do this with no new
-    /// call site).
+    /// there instead (`crate::lower::is_aliasing_read` also matches
+    /// `ExprKind::Index`, so the `bind_local`/`lower_call_args`/
+    /// `StmtKind::Return` insertion points already do this with no call site
+    /// of their own).
     ArrayGet {
         /// The array, already lowered.
         array: ValueId,
@@ -1280,7 +1279,7 @@ pub enum InstKind {
     /// that split observable, and modeling a conditional get here would mean
     /// guessing at PHP's own missing-key behavior at the one place — an
     /// *ordinary* new-key insert — where nothing should be missing to begin
-    /// with. `key` is `Ty::Str` or `Ty::Int`, the same two representations
+    /// with. `key` is `Ty::Str` or `Ty::Int`, the same representations
     /// [`InstKind::ArrayGet`]'s own doc comment describes.
     /// `crate::lower::Lowering::lower_reassignment`'s `Index`-target arm
     /// retains `key`/`value` first when either is
@@ -1501,7 +1500,7 @@ pub enum InstKind {
 /// no descriptor for — and none of them can name a [`ValueId`].
 #[derive(Debug)]
 pub enum TestedClass {
-    /// A class or interface written at the site. Every producer but `rule:types/class-reference-sites`'s dynamic one gives this, including the two `catch` ladders and
+    /// A class or interface written at the site. Every producer but `rule:types/class-reference-sites`'s dynamic one gives this, including the `catch` ladders and
     /// `as`'s own downcast check.
     Named(String),
     /// The [`Ty::ClassDesc`] a `class<T>` operand evaluated to, tested against
@@ -1537,20 +1536,20 @@ pub enum AbsentKey {
 /// the same reason [`BinOp`]/[`UnOp`] already are one: the set is small,
 /// closed, and known entirely to this crate and `nvs-codegen`, never
 /// user-extensible, so a string name would only trade compile-time
-/// exhaustiveness for nothing. Three families exist so far: a scalar-to-
+/// exhaustiveness for nothing. The families: a scalar-to-
 /// [`crate::ty::Ty::Str`] conversion — for `.` concatenation
 /// (`crate::lower::Lowering::concat_operand`), with `UintToString` reused
 /// verbatim by `crate::lower::Lowering::lower_array_key` to render the one
 /// array subscript that cannot travel unrendered, and `IntToString` by
 /// `crate::lower::Lowering::lower_rendered_array_key` for the one caller
-/// that still needs a `Ty::Str` key (`rule:types/arrays`) — and a
+/// that needs a `Ty::Str` key (`rule:types/arrays`) — and a
 /// scalar-or-`Ty::Array`-to-[`crate::ty::Ty::Bool`] truthiness test, ADR
 /// 0035's table, used by `crate::lower::Lowering::lower_truthy_cond` for an
 /// `if`/`while` condition whose static type isn't already `bool` (a
 /// `Ty::Object` condition needs none of these: `rule:enums/truthiness` makes it always
 /// truthy with nothing to inspect at runtime, so that case lowers straight to
-/// a fresh [`InstKind::ConstBool`] instead). The third has one member,
-/// [`Helper::ArrayRowForWrite`], and is here for the reason its own doc
+/// a fresh [`InstKind::ConstBool`] instead). A family of its own is
+/// [`Helper::ArrayRowForWrite`], here for the reason its own doc
 /// gives: an array primitive whose ownership answer is uniform across a
 /// present and an absent key, which no borrowing read can be.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1609,7 +1608,7 @@ pub enum Helper {
     /// table row, where a `mixed` or a union "resolved dynamically per this
     /// table, dispatching on the value's runtime type".
     ///
-    /// The row the six helpers above name statically, chosen at run time
+    /// The row the helpers above name statically, chosen at run time
     /// instead: `nvs_runtime::value_truthy` reads the tag and applies the same
     /// rule the matching helper would have, so a `mixed` holding `"0"` and a
     /// `string $s = "0"` answer alike. It is the truthiness twin of
@@ -1644,7 +1643,7 @@ pub enum Helper {
     /// `a + b` over [`crate::ty::Ty::Decimal`] —
     /// `rule:types/arithmetic`, which
     /// **throws** on either overflow kind rather than wrapping or promoting,
-    /// so this and the four below carry `rule:errors/propagation`'s error edge like any call.
+    /// so this and its siblings below carry `rule:errors/propagation`'s error edge like any call.
     ///
     /// Either operand may be an `int` or a `uint` instead: § 3's
     /// `decimal ⊕ int` row promotes exactly in 96 bits, and the helper does it
@@ -1677,8 +1676,8 @@ pub enum Helper {
     /// even where a common arithmetic type is not.
     DecimalEq,
     /// `a < b` with a `decimal` operand. **`>` is this helper with its
-    /// operands swapped** — see [`Self::DecimalEq`] for why three helpers
-    /// cover all six comparisons.
+    /// operands swapped** — see [`Self::DecimalEq`] for why each of these
+    /// helpers covers a comparison and its mirror.
     DecimalLt,
     /// `a <= b` with a `decimal` operand; `>=` is this one swapped.
     DecimalLtEq,
@@ -1690,7 +1689,7 @@ pub enum Helper {
     /// [`Self::NumericCmp`] and [`BinOp::Cmp`].
     DecimalCmp,
     /// `$n as uint` — `rule:types/conversion`'s `int` ↔ `uint` row. Exact, or **throws**
-    /// on a negative value. The first of nine helpers that can fail rather
+    /// on a negative value. One of the helpers that can fail rather
     /// than convert, so each is emitted through
     /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge like any call.
@@ -1733,14 +1732,14 @@ pub enum Helper {
     BytesToString,
     /// `$x as ?int` — `rule:expressions/nullable-conversion`'s non-throwing form of every row above that lands on `int`: the
     /// value `as int` would produce, or `null` where it would throw. Cannot
-    /// fail, so unlike the nine throwing rows it carries no error edge, and
+    /// fail, so unlike the throwing rows it carries no error edge, and
     /// its result is a [`crate::ty::Ty::Tagged`] value rather than a bare
     /// `int`.
     ///
     /// **One tag per target, not one per (source, target) pair.** This helper
     /// dispatches on the operand's runtime tag, which is what makes `rule:expressions/nullable-conversion`'s "a `null` operand yields `null`" and § 3's "from `mixed` every
     /// target has a checked path" the same code as `"42" as ?int` rather than
-    /// three lowering branches — the operand is already a tagged `Value` by
+    /// a lowering branch per source — the operand is already a tagged `Value` by
     /// the time any helper sees it (`nvs_codegen`'s `store_value`).
     ToIntOrNull,
     /// `$x as ?uint` — [`Self::ToIntOrNull`]'s row set, unsigned.
@@ -1764,7 +1763,7 @@ pub enum Helper {
     /// program's own and reaches the request unchanged. `nvs_runtime`'s
     /// `stringify_or_null` is where that line is drawn.
     ToStringOrNull,
-    /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s two rows in `rule:expressions/nullable-conversion`'s
+    /// `$x as ?bytes` — [`Self::TaggedToBytes`]'s rows in `rule:expressions/nullable-conversion`'s
     /// non-throwing form, sharing that helper's one implementation of them for
     /// the reason [`Self::ToStringOrNull`] shares its own.
     ///
@@ -1775,7 +1774,7 @@ pub enum Helper {
     /// would throw" leaves the statically typed `$s as ?bytes` refused
     /// (`E0709`) rather than lowered here.
     ToBytesOrNull,
-    /// `$x as decimal` — `rule:types/conversion`'s four `→ decimal` rows, chosen by the
+    /// `$x as decimal` — `rule:types/conversion`'s `→ decimal` rows, chosen by the
     /// operand's runtime tag the way [`Self::ToIntOrNull`] chooses, so one
     /// helper covers `int`, `uint`, `float`, `string` and `mixed` alike.
     /// Throws where the row fails or does not exist, so it carries an error
@@ -1796,7 +1795,7 @@ pub enum Helper {
     /// `$d as string` — total, and **scale-preserving**: `19.90` renders as
     /// `"19.90"`, which is `rule:types/conversion`'s row.
     DecimalToString,
-    /// A [`crate::ty::Ty::Tagged`] operand to `string` — the four scalar
+    /// A [`crate::ty::Ty::Tagged`] operand to `string` — the scalar
     /// conversions above plus `null`, chosen by the operand's **runtime** tag
     /// rather than by a static type, since a `mixed`, a `?T` or any other
     /// union has none to choose by.
@@ -1813,11 +1812,11 @@ pub enum Helper {
     /// (`rule:types/erased-member-access`), a
     /// union, a `Core`-owned class — and `nvs_runtime::stringify` answers it
     /// by asking the receiver's runtime class for `rule:classes/stringable`'s `toString`.
-    /// The static path is unchanged and cheaper: where `nvs_types` did resolve
+    /// The static path is cheaper: where `nvs_types` resolved
     /// one, an ordinary [`InstKind::CallVirtual`] is emitted and no helper is
     /// reached at all.
     ///
-    /// **The one string conversion that can fail**, so unlike the four static
+    /// **The one string conversion that can fail**, so unlike the static
     /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
     /// carries `rule:errors/propagation`'s error edge: an array, a closure, a resource and an
     /// object whose class declares no `toString` have no row, and
@@ -1888,7 +1887,7 @@ pub enum Helper {
     /// Writes one already-[`crate::ty::Ty::Str`] operand's cooked bytes to
     /// the process's standard output, unescaped — `echo`'s one and only
     /// effect under `nvs run`, decided in `docs/agent/loop-goal.md`. Defines no
-    /// value: the only [`Helper`] so far that is invoked for an effect
+    /// value: a [`Helper`] invoked for an effect
     /// rather than a conversion, so its [`InstKind::HelperCall`] is emitted
     /// with `result: None` and every other variant's "the result is a fresh
     /// `Ty::Str` nothing else owns" release policy does not apply to it.
@@ -1899,7 +1898,7 @@ pub enum Helper {
     /// [`Self::EchoStr`]'s sink over an operand that has **not** been converted
     /// to [`crate::ty::Ty::Str`] first — `echo`'s row for a
     /// [`crate::ty::Ty::Object`] or [`crate::ty::Ty::Tagged`] operand, which are
-    /// the two static types `rule:security/capture-answers-the-carrier`'s sink carrier can arrive under.
+    /// the static types `rule:security/capture-answers-the-carrier`'s sink carrier can arrive under.
     ///
     /// `rule:tooling/terminal-output-is-a-sink`
     /// puts exactly one raw path in the language and § 2 makes it a *type*,
@@ -2066,13 +2065,12 @@ pub enum Helper {
     /// `a + b` where at least one operand is a [`crate::ty::Ty::Tagged`] —
     /// `rule:types/arithmetic`'s
     /// **arithmetic** rows chosen from the operands' runtime tags, exactly as
-    /// [`Self::ValueLt`] chooses its ordering ones, and the last shape that
-    /// used to reach `nvs_codegen::emit`'s representation catch-all.
+    /// [`Self::ValueLt`] chooses its ordering ones.
     ///
-    /// The eleven of them are one table in the runtime
-    /// (`nvs_runtime::helpers::value_arith`) asked eleven different rows, and
-    /// that function's doc comment is the table's one home. Three things about
-    /// the family belong *here*, because they are lowering decisions:
+    /// The family is one table in the runtime
+    /// (`nvs_runtime::helpers::value_arith`) asked a different row each, and
+    /// that function's doc comment is the table's one home. What follows
+    /// belongs *here*, because these are lowering decisions:
     ///
     /// * **The result is [`crate::ty::Ty::Tagged`] whatever the operands
     ///   hold**, since which row a pair of tags takes is only known when they
@@ -2080,15 +2078,15 @@ pub enum Helper {
     ///   same reason integer `/` already carries that representation, and
     ///   `crate::lower::Lowering::coerce` absorbs it into a declared type by
     ///   the same rows.
-    /// * **Every one carries [`Inst::on_error`]**, and for two reasons where
-    ///   the ordering family has one: § 4's table is closed, so a pair it names
+    /// * **Every one carries [`Inst::on_error`]**, and for more reasons than
+    ///   the ordering family has: § 4's table is closed, so a pair it names
     ///   no row for throws; *and* the rows it does name throw on overflow,
-    ///   which is the divergence from PHP the ADR is least willing to trade.
-    ///   `int ⊕ uint` is a third — the pair has no representable common type,
+    ///   which is the divergence from PHP the ADR is least willing to trade;
+    ///   *and* `int ⊕ uint` has no representable common type,
     ///   so `E0407`'s refusal arrives here as a throw when only the tags know.
     /// * **A `decimal` operand is a row of this table, not of
     ///   [`Self::DecimalAdd`]'s.** Behind a `mixed` there is no static
-    ///   `decimal` to route on, so `rule:types/arithmetic`'s five arithmetic rows are
+    ///   `decimal` to route on, so `rule:types/arithmetic`'s arithmetic rows are
     ///   answered from the tag alongside the integer ones — over the very same
     ///   `Decimal` methods, so the two ends of the row cannot disagree.
     ValueAdd,
@@ -2107,8 +2105,8 @@ pub enum Helper {
     /// `a & b` over a tagged pair — see [`Self::ValueAdd`]. `rule:types/arithmetic`'s
     /// `& | ^ << >>` row is `int` and `uint` alone, the same list
     /// `nvs_types::expr::operators::reject_bitwise_operand` refuses every
-    /// other operand against (`E0706`), so the five bitwise members of this
-    /// family have a narrower table than the six arithmetic ones.
+    /// other operand against (`E0706`), so the bitwise members of this
+    /// family have a narrower table than the arithmetic ones.
     ValueBitAnd,
     /// `a | b` over a tagged pair — see [`Self::ValueBitAnd`].
     ValueBitOr,
@@ -2134,7 +2132,7 @@ pub enum Helper {
     /// exactly what the tag arrives to say.
     ///
     /// Unary `+` has no member here because it has no row anywhere: it is the
-    /// identity over all four numeric types, so
+    /// identity over every numeric type, so
     /// `crate::lower::Lowering::lower_unary` returns the operand itself and
     /// emits no instruction, a tagged operand included.
     ValueNeg,
@@ -2201,8 +2199,8 @@ pub enum Helper {
     /// `nvs_types::expr_table::ExprInfo::SecretEquality` at the comparison and
     /// `lower_binary` reads it back.
     ///
-    /// Costed in `rule:security/secret-comparison-is-constant-time`: ≈10 ns against ≈2 ns for the short-circuiting
-    /// row, so **≈+8 ns per comparison** — priority 1 bought with priority 3,
+    /// Costed in `rule:security/secret-comparison-is-constant-time`: a few nanoseconds more per comparison
+    /// than the short-circuiting row — priority 1 bought with priority 3,
     /// which is the ordering AGENTS.md states.
     SecretEq,
     /// `$fn(...)` —
@@ -2304,8 +2302,9 @@ pub enum Helper {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[non_exhaustive]
 pub enum BinOp {
-    /// `+`. Over an `int` or a `uint` this and the four below carry
-    /// [`Inst::on_error`] — see that field for which of them throws on what.
+    /// `+`. Over an `int` or a `uint` this and the arithmetic operators below
+    /// carry [`Inst::on_error`] — see that field for which of them throws on
+    /// what.
     Add,
     /// `-`
     Sub,
@@ -2331,9 +2330,10 @@ pub enum BinOp {
     /// calls `nvs_runtime::nvs_float_pow` for the float one, there being no
     /// `fpow` on any target and no `LibCall` for it either.
     Pow,
-    /// `&` — `rule:types/arithmetic` preserves the operand type, and this and the two
-    /// below are total: no pair of `int`s or `uint`s has an unrepresentable
-    /// bitwise combination, so none of the three carries [`Inst::on_error`].
+    /// `&` — `rule:types/arithmetic` preserves the operand type, and this and the
+    /// bitwise operators below are total: no pair of `int`s or `uint`s has an
+    /// unrepresentable bitwise combination, so none of them carries
+    /// [`Inst::on_error`].
     BitAnd,
     /// `|`
     BitOr,
@@ -2344,7 +2344,7 @@ pub enum BinOp {
     /// `int` (a `uint` count cannot be negative), and a count of 64 or more
     /// answers `0` rather than the masked shift x86 would perform.
     Shl,
-    /// `>>` — [`Self::Shl`]'s two rules, and one of its own: `rule:types/arithmetic` makes
+    /// `>>` — [`Self::Shl`]'s rules, and one of its own: `rule:types/arithmetic` makes
     /// this **arithmetic** on an `int` and **logical** on a `uint`, so a count
     /// past the width fills with the sign bit in the first case and with zero
     /// in the second.
@@ -2461,7 +2461,7 @@ pub enum Terminator {
     /// [`Terminator::Propagate`] does at a site with no `catch` above it. A
     /// `FATAL` and an `EXITED` are the statuses that take this edge — no
     /// `catch` admits either (`rule:errors/escalation-ladder`)
-    /// — so before it existed a `try` region turned every one of them into a
+    /// — so without it a `try` region would turn every one of them into a
     /// leak of the whole frame.
     Catch {
         /// The catchable exit: a block of this landing site's own that jumps

@@ -1,5 +1,5 @@
-//! The process environment, as the two reads a `Core` member is allowed to
-//! make of it.
+//! The process environment, as the reads a `Core` member is allowed to make of
+//! it.
 //!
 //! A module beside [`crate::capability`] rather than a member of it, for
 //! exactly the reason [`crate::terminal`]'s module doc gives about the terminal:
@@ -24,8 +24,8 @@
 //!
 //! # Bytes, not text
 //!
-//! Both functions answer in [`OsString`], because an environment variable is
-//! bytes on every platform and `rule:types/bytes`
+//! Every function here answers in [`OsString`], because an environment
+//! variable is bytes on every platform and `rule:types/bytes`
 //! makes a `string` UTF-8. What to do about one that is not text is a library
 //! contract and not a runtime one — `Core\Env::get` throws and `Core\Env::all`
 //! omits, for the reasons `nvs_stdlib::env` states — so this module decides

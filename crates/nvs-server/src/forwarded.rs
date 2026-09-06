@@ -57,11 +57,11 @@
 //! **shrinks** the trusted set, so a typo makes a proxy untrusted and its
 //! headers ignored, never the reverse.
 //!
-//! **What it spends:** one `Trusted` per server — a `Vec` of one 20-byte
-//! [`Net`] per written entry, resolved at boot and shared by every core — and,
-//! per request, one borrowed slice per `X-Forwarded-For` token with no
-//! allocation at all. A request from an unproxied deployment reads no header
-//! and touches neither.
+//! **What it spends:** one `Trusted` per server — a `Vec` of one [`Net`], an
+//! address and a prefix length, per written entry, resolved at boot and shared
+//! by every core — and, per request, one borrowed slice per `X-Forwarded-For`
+//! token with no allocation at all. A request from an unproxied deployment
+//! reads no header and touches neither.
 //!
 
 use std::net::IpAddr;
@@ -267,7 +267,7 @@ impl Trusted {
     }
 }
 
-/// What the walk answers: the two facts a request arrives with once § 6 has
+/// What the walk answers: the facts a request arrives with once § 6 has
 /// decided who was allowed to state them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Origin {
@@ -277,7 +277,7 @@ pub struct Origin {
 }
 
 impl Origin {
-    /// The client address, and `None` for the two ways a request can have none:
+    /// The client address, and `None` for the ways a request can have none:
     /// a Unix-domain peer that forwarded nothing, and a trusted hop that
     /// withheld it.
     #[must_use]
@@ -285,8 +285,8 @@ impl Origin {
         self.client
     }
 
-    /// The effective scheme, which feeds exactly two things: HSTS emission
-    /// ([`crate::secure`]) and `Core\Request::scheme()`. § 6 states the rest of
+    /// The effective scheme, which feeds HSTS emission ([`crate::secure`]) and
+    /// `Core\Request::scheme()`, and nothing else. § 6 states the rest of
     /// that list as absences — it does not feed redirects, and it does not feed
     /// the cookie `Secure` flag.
     #[must_use]

@@ -352,11 +352,10 @@ pub trait PeerSocket: std::fmt::Debug {
 /// is deliberately not a `u16`: a code is a *decision* this crate makes, and an
 /// open integer would let each call site invent one.
 ///
-/// **Two variants may share a code, and none may share an action.** The
-/// question a client asks is "do I reconnect, and when", so the codes here fall
-/// into three answers: 1000 and 1001 mean reconnect now, 1013 means back off
-/// first, and 1008 means the reconnect will end the same way unless the client
-/// changes what it does.
+/// **Variants may share a code, and none may share an action.** The question a
+/// client asks is "do I reconnect, and when", so every code here is one answer:
+/// 1000 and 1001 mean reconnect now, 1013 means back off first, and 1008 means
+/// the reconnect will end the same way unless the client changes what it does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Closing {
     /// The connection ended the way it was meant to — its loop finished, or the
@@ -387,10 +386,10 @@ pub enum Closing {
     /// whatever replaces this process, where an idle close says its own
     /// connection went quiet. The reason text is what carries that difference
     /// into a log. 1012, *service restart*, is deliberately not used even
-    /// though it names this case exactly: this enum's own taxonomy is the three
+    /// though it names this case exactly: this enum's own taxonomy is the
     /// *answers* a client can give, a restart's answer is "reconnect now", and
-    /// that is 1001 — a fourth code with no fourth answer behind it would only
-    /// be a code half the client libraries in the world have no name for.
+    /// that is 1001 — another code with no answer of its own behind it would
+    /// only be a code half the client libraries in the world have no name for.
     ShuttingDown,
     /// `rule:concurrency/connection-bounds-are-finite`'s per-process ceiling: this process already holds
     /// `nvs_server::bounds::Connection::max_open` connections, so this one is

@@ -1,13 +1,13 @@
 //! `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s
-//! `[session] backend`: the two stores a session record may live in, and the boot-time refusal of
+//! `[session] backend`: the stores a session record may live in, and the boot-time refusal of
 //! the one `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
 //!
 //! **This module is what § 4's "enforced rather than documented" means.** That section says
 //! `Core\Session`'s configurable backends do not include the local tier, which is a claim about a
 //! roster — and a roster that exists only in prose excludes nothing. [`Backend`] is the roster;
 //! [`Backend::of`] is the one place a written word becomes one; [`validate`] is the refusal. A
-//! third spelling anywhere would be a second roster, and the shape of that failure is a deployment
-//! whose sessions are per-core while its configuration says they are not.
+//! spelling admitted anywhere else would be a second roster, and the shape of that failure is a
+//! deployment whose sessions are per-core while its configuration says they are not.
 //!
 //! **Refused where it is written, never where it is used**, which is [`crate::log`]'s rule applied
 //! to a worse failure. A session on a per-core store does not error: it forgets people, at a rate
@@ -25,11 +25,11 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::resolve::{Origin, origin_note};
 use crate::tree::Config;
 
-/// One of `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s two stores, as written.
+/// One of `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s stores, as written.
 ///
 /// The type carries no `Local` variant and must not gain one: what makes `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` enforced is
 /// that there is no value of this type meaning the per-core tier, so no later reader can select it
-/// however carelessly it matches. A backend added here is a third store that answers § 2's four
+/// however carelessly it matches. A backend added here is another store that answers § 2's
 /// operations, and the local tier cannot answer them — `load` on the core that never wrote is the
 /// one question it gets wrong.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,7 +48,7 @@ pub enum Backend {
 ///
 /// Public because the refusal's own help text is built from it and because the roster is the thing
 /// asserted — a test that reads this constant fails when a `Local` is added, where a test that
-/// spelled the two words itself would keep passing beside it.
+/// spelled the words itself would keep passing beside it.
 pub const BACKENDS: &[(&str, Backend)] = &[("shared", Backend::Shared), ("db", Backend::Db)];
 
 impl Backend {
@@ -137,7 +137,7 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, both sides of the roster: the two words it admits resolve, and the one ADR
+    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, both sides of the roster: the words it admits resolve, and the one ADR
     /// 0059 § 4 removed is refused with that section named rather than with a generic
     /// unknown-value message an operator learns nothing from.
     #[test]

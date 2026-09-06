@@ -26,7 +26,7 @@
 //! **A `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that is
 //! deliberate. Narrowing is `[value] within [what is in force]`, which [`value::within_ceiling`]
 //! answers for a size, a duration, a count or a ratio and for nothing else; `[capabilities]` is the
-//! only such row today and a grant is a list. Refusing is the safe direction — a request that
+//! only such row and a grant is a list. Refusing is the safe direction — a request that
 //! cannot drop a capability is inconvenient, one that silently widens one is the failure `rule:config/three-changeability-classes`
 //! exists to prevent — and the capability model that will answer it properly is this milestone's
 //! own Stage 4.
@@ -97,7 +97,7 @@ impl Request {
     }
 
     /// `Core\Config::set`: `true` when the change was made for this request, `false` when it was
-    /// refused — the module doc lists the seven refusals, and none of them throws.
+    /// refused — the module doc lists what is refused, and none of it throws.
     pub fn set(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
         let Some(row) = lookup(&key) else {
@@ -129,7 +129,8 @@ impl Request {
                 Ok(Some(true)) => {}
                 // `Ok(None)` is a directive with no quantity to compare. A `Runtime` one is then
                 // unbounded and accepted; a `RuntimeTighten` one cannot be shown to narrow, which
-                // the module doc's fourth paragraph owns.
+                // the module doc's paragraph on a `RuntimeTighten` directive that is not a quantity
+                // owns.
                 Ok(None) if row.class == Class::Runtime => {}
                 Ok(Some(false) | None) | Err(_) => return false,
             },
@@ -235,7 +236,7 @@ impl Request {
     ///
     /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
     /// — § 2 states both halves and [`http`](crate::http) is the one place the condition is
-    /// written, so this reads the four values off the snapshot, folds this request's overlay and
+    /// written, so this reads those values off the snapshot, folds this request's overlay and
     /// then the proposed assignment over them, and asks. A key under neither block returns before
     /// any of that.
     fn stays_meaningful(&self, key: &str, value: &str) -> bool {
@@ -280,12 +281,13 @@ impl Request {
     /// The `[limits.hard]` ceiling bounding `key`, or `None` where the operator stated none.
     ///
     /// It is read off the typed tree through [`app::ceilings`](crate::app::ceilings), which is the
-    /// one table naming the five limits — a sixth is a row there and not a sixth place to forget.
+    /// one table naming the bounded limits — another one is a row there and not a new place to
+    /// forget.
     fn ceiling(&self, key: &str) -> Option<Setting> {
         let leaf = key.strip_prefix("limits.")?;
         if leaf.contains('.') {
             // `limits.hard.*` is `System` and never reaches here; anything else under `limits`
-            // that is not one of the five has no ceiling to find.
+            // that is not one of them has no ceiling to find.
             return None;
         }
         let hard = self.base.config.limits.as_ref()?.hard.as_ref()?;

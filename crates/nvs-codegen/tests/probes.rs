@@ -1,8 +1,7 @@
 //! `rule:testing/debug-probes`'s flag-gated probes and the safepoint poll they share: coverage counts, and what a pending request stops.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -59,8 +58,8 @@ fn turning_coverage_on_records_one_hit_per_executed_statement() {
     assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
 }
 
-/// A statement path and a call path in one script, so both of `rule:testing/debug-probes`'s probe
-/// units are present for the assertion below to count.
+/// A statement path and a call path in one script, so `rule:testing/debug-probes`'s probe units
+/// are present for the assertion below to count.
 const MEASURED: &str = "<?nvs\nclass Math {\n    public static function double(int $n): int {\n        return $n + $n;\n    }\n}\nint $n = Math::double(2);\necho $n;\n";
 
 #[test]

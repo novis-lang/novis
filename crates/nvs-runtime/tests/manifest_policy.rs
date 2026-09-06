@@ -170,17 +170,16 @@ fn locked_packages() -> Vec<(String, Vec<String>)> {
 #[test]
 fn tokio_appears_in_neither_the_manifest_nor_the_lockfile() {
     // **The name reads wider than what is asserted, deliberately.** `tokio` is
-    // in the lock file and has been since `hyper` 1.11, which depends on it
-    // unconditionally at `features = ["sync"]` for one `oneshot` on the h1
-    // server path. Renaming this check was the alternative; keeping the name and
-    // making the assertion *stronger* than the name is what `rule:concurrency/one-scheduler` actually
-    // wants pinned, because "the string is absent" was only ever a proxy for
-    // "this binary has one scheduler and it is `nvs-host`'s". So what is checked
+    // in the lock file: `hyper` depends on it unconditionally at
+    // `features = ["sync"]` for one `oneshot` on the h1 server path. The name
+    // stays and the assertion is *stronger* than it, because `rule:concurrency/one-scheduler` wants
+    // "this binary has one scheduler and it is `nvs-host`'s" pinned, and "the
+    // string is absent" is only a proxy for that. So what is checked
     // is that no crate of ours depends on `tokio`, that the graph's only route
     // to it is `hyper`'s, and that what is compiled of it is synchronisation and
     // nothing else. The workspace manifest's comment above the `hyper` line is
     // where that trade is argued, including what pinning `hyper` backwards to
-    // buy the name out would have cost.
+    // buy the name out would cost.
     let named: Vec<String> = manifest_code()
         .into_iter()
         .filter(|(_, _, code)| code.contains("tokio"))

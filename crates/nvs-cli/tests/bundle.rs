@@ -1,14 +1,14 @@
 //! `nvs build --compile` and the executable it writes —
 //! `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s
-//! *Verification* list, for the two claims that do not need three platforms to
+//! *Verification* list, for the claims that do not need three platforms to
 //! ask.
 //!
 //! Through the built binary rather than by calling `bundle::build`, for the
 //! reason [`openapi`](openapi) already writes down: `nvs-cli` is a binary crate
 //! with no library target, and what `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` promises is what the *command*
 //! produces. The round-trip of the manifest itself is a unit test next to the
-//! writer (`src/bundle.rs`); this file asserts the two things only a real
-//! executable can answer — that the payload is on disk in § 2's shape, and that
+//! writer (`src/bundle.rs`); this file asserts what only a real executable can
+//! answer — that the payload is on disk in § 2's shape, and that
 //! running it is running the program.
 
 use std::path::{Path, PathBuf};
@@ -22,7 +22,7 @@ const FOOTER_LEN: usize = 22;
 
 /// Builds the fixture into a private directory and hands back the executable.
 ///
-/// One directory per test rather than one shared: the two tests run
+/// One directory per test rather than one shared: the tests here run
 /// concurrently under `cargo test`, and a bundle half-written by one is not
 /// something the other should ever be able to observe.
 fn bundle(name: &str) -> PathBuf {

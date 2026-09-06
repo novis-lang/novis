@@ -63,7 +63,7 @@ pub struct Snapshot {
     /// [`retype`](Snapshot::retype) derives `config` from *this*, so it is authoritative and
     /// `config` is a view of it. A resolving pass that writes a path into `config` alone has
     /// written somewhere this overwrites — `retype`'s own doc § *The seam every `resolve()` pass is
-    /// measured against* is the rule, and the three sound answers to it.
+    /// measured against* is the rule, and the sound answers to it.
     pub table: toml::Table,
     /// The entry file this snapshot is for, canonical.
     pub entry: PathBuf,
@@ -193,17 +193,16 @@ impl Snapshot {
     /// and never in it, so a typed tree deserialized from the table alone has every
     /// `password_file` and no `password`. Every path that produces a [`Config`] here goes through
     /// this function for that reason — the build below and the `Boot` carry a reload does — and a
-    /// second deserialization written anywhere else would silently drop the credential the way this
-    /// one used to.
+    /// second deserialization written anywhere else would silently drop the credential.
     ///
     /// # The seam every `resolve()` pass is measured against
     ///
     /// A pass that rewrites [`config`](Snapshot::config) in place has written to the half this
-    /// function overwrites, so it only reaches a driver if one of three things is true — and
-    /// [`resolve`](crate::resolve)'s three rewriting passes use one each:
+    /// function overwrites, so it only reaches a driver if one of the following is true — and
+    /// [`resolve`](crate::resolve)'s rewriting passes use one each:
     ///
     /// - It writes the **table** as well, as [`db::canonicalize`](crate::db::canonicalize) does
-    ///   through its `rewrite`. This is the default and the one a fourth pass should reach for.
+    ///   through its `rewrite`. This is the default and the one a new pass should reach for.
     /// - Its value is carried **beside** the table and re-applied by the line above —
     ///   `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets, which may not be in the table at all.
     /// - Its key is read off `resolved.config` **before** any retype and then removed from the
@@ -211,9 +210,9 @@ impl Snapshot {
     ///   `resolved.config.app` directly and then drops `app` from the snapshot's table, so nothing
     ///   here re-derives it.
     ///
-    /// Three mechanisms because they answer three different questions, not because one question was
-    /// answered three times: a secret must not reach the table, and the `[[app]]` roster must not
-    /// survive into a per-app snapshot. What they share is the rule a fourth pass is checked
+    /// Each mechanism answers a different question, rather than one question answered over and
+    /// over: a secret must not reach the table, and the `[[app]]` roster must not
+    /// survive into a per-app snapshot. What they share is the rule a new pass is checked
     /// against — **a rewrite of `config` that neither reaches the table nor is re-applied here is
     /// lost, silently, at the first thing that retypes.** The read-only passes beside them
     /// (`db::validate`, `app::bound`, `queue::validate`, `schedule::validate`, `http::validate`)
@@ -309,9 +308,9 @@ impl Current {
     ///
     /// # Panics
     ///
-    /// If a thread panicked while holding the lock. Nothing between the two `unwrap`s in this
-    /// module can panic — an `Arc` clone and an `Arc` store — so a poisoned lock here would mean
-    /// the process is already unwinding through something else.
+    /// If a thread panicked while holding the lock. Nothing this module does under that lock can
+    /// panic — an `Arc` clone and an `Arc` store — so a poisoned lock here would mean the process
+    /// is already unwinding through something else.
     #[must_use]
     pub fn load(&self) -> Arc<Snapshot> {
         Arc::clone(&self.0.read().expect("the snapshot lock is never poisoned"))

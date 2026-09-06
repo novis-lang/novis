@@ -2,15 +2,12 @@
 //! [`crate::Symbol`]s (M2 item 1 — see the crate's module docs for what's left
 //! after this).
 //!
-//! There is no trait-use flattening or `insteadof` collision resolution here
-//! any more — `rule:classes/no-traits`
-//! removes `trait` from the language entirely, replacing it with an
+//! There is no trait-use flattening or `insteadof` collision resolution here:
+//! `rule:classes/no-traits`
+//! leaves the language no `trait` at all, offering instead an
 //! interface default/private method (shared behavior) and `implements
-//! Interface by $field;` delegation (shared state). This module's own
-//! superseded trait-use/`insteadof` resolution (`trait_refs`, `insteadof`,
-//! `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`, and `ClassLinks`'
-//! former `traits` field) was removed along with it. What replaced it is not
-//! here either: a default method's body and a private one's visibility are
+//! Interface by $field;` delegation (shared state). Neither of those is this
+//! module's business either: a default method's body and a private one's visibility are
 //! `nvs_types`', and § 4's `by $field` forwards are resolved in
 //! `nvs_types::conformance` and emitted in `nvs_ir::lower`, both of which need
 //! the signature table this pass runs before. This module's own share is the
@@ -368,7 +365,7 @@ pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
 
 /// The diagnostic for a class/interface/enum reference that resolved to
 /// nothing — built here, once, so that every site reporting it makes the same
-/// `rule:statements/a-qualified-name-is-absolute` distinction rather than seven copies of it drifting apart.
+/// `rule:statements/a-qualified-name-is-absolute` distinction rather than a copy per site drifting apart.
 ///
 /// Ordinarily [`nvs_diagnostics::code::E_UNDEFINED_CLASS`]. Where the
 /// reference is the one construct `rule:statements/a-qualified-name-is-absolute` changed the meaning of — a
@@ -466,15 +463,15 @@ fn resolve_supertype(
 /// calling [`ClassGraph::get`] on it.
 ///
 /// **Reflexive:** a name satisfies itself, in zero steps. That is the answer
-/// every caller wants and three of them already spelled for themselves before
-/// calling (`is_throwable_shaped`, `is_visible_from`, and
-/// `classes_are_unrelated`, which returns early on equal names) — and the one
-/// that did not, `nvs_types::expr::operators::require_stringable`, was
-/// refusing `echo $s` on a `Stringable $s` for it: a value typed at the
+/// every caller wants — `is_throwable_shaped`, `is_visible_from` and
+/// `classes_are_unrelated` spell it for themselves before calling (the last
+/// returns early on equal names), and
+/// `nvs_types::expr::operators::require_stringable` leans on it here so that
+/// `echo $s` on a `Stringable $s` is accepted: a value typed at the
 /// interface provably has the member the interface declares, which is the
 /// whole of what this predicate is asked. The name still reads
 /// `implements_interface` because "does `qname` reach `target`'s members" is
-/// what all five callers mean by it; the zero-step case is simply the
+/// what every caller means by it; the zero-step case is simply the
 /// shortest walk, not a different question.
 #[must_use]
 pub fn implements_interface(qname: &QName, target: &QName, graph: &ClassGraph) -> bool {
@@ -606,7 +603,7 @@ mod tests {
         (module.graph, diags)
     }
 
-    /// `rule:statements/a-qualified-name-is-absolute`, as the three cases the rule has and nothing between
+    /// `rule:statements/a-qualified-name-is-absolute`, as the cases the rule has and nothing between
     /// them. A name with a separator is returned as written no matter what
     /// namespace or imports surround it — the case PHP resolved relative, and
     /// the whole of what this ADR changed. A name without one is looked up in

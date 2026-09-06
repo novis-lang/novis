@@ -18,7 +18,7 @@
 //!
 //! # There is no `Exception` and no `Error`
 //!
-//! Both are gone, and deliberately: § 10 makes `Throwable` the root that user
+//! Neither exists, deliberately: § 10 makes `Throwable` the root that user
 //! classes extend directly, so a second root-shaped name would be a second
 //! way to spell the same thing (`rule:core-api/shape-rules`
 //! R20). A program naming either gets an ordinary undeclared-class
@@ -29,7 +29,7 @@
 /// Ordered parent-before-child so a consumer building a flattened supertype
 /// set can walk it in one pass.
 ///
-/// # Four entries are namespaced, and they are here rather than in the registry
+/// # The namespaced entries are here rather than in the registry
 ///
 /// `Core\Test\Failure` is `rule:testing/failure-ledger`'s assertion failure, and that section makes it "an ordinary
 /// `Throwable`" — so it is a *class in this tree* rather than a
@@ -39,8 +39,8 @@
 /// is the root directly: a failed assertion is neither "the world said no"
 /// nor one of `RuntimeError`'s narrower readings.
 ///
-/// `Core\Cli\NotInteractive` is the second, and it is here for exactly that
-/// reason rather than by analogy:
+/// `Core\Cli\NotInteractive` is here for exactly that reason rather than by
+/// analogy:
 /// `rule:tooling/a-prompt-is-a-core-member` makes
 /// it what a prompt throws when the process has no controlling terminal and
 /// the call named no default, so a program that wants to fall back writes a
@@ -49,27 +49,27 @@
 /// saying no rather than a bug in the program: the same code is correct when
 /// it is run from a terminal.
 ///
-/// `Core\Db\RolledBack` is the third, and it is here for the same reason once
+/// `Core\Db\RolledBack` is here for the same reason once
 /// more: `rule:core-classes/db-transactions` makes
 /// `Transaction::rollBack` throw it and
 /// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 18
 /// puts it *in this tree*, extending `RuntimeError` — a deliberate rollback is
 /// the database saying no rather than a bug in the program, and the closure
-/// that owns the transaction propagates it to a `catch` written by name. It is
-/// the second entry after `ParseError` to declare a property of its own; see
-/// [`OWN_PROPERTIES`].
+/// that owns the transaction propagates it to a `catch` written by name. Like
+/// `ParseError`, it declares a property of its own; see [`OWN_PROPERTIES`].
 ///
-/// `Core\Db\DbError` is the fourth, and it is § 18's other half: everything the
-/// server itself refused, which `rule:core-classes/db-error` makes **one** class carrying a normalised `kind` rather than ten whose
-/// boundaries would differ per driver. It sits beside `Core\Db\RolledBack`
+/// `Core\Db\DbError` is § 18's other half: everything the
+/// server itself refused, which `rule:core-classes/db-error` makes **one** class carrying a normalised `kind`
+/// rather than a class per condition, whose boundaries would differ per
+/// driver. It sits beside `Core\Db\RolledBack`
 /// under `RuntimeError` deliberately — a `catch` that has to tell "I gave up"
 /// from "the database said no" is the whole reason § 18 spells two names. It
-/// declares all five of § 8's properties in [`OWN_PROPERTIES`] — the normalised
+/// declares every one of § 8's properties in [`OWN_PROPERTIES`] — the normalised
 /// `kind`, the raw `sqlState`, `driverCode` and `constraint` the server worded,
-/// and the `sql` the program wrote — so the class carries the root's four,
-/// those five, and a message that is what the server said.
+/// and the `sql` the program wrote — so the class carries the root's own set,
+/// those, and a message that is what the server said.
 ///
-/// Those four are the entries whose names have more than one segment, which is
+/// Those are the entries whose names have more than one segment, which is
 /// why every consumer here goes through `QName::parse` rather than treating a
 /// row as a bare global segment. `QName::is_reserved_global_class`
 /// deliberately still answers only for the single-segment rows: what makes
@@ -96,8 +96,8 @@ pub const ROOT: &str = "Throwable";
 
 /// `Throwable`'s own instance properties, in slot order.
 ///
-/// Slot order is load-bearing twice over: `nvs_runtime::object` lays a
-/// subclass's slots out *after* its parent's, so these four indices are the
+/// Slot order is load-bearing: `nvs_runtime::object` lays a
+/// subclass's slots out *after* its parent's, so these indices are the
 /// same for every exception class in existence — which is what lets
 /// `nvs_runtime::throwable` reach `backtrace` on a value it knows nothing
 /// else about.
@@ -113,30 +113,29 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// Every [`TREE`] entry that declares instance properties **of its own**, in
 /// slot order, keyed by class name.
 ///
-/// [`PROPERTIES`] is the root's row; the rest of the tree inherits those four
-/// and, with two exceptions, adds nothing. The first is `ParseError`, which
+/// [`PROPERTIES`] is the root's row; most of the tree inherits it and adds
+/// nothing. `ParseError` is one exception, which
 /// `rule:core-classes/derive-reports-every-field` gives an
 /// `issues` list so that a decode reports **every** bad field from one throw
-/// rather than the first. The second is `Core\Db\RolledBack`, which spec § 18
+/// rather than the first. `Core\Db\RolledBack` is another, which spec § 18
 /// gives a `reason` — the string
 /// `rule:core-classes/db-transactions`'s `Transaction::rollBack`
 /// was called with, readable from the `catch` outside the transaction closure
-/// that the throw unwound.
-///
-/// Each is declared on its own class rather than on the root deliberately: the
-/// root is allocated by every `throw` in every program, and a fifth slot there
-/// would cost sixteen bytes plus one empty-array allocation on a path that
-/// PHP-shaped code takes for ordinary control flow
-/// (`rule:errors/propagation`'s measured cost).
-/// The third is `Core\Db\DbError`, which
+/// that the throw unwound. `Core\Db\DbError` is the last, which
 /// `rule:core-classes/db-error` gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
-/// read off plus the `sql` that was refused. All five of spec § 18's are here,
+/// read off plus the `sql` that was refused. Every one of spec § 18's is here,
 /// and none of them could have been added without a type in
 /// `nvs_types::error_lib::own_properties`, which `panic!`s at seed time on a
 /// property it cannot type. That is a *narrowing* rule and not a queue: a row
 /// added here without the arm there fails the very first seed.
+///
+/// Each is declared on its own class rather than on the root deliberately: the
+/// root is allocated by every `throw` in every program, and another slot there
+/// would cost sixteen bytes plus one empty-array allocation on a path that
+/// PHP-shaped code takes for ordinary control flow
+/// (`rule:errors/propagation`'s measured cost).
 pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
     (ROOT, PROPERTIES),
     ("ParseError", ISSUES),
@@ -147,10 +146,10 @@ pub const OWN_PROPERTIES: &[(&str, &[&str])] = &[
 /// `ParseError`'s own row of [`OWN_PROPERTIES`].
 const ISSUES: &[&str] = &["issues"];
 
-/// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — `rule:core-classes/db-error`'s five
+/// `Core\Db\DbError`'s own row of [`OWN_PROPERTIES`] — `rule:core-classes/db-error`'s
 /// properties, all of them, in § 8's own order. The order is the rule and not
-/// an accident of how they arrived: a sixth value § 8 gained later would be
-/// appended here too, so that no slot already compiled into a program moves.
+/// an accident of how they arrived: a further value § 8 names is appended here
+/// too, so that no slot already compiled into a program moves.
 const KIND: &[&str] = &["kind", "sqlState", "driverCode", "constraint", "sql"];
 
 /// `Core\Db\RolledBack`'s own row of [`OWN_PROPERTIES`].
@@ -182,7 +181,7 @@ pub const REASON_SLOT: usize = PROPERTIES.len();
 /// derived from the other and a property added to either must not move the
 /// other's. `db_error_s_own_slot_starts_after_the_root_s` holds it.
 ///
-/// It is 0-relative-to-the-root and stays there: § 8's other four are appended
+/// It is 0-relative-to-the-root and stays there: § 8's others are appended
 /// to [`KIND`] after it rather than inserted before it, so `kind` keeps this
 /// index. They are [`SQL_STATE_SLOT`], [`DRIVER_CODE_SLOT`],
 /// [`CONSTRAINT_SLOT`] and [`SQL_SLOT`].
@@ -205,19 +204,19 @@ pub const DRIVER_CODE_SLOT: usize = KIND_SLOT + 2;
 /// The slot `Core\Db\DbError::$constraint` occupies — `rule:core-classes/db-error`'s name of
 /// the constraint the condition violated, where the condition names one.
 ///
-/// Derived from [`KIND_SLOT`] like its two siblings above, and `?string` for a
-/// reason of its own rather than theirs: most of § 8's eleven kinds name no
+/// Derived from [`KIND_SLOT`] like its siblings above, and `?string` for a
+/// reason of its own rather than theirs: most of § 8's kinds name no
 /// constraint at all — a syntax error, a permission, a timeout — so the absent
 /// case here is the common one and not a driver's gap.
 /// `nvs_runtime::CONSTRAINT_SLOT` is the runtime's copy.
 pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 
 /// The slot `Core\Db\DbError::$sql` occupies — `rule:core-classes/db-error`'s statement text,
-/// the last of the five and the only one the client rather than the server
+/// the last of the row and the only one the client rather than the server
 /// worded.
 ///
-/// Derived from [`KIND_SLOT`] like its three siblings above, and `?string` for
-/// a third reason again: a refusal is not always *of* a statement the caller
+/// Derived from [`KIND_SLOT`] like its siblings above, and `?string` for
+/// a reason of its own again: a refusal is not always *of* a statement the caller
 /// spelled, since § 7's `BEGIN`, `COMMIT` and `SAVEPOINT` are the runtime's own
 /// text. `nvs_runtime::SQL_SLOT` is the runtime's copy.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
@@ -248,7 +247,7 @@ pub fn declares_constructor(name: &str) -> bool {
 }
 
 /// Whether `name` is one of [`TREE`]'s entries, spelled exactly as that table
-/// spells it — a bare global segment for all but `Core\Test\Failure`.
+/// spells it — a bare global segment for all but the namespaced rows.
 #[must_use]
 pub fn is_exception_class(name: &str) -> bool {
     TREE.iter().any(|(entry, _)| *entry == name)
@@ -297,7 +296,7 @@ mod tests {
 
     #[test]
     fn parse_error_s_own_slots_start_after_the_root_s() {
-        // `ISSUES_SLOT` is a constant three crates restate, so what it depends
+        // `ISSUES_SLOT` is a constant other crates restate, so what it depends
         // on is checked rather than remembered: nothing between `ParseError`
         // and the root contributes a slot.
         let above = conforms_to("ParseError").expect("ParseError is in the tree");
@@ -321,15 +320,15 @@ mod tests {
 
     #[test]
     fn db_error_s_own_slot_starts_after_the_root_s() {
-        // The third of the same claim, asserted separately for the reason
+        // The same claim once more, asserted separately for the reason
         // `rolled_back_s_own_slot_starts_after_the_root_s` gives: these two are
         // siblings, and one growing a property must not move the other's slot.
         let above = conforms_to("Core\\Db\\DbError").expect("DbError is in the tree");
         let inherited: usize = above.iter().map(|name| own_properties(name).len()).sum();
         assert_eq!(inherited, KIND_SLOT);
         // The one class in the tree declaring more than one property, so it is
-        // also the only place the *order* of a row is load-bearing: § 8's other
-        // four are appended, which is what keeps `kind` at slot 0 relative to
+        // also the only place the *order* of a row is load-bearing: § 8's
+        // others are appended, which is what keeps `kind` at slot 0 relative to
         // the root however many of them there are.
         assert_eq!(
             own_properties("Core\\Db\\DbError"),

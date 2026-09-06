@@ -48,8 +48,8 @@
 //! [`Isolate::charged_to_the_engine_reserve`], so the handler runs under § 3's
 //! engine-owned allotment and a request already at its ceiling still has a
 //! report. [`nvs_runtime::Ctx::handler_isolate`] is the one home of what that
-//! reserve is and of the three things it changes; nothing about that exception
-//! is decided here.
+//! reserve is and of what it changes; nothing about that exception is decided
+//! here.
 
 use std::cell::Cell;
 

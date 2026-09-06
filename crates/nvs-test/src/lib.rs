@@ -18,7 +18,7 @@
 //!
 //! ## The sections
 //!
-//! Nine come straight from `.phpt` and mean what they mean there:
+//! These come straight from `.phpt` and mean what they mean there:
 //!
 //! | section | meaning |
 //! |---|---|
@@ -32,7 +32,7 @@
 //! | `--ARGS--` | the program's own arguments, one per line |
 //! | `--ENV--` | environment variables for the run, one `NAME=value` per line |
 //!
-//! Six are Novis's own. Two of those are the differential pair
+//! The rest are Novis's own, among them the differential pair
 //! `docs/agent/loop-goal.md` names:
 //!
 //! | section | meaning |
@@ -51,11 +51,11 @@
 //! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
 //! `#[Test]` classes and what the case pins is the *report* of running them —
 //! the only way a `.nvst` can observe the `#[Test]` table at all, since a row
-//! and its order are visible nowhere else. § 22's two machine formats are two
-//! more spellings of the same thing — `test --format=json` and
+//! and its order are visible nowhere else. § 22's machine formats are further
+//! spellings of the same thing — `test --format=json` and
 //! `test --format=junit` — because a report is observable only by being read,
 //! and a format nothing pins is a format that can drift. The roster is closed
-//! to those four spellings, so a misspelling is a parse error rather than a
+//! to those spellings, so a misspelling is a parse error rather than a
 //! case quietly run the other way, and the section applies to `--FILE--`
 //! alone: `--SKIPIF--` and `--CLEAN--` are the runner's own scaffolding and
 //! are always `nvs run`.
@@ -101,7 +101,7 @@
 //! ```
 //!
 //! The path is relative, `/`-separated on both legs, and may not hold a `.`
-//! or `..` segment or name one of the four files the runner writes itself
+//! or `..` segment or name one of the files the runner writes itself
 //! (`case.nvs`, `skipif.nvs`, `clean.nvs`, `oracle.php`) — so a case cannot
 //! reach outside the temporary directory it is given, and needs no sanitiser
 //! to say so. Repeating one path is a parse error, the way repeating any
@@ -124,8 +124,8 @@
 //!
 //! A `--ORACLE--` case is **skipped**, once and with the reason named, on a
 //! machine where the PHP binary cannot be run at all — that is an absent
-//! oracle, not a failing comparison, and reporting sixty identical failures
-//! would bury the one line that says PHP is missing. The count is what
+//! oracle, not a failing comparison, and one identical failure per case would
+//! bury the one line that says PHP is missing. The count is what
 //! catches it: `docs/agent/loop-goal.toml` sets a floor on *passing*
 //! differential cases, so a leg that silently lost its oracle fails there.
 //! A development machine carries PHP 8.5 on `PATH` on both sides of a Windows
@@ -141,27 +141,22 @@
 //! that uses it is reported as a **failure** naming the milestone, never
 //! run-and-half-ignored.
 //!
-//! `--ENV--` **is** honoured, since `Core\Env` landed at M8 and a program can
-//! now read back what the section set. Its pairs are added to the environment
-//! the runner already holds rather than replacing it, and both halves of a
-//! differential case get them — [`case::Case::env`] owns both rules.
+//! `--ENV--` **is** honoured: `Core\Env` is how a program reads back what the
+//! section set. Its pairs are added to the environment the runner already
+//! holds rather than replacing it, and both halves of a differential case get
+//! them — [`case::Case::env`] owns both rules.
 //!
 //! `--ARGS--` **is** honoured, since
 //! `rule:tooling/commands-are-compiled`'s
-//! `Core\Command::run` gave `nvs run` a command line to pass on. Its lines are
+//! `Core\Command::run` gives `nvs run` a command line to pass on. Its lines are
 //! appended past the case file, so they are the program's arguments and never
 //! the runner's, and each line is one argument with no splitting and no
 //! quoting — [`case::Case::args`] owns why.
 //!
 //! ## Known gaps
 //!
-//! 1. There is no `--EXPECTREGEX--`. `--EXPECTF--` covers what the corpus
-//!    needs so far, and a second pattern language is a second thing to learn.
-//!
-//! Cases running one at a time was the other gap here, kept while the suites
-//! were small enough that a deterministic report was worth more than the
-//! clock. [`run()`] now has both: a pool of workers and a report in discovery
-//! order.
+//! There is no `--EXPECTREGEX--`. `--EXPECTF--` covers what the corpus needs
+//! so far, and a second pattern language is a second thing to learn.
 
 pub mod case;
 pub mod expect;
@@ -243,17 +238,15 @@ fn collect(path: &Path, into: &mut Vec<PathBuf>) -> io::Result<()> {
 /// The last line is always `N passed, M failed, K skipped` — the shape
 /// `tools/loop.py` reads to decide whether a suite check held.
 ///
-/// Cases run [`Options::jobs`] at a time. Nothing about a case had to change
-/// for that: each already runs in its own process with its own working
-/// directory, and the artifact cache the processes share is written by
-/// atomic rename of content-addressed files (`nvs-cli`'s `cache` module).
-/// The report is still written in discovery order — a worker's outcome
-/// waits until every case before it has been reported — so two runs of the
-/// same tree print the same text whatever the machine. What the pool buys,
-/// measured on 2026-09-06 over 1570 conformance cases on a 16-thread
-/// machine: 34.8s serially, 4.7s pooled; the 276 differential cases 16s to
-/// 1.8s. Serially the tree had been half of every `tools/verify.py` run,
-/// and the loop's acceptance sweep paid it a second time.
+/// Cases run [`Options::jobs`] at a time, which asks nothing of a case: each
+/// runs in its own process with its own working directory, and the artifact
+/// cache the processes share is written by atomic rename of content-addressed
+/// files (`nvs-cli`'s `cache` module). The report is written in discovery
+/// order — a worker's outcome waits until every case before it has been
+/// reported — so two runs of the same tree print the same text whatever the
+/// machine. What the pool buys is the difference between this tree dominating
+/// every `tools/verify.py` run, paid again by the loop's acceptance sweep, and
+/// it costing a fraction of the build it rides on.
 ///
 /// # Errors
 ///

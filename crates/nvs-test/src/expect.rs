@@ -21,15 +21,16 @@
 //!
 //! The matcher is hand-written rather than a translation to a regex crate:
 //! this crate stays dependency-free (see the manifest), the pattern language
-//! is twelve escapes wide, and both sides are a few lines of terminal output,
-//! so a backtracking match over `char`s is not worth optimising.
+//! is the table above and nothing more, and both sides are a few lines of
+//! terminal output, so a backtracking match over `char`s is not worth
+//! optimising.
 //!
 //! ## Normalisation, and why there is any
 //!
 //! Both sides are normalised before comparison: `\r\n` becomes `\n`, trailing
 //! whitespace goes from every line, and trailing blank lines go from the
-//! whole. Without it every case would pass on one of Novis's two CI legs and
-//! fail on the other for a reason that has nothing to do with what it tests.
+//! whole. Without it every case would pass on one of Novis's CI legs and fail
+//! on another for a reason that has nothing to do with what it tests.
 //! An expectation that genuinely cares about a trailing space is spelled with
 //! `--EXPECTF--` and a `%c`.
 

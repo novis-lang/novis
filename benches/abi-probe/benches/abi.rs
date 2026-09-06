@@ -5,9 +5,8 @@
 //! what a deep Novis call stack pays. The intercept is call-out overhead from the
 //! benchmark harness and is not interesting.
 //!
-//! Baselines on x86_64-pc-windows-msvc: ~0.85 ns marginal cost per frame,
-//! measured as the slope between depth 2 and depth 18. See
-//! `docs/decisions/0002.md`.
+//! Baselined on x86_64-pc-windows-msvc as the slope across the chain depths
+//! below. See `docs/decisions/0002.md`.
 
 // `criterion_group!` expands to an undocumented public function, and a
 // benchmark harness has no public API worth documenting anyway.

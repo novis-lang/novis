@@ -1,9 +1,9 @@
 //! `rule:testing/test-attribute`'s
 //! runner: the `#[Test]` table a compile already built (§ 1), constructed and
 //! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
-//! the exception state — and reported in one of § 22's three formats.
+//! the exception state — and reported in one of § 22's formats.
 //!
-//! # One verdict, three renderings
+//! # One verdict, every rendering
 //!
 //! Every format renders the same [`Case`] list, and a verdict is decided once
 //! — [`Outcome::verdict`] — rather than per format, so the plaintext mark, the
@@ -101,7 +101,7 @@ use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
 
-/// § 22's three report formats.
+/// § 22's report formats.
 ///
 /// The roster lives here rather than in `main`, because what a format *is* is
 /// this module's question and `main` only has to name one on the command line.
@@ -142,9 +142,9 @@ impl Outcome {
     /// The one word every format names this outcome by.
     ///
     /// Each rendering reads its own mark, string or element off *this* rather
-    /// than matching the outcome a second time, which is what makes "the two
-    /// cannot disagree about a verdict" a property of the code rather than of
-    /// a review.
+    /// than matching the outcome a second time, which is what makes "no two of
+    /// them disagree about a verdict" a property of the code rather than of a
+    /// review.
     fn verdict(&self) -> &'static str {
         match self {
             Self::Passed => "passed",
@@ -411,7 +411,7 @@ fn run_suite_in_a_task(
     // *inside* a test goes through the seam and needs the same resolver
     // `nvs run` installs — one per run, so two tests spawning one path share
     // the compiled unit (`crate::script`). It reads the tree's own `[opcache]`,
-    // because the snapshot is now resolved above the suite's compile and
+    // because the snapshot is resolved above the suite's compile and
     // `rule:config/the-extension-set-is-in-every-unit-key`'s environment digest is half of every key this resolver
     // writes: a default one would file a unit under an environment this run is
     // not in. Nothing edits a file mid-suite, so the revalidation policy in it
@@ -574,9 +574,9 @@ fn compile(
         .map_err(|error| error.to_string())
 }
 
-/// A whole run's verdict, before any of § 22's three renderings has been
-/// chosen — which is also the shape this module's own tests read, a rendering
-/// being the one thing they are not about.
+/// A whole run's verdict, before any of § 22's renderings has been chosen —
+/// which is also the shape this module's own tests read, a rendering being the
+/// one thing they are not about.
 struct Suite {
     cases: Vec<Case>,
     counts: Counts,
@@ -1495,8 +1495,8 @@ fn run_case(
 /// A method with rows is one call per row, in the source order the checker
 /// recorded them, each labelled `method#N` — a **label** rather than a field
 /// beside the name, so the plaintext mark, the JSON object and the JUnit
-/// element tell two rows apart without any of the three growing a rendering of
-/// its own, exactly as they read one verdict rather than deciding one each.
+/// element tell two rows apart without any of them growing a rendering of its
+/// own, exactly as they read one verdict rather than deciding one each.
 ///
 /// Whether `--filter` selects one test — **the same rule the `.nvst` tree's
 /// own filter uses, asked of the other suite's names.**
@@ -1549,7 +1549,7 @@ struct Invocation<'a> {
 /// One folded row field as the value the call takes, owned by `row`.
 ///
 /// The roster is exactly what `nvs_types::defaults::literal_default` folds a
-/// row field to — the four scalars and a `string` — because § 9 matches a
+/// row field to — the scalars and a `string` — because § 9 matches a
 /// field against its parameter's *declared* type, and that is the closed list
 /// of literals such a parameter can be declared at. Anything else answers
 /// `None` and is reported as the internal inconsistency it would be, rather
@@ -1598,14 +1598,14 @@ fn skip_reason(case: &nvs_types::testing::TestCase) -> Option<String> {
     })
 }
 
-/// How the run came out, in the three counts every format's summary carries.
+/// How the run came out, in the counts every format's summary carries.
 #[derive(Clone, Copy)]
 struct Counts {
     passed: usize,
     failed: usize,
     skipped: usize,
     /// § 20's own section: a test that passed within its retry allowance is
-    /// counted here and in neither of the two above it.
+    /// counted here and in none of the fields above it.
     flaky: usize,
 }
 
@@ -2345,9 +2345,8 @@ mod tests {
     }
 
     /// `--filter` selects `#[Test]` methods, by the containment rule
-    /// [`super::selected`] owns — the finding this closes is that the flag
-    /// reached the `.nvst` tree and was dropped for a program's own tests, so
-    /// `--filter` over one ran all of them.
+    /// [`super::selected`] owns — the flag reaches a program's own tests and
+    /// not only the `.nvst` tree.
     ///
     /// Four filters over the one fixture, because the claim is *selection*
     /// and a single filter cannot make it: the method name picks one of three,

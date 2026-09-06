@@ -40,10 +40,10 @@ pub enum FaultSite {
 
 /// Which of
 /// `rule:observability/trace-events-carry-a-kind`
-/// 's four kinds a [`TraceEvent`] is.
+/// 's kinds a [`TraceEvent`] is.
 ///
 /// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
-/// a `call` event's shape exactly as `rule:testing/debug-probes` defined it, and the three other
+/// a `call` event's shape exactly as `rule:testing/debug-probes` defines it, and the other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
 /// A `query`'s field set is fixed by `rule:observability/a-query-is-a-trace-event`
 /// and lives in `nvs_db::QuerySpan`, which is where the driver already
@@ -53,7 +53,7 @@ pub enum FaultSite {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraceKind {
     /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and with
-    /// [`TraceKind::Query`] one of the two kinds anything in the tree records today.
+    /// [`TraceKind::Query`] one of the kinds anything in the tree records.
     Call,
     /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`. The collector's run routine
     /// does not record one yet.
@@ -76,7 +76,7 @@ pub enum TraceKind {
 /// payload waits on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
-    /// Which of `rule:observability/trace-events-carry-a-kind`'s four kinds this is.
+    /// Which of `rule:observability/trace-events-carry-a-kind`'s kinds this is.
     pub kind: TraceKind,
     /// What the event is *of*: a [`TraceKind::Call`]'s callee as a
     /// `Class::method` label, and a [`TraceKind::Query`]'s span as the driver
@@ -113,7 +113,7 @@ impl Ctx {
     /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
     ///
     /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
-    /// only thing that reaches this method, and the three other kinds are
+    /// only thing that reaches this method, and the other kinds are
     /// emitted from routines that carry facts this record has no field for
     /// (`rule:observability/trace-events-carry-a-kind`).
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
@@ -133,7 +133,7 @@ impl Ctx {
     /// **The span arrives already rendered, and that is the crate boundary
     /// rather than laziness.** `rule:observability/a-query-is-a-trace-event`
     /// 's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
-    /// this one; a struct here holding the same seven facts would be that field
+    /// this one; a struct here holding the same facts would be that field
     /// set's second home, and the one nobody edits when a driver adds to it.
     /// What it costs is that a consumer reads text where it will later read
     /// fields — which is what the `trace` field's own doc comment already says
@@ -155,7 +155,7 @@ impl Ctx {
     /// The call-site trace gathered so far, in the order the probes fired —
     /// empty for a request that ran with [`DebugFlags::TRACE`] off
     /// throughout. See the field's own doc comment for why this accumulates
-    /// in memory today and will not once `rule:testing/debug-probes`'s sink exists.
+    /// in memory and will not once `rule:testing/debug-probes`'s sink exists.
     #[must_use]
     pub fn trace(&self) -> &[TraceEvent] {
         &self.trace

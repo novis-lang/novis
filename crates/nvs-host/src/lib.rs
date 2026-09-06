@@ -32,8 +32,8 @@
 //! boundary, because the run queue is created on the far side of it.
 //!
 //! [`Reactor`] is what calls [`Scheduler::wake`]: readiness on epoll, kqueue or
-//! a poll of `\Device\Afd`, keyed by [`TaskId`], with `rule:concurrency/the-parking-contract`'s five-rule
-//! parking contract in its module doc. [`run_until_idle`] joins the two, and is
+//! a poll of `\Device\Afd`, keyed by [`TaskId`], with `rule:concurrency/the-parking-contract`'s parking
+//! contract in its module doc. [`run_until_idle`] joins the two, and is
 //! what a worker's body is. The scheduler itself still knows nothing about I/O,
 //! so a run queue remains testable with none in it at all.
 //!

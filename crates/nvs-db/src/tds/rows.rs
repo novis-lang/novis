@@ -56,7 +56,7 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
     /// The last `DONE` that set [`Done::counted`], which is the count a
     /// statement with no result set reports.
     counted: Option<u64>,
-    /// Whether the stream has ended, by any of its three ends: a `DONE`, the
+    /// Whether the stream has ended, by any of the ways it can: a `DONE`, the
     /// server's refusal, or a decode this driver will not continue past.
     ended: bool,
     /// The last `RETURNVALUE` the answer carried, which for § 1's `sp_prepexec`

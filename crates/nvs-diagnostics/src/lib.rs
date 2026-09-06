@@ -127,8 +127,8 @@ pub mod code {
     pub const E_BAD_METHOD_CASING: Code = Code::new("E0111");
     /// A property, parameter, local variable or closure self-name is not
     /// `camelCase` — `rule:core-api/identifier-casing`'s casing table, tightened by
-    /// `rule:classes/no-leading-underscore-identifiers` to allow no leading underscore at all (`rule:core-api/identifier-casing`'s original
-    /// one-underscore allowance for these three categories is revoked).
+    /// `rule:classes/no-leading-underscore-identifiers`, which allows no leading
+    /// underscore at all.
     pub const E_BAD_MEMBER_CASING: Code = Code::new("E0112");
     /// A class constant name is not `SCREAMING_SNAKE_CASE` — `rule:core-api/identifier-casing`'s
     /// casing table.
@@ -161,7 +161,7 @@ pub mod code {
     pub const E_OBJECT_LITERAL_COMPUTED_KEY: Code = Code::new("E0119");
     /// A `float` literal in type position — `rule:types/literal-types` defers float literal
     /// types until floating-point equality has a real answer, so `0.1` names
-    /// no type the way `1` and `"a"` now do.
+    /// no type the way `1` and `"a"` do.
     pub const E_FLOAT_LITERAL_TYPE: Code = Code::new("E0120");
     /// An interpolated string in type position — `"a"` is `rule:types/literal-types`'s
     /// singleton type, and a type has no scope to interpolate a variable
@@ -203,11 +203,11 @@ pub mod code {
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
     // are recognised — so the diagnostic can be precise and suggest a
-    // replacement — and are then rejected. Most parse first; the three that a
+    // replacement — and are then rejected. Most parse first; the ones a
     // *lexical* rule refuses (`E_RESERVED_SPELLING_CASE`,
     // `E_IDENTITY_OPERATOR_UNSUPPORTED`, `E_ANGLE_NOT_EQUAL_UNSUPPORTED`) are
     // named where they are recognised, which is the lexer. A few are shapes
-    // PHP refuses as well and Novis accepted only by omission; they are in
+    // PHP refuses as well and admits here by nothing but omission; they are in
     // this band because the answer is the band's own — recognise the shape and
     // name its rewrite — and because docs/adr/README.md § *Decisions taken at
     // project start* places them here. See docs/spec.
@@ -281,15 +281,11 @@ pub mod code {
     /// `insteadof` anywhere: traits do not exist — an interface
     /// default/private method replaces shared behavior, and
     /// `implements Interface by $field;` replaces shared state. See
-    /// `rule:classes/no-traits`. Replaces the narrower
-    /// `E_TRAIT_METHOD_RENAME_UNSUPPORTED`/`E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED`
-    /// (both `rule:classes/no-traits`), now retired: there is no trait `use { ... }`
-    /// adaptation grammar left to diagnose that finely, since traits do not
-    /// exist at all. `E_TRAIT_METHOD_CONFLICT` (also `rule:classes/no-traits`) is
-    /// retired for the same reason; the new default-method/delegation
-    /// conflict diagnostic (`E_INTERFACE_MEMBER_CONFLICT`, `rule:classes/no-traits`)
-    /// arrives with `nvs-hir`'s follow-up resolution work, not with this
-    /// diagnostic.
+    /// `rule:classes/no-traits`. One code for the whole shape: there is no
+    /// trait `use { ... }` adaptation grammar to diagnose more finely, since
+    /// traits do not exist at all. The default-method/delegation conflict is
+    /// `E_INTERFACE_MEMBER_CONFLICT` (also `rule:classes/no-traits`), which is
+    /// `nvs-hir`'s resolution work rather than this diagnostic's.
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
     /// `die`, in any position `exit` is also accepted: Novis keeps exactly one
     /// process-termination keyword. See `rule:statements/exit-is-the-only-termination-keyword`.
@@ -352,7 +348,7 @@ pub mod code {
     /// `$obj->$key` is admitted where `$key`'s type is a `property<T>` the
     /// receiver satisfies — a set of names checked where the `as` was written,
     /// so nothing request-controlled picks a field — and every other operand is
-    /// still this code, now reported by `nvs_types` rather than by the parser,
+    /// still this code, reported by `nvs_types` rather than by the parser,
     /// since the operand's type is what decides and a parser sees none.
     pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
     /// `@expr` — PHP's error-suppression prefix. There is nothing for it to
@@ -390,11 +386,11 @@ pub mod code {
     pub const E_IMPORT_GROUP_UNSUPPORTED: Code = Code::new("E0238");
     /// PHP's `case Name = 1;` enum-body spelling. Novis writes a case as a
     /// bare `Name = 1,` in a comma list, with no `case` keyword — see
-    /// `rule:enums/declaration`. Raised on the `case` keyword itself, once, in place of
-    /// the [`E_ENUM_MEMBER_UNSUPPORTED`] cascade the shape used to produce:
-    /// that code is for a *member* in an enum body and its "move this to a
-    /// separate class" help is the wrong answer here, since the case belongs
-    /// in the enum and only its spelling is wrong.
+    /// `rule:enums/declaration`. Raised on the `case` keyword itself, once,
+    /// rather than as an [`E_ENUM_MEMBER_UNSUPPORTED`] cascade: that code is
+    /// for a *member* in an enum body and its "move this to a separate class"
+    /// help is the wrong answer here, since the case belongs in the enum and
+    /// only its spelling is wrong.
     pub const E_PHP_ENUM_CASE_UNSUPPORTED: Code = Code::new("E0239");
     /// A leading `\` on a name — `\App\Models\User`, `use \App\Models\User;`,
     /// `namespace \App;`. A name containing a `\` is already read from the
@@ -415,8 +411,8 @@ pub mod code {
     pub const E_ANGLE_NOT_EQUAL_UNSUPPORTED: Code = Code::new("E0241");
     /// A `try` block with neither a `catch` clause nor a `finally` — `try { …
     /// }` alone, which guards nothing and is the shape a deleted clause leaves
-    /// behind. PHP refuses it too; this parser accepted it only by omission.
-    /// See `docs/adr/README.md` § *Decisions taken at project start*.
+    /// behind. PHP refuses it too. See `docs/adr/README.md` § *Decisions taken
+    /// at project start*.
     pub const E_TRY_WITHOUT_CLAUSE: Code = Code::new("E0242");
     /// The braced `namespace X { … }` form, and with it a file holding two
     /// namespaces. `rule:security/authority-is-the-enclosing-namespace`
@@ -523,7 +519,7 @@ pub mod code {
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
     /// [ADR 0011](/docs/decisions/0011.md)
-    /// § 3 removed that storage row outright: a constant is always a class
+    /// § 3 leaves no such storage row: a constant is always a class
     /// constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
     pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319");
@@ -698,11 +694,11 @@ pub mod code {
     /// so it can be stripped uniformly. A line that is entirely empty is
     /// exempt from this check. See `nvs_types::string_lit::dedent_heredoc_run`.
     pub const E_HEREDOC_INSUFFICIENT_INDENT: Code = Code::new("E0433");
-    /// A `float`, `bool`, `null` or enum array key, at each of the three sites
-    /// that write one: an explicit `key =>` in an array literal, an `$a[...]`
+    /// A `float`, `bool`, `null` or enum array key, at each site that writes
+    /// one: an explicit `key =>` in an array literal, an `$a[...]`
     /// subscript, and an `$a[...] = v` target. PHP silently truncates a float,
     /// stringifies `true` to `"1"` and `null` to `""`; `rule:types/arrays` rejects
-    /// all three outright since each is a silent conversion at the exact
+    /// each outright since each is a silent conversion at the exact
     /// place a mistake becomes a missing row. An enum case is refused one step
     /// further out: `rule:enums/closed-integer-type` makes it a named integer, so the key would be a
     /// backing value two enums can share. An `int`/`uint`/`string` key is
@@ -759,10 +755,10 @@ pub mod code {
     /// parameter exists and `rule:types/declaration` leaves no position untyped. A call site
     /// that omits a member's required list reaches the same rule.
     pub const E_TYPE_ARG_COUNT: Code = Code::new("E0442");
-    /// A `foreach` subject that is none of `rule:iteration/foreach-subjects`'s three accepted
+    /// A `foreach` subject that is none of `rule:iteration/foreach-subjects`'s accepted
     /// shapes — an `array<T>`, an `Iterable<T>` or an `Iterator<T>`. A class
     /// reaching neither interface lands here, which is what keeps `foreach`
-    /// from being a fourth implicit-dispatch site.
+    /// from being another implicit-dispatch site.
     pub const E_FOREACH_SUBJECT_NOT_ITERABLE: Code = Code::new("E0443");
     /// A `foreach ($x as $k => $v)` key binding over an `Iterable`/`Iterator`
     /// subject. `rule:iteration/two-interfaces` gives a cursor exactly `advance()` and
@@ -788,9 +784,8 @@ pub mod code {
     /// gives `Iterator<T>` no key for the second to produce.
     pub const E_YIELD_FORM_UNSUPPORTED: Code = Code::new("E0448");
     /// A concrete class that reaches an interface method nothing gives a
-    /// body. Harmless while no syntax dispatched through an interface; ADR
-    /// 0053 § 1's `Iterator<T>` made it a dispatch to nothing, since its
-    /// members are bodiless by design.
+    /// body — a dispatch to nothing. ADR 0053 § 1's `Iterator<T>` is the
+    /// shape that reaches it, its members being bodiless by design.
     pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449");
     /// A block-bodied `fn` closure literal (`rule:types/closure-literal`) with no declared
     /// return type. An expression body *is* its own answer, so it needs no
@@ -803,7 +798,7 @@ pub mod code {
     /// a default once, at signature collection, and materializes it at the
     /// call site that omitted it — so it has to be a constant this compiler
     /// can emit, not PHP's general constant *expression*. See
-    /// `nvs_types::defaults`, which owns the accepted set and the two shapes
+    /// `nvs_types::defaults`, which owns the accepted set and the shapes
     /// (`null`, an enum case) it is expected to grow next.
     pub const E_PARAM_DEFAULT_NOT_LITERAL: Code = Code::new("E0451");
     /// A parameter with no default declared *after* one that has a default.
@@ -841,8 +836,8 @@ pub mod code {
     /// is the type for a value beyond it.
     pub const E_DECIMAL_LITERAL_OUT_OF_RANGE: Code = Code::new("E0456");
     // `E0457` (`E_LITERAL_TYPE_UNCHECKED`) is **retired**, not reused.
-    // `rule:types/literal-types`'s three
-    // atoms intern as real types now (`nvs_types::lower::lower_atom`), so there
+    // `rule:types/literal-types`'s
+    // atoms intern as real types (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
     /// `Core\Regex\Match::text($m)` rather than `$m->text()`. `rule:core-api/shape-rules` R20
@@ -877,7 +872,7 @@ pub mod code {
     /// A `lateinit` property on a class carrying `#[Json\Derive]`. `rule:core-classes/derive-field-list`: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.
     pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463");
-    /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s two
+    /// A `#[Json\Field(...)]` argument that is not one of `rule:core-classes/derive-field-list`'s
     /// options, or whose value is not a literal of that option's type.
     pub const E_DERIVE_FIELD_ATTRIBUTE: Code = Code::new("E0464");
     /// A type argument written where the member needs a *class* rather than
@@ -888,7 +883,7 @@ pub mod code {
     pub const E_TYPE_ARG_NOT_A_CLASS: Code = Code::new("E0465");
     /// An `==`/`!=` — or a `switch` label, or a `match` arm — whose two static
     /// types are **disjoint**: no single value inhabits both, so the compiler
-    /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the two
+    /// already knows the answer. `rule:expressions/disjoint-comparison-refused`'s table, and § 6 for the
     /// comparison forms that are not written with the operator.
     pub const E_DISJOINT_EQUALITY: Code = Code::new("E0466");
     /// `+` or `+=` with an array operand. `rule:types/array-combination` removes PHP's array
@@ -918,7 +913,7 @@ pub mod code {
     pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470");
     /// `$obj->secret` where `secret` is declared `private` outside the class
     /// the access is written in, or `protected` outside that class and its
-    /// subclasses — `rule:core-api/written-visibility`'s levels, now meaning something. The test is
+    /// subclasses — `rule:core-api/written-visibility`'s levels, enforced. The test is
     /// keyed on the **accessing** class and never on the receiver's static
     /// type: `$other->secret` is legal inside `Secret`'s own body and the
     /// identical line is not at file scope. A name nothing declares anywhere
@@ -941,10 +936,9 @@ pub mod code {
     /// form.
     ///
     /// **There are no exceptions**, including `Core\Uri` and `Core\Uuid`.
-    /// An earlier revision of that ADR admitted those two as a *parse roster*
-    /// where `$s as ?Core\Uri` compiled; § 3 withdrew it, and § 3a's
-    /// `Core\Uri::tryParse` is the member that answers a parse instead — which
-    /// the help names for a class in `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
+    /// § 3a's `Core\Uri::tryParse` is the member that answers a parse instead
+    /// — which the help names for a class in
+    /// `nvs_stdlib::registry::TRY_PARSE_CLASSES`.
     pub const E_CLASS_CONVERSION_TARGET: Code = Code::new("E0473");
     /// `++`/`--` on a binding that is not one of `rule:types/arithmetic`'s numeric
     /// types.
@@ -1085,11 +1079,11 @@ pub mod code {
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
     // `E0485` is retired and is never reused: it refused a `name:` argument at
     // a target whose signature carried no parameter names, and `rule:core-api/shape-rules` R2
-    // left no such signature — a `Core` row's names are
+    // leaves no such signature — a `Core` row's names are
     // `nvs_stdlib::registry::CoreMethod::names`, the synthesized `Throwable`
     // constructor's are `message` and `options`, and a reserved interface's
     // are the ones its own ADR writes. A name reaching no parameter is
-    // [`E_UNKNOWN_ARG_NAME`] everywhere now.
+    // [`E_UNKNOWN_ARG_NAME`] everywhere.
     /// `name: value` naming no parameter a call can fill by name — either the
     /// callee declares no parameter of that name at all, or the name reaches
     /// its `...$rest` tail.
@@ -1227,9 +1221,8 @@ pub mod code {
     /// written class name both say exactly which storage is meant and are
     /// unaffected.
     ///
-    /// **The last code in the E04xx band**, which is now full. The band
-    /// decision the next type diagnostic needed was taken with
-    /// [`E_ELEMENT_WRITE_ROOT_NOT_A_PLACE`]: the types band continues at
+    /// **The last code in the E04xx band**, which is full. The band decision
+    /// is [`E_ELEMENT_WRITE_ROOT_NOT_A_PLACE`]'s: the types band continues at
     /// `E07xx`, and `E0500` is never issued, its own digits reading as the
     /// IR-and-codegen band. `docs/adr/README.md` § *Decisions taken at project
     /// start* is the one home for why.
@@ -1272,8 +1265,8 @@ pub mod code {
     /// every capability it carries, so this is a refusal to start rather than a
     /// warning, and it is re-run on every `nvs ctl reload`.
     pub const E_UNTRUSTED_CONFIG: Code = Code::new("E0607");
-    /// A `_file` sibling of a secret directive — `[db.<name>] password_file`
-    /// today — names a file the configuration cannot take a value from: it is
+    /// A `_file` sibling of a secret directive — `[db.<name>] password_file` —
+    /// names a file the configuration cannot take a value from: it is
     /// set alongside the directive it stands in for, or its content is empty,
     /// whitespace-only, larger than `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s 64 KiB cap, or not valid
     /// UTF-8. Every one of those is a refusal to start rather than a value
@@ -1331,7 +1324,7 @@ pub mod code {
     /// there is no refusal here for a single key.
     pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612");
 
-    /// A `[log] target` that is none of `rule:errors/engine-floor`'s three destinations —
+    /// A `[log] target` that is none of `rule:errors/engine-floor`'s destinations —
     /// `stderr`, `file:<path>` or `syslog` — including a `file:` with no path
     /// behind it. Refused at the boot that reads the tree rather than at the
     /// first record written through it, because the one moment the engine
@@ -1343,7 +1336,7 @@ pub mod code {
     /// spelling accepted here is a destination that opens.
     pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613");
 
-    /// A `[log] level` that is none of `rule:errors/log-level`'s five — refused at the
+    /// A `[log] level` that is none of `rule:errors/log-level`'s levels — refused at the
     /// same boot and for the same reason as `E0613` beside it, but against the
     /// opposite failure: an unspelled destination would route records nowhere,
     /// while an unspelled level leaves the floor at `Debug` and writes
@@ -1738,8 +1731,8 @@ pub mod code {
     /// takes, because `rule:types/class-constant`'s fold leaves it nowhere later to be
     /// caught.
     pub const E_CLASS_NAME_CONST_NOT_STATIC: Code = Code::new("E0702");
-    // `E0703` is retired and is never reused: `spawn script` refused its own
-    // construct until `nvs-ir` had an arm for it, and it lowers now.
+    // `E0703` is retired and is never reused: `spawn script` lowers through
+    // `nvs-ir`, so there is nothing left for it to refuse.
     // `E0704` is retired and is never reused: `require` used for its
     // **value** is `rule:statements/a-require-expression-is-mixed`'s `mixed` and lowers, the site calling the
     // target file's own script frame and keeping what it hands back
@@ -1770,15 +1763,15 @@ pub mod code {
     /// non-numeric operand of `~` keeps the unary code, whose sentence — "PHP
     /// converts this operand first" — is the one that author needs.
     ///
-    /// What it replaces is worse than a refusal: `1.5 & 1.5` used to answer
-    /// `1.5`, a bit-and over the `f64`'s own representation, where PHP answers
-    /// the `int` `1`; a `decimal` operand panicked `nvs-ir`'s `rule:types/arithmetic`
-    /// table instead.
+    /// Refusing is the only honest answer on offer: a bit-and over the `f64`'s
+    /// own representation makes `1.5 & 1.5` answer `1.5`, where PHP answers
+    /// the `int` `1`, and a `decimal` operand reaches no row of `nvs-ir`'s
+    /// `rule:types/arithmetic` table at all.
     pub const E_BITWISE_NOT_INTEGER: Code = Code::new("E0706");
     /// A `bytes`, an `array<T>`, an enum case or a `void` call used where a
     /// `string` is produced *implicitly* — `.`, `.=`, an interpolated piece,
     /// `echo`/`print`. `rule:types/conversion`'s "anything → `string`" row is "total for
-    /// scalars; an object needs `Stringable`", and these four are the types it
+    /// scalars; an object needs `Stringable`", and these are the types it
     /// does not reach at all.
     ///
     /// The explicit `as string` is deliberately not this code's business:
@@ -1792,9 +1785,9 @@ pub mod code {
     /// time — `nvs_ir::lower::expr`'s `concat_operand` owns that row.
     pub const E_NO_STRING_FORM: Code = Code::new("E0707");
     /// An `expr as T` whose operand and target name no row of `rule:types/conversion`'s
-    /// conversion table, nor of the three ADRs that table delegates rows to —
+    /// conversion table, nor of the ADRs that table delegates rows to —
     /// `rule:types/conversion`'s `string` ↔ `bytes` pair, `rule:types/conversion`'s `decimal` ones
-    /// and `rule:types/conversion`'s two enum ones.
+    /// and `rule:types/conversion`'s enum ones.
     ///
     /// The table is *closed*: `as` "either produces a value of the target type
     /// or throws", so a pair with no row has nothing to produce and nothing to
@@ -1817,10 +1810,10 @@ pub mod code {
     /// `string`" row), `$x as ?bool` (`rule:expressions/truthy-positions`'s, which has an answer for
     /// every type) and `Mode::Read as ?Mode` are the shapes that reach it.
     ///
-    /// The sibling refusals are the other two rows of that same table:
+    /// The sibling refusals are the other rows of that same table:
     /// [`E_NO_CONVERSION`] for a pair naming no row at all, asked of the `T`
     /// inside the sugar, and [`E_CLASS_CONVERSION_TARGET`] for a class
-    /// target. The three never fire on the same expression.
+    /// target. No two of them ever fire on the same expression.
     pub const E_NULLABLE_CONVERSION_CANNOT_FAIL: Code = Code::new("E0709");
     /// A `Core`-owned class rendered as text where the spec gives it no
     /// `toString` — an `echo`, an interpolation, a `.` operand or an
@@ -1830,9 +1823,9 @@ pub mod code {
     /// `Core` class does not reach that rule the way a user class does: it
     /// declares no interfaces, its members being `nvs_stdlib::registry`'s
     /// rows, so that registry is the one home for which `Core` classes render
-    /// and this diagnostic is that answer read back at the site. Before it,
-    /// every `Core` class was exempted here and the miss fell through to a
-    /// runtime dispatch that could not see a native member at all.
+    /// and this diagnostic is that answer read back at the site. Without it a
+    /// miss falls through to a runtime dispatch that cannot see a native
+    /// member at all.
     ///
     /// The sibling for a user class is [`E_STRINGABLE_REQUIRED`], which asks
     /// the class graph the same question; the two never fire together,
@@ -1922,7 +1915,7 @@ pub mod code {
     /// `bool` is the operand this code exists for, and it is the reverse of
     /// [`E_ORDERING_HAS_NO_ROW`]'s own `bool` exemption: two `bool`s *order*
     /// exactly as the one bit they already are, but adding them is PHP's
-    /// "convert to `int` first" and nothing else — and left unrefused it did
+    /// "convert to `int` first" and nothing else — and left unrefused it would
     /// not even answer PHP's number, `nvs-codegen` reading `true + true` as an
     /// `iadd` over the `i8` a `bool` is stored in. An enum case keeps
     /// [`E_ENUM_ARITHMETIC_UNSUPPORTED`], so "this operand has no arithmetic"
@@ -1957,7 +1950,7 @@ pub mod code {
     ///
     /// Deliberately not the `.` operator's, which keeps
     /// [`E_NO_STRING_FORM`]: that code's roster already names a `void` call
-    /// among the four types with no implicit `string` form, and it is the
+    /// among the types with no implicit `string` form, and it is the
     /// wording an author who wrote `echo` or an interpolated piece needs. One
     /// rule, one code, both ways round.
     ///
@@ -1980,8 +1973,8 @@ pub mod code {
     /// truthy test written out and take this one, alongside the four
     /// statement conditions and a ternary's.
     ///
-    /// Unrefused, this reached no diagnostic and no answer either: `nvs-ir`
-    /// lowers a `void` call to no value, so its truthy slice panicked on a
+    /// Unrefused, this reaches no diagnostic and no answer either: `nvs-ir`
+    /// lowers a `void` call to no value, so its truthy slice panics on a
     /// representation the table has no row for, naming a bug in the compiler
     /// for what is a mistake in the program.
     pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719");
@@ -1998,8 +1991,8 @@ pub mod code {
     ///
     /// This code is what makes `crate::conformance`'s check **per member**
     /// rather than whole-class. Without it, a member no forward covers could
-    /// not be told from one whose field could not answer it, so a class with
-    /// any `by $field` clause at all was exempt from
+    /// not be told from one whose field cannot answer it, so a class with
+    /// any `by $field` clause at all would be exempt from
     /// [`E_INTERFACE_METHOD_MISSING`] entirely; with it, the field is judged
     /// here and every member the delegation does not supply is judged there.
     pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720");
@@ -2015,12 +2008,12 @@ pub mod code {
     /// (`rule:statements/inout-is-written-at-the-call`), so passing it on would pack it twice.
     ///
     /// It is a diagnostic where the clause is written because the alternative
-    /// is what the tree did before: no forward was synthesized, the class was
-    /// exempt from [`E_INTERFACE_METHOD_MISSING`] anyway, and the call landed
-    /// on `nvs_runtime::nvs_abstract_method` — a `FATAL` naming a compiler bug
-    /// for a program the front end had accepted. The help names the way out
-    /// the author has today: write the member on the class by hand, which
-    /// § 4 already allows and which the forward would have lost to.
+    /// is silent: no forward is synthesized, the class is exempt from
+    /// [`E_INTERFACE_METHOD_MISSING`] anyway, and the call lands on
+    /// `nvs_runtime::nvs_abstract_method` — a `FATAL` naming a compiler bug
+    /// for a program the front end accepted. The help names the way out:
+    /// write the member on the class by hand, which § 4 already allows and
+    /// which the forward would have lost to.
     pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721");
     /// A visibility keyword on a parameter of a method that is not the
     /// `constructor` — `rule:classes/delegation-by-field`'s own backlog line.
@@ -2031,8 +2024,8 @@ pub mod code {
     /// `nvs_syntax::ast::Param::is_promoted` is the one home of which
     /// parameters promote, and `crate::signatures::record_promoted_properties`
     /// only ever asks it of a constructor — so the keyword written anywhere
-    /// else declared nothing, gave no slot and was silently ignored, where
-    /// PHP refuses it outright.
+    /// else declares nothing and gives no slot, where PHP refuses it
+    /// outright.
     ///
     /// It is a diagnostic rather than a widening of promotion because an
     /// ordinary method has no allocation to promote *into*: a property is a
@@ -2050,9 +2043,9 @@ pub mod code {
     /// the subject's own container fixes the answer — and the help therefore
     /// names the rule rather than the pair.
     ///
-    /// Unrefused it reached no diagnostic *and* no answer: `nvs-ir` lowers a
+    /// Unrefused it reaches no diagnostic *and* no answer: `nvs-ir` lowers a
     /// key binding only at `string` (`rule:types/arrays` again, one crate down) and
-    /// asserted on anything else, so a mistake in the program surfaced as a
+    /// asserts on anything else, so a mistake in the program surfaces as a
     /// panic naming a compiler gap. A subscript's `$a[8]` is normalised to
     /// `$a["8"]` at the subscript rather than converted, and there is no
     /// matching normalisation on the way *out* of a `foreach` — which is why
@@ -2147,7 +2140,7 @@ pub mod code {
     ///
     /// `rule:attributes/retrieval-folds-while-checking` replaces the call with the payload itself, so every value
     /// in a matched payload has to have a constant form. Every spelling § 2
-    /// admits now has one — the payload is folded under the scope it was
+    /// admits has one — the payload is folded under the scope it was
     /// *written* in, so a class constant, `Foo::class` and an enum case each
     /// resolve to the value a read of the same name inlines
     /// (`nvs_types::retrieval`'s own docs own that). What is left is the
@@ -2319,10 +2312,10 @@ pub mod code {
     ///
     /// Refused at the declaration for that reason, in the one pass that reads
     /// every method signature (`nvs_types::signatures`), so an abstract method
-    /// and an interface signature are covered as well as a body. Before this
-    /// code existed both spellings type-checked: `never` then panicked
-    /// `nvs_ir::lower`'s representation map and `void` lowered and died in
-    /// `nvs-codegen` reading a value of representation `void` — two internal
+    /// and an interface signature are covered as well as a body. Unrefused,
+    /// both spellings type-check and reach the back end: `never` panics
+    /// `nvs_ir::lower`'s representation map and `void` lowers and dies in
+    /// `nvs-codegen` reading a value of representation `void` — internal
     /// errors for one declaration nothing can call.
     pub const E_VOID_OR_NEVER_PARAMETER: Code = Code::new("E0742");
 
@@ -2618,7 +2611,7 @@ pub mod code {
     /// question of whether `name` is required.
     pub const E_COMMAND_WITHOUT_NAME: Code = Code::new("E0767");
 
-    /// Two `#[Command]`s claiming one name — the first of `rule:tooling/commands-are-compiled`'s three
+    /// Two `#[Command]`s claiming one name — the first of `rule:tooling/commands-are-compiled`'s
     /// compile errors, and the one only the whole program's enumeration can
     /// answer.
     ///
@@ -2636,8 +2629,8 @@ pub mod code {
     /// throw the first request to reach the call would have taken, moved to
     /// `nvs check`. One code across the grammars rather than one per member —
     /// the message carries the parser's own words, and a reader searching for
-    /// "malformed pattern" should not have to know which of five members made
-    /// the refusal.
+    /// "malformed pattern" should not have to know which member made the
+    /// refusal.
     pub const E_INTRINSIC_LITERAL_MALFORMED: Code = Code::new("E0769");
 
     /// A literal `Core\Str::format` template, or a literal `Core\Db` query,
@@ -2654,10 +2647,10 @@ pub mod code {
     pub const E_FORMAT_TEMPLATE_MISMATCH: Code = Code::new("E0770");
 
     /// An `#[Api]` that contradicts the code it annotates — `rule:attributes/api-adds-and-cannot-contradict`'s
-    /// four, under one code.
+    /// contradictions, under one code.
     ///
-    /// One code rather than four because § 2 states them as one rule: the
-    /// annotation *may add, and may not contradict*. Each of the four is a
+    /// One code rather than several because § 2 states them as one rule: the
+    /// annotation *may add, and may not contradict*. Each of them is a
     /// different way for the same sentence to be false, so what distinguishes
     /// them is the message and the two spans it names, not a number an author
     /// would ever look up separately. The fix is the same in every case —
@@ -2713,7 +2706,7 @@ pub mod code {
     /// It is one code for both because the disclosure is one disclosure: the
     /// walk that puts a credential into bytes on disk is the walk that puts it
     /// into another arena, and a developer who learns the rule at one carrier
-    /// has learned it at the other. Four call sites report it today:
+    /// has learned it at the other. The call sites that report it are
     /// `Core\Serialize::encode`, `spawn script`'s `args:`,
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`
     /// 's `Core\Socket::upgrade` — an `args:` that opens a connection
@@ -2735,8 +2728,8 @@ pub mod code {
     /// run time (`nvs_runtime::graph`), because the object's static type is
     /// what a call site sees and its properties are not.
     pub const E_SECRET_CROSSES_A_BOUNDARY: Code = Code::new("E0775");
-    // `E0776` is retired and is never reused: it was `await`'s half of the
-    // pair `E0703` was `spawn script`'s, and both lower now.
+    // `E0776` is retired and is never reused: `await` lowers, as `spawn
+    // script` does at `E0703`.
     /// `spawn script … with(limits: …)`, `with(grants: …)` or `with(on: …)` —
     /// an `rule:security/isolate-shares-nothing` option this compiler parses and does not yet enforce.
     ///
@@ -3019,11 +3012,11 @@ pub mod code {
     /// conversion rather than at the lowering, and that function's doc owns why
     /// the two halves cannot share a site.
     ///
-    /// **The last code in the E07xx band, which is now full.** The types band
-    /// has filled twice — at `E0499` and here — and the next types diagnostic
+    /// **The last code in the E07xx band, which is full.** The types band has
+    /// filled twice — at `E0499` and here — and the next types diagnostic
     /// opens a new band rather than taking `E0800`, whose digits read as no
     /// band at all. That is a project-level decision and `docs/adr/README.md`
-    /// § *Decisions taken at project level* is its home, as it was for `E0500`.
+    /// § *Decisions taken at project level* is its home, as it is for `E0500`.
     pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799");
 
     // --- E08xx types, continued again ---------------------------------------
@@ -3031,12 +3024,12 @@ pub mod code {
     // The third band for one stage. `E07xx` filled at `E0799`, whose own doc
     // comment says the next types diagnostic opens a band rather than taking
     // the number past the end of that one, and `docs/adr/README.md`
-    // § *Decisions taken at project start* had already set `E08xx` aside for
-    // whichever band filled next — it is the project-level home of both.
+    // § *Decisions taken at project start* sets `E08xx` aside for whichever
+    // band fills next — it is the project-level home of both.
     //
-    // `E0800` is not a hole to fill: ADR 0136 § *Diagnostics* claimed it for
-    // the first of the `callable`-signature refusals, which have not landed,
-    // and a number another decision has already named is not reissued here.
+    // `E0800` is not a hole to fill: ADR 0136 § *Diagnostics* claims it for
+    // the first of the `callable`-signature refusals, and a number another
+    // decision has already named is not reissued here.
     /// `echo` and a `Core\Response` body member writing one response body —
     /// `rule:security/response-body-is-one-typed-member`
     /// 's sixth row.
@@ -3071,12 +3064,11 @@ pub mod code {
     pub const E_SPAWN_ENTRY_NOT_A_PATH_OR_METHOD: Code = Code::new("E0802");
 
     // `E0804` is retired and is never reused: it refused a method entry that
-    // declared a parameter, because the child called it with none. ADR 0006
-    // § *Decision*'s binding now lowers — the entry's parameter names ride on
-    // the spawn symbol and `nvs_stdlib::script` binds `args:`'s entries to them
-    // by name — so the shape it refused is the shape that runs, and a mismatch
-    // is the ordinary named-argument error the ADR names, raised at the spawn.
-    // It went the way `E0703` and `E0803` did.
+    // declared a parameter. ADR 0006 § *Decision*'s binding lowers — the
+    // entry's parameter names ride on the spawn symbol and
+    // `nvs_stdlib::script` binds `args:`'s entries to them by name — so that
+    // shape is the shape that runs, and a mismatch is the ordinary
+    // named-argument error the ADR names, raised at the spawn.
 
     /// A written reason that is not a source literal, at a member whose reason
     /// exists to be read by the next person —
@@ -3159,8 +3151,8 @@ pub mod code {
     /// It is said out loud because that space is invisible in the one place an
     /// operator looks. In the file half of a § 7 pair there is nothing to see
     /// at all, and at the end of a TOML line it is a space before a quote. A
-    /// reader that quietly trimmed it instead — `nvs_stdlib::mail` did — turns
-    /// a working credential into an authentication failure at the far end,
-    /// which is the bug this code exists to make loud.
+    /// reader that quietly trims it instead turns a working credential into an
+    /// authentication failure at the far end, which is the bug this code
+    /// exists to make loud.
     pub const W_CREDENTIAL_HAS_EDGE_WHITESPACE: Code = Code::new("W1007");
 }

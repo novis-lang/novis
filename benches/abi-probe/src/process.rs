@@ -9,8 +9,8 @@
 //! a pipe round trip.
 //!
 //! This module measures the **floor** of the thing being replaced: the cheapest
-//! do-nothing process the platform can start, waited to completion. It is a floor
-//! in two directions, deliberately —
+//! do-nothing process the platform can start, waited to completion. It is
+//! deliberately a floor in each of these directions —
 //!
 //! * a real replacement spawns an *interpreter*, not `true`, so the honest
 //!   comparison is strictly worse than what is measured here, and
@@ -18,9 +18,9 @@
 //!
 //! So a guard test built on it can only ever understate the gap, which is the
 //! safe direction for an assertion that justifies a feature. The understatement
-//! is large: on `x86_64-pc-windows-msvc` this floor is 5.95 ms, while PHP 8.5.8
-//! — the runtime a PHP script would actually be starting — takes 35.9 ms to boot
-//! and exit.
+//! is large: this floor is a handful of milliseconds, while the PHP runtime a
+//! script would actually be starting takes several times that just to boot and
+//! exit.
 
 use std::path::Path;
 use std::process::{Command, Stdio};

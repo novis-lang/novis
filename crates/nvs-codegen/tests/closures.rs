@@ -1,8 +1,7 @@
 //! `rule:types/closure-literal`'s closures as compiled objects: the method table, captured values, arity, and a throw out of one.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -95,7 +94,7 @@ try {
     assert_eq!(output_of(source), "caught: nope");
 }
 
-/// The subject and the predicate the two guards below share: a `string`
+/// The subject and the predicate the guards below share: a `string`
 /// parameter, and an `array<mixed>` whose third entry is an `int`.
 ///
 /// The mismatch lands on the *third* entry on purpose, so `Core\Arr::filter`
@@ -201,12 +200,11 @@ echo Core\\Json::encode(Core\\Arr::map($uints, $half)), \"\\n\";
 /// The balance is `nvs_runtime::budget`'s, which every build maintains because
 /// the memory limit is read off it; this binary installs no allocator of its
 /// own, and could not, since a `#[global_allocator]` is chosen once per binary
-/// and `nvs-runtime` now registers one in every `not(test)` build.
+/// and `nvs-runtime` registers one in every `not(test)` build.
 ///
-/// **Only run in a debug build.** What the gate keeps out is no longer a
-/// missing counter but an optimized one's inlining: the number below is pinned
-/// against what an unoptimized build allocates, and nothing has measured it
-/// under `--release`.
+/// **Only run in a debug build.** What the gate keeps out is an optimized
+/// build's inlining: the number below is pinned against what an unoptimized
+/// build allocates, and nothing has measured it under `--release`.
 #[cfg(debug_assertions)]
 fn live_bytes_of_run(source: &str) -> isize {
     let unit = compile(source).expect("the fixture compiles");
@@ -230,12 +228,12 @@ fn the_partial_result_a_mismatched_argument_abandons_leaks_nothing() {
     //
     // Measured as a *slope* rather than against a fixed bound: a run's own
     // fixed overhead is the same in both runs, so ten times the iterations
-    // must not cost ten times anything. Both runs hold 8 bytes today — the
-    // buffer the echoed count lands in — and the slack below is what tells
-    // that apart from a leak. Calibrated rather than guessed: leaking the
-    // partial result with a `std::mem::forget` on `nvs_core_arr_filter`'s own
-    // error path moves the pair to 46,388 and 467,788 bytes, a slope of
-    // 421 KiB over the extra 1,800 iterations.
+    // must not cost ten times anything. Both runs hold the same handful of
+    // bytes — the buffer the echoed count lands in — and the slack below is
+    // what tells that apart from a leak. Calibrated rather than guessed:
+    // leaking the partial result with a `std::mem::forget` on
+    // `nvs_core_arr_filter`'s own error path drives the pair orders of
+    // magnitude apart, a slope far past that slack.
     let source = |iterations: u32| {
         format!(
             "{MISMATCH}var $i = 0;

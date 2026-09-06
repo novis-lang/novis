@@ -1,5 +1,4 @@
-//! Novis's configuration: the directive registry today, and the `nvs.toml` tree that reads through
-//! it as this milestone's later slices land.
+//! Novis's configuration: the directive registry, and the `nvs.toml` tree that reads through it.
 //!
 //! What a directive *is* — three fields, one of which is reloadability — lives in
 //! [`directive`]'s own module doc, and the ADRs behind it are 0005 (the changeability class), 0078
@@ -50,8 +49,8 @@
 //! spelling can tell mega from minutes on its own.
 //!
 //! [`mod@request`] is the last step: one request's view of a [`Snapshot`], and the copy-on-write
-//! overlay `rule:config/ini-set-is-core-config-set`'s `Core\Config::set` writes over it. It is where [`mod@value`] gets the
-//! second of the two callers it exists to keep in agreement — the boot path checks a ceiling out
+//! overlay `rule:config/ini-set-is-core-config-set`'s `Core\Config::set` writes over it. It is a caller
+//! [`mod@value`] exists to keep in agreement with the boot path — that path checks a ceiling out
 //! of the file, this one checks the same ceiling out of the snapshot, and both go through
 //! [`value::within_ceiling`]. `nvs-runtime`'s `Ctx` holds one per request; nothing in this crate
 //! knows that, which is why the type is here and the field is there.

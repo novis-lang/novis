@@ -191,14 +191,12 @@ impl Resolver {
     /// file, or in a different file entirely.
     pub fn resolve_imports(&mut self, diags: &mut Diagnostics) {
         for import in &mut self.module.imports {
-            // The same trio every other resolver in this crate trusts — see
-            // `hierarchy::resolve_supertype`, which has always taken all
-            // three. Importing a reserved global is not a corner case but the
-            // ordinary way a namespaced file reaches the exception tree:
-            // `rule:statements/no-fallback-to-the-root-namespace` gives a short name no fallback to the root, so `use
-            // Throwable;` is how `catch (Throwable $e)` is written under a
-            // `namespace`, and trusting only `Core` here made that the one
-            // spelling § 2 requires and this function refused.
+            // The same set every other resolver in this crate trusts — see
+            // `hierarchy::resolve_supertype`. Importing a reserved global is
+            // not a corner case but the ordinary way a namespaced file reaches
+            // the exception tree: `rule:statements/no-fallback-to-the-root-namespace`
+            // gives a short name no fallback to the root, so `use Throwable;`
+            // is how `catch (Throwable $e)` is written under a `namespace`.
             import.resolved = import.target.is_core()
                 || import.target.is_reserved_global_class()
                 || import.target.is_reserved_global_interface()
@@ -322,9 +320,9 @@ mod tests {
     }
 
     /// The braced form is refused by the parser (`E0243`) and still built, so
-    /// this pass keeps the reading it always had for the node it is handed:
-    /// the block scopes its own declarations and nothing after it. The
-    /// fixture therefore carries that one parser diagnostic, which is why it
+    /// this pass gives the node it is handed the reading the block form
+    /// implies: the block scopes its own declarations and nothing after it.
+    /// The fixture therefore carries that parser diagnostic, which is why it
     /// does not go through [`resolve`].
     #[test]
     fn block_form_namespace_does_not_leak_into_what_follows() {

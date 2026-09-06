@@ -1,7 +1,7 @@
 //! `rule:config/the-extension-set-is-in-every-unit-key`: the one `env_hash` both compiled-unit cache keys carry.
 //!
-//! Two caches key a compiled unit — the on-disk artifact cache (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`) and the in-memory
-//! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — and § 4 gives them the same environment digest so that a unit compiled
+//! The caches that key a compiled unit — the on-disk artifact cache (`rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`) and the in-memory
+//! unit table (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) — are given the same environment digest by § 4, so that a unit compiled
 //! against one extension set, one CPU or one compiler is never reused against another:
 //!
 //! ```text
@@ -18,11 +18,11 @@
 //! cryptographic on purpose — `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` says what a merely fast hash would give up.
 //!
 //! **Both keys are built here, in the crate that holds the extension set**, rather than each in the
-//! cache that uses it. The two caches live in two other crates and answer the same question; § 4's
+//! cache that uses it. Those caches live in other crates and answer the same question; § 4's
 //! whole content is that they answer it *with the same value*, and two implementations of one
 //! formula is how one of them ends up hashing three pins where the other hashes four. A
 //! [`UnitKey`]'s fields are private and [`UnitKey::new`] takes an [`EnvHash`] for the same reason:
-//! there is no way to spell the pre-§ 4 key.
+//! there is no way to spell a key without one.
 //!
 //! **[`program_id`] is here for that same rule rather than because it is a cache key** — it is not
 //! one. It is `rule:programs/no-runtime-autoload`'s `Core\Program::id()`, and it belongs to this module because its two
@@ -111,7 +111,7 @@ impl fmt::Display for EnvHash {
 /// A whole program's identity — what `rule:programs/no-runtime-autoload`'s `Core\Program::id()` answers, computed by
 /// [`program_id`] and displayed as 64 lowercase hex characters, never truncated here.
 ///
-/// A type of its own for [`EnvHash`]'s reason: this module holds three digests over overlapping
+/// A type of its own for [`EnvHash`]'s reason: this module holds several digests over overlapping
 /// inputs, and only the type system keeps a program's identity out of a cache key.
 ///
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -139,7 +139,7 @@ impl fmt::Display for ProgramId {
 pub fn env_hash(config: &Config) -> EnvHash {
     let mut hasher = blake3::Hasher::new();
     // The triple, spelled from what the process can actually read. `rustc`'s own target string
-    // needs a build script to reach, and these three fields distinguish the same set of hosts.
+    // needs a build script to reach, and the fields below distinguish the same set of hosts.
     feed(&mut hasher, std::env::consts::ARCH.as_bytes());
     feed(&mut hasher, std::env::consts::OS.as_bytes());
     feed(&mut hasher, target_env().as_bytes());
@@ -281,7 +281,7 @@ impl Validate {
     }
 }
 
-/// `[opcache]`'s two revalidation directives, read into what one resolve asks — `rule:config/an-edit-reaches-the-next-request-without-a-restart`
+/// `[opcache]`'s revalidation directives, read into what one resolve asks — `rule:config/an-edit-reaches-the-next-request-without-a-restart`
 /// steps 1-2.
 ///
 /// Both are `System`-class (`rule:config/three-changeability-classes`) and that ADR says why in its own words: a request able to

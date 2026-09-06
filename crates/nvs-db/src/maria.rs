@@ -10,11 +10,11 @@
 //! is the part a program can observe: which plugins a server may authenticate
 //! this driver with, what a vendor error code means
 //! ([ADR 0067 § 8](/docs/decisions/0067.md): "MariaDB needs its own
-//! code table, not MySQL's"), and — the slice after this one — `RETURNING`,
-//! which MySQL does not have. `rule:core-classes/db-one-api` argues at
-//! length that treating those as flags on a MySQL connection is a design error;
-//! the split here is that argument, and `crate::mysql::Backend` is the one
-//! place the shared framing asks which server it is framing for.
+//! code table, not MySQL's"), and `RETURNING`, which MySQL does not have.
+//! `rule:core-classes/db-one-api` argues at length that treating those as
+//! flags on a MySQL connection is a design error; the split here is that
+//! argument, and `crate::mysql::Backend` is the one place the shared framing
+//! asks which server it is framing for.
 //!
 //! # The roster is the security decision, and it is not MySQL's
 //!
@@ -29,25 +29,25 @@
 //! implementations, behind its `client_ed25519` and `client_parsec` features —
 //! pure Rust, which is
 //! [ADR 0051 § 4](/docs/decisions/0051.md)'s answer
-//! for exactly this case. That section names these two plugins in advance and
-//! allows two outcomes, a Rust implementation or a documented refusal; this is
-//! the first. Both send a signature over the server's nonce, so what leaves
-//! this process is a proof and not the secret — the same test
-//! [`crate::mysql`]'s two pass, and the reason `mysql_clear_password` fails it
-//! on either driver.
+//! for exactly this case. That section names these plugins in advance and
+//! allows either a Rust implementation or a documented refusal; this is the
+//! implementation. Both send a signature over the server's nonce, so what
+//! leaves this process is a proof and not the secret — the same test the
+//! plugins in [`crate::mysql`]'s roster pass, and the reason
+//! `mysql_clear_password` fails it on either driver.
 //!
 //! [`plugin_or_refuse`] is the single gate, and it is applied in both places a
 //! plugin can be named: the greeting, and the `AuthSwitchRequest` a server may
 //! send after the response has gone out. `crate::mysql`'s module doc owns why
 //! the second one matters.
 //!
-//! # Opening is [`crate::mysql`]'s four exchanges
+//! # Opening is [`crate::mysql`]'s exchanges
 //!
 //! The greeting in the clear, the `SSLRequest`, the handshake response and its
 //! auth loop over TLS, then `SET time_zone` — that sequence is the protocol's
 //! and is described once, in [`crate::mysql`]'s module doc. What
-//! [`MariaConn::connect`] adds is which roster the third step runs with and
-//! which table a refusal at any of them is read against.
+//! [`MariaConn::connect`] adds is which roster the handshake response runs
+//! with and which table a refusal at any of them is read against.
 
 use std::cell::Cell;
 use std::io;
@@ -72,8 +72,7 @@ use crate::sql::{StatementCache, statement_cache_for, time_zone_for};
 /// moved one would not have moved the other.
 pub const DEFAULT_PORT: u16 = 3306;
 
-/// The plugin MariaDB defaults to through 11.x, and the first this driver
-/// accepts.
+/// The plugin MariaDB defaults to through 11.x, and one this driver accepts.
 pub const MYSQL_NATIVE_PASSWORD: &str = "mysql_native_password";
 
 /// MariaDB's Ed25519 plugin, as the wire spells it.
@@ -83,14 +82,14 @@ pub const MYSQL_NATIVE_PASSWORD: &str = "mysql_native_password";
 /// client-side one have different names, and this is the client's.
 pub const CLIENT_ED25519: &str = "client_ed25519";
 
-/// MariaDB 11.6's Parsec, the third plugin this driver answers.
+/// MariaDB 11.6's Parsec, one of the plugins this driver answers.
 pub const PARSEC: &str = "parsec";
 
 /// What this driver claims in the handshake's second capability word — the one
 /// MariaDB carved out of MySQL's trailing filler, because its own bits start at
 /// 32 and the first word is 32 bits wide.
 ///
-/// One bit today: `MARIADB_CLIENT_STMT_BULK_OPERATIONS`, bit 34, which is the
+/// One bit: `MARIADB_CLIENT_STMT_BULK_OPERATIONS`, bit 34, which is the
 /// server's permission to send `COM_STMT_BULK_EXECUTE` — one command carrying
 /// every parameter set of an `executeMany` instead of one execute per set.
 /// Claiming it costs a connection nothing and obliges it to nothing: it widens
@@ -102,7 +101,7 @@ pub const PARSEC: &str = "parsec";
 /// bit stays claimed because that is the word the *server* answers in too, and
 /// the intersection is what tells this driver which server it reached.
 ///
-/// **The four bits not here are absences with reasons**, in the shape
+/// **The bits not here are absences with reasons**, in the shape
 /// `crate::mysql`'s `CLIENT_CAPABILITIES` uses for the first word.
 /// `MARIADB_CLIENT_PROGRESS` asks the server to interleave progress packets
 /// into a result stream, which is a second packet shape on the row path for a
@@ -130,7 +129,7 @@ pub(crate) const MARIADB: Backend = Backend {
 /// **Not [`crate::mysql`]'s table, and the divergence is not decorative.** The
 /// two servers agree below 1900, where both inherited MySQL 5.5's numbering,
 /// and stop agreeing exactly where each added conditions the other does not
-/// have. Three rows carry the whole difference:
+/// have. These rows carry the whole difference:
 ///
 /// - **A `CHECK` violation is `4025`** (`ER_CONSTRAINT_FAILED`), MariaDB
 ///   10.2.1's. MySQL's `3819` is not a MariaDB code at all, so a driver reusing
@@ -148,7 +147,7 @@ pub(crate) const MARIADB: Backend = Backend {
 /// integer is what names the rest.
 pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
     match code {
-        // `ER_DUP_ENTRY` and the three siblings that word the same condition
+        // `ER_DUP_ENTRY` and the siblings that word the same condition
         // for a write, a unique index and a named key.
         1022 | 1062 | 1169 | 1586 => DbErrorKind::UniqueViolation,
         1216 | 1217 | 1451 | 1452 => DbErrorKind::ForeignKeyViolation,
@@ -178,12 +177,12 @@ pub(crate) fn kind_of(code: u16, sql_state: &str) -> DbErrorKind {
 
 /// The plugin a name selects, or the refusal that name earns.
 ///
-/// [`crate::mysql`]'s gate with MariaDB's roster, and the refusal names all
-/// three so an operator reading it can see which server they are actually
-/// talking to: a peer that asked for `caching_sha2_password` is refused here
-/// even though the other driver answers it, because a plugin MariaDB does not
-/// implement being offered by a server claiming to be MariaDB is the shape of
-/// a redirected connection.
+/// [`crate::mysql`]'s gate with MariaDB's roster, and the refusal names every
+/// plugin it does answer, so an operator reading it can see which server they
+/// are actually talking to: a peer that asked for `caching_sha2_password` is
+/// refused here even though the other driver answers it, because a plugin
+/// MariaDB does not implement being offered by a server claiming to be MariaDB
+/// is the shape of a redirected connection.
 ///
 /// # Errors
 ///
@@ -247,7 +246,7 @@ impl<'a> MariaTarget<'a> {
     /// # Errors
     ///
     /// [`BlockError`], in the order the checks run: the `driver`, then a field
-    /// belonging to another driver, then the four the handshake sends, then
+    /// belonging to another driver, then the fields the handshake sends, then
     /// § 9's zone.
     pub fn resolve(block: &'a Database) -> Result<MariaTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
@@ -575,11 +574,11 @@ mod tests {
         }
     }
 
-    /// `rule:packaging/a-c-dependency-answers-two-questions`'s standing answer for MariaDB's two plugins, asserted as
+    /// `rule:packaging/a-c-dependency-answers-two-questions`'s standing answer for MariaDB's own plugins, asserted as
     /// the *pair* of outcomes it allows: a plugin this driver names is either
     /// implemented in Rust or refused by name, and never accepted-then-broken.
     ///
-    /// The third state is the one worth a test, because it is the one that
+    /// The state in between is the one worth a test, because it is the one that
     /// looks fine: `mysql_common` knows `client_ed25519` and `parsec` whether
     /// or not its features for them are on, so an accepting gate over a
     /// feature that is off reaches a real handshake and fails there with "`…`
@@ -587,7 +586,7 @@ mod tests {
     /// delivered to an operator whose MariaDB is merely configured the way
     /// MariaDB documents. Asserting that no accepted plugin answers
     /// [`PluginError::FeatureRequired`] is what holds
-    /// [`Cargo.toml`](/Cargo.toml)'s two feature names in place.
+    /// [`Cargo.toml`](/Cargo.toml)'s feature names in place.
     #[test]
     fn the_mariadb_auth_plugins_are_implemented_in_rust_or_refused_by_name() {
         for named in [MYSQL_NATIVE_PASSWORD, CLIENT_ED25519, PARSEC] {
@@ -643,7 +642,7 @@ mod tests {
     /// § 8's table is MariaDB's, asserted where it diverges from MySQL's rather
     /// than where the two agree.
     ///
-    /// The three codes below are the whole divergence, and each is a condition
+    /// The codes below are the whole divergence, and each is a condition
     /// an application branches on: read against `crate::mysql`'s table they all
     /// answer [`DbErrorKind::Other`], which is the kind meaning "read
     /// `driverCode` yourself". A `CHECK` violation reported as
@@ -651,7 +650,7 @@ mod tests {
     ///
     /// The other half of the same rule is `crate::conn`'s
     /// `every_driver_normalises_its_codes_to_one_error_kind`, which asks each
-    /// driver for the *same condition* and asserts the three answers agree —
+    /// driver for the *same condition* and asserts the answers agree —
     /// this case is where they are allowed to be spelled differently, that one
     /// is where they may not mean differently.
     #[test]
@@ -660,7 +659,7 @@ mod tests {
         assert_eq!(kind_of(1969, "70100"), DbErrorKind::Timeout);
         assert_eq!(kind_of(1927, "70100"), DbErrorKind::ConnectionLost);
 
-        // MySQL's own two, which MariaDB does not raise: unnamed here, and an
+        // MySQL's own, which MariaDB does not raise: unnamed here, and an
         // application reads `driverCode` for them.
         assert_eq!(kind_of(3819, "HY000"), DbErrorKind::Other);
         assert_eq!(kind_of(3024, "HY000"), DbErrorKind::Other);

@@ -42,7 +42,7 @@ use crate::ddl;
 use crate::schema::{Column, Ident, Key, ScalarType, Schema, Table};
 use crate::sql::Dialect;
 
-/// § 6's three grades: what a step can cost, at worst.
+/// § 6's grades: what a step can cost, at worst.
 ///
 /// Ordered, and the order is the point: [`Grade::up_to`] is § 6's "an unknown
 /// grade grades up" as an operation, and an emitter with no rule for a case
@@ -87,10 +87,10 @@ impl fmt::Display for Grade {
 
 /// Whether a key constrains its columns or only indexes them.
 ///
-/// The two are one variant of [`Change`] rather than two because they differ
-/// only in a keyword on three of the four dialects — and on the fourth,
-/// SQLite, a unique constraint added after the fact *is* a unique index, which
-/// is a distinction the emitter makes and the vocabulary does not.
+/// The kinds are one variant of [`Change`] rather than several because they
+/// differ only in a keyword everywhere but SQLite, where a unique constraint
+/// added after the fact *is* a unique index — a distinction the emitter makes
+/// and the vocabulary does not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum KeyKind {
     /// A `UNIQUE` constraint: the server refuses a duplicate.
@@ -238,9 +238,9 @@ impl fmt::Display for Change {
 
 /// One change, graded, with the SQL that makes it.
 ///
-/// Built by [`crate::ddl::step`] and by nothing else: the three fields past
-/// the change are all one dialect's answers, and a `Step` assembled anywhere
-/// else would be a second emitter.
+/// Built by [`crate::ddl::step`] and by nothing else: the fields past the
+/// change are all one dialect's answers, and a `Step` assembled anywhere else
+/// would be a second emitter.
 #[derive(Debug, Clone)]
 pub struct Step {
     change: Change,
@@ -353,7 +353,7 @@ impl Plan {
 
 impl fmt::Display for Plan {
     /// The plan as § 8's document: every step's grade and reason as a comment,
-    /// then its SQL, in the one comment syntax all four dialects read.
+    /// then its SQL, in the one comment syntax every dialect reads.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, step) in self.steps.iter().enumerate() {
             if index > 0 {
@@ -382,7 +382,7 @@ impl fmt::Display for Plan {
 /// No statement is emitted, retrieved, parsed or compared here — the SQL a
 /// step carries is [`crate::ddl::step`]'s answer *after* the difference has
 /// already been found, which is why one difference is the same [`Change`] on
-/// all four dialects and only its spelling and its grade move.
+/// every dialect and only its spelling and its grade move.
 ///
 /// The order is the order the steps must run in: `want`'s tables in
 /// declaration order, and within a table its columns in declaration order —
@@ -400,7 +400,7 @@ impl fmt::Display for Plan {
 /// a drop and an add under one name, exactly as [`Change`]'s own doc says a
 /// rename is — and by § 7 the drop half of that is reported rather than run.
 ///
-/// § 5's normalisation is `dialect`'s other job. Three ways a value a builder
+/// § 5's normalisation is `dialect`'s other job. The ways a value a builder
 /// wrote and the same value read back off the server it was applied to differ
 /// without being different schemas, each normalised out of the comparison and
 /// none of them out of the [`Change`] — what a step emits is always `want`'s
@@ -489,9 +489,10 @@ fn diff_table(want: &Table, have: &Table, dialect: Dialect, out: &mut Vec<Change
 /// Whether the column the database has is the column the schema declares,
 /// after § 5's normalisation.
 ///
-/// Equality of the values first, which is the whole answer on four dialects:
-/// a [`Column`] is its type, its nullability, its identity and its default,
-/// and its name is equal already or this pair would not have been looked up.
+/// Equality of the values first, which is the whole answer everywhere but
+/// SQLite: a [`Column`] is its type, its nullability, its identity and its
+/// default, and its name is equal already or this pair would not have been
+/// looked up.
 ///
 /// The exception is SQLite's rowid. `INTEGER PRIMARY KEY AUTOINCREMENT` is the
 /// only identity that dialect has ([`crate::ddl::rowid_identity`]), it is an
@@ -517,8 +518,8 @@ fn same_column(table: &Table, have: &Column, want: &Column, dialect: Dialect) ->
 /// **A unique constraint is its columns.** § 5 names "a unique constraint's
 /// implicitly created index" as a normalisation this system lives or dies on,
 /// and the name is where it bites: the constraint is *implemented* as an index
-/// on every one of the five, and what that index is called is the server's
-/// answer rather than ours. SQLite mints `sqlite_autoindex_wide_1` for a
+/// on every backend, and what that index is called is the server's answer
+/// rather than ours. SQLite mints `sqlite_autoindex_wide_1` for a
 /// constraint [`crate::ddl`] spelled `CONSTRAINT wide_label UNIQUE (label)`,
 /// and it takes no name for an inline one at all. Two unique constraints over
 /// the same columns in the same order are one constraint whatever either end
@@ -549,7 +550,7 @@ mod tests {
     use super::*;
     use crate::schema::{IntWidth, ScalarType};
 
-    /// The four dialects, in the order [`Dialect`] declares them.
+    /// Every dialect, in the order [`Dialect`] declares them.
     const DIALECTS: [Dialect; 4] = [
         Dialect::PostgreSql,
         Dialect::MySql,
@@ -620,10 +621,10 @@ mod tests {
 
     /// § 5, as the property that the *differences* are dialect-free.
     ///
-    /// Agreement rather than a reading of one dialect's answer: the four
-    /// spell this plan four different ways, and a diff that had reached for
-    /// any of that text — a type name, a quoted identifier, a rebuild — would
-    /// disagree with itself here while still printing plausibly on its own.
+    /// Agreement rather than a reading of one dialect's answer: each spells
+    /// this plan its own way, and a diff that had reached for any of that
+    /// text — a type name, a quoted identifier, a rebuild — would disagree
+    /// with itself here while still printing plausibly on its own.
     /// The `to_string` list is the same claim from the other side, since a
     /// [`Change`] prints only what the values said.
     #[test]

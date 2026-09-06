@@ -19,7 +19,7 @@
 //! Nothing unwinds. Every call — a runtime helper, an Novis method, the
 //! safepoint slow path — is followed by a compare-and-branch on the returned
 //! status. That pair of instructions is what replaces a landing pad;
-//! `benches/abi-probe`'s `compile_chain` has measured its cost since M0.
+//! `benches/abi-probe`'s `compile_chain` measures its cost.
 //!
 //! ## Where a failing status goes
 //!
@@ -66,19 +66,19 @@
 //! at a call boundary and at the `out` slot — exactly as that type's own docs
 //! say. [`ty::clif_ty`] is the whole of the mapping.
 //!
-//! ## The three hot-word checks
+//! ## The hot-word checks
 //!
 //! Each is a load of one word from [`nvs_runtime::Ctx`] plus a
 //! predicted-not-taken branch, and each is emitted unconditionally:
 //!
 //! * the **safepoint poll** at every [`nvs_ir::ir::InstKind::Safepoint`] —
-//!   function entry and loop back edges, the project-start decision's two
-//!   fixed sites;
+//!   function entry and loop back edges, the project-start decision's fixed
+//!   sites;
 //! * `rule:errors/on-limit`'s
 //!   **call-stack compare**, riding the *first* of those polls so that it
 //!   lands at function entry and nowhere else — one load, one compare against
 //!   Cranelift's `get_stack_pointer`, branching to
-//!   [`nvs_runtime::nvs_stack_check`]. It is the one of the three that is
+//!   [`nvs_runtime::nvs_stack_check`]. It is the one of them that is
 //!   *elided*: `emit::is_leaf` answers which functions cannot grow the stack
 //!   past the reserve their caller already checked with, and those carry none;
 //! * `rule:testing/debug-probes`'s **debug-flags check**, at every
@@ -106,8 +106,8 @@
 //! `nvs-codegen` gap N named anywhere else in the tree keeps meaning what it
 //! meant when it was written:
 //!
-//! Exceptions are ordinary objects here: `Ty::Throwable` is gone, a user class
-//! `extends Throwable` compiles like any other, and a typed `catch` is an
+//! Exceptions are ordinary objects here: there is no `Ty::Throwable`, a user
+//! class `extends Throwable` compiles like any other, and a typed `catch` is an
 //! [`nvs_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
 //! from its region — `nvs_ir::lower::Lowering::lower_try` owns that policy
 //! whole, and this backend emits the copies it lowers.
@@ -140,8 +140,8 @@
 //!    its own.
 //! 2. **`rule:testing/debug-probes`'s `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`nvs_ir::ir::Terminator::Branch`]'s lowering, which is the only one
-//!    of that ADR's three sites still missing — the statement-boundary probe
-//!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
+//!    of that ADR's sites still missing — the statement-boundary probe and the
+//!    call-site `TRACE`/`PROFILE` pair are both emitted.
 //! 4. **Two identical string literals are two data objects.** Each
 //!    `InstKind::ConstStr` emits its own immortal header and payload under its
 //!    own name, so a unit that writes `"id"` in forty places holds forty
@@ -163,8 +163,8 @@
 //!    what makes `float $avg = $sum / $n;` the ADR's own worked example.
 //! 6. **[`nvs_ir::ir::Terminator::Switch`] lowers to a compare chain, not a
 //!    jump table.** Correct for any case set — the IR deliberately does not
-//!    require a dense or sorted one — and the arms are few in the one
-//!    producer there is today, `rule:iteration/generators`'s generator resumption (one per
+//!    require a dense or sorted one — and the arms are few in its one
+//!    producer, `rule:iteration/generators`'s generator resumption (one per
 //!    `yield`, plus the entry and exhausted arms). A `br_table` over a dense
 //!    case set is the obvious optimisation. Novis's own `switch` statement never
 //!    reaches this terminator — it lowers to a `Branch` chain, since a label
@@ -180,22 +180,22 @@
 //! 8. **Integer `+`, `-`, `*` and unary `-` throw on overflow rather than
 //!    wrapping**, which
 //!    `rule:types/arithmetic` calls the
-//!    divergence from PHP it is least willing to trade. `emit_binop` hands all
-//!    three binary rows to `emit_checked_int_arith` and `emit_unop` takes the
-//!    fourth, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
+//!    divergence from PHP it is least willing to trade. `emit_binop` hands the
+//!    binary rows to `emit_checked_int_arith` and `emit_unop` takes the unary
+//!    one, each reading Cranelift's `sadd_overflow`/`uadd_overflow` family
 //!    — the flag the CPU already sets, so the cost is one predicted branch and
 //!    no synthesized compare — and raising spec § 10's `ArithmeticError` on
 //!    [`nvs_ir::ir::Inst::on_error`]'s edge through the shared
-//!    `raise_arithmetic_error`, which the two zero-divisor guards now use too.
+//!    `raise_arithmetic_error`, which the zero-divisor guards use too.
 //!    The signed and unsigned rows are different instructions rather than one
 //!    read two ways: a carry out of bit 63 is not a sign flip, which is what
 //!    keeps `uint` exact over `0 … 2^64−1`.
 //! 9. **A binary operator wants both operands in one representation, and
-//!    knows only the numeric and `bool` ones.** A mixed numeric pair no longer
-//!    reaches here — `nvs_ir::lower` settles `1 + 1.5` by widening the integer
+//!    knows only the numeric and `bool` ones.** A mixed numeric pair does not
+//!    reach here — `nvs_ir::lower` settles `1 + 1.5` by widening the integer
 //!    side and `$n < $f` by a helper, which is what keeps this crate's "a
 //!    `BinOp` has one representation" invariant a genuine internal error. What
-//!    is still refused is `==` over two enum values, whose `Enum(Int)`
+//!    is refused is `==` over two enum values, whose `Enum(Int)`
 //!    representation is not on the integral list even though comparing the two
 //!    integers is exactly right — a missing arm rather than a missing
 //!    mechanism, since `rule:enums/closed-integer-type` makes an enum *be* its integer.
@@ -286,7 +286,7 @@ pub enum CodegenError {
 /// never a length, so a hand caller that passes the declared arguments alone
 /// reads one `Value` past the end of its own slice for *every* parameter and
 /// gets no diagnostic from anywhere — it answers with whatever was next in
-/// memory, which on one platform was the right answer by luck.
+/// memory, which on a given platform can be the right answer by luck.
 ///
 /// So the shape is not documented at the caller, it is **named**: take the
 /// entry point that matches what you are calling and there is nothing left to
@@ -568,7 +568,7 @@ impl Unit {
     /// a wrong count is a bug in the test rather than an outcome. A status
     /// would also be indistinguishable from one the callee itself raised —
     /// `tests/stack_limit.rs` asserts on exactly `Err(FATAL)` from a call made
-    /// through here, and would have gone on passing.
+    /// through here, and would go on passing.
     ///
     /// # Errors
     ///
@@ -634,8 +634,8 @@ impl Unit {
     /// Hands `ctx` this unit's class table. **Every embedder calls this before
     /// running any of the unit's code**, whether or not it cares about `catch`.
     ///
-    /// Three obligations share the one call, and the second is the reason it
-    /// is not optional:
+    /// Several obligations share the one call, and *Safety* below is the
+    /// reason it is not optional:
     ///
     /// 1. *Behaviour.* A runtime helper's failure carries a message and a
     ///    § 10 class name; the installed class is the anchor that resolves
@@ -700,8 +700,8 @@ pub fn compile(program: &Program) -> Result<Unit, CodegenError> {
 ///
 /// # Errors
 ///
-/// The same three cases [`compile`] reports, plus a refusal from the object
-/// writer itself, which is an engine bug.
+/// The same cases [`compile`] reports, plus a refusal from the object writer
+/// itself, which is an engine bug.
 pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
     let mut unit = UnitBuilder::for_object()?;
     unit.compile_all(program)?;
@@ -719,7 +719,7 @@ pub fn compile_object(program: &Program) -> Result<Vec<u8>, CodegenError> {
 ///
 /// # Errors
 ///
-/// The same three cases [`compile`] reports, for the same reasons.
+/// The same cases [`compile`] reports, for the same reasons.
 pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
     let mut unit = UnitBuilder::new(Some(String::new()))?;
     unit.compile_all(program)?;
@@ -989,21 +989,21 @@ struct UnitBuilder<M> {
 /// # Why the descriptor address is a relocation rather than a constant
 ///
 /// A JIT compiles at run time, so it *knows* the address of a runtime object
-/// it has already built, and for four milestones it baked that address in as
-/// an `iconst`. It no longer does. The address reaches the code as a
+/// it has already built, and could bake that address in as an `iconst`. It
+/// does not. The address reaches the code as a
 /// relocation against the name [`class_desc_symbol`] mints, because `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 /// 's payload is this same lowering walk emitted into an object file, and a
 /// host address written into an object file is wrong the moment another
 /// process reads it — the descriptors it names were allocated by the process
 /// that compiled, not by the one that will run.
 ///
-/// **Nothing on the hot path changes.** `is_pic` is off (see [`UnitBuilder::new`]), so
-/// a symbol value lowers to the same absolute `movabs` an `iconst` did, with
+/// **Nothing on the hot path pays for it.** `is_pic` is off (see [`UnitBuilder::new`]), so
+/// a symbol value lowers to the same absolute `movabs` an `iconst` would, with
 /// an `Abs8` relocation attached; under [`JITModule`] that relocation resolves
 /// through the lookup closure [`UnitBuilder::new`] installs, to the very address this
-/// table holds. The descriptor is still an opaque token — `nvs_runtime::ClassDesc`
-/// needs no `#[repr(C)]` and no layout compiled code agrees on — and the only
-/// thing the change adds is a *record* of where the address came from.
+/// table holds. The descriptor stays an opaque token — `nvs_runtime::ClassDesc`
+/// needs no `#[repr(C)]` and no layout compiled code agrees on — and all the
+/// relocation adds is a *record* of where the address came from.
 ///
 /// The [`Unit`] that owns the table must outlive that code — see its own
 /// `_classes` field.
@@ -1175,10 +1175,10 @@ impl Classes {
         // `rule:types/erased-member-access`'s write check, at the one granularity the runtime can
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
         // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
-        // "unchecked". Every class with a layout carries one entry per slot
-        // now, because § 4's erased receiver reaches any class at all; the
-        // guard below is for the synthesized ones that carry none (a
-        // closure's environment, a generator's state).
+        // "unchecked". Every class with a layout carries one entry per slot,
+        // because § 4's erased receiver reaches any class at all; the guard
+        // below is for the synthesized ones that carry none (a closure's
+        // environment, a generator's state).
         if class.field_reprs.len() == class.fields.len() && !class.field_reprs.is_empty() {
             let tags = class
                 .field_reprs
@@ -1307,7 +1307,7 @@ struct Signatures {
     /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `nvs_str_append(target, suffix) -> *mut StrHeader` and
     /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
-    /// same shape: two pointer-width parameters, one pointer back. The three
+    /// same shape: two pointer-width parameters, one pointer back. They
     /// differ in ownership and in what the second parameter *means*, not in
     /// ABI — see `nvs_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
     /// one signature serves all of them, and a count declares itself with
@@ -1412,11 +1412,11 @@ struct Signatures {
     /// `nvs_array_unset(array, key) -> *mut ArrayHeader` — two pointers in,
     /// one pointer back.
     ///
-    /// It borrowed [`Self::array_append`]'s signature while the two shapes
-    /// happened to agree, which is a call this crate would have miscompiled in
-    /// silence the moment that one grew its fault channel. It has its own now,
-    /// and no signature here is shared by two symbols whose Rust declarations
-    /// are not the same shape for the same reason.
+    /// Its own signature, never one borrowed from a symbol whose shape happens
+    /// to agree: no signature here is shared by two symbols whose Rust
+    /// declarations are not the same shape for the same reason, because a
+    /// borrowed one turns the moment either symbol grows a parameter into a
+    /// silent miscompile.
     array_unset: Signature,
     /// `nvs_array_next_slot(array, from) -> i64` — the `foreach` cursor step.
     /// `from` is a `usize` in the Rust signature, `I64` here: every target
@@ -1433,10 +1433,10 @@ struct Signatures {
 }
 
 /// The host ISA both backends compile for, under the flags that are a policy
-/// rather than a tuning choice — `tests/backend_policy.rs` pins the two of
-/// those that leave no trace in a compiled unit.
+/// rather than a tuning choice — `tests/backend_policy.rs` pins those of them
+/// that leave no trace in a compiled unit.
 ///
-/// **`is_pic` is the only flag the two backends disagree about**, and the
+/// **`is_pic` is the only flag the backends disagree about**, and the
 /// disagreement is forced rather than a preference: a JIT owns the pages it
 /// writes into and resolves every call and every descriptor to an absolute
 /// address, while a relocatable object has no address to bake and every
@@ -1447,8 +1447,8 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
     let mut flags = settings::builder();
     for (name, value) in [
         // A JIT resolves every call through an absolute address, and the
-        // pages are its own — the same configuration benches/abi-probe has
-        // measured Novis's costs under since M0.
+        // pages are its own — the configuration benches/abi-probe measures
+        // Novis's costs under.
         ("use_colocated_libcalls", "false"),
         ("is_pic", if is_pic { "true" } else { "false" }),
         ("opt_level", "speed"),
@@ -1457,12 +1457,10 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
         // step and write into whatever lies beyond — a stack clash, which
         // is a memory-safety bug rather than the clean crash a guard page
         // exists to produce. `probestack_size_log2` defaults to 12, so a
-        // probe is emitted only for a frame over 4 KiB and no Novis frame is
-        // that big today: measured under callgrind on this tree, the
-        // retired-instruction count is unchanged to five significant
-        // figures either way (92,237,951 off vs 92,237,800 inline on a
-        // call-heavy fixture; 55,399,358 vs 55,399,652 on a 200-deep
-        // recursion). It is therefore insurance bought for nothing, and
+        // probe is emitted only for a frame over 4 KiB and no Novis frame
+        // is that big: under callgrind, the retired-instruction count is
+        // unchanged either way on a call-heavy fixture and on a deep
+        // recursion. It is therefore insurance bought for nothing, and
         // the frame that would need it is exactly the one nobody predicts.
         //
         // **Not the same mechanism as `rule:errors/on-limit`'s call-stack limit**,
@@ -1477,8 +1475,8 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
         // module's `builder.symbol` loop below does not supply. So an
         // outline probe does not protect an oversized frame; it panics
         // `cranelift-jit` with `can't resolve libcall __cranelift_probestack`
-        // the first time one is compiled, which measured as roughly fifty
-        // consecutive `echo`s at a script's file scope. `inline` emits the
+        // the first time one is compiled, which a script's file scope
+        // reaches in a modest run of consecutive `echo`s. `inline` emits the
         // probe loop into the frame itself and needs no symbol, so the
         // guarantee above is the one actually in force.
         ("probestack_strategy", "inline"),
@@ -1532,8 +1530,8 @@ impl UnitBuilder<ObjectModule> {
     /// The out-of-process backend: `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s relocatable object, for a
     /// cache file some later process will load.
     ///
-    /// Exactly two things differ from [`UnitBuilder::new`], and both follow from
-    /// the file outliving the process that wrote it. `is_pic` is on, because
+    /// What differs from [`UnitBuilder::new`] follows from the file outliving
+    /// the process that wrote it. `is_pic` is on, because
     /// there is no address here to bake. And there is no symbol table of any
     /// kind — no `builder.symbol` loop and no `symbol_lookup_fn` — because
     /// leaving every runtime helper and every `nvs_class_desc_*` undefined is
@@ -2007,7 +2005,7 @@ impl Signatures {
 /// The name this backend gives the function at `index` in
 /// `nvs_ir::Program::functions`.
 ///
-/// The one home of that spelling, and it has two callers on purpose:
+/// The one home of that spelling, and every caller of it is deliberate:
 /// [`UnitBuilder::compile_all`] declares every function under it, and
 /// [`Descriptors::of`] derives it again from the same walk over the same
 /// program so a loader can ask a placed payload for a method's address. Both
@@ -2147,8 +2145,9 @@ mod tests {
     /// declared and did not define, so every use of it leaves a relocation
     /// record — which is the whole of what `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`'s object payload needs
     /// and the whole of what an `iconst` immediate destroys. The second is the
-    /// promise that came with it: under `JITModule` the record resolves to the
-    /// address that used to be baked, so nothing on the hot path moved.
+    /// promise that comes with it: under `JITModule` the record resolves to
+    /// the very address the table holds, so nothing on the hot path pays for
+    /// the indirection.
     fn assert_relocated(jit: &UnitBuilder<JITModule>, label: &str) {
         let name = class_desc_symbol(label);
         let Some(FuncOrDataId::Data(id)) = jit.module.declarations().get_name(&name) else {
@@ -2389,7 +2388,7 @@ echo $total;
     /// A call to a function this unit defines reaches the code as a relocation
     /// against the callee's symbol, not as a baked address.
     ///
-    /// Under `JITModule` it always was — `func_addr` against a `FuncId` is a
+    /// Under `JITModule` it always is — `func_addr` against a `FuncId` is a
     /// relocation whichever module finalizes it — so the claim is only
     /// *readable* on the object product, where the relocation table survives
     /// finalization. That is what this reads: a `nvs_class_desc_*` import proves

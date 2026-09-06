@@ -1,8 +1,7 @@
 //! `rule:errors/propagation`'s checked-return propagation: what crosses a frame, what a `catch` stops, the backtrace, and what a throwing frame releases.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -82,11 +81,11 @@ class MyError extends IOError {
 
     // `rule:core-classes/derive-reports-every-field`'s `issues` and `rule:core-classes/db-error`'s `kind` are properties classes
     // below the root declare, and the runtime writes each by index too — so
-    // their slots are held by the same agreement the four above are. Both
-    // constants are equal, and are asserted against their own class rather
-    // than against each other: two sibling classes each declaring one property
-    // is why, and a third class declaring two would break the coincidence
-    // without breaking either line.
+    // their slots are held by the same agreement the root's are. Each constant
+    // is asserted against its own class rather than against a sibling's:
+    // sibling classes declaring a property apiece make the indices coincide,
+    // and a class declaring more would break that coincidence without breaking
+    // any single line.
     assert_eq!(nvs_hir::errors::ISSUES_SLOT, nvs_runtime::ISSUES_SLOT);
     assert_eq!(nvs_hir::errors::KIND_SLOT, nvs_runtime::KIND_SLOT);
     assert_eq!(nvs_hir::errors::REASON_SLOT, nvs_runtime::REASON_SLOT);
@@ -248,12 +247,11 @@ fn a_frame_that_throws_releases_the_strings_it_still_held() {
 /// `nvs_runtime::budget`'s, because the memory limit is read off the same
 /// counters and every build therefore maintains them. This binary installs no
 /// allocator of its own, and could not: a `#[global_allocator]` is chosen once
-/// per binary and `nvs-runtime` now registers one in every `not(test)` build.
+/// per binary and `nvs-runtime` registers one in every `not(test)` build.
 ///
-/// **Only used in a debug build.** What the gate keeps out is no longer a
-/// missing counter but an optimized one's inlining: the guard below is pinned
-/// against what an unoptimized build allocates, and nothing has measured it
-/// under `--release`.
+/// **Only used in a debug build.** What the gate keeps out is an optimized
+/// build's inlining: the guard below is pinned against what an unoptimized
+/// build allocates, and nothing has measured it under `--release`.
 #[cfg(debug_assertions)]
 use nvs_runtime::budget::{allocated_bytes, live_bytes};
 
@@ -264,9 +262,7 @@ use nvs_runtime::budget::{allocated_bytes, live_bytes};
 /// The observation has to be the allocator's balance rather than a program's
 /// output, because nothing in the program runs after a fatal — that is what a
 /// fatal is. It cannot be the valgrind sweep either: `examples/fatal.nvs` is on
-/// that sweep's skip list for exiting non-zero by design, which is exactly why
-/// `docs/agent/guard-name-debt.md` carried this name as work rather than as a
-/// rename.
+/// that sweep's skip list for exiting non-zero by design.
 ///
 /// `Core\Arr::countBy` over a `float`-keyed subject is the trigger, because it
 /// is a `Fault::fatal` reachable from source *after* two locals are live —

@@ -1,8 +1,7 @@
 //! Object layout and lifetime — constructors, inherited slots, `instanceof`, and release on every exit path.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -104,9 +103,9 @@ echo $cat->front()->length();
 
 #[test]
 fn instanceof_sees_the_class_its_parent_and_its_interface() {
-    // Three answers out of one `nvs_object_instanceof` call each: the
-    // descriptor address is baked in, and `nvs_types::layout` gives the
-    // *interface* a descriptor with no slots purely so this test can name it.
+    // One `nvs_object_instanceof` call per answer: the descriptor address is
+    // baked in, and `nvs_types::layout` gives the *interface* a descriptor
+    // with no slots purely so this test can name it.
     let source = "<?nvs
 interface Greets {
     public function greeting(): string;

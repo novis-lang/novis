@@ -25,15 +25,15 @@
 //! ADR's own reading: it says the gate "will occasionally be wrong at the
 //! margins — a change that is technically breaking and practically harmless",
 //! and deliberately ships no suppression mechanism, because a gate with an
-//! escape hatch is an advisory. Two places where that shows: a *removed*
-//! parameter is breaking whether or not it was optional, and a changed
+//! escape hatch is an advisory. That is why a *removed* parameter is breaking
+//! whether or not it was optional, and why a changed
 //! `format` is breaking, because `{"type": "string"}` and
 //! `{"type": "string", "format": "decimal"}` accept different sets of strings.
 //!
 //! ## What has no producer yet
 //!
-//! [`crate::openapi`]'s module doc lists the six § 1 rows the route table does
-//! not supply, and two of them are the reason the walk below reads members no
+//! [`crate::openapi`]'s module doc lists the § 1 rows the route table does not
+//! supply, and among them are the reason the walk below reads members no
 //! document Novis writes today carries: `responses` and `requestBody`. They are
 //! implemented here rather than left for the session that lands them because
 //! § 4's gate is defined over *documents*, not over this emitter's current

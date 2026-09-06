@@ -1,10 +1,9 @@
 //! Control flow — `if`, `while`, `for`, both `foreach` shapes, `switch`, `break`/`continue`, and the env merge every join needs.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)` so they reach across these modules and no further, which
+//! is the reach a single-file `lower` would give them.
 
 use super::*;
 
@@ -240,17 +239,17 @@ impl<'a> Lowering<'a> {
         // The loop's own exit environment: the condition's ordinary false
         // edge (carrying `header_env` as the condition left it — an increment
         // written into the header, `while ($i++ < 3)`, has already re-pointed
-        // it there) plus one more incoming edge per `break` recorded above. `Self::merge_envs`
-        // degenerates to a plain clone with no new phi at all when there is
-        // no `break` to fold in, exactly the prior "loop exit is always
-        // `header_env`" behavior.
+        // it there) plus one more incoming edge per `break` recorded above.
+        // With no `break` to fold in, `Self::merge_envs` degenerates to a
+        // plain clone with no new phi at all, so the loop exit is simply
+        // `header_env`.
         let mut after_incoming: Vec<(BlockId, Env)> = vec![(cond_end, header_env.clone())];
         after_incoming.extend(frame.break_edges);
         *env = self.merge_envs(after_block, &after_incoming, &header_env);
         *cur = after_block;
     }
     /// `do body while (cond);` — [`Self::lower_while`] with the condition
-    /// moved to the bottom, which changes two things and nothing else.
+    /// moved to the bottom, which changes what follows and nothing else.
     ///
     /// * **The header *is* the body's first block.** A `while` needs a block
     ///   of its own to evaluate the condition in before the body is entered;
@@ -635,7 +634,7 @@ impl<'a> Lowering<'a> {
     /// re-deriving a dense integer `switch` back into the jump table is an
     /// optimisation for the tier that has a cost model, not for this one.
     ///
-    /// Four things follow from PHP's own semantics:
+    /// These follow from PHP's own semantics:
     ///
     /// * **The subject is evaluated once**, before any label is, and every
     ///   label is then compared against that value in source order. The
@@ -851,7 +850,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Structurally [`Self::lower_while`] with a synthesized condition, and it
     /// reuses that method's whole phi/`break`/`continue` machinery unchanged.
-    /// Three things are its own:
+    /// What is its own:
     ///
     /// * **The loop owns a second reference to the array**, retained here when
     ///   the subject [`is_aliasing_read`]s an existing slot (a fresh subject —
@@ -876,7 +875,7 @@ impl<'a> Lowering<'a> {
     ///   of the body rather than the bottom precisely so that a `continue`'s
     ///   back edge needs no step of its own.
     ///
-    /// # `inout $v` inverts the first of those three
+    /// # `inout $v` inverts the loop's second reference
     ///
     /// A by-reference value binding writes each element back into the array
     /// being walked, so the loop must **not** hold a second reference: the
@@ -1636,7 +1635,7 @@ impl<'a> Lowering<'a> {
     /// drops it from `env` — the one thing every point an iteration ends has
     /// in common (the body's fall-through back edge, a `continue`, a `break`).
     ///
-    /// Two sets, and they are disjoint by construction:
+    /// The sets below, disjoint by construction:
     ///
     /// * [`LoopFrame::iteration_owned`] — a `foreach` header's key and value
     ///   bindings, named up front because the header rebinds them itself.
@@ -2130,13 +2129,12 @@ impl<'a> Lowering<'a> {
     /// [`Self::collect_reassigned_in_expr`] applied to every sub-expression of
     /// `e`, so that a rebinding written *inside* another expression is found.
     ///
-    /// This walk is what an increment in **value** position costs: while
-    /// `$i++` only ever lowered as a statement, the two shapes that re-point a
-    /// local were always the whole expression, and looking at `e`'s own kind
-    /// was enough. `int $c = $b++ + $b++;` puts one arbitrarily deep, and a
-    /// loop header that misses its phi reads the pre-loop value on every
-    /// iteration — silently, since nothing downstream can tell a missing phi
-    /// from a local the body never touched.
+    /// This walk is what an increment in **value** position costs: a shape
+    /// that re-points a local need not be the whole expression, so looking at
+    /// `e`'s own kind is not enough. `int $c = $b++ + $b++;` puts one
+    /// arbitrarily deep, and a loop header that misses its phi reads the
+    /// pre-loop value on every iteration — silently, since nothing downstream
+    /// can tell a missing phi from a local the body never touched.
     ///
     /// **A closure body is deliberately not walked.** `rule:types/implicit-capture` captures by
     /// value, so `fn () => $x++` re-points the environment object's own copy

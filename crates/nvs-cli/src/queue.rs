@@ -23,8 +23,8 @@
 //! *request* owns what it opens and must give it back; nothing about [`nvs_db::PgConn`] itself
 //! wants one. `nvs_host`'s parking stream blocks the calling thread when there is no core to hand
 //! back — `nvs_host::net`'s § *Off a core, it blocks* owns why that is the rule kept rather than
-//! bent — so the socket opens on the main thread and the whole cost of the applying half was an
-//! `nvs-db` dependency in this crate's manifest. Borrowing `main.rs`'s `run` task was the
+//! bent — so the socket opens on the main thread and the whole cost of the applying half is an
+//! `nvs-db` dependency in this crate's manifest. Borrowing `main.rs`'s `run` task is the
 //! alternative and buys nothing: a task exists there so `rule:concurrency/a-child-belongs-to-the-calling-task`'s children have a parent, and
 //! a migration spawns nothing and shares nothing.
 //!
@@ -37,7 +37,7 @@
 //! What it *does* answer offline is everything a mistyped configuration gets wrong, which is the
 //! failure mode [`nvs_config::queue`]'s own module doc calls the expensive one: whether a `[queue]`
 //! block or a `--connection` names a `[db.<name>]` the merged tree actually holds, and whether that
-//! block speaks a driver § 2's schema has a dialect for. A tree that fails those two never reaches
+//! block speaks a driver § 2's schema has a dialect for. A tree that fails either never reaches
 //! a database to fail against.
 //!
 //! **Exit status is the contract**, and each half answers for the work it did: `--dry-run` succeeds
@@ -65,11 +65,12 @@ use crate::render_diagnostics;
 
 /// The block's `driver` field as the driver it names, or the refusal an operator sees instead.
 ///
-/// **Two failures rather than one**, because they are two mistakes: a `driver` no backend answers to
-/// is a typo in a value `rule:core-classes/db-connection-is-named` closes, and a backend Novis knows but § 2's schema has no
-/// dialect for is a deployment that is early rather than wrong. Which drivers have a list is
-/// [`nvs_stdlib::queue::migration`]'s answer and not this command's — the schema lives beside the
-/// statements that read its columns, and so does the roster of dialects it is written in.
+/// **Separate failures rather than one**, because they are separate mistakes: a `driver` no backend
+/// answers to is a typo in a value `rule:core-classes/db-connection-is-named` closes, and a backend
+/// Novis knows but § 2's schema has no dialect for is a deployment that is early rather than wrong.
+/// Which drivers have a list is [`nvs_stdlib::queue::migration`]'s answer and not this command's —
+/// the schema lives beside the statements that read its columns, and so does the roster of dialects
+/// it is written in.
 fn dialect_of(name: &str, written: Option<&str>) -> Option<(nvs_db::Driver, &'static [Migration])> {
     let Some(written) = written else {
         eprintln!("error: `[db.{name}]` names no `driver`, so it is not openable at all");
@@ -205,13 +206,13 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(10);
 /// One driver's half of [`apply`]: resolve the block as that driver's target, open it, and hand the
 /// statements to [`run_all`].
 ///
-/// **A macro because the three arms differ in names and not in shape.**
+/// **A macro because the arms differ in names and not in shape.**
 /// `rule:core-classes/db-drivers-are-an-enum`
-/// makes the five drivers an enum with one `match` per entry point rather than a `Driver` trait, so
-/// there is no type parameter to write this as a generic function over — and writing it out three
-/// times would be one body with `Pg`, `MySql` and `Maria` in it plus three copies of every refusal
+/// makes the drivers an enum with one `match` per entry point rather than a `Driver` trait, so
+/// there is no type parameter to write this as a generic function over — and writing it out per
+/// driver would be one body with `Pg`, `MySql` and `Maria` in it plus a copy of every refusal
 /// sentence to keep in step. The refusals themselves are already one vocabulary: `BlockError` is
-/// shared by all three resolvers for the reason its own module doc gives.
+/// shared by every resolver for the reason its own module doc gives.
 macro_rules! open_and_apply {
     ($target:ty, $conn:ty, $port:path, $name:expr, $block:expr, $list:expr) => {{
         let target = match <$target>::resolve($block) {
@@ -286,9 +287,9 @@ fn apply(
             list
         ),
         // Unreachable: [`dialect_of`] refuses a driver with no list before anything is opened, and
-        // those are exactly the two with no connection either. Spelled rather than left to a `_` so
-        // that a driver *gaining* a list arrives here as a build failure rather than as a refusal
-        // that has stopped being true.
+        // those are exactly the drivers with no connection either. Spelled rather than left to a
+        // `_` so that a driver *gaining* a list arrives here as a build failure rather than as a
+        // refusal that has stopped being true.
         nvs_db::Driver::SqlServer | nvs_db::Driver::Sqlite => {
             eprintln!(
                 "error: `[db.{name}]` names the {} driver, which reached the applying half with no \
@@ -342,7 +343,7 @@ fn run_all(
 /// reason and is the second reader rather than a second copy.
 ///
 /// **`fallback` is the driver's default port and never this function's**, for the reason
-/// `nvs_stdlib::db`'s twin takes one too: 5432 and 3306 are two facts about two backends, and a
+/// `nvs_stdlib::db`'s twin takes one too: 5432 and 3306 are facts about different backends, and a
 /// default written here would be PostgreSQL's answer given to a MySQL block that wrote no `port`.
 pub(crate) fn address_of(host: &str, port: Option<u16>, fallback: u16) -> Option<SocketAddr> {
     let port = port.unwrap_or(fallback);

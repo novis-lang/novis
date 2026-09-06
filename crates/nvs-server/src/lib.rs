@@ -22,12 +22,12 @@
 //! ). There is one isolation path in this tree and that is it; a second one
 //! would leave M7's state-bleed suite proving nothing.
 //!
-//! **A connection is bounded by a clock**: `rule:http-server/the-server-block-is-boot-class`'s four waits arrive as
+//! **A connection is bounded by a clock**: `rule:http-server/the-server-block-is-boot-class`'s waits arrive as
 //! one `nvs_config::server::Waits`, and [`io`]'s docs § *The clock* are where
 //! they are enforced — idle waits refreshed by the bytes that move, never a
-//! total, and no state a connection can be in that is not one of the four.
+//! total, and no state a connection can be in that is not one of them.
 //!
-//! [`mount`] is which isolate a request selects: § 4's five steps over the table
+//! [`mount`] is which isolate a request selects: § 4's steps over the table
 //! `nvs_config::mount::expand` walked against the disk at boot, answering either
 //! the file to run or the file to send. It is the only module here that touches a
 //! filesystem at all, and its own docs § *What a remainder may be* are why doing
@@ -54,7 +54,7 @@
 //! rather than left for the program to ask a second time. It dispatches
 //! nothing — a name and typed parameters, and then it stops — which is why the
 //! CSRF check, the `route` metric label and § 8's access decision can each read
-//! one answer instead of making three.
+//! one answer instead of each making its own.
 //!
 //! [`socket`] is where this crate stops speaking HTTP:
 //! `rule:concurrency/a-connection-is-a-root-isolate`'s

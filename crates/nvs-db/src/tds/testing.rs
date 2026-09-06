@@ -86,8 +86,8 @@ pub(super) fn block() -> Database {
     }
 }
 
-/// Which `Option<String>` a field name selects, so the three that resolve
-/// identically are asserted in one loop rather than in three copies.
+/// Which `Option<String>` a field name selects, so the fields that resolve
+/// identically are asserted in one loop rather than in a copy each.
 pub(super) fn written_field<'a>(block: &'a mut Database, field: &str) -> &'a mut Option<String> {
     match field {
         "host" => &mut block.host,
@@ -203,8 +203,8 @@ pub(super) fn env_token(kind: u8, to: &str, from: &str) -> Vec<u8> {
 }
 
 /// A `LOGINACK` as SQL Server 2022 writes one — **including the byte order
-/// of its version**, which is the opposite of the one LOGIN7 asked in and
-/// was this fixture's own bug until a real 2022 server was asked.
+/// of its version**, which is the opposite of the one LOGIN7 asked in and is
+/// what a real 2022 server puts on the wire.
 pub(super) fn login_ack_token() -> Vec<u8> {
     let mut body = vec![1];
     body.extend_from_slice(&TDS_VERSION.to_be_bytes());
@@ -347,8 +347,8 @@ pub(super) fn one_column(type_info: &[u8]) -> io::Result<TdsColumn> {
 }
 
 /// A `TYPE_INFO` for every type byte this driver reads, with the length
-/// family MS-TDS gives it and the § 9 row it classifies as. The two sweeps
-/// below share it, which is what makes them ask about one table.
+/// family MS-TDS gives it and the § 9 row it classifies as. The sweeps below
+/// share it, which is what makes them ask about one table.
 pub(super) fn every_type_info() -> Vec<(Vec<u8>, Length, ColumnType)> {
     vec![
         (vec![TY_NULL], Length::Fixed(0), ColumnType::Other),

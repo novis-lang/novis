@@ -10,7 +10,7 @@
 //! **The parse is directed by the unit, never by the spelling.** `m` is mega under a size and
 //! minutes under a duration, and a bare `600` is bytes under one and seconds under the other;
 //! nothing in the text decides that, so [`unit_of`] decides it once for both paths. It is keyed on
-//! the key's **last segment**, because one limit is written in five places — `[limits]`,
+//! the key's **last segment**, because one limit is written in several places — `[limits]`,
 //! `[limits.hard]`, `[app.limits]`, `[app.limits.hard]` and the bare `memory` a
 //! `Core\Config::set` names it with — and a ceiling that parsed differently from the value it
 //! bounds would be comparing two different quantities. The block is still checked, so a future
@@ -101,7 +101,7 @@ impl Unit {
 
 /// The unit `key` is written in, and `None` for a key that is not a quantity at all.
 ///
-/// The five limit keys are the whole table today; adding a key is one row, and a key outside a
+/// The limit keys are the whole table; adding a key is one row, and a key outside a
 /// limits block gets `None` however it is spelled.
 #[must_use]
 pub fn unit_of(key: &str) -> Option<Unit> {

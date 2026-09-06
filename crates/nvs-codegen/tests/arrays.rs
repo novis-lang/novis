@@ -1,8 +1,7 @@
 //! `array<T>` literals, element writes, copy-on-write separation, and truthiness.
 //!
-//! Split out of the single `compile_and_run.rs`; every test keeps its own name
-//! and body. See `tests/common/mod.rs` for the shared fixtures and for why
-//! these go through the real pipeline.
+//! See `tests/common/mod.rs` for the shared fixtures and for why these go
+//! through the real pipeline.
 
 mod common;
 
@@ -58,7 +57,7 @@ fn a_copy_written_after_aliasing_leaves_the_original_alone() {
 
 #[test]
 fn an_array_is_truthy_unless_it_is_empty() {
-    // `Helper::ArrayTruthy`, whose entry point landed with the representation.
+    // `Helper::ArrayTruthy`, which is where an array's truthiness is decided.
     assert_eq!(
         output_of("<?nvs\narray<int> $a = [];\nif ($a) {\n    echo \"full\";\n}\necho \"done\";\n"),
         "done"
@@ -122,12 +121,11 @@ echo $bag->get(\"a\") . $bag->get(\"b\");
 /// The counter is `nvs_runtime::budget`'s, which every build maintains because
 /// the memory limit is read off it; this binary installs no allocator of its
 /// own, and could not, since a `#[global_allocator]` is chosen once per binary
-/// and `nvs-runtime` now registers one in every `not(test)` build.
+/// and `nvs-runtime` registers one in every `not(test)` build.
 ///
-/// **Only run in a debug build.** What the gate keeps out is no longer a
-/// missing counter but an optimized one's inlining: the numbers below are
-/// pinned against what an unoptimized build allocates, and nothing has measured
-/// them under `--release`.
+/// **Only run in a debug build.** What the gate keeps out is an optimized
+/// build's inlining: the numbers below are pinned against what an unoptimized
+/// build allocates, and nothing has measured them under `--release`.
 #[cfg(debug_assertions)]
 fn allocations_of_run(source: &str) -> usize {
     let unit = compile(source).expect("the fixture compiles");
@@ -160,9 +158,9 @@ while ($r < {rounds}) {{
     )
 }
 
-/// The same accesses, reached through the rendered decimal `lower_array_key`
-/// used to emit for every subscript. The control arm: it is what makes the
-/// integer form's zero a measurement rather than a counter that never moved.
+/// The same accesses, reached through a rendered decimal key rather than the
+/// integer subscript. The control arm: it is what makes the integer form's
+/// zero a measurement rather than a counter that never moved.
 #[cfg(debug_assertions)]
 fn rendered_subscripts(rounds: i64) -> String {
     format!(

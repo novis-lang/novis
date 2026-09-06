@@ -22,9 +22,9 @@
 //!
 //! # Why it is driver-shaped and not PostgreSQL-shaped
 //!
-//! The span carries the driver as a field, so the five backends contribute the
+//! The span carries the driver as a field, so every backend contributes the
 //! same event and a trace reads across them. That is why this is its own
-//! module rather than a struct in [`crate::pg`]: the second driver adds a
+//! module rather than a struct in [`crate::pg`]: a further driver adds a
 //! `Driver::MySql` at its own statement routine and nothing else.
 //!
 //! # What it spends, and what it is not yet

@@ -22,7 +22,7 @@
 //! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
 //!
 //! One consequence of § 2 is checked from here but owned elsewhere: `rule:security/secret-sinks-refuse`
-//! 's fifth sink — a `secret` class constant reaching a payload — is
+//! 's sink for a `secret` class constant reaching a payload is
 //! `crate::expr::quals`', where every other sink already lives.
 //! [`check_value`] calls it at each value it reaches, that walk being the one
 //! place every payload value passes.
@@ -41,8 +41,8 @@ use crate::{Ctx, Env, span_text};
 
 /// Every attribute attached anywhere under one class/interface/enum body:
 /// the declaration's own groups, each member's, each method parameter's and
-/// each property hook's. One entry point per declaration kind would be four
-/// copies of the same walk, so the caller hands over the two lists it has.
+/// each property hook's. One entry point per declaration kind would be a copy
+/// of this walk each, so the caller hands over the lists it has.
 pub(crate) fn check_declaration(
     groups: &[AttributeGroup],
     members: &[ClassMember],
@@ -87,7 +87,7 @@ pub(crate) fn check_declaration(
     }
 }
 
-/// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s fourth attach site.
+/// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s parameter attach site.
 pub(crate) fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for param in params {
         check_groups(&param.attributes, ctx, env);
@@ -154,9 +154,9 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 check_roster("Route", crate::routes::OPTIONS, &attr.fields, ctx, env);
             } else if recognized(crate::derive::ACCESS) {
                 // Two calls, because `rule:attributes/access-payload` states two kinds of rule:
-                // the roster answers the three questions asked of every
-                // payload, and the pass that owns the attribute answers the
-                // two that are about `#[Access]` alone.
+                // the roster answers what is asked of every payload, and the
+                // pass that owns the attribute answers what is about
+                // `#[Access]` alone.
                 check_roster(
                     "Access",
                     crate::routes::ACCESS_OPTIONS,
@@ -166,7 +166,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 );
                 crate::routes::check_access(attr, env);
             } else if recognized(crate::derive::API) {
-                // Only the roster here. `rule:attributes/api-adds-and-cannot-contradict`'s four contradictions are
+                // Only the roster here. `rule:attributes/api-adds-and-cannot-contradict`'s contradictions are
                 // every one of them a comparison against the *declaration* —
                 // its `#[Route]`, its return type, the classes the program
                 // declares — so they are asked by the per-class walk that
@@ -202,10 +202,10 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 ///
 /// The walk every `rule:core-classes/derive-attribute` name that carries a payload shares, because a
 /// recognized name is matched *nominally* and so has no shape to be checked
-/// against: what it may hold is a roster its own module declares — `rule:testing/test-attribute`'s is [`crate::testing`]'s, `rule:tooling/commands-are-compiled`'s two are [`crate::commands`]',
-/// `rule:routing/route-attribute`'s is [`crate::routes`]'. Three answers per field and they are
-/// deliberately three: a name no row declares, a value at the wrong type, and
-/// a name given twice.
+/// against: what it may hold is a roster its own module declares — `rule:testing/test-attribute`'s is [`crate::testing`]'s, `rule:tooling/commands-are-compiled`'s are [`crate::commands`]',
+/// `rule:routing/route-attribute`'s is [`crate::routes`]'. The answers per field are deliberately
+/// these: a name no row declares, a value at the wrong type, and a name given
+/// twice.
 ///
 /// Called only for a payload [`check_attribute`] has already proved constant,
 /// for this module's own reason: the author is told about a value they wrote
@@ -272,7 +272,7 @@ fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
 /// the attribute is written in, to a `type` alias whose expansion is a shape
 /// type.
 ///
-/// Three answers, and they are deliberately three. A name nothing declared is
+/// The answers are deliberately these. A name nothing declared is
 /// the **ordinary** `E0303` any unresolvable name is — an attribute name is
 /// not a new namespace, so it does not get a "no such attribute" of its own.
 /// A name that resolves to something that is not a shape-typed alias is
@@ -349,7 +349,7 @@ fn report_not_a_shape(name: &Name, what: &str, env: &mut Env<'_>) {
 /// [`check_attribute`] the literal is worth checking against a shape.
 fn check_value(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool {
     if is_constant(expr) {
-        // `rule:security/secret-sinks-refuse`'s fifth sink, asked of every value this walk reaches
+        // `rule:security/secret-sinks-refuse`'s payload sink, asked of every value this walk reaches
         // and not only of a payload's top level: a `secret` constant nested
         // inside an array or an object literal is folded into the same
         // constant pool. It answers for a `Class::CONST` and for nothing

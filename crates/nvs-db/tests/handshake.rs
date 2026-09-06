@@ -24,23 +24,23 @@
 //! a second file would be the same skip rule and the same helpers written
 //! twice.
 //!
-//! **MariaDB is the third, and it is where the twinning pays for itself.** Its
-//! driver borrows `mysql.rs`'s framing and nothing above it — its own
-//! authentication roster, its own § 8 code table — so a scripted peer can only
-//! ever confirm that this crate agrees with itself about a protocol two servers
-//! implement differently. `mariadb()` below is `mysql()`'s twin and the leg it
-//! selects is the matrix's own, so the same three facts are asked of a real
-//! MariaDB: the session it ends up holding is encrypted, it is authenticated as
-//! the account named, and the credential it refuses is refused by *MariaDB's*
-//! table rather than by MySQL's.
+//! **MariaDB is where the twinning pays for itself.** Its driver borrows
+//! `mysql.rs`'s framing and nothing above it — its own authentication roster,
+//! its own § 8 code table — so a scripted peer can only ever confirm that this
+//! crate agrees with itself about a protocol two servers implement differently.
+//! `mariadb()` below is `mysql()`'s twin and the leg it selects is the matrix's
+//! own, so the same facts are asked of a real MariaDB: the session it ends up
+//! holding is encrypted, it is authenticated as the account named, and the
+//! credential it refuses is refused by *MariaDB's* table rather than by
+//! MySQL's.
 //!
-//! **SQL Server is the fourth, and the only one whose TLS is not a socket
-//! upgrade.** § 3's session is negotiated *inside* TDS: the handshake records
-//! ride PRELOGIN messages one packet at a time and the stream goes raw again
-//! once the login is sent, so `tds.rs`'s own cases hold each step of that tunnel
-//! against a peer that agrees with whatever was written. What is left over is
-//! the same question the other three leave over — that the tunnel completes
-//! against a real SQL Server and that a statement then runs over it — and
+//! **SQL Server is the only driver whose TLS is not a socket upgrade.** § 3's
+//! session is negotiated *inside* TDS: the handshake records ride PRELOGIN
+//! messages one packet at a time and the stream goes raw again once the login
+//! is sent, so `tds.rs`'s own cases hold each step of that tunnel against a
+//! peer that agrees with whatever was written. What is left over is the same
+//! question every other driver leaves over — that the tunnel completes against
+//! a real SQL Server and that a statement then runs over it — and
 //! `sys.dm_exec_connections` is where that server keeps its own view of the
 //! socket, so it stands exactly where `pg_stat_ssl` and `Ssl_version` do.
 //!
@@ -56,7 +56,7 @@
 //! rather than an admission: a server configured to trust every connection
 //! would answer `current_user` just as well.
 //!
-//! MySQL's twins are the same three facts asked of that server: its
+//! MySQL's twins are the same facts asked of that server: its
 //! `Ssl_version` **session** status variable, which is the version negotiated
 //! on this session's own socket and is empty on one that never upgraded;
 //! `CURRENT_USER()`; and a refusal that arrives as a [`ServerError`] rather
@@ -121,7 +121,7 @@ const TURN: Duration = Duration::from_millis(10);
 /// one.
 ///
 /// Two shapes of `None` and neither is a failure: no harness at all, and a leg
-/// testing one of the other four drivers, which runs every test in this crate
+/// testing one of the other drivers, which runs every test in this crate
 /// including these.
 fn postgres() -> Option<Server> {
     let endpoint = matrix::endpoint()?;
@@ -463,7 +463,7 @@ fn mssql_run(conn: &mut TdsConn, sql: &str) {
 /// § 3: the connection this driver opens is TLS-wrapped and authenticated, and
 /// the server is the one that says so.
 ///
-/// Three questions, and each is answered by a fact only the other end holds.
+/// Each question is answered by a fact only the other end holds.
 /// `pg_stat_ssl` reports the version negotiated on *this* backend's socket, so a
 /// row at all is the upgrade having happened and the version is which one; a
 /// driver that had used the connection in the clear — what `sslmode=prefer`
@@ -591,7 +591,7 @@ fn a_connection_read_parks_its_coroutine_rather_than_blocking_the_core() {
 /// TLS-wrapped and authenticated, and the server is the one that says so.
 ///
 /// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
-/// three questions, asked of MySQL. `Ssl_version` is a **session** status
+/// questions, asked of MySQL. `Ssl_version` is a **session** status
 /// variable, so it is this connection's socket and not the server's
 /// configuration, and it is the empty string on a session that stayed in the
 /// clear — which is what a driver that had let § 3's upgrade be skipped would
@@ -902,7 +902,7 @@ fn a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement() {
 /// and authenticated, and the server is the one that says so.
 ///
 /// [`a_mysql_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
-/// twin, asking the same three facts of the other server, and the twinning is
+/// twin, asking the same facts of the other server, and the twinning is
 /// what makes it worth writing: `maria.rs` reuses `mysql.rs`'s framing and
 /// stops there, so everything this case exercises above the packet header — the
 /// plugin the greeting names, the proof sent back for it, the code table the
@@ -972,9 +972,10 @@ fn a_mariadb_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking
 /// the server rendered. A driver that had sent the statement and ignored a
 /// refusal passes the first and fails the second.
 ///
-/// [`MariaConn::time_zone`] is the third: it is what a layer up decodes a
-/// zone-less `DATETIME` with, and a connection whose record of the zone had
-/// drifted from the session's would read every such column wrong and silently.
+/// [`MariaConn::time_zone`] is asked alongside them: it is what a layer up
+/// decodes a zone-less `DATETIME` with, and a connection whose record of the
+/// zone had drifted from the session's would read every such column wrong and
+/// silently.
 #[test]
 fn a_mariadb_connection_declares_section_9s_zone_and_the_server_holds_it() {
     let Some(server) = mariadb() else {
@@ -1066,7 +1067,7 @@ fn mariadb_returning_is_available_and_mysqls_is_not() {
 /// statement that reports both ran over it.
 ///
 /// [`a_connection_is_opened_tls_wrapped_and_authenticated_over_the_parking_stream`]'s
-/// three questions, asked of the one driver whose TLS is not a socket upgrade.
+/// questions, asked of the one driver whose TLS is not a socket upgrade.
 /// `encrypt_option` is the server's own view of the connection this process
 /// opened, and it reads `TRUE` only for a session that server is itself
 /// encrypting — a driver that had left the tunnel and carried on in the clear,
@@ -1190,7 +1191,7 @@ fn a_mssql_transaction_nests_to_a_savepoint_and_rolls_back_to_it() {
 /// level, and able to run a statement at all.
 ///
 /// [`a_mysql_reset_leaves_no_temporary_table_variable_or_cached_statement`]'s
-/// property, asked where two of this backend's own facts make it a different
+/// property, asked where this backend's own facts make it a different
 /// question. `SET TRANSACTION ISOLATION LEVEL` is **session**-scoped here, so a
 /// level asked for by one request outlives the transaction that asked for it and
 /// would silently become the next request's — `sp_reset_connection` putting it

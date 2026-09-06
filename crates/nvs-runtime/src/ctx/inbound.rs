@@ -123,7 +123,7 @@ pub enum Scheme {
 /// mount's prefix, the query is the raw string after the `?` with no
 /// percent-decoding and no bracket convention applied, and a header is one
 /// entry per field line in the spelling and the order the peer sent it. Every
-/// reading of those — which of `Core\Http\Method`'s eight cases a verb is, what
+/// reading of those — which of `Core\Http\Method`'s cases a verb is, what
 /// a query parameter's name means, that a field name matches without regard to
 /// case — belongs to `nvs_stdlib::request`, because the rosters and the
 /// conventions are that crate's and a second copy of either here would be a
@@ -136,12 +136,12 @@ pub enum Scheme {
 /// carried by the registry rows of the members that read this and not by any
 /// field here — there is no representation of a qualifier at runtime.
 ///
-/// **What it spends:** three short allocations per served request, plus two per
-/// header field line and one growing vector to hold them, one more allocation
-/// for a request that arrived with a body, and nothing at all for a process
-/// serving none. **Not the body's bytes** — see [`RequestBody`]. The peer costs
-/// no allocation at all: an address and a scheme are held inline, as the words
-/// the door decided them as.
+/// **What it spends:** a short allocation per field of the request line, plus
+/// two per header field line and one growing vector to hold them, one more
+/// allocation for a request that arrived with a body, and nothing at all for a
+/// process serving none. **Not the body's bytes** — see [`RequestBody`]. The
+/// peer costs no allocation at all: an address and a scheme are held inline, as
+/// the words the door decided them as.
 pub struct Inbound {
     /// The method token the peer wrote, verbatim and un-uppercased.
     method: Box<str>,
@@ -197,8 +197,8 @@ pub struct Inbound {
     /// The body still on the wire, as [`RequestBody`] — never its bytes — and
     /// `None` for a request that arrived without one.
     ///
-    /// The three fields above are read off the request *line* and the head, both
-    /// of which are bounded before a mount is even selected. A body is not: ADR
+    /// The fields above are read off the request *line* and the head, both of
+    /// which are bounded before a mount is even selected. A body is not: ADR
     /// 0105 § 5 lets one be `upload_total` large, which is `"256M"` by default
     /// and `"2G"` at its ceiling, so what is held here decides the resident cost
     /// of every in-flight request and, through `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic, the
@@ -279,17 +279,17 @@ pub struct Inbound {
     ///
     /// `docs/spec/01-core-library.md` § 15 makes `body`, `bodyStream` and
     /// `files` exclusive on one request, and this field is the whole of that
-    /// rule. `post` is the fourth member that takes the claim and the only one
-    /// that reads the name back to *join* rather than to refuse — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// rule. `post` takes the claim as well, and is the only member that reads
+    /// the name back to *join* rather than to refuse — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's form fields being what a `files` walk sets aside — which is
     /// `nvs_stdlib::request`'s `claim_form` and nothing this crate decides.
-    /// **It lives on the carrier rather than on any of the three**,
+    /// **It lives on the carrier rather than on any one member**,
     /// because what is exclusive is the *request*: each of them consumes the
-    /// same stream, so a record kept by one of them could not see the other two
-    /// — and the three are two crates apart, `nvs_stdlib::request` owning the
-    /// first two and the parts the third yields being `rule:http-server/an-upload-is-received-only-through-files`'s own machinery.
+    /// same stream, so a record kept by one of them could not see the others
+    /// — and they are two crates apart, `nvs_stdlib::request` owning the
+    /// readers and the parts a `files` walk yields being `rule:http-server/an-upload-is-received-only-through-files`'s own machinery.
     ///
-    /// A name rather than a `bool` or an enum of three: the refusal is only
+    /// A name rather than a `bool` or an enum of members: the refusal is only
     /// worth raising if it says which reading already happened, since the
     /// program's bug is that it wrote two of them and it needs to know which one
     /// to delete. An enum here would be this crate holding a roster of stdlib
@@ -314,8 +314,8 @@ pub struct Inbound {
     ///
     /// `None` is "nothing matched" and is also every carrier nobody matched
     /// for: a program run off the command line, and a request whose unit
-    /// declared no route. All three answer alike, which is § 1's `null` —
-    /// nothing here dispatches, so there is no fourth case to tell apart.
+    /// declared no route. They all answer alike, which is § 1's `null` —
+    /// nothing here dispatches, so there is no further case to tell apart.
     ///
     /// **What it spends:** one pointer per request, plus — only for a matched
     /// one — an `Arc` bump on the row and one `String` per capture.
@@ -504,7 +504,7 @@ impl Inbound {
     }
 
     /// The match this request arrived with, and `None` where nothing matched —
-    /// the field's own doc owns why the three absences are one case.
+    /// the field's own doc owns why those absences are one case.
     #[must_use]
     pub fn route(&self) -> Option<&crate::routes::Match> {
         self.route.as_ref()
@@ -728,11 +728,11 @@ impl Inbound {
 /// the argument that has already crossed to it.
 ///
 /// **It is exactly what `nvs_host::Isolate::new` takes**, and that is the whole
-/// of the type — a connection is not a fourth kind of isolate but § 1's root one
-/// with the two things every isolate needs decided a task earlier. Why they are
-/// decided there is `nvs_stdlib::socket`'s module doc: the capability, the
-/// argument and the code are all the *request's* to refuse, and each of the
-/// three answers `null` or throws on a context that never ran the program.
+/// of the type — a connection is not a kind of isolate of its own but § 1's root
+/// one with the two things every isolate needs decided a task earlier. Why they
+/// are decided there is `nvs_stdlib::socket`'s module doc: the capability, the
+/// argument and the code are all the *request's* to refuse, and each of them
+/// answers `null` or throws on a context that never ran the program.
 ///
 /// **Consumes one reference to `args`**, which the connection hands on to the
 /// spawn at the far end; a prepared upgrade that is dropped without being taken
@@ -946,7 +946,7 @@ impl SseSlot {
 /// # A reader rather than the bytes, and § 5 is what decides it
 ///
 /// The alternative was for whoever accepted the request to read the body to its
-/// end and hand [`Inbound`] a `Box<[u8]>` beside its three strings, which is
+/// end and hand [`Inbound`] a `Box<[u8]>` beside its strings, which is
 /// what PHP does and what every part of this design would then be built on top
 /// of. `rule:http-server/request-body-and-upload-total-are-two-caps` rules it out arithmetically rather than as a preference.
 /// That section states **two** caps because they measure two different things:
@@ -962,7 +962,7 @@ impl SseSlot {
 /// admission ceiling to approximately nothing, so the honest configuration and
 /// the working one stop being the same file.
 ///
-/// § 6 closes the third option before it is asked: there is no temp file, so
+/// § 6 closes the remaining option before it is asked: there is no temp file, so
 /// "neither resident nor streamed" is not a place a body can be put. Buffered
 /// or streamed is the whole choice, and only one of them is bounded — which is
 /// exactly what `docs/plan/m7.md`'s load-bearing acceptance case asserts, a

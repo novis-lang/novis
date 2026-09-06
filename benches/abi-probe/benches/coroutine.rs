@@ -1,11 +1,11 @@
 //! Cost of suspending and resuming a task with JIT frames live on its stack.
 //!
-//! These two numbers set the price of Novis's "no async colouring" promise: any
+//! These numbers set the price of Novis's "no async colouring" promise: any
 //! function may perform I/O and yield, because suspension is a stack switch
 //! rather than a compiler transformation.
 //!
-//! Baseline on x86_64-pc-windows-msvc: ~25 ns per suspend/resume round trip
-//! through 2 JIT frames. See `docs/adr/README.md`.
+//! Baselined on x86_64-pc-windows-msvc as a suspend/resume round trip through a
+//! shallow chain of JIT frames. See `docs/adr/README.md`.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]

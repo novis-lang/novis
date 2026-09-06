@@ -63,23 +63,23 @@
 //! and [`Tokens`], which reads that message's answer as far as `LOGINACK`,
 //! `ENVCHANGE`, `ERROR`, `INFO` and `DONE`.
 //!
-//! **The handshake now runs**: [`TdsConn::connect`] opens the socket and
-//! [`login`] sends the credential and reads what came back, so a `TdsConn`
+//! **The handshake runs end to end**: [`TdsConn::connect`] opens the socket
+//! and [`login`] sends the credential and reads what came back, so a `TdsConn`
 //! holds a live encrypted wire and the framing the server's `ENVCHANGE`
-//! settled. **A statement's answer reads back too**: [`read_rows`] takes a wire
+//! settled. **A statement's answer reads back**: [`read_rows`] takes a wire
 //! with a request already on it and answers a [`TdsRows`], which streams `ROW`,
 //! `NBCROW` and `PLP` over [`Wire::read_packet`] with the remainder held across
 //! the packet boundary — the reader the first section says [`Tokens`] cannot be.
 //!
-//! **And a statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
+//! **A statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
 //! 0067 § 1's cache holds the handle the `RETURNVALUE` came back with,
 //! [`start_statement`] is the sequencing both `query` and `execute` are,
 //! [`execute_many`] is § 4's batch over that same sequencing once per parameter
 //! set, and [`reset_session`] is § 13's `sp_reset_connection`. **§ 7's commands
-//! are here too**: [`begin`], [`commit`] and [`roll_back`] send T-SQL over
+//! are here**: [`begin`], [`commit`] and [`roll_back`] send T-SQL over
 //! [`batch_command`], the one path in this module that is text rather than an
-//! RPC, and [`begin`]'s own doc owns the two rules that are this dialect's
-//! alone — a session-scoped isolation level this driver has to put back, and no
+//! RPC, and [`begin`]'s own doc owns the rules that are this dialect's alone —
+//! a session-scoped isolation level this driver has to put back, and no
 //! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
 //! therefore reachable on this backend.
 //!
@@ -210,9 +210,9 @@ pub const DEFAULT_PORT: u16 = 1433;
 /// [`BlockError`], in [`mod@crate::conn`] for that reason.
 ///
 /// **The target borrows the block and copies nothing**, for the reason
-/// [`crate::MySqlTarget`] gives at length: owning these four strings would put
-/// a second copy of the password — a `secret` at the language level (§ 3) — in
-/// a struct nothing zeroes.
+/// [`crate::MySqlTarget`] gives at length: owning these strings would put a
+/// second copy of the password — a `secret` at the language level (§ 3) — in a
+/// struct nothing zeroes.
 ///
 /// The address is not here. `host` is the name the server's certificate is
 /// checked against; resolving it to a [`std::net::SocketAddr`] belongs to
@@ -271,7 +271,7 @@ impl<'a> TdsTarget<'a> {
     /// [`crate::MySqlTarget::resolve`] runs them: the `driver` first, since a
     /// block belonging to another backend resolved here would send LOGIN7 to a
     /// server that cannot answer it; then a field belonging to another driver;
-    /// then the four LOGIN7 sends, each by its own key; then § 9's zone.
+    /// then each field LOGIN7 sends, by its own key; then § 9's zone.
     pub fn resolve(block: &'a Database) -> Result<TdsTarget<'a>, BlockError<'a>> {
         let written = block.driver.as_deref().ok_or(BlockError::NoDriver)?;
         match Driver::from_config_name(written) {
@@ -364,7 +364,7 @@ impl TdsConn {
     /// than each step, because what a caller bounds is how long opening a
     /// connection may take.
     ///
-    /// Unlike the other three drivers this one sends nothing after the login.
+    /// Unlike every other driver here this one sends nothing after the login.
     /// There is no charset to force — TDS carries text as UCS-2 and § 9's rows
     /// decode from that — and no session time zone to set, which
     /// [`TdsTarget::time_zone`] owns; LOGIN7's own option flags carry the ANSI
@@ -431,11 +431,11 @@ impl TdsConn {
         // `sp_reset_connection` rolls back whatever transaction was open, so
         // § 7's depth is answered by it — and the isolation level is **not**,
         // which is why the flag is cleared by the restore [`reset_session`] pays
-        // rather than here. The third counter, the server's own transaction
-        // descriptor, is cleared there too, that being where the request
-        // carrying it is written. A connection pooled at a depth it no longer
-        // has would open the next request's outermost `transaction()` as a
-        // `SAVE TRANSACTION` against nothing.
+        // rather than here. The server's own transaction descriptor is cleared
+        // there too, that being where the request carrying it is written. A
+        // connection pooled at a depth it no longer has would open the next
+        // request's outermost `transaction()` as a `SAVE TRANSACTION` against
+        // nothing.
         self.depth.set(0);
         Ok(self)
     }
@@ -450,11 +450,11 @@ impl TdsConn {
     /// through a real socket and a real certificate and so cannot be unit-tested
     /// at all.
     ///
-    /// **`execute` is this same method**, unlike the two members § 4 declares:
-    /// `sp_prepexec` carries a statement that describes no result set exactly as
-    /// it carries one that does, and what tells them apart is
+    /// **`execute` is this same method**, unlike the separate members § 4
+    /// declares: `sp_prepexec` carries a statement that describes no result set
+    /// exactly as it carries one that does, and what tells them apart is
     /// [`TdsRows::affected`] rather than a second request. `crate::mysql` makes
-    /// the same call for the same reason, and `nvs-stdlib` is where the two
+    /// the same call for the same reason, and `nvs-stdlib` is where those
     /// members part.
     ///
     /// The result borrows the connection until it ends, which is [`TdsRows`]'
@@ -576,7 +576,7 @@ mod tests {
     use super::*;
     use crate::tds::testing::*;
 
-    /// A complete block resolves to what LOGIN7 sends, and the two fields with
+    /// A complete block resolves to what LOGIN7 sends, and the fields with
     /// readers of their own are asserted through them: § 9's zone arrives as
     /// seconds rather than as the text an operator wrote, and an unwritten
     /// `statement_cache` is § 1's default where a written `0` is the cache off.
@@ -628,8 +628,9 @@ mod tests {
     ///
     /// Every driver's resolver owes this case, and the reason it is not
     /// redundant with `crate::mysql`'s is the direction: what is asserted is
-    /// that *this* resolver refuses the other four, so a block an operator
-    /// wrote for one backend cannot open a connection that speaks another.
+    /// that *this* resolver refuses every other driver's block, so a block an
+    /// operator wrote for one backend cannot open a connection that speaks
+    /// another.
     #[test]
     fn a_block_that_is_not_sql_servers_is_refused() {
         let mut block = block();
@@ -667,7 +668,7 @@ mod tests {
         );
     }
 
-    /// The four fields LOGIN7 sends are refused one by one, each naming its own
+    /// The fields LOGIN7 sends are refused one by one, each naming its own
     /// key — and `path` is refused as a field of the driver that has one.
     #[test]
     fn a_field_that_is_missing_blank_or_another_drivers_is_named_by_its_key() {

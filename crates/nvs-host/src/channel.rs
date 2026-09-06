@@ -119,10 +119,11 @@ struct Inner<T> {
 
 /// Everything a channel operation touches, behind one borrow.
 ///
-/// One `RefCell` rather than four, so that "what is true of this channel" is
-/// read and written at a single point. **No borrow of it is ever held across a
-/// suspend** — the rule `net`'s parking stream states as its rule 1, and for
-/// the same reason: the next task to run may be the peer.
+/// One `RefCell` over the whole state rather than one per field, so that "what
+/// is true of this channel" is read and written at a single point. **No borrow
+/// of it is ever held across a suspend** — the rule `net`'s parking stream
+/// states as its rule 1, and for the same reason: the next task to run may be
+/// the peer.
 struct State<T> {
     queue: VecDeque<T>,
     send_waiters: VecDeque<Wake>,

@@ -46,8 +46,8 @@
 //!
 //! # Known gaps
 //!
-//! `nvs-hir` now covers all five name-resolution responsibilities the plan's
-//! M2 paragraph lists for it; each module above documents its own gaps in
+//! `nvs-hir` covers the name-resolution responsibilities the plan's M2
+//! paragraph lists for it; each module above documents its own gaps in
 //! full, not repeated here. The sharper edges: [`hierarchy`] doesn't flatten
 //! a trait pulling in another trait's methods recursively; [`members`]
 //! doesn't check a dynamic class side, `new`'s target, member visibility, or

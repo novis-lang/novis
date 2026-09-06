@@ -1,5 +1,4 @@
-//! `rule:errors/renderings`'s JSON rendering — what a log target emits under `[log] format = "json"`,
-//! and the second of the three renderings to exist.
+//! `rule:errors/renderings`'s JSON rendering — what a log target emits under `[log] format = "json"`.
 //!
 //! # Why it is here rather than in `nvs-runtime`
 //!
@@ -8,7 +7,7 @@
 //! through the same native helper**, so a log pipeline never has to reconcile
 //! two shapes depending on which tier produced a line. [`line()`] is that
 //! helper's rendering half. It sits beside [`crate::plain::render`] because
-//! `rule:errors/diagnostic-record` puts the model *and all three renderings* in one crate that
+//! `rule:errors/diagnostic-record` puts the model *and every rendering* in one crate that
 //! both the runtime and the compiler front end depend on — the floor reaching
 //! it is exactly the edge § 1 sanctions and the crate docs' § *Where this sits*
 //! prices. The alternative, a JSON writer in `nvs-runtime` for the floor and
@@ -23,9 +22,9 @@
 //! than written empty**, which is [`Envelope`]'s own rule and § 6's for
 //! `trace_id`/`span_id` in particular.
 //!
-//! `count` is the one key § 6 does not list, because it is
+//! `count` is the one key § 6 does not list, because it belongs to
 //! `rule:http-server/the-floor-cannot-fill-the-disk`
-//! 's later amendment; it sits last of the envelope's own keys and ahead of
+//! instead; it sits last of the envelope's own keys and ahead of
 //! the producer's `fields` for the reason [`Envelope::count`] gives — it is the
 //! sink talking about the record, not the call site talking about the failure.
 //!
@@ -45,7 +44,7 @@
 //! begins with `$`**: `{"$bytes":"74657874"}`, `{"$decimal":"1.50"}`,
 //! `{"$float":"NaN"}`, `{"$enum":"Level::Info"}`, `{"$closure":{"parameters":2}}`,
 //! `{"$redacted":true}`, `{"$elided":…}`, `{"$cycle":3}`, `{"$span":…}`, and an
-//! instance as `{"$class":…,"$id":…,"$properties":{…}}`. Three consequences
+//! instance as `{"$class":…,"$id":…,"$properties":{…}}`. The consequences
 //! worth having in hand:
 //!
 //! * **`bytes` is lowercase hex**, not base64 — it costs this crate no
@@ -87,8 +86,8 @@ pub fn render(record: &Record) -> String {
     serde_json::to_string(&AsRecord(record)).unwrap_or_else(|_| {
         // Unreachable by construction: every map key below is a `&str`, every
         // float that reaches `serialize_f64` is finite, and none of these
-        // `Serialize` impls returns an error of its own — those are the only
-        // three ways `serde_json` fails. The fallback is a *record* rather
+        // `Serialize` impls returns an error of its own, which covers every
+        // way `serde_json` fails. The fallback is a *record* rather
         // than a panic or an empty line for the reason this function is
         // infallible at all: the floor has one shot.
         r#"{"level":"critical","msg":"a record could not be rendered"}"#.to_owned()
@@ -201,7 +200,7 @@ impl Serialize for AsNodes<'_> {
     }
 }
 
-/// One node, under the module doc's two rules: the closest JSON value, or a
+/// One node, under the module doc's rules: the closest JSON value, or a
 /// one-key `$`-tagged object where JSON has no value for the kind.
 struct AsNode<'a>(&'a Node);
 
@@ -268,7 +267,7 @@ impl Serialize for AsSpan<'_> {
     }
 }
 
-/// What was cut and how much of it — `rule:errors/record-transformations`'s three shapes, each naming
+/// What was cut and how much of it — `rule:errors/record-transformations`'s shapes, each naming
 /// its own kind so a reader never has to infer it from which keys are present.
 struct AsElision<'a>(&'a Elision);
 
@@ -314,8 +313,8 @@ impl Serialize for AsScalar<'_> {
     }
 }
 
-/// A one-key object under a `$`-prefixed tag — the module doc's second rule, in
-/// one place so every kind that needs it is spelled the same way.
+/// A one-key object under a `$`-prefixed tag — the module doc's tagging rule,
+/// in one place so every kind that needs it is spelled the same way.
 fn tagged<S: Serializer, T: Serialize + ?Sized>(
     ser: S,
     tag: &'static str,

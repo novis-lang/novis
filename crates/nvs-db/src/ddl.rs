@@ -37,18 +37,18 @@
 //!   which is the trade
 //!   `rule:security/tainted-qualifier` already
 //!   made for `Core\Db::quoteIdentifier`.
-//! - **A literal is one of [`ColumnDefault`]'s seven cases**, each with a
+//! - **A literal is one of [`ColumnDefault`]'s cases**, each with a
 //!   spelling per dialect. There are no expression defaults, so the one place a
 //!   string reaches statement text — [`ColumnDefault::Text`] — is quoted here,
 //!   in the dialect's own escaping.
 //!
 //! # Known gaps
 //!
-//! 1. **Three round-trips are lossy, and § 5's normalization owns them, not
+//! 1. **Some round-trips are lossy, and § 5's normalization owns them, not
 //!    this module.** PostgreSQL has one `BYTEA` for both
 //!    [`ScalarType::Bytes`] widths; MySQL has no `UUID` type and takes
 //!    `CHAR(36)`; SQL Server has no JSON type and takes `NVARCHAR(MAX)`, which
-//!    is also its unbounded text. An `uint` is a fourth: only MySQL has the
+//!    is also its unbounded text. An `uint` is another: only MySQL has the
 //!    type, so the other three take the next width up and a `CHECK`, and no
 //!    catalog reports the check as a type. Each is a column an introspector
 //!    reads back as a *different* vocabulary case, and the diff has to know it
@@ -74,7 +74,7 @@
 //!    `sqlite_autoindex_…` the introspector cannot match to the name the
 //!    schema gave it. [`add_key`] takes the index form deliberately; the two
 //!    paths reaching the same catalog by different spellings is § 5's input.
-//! 6. **SQLite's declared types carry affinity, and two of them convert.** A
+//! 6. **SQLite's declared types carry affinity, and some of them convert.** A
 //!    `JSON` or `DECIMAL` column has NUMERIC affinity, so a document that is a
 //!    bare number and an exact decimal with trailing zeros are stored as
 //!    numbers. That is the SQLite driver's binding question — the same one
@@ -193,7 +193,7 @@ fn create_index(table: &Table, key: &Key, dialect: Dialect) -> String {
 /// a canonical spelling reaching a statement would be a schema file's syntax in
 /// a server's parser. Every case here is upper case, which is what
 /// `every_construct_in_the_vocabulary_emits_in_all_four_dialects` asserts
-/// rather than listing 80 expected strings.
+/// rather than listing every expected string.
 #[must_use]
 pub fn column_type(ty: &ScalarType, dialect: Dialect) -> String {
     match dialect {
@@ -427,7 +427,7 @@ pub(crate) fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> 
         .map(Column::name)
 }
 
-/// One of [`ColumnDefault`]'s seven cases as a literal `dialect` reads.
+/// One of [`ColumnDefault`]'s cases as a literal `dialect` reads.
 ///
 /// The column's own type is read for one case and it is not a nicety.
 /// [`ColumnDefault::Now`]'s doc calls `CURRENT_TIMESTAMP` the one spelling all
@@ -547,7 +547,7 @@ fn add_column(table: &Table, column: &Column, dialect: Dialect) -> Vec<String> {
 
 /// Whether SQLite's own `ALTER TABLE … ADD COLUMN` can carry this column.
 ///
-/// Three refusals, and each is SQLite's own rather than a caution of ours: the
+/// Each refusal is SQLite's own rather than a caution of ours: the
 /// default must be a constant, so [`ColumnDefault::Now`] is out; a `NOT NULL`
 /// column must have one, because every existing row needs a value; and an
 /// identity is the rowid there, which is the primary key and cannot be added
@@ -910,7 +910,7 @@ mod tests {
         Dialect::SqlServer,
     ];
 
-    /// A schema naming every construct the vocabulary has: all thirteen scalar
+    /// A schema naming every construct the vocabulary has: all the scalar
     /// types at both of their widths, an identity, a nullable and a
     /// non-nullable column, every kind of default, a single and a composite
     /// primary key, a unique constraint, and two indexes — one of them over an
@@ -1021,7 +1021,7 @@ mod tests {
     /// texts: the counts are derived from the schema value, so a construct that
     /// silently emits nothing fails here, where a golden text would only fail
     /// on the line someone remembered to write. The type spellings are checked
-    /// by a property rather than by a table of eighty strings — each is upper
+    /// by a property rather than by a table of expected strings — each is upper
     /// case, and each differs from [`ScalarType`]'s canonical `Display`, which
     /// is the one wrong answer that would look plausible in every position.
     #[test]
@@ -1199,7 +1199,7 @@ mod tests {
         assert_eq!(distinct.len(), 4, "five drivers, four dialects");
     }
 
-    /// `rule:core-classes/schema-plan`: MySQL's first departure — the index is inside the
+    /// `rule:core-classes/schema-plan`: one of MySQL's departures — the index is inside the
     /// `CREATE TABLE`.
     ///
     /// The reason is in [`create_table`]'s doc and it is not style: MySQL has
@@ -1238,8 +1238,8 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/schema-plan`: MySQL's second departure — an indexed unbounded text
-    /// column carries a prefix length.
+    /// `rule:core-classes/schema-plan`: another of MySQL's departures — an indexed unbounded
+    /// text column carries a prefix length.
     ///
     /// A **bound asserted on both sides**: the `LONGTEXT` column takes the
     /// prefix and the `VARCHAR(200)` beside it does not, so an emitter that
@@ -1322,13 +1322,13 @@ mod tests {
             .unwrap()
     }
 
-    /// One change of every variant the vocabulary has, including all three
-    /// shapes of `AddColumn` and both ends of a type change.
+    /// One change of every variant the vocabulary has, including every shape
+    /// of `AddColumn` and both ends of a type change.
     ///
-    /// Four of the twelve are § 7 reports — a dropped table, column, unique
-    /// key and index — and they are here rather than in a fixture of their own
-    /// because the property under test is that they are written in full
-    /// *alongside* the steps that will run.
+    /// The § 7 reports among them — a dropped table, column, unique key and
+    /// index — are here rather than in a fixture of their own because the
+    /// property under test is that they are written in full *alongside* the
+    /// steps that will run.
     fn every_change() -> Vec<Change> {
         let plain = wide_after(None, None);
         let note = Column::new("note", ScalarType::Text { max: Some(40) })
@@ -1538,8 +1538,8 @@ mod tests {
             "six of the twelve changes are past SQLite's ALTER"
         );
 
-        // The twelve steps of the rebuild, in the order that survives an index
-        // name being unique across the database.
+        // The steps of the rebuild, in the order that survives an index name
+        // being unique across the database.
         let taken = step(
             Change::DropColumn {
                 table: wide_after(None, Some("thumb")),

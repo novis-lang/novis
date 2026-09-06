@@ -2,7 +2,7 @@
 //! **tier 4** — the engine floor: what reports a failure when there is no
 //! script left to run and no second attempt to make.
 //!
-//! # One record, two callers
+//! # One record, whichever tier writes it
 //!
 //! § 6's claim is that ordinary application code and the floor produce
 //! **schema-identical** records, so a log pipeline never has to reconcile two
@@ -22,24 +22,24 @@
 //! discarded: this runs where a report has already lost its usual guarantees —
 //! after a response, or as a process is ending — so a sink that has gone is
 //! nothing left to fail about. `Core\Log::write` writes the same rendering to
-//! the program's own stream instead, which is the one difference between the
-//! two callers and is about *where* rather than *what*.
+//! the program's own stream instead, which is the one difference between them
+//! and is about *where* rather than *what*.
 //!
 //! # What is in an uncaught throw's record, and what is deliberately not
 //!
-//! [`uncaught`] fills § 6's `level`, `message` and two fields — the error class
-//! and, when the throw carried frames, the backtrace. It fills none of `ts`,
-//! `request_id`, `trace_id` or `span_id`, because it is handed a `Throwable`
-//! and not a context, and those four are the request's. [`report`] is where a
-//! context arrives, and it stamps them through
+//! [`uncaught`] fills § 6's `level`, `message` and a field apiece for the error
+//! class and, when the throw carried frames, the backtrace. It fills none of
+//! `ts`, `request_id`, `trace_id` or `span_id`, because it is handed a
+//! `Throwable` and not a context, and those keys are the request's. [`report`]
+//! is where a context arrives, and it stamps them through
 //! [`Ctx::stamp_envelope`] — the *same* method `Core\Log::write` calls, which
 //! is what keeps a floor line and an application's the one shape § 6 asks for.
-//! A record built with no request in front of it carries neither writer's
-//! four, and an absent envelope key is omitted rather than written empty.
+//! A record built with no request in front of it carries none of them, and an
+//! absent envelope key is omitted rather than written empty.
 //!
 //! The stamp happens **after** [`key`] has taken the coalescing window's key,
 //! which is why it is a call of its own rather than something
-//! [`Ctx::write_log_record`] does: those four keys are exactly what
+//! [`Ctx::write_log_record`] does: those keys are exactly what
 //! distinguishes two occurrences of one failure, and a limiter that saw them
 //! would never fire.
 //!
@@ -52,9 +52,9 @@
 //! [`COALESCING_WINDOW`] become one record carrying [`nvs_render::Envelope::count`].
 //! It sits here rather than on either caller because § 10 puts both bounds on
 //! the *sink*, so that no caller has to be trusted to be rare, and here rather
-//! than on [`Ctx::write_diagnostic`] beneath it for two reasons: this is the
-//! layer that still has a [`Record`] to add a count field to rather than bytes
-//! to guess at, and a `Ctx` is per request while a fault loop need not be.
+//! than on [`Ctx::write_diagnostic`] beneath it because this is the layer that
+//! still has a [`Record`] to add a count field to rather than bytes to guess
+//! at, and because a `Ctx` is per request while a fault loop need not be.
 //!
 //! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
 //! same record is what `rule:config/a-mode-is-five-defaults`
@@ -170,17 +170,17 @@ pub fn text(value: &str) -> Node {
 /// 's window has already written it.
 ///
 /// [`Ctx::write_log_record`] is the routing and the only reader of that
-/// directive; this is one of its two callers and `Core\Log::write` is the
-/// other, which is `rule:errors/log-write`'s sameness on the destination as well as on
+/// directive; this is one of its callers and `Core\Log::write` is another,
+/// which is `rule:errors/log-write`'s sameness on the destination as well as on
 /// the record. It reads `[log] level` in the same place, so a floor record
 /// quieter than the configured minimum is dropped there and not here — the
 /// coalescing above still counts it, because what that window bounds is how
 /// often *this* module builds a record at all.
 ///
-/// It does not render, either: `[log] format` picks between `rule:errors/renderings`'s two
+/// It does not render, either: `[log] format` picks between `rule:errors/renderings`'s
 /// renderings at that same call, so this module hands over the *record* and a
-/// floor line and an application's are the same shape in whichever of the two
-/// the deployment configured.
+/// floor line and an application's are the same shape in whichever one the
+/// deployment configured.
 ///
 /// Infallible by construction: nothing here can fail, and a sink that has
 /// already gone is ignored for the reason this module's docs give.
@@ -188,8 +188,8 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
     let Some(count) = admit(key(record), Instant::now()) else {
         return;
     };
-    // Owned from here on, because both of the two things left to do write to
-    // the envelope: the multiplicity, and § 6's four request keys. The clone
+    // Owned from here on, because everything left to do writes to the
+    // envelope: the multiplicity, and § 6's request keys. The clone
     // is the one [`key`] already takes per call, on the path a request has
     // already failed on rather than on the one it is served by.
     let mut carried = record.clone();

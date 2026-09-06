@@ -17,8 +17,8 @@
 //! `rule:errors/escalation-ladder` `FATAL` all
 //! leave the request's status on the context, and that status is what the host
 //! is about to report; script running over it would either lose the status or
-//! lose its own. § 6's subject is a request that produced a response, and the
-//! other three cases belong to the ladder rather than to this queue. The
+//! lose its own. § 6's subject is a request that produced a response, and every
+//! other ending belongs to the ladder rather than to this queue. The
 //! registrations are released with the context, unrun.
 //!
 //! # Only the request's own task may register
@@ -36,7 +36,7 @@
 //! **An isolate is not sealed**, and that is the rule above read for a program
 //! rather than a second rule: a `spawn script` child, a scheduled entry and a
 //! served request each run a whole one, so the frame that produced the answer
-//! returning is what "after the response" is for all three.
+//! returning is what "after the response" is for every one of them.
 //! `nvs_host::isolate`'s completion path is the drain, and it runs there
 //! *after* the answer is filed and the joiner has been told it may take it —
 //! so a served request's after-response work runs on a tree the connection no
@@ -103,9 +103,9 @@ use crate::ctx::Ctx;
 use crate::host::{Bounds, Job, Outcome};
 use crate::value::Value;
 
-/// Why a registration was refused — [`Ctx::defer`]'s two answers, which
-/// `Core\Task::afterResponse` renders as two different `RuntimeError` messages
-/// because they oblige a caller to do two different things.
+/// Why a registration was refused — [`Ctx::defer`]'s answers, which
+/// `Core\Task::afterResponse` renders as `RuntimeError` messages of their own
+/// because each obliges a caller to do something different.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeferError {
     /// The queue is sealed: this context is a child — a `Core\Task` child or
@@ -274,7 +274,7 @@ fn call_deferred(child: &mut Ctx, closure: Value) -> Value {
     }
 }
 
-/// The `origin` field both failures above carry — `rule:errors/log-write`'s "whatever
+/// The `origin` field the failures above carry — `rule:errors/log-write`'s "whatever
 /// structured context that call site has", which here is the one fact a reader
 /// cannot recover from the record otherwise: the throw happened after the
 /// response, in work the request registered rather than in the request.
@@ -291,8 +291,8 @@ mod tests {
     /// after-response work, and the tree past the cap is refused at the call
     /// site rather than queued.
     ///
-    /// Three claims in one, because they are one rule and a test that split
-    /// them would let a plausible implementation pass two of them. **The cap
+    /// One rule, so one case: split apart, a plausible implementation could
+    /// pass some of these claims while failing the rest. **The cap
     /// counts trees**, so a second registration by a tree that is already
     /// counted takes nothing; **the refusal names the directive**, since that
     /// is what a program's `catch` and an operator's grep both need; and **a
@@ -373,9 +373,9 @@ mod tests {
         static STILL_STANDING: Cell<Option<bool>> = const { Cell::new(None) };
     }
 
-    /// A path of this case's own under the platform temporary root: the two
-    /// cases run on their own threads, and a shared name would let one sweep
-    /// what the other is still looking at.
+    /// A path of this case's own under the platform temporary root: the cases
+    /// below run on their own threads, and a shared name would let one sweep
+    /// what another is still looking at.
     fn scratch(name: &str) -> std::path::PathBuf {
         std::env::temp_dir().join(format!(
             "nvs-deferred-sweep-{name}-{}-{:?}",
@@ -384,7 +384,7 @@ mod tests {
         ))
     }
 
-    /// The `Core\Task::afterResponse` work both cases register: it looks for
+    /// The `Core\Task::afterResponse` work the cases below register: it looks for
     /// the temporary directory the request was handed and records whether it
     /// was still standing when the queue drained.
     #[expect(
@@ -420,9 +420,9 @@ mod tests {
     /// A closure value declaring no parameters whose `invoke` is a plain Rust
     /// function — a registration with no compiler in front of it.
     ///
-    /// [`crate::call_closure`] reads exactly three things off a closure: the
-    /// arity slot, the parameter tags slot, and the `invoke` method's address
-    /// in its class. Everything else in `nvs_ir::lower::lower_closure`'s
+    /// [`crate::call_closure`] reads only this much off a closure: the arity
+    /// slot, the parameter tags slot, and the `invoke` method's address in its
+    /// class. Everything else in `nvs_ir::lower::lower_closure`'s
     /// representation is captured state, and a native callback captures
     /// nothing. The table is leaked because a descriptor's *address* is its
     /// identity and it must outlive every instance made from it; the test
@@ -435,8 +435,8 @@ mod tests {
             vec![MethodRow {
                 name: crate::closure::CLOSURE_INVOKE.to_owned(),
                 code: invoke as *const u8,
-                // Read off the object's own two slots below rather than off
-                // this row — `crate::call_closure` says so.
+                // Read off the object's own slots below rather than off this
+                // row — `crate::call_closure` says so.
                 arity: 0,
                 param_tags: 0,
                 public: true,

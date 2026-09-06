@@ -52,33 +52,28 @@
 //! The reason it is not an optimisation to schedule later, measured on this
 //! tree against the PHP 8.5.9 oracle on the same machine — and PHP's figures
 //! include VM opcode dispatch that compiled Novis does not pay, so the
-//! comparison already flatters the interpreter:
+//! comparison already flatters the interpreter: unpacked, `$a[] = $v` and
+//! `$a[$i]` are both several times slower than the interpreter's, while
+//! `$a['name']` matches it and `foreach ($a as $v)` beats it outright.
 //!
-//! | | PHP 8.5.9 | this module, unpacked |
-//! |---|---|---|
-//! | `$a[] = $v` | 23.4 ns | **219.5 ns** |
-//! | `$a[$i]` | 30.5 ns | **113.8 ns** |
-//! | `$a['name']` | 24.4 ns | 24.1 ns |
-//! | `foreach ($a as $v)` | 21.0 ns | 4.9 ns |
-//!
-//! The 219.5 ns is 37.2 rendering the index to a decimal `String`, 43.1
-//! allocating the [`NvsStr`] key, 23.1 hashing and probing, and
-//! the rest index-map insert and growth. A `Vec<Value>` push is 1.9 ns and an
-//! index 0.34 ns. The assoc and iteration rows are healthy and this changes
+//! Nearly all of an unpacked append is the key the packed form does not build:
+//! rendering the index to a decimal `String`, allocating the [`NvsStr`] for it,
+//! hashing and probing it, and behind those the index-map insert and its
+//! growth. A `Vec<Value>` push and an index into one are a small fraction of
+//! any of them. The assoc and iteration rows are healthy and this changes
 //! neither.
 //!
-//! **The ABI was the part that expired, and the addition has landed.**
-//! [`nvs_array_get`] and [`nvs_array_set`] take a `*const StrHeader`, so
-//! compiled code calling *those* must build a key string first and a packed
-//! form would have to parse the decimal back out — pointless. So
-//! [`nvs_array_get_index`] and [`nvs_array_set_index`] now sit beside them,
-//! taking the `i64` the subscript already was and answering from the packed
-//! form with nothing rendered and nothing allocated; they degrade to a
+//! **The ABI is what shapes this.** [`nvs_array_get`] and [`nvs_array_set`]
+//! take a `*const StrHeader`, so compiled code calling *those* must build a key
+//! string first and a packed form would have to parse the decimal back out —
+//! pointless. So [`nvs_array_get_index`] and [`nvs_array_set_index`] sit beside
+//! them, taking the `i64` the subscript already was and answering from the
+//! packed form with nothing rendered and nothing allocated; they degrade to a
 //! synthesized key only where the shape is already `Hashed`, which is exactly
-//! the case that was building one anyway. They are a **compatible addition**
-//! — the key-taking pair is unchanged and still the only path for a `string`
-//! subscript — which is why this had to land while nothing depends on the
-//! current set, rather than as a versioned break once
+//! the case that would be building one anyway. They are a **compatible
+//! addition** — the key-taking pair stands as it is and is still the only path
+//! for a `string` subscript — which is why the pair belongs here while nothing
+//! depends on the current set, rather than as a versioned break once
 //! `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`
 //! artifacts and M9's WIT signatures do.
 //!
@@ -105,12 +100,13 @@
 //! unchanged. **No hot path needs a pointer comparison**, which is what makes
 //! this cheaper here than the equivalent for the other refcounted container
 //! ([`crate::string`]'s § *An immortal string*, where every release compares
-//! against a sentinel). `[]` becomes a `Cell<usize>` bump and a return, against
-//! a `Box` per evaluation before — and userland produces empty arrays
-//! constantly that are never written into: an early return, a `filter` that
-//! matched nothing, a lookup that missed, a collector on a branch not taken.
+//! against a sentinel). `[]` is a `Cell<usize>` bump and a return where it
+//! would otherwise be a `Box` per evaluation — and userland produces empty
+//! arrays constantly that are never written into: an early return, a `filter`
+//! that matched nothing, a lookup that missed, a collector on a branch not
+//! taken.
 //!
-//! Three properties of an array are what let the sharing be invisible. Every
+//! What lets the sharing be invisible is what an array already is. Every
 //! mutator goes through `make_unique`, which separates whenever the count is
 //! not 1, and the singleton's count is never 1 while a caller holds it — so a
 //! singleton cannot be written through, by the ordinary copy-on-write path
@@ -126,9 +122,9 @@
 //! reach would race on every `count()`. Thread-local is what keeps that flag
 //! sound.
 //!
-//! **Only [`nvs_array_new`] moves.** [`NvsArray::new`] still allocates, because
-//! its Rust-side callers — `make_unique` first among them — take a handle they
-//! are about to write through.
+//! **Only [`nvs_array_new`] hands the singleton out.** [`NvsArray::new`]
+//! allocates, because its Rust-side callers — `make_unique` first among them —
+//! take a handle they are about to write through.
 //!
 //! What it spends, as `rule:programs/memory-priority` requires: **nothing per request — it saves.**
 //! One header per thread, permanently, against one per empty array that stays
@@ -186,8 +182,8 @@
 //! travelling through a caller-owned pointer-wide slot the way
 //! `nvs_object_slot_set`'s result does — and it is the **only** array
 //! primitive that does. `nvs_ir::ir::InstKind::ArrayAppend` carries an
-//! `Inst::on_error` edge to match, and `nvs-codegen` gives `nvs_array_unset`
-//! its own signature rather than the one it used to borrow from this.
+//! `Inst::on_error` edge to match, and `nvs-codegen` gives `nvs_array_unset` a
+//! signature of its own rather than borrowing this one.
 //!
 //! What the refusal costs is stated here because the section above promises
 //! the opposite: **the occupancy test runs before the copy-on-write
@@ -202,9 +198,8 @@
 //! `out.append(…)` calls, because an array a call is building from index 0
 //! cannot reach that state; it panics rather than overwriting where one
 //! somehow does, which `nvs_helper!`'s `catch_unwind` contains to a single
-//! request. A `debug_assert` stood there before, which meant a release build
-//! silently overwrote a live entry — the one place an array could lose a
-//! value.
+//! request. A `debug_assert` there would leave a release build silently
+//! overwriting a live entry — the one place an array could lose a value.
 //!
 //! # Decision: freeing is iterative, and shared with objects
 //!
@@ -362,8 +357,8 @@ impl Table {
     ///
     /// This is the **only** place the packed invariant is given up, so every
     /// operation that cannot hold it — a gap, a non-numeric key, a `"08"`, a
-    /// removal from the middle — is one call to this and then today's code
-    /// path unchanged. Materializing the keys here is what makes it O(n): the
+    /// removal from the middle — is one call to this and then the ordinary
+    /// hash-form path. Materializing the keys here is what makes it O(n): the
     /// bet the module docs state is that a list is written as a list.
     fn hashed_mut(&mut self) -> &mut Hashed {
         if let Shape::Packed(values) = &mut self.shape {
@@ -422,7 +417,7 @@ impl Table {
     ///
     /// A negative index answers `None` from the packed form directly, because
     /// `"−1"` is a key the packed invariant forbids. Only the hash form has to
-    /// synthesize the string, and there it is what today's caller was building
+    /// synthesize the string, and there it is what the caller would be building
     /// anyway.
     fn get_index(&self, index: i64) -> Option<Value> {
         match &self.shape {
@@ -1455,7 +1450,7 @@ pub unsafe extern "C" fn nvs_array_get(
 ///
 /// Semantically identical to [`nvs_array_get`] called with `index`'s decimal
 /// form: `$a[8]` is `$a["8"]` (`rule:types/arrays`), and a negative index names the
-/// key `"-1"` exactly as it always did. What differs is that a list-shaped
+/// key `"-1"` exactly as its decimal form does. What differs is that a list-shaped
 /// array answers straight out of its `Vec<Value>` — no decimal, no `NvsStr`,
 /// no hash — which is the saving this module's packed decision exists for.
 /// Neither the array nor the index is consumed, and the value written to `out`
@@ -2396,9 +2391,9 @@ mod tests {
     }
 
     /// Every mutating primitive, in an order that holds the packed invariant
-    /// for the first four and breaks it for the rest — the third field is
-    /// which, so the test pins where the shape gives way rather than only that
-    /// the answers match.
+    /// through the writes a list allows and breaks it after — the third field
+    /// is which, so the test pins where the shape gives way rather than only
+    /// that the answers match.
     fn mutations() -> Vec<Mutation> {
         vec![
             ("an append", |array| array.append(Value::int(60)), true),

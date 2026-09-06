@@ -16,8 +16,8 @@
 use super::*;
 
 /// The session one request has open — `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "loaded once and written
-/// whole", as the three things a request holds between `Core\Session::start`
-/// and the write-back at its end.
+/// whole", as what a request holds between `Core\Session::start` and the
+/// write-back at its end.
 ///
 /// **Deliberately not a [`Value`].** The record crosses the store boundary as
 /// `rule:classes/two-copy-depths`'s

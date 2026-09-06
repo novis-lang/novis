@@ -53,7 +53,7 @@ struct Disk {
     /// A symlink, as the path it is written and the canonical path it lands on.
     links: Vec<(PathBuf, PathBuf)>,
     /// What a relative path is resolved against, empty until a case says otherwise — which leaves
-    /// every relative path spelled as it was written, the way this fake behaved before it had one.
+    /// every relative path spelled exactly as it was written.
     cwd: PathBuf,
 }
 
@@ -137,7 +137,7 @@ fn granting(text: &str, disk: &Disk) -> Capabilities {
 }
 
 /// `spawn script` without `script.spawn` fails, in every spelling of "without" `rule:security/capability-question-is-grant-and-scope` denies
-/// by default, and in the two ways a granted tree still says no to *this* target.
+/// by default, and in the ways a granted tree still says no to *this* target.
 ///
 /// The granted case is asserted first so that every `false` below is the absence of the grant and
 /// not the harness answering `false` to everything.
@@ -204,11 +204,12 @@ fn spawn_script_without_the_capability_fails() {
 /// § 4's argument side reaches the current directory for a **bare** relative name, so a grant of `.`
 /// covers the ordinary spelling of a path a program writes.
 ///
-/// `Path::parent` of `copy.txt` is `""`, which canonicalizes nowhere, and a resolver that ran out of
-/// components there denied every bare name under every grant — `Core\IO::read("missing.txt")` and
-/// `Core\IO::write("copy.txt")` alike, both of them against a tree that granted the directory they
-/// are in. The two halves are asserted together because a grant that resolves a relative name has to
-/// place it, not merely accept it: the last row climbs out of the grant and is still refused.
+/// `Path::parent` of `copy.txt` is `""`, which canonicalizes nowhere, and a resolver that ran out
+/// of components there would deny every bare name under every grant —
+/// `Core\IO::read("missing.txt")` and `Core\IO::write("copy.txt")` alike, both of them against a
+/// tree that granted the directory they are in. The two halves are asserted together because a
+/// grant that resolves a relative name has to place it, not merely accept it: the last row climbs
+/// out of the grant and is still refused.
 #[test]
 fn a_bare_relative_path_resolves_against_its_grant() {
     let disk = Disk::of(&[
@@ -250,7 +251,7 @@ fn a_bare_relative_path_resolves_against_its_grant() {
     }
 
     // Resolving a relative name against the current directory is not resolving every relative name
-    // *into* the grant: one that climbs above it lands outside and is refused as it was before.
+    // *into* the grant: one that climbs above it lands outside and is refused.
     for outside in [raw("../escape.txt"), raw("../app-next-door/x.txt")] {
         assert!(
             !granted.allows(Cap::FsWrite, Scope::Path(outside.as_path()), &disk),
@@ -312,7 +313,7 @@ fn an_operator_exception_names_one_address_and_widens_nothing_else() {
         );
     }
 
-    // Two entries that grant nothing, each of them a widening this shape refuses to have.
+    // Entries that grant nothing, each of them a widening this shape refuses to have.
     for (why, text) in [
         ("`internal = true`", "[net]\ninternal = true\n"),
         ("a hostname entry", "[net]\ninternal = [\"localhost\"]\n"),
@@ -498,7 +499,7 @@ fn grants_name(caps: &Capabilities, cap: Cap, name: &str, disk: &Disk) -> bool {
     caps.allows(cap, Scope::Name(name), disk)
 }
 
-/// `rule:core-classes/db-capabilities`'s third `db.*` grant: `db.schema` names blocks, matches
+/// `rule:core-classes/db-capabilities`'s `db.schema` grant: it names blocks, matches
 /// one exactly, and is **not** implied by the `db.connect` that reached the same database.
 ///
 /// The implication is the half worth pinning. `db.schema` gates a different question from either of

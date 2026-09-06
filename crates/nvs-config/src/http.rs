@@ -6,8 +6,8 @@
 //! refuses `origins = ["*"]` with `credentials = true` and § 3 refuses `same_site = "None"` with
 //! `secure = false`, "at boot with the line named and at runtime by `Core\Config::set` returning
 //! `false`". Two refusals in two shapes is a standing invitation to write the *condition* twice and
-//! have them drift, which is why [`Inbound`] holds the four values the two questions are decided
-//! from and [`Inbound::meaningless`] is the only place either question is answered.
+//! have them drift, which is why [`Inbound`] holds the values the two questions are decided from
+//! and [`Inbound::meaningless`] is the only place either question is answered.
 //! [`validate`] reads those values off the merged tree; [`Request::set`](crate::request::Request)
 //! reads them off its own snapshot and overlay and folds the proposed assignment in before asking.
 //! What differs between the two callers is where the values come from, never what makes them wrong.
@@ -32,7 +32,7 @@
 //! no fourth arm, and so without ever repairing one.
 //!
 //! **[`validate`] additionally refuses what the wire cannot carry, which is a different question
-//! from what a policy means.** § 1's three free-text values — `referrer_policy`,
+//! from what a policy means.** § 1's free-text values — `referrer_policy`,
 //! `content_security_policy` and `permissions_policy` — go onto every response verbatim, so a
 //! `\r\n` in one is a response split against every request the server will answer. `nvs_server`'s
 //! `secure` already declines to spell such a value and emits the shipped default instead, which is
@@ -48,10 +48,10 @@
 //! `origins` is deliberately not checked for either: nothing writes it onto a response, and an
 //! entry a header line could not carry is one no `Origin` can equal.
 //!
-//! Cost: four `bool`s built at boot, at reload, and once per `Core\Config::set` naming a key under
-//! `[http.cors]` or `[http.cookies]`. Every other `set` returns before this module is reached.
-//! [`Cookies::of`] is a fifth read plus one `String` clone, once per `addCookie` call; the three
-//! byte scans are boot and reload only, over values an operator wrote by hand.
+//! Cost: [`Inbound`]'s booleans built at boot, at reload, and once per `Core\Config::set` naming a
+//! key under `[http.cors]` or `[http.cookies]`. Every other `set` returns before this module is
+//! reached. [`Cookies::of`] is another read of the same block plus one `String` clone, once per
+//! `addCookie` call; the byte scans are boot and reload only, over hand-written values.
 //!
 
 use std::collections::BTreeMap;
@@ -62,14 +62,14 @@ use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Http, Setting};
 use crate::value::{Quantity, Unit};
 
-/// The four values §§ 2-3's two refusals are decided from, resolved to what is in force.
+/// The values §§ 2-3's two refusals are decided from, resolved to what is in force.
 ///
 /// Booleans and not the blocks themselves, because the callers read from different places — a typed
 /// tree at boot, a snapshot plus an overlay plus a proposed assignment inside a request — and the
-/// only thing they have to agree on is the answer to these four questions.
+/// only thing they have to agree on is the answer to these questions.
 ///
 /// Built by [`Inbound::of`] so the defaults are stated once; there is deliberately no `Default`
-/// impl, because `bool`'s own default is `false` and two of these four default to `true`.
+/// impl, because `bool`'s own default is `false` and some of these default to `true`.
 #[derive(Clone, Copy, Debug)]
 pub struct Inbound {
     /// Whether `[http.cors] origins` contains `*`.
@@ -239,12 +239,12 @@ impl SameSite {
     }
 }
 
-/// § 3's four defaults, resolved to what is in force — what every `Core\Response::addCookie`
+/// § 3's defaults, resolved to what is in force — what every `Core\Response::addCookie`
 /// inherits for an option its call site left out.
 ///
 /// Beside [`Inbound`] rather than folded into it, because the two answer different questions off
-/// the same block: `Inbound` holds the four booleans *two refusals* are decided from, and this
-/// holds the four values *a cookie is written with*. They overlap in `secure` alone, and that one
+/// the same block: `Inbound` holds the booleans *two refusals* are decided from, and this holds
+/// the values *a cookie is written with*. They overlap in `secure` alone, and that one
 /// value is read here through the same `unwrap_or(true)` on purpose — § 3 states one default for
 /// it, so a second statement of it would be the drift this module exists to prevent.
 ///
@@ -301,7 +301,7 @@ fn is_none_same_site(value: &str) -> bool {
 ///
 /// Written twice on purpose, in the two crates that each own one of those two moments:
 /// `nvs-stdlib` has no business in a `nvs.toml` and this crate has none in a member's arguments.
-/// What they share is four lines of byte range, and a dependency between them to save it would be
+/// What they share is one byte-range test, and a dependency between them to save it would be
 /// the more expensive of the two.
 fn carriable(value: &str) -> bool {
     value.bytes().all(|byte| (0x20..=0x7e).contains(&byte))
@@ -323,7 +323,7 @@ fn is_true(value: &str) -> bool {
 /// Before either, `E0625` for a value under `[http.headers]` or a list entry under `[http.cors]`
 /// that a header line cannot carry, and `E0601` for a `[http.cors] max_age` that is not a duration.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
-    // § 1's three free-text policies, before anything about meaning: a value the wire cannot carry
+    // § 1's free-text policies, before anything about meaning: a value the wire cannot carry
     // is not a policy that is wrong, it is a policy that never reaches a peer at all.
     let headers = config.http.as_ref().and_then(|http| http.headers.as_ref());
     if let Some(headers) = headers {
@@ -357,7 +357,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
     }
     let cors = config.http.as_ref().and_then(|http| http.cors.as_ref());
     if let Some(cors) = cors {
-        // § 2's three lists reach a preflight's header lines exactly as § 1's policies reach an
+        // § 2's lists reach a preflight's header lines exactly as § 1's policies reach an
         // ordinary answer's, so they are refused here on the same terms and under the same code.
         // `origins` is not among them: it is never written onto a response, only compared byte for
         // byte against an `Origin` a peer sent, and a value the wire delivered is carriable by

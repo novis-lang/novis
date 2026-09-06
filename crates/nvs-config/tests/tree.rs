@@ -89,11 +89,11 @@ fn every_block_an_adr_writes_out_is_in_the_tree() {
     );
 }
 
-/// `rule:http-server/a-mount-carries-no-policy`: a mount routes and carries nothing else. § 3's five keys say where a request
+/// `rule:http-server/a-mount-carries-no-policy`: a mount routes and carries nothing else. § 3's routing keys say where a request
 /// arrives and which file answers it; every directive saying what the code answering it *may do*
 /// belongs to `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
-/// that grew one would be a second home for a fact `rule:config/three-changeability-classes` owns, and the per-app block goal 3
-/// built re-implemented one block over.
+/// that grew one would be a second home for a fact `rule:config/three-changeability-classes` owns, and the per-app block
+/// re-implemented one block over.
 ///
 /// Asserted on both sides, because either half alone reads as correct: § 3's routing keys parse
 /// together, and each policy directive is refused under `[[server.mount]]` **while the same

@@ -1,8 +1,8 @@
 //! `rule:http-server/the-server-block-is-boot-class`
 //! 's drain: the one bit a health probe and an application both read.
 //!
-//! The bit lives here rather than beside the accept loop because it has two
-//! readers on opposite sides of the crate graph. `nvs_server::Draining` is the
+//! The bit lives here rather than beside the accept loop because its readers
+//! sit on opposite sides of the crate graph. `nvs_server::Draining` is the
 //! loop's handle over it and owns the rule that the loop is its only writer;
 //! `Core\Server::isDraining()` is the other reader, and `nvs-stdlib` does not
 //! depend on `nvs-server` — nor should it, since a `Core` member that needed

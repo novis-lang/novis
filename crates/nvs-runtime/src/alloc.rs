@@ -1,21 +1,19 @@
 //! Novis's own allocator: a per-thread cache of small blocks in front of
 //! [`System`].
 //!
-//! Every allocation Novis makes used to reach the platform heap directly, and on
-//! this tree one 32-byte `alloc`/`dealloc` round trip costs 28.7 ns —
-//! [`docs/perf/userland-gap.md`](/docs/perf/userland-gap.md) § A holds
-//! that measurement and the case-by-case attribution behind it. A string, an
-//! array header and a small object are all in that size range, so the platform
-//! heap is on the request path several times per statement. Fronting it with a
-//! free list moved the userland suite's median from 0.31× PHP to 0.54×, which
-//! is the largest single move measured on this tree.
+//! A small allocation's round trip to the platform heap is the dominant cost
+//! of making it — [`docs/perf/userland-gap.md`](/docs/perf/userland-gap.md) § A
+//! holds that measurement and the case-by-case attribution behind it. A string,
+//! an array header and a small object are all in that size range, so the
+//! platform heap is on the request path several times per statement, and
+//! fronting it with a free list is the largest single move on the userland
+//! suite's median that this tree has measured.
 //!
-//! This is not a new decision. [`docs/plan/design.md`](/docs/plan/design.md)
-//! § *Per-request isolation* already settled that a request allocates from an
-//! arena of its own; this is that decision landing early, in the half that
-//! needs no per-request accounting and no [`Ctx`](crate::Ctx). The
-//! `[limits.hard]` ceiling attaches here at M6, where
-//! [`affordable`](crate::affordable)'s own doc comment already says it does.
+//! [`docs/plan/design.md`](/docs/plan/design.md) § *Per-request isolation* is
+//! the home of the decision that a request allocates from an arena of its own;
+//! this is the half of it that needs no per-request accounting and no
+//! [`Ctx`](crate::Ctx). The `[limits.hard]` ceiling attaches here at M6, where
+//! [`affordable`](crate::affordable)'s own doc comment says it does.
 //!
 //! # What it spends
 //!
@@ -56,8 +54,8 @@
 //! signal is the same instrument. A leak is unaffected either way (a value
 //! that is never released never enters the cache, so it is still *definitely
 //! lost*), but a use-after-free inside a recycled block is not, and priority 1
-//! outranks priority 3. The measurement above is a release-build number, the
-//! guard that holds it (`benches/abi-probe/tests/perf_guards.rs`) is a
+//! outranks priority 3. The gain above is a release-build effect, the guard
+//! that holds it (`benches/abi-probe/tests/perf_guards.rs`) is a
 //! release-only test, and the `Pooled` type itself always pools, so this
 //! module's own tests exercise the free list in either profile. A `cfg(test)`
 //! build goes further: [`counting_alloc::Counting`](crate::counting_alloc) is
@@ -386,8 +384,8 @@ mod tests {
 
     #[test]
     fn a_full_class_hands_the_rest_back() {
-        // Class 15 is the largest, and nothing else in this test binary
-        // allocates 256 bytes often enough to move the count under us.
+        // The last class is the largest, and nothing else in this test binary
+        // allocates `MAX_POOLED` bytes often enough to move the count under us.
         const CLASS: usize = CLASS_COUNT - 1;
         let held: Vec<*mut u8> = (0..CLASS_CAPACITY + 8)
             .map(|_| {

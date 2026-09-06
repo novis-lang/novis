@@ -748,10 +748,10 @@ mod tests {
     /// answers `None` for exactly the five rows that are class instances.
     ///
     /// The *agreement* shape rather than a row of expected values: the two
-    /// functions are two tables over one type byte, written months apart, and a
-    /// decoder that grew its own opinion — a `uniqueidentifier` read as bytes,
-    /// a `datetimeoffset` read as a `datetime2` — looks right on its own line
-    /// and fails here. `Core\Db\Rows::columns` publishes `column_type`'s answer
+    /// functions are two independent tables over one type byte, and a decoder
+    /// that grew its own opinion — a `uniqueidentifier` read as bytes, a
+    /// `datetimeoffset` read as a `datetime2` — looks right on its own line and
+    /// fails here. `Core\Db\Rows::columns` publishes `column_type`'s answer
     /// while `Row`'s readers get `scalar`'s, so the two disagreeing is a
     /// program told one thing and handed another.
     #[test]

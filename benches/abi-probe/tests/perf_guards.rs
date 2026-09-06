@@ -33,10 +33,9 @@ mod isolate;
 /// that prints `2.07 ns` against a ceiling of `15.0` reads exactly like a guard
 /// with no room at all, and the module docs above say the ceilings are
 /// deliberately ~10x the baseline — so the number that says whether that is
-/// still true is the *ratio*, and it was the one number no line printed. Three
-/// platforms' logs of it are what a later pass would set a tighter ceiling
-/// from; a ceiling tightened from one developer's box is a flaky gate, not a
-/// stricter one.
+/// still true is the *ratio*. Logs of it from several platforms are what a
+/// later pass sets a tighter ceiling from; a ceiling tightened from one
+/// developer's box is a flaky gate, not a stricter one.
 fn under(measured: f64, ceiling: f64) -> String {
     format!(" [ceiling {ceiling}, {:.1}x headroom]", ceiling / measured)
 }
@@ -109,9 +108,9 @@ fn a_checked_return_frame_stays_cheap() {
 fn throwing_costs_about_the_same_as_returning() {
     // ADR 0002 claims a throw costs roughly what a return does, which is what
     // lets PHP code that uses exceptions for control flow keep working. A large
-    // ratio here means the error path has acquired real work — when this probe
-    // was written the message was a `String`, and that allocation alone made a
-    // throw 2.8x a return. See `Ctx::pending`.
+    // ratio here means the error path has acquired real work — an allocation
+    // for the message is on its own enough to put a throw at several times a
+    // return. See `Ctx::pending`.
     const MAX_RATIO: f64 = 2.0;
 
     let mut probe = Probe::new();
@@ -432,11 +431,12 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     // The whole argument is this ratio, so it is measured rather than asserted.
     //
     // Both sides are floors: the process side is the cheapest do-nothing image
-    // the platform can start (a real child would also boot an interpreter — PHP
-    // 8.5.8 on this machine takes 35.9 ms to start and exit, 6x the floor), and
-    // the task side is a bare coroutine (an isolate also builds an arena and a
-    // set of globals). Measured on x86_64-pc-windows-msvc: 5.95 ms vs 4.29 us,
-    // a ratio of ~1390x. `CreateProcess` is dearer than `fork`+`exec`, so a
+    // the platform can start (a real child would also boot an interpreter, and
+    // the PHP binary on this machine takes several times the floor just to
+    // start and exit), and the task side is a bare coroutine (an isolate also
+    // builds an arena and a set of globals). Measured on
+    // x86_64-pc-windows-msvc: 5.95 ms vs 4.29 us, a ratio of ~1390x.
+    // `CreateProcess` is dearer than `fork`+`exec`, so a
     // Linux runner will report a smaller ratio; the 20x guard is set low enough
     // to hold everywhere and fires only on a change of kind — a task acquiring a
     // syscall, or committing its stack eagerly.
@@ -605,14 +605,14 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     let sites = insts()
         .filter(|i| matches!(i.kind, InstKind::Safepoint | InstKind::StmtMarker(_)))
         .count();
-    // The third and fourth accounted categories, both added when ADR 0007
-    // § 4's overflow throw landed. Each checked integer arithmetic instruction
-    // owns a cold block calling `nvs_runtime::nvs_raise_new`, and the ADR 0002
-    // error edge it takes ends in a landing block whose `Propagate` calls
-    // `nvs_trace_push`. Both are out-of-line and neither is reached while the
-    // arithmetic fits — the hot path is still one machine instruction plus a
-    // predicted not-taken branch — so they are accounted for here rather than
-    // read as calls the loop pays for.
+    // The remaining accounted categories, both owed to ADR 0007 § 4's overflow
+    // throw. Each checked integer arithmetic instruction owns a cold block
+    // calling `nvs_runtime::nvs_raise_new`, and the ADR 0002 error edge it
+    // takes ends in a landing block whose `Propagate` calls `nvs_trace_push`.
+    // Both are out-of-line and neither is reached while the arithmetic fits —
+    // the hot path is still one machine instruction plus a predicted not-taken
+    // branch — so they are accounted for here rather than read as calls the
+    // loop pays for.
     let raises = insts()
         .filter(|i| {
             i.on_error.is_some() && matches!(i.kind, InstKind::BinOp { .. } | InstKind::UnOp { .. })
@@ -629,10 +629,10 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     //
     // The mnemonic is the backend's, and there is more than one spelling of
     // it: x86_64 emits `call`, aarch64 `bl` for a direct call and `blr`
-    // through a register. Counting `call` alone read every aarch64 build as a
-    // loop containing no calls at all, so this compared 0 against a site count
-    // only x86_64 had ever matched. Half two claims something about the
-    // emitted code, and that claim is per backend or it is nothing.
+    // through a register. Counting `call` alone reads an aarch64 build as a
+    // loop containing no calls at all, comparing 0 against a site count only
+    // x86_64 can match. Half two claims something about the emitted code, and
+    // that claim is per backend or it is nothing.
     let is_call = |line: &str| {
         ["call ", "bl ", "blr "]
             .iter()
@@ -808,11 +808,11 @@ fn a_refcount_one_array_member_mutates_in_place() {
 /// Each corpus with the bound its grapheme count must stay under, in UTF-8
 /// validations of the same buffer.
 ///
-/// Baselines measured on the M4S session that closed ADR 0009 § 2: 3.0 for
-/// `ascii`, 24.7 for `mixed`. Each bound is this file's usual order of
-/// magnitude above its own baseline, which is loose enough not to track a
-/// machine and tight enough to catch what actually matters — with
-/// `one_byte_per_cluster` removed, the `ascii` leg measured 657.
+/// The baselines behind the bounds: 3.0 validations for `ascii`, 24.7 for
+/// `mixed`. Each bound is this file's usual order of magnitude above its own
+/// baseline, which is loose enough not to track a machine and tight enough to
+/// catch what actually matters — without `one_byte_per_cluster`'s fast path
+/// the `ascii` leg climbs into the hundreds.
 fn corpora() -> [(&'static str, String, f64); 2] {
     let repeat = |unit: &str| unit.repeat(64);
     [
@@ -846,7 +846,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
     // passes a grapheme count is worth, and the answer splits by corpus —
     // which is why the bound travels with the corpus rather than being one
     // constant here. The name is the finding on text that is not plain ASCII:
-    // a grapheme index is the dearer of the two seams, by roughly 300x.
+    // a grapheme index is the dearer of the two seams, by orders of magnitude.
 
     for (name, text, max_validations) in corpora() {
         let bytes = text.as_bytes();
@@ -996,12 +996,13 @@ class Cell {
 /// renders a two-way branch as `jnz label3; j label2`, so a `"; "` split would
 /// cut the section short at the first branch.
 ///
-/// The whole function is the wrong denominator for a per-access cost, and
-/// reading it as one is what made the guard below report nine calls where
-/// ADR 0014 § 4 claims none. Every status-returning instruction owns a landing
-/// block, so each added `$c->n = $c->n + 1` brings an overflow raise, a
-/// `Release` of the receiver and a `Propagate` with it — three machine calls
-/// that no run reaches unless the addition has already overflowed. So the
+/// The whole function is the wrong denominator for a per-access cost: every
+/// status-returning instruction owns a landing block, so each added
+/// `$c->n = $c->n + 1` brings an overflow raise, a `Release` of the receiver
+/// and a `Propagate` with it — three machine calls that no run reaches unless
+/// the addition has already overflowed. Counting those reads an access as a
+/// dispatch it never performs, which is exactly what ADR 0014 § 4 claims it is
+/// not. So the
 /// blocks are walked from the entry, and the **taken** edge of a
 /// `test`-then-`jnz` pair is not followed: that pair is how codegen renders
 /// every check of a status word — a call's error return, an overflow's `seto`,
@@ -1182,12 +1183,12 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // all of those are per-frame, so they cancel. What is left is exactly what
     // three more access pairs added.
     //
-    // There is no probe/safepoint correction to make any more: `path_calls`
-    // walks the path a run that throws nothing takes, and an ADR 0018 probe
-    // and a safepoint poll each sit behind a status test, so neither is on it.
-    // Subtracting them from a whole-function count — which also held the three
-    // landing blocks every added access brings — is the arithmetic that read
-    // as nine calls where this ADR claims none.
+    // No probe/safepoint correction is needed: `path_calls` walks the path a
+    // run that throws nothing takes, and an ADR 0018 probe and a safepoint
+    // poll each sit behind a status test, so neither is on it. A count over
+    // the whole function would need them subtracted and would still hold the
+    // landing blocks every added access brings, which is enough to read calls
+    // here where this ADR claims none.
     let slope = |one: &str, four: &str| -> isize {
         path_calls(&program, four).len() as isize - path_calls(&program, one).len() as isize
     };
@@ -1325,10 +1326,10 @@ fn platform_round_trip(layout: Layout) {
 fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
     // Self-relative, per ADR 0026: the bound is this machine's own platform
     // heap, measured in the same loop rather than quoted. A 32-byte round trip
-    // through `System` is 28.7 ns on the tree that motivated
-    // `nvs_runtime::alloc` (docs/perf/userland-gap.md § A) and a free-list pop
-    // and push is a small multiple of a load and a store, so the real ratio is
-    // an order of magnitude under this bound. What the guard holds is the cost
+    // through `System` costs tens of nanoseconds
+    // (docs/perf/userland-gap.md § A) while a free-list pop and push is a
+    // small multiple of a load and a store, so the real ratio is an order of
+    // magnitude under this bound. What the guard holds is the cost
     // *class*: Novis either serves a small allocation from its own cache or it
     // does not, and the failure this file's preamble names — the pooling
     // allocator silently not being registered — lands exactly here, because

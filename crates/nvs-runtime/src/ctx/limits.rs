@@ -521,11 +521,11 @@ impl Ctx {
         self.configured_bytes("max_output")
     }
 
-    /// One `[limits]` directive read as a byte count — the arithmetic the two
+    /// One `[limits]` directive read as a byte count — the arithmetic the
     /// readers above share.
     ///
-    /// Written once rather than per ceiling because a second size directive
-    /// growing its own parse is how the two would come to disagree about what
+    /// Written once rather than per ceiling because a size directive growing
+    /// its own parse is how they would come to disagree about what
     /// `"32M"` means, and `nvs_config::Quantity` is the one place that question
     /// is answered (`rule:config/ini-set-is-core-config-set`
     /// ).

@@ -11,10 +11,10 @@
 //!
 //! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
 //! credential is covered by adding one row and not by editing a walk: `[db.<name>] password`
-//! ([ADR 0067] § 3a) and `[mail.<name>] password` (`rule:programs/framework-core-half`) today. § 7 speaks of a directive
+//! ([ADR 0067] § 3a) and `[mail.<name>] password` (`rule:programs/framework-core-half`). § 7 speaks of a directive
 //! "the registry marks secret", and this table is that marking.
 //!
-//! It is **not** a fourth field on [`mod@crate::directive`]'s rows, for two reasons that both make
+//! It is **not** another field on [`mod@crate::directive`]'s rows, for two reasons that both make
 //! that table the wrong shape rather than merely a different one. A
 //! [`Directive`](crate::directive::Directive) row is a *prefix* — one row answers for every key
 //! beneath it — and secrecy is the opposite of prefix-shaped: `db.main.password` is secret and
@@ -37,9 +37,9 @@
 //! with whitespace is to name it: [`padding`] finds it and `W1007` reports it, for the inline half
 //! as well as the file half, and the boot goes on with the value. Refusing it instead would wall
 //! off a credential some other system issued, with no remedy in the file that names it; trimming it
-//! is what `rule:errors/ambiguous-input-refused` calls repairing input in place of reading it, and it is what
-//! `nvs_stdlib::mail` used to do — a working credential turned into an authentication failure at
-//! the far end, which no message anywhere would have explained.
+//! is what `rule:errors/ambiguous-input-refused` calls repairing input in place of reading it, and it
+//! turns a working credential into an authentication failure at the far end that no message anywhere
+//! would explain.
 //!
 //! **The value stays out of every message this module writes.** A refusal names the file, the key
 //! and the shape of the problem — empty, whitespace-only, oversized, not UTF-8 — and never a byte
@@ -53,7 +53,7 @@
 //! [`Snapshot::retype`](crate::Snapshot) rebuilds the typed tree out of, so a content put into it
 //! would have to be redacted again by every reader that walks it — and the one that forgets writes a
 //! credential into a file an operator diffs. Carried beside it instead, a secret reaches exactly the
-//! three readers that ask for it by name: [`apply`] puts it back onto a typed tree, `Core\Config`
+//! readers that ask for it by name: [`apply`] puts it back onto a typed tree, `Core\Config`
 //! answers `db.main.password` with it, and the dump renders it `<secret>`. That is also why
 //! [`apply`] is a second function rather than the tail of [`materialize`] — a snapshot deserializes
 //! the table more than once (a reload carries `Boot` values across and retypes), and each of those
@@ -99,7 +99,7 @@ pub struct Materialized {
 }
 
 /// One secret directive: the `value`/`value_file` pair § 7 gives a key that holds a credential, as
-/// the four things a sweep needs to know about it and nothing else.
+/// the things a sweep needs to know about it and nothing else.
 ///
 /// The two accessors are function pointers rather than a block name some `match` turns back into a
 /// field, which is what makes **a pair exactly one row and no second place**: the row that names
@@ -120,7 +120,7 @@ pub struct SecretPair {
     set: fn(&mut Config, &str, &str),
 }
 
-/// One block a pair could be written in, as the three facts § 7 asks of it.
+/// One block a pair could be written in, as the facts § 7 asks of it.
 #[derive(Clone, Copy, Debug)]
 struct Site<'a> {
     /// The operator's name for the block — `main`, in `[db.main]`.
@@ -155,8 +155,8 @@ impl SecretPair {
 
 /// Every secret directive § 7 marks, one row each.
 pub const SECRETS: &[SecretPair] = &[
-    // `rule:core-classes/db-capabilities`, and § 7's own "today": the database password, the pair
-    // this whole mechanism was written for.
+    // `rule:core-classes/db-capabilities`: the database password, the pair this whole mechanism is
+    // written for.
     SecretPair {
         block: "db.*",
         value: "password",
@@ -179,10 +179,9 @@ pub const SECRETS: &[SecretPair] = &[
     },
     // `rule:programs/framework-core-half`'s SMTP endpoint, which holds a submission credential of exactly the kind above:
     // written by an operator into a named block, sent as `AUTH PLAIN` over `STARTTLS`, and delivered
-    // to a container by the same injected file. § 7 covering one and not the other was an omission
-    // rather than a decision. `nvs_stdlib::mail` needs no change to see it — that module reads
-    // `mail.<name>.password` through `Core\Config`, and [`mod@crate::request`] answers a
-    // materialized secret before it consults the table.
+    // to a container by the same injected file. `nvs_stdlib::mail` needs no code of its own to see
+    // it — that module reads `mail.<name>.password` through `Core\Config`, and
+    // [`mod@crate::request`] answers a materialized secret before it consults the table.
     SecretPair {
         block: "mail.*",
         value: "password",

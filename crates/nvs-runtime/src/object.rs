@@ -63,7 +63,7 @@
 //!
 //! Compiled code never reads a field of one. It passes the pointer to
 //! [`nvs_object_new`] and [`nvs_object_instanceof`], and those are the only
-//! two operations that exist. So the struct is an ordinary Rust type, not a
+//! operations that exist. So the struct is an ordinary Rust type, not a
 //! `#[repr(C)]` one, and `nvs-codegen` bakes each descriptor's address into
 //! the code it emits as a constant — the normal JIT move, and the reason there
 //! is no registry lookup on the allocation path.
@@ -302,7 +302,7 @@ pub struct ClassDesc {
     /// other wire type.
     ///
     /// A parallel vector rather than a pointer inside [`CodecField`] because
-    /// that struct crosses three front-end crates that have no descriptor to
+    /// that struct crosses the front-end crates, which have no descriptor to
     /// put there — the label they *can* write is [`CodecField::class`], and
     /// this is the resolved half, filled by the same
     /// [`ClassTable::set_codec`] call and on exactly [`Self::conforms`]'
@@ -647,7 +647,7 @@ pub struct EnumCases {
 /// read from, the constructor position it is written to, and what a decode
 /// must produce for it.
 ///
-/// One struct shared by all four crates that touch it — `nvs_types::derive`
+/// One struct shared by every crate that touches it — `nvs_types::derive`
 /// produces the declaration half, `nvs_ir::lower::lower_file` joins the slot
 /// and constructor indices in, `nvs-codegen` copies it here — so a field
 /// added to the wire contract cannot reach the runtime under a different
@@ -896,8 +896,8 @@ impl ClassDesc {
     /// that field names no class — see [`Self::codec_classes`].
     ///
     /// Indexed by position in [`Self::codec`] rather than reached through the
-    /// [`CodecField`] itself, because the field is shared with three crates
-    /// that hold no descriptor to put in it.
+    /// [`CodecField`] itself, because the field is shared with front-end
+    /// crates that hold no descriptor to put in it.
     #[must_use]
     pub fn codec_class(&self, index: usize) -> Option<*const ClassDesc> {
         match self.codec_classes.get(index) {
@@ -1546,7 +1546,7 @@ pub(crate) unsafe fn relink_to_current(object: *mut ObjHeader) {
 /// allocated it. That is routinely false and legitimately so: `nvs_host`'s
 /// `finish` drops a child's exception object and copies its answer out while
 /// the *parent* is the installed context, and a value that outlives its whole
-/// context — [`sweep`]'s own docs name two ways one does — is released later
+/// context — [`sweep`]'s own docs name the ways one does — is released later
 /// still.
 ///
 /// # Safety
@@ -2052,7 +2052,7 @@ impl NvsObj {
         // The live list this object belongs to, if a context is running at all
         // — see this module's *Decision: every object is on its context's live
         // list*. A Rust caller with none stays unlinked and is freed by its
-        // refcount alone, exactly as before this list existed.
+        // refcount alone.
         let list = crate::ctx::current_live_list();
         if !list.is_null() {
             #[expect(
@@ -2337,9 +2337,9 @@ unsafe fn field_ptr(ptr: *mut ObjHeader, index: usize) -> *mut Value {
     // cannot disagree about a *count*; what this catches is the narrower case
     // where a static class label names a layout the receiver does not have —
     // a subclass whose slots stopped being a prefix of its ancestor's, or a
-    // receiver type the checker got wrong. Measured at ~1.4% of a
-    // field-heavy program to carry into release, which buys too little for
-    // the price when the conformance suite and both fuzz targets run debug.
+    // receiver type the checker got wrong. Carrying it into release would put
+    // a load and a compare on every field access, which buys too little for
+    // the price when the conformance suite and the fuzz targets run debug.
     // The erased path does not need this: `nvs_object_slot_get` reads the
     // slot off the receiver's own descriptor by name.
     #[cfg(debug_assertions)]
@@ -2950,7 +2950,7 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// [`ClassDesc::field_slot`] for what it buys and when it is wrong.
 ///
 /// The receiver arrives as a whole [`Value`] by address rather than as a bare
-/// pointer, because § 4's erased half now includes a `mixed` — `rule:types/conversion`'s
+/// pointer, because § 4's erased half includes a `mixed` — `rule:types/conversion`'s
 /// one unchecked position, whose tag nothing before this proved. The tag is
 /// therefore checked here, where the *name* is already checked, and an
 /// unchecked untag in compiled code (which would dereference an `int` payload)
@@ -3112,11 +3112,11 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// (`rule:classes/property-hooks`) is read past
 /// its hook, and [`write_erased_property`] does the same on the write side.
 /// That is owned there and closes for every caller at once — the reason § 5
-/// routes a key through this rather than answering it a fourth way.
+/// routes a key through this rather than answering it in a way of its own.
 ///
 /// # Errors
 ///
-/// [`nvs_object_slot_get`]'s three, which are its own documentation's, plus a
+/// [`nvs_object_slot_get`]'s, which are its own documentation's, plus a
 /// [`Fault::fatal`] where the key is not a string at all — unreachable from
 /// compiled code, since `property<T>` erases to `nvs_ir`'s `Ty::Str`.
 ///
@@ -3161,8 +3161,8 @@ pub unsafe extern "C" fn nvs_object_key_get(
 ///
 /// # Errors
 ///
-/// [`nvs_object_slot_set`]'s three, plus [`nvs_object_key_get`]'s fatal for a
-/// key that is not a string.
+/// [`nvs_object_slot_set`]'s, plus [`nvs_object_key_get`]'s fatal for a key
+/// that is not a string.
 ///
 /// # Safety
 ///
@@ -3219,7 +3219,7 @@ fn key_name(key: &Value) -> Result<&str, Fault> {
 ///
 /// # Errors
 ///
-/// [`nvs_object_slot_get`]'s three, which its own documentation owns.
+/// [`nvs_object_slot_get`]'s, which its own documentation owns.
 fn read_erased_property(receiver: Value, name: &str) -> crate::HelperResult {
     read_erased_property_hinted(receiver, name, 0)
 }
@@ -3302,8 +3302,8 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
 ///
 /// # Errors
 ///
-/// [`nvs_object_slot_set`]'s three throws, which are its own documentation's,
-/// plus [`Fault::Pending`] when the observer itself throws: § 3's "a throwing
+/// [`nvs_object_slot_set`]'s throws, which are its own documentation's, plus
+/// [`Fault::Pending`] when the observer itself throws: § 3's "a throwing
 /// `onPropertySet` still fails the overall write", even though the store has
 /// already happened.
 pub fn write_erased_property(
@@ -4011,13 +4011,12 @@ mod tests {
 
     #[test]
     fn a_cycle_closed_through_an_array_element_is_swept_at_teardown() {
-        // The shape [`sweep`]'s docs used to name as what survives it: the
-        // only edge closing this ring is an *element* of `left`'s array, so a
-        // tally reading field slots alone accounted for neither object's
-        // reference and left the pair — and the array under them — out for the
-        // life of the process. Measured by the allocator, like its acyclic
-        // sibling above, because no reference count here ever reaches zero on
-        // its own.
+        // The only edge closing this ring is an *element* of `left`'s array,
+        // so a tally reading field slots alone would account for neither
+        // object's reference and would leave the pair — and the array under
+        // them — out for the life of the process. Measured by the allocator,
+        // like its acyclic sibling above, because no reference count here
+        // ever reaches zero on its own.
         let (table, animal, dog, _greets) = hierarchy();
         drop(Ctx::new(crate::ctx::OutputSink::Sink));
         let before = counting_alloc::live_bytes();

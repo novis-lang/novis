@@ -208,11 +208,11 @@ pub(super) fn placed(
 /// ([`Codec::packet_size`]); the server may answer with a different one in an
 /// `ENVCHANGE` token, which is what [`Codec::set_packet_size`] is for.
 ///
-/// Five of the twelve fields go out empty and each is a decision. `HostName`
-/// is the *client's* machine name, which nothing approved this driver to read
-/// and which no server acts on; `Language` is empty so the server's own
-/// default governs, and § 8 reads error numbers rather than message text;
-/// `SSPI` belongs to integrated security, which [`OPTION_FLAGS_2`] turns off;
+/// The fields that go out empty are each a decision. `HostName` is the
+/// *client's* machine name, which nothing approved this driver to read and
+/// which no server acts on; `Language` is empty so the server's own default
+/// governs, and § 8 reads error numbers rather than message text; `SSPI`
+/// belongs to integrated security, which [`OPTION_FLAGS_2`] turns off;
 /// `AtchDBFile` attaches a database file by path, which is a capability
 /// nothing in `rule:core-classes/db-one-api` grants; and `ChangePassword` changes the login's
 /// password as a side effect of connecting. `ClientID` is a six-byte MAC
@@ -400,9 +400,9 @@ mod tests {
         }
     }
 
-    /// The option flags, and the one this slice had to decide: a failed initial
-    /// database is fatal, so a login never lands in whichever database the
-    /// server made this login's default.
+    /// The option flags, and the decision among them that carries the most: a
+    /// failed initial database is fatal, so a login never lands in whichever
+    /// database the server made this login's default.
     #[test]
     fn a_failed_initial_database_is_fatal_rather_than_a_warning() {
         let message = login7(&block());

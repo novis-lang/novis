@@ -15,22 +15,20 @@
 //! # Known gaps
 //!
 //! Scoped to exactly what's lowered so far — see the crate's own module docs
-//! for the full list. [`Ty::Str`] is the first refcounted, heap-allocated
-//! representation to land (a `string`-typed local, parameter or return —
-//! see [`crate::lower`]'s module docs for the retain/release insertion
-//! policy that makes it safe). [`Ty::Bytes`] is the mechanical follow-on that
-//! doc comment anticipated: same representation shape, same
-//! [`crate::lower`] retain/release insertion points, no new policy needed —
-//! only nothing in the grammar constructs a *fresh* one yet (no literal
-//! syntax exists for `bytes`; see [`Ty::Bytes`]'s own doc comment).
-//! [`Ty::Array`] is next: a bare, opaque representation exactly like
+//! for the full list. [`Ty::Str`] and [`Ty::Bytes`] are refcounted,
+//! heap-allocated representations sharing one shape and one set of
+//! [`crate::lower`] retain/release insertion points — see [`crate::lower`]'s
+//! module docs for the policy that makes them safe — except that nothing in
+//! the grammar constructs a *fresh* `bytes` value, there being no literal
+//! syntax for one (see [`Ty::Bytes`]'s own doc comment).
+//! [`Ty::Array`] is a bare, opaque representation exactly like
 //! [`Ty::Object`] — no boxed/interned element type — since no lowering
-//! decision made so far needs to branch on an array's *element* type at this
+//! decision needs to branch on an array's *element* type at this
 //! IR level (`nvs_types::ty::Ty::Array(TypeId)` already enforces that at
 //! check time; erasing it here is the same "representation, not identity"
-//! split [`Ty::Object`] already draws for a class/enum). [`Ty::Object`] is
-//! the one other non-scalar representation that exists, and is now
-//! functional: `nvs_runtime::object` gives it a heap shape, and
+//! split [`Ty::Object`] draws for a class/enum). [`Ty::Object`] is
+//! the other non-scalar representation:
+//! `nvs_runtime::object` gives it a heap shape, and
 //! [`crate::ir::Program::classes`] carries the per-class slot order this
 //! per-value lattice has no room for. Widening lowering further adds
 //! variants to this enum; it does not replace the "erase checker
@@ -38,7 +36,7 @@
 //! machine representation of a single Novis type at all — it is the *tagged*
 //! representation every type whose runtime shape is not statically known
 //! erases to: `mixed`, `?T`, and any other union. Its own doc comment is the
-//! home for that decision, its cost, and the three instructions that widen
+//! home for that decision, its cost, and the instructions that widen
 //! into it, narrow out of it and test it.
 
 /// One IR value's representation.
@@ -158,9 +156,9 @@ pub enum Ty {
     /// for the exact policy and its known gaps (an explicit `key =>` entry, a
     /// `...spread` element, and a `&value` element are all still
     /// unsupported). Reading and writing an existing array by a known-type
-    /// index now lower too, to [`crate::ir::InstKind::ArrayGet`]/
+    /// index lower too, to [`crate::ir::InstKind::ArrayGet`]/
     /// [`crate::ir::InstKind::ArraySet`] — see those variants' own doc
-    /// comments for the int/uint-to-string key normalization this needed and
+    /// comments for the int/uint-to-string key normalization they apply and
     /// their own known gaps (append syntax, a non-int/uint/string key, a
     /// `mixed`-erased base).
     Array,
@@ -184,9 +182,9 @@ pub enum Ty {
     /// # Why `mixed` and `?T` are one representation, not two
     ///
     /// Both need the same thing: a discriminant read at runtime. That
-    /// discriminant already existed — the tag byte every `rule:errors/propagation` call
-    /// boundary has carried since M3 — so reusing it costs no new invariant,
-    /// while two shapes would have meant two widen/narrow protocols, two
+    /// discriminant is the tag byte every `rule:errors/propagation` call
+    /// boundary already carries, so reusing it costs no new invariant,
+    /// while two shapes would mean two widen/narrow protocols, two
     /// refcount paths and two ways for a `?mixed` to be ambiguous. A `?T` is
     /// *narrower* than `mixed`, but only in what the **checker** will let a
     /// program do with it; nothing downstream of `check_program` reads that
@@ -207,16 +205,16 @@ pub enum Ty {
     ///
     /// # Getting in and out
     ///
-    /// Three instructions, and nothing *compiled inline* may read a tag:
+    /// Nothing *compiled inline* may read a tag:
     /// [`crate::ir::InstKind::Tag`] widens a statically-typed value into one,
     /// [`crate::ir::InstKind::Untag`] narrows one back to a representation the
     /// checker already proved it holds, and
     /// [`crate::ir::InstKind::IsNull`] tests it for `null`.
-    /// [`crate::lower::Lowering::coerce`] is the one place the first two are
-    /// emitted, at every boundary carrying a declared type. A
+    /// [`crate::lower::Lowering::coerce`] is the one place the widening and
+    /// narrowing are emitted, at every boundary carrying a declared type. A
     /// [`crate::ir::Helper`] may branch on the tag as well, but only out of
     /// line, inside `nvs-runtime` — [`crate::ir::Helper::TaggedToString`] is
-    /// the first, and that arrangement is what keeps the number of tag layouts
+    /// one such, and that arrangement is what keeps the number of tag layouts
     /// compiled code knows about at exactly one.
     ///
     /// **Refcounted** ([`Self::is_refcounted`]), because it may hold a
@@ -232,7 +230,7 @@ pub enum Ty {
     /// one: rendering it — `.`, `echo` and `as string` — goes through
     /// [`crate::ir::Helper::TaggedToString`]. Arithmetic on a `mixed`,
     /// `rule:expressions/truthy-positions`'s truthy table and an array access through a `mixed`-erased
-    /// base are the ones left, and each closes the same way that one did, by
+    /// base are the ones left, and each closes the same way, by
     /// adding a [`crate::ir::Helper`] variant that dispatches on the tag
     /// rather than a second representation.
     Tagged,
@@ -330,7 +328,7 @@ pub enum Ty {
     /// all, so nothing sweeping a `Value` may mistake it for a heap reference.
     Ref,
     /// A `nvs_runtime::ClassDesc` address — the *class* a frame was called on,
-    /// and, since
+    /// and, per
     /// `rule:types/class-reference`,
     /// the value of a `class<T>` binding.
     ///
@@ -344,8 +342,8 @@ pub enum Ty {
     ///
     /// **A declared type lowers to it, and exactly one does.** `rule:types/class-reference`
     /// makes `class<T>` a type written wherever a type is written, so a
-    /// descriptor now reaches a local, a parameter, a field and a return value
-    /// — which costs nothing beyond the word it already was, since a
+    /// descriptor reaches a local, a parameter, a field and a return value
+    /// — which costs nothing beyond the word it already is, since a
     /// descriptor is immortal and process-wide (§ 1's own sentence) and the
     /// slot holding one needs no lifecycle at all. What the erasure drops is
     /// the `T`: two `class<T>`s over different bounds are one representation
@@ -365,9 +363,9 @@ pub enum Ty {
     /// make a descriptor an Novis value, which the paragraph below says it is
     /// not.
     ///
-    /// The cost is that "only a [`Self::Tagged`] operand can hold `null`" is
-    /// no longer the whole rule, so the six sites that ask carry a row of
-    /// their own, all of them the same test — the word, through
+    /// The cost is that a [`Self::Tagged`] operand is not the only one that
+    /// can hold `null`, so every site that asks carries a row of
+    /// its own, all of them the same test — the word, through
     /// `Lowering::class_desc_word`, against zero:
     /// `Lowering::lower_null_identity` (`$c == null` against the written
     /// literal), `Lowering::lower_binary` (`==`/`!=` between two of them),
@@ -375,9 +373,10 @@ pub enum Ty {
     /// (`isset`), `Lowering::truthy_convert` (a condition, `!` and `empty`),
     /// and `Lowering::coerce` (a written `null` reaching a `?class<T>`
     /// binding). Each is written for a [`Self::ClassDesc`] operand whether or
-    /// not its checked type was nullable, since a non-nullable one is never
-    /// the zero word: the comparison then answers the constant the row it
-    /// displaced would have, so there is no second rule to keep in step.
+    /// not its checked type is nullable, since a non-nullable one is never
+    /// the zero word: the comparison then answers the constant a
+    /// non-nullable operand demands anyway, so there is no second rule to
+    /// keep in step.
     ///
     /// Not refcounted — a descriptor is owned by the compiled unit's class
     /// table for that unit's whole life (`nvs_runtime::object`), so there is
@@ -407,10 +406,10 @@ impl Ty {
     /// allocation that needs a matching retain/release around every point it
     /// is copied into or dropped from a durable slot — see
     /// [`crate::lower`]'s module docs for exactly what "durable slot" means
-    /// today. [`Self::Object`] joined the list once `nvs_runtime::object`
-    /// gave an instance a real allocation to free: an object local, argument,
-    /// return value or field now carries exactly the retain/release a string
-    /// already did, through `nvs_object_retain`/`nvs_object_release`.
+    /// today. [`Self::Object`] is on the list because `nvs_runtime::object`
+    /// gives an instance a real allocation to free: an object local, argument,
+    /// return value or field carries exactly the retain/release a string
+    /// does, through `nvs_object_retain`/`nvs_object_release`.
     /// [`Self::Tagged`] is on the list for a reason one level further removed:
     /// a tagged value's *actual* payload might be refcounted (a string, an
     /// array, an object) or not (a scalar, `null`), and which one it is is

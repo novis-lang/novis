@@ -65,9 +65,9 @@
 //!    than with the path. The shape a trie would replace is one function
 //!    ([`Routes::match_request`]) and the rank it already computes.
 //! 2. **The reader answers the name and the captures, and never the row.**
-//!    `Core\Request::route()` has landed and `nvs_stdlib::router`'s
-//!    `Core\Router\Match` is what it answers with, built out of [`Match`] where
-//!    the match crosses. What does not cross is the [`Route`] itself — its
+//!    `Core\Request::route()` answers with `nvs_stdlib::router`'s
+//!    `Core\Router\Match`, built out of [`Match`] where the match crosses.
+//!    What does not cross is the [`Route`] itself — its
 //!    handler label, its declared verb and its access decision stay on this
 //!    side, because a program that could read them is one step from the
 //!    dispatch `rule:routing/matching-is-not-dispatching` refuses. Nothing needs them yet, and the day
@@ -95,8 +95,9 @@ pub enum CaptureConv {
     Uint,
     /// `decimal` — `rule:types/conversion`'s literal, whole, and no match where the
     /// segment is not one. The parse is [`crate::decimal::Decimal::parse`]
-    /// itself rather than a grammar written here: a second decimal reader that
-    /// agreed today is gap 3's failure mode, one type along.
+    /// itself rather than a grammar written here: a second decimal reader
+    /// would agree today and drift tomorrow, which is the `Uuid` arm's reason
+    /// one type along.
     Decimal,
     /// `Core\Uuid` — RFC 9562 § 4's canonical form, and no match where the
     /// segment is not one. The parse is [`crate::uuid::read`], which is where
@@ -263,10 +264,10 @@ impl Route {
     /// The same row with `rule:attributes/access-payload`'s opt-out recorded — the `csrf: false`
     /// its `#[Access]` wrote — so a request that matches it is not checked.
     ///
-    /// A builder rather than a seventh parameter to [`Self::new`], because the
+    /// A builder rather than another parameter to [`Self::new`], because the
     /// answer it changes is one every other row takes from its verb: a
-    /// parameter would put the safe value in thirteen call sites that have
-    /// nothing to say about it, and would make forgetting it fail open.
+    /// parameter would put the safe value in every call site that has nothing
+    /// to say about it, and would make forgetting it fail open.
     #[must_use]
     pub fn without_csrf(mut self) -> Self {
         self.csrf = false;
@@ -280,7 +281,7 @@ impl Route {
     /// reader of a match is asking one question and the two halves are decided
     /// at two different times — the verb here at boot, the opt-out by the
     /// compiler that wrote the row. `nvs_server::route::csrf_required` is the
-    /// door's reader and the only one today.
+    /// door's reader and the only one.
     #[must_use]
     pub fn csrf(&self) -> bool {
         self.csrf
@@ -438,10 +439,10 @@ fn segments_of(path: &str) -> Vec<Seg> {
 /// § 1's match: the row the request selected, and the captures it filled.
 ///
 /// It holds the row rather than a copy of its fields — one atomic bump against
-/// four `String` clones — and the capture names it does copy are the few a path
-/// declares. The row outliving the table is what makes the match *travel*: a
-/// request carries this from the door to `Core\Request::route()` with nothing
-/// left to look up, which is § 1's rule stated as an ownership.
+/// a clone of every `String` in it — and the capture names it does copy are the
+/// few a path declares. The row outliving the table is what makes the match
+/// *travel*: a request carries this from the door to `Core\Request::route()`
+/// with nothing left to look up, which is § 1's rule stated as an ownership.
 #[derive(Clone, Debug)]
 pub struct Match {
     route: Arc<Route>,
@@ -599,7 +600,7 @@ impl Routes {
 mod tests {
     use super::{Capture, CaptureConv, Decimal, Param, Routes};
 
-    /// A table of the four shapes § 2's grammar admits, in a deliberately
+    /// A table of the shapes § 2's grammar admits, in a deliberately
     /// unhelpful load order: the capture rows come before the literals they
     /// have to lose to.
     fn table() -> Routes {
@@ -653,7 +654,7 @@ mod tests {
         ])
     }
 
-    /// § 2's four forms each match what they claim, and the verb selects among
+    /// § 2's forms each match what they claim, and the verb selects among
     /// rows sharing a path.
     #[test]
     fn every_capture_form_matches_the_shape_its_grammar_declares() {
@@ -712,7 +713,7 @@ mod tests {
         // nothing in the table claims this path.
         assert!(routes.match_request("GET", "/users/-1").is_none());
         assert!(routes.match_request("GET", "/en/about").is_some());
-        // § 5's closed set: `fr` is not one of the two the union declares.
+        // § 5's closed set: `fr` is not a value the union declares.
         assert!(routes.match_request("GET", "/fr/about").is_none());
     }
 
@@ -801,8 +802,9 @@ mod tests {
     /// than text handed to a handler that declared a number.
     ///
     /// Both sides named together, because a conversion that refused everything
-    /// would pass either half alone. The refused half is the whole point of the
-    /// gap this closes: before it, every one of these matched.
+    /// would pass either half alone. The refused half is the point: a matcher
+    /// that handed every segment over as text passes the first assertion and
+    /// fails the rest.
     #[test]
     fn a_decimal_capture_converts_and_refuses_what_is_not_one() {
         let routes = Routes::new(vec![super::Route::new(
@@ -854,8 +856,9 @@ mod tests {
     /// to a handler that declared an identifier.
     ///
     /// Both sides named together, for the `decimal` case's reason. The refused
-    /// half is what the placement bought: until [`crate::uuid`] existed, every
-    /// one of these matched, because the parse was one crate above the walk.
+    /// half is what the placement buys: [`crate::uuid`] puts the parse on this
+    /// side of the walk, so a segment that is not one is a miss here rather
+    /// than text handed to the crate above.
     #[test]
     fn a_uuid_capture_converts_and_refuses_what_is_not_one() {
         let routes = Routes::new(vec![super::Route::new(
@@ -885,9 +888,10 @@ mod tests {
         );
 
         // Refused, and the row is the only one in the table, so a refusal is a
-        // miss. The middle two are the non-canonical spellings of a *valid*
-        // UUID: a route that accepted them would key on two strings that are one
-        // identity, which is the whole of why `Core\Uuid`'s reader is strict.
+        // miss. The non-canonical spellings of a *valid* UUID are named among
+        // them because a route that accepted those would key on two strings
+        // that are one identity, which is the whole of why `Core\Uuid`'s reader
+        // is strict.
         for segment in [
             "not-a-uuid",
             "0fb0bc5c4e244e4e8e1e6a6b8a0e1b2c",
@@ -905,14 +909,13 @@ mod tests {
     /// exactly where nothing claims the path, and the `405` otherwise, with the
     /// answer spelling the `Allow:` RFC 9110 requires beside it.
     ///
-    /// **Filed here rather than in `nvs-server`, where the acceptance check
-    /// first named it.** § 1 forbids the door to send either status — "the
-    /// program may still serve the request however it likes, because nothing
-    /// here dispatches" — and a door that refused a miss would refuse every
-    /// request of a program declaring no `#[Route]` at all, since an empty
-    /// table claims no path. So both answers are a computation *this* table
-    /// performs and the program sends, and this is the only crate where the
-    /// claim can be asserted against something that exists.
+    /// **Filed here rather than in `nvs-server`.** § 1 forbids the door to send
+    /// either status — "the program may still serve the request however it
+    /// likes, because nothing here dispatches" — and a door that refused a miss
+    /// would refuse every request of a program declaring no `#[Route]` at all,
+    /// since an empty table claims no path. So both answers are a computation
+    /// *this* table performs and the program sends, and this is the only crate
+    /// where the claim can be asserted against something that exists.
     #[test]
     fn no_methods_for_a_path_is_404_and_some_is_405_with_allow() {
         let routes = table();
@@ -939,7 +942,7 @@ mod tests {
         assert_eq!(answer("PUT", "/files/a/b.png"), (405, "Get".to_owned()));
         assert_eq!(answer("POST", "/en/about"), (405, "Get".to_owned()));
 
-        // The `404`, and all three ways a path goes unclaimed: no row's shape
+        // The `404`, and each way a path goes unclaimed: no row's shape
         // fits it, or a shape fits under a conversion the segment fails —
         // whether that conversion is a number or a closed set.
         assert_eq!(answer("GET", "/nothing/here"), (404, String::new()));

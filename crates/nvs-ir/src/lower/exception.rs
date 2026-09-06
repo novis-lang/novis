@@ -1,10 +1,8 @@
 //! `rule:errors/propagation`'s throw/catch lowering: the landing pads, the `finally` ladder, and the synthesized `Throwable` constructor.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods are
+//! `pub(crate)` so they reach across these modules and no further.
 
 use super::*;
 
@@ -411,8 +409,8 @@ impl<'a> Lowering<'a> {
     /// joins its arms through. § 6's "written to one temporary" needs no
     /// temporary in SSA — the phi *is* it.
     ///
-    /// Three things differ from the block form, each following from an arm
-    /// being an expression rather than a block:
+    /// What differs from the block form follows from an arm being an expression
+    /// rather than a block:
     ///
     /// - **No `finally`.** The expression form has no spelling for one
     ///   (`rule:expressions/catch-expression-precedence`), so no frame pushed here carries one and no exit out of this
@@ -601,7 +599,7 @@ impl<'a> Lowering<'a> {
 /// other binding still owns, rather than a freshly constructed value with
 /// exactly one natural owner — the same "is this a copy or a fresh value"
 /// judgment [`Lowering::bind_local`]'s own doc comment already describes for
-/// a bare variable read, now shared with a call argument
+/// a bare variable read, shared with a call argument
 /// ([`Lowering::lower_call_args`]) and a returned expression
 /// (`StmtKind::Return`'s own arm). A plain local (`ExprKind::Variable`), a
 /// compile-time-known property read (`ExprKind::PropertyAccess`), and a
@@ -611,8 +609,8 @@ impl<'a> Lowering<'a> {
 /// value semantics) — so copying any of them into a new durable slot needs a
 /// retain. A fresh literal, `new`, or a call's own result already has exactly
 /// one natural owner and needs none.
-/// The root exception class's label — the one `nvs_types::layout` keys its
-/// four slots under, and the one every `FieldGet`/`FieldSet` on an exception
+/// The root exception class's label — the one `nvs_types::layout` keys its own
+/// slots under, and the one every `FieldGet`/`FieldSet` on an exception
 /// resolves through.
 ///
 /// A slot resolved against the root is valid for every subclass
@@ -621,8 +619,8 @@ impl<'a> Lowering<'a> {
 /// tree's own home is `nvs_hir::errors`; this crate depends on neither
 /// `nvs-hir` nor `nvs-types`' name resolution, so it restates the one label it
 /// needs — `nvs-codegen`'s
-/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds the
-/// three copies together.
+/// `the_runtime_and_the_compiler_agree_on_every_throwable_slot` holds those
+/// copies together.
 pub(crate) const THROWABLE_ROOT: &str = "Throwable";
 
 /// `Throwable::$message`.
@@ -648,16 +646,16 @@ pub(crate) const THROWABLE_CTOR: &str = "Throwable::constructor";
 /// Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const LOGIC_ERROR: &str = "LogicError";
 
-/// `ParseError`, the one class below the root that declares a property —
+/// `ParseError`, a class below the root that declares a property of its own —
 /// `rule:core-classes/derive-reports-every-field`'s `issues`.
 /// `nvs_hir::errors::OWN_PROPERTIES` is that roster's home; this crate depends
-/// on neither `nvs-hir` nor `nvs-types`, so it restates the two names it needs.
+/// on neither `nvs-hir` nor `nvs-types`, so it restates the names it needs.
 pub(crate) const PARSE_ERROR: &str = "ParseError";
 
 /// `ParseError::$issues`.
 pub(crate) const ISSUES_FIELD: &str = "issues";
 
-/// `Core\Db\RolledBack`, the second class below the root that declares a
+/// `Core\Db\RolledBack`, another class below the root that declares a
 /// property — spec § 18's `reason`, thrown by
 /// `rule:core-classes/db-transactions`'s
 /// `Transaction::rollBack`. Restated here for [`PARSE_ERROR`]'s reason.
@@ -666,7 +664,7 @@ pub(crate) const ROLLED_BACK: &str = "Core\\Db\\RolledBack";
 /// `Core\Db\RolledBack::$reason`.
 pub(crate) const REASON_FIELD: &str = "reason";
 
-/// `Core\Db\DbError`, the third such class — spec § 18's `kind`, written by
+/// `Core\Db\DbError`, another such class — spec § 18's `kind`, written by
 /// every refusal `rule:core-classes/db-error` gives a
 /// normalised kind. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
@@ -701,12 +699,12 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// their own rather than inheriting the root's, because each declares a
 /// property the root's constructor never touches — `rule:classes/definite-property-initialization` makes every
 /// property definitely assigned, and such a slot would read `null` out of a
-/// type that cannot be one. Each writes all five slots rather than chaining,
-/// which costs three duplicated instructions and buys not needing a call at all
-/// on a path that allocates an exception.
+/// type that cannot be one. Each writes every slot itself rather than chaining,
+/// which duplicates a handful of stores and buys not needing a call at all on a
+/// path that allocates an exception.
 ///
 /// **What each extra slot is initialized to is [`ExtraInit`]'s decision**, and
-/// the three differ: `ParseError::$issues` starts empty, because a `ParseError`
+/// each differs: `ParseError::$issues` starts empty, because a `ParseError`
 /// raised by hand has no field list to report and
 /// `rule:core-classes/derive-reports-every-field`'s decoder fills
 /// it from native code. `Core\Db\RolledBack::$reason` starts as **the message**,
@@ -732,12 +730,12 @@ pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
 }
 
 /// What [`exception_constructor`] stores into one property a subclass declares
-/// beyond the root's four.
+/// beyond the root's own.
 ///
 /// A closed set rather than a value the caller builds: every one of these has
 /// to be a definite assignment `rule:classes/definite-property-initialization` accepts *and* a representation the
 /// class's seeded type admits (`nvs_types::error_lib::own_properties` is where
-/// that type is), so a third initializer is a deliberate addition here rather
+/// that type is), so another initializer is a deliberate addition here rather
 /// than an instruction written at a call site.
 #[derive(Clone, Copy)]
 enum ExtraInit {
@@ -752,7 +750,7 @@ enum ExtraInit {
     EnumCase(i64),
 }
 
-/// One such constructor: the root's four slots, then one per `(field, init)`
+/// One such constructor: the root's own slots, then one per `(field, init)`
 /// pair in `extra` — which is every property `class` declares beyond them.
 ///
 /// The receiver, the message and the `previous` option are all *transferred*

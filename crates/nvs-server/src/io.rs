@@ -36,14 +36,14 @@
 //! one without initialising it first is an `unsafe` cast of
 //! `&mut [MaybeUninit<u8>]` to `&mut [u8]` — handing a syscall a buffer the
 //! compiler believes may be read before it is written. This crate inherits the
-//! workspace's `unsafe_code = "forbid"` rather than taking a fourth exception
+//! workspace's `unsafe_code = "forbid"` rather than taking another exception
 //! to it, so the read goes into a zeroed stack buffer and is copied into the
 //! cursor with [`ReadBufCursor::put_slice`].
 //!
 //! # The clock, and why it lives here
 //!
 //! `rule:http-server/the-server-block-is-boot-class`
-//! 's four waits are the stream's own deadline — `hyper` knows nothing about
+//! 's waits are the stream's own deadline — `hyper` knows nothing about
 //! them — and they are **idle** waits rather than totals, so a slow 2 GB upload
 //! completes while a stalled socket does not. That is one rule and two
 //! mechanisms, both of them in this module because this is the only code that
@@ -57,7 +57,7 @@
 //! - **Refresh on progress.** A poll that actually moved bytes re-arms the same
 //!   phase, which is what makes the wait idle. A `Pending` refreshes nothing.
 //!
-//! **Three of the four phase changes are visible here and one is not.** A first
+//! **Not every phase change is visible here.** A first
 //! byte after a response ends the keep-alive wait, and a read attempted while a
 //! response was being written is `hyper` going back for the next request — but
 //! the end of a request *head* is a framing fact only `hyper` has, so the
@@ -107,7 +107,7 @@ use nvs_host::NvsTcp;
 /// costs less than this.
 pub const SCRATCH: usize = 8 * 1024;
 
-/// Which of `rule:http-server/the-server-block-is-boot-class`'s four waits bounds this connection right now.
+/// Which of `rule:http-server/the-server-block-is-boot-class`'s waits bounds this connection right now.
 ///
 /// A connection is always in exactly one of these, starting in [`Phase::Head`]
 /// from the moment it is accepted: there is no unbounded state to fall into,
@@ -149,12 +149,12 @@ impl Phase {
 #[derive(Debug)]
 pub struct ConnectionIo {
     stream: NvsTcp,
-    /// The four numbers, fixed for this connection's life — `[server]` is
+    /// The numbers, fixed for this connection's life — `[server]` is
     /// `Boot`-class (`rule:http-server/the-server-block-is-boot-class`), so a reload does not move them under a
     /// connection already being served.
     waits: Waits,
     /// The phase in force, shared with the connection loop: the module doc
-    /// § *The clock* says which of the four changes each of the two can see.
+    /// § *The clock* says which changes each side can see.
     phase: Rc<Cell<Phase>>,
     /// The phase the stream's deadline was last armed for, so that a poll which
     /// changed nothing does not push the deadline it is about to be judged
@@ -317,7 +317,7 @@ mod tests {
     use super::*;
 
     /// Every state a connection can be in, so the sweep below is over the whole
-    /// type rather than over the three someone remembered. A variant added
+    /// type rather than over the ones someone remembered. A variant added
     /// without a line here is a variant with no assertion about its wait, and
     /// the `match` in [`Phase::wait_in`] is what makes the omission a compile
     /// error rather than a silent hole.

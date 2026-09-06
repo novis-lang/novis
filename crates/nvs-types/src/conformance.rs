@@ -1,9 +1,9 @@
 //! Interface conformance: every method a class's interfaces declare without
 //! a body, the class has to answer.
 //!
-//! # Why this exists now
+//! # Why this exists
 //!
-//! It was harmless while nothing dispatched through an interface. `rule:iteration/two-interfaces`'s `Iterator<T>` changed that: its members are bodiless *on purpose*
+//! An interface is what a call dispatches through. `rule:iteration/two-interfaces`'s `Iterator<T>` is the case that needs it: its members are bodiless *on purpose*
 //! ([`crate::iter_lib`]'s own docs own why — a call resolving to a bodiless
 //! declaration has no compiled function to name, so it dispatches on the
 //! receiver's runtime class, which is exactly what driving a cursor of
@@ -19,7 +19,7 @@
 //! *does* have a body — its own, an inherited one, or an `rule:classes/interface-default-methods`
 //! interface default.
 //!
-//! Two things are outside it, each for its own reason:
+//! These are outside it, each for its own reason:
 //!
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
 //!   what the modifier means.
@@ -28,19 +28,19 @@
 //!   type, so a synthesized forward discharges the obligation exactly as a
 //!   written body does — but only for the members that actually get one.
 //!   The exemption is per-member rather than whole-class because § 4's own
-//!   first bullet is checked now: [`check_delegate_field`] asks whether
+//!   first bullet is checked here: [`check_delegate_field`] asks whether
 //!   `$field` is a declared property of a non-nullable type that satisfies
 //!   the interface (`E0720`), so a member no forward covers can be told from
 //!   one whose field could not have answered it. [`resolve_delegations`] is
 //!   what runs both halves, and its own doc comment owns what a forward is
 //!   and which members get one.
 //!
-//! The four compiler-declared global interfaces are *inside* it, and reach it
+//! The compiler-declared global interfaces are *inside* it, and reach it
 //! the same way a source-declared one does: [`crate::iter_lib`] seeds every
 //! member on [`nvs_hir::interfaces`]'s roster, so `implements Comparable`
 //! owes `compareTo` and `implements Stringable` owes `toString` here, rather
 //! than only at the use sites (`crate::expr`'s `require_stringable` and the
-//! object comparison check) that were the whole of the guarantee before.
+//! object comparison check).
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::{QName, implements_interface};
@@ -54,7 +54,7 @@ use crate::ty::Ty;
 use crate::{span_text, strip_sigil};
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing
-/// answers. See the module docs for the two exemptions.
+/// answers. See the module docs for the exemptions.
 pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
     if decl.modifiers.contains(&Modifier::Abstract) {
         return;
@@ -101,13 +101,13 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
     }
 }
 
-/// The two promises `final` makes, checked where the declaration that breaks
+/// The promises `final` makes, checked where the declaration that breaks
 /// one is written: no class extends a `final` class (`E0783`), and no class
 /// redeclares a method an ancestor declared `final` (`E0784`).
 ///
 /// Here rather than in a module of its own because it asks this module's own
 /// question from the other side — what a class's ancestors impose on it — and
-/// reads the same two tables ([`resolve_method`] and the class graph) to do
+/// reads the same tables ([`resolve_method`] and the class graph) to do
 /// it. The modifier itself is recorded per declaration
 /// ([`crate::signatures::ClassSignature::final_methods`]), so both halves are
 /// a lookup against the declaring class rather than a walk of the source.
@@ -266,7 +266,7 @@ fn collect_obligations(
 /// default, both of which `resolve_method` finds and neither of which a
 /// forward should displace.
 ///
-/// Three member shapes get no forward, and each is a hole rather than a rule:
+/// These member shapes get no forward, and each is a hole rather than a rule:
 /// a `static` member has no receiver to forward through (`rule:statements/static-is-a-member-modifier` gives class
 /// storage none), and a variadic or `inout` parameter list is packed and
 /// written back at the *call site*, so passing it straight on would pack it

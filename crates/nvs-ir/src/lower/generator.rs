@@ -1,10 +1,8 @@
-//! `rule:iteration/generators`'s state-machine transform: the frame, the spill/reload of a local live across a `yield`, and the three synthesized methods.
+//! `rule:iteration/generators`'s state-machine transform: the frame, the spill/reload of a local live across a `yield`, and the synthesized methods.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
-//! session editing one area does not carry the rest in context. Every item
-//! moved here unchanged; the methods are `pub(crate)` so they reach across
-//! these modules and no further, which is the reach they had when `lower` was
-//! a single file.
+//! session editing one area does not carry the rest in context. The methods
+//! are `pub(crate)` so they reach across these modules and no further.
 //!
 //! **`current()` outside the protocol throws spec § 10's `LogicError`** — ADR
 //! 0053 § 1 says it throws and does not say what, so this is where that is
@@ -366,7 +364,7 @@ impl GenFrame {
 
 /// Lowers a generator declaration — `rule:iteration/generators`'s state-machine transform.
 ///
-/// One source method becomes **three functions and one class**:
+/// One source method becomes **one class and the functions that drive it**:
 ///
 /// * `name` itself keeps the label every call site already resolves to, but
 ///   runs no user code at all: it allocates the state object, stores its
@@ -378,7 +376,7 @@ impl GenFrame {
 ///   segments at each `yield`.
 /// * `{name}$gen::current` returns the last yielded element.
 /// * `{name}$gen::unwind` is the resume-to-unwind entry point — see below.
-/// * `{name}$gen` is the state class those two are methods of. `$` cannot
+/// * `{name}$gen` is the state class those methods belong to. `$` cannot
 ///   appear in an Novis identifier, so the label can never collide with a
 ///   user class.
 ///
@@ -510,8 +508,7 @@ pub(crate) fn lower_generator(
     // A generator no suspension of which sits inside a `finally`-owning region
     // owes nothing when it is abandoned, so it carries no entry point at all
     // and `nvs_runtime::object::dismantle` finds a null field rather than a
-    // method to call — which is what keeps such a generator lowering exactly as
-    // it did before this existed.
+    // method to call.
     if !owed.is_empty() {
         functions.push(lower_generator_unwind(
             &class,
@@ -728,7 +725,7 @@ pub(crate) fn lower_generator_advance(
     let start = low.new_block();
     let exhausted = low.new_block();
 
-    // Everything the factory parked, minus the three reserved slots, is what
+    // Everything the factory parked, minus the reserved slots, is what
     // state 0 reloads — the same shape a resume block reloads, so the body
     // sees one kind of binding rather than two.
     let seeded: Vec<(String, Ty)> = fields
@@ -984,10 +981,9 @@ const OUTSIDE_THE_PROTOCOL: &str =
 /// correctness of it: a resume block that owes nothing carries no unwind arm,
 /// so entering it would carry on running the body rather than abandon it. A
 /// generator with no owed state at all gets no entry point emitted and no
-/// method table row, which is what makes it lower exactly as it did before —
-/// [`lower_generator`] is where that is decided.
+/// method table row — [`lower_generator`] is where that is decided.
 ///
-/// Why it is a fourth *method* rather than something the release path does
+/// Why it is a *method* rather than something the release path does
 /// itself: the flag's slot index and the entry switch's encoding are both
 /// facts of this transform, and a runtime that had to know either would be
 /// holding a copy of [`lower_generator`]'s protocol. A method table entry is
@@ -1034,9 +1030,8 @@ pub(crate) fn lower_generator_unwind(
     );
     // One test per suspension point that owes a `finally`, and deliberately
     // not `state > 0`: a resume block that owes nothing carries no unwind arm,
-    // so resuming into it would run the rest of the body — which is the
-    // opposite of abandoning it, and printed three conformance cases' bodies
-    // to completion when this read `> 0`.
+    // so resuming into it would run the rest of the body to completion, which
+    // is the opposite of abandoning it.
     let resume = low.new_block();
     let nothing_owed = low.new_block();
     let mut test = entry;
