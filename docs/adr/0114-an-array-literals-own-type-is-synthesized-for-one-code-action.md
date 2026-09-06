@@ -1,4 +1,4 @@
-# ADR 0114 — An array literal's own type is synthesized for one code action, and no compile path asks for it
+# `rule:ide/narrow-an-annotation-to-its-literal` — An array literal's own type is synthesized for one code action, and no compile path asks for it
 
 - **Status:** Accepted
 - **Date:** 2026-08-29

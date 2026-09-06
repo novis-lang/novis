@@ -21,7 +21,7 @@
 > trace events, instruments the cycle collector's run routine, the three fixed isolate-spawn/join routines
 > and each database statement
 > (gated by the same `TRACE`/`PROFILE` bits `Ctx` already carries), and adds a speedscope-evented export that
-> renders all four kinds as one scrollable timeline in speedscope.app — reusing the exact format ADR 0040
+> renders all four kinds as one scrollable timeline in speedscope.app — reusing the exact format `rule:ide/every-feature-is-staged-behind-its-dependency`
 > already committed to for the sampling profiler, so no bespoke viewer is built. None of this touches the
 > per-statement/per-call check `rule:testing/debug-probes` measures on the hot path: the new instrumentation lives entirely
 > inside routines that are already rare and already slow (a GC run, a spawn), so the marginal cost is
@@ -104,7 +104,7 @@ boundary exactly as `rule:testing/debug-probes` defined — not a new live cross
 
 A new export renders recorded `call`/`gc`/`spawn`/`query` events as speedscope's evented-profile JSON — open/close
 pairs at a timestamp, which is exactly what a `TRACE`-flagged run already produces. This reuses the identical
-open format [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md)/M10's sampling profiler already
+open format `rule:ide/every-feature-is-staged-behind-its-dependency`/M10's sampling profiler already
 commits to, rather than inventing a second timeline format with its own bespoke viewer to build and maintain.
 Callgrind (aggregate profile), Clover/lcov (coverage) and Novis-native NDJSON (raw trace) are unchanged from
 `rule:testing/debug-probes` — this is an additional export, not a replacement. The exact CLI flag spelling is left to whoever
@@ -129,7 +129,7 @@ per function call is unstorable, and admitting one would put export cost on the 
 - GC pauses and isolate-spawn overhead become visible and correctly attributed instead of silently distorting
   the self time of whatever function happened to be running — the concrete gap this amendment closes.
 - Reuses an already-open, already-committed viewer format (speedscope) instead of building a bespoke one,
-  consistent with ADR 0040's own reasoning for the sampling profiler.
+  consistent with `rule:ide/every-feature-is-staged-behind-its-dependency`'s own reasoning for the sampling profiler.
 - Isolate-boundary data crossing is untouched: this amendment reads exactly the data `rule:testing/debug-probes`/0006 already
   place on `ScriptResult`, and does timeline-stitching at export time, not via a new live cross-arena
   mechanism.
@@ -155,7 +155,7 @@ per function call is unstorable, and admitting one would put export cost on the 
 - **Merging a child isolate's trace/profile stream live into the parent's at spawn/join time.** Rejected: it
   crosses the arena boundary `rule:security/isolate-shares-nothing`'s isolation model exists to prevent, the identical reasoning `rule:testing/debug-probes`
   already used for not merging a child's coverage data live.
-- **A bespoke Novis timeline-viewer webview instead of speedscope's evented format.** Rejected per ADR 0040's
+- **A bespoke Novis timeline-viewer webview instead of speedscope's evented format.** Rejected per `rule:ide/every-feature-is-staged-behind-its-dependency`'s
   own reasoning: an open, already-maintained viewer exists, and Novis is already committed to it for the
   sampling profiler; building a second one is unnecessary scope against the simplicity priority.
 - **Coroutine suspend/resume as a further event kind, an external/live attach mechanism, and a memory/
@@ -186,7 +186,7 @@ Verification, in the order it becomes possible:
   as an accepted design, not yet pinned to a specific milestone's deliverables): the collector's run routine
   produces a `gc`-kind event with a correct freed-object count and duration, in the same change that builds
   the collector.
-- **M10** (alongside `rule:testing/debug-probes`'s `Core\Debug`/exporters and ADR 0040's sampling profiler): the speedscope
+- **M10** (alongside `rule:testing/debug-probes`'s `Core\Debug`/exporters and `rule:ide/every-feature-is-staged-behind-its-dependency`'s sampling profiler): the speedscope
   export produces a file speedscope.app opens showing calls, GC pauses and spawn/join boundaries on one
   timeline, with a spawned child's events visible nested under its parent's `spawn` event; the per-statement/
   per-call debug-flag-off cost guard test already committed in `rule:testing/debug-probes`'s own *Revisiting* shows no regression

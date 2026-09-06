@@ -24,12 +24,12 @@
 > deleted, not folded — because the threat this closes is an incidental viewer: a stream, a screen share, a
 > screenshot, a shoulder. The ranges are computed by `nvs-lsp`, which already knows `is_secret(ty)`, and
 > handed over by one new request, `nvs/redactions`; the client draws a `TextEditorDecorationType` and holds
-> no language logic, per [ADR 0016](0016-ide-integration.md) § 1. Only a **literal token or an interpolation
+> no language logic, per `rule:ide/one-server-two-thin-clients`. Only a **literal token or an interpolation
 > slot** whose static type carries `secret` is concealed — never the identifier that binds it, because
 > blurring `$apiKey` conceals nothing and costs all the readability. Reveal is explicit, per range, and does
 > **not** persist across a close: the whole model assumes an unattended screen. `tainted` gets the opposite
-> answer — **no default decoration whatever.** [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
-> § 4 already gives it a semantic-token modifier a theme may style, and that section's rule that Novis does not
+> answer — **no default decoration whatever.** `rule:ide/highlighting-is-two-layers`
+> already gives it a semantic-token modifier a theme may style, and that section's rule that Novis does not
 > decide how a construct looks in someone else's editor is binding here; a marker glyph is *added content*,
 > so it ships opt-in (`nvs.taint.mark`, default `off`). The asymmetry is the point and is not a preference:
 > a credential on a stream is a security incident under this project's priority 1, and a tainted value on a
@@ -55,7 +55,7 @@
   `secret` and `tainted` both poison, and every `Core\Request` accessor returns `tainted` — so in a request
   handler nearly every string-typed expression carries the qualifier. Decorating each one is not a security
   feature, it is a wall of glyphs a user turns off, taking the redaction with it.
-- [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 already decided that Novis ships *names*
+- `rule:ide/highlighting-is-two-layers` already decided that Novis ships *names*
   and no colours, that the two custom modifiers map to standard TextMate scopes a theme already styles, and
   that a theme with no opinion must degrade to the underlying token type. Concealment cannot ride that
   channel: a theme that declines to style `secret` would silently un-redact, which is the one failure
@@ -70,10 +70,10 @@
 ### 1. The server computes the ranges; the client draws them and knows nothing
 
 `nvs-lsp` gains one request, `nvs/redactions`, joining the M4B set in
-[ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 3. It takes a `TextDocumentIdentifier` and
+`rule:ide/the-request-set-is-closed`. It takes a `TextDocumentIdentifier` and
 answers a list of `{range, kind}`, `kind` being `secretLiteral` today and an open string for whatever a
 later qualifier needs. It is the **only** Novis-specific request in that set, and it exists because the
-alternative is the client deciding what a secret is — which [ADR 0016](0016-ide-integration.md) § 1 forbids
+alternative is the client deciding what a secret is — which `rule:ide/one-server-two-thin-clients` forbids
 and which is exactly the guessing *Context* rejects.
 
 **It does not ride the semantic-token channel**, even though the `secret` modifier already travels there.
@@ -104,7 +104,7 @@ else. In particular:
   bytes and makes the file unreadable for the developer whose editor it is.
 - **Never a type annotation.** `secret string` is the declaration doing its job and must stay legible — it
   is how a reader knows the concealment below it is deliberate rather than a rendering fault.
-- **Never a whole line, statement or block.** [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md)'s
+- **Never a whole line, statement or block.** `rule:ide/every-feature-is-staged-behind-its-dependency`'s
   folding ranges are line-granular and structurally cannot express `secret string $k = "…";`, which is the
   shape this exists for; see *Alternatives rejected*.
 
@@ -131,7 +131,7 @@ the only thing that turns it off.
 
 ### 4. `tainted` ships no default decoration; the marker is opt-in
 
-[ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 gives `tainted` a semantic-token modifier
+`rule:ide/highlighting-is-two-layers` gives `tainted` a semantic-token modifier
 mapped to a standard scope, and rules that how a construct looks is the user's theme's to decide. That rule
 is applied here, not amended: a marker **glyph is added content**, not a colour, and shipping one on by
 default is Novis writing into someone else's editor exactly what that section refuses.
@@ -163,7 +163,7 @@ Two of the extension's own renderings would otherwise print the plaintext the ed
   diagnostic record, so every rendering — the Problems panel included — carries the placeholder from one
   place. Nothing is owed here; it is stated so a reader does not go looking for a second fix.
 - **The AST panel does not, and this ADR gives it the obligation.**
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7's `nvs ast --json` schema includes each
+  `rule:ide/ast-json-schema-is-frozen`'s `nvs ast --json` schema includes each
   node's own scalar fields, which for a string literal is its text — so the panel would render a secret
   the buffer behind it is blurring. A literal node whose static type carries `secret` emits the same fixed
   placeholder `rule:security/secret-sinks-refuse` gives a dumped property, in
@@ -173,7 +173,7 @@ Two of the extension's own renderings would otherwise print the plaintext the ed
 
 `nvs/redactions` is a request on the one server both clients drive, so the PhpStorm plugin can answer it
 whenever it is built. It does not at M4B: the plugin is M10 under
-[ADR 0016](0016-ide-integration.md) § 3, and an editor-side decoration API is per-editor work with no shared
+`rule:ide/phpstorm-bridges-to-the-same-server`, and an editor-side decoration API is per-editor work with no shared
 half. Named here so the gap is a decision rather than something discovered when someone opens a `.nvs` file
 in PhpStorm on a call.
 
@@ -207,10 +207,10 @@ feature is not sold as something it is not.
   the qualifier is already a checked fact and already propagates.
 - The qualifier becomes visible where it is learned. A developer sees concatenation carry `secret` into a
   derived value, in the editor, at the moment they write it — the same argument
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4 makes for the token modifiers, extended
+  `rule:ide/highlighting-is-two-layers` makes for the token modifiers, extended
   to the one axis a colour cannot express.
 - The client stays free of language logic, so the allowlist test
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6 already runs keeps holding: the
+  `rule:ide/contributions-are-frozen-and-only-ever-added` already runs keeps holding: the
   redaction is a range list from the server and a decoration, and there is nothing in it a parser would help
   with.
 - One request serves both editors, so PhpStorm's eventual version costs its decoration API and nothing else.
@@ -240,7 +240,7 @@ feature is not sold as something it is not.
 ## Alternatives rejected
 
 - **Detect the range in the client with a regex or a filename rule**, the way every shipping secret-hiding
-  extension does. Rejected twice over: [ADR 0016](0016-ide-integration.md) § 1 forbids language logic in a
+  extension does. Rejected twice over: `rule:ide/one-server-two-thin-clients` forbids language logic in a
   client, and the heuristic would be strictly worse than the checked fact the server already holds — it
   would miss every value that became `secret` by propagation, which is most of them.
 - **Carry the redaction as a third semantic-token modifier.** Rejected in *Decision § 1*: that channel
@@ -284,7 +284,7 @@ feature is not sold as something it is not.
   may simply not be worth its cost.
 
 Verification, in the order it becomes possible (M4B, on
-[ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 8's two tiers):
+`rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone`'s two tiers):
 
 - **Headless, `.lspt`**: `nvs/redactions` over a document holding a `secret string` literal, a `secret`
   interpolation slot, a plain `string` literal and a `tainted string` literal answers exactly the first two
@@ -298,7 +298,7 @@ Verification, in the order it becomes possible (M4B, on
   allowlist is unchanged by this feature.
 - **Headless**: `nvs ast --json` over a file with a `secret` literal emits the placeholder rather than the
   literal's text, frozen in the same snapshot test
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7 already runs over `examples/`.
+  `rule:ide/ast-json-schema-is-frozen` already runs over `examples/`.
 - **Extension host, once per green tree**: opening the file decorates the secret range; `nvs.revealSecret`
   at the cursor clears exactly that range and leaves a second secret in the same file concealed; closing and
   reopening the editor re-conceals the revealed one; `nvs.taint.mark` at its default decorates nothing.

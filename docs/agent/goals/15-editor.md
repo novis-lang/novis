@@ -2,7 +2,7 @@
 
 Build the extension: TypeScript, outside the Cargo workspace, exactly where
 [ADR 0016 § 5](../../adr/0016-ide-integration.md) puts it.
-[docs/plan/m4b.md](../../plan/m4b.md) is the scope; ADR 0099 §§ 4 and 6 are the colour lists and the frozen
+[docs/plan/m4b.md](../../plan/m4b.md) is the scope; `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added` are the colour lists and the frozen
 contribution roster, and **neither is a starting point to improve on during the run**.
 
 This is M4B's last entry and the only one on the chain whose source is not Rust — goals 16 and 17 follow
@@ -59,7 +59,7 @@ comments — and the constructs it must **not** colour as valid, is
 [ADR 0099 § 4](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s list. **Do not re-derive it
 and do not shorten it.** Goal 13 landed `|>` and `let`/`is`, so that list's refusals are now real
 diagnostics the grammar can be checked against; goals 10 and 11 landed `callable<…>` signatures and `///`
-doc comments, which are colour surface ADR 0099 § 4 predates and which this stage adds.
+doc comments, which are colour surface `rule:ide/highlighting-is-two-layers` predates and which this stage adds.
 
 The harness is a headless snapshot test through `vscode-textmate` + `vscode-oniguruma` — plain Node, no
 editor, no display — asserting every emitted scope against a standard-name allowlist. **This is the largest
@@ -137,8 +137,8 @@ test, one example, one hostile program.
   fight is with every PHP extension a user already has, and losing it silently looks like Novis being
   broken.
 - **Nothing is published.** `.vsix` as a CI artifact; no Marketplace publisher, no listing, no icon or
-  branding work. ADR 0016 *Revisiting* keeps that open and this goal does not close it.
-- **Colour is specified, not designed.** ADR 0099 § 4 lists what the grammar must colour, what it must
+  branding work. `rule:ide/one-server-two-thin-clients` *Revisiting* keeps that open and this goal does not close it.
+- **Colour is specified, not designed.** `rule:ide/highlighting-is-two-layers` lists what the grammar must colour, what it must
   refuse to colour, and the semantic token types and modifiers. A gap in it is a handoff note, never an
   improvement made during the run.
 - **Dependencies: one is named, the rest are yours.** `vscode-languageclient` for the client; the Node
@@ -152,7 +152,7 @@ test, one example, one hostile program.
   instance and exits, so the suite reports no results and the iteration goes red over a window manager.
   It cannot be expressed as a skip either — a `command` check has no platform key, and `memoize` only
   short-circuits a check that has already *passed* — so the only way to keep it off that desktop is to
-  leave it out. **Do not add it**; CI runs it on Linux under `xvfb-run`, which is where ADR 0099 § 8 puts
+  leave it out. **Do not add it**; CI runs it on Linux under `xvfb-run`, which is where `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` puts
   the milestone gate. A session never runs it by hand.
 - **The host suite isolates its profile, wherever it runs.** `--user-data-dir` and `--extensions-dir` to a
   throwaway directory, and it opens a fixture folder, never this repository. Unisolated it loads the

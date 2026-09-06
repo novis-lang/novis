@@ -14,7 +14,7 @@ gives the type a function value's parameters and return, and it goes after every
 callbacks so their registry rows are converted once rather than twice. An eleventh,
 [doc comments](11-doc-comments.md), is last —
 `rule:tooling/doc-comment-is-three-slashes`'s `///`, whose stage 2 builds
-ADR 0099 § 1's trivia layer because a doc comment cannot be read without it, so **M4B starts with its
+`rule:ide/one-grammar-one-tree`'s trivia layer because a doc comment cannot be read without it, so **M4B starts with its
 own tree half already done**.
 
 **Then M4B itself, as four goals** — [12 resilient-tree](12-resilient-tree.md),
@@ -148,10 +148,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [9 schema](9-schema.md) | post-parity, one ADR slot | `nvs-db`, `nvs-stdlib`, `nvs-cli` |
 | [10 typed-callable](10-typed-callable.md) | post-parity, `rule:types/callable-signature` | `nvs-syntax`, `nvs-types`, `nvs-stdlib`, `nvs-ir`, `nvs-codegen`, `nvs-runtime` |
 | [11 doc-comments](11-doc-comments.md) | post-parity, `rule:tooling/doc-comment-is-three-slashes` + M4B's tree half | `nvs-syntax`, `nvs-diagnostics`, `nvs-hir`, `nvs-cli` |
-| [12 resilient-tree](12-resilient-tree.md) | M4B, ADR 0099 § 1's other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
+| [12 resilient-tree](12-resilient-tree.md) | M4B, `rule:ide/one-grammar-one-tree`'s other half | `nvs-syntax`, `nvs-diagnostics`, `nvs-test`, `nvs-cli` |
 | [13 surface](13-surface.md) | M1 items 5-6, `rule:expressions/pipeline-substitution` + ADR 0124 | `nvs-syntax`, `nvs-diagnostics` |
-| [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
-| [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
+| [14 lsp-server](14-lsp-server.md) | M4B, `rule:ide/the-request-set-is-closed`+5 + `rule:security/redaction-ranges-come-from-the-server` | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
+| [15 editor](15-editor.md) | M4B, `rule:ide/highlighting-is-two-layers`+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, `rule:http-server/a-session-store-answers-four-operations` + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
 | [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + `rule:types/object-top`/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |

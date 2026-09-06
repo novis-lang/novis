@@ -11,7 +11,7 @@ answering. `editors/` does not exist.
 extension step and its `npm` plumbing, dormant until the directory exists. If a session finds either
 missing, that is stage 2's blocker and belongs here — not a tooling slice invented mid-goal.
 
-**Stage 0 is empty.** Goal 13 landed `|>` and `let`/`is`, so ADR 0099 § 4's *must not colour as valid*
+**Stage 0 is empty.** Goal 13 landed `|>` and `let`/`is`, so `rule:ide/highlighting-is-two-layers`'s *must not colour as valid*
 list is now checkable against real diagnostics; goals 10 and 11 landed `callable<…>` and `///`, which are
 colour surface that list predates.
 
@@ -33,7 +33,7 @@ its lint config and npm scripts), plus the four `.gitignore` lines.
 
 - Stages 3 and 4 (the two TextMate grammars) are one group — same directory, same headless harness — and
   stage 3 alone is **expected to take more than one session: split it by construct family, never by file.**
-  ADR 0099 § 4 is the list; do not re-derive or shorten it.
+  `rule:ide/highlighting-is-two-layers` is the list; do not re-derive or shorten it.
 - Stage 5 (the client) and stage 7 (Tasks, the problem matcher, the AST panel) share `src/`. Stage 6
   (`secret` concealment) needs the client, so it follows stage 5.
 - Stage 8's extension-host suite is **not on the acceptance list and must not be added** — it needs a

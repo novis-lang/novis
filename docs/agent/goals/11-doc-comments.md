@@ -7,7 +7,7 @@ argument so the two renderers already on that pipeline get user declarations for
 `rule:tooling/doc-comment-is-three-slashes` is the whole design.
 
 This goal closes a hole rather than adding a feature.
-[ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 5's `textDocument/hover` row
+`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s `textDocument/hover` row
 already promises "for a declaration, the `TriviaKind::DocComment` run attached to it" — and nothing in
 the tree defines which trivium that is, because the trivia layer does not exist yet.
 
@@ -15,15 +15,15 @@ Its floor is goal 10's whole list.
 
 ## What lands here that M4B was going to build
 
-**Stage 2 is M4B's tree item, landing early.** ADR 0099 § 1's `Parsed { stmts, trivia, index }` is
+**Stage 2 is M4B's tree item, landing early.** `rule:ide/one-grammar-one-tree`'s `Parsed { stmts, trivia, index }` is
 M4B's, and M4B is carried by goals 12, 14 and 15 — the end of this chain. A doc comment cannot be read
 without retaining it,
-so this goal builds the `Trivia` vector and `TriviaKind` **as ADR 0099 § 1 specifies them**, plus that
+so this goal builds the `Trivia` vector and `TriviaKind` **as `rule:ide/one-grammar-one-tree` specifies them**, plus that
 section's fourth variant. M4B then inherits it done and keeps the rest: the `SyntaxIndex`, `nvs-lsp`,
 syntax highlighting, `.lspt`. [docs/plan/m4b.md](../../plan/m4b.md) records the move.
 
 **Hover is the one row this goal cannot contain.** It needs `crates/nvs-lsp`, which does not exist. It
-needs no note either: ADR 0099 § 5's row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
+needs no note either: `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`'s row and `docs/plan/m4b.md` were both folded when `rule:tooling/doc-comment-is-three-slashes` landed,
 so M4B arrives knowing what hover reads and which half of its tree is already built.
 
 ## The surface, in one block
@@ -54,7 +54,7 @@ Goal 10's whole acceptance list, never traded.
 One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`,
 `crates/nvs-syntax/src/parser/mod.rs`.
 
-1. **`Trivia` and `TriviaKind`** — ADR 0099 § 1's shape exactly: `Lexer` gains a flag, `skip_trivia`
+1. **`Trivia` and `TriviaKind`** — `rule:ide/one-grammar-one-tree`'s shape exactly: `Lexer` gains a flag, `skip_trivia`
    (`crates/nvs-syntax/src/lexer.rs:357`) pushes a `Trivia { kind, span }` instead of only advancing.
    The variants are `Whitespace`, `LineComment`, `BlockComment` and `DocComment`. `TriviaKind` lives
    beside the token types in `crates/nvs-syntax/src/token.rs`.
@@ -64,7 +64,7 @@ One file set: `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`
    stays an ordinary comment. A `#` comment is never a doc comment at any length.
 3. **`parse_file` becomes `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504` returns `stmts` and
    `trivia`; the `SyntaxIndex` field is **M4B's** and is not built here. The strict entry point stays a
-   thin wrapper so no call site changes, exactly as ADR 0099 § 1 requires.
+   thin wrapper so no call site changes, exactly as `rule:ide/one-grammar-one-tree` requires.
 4. **Losslessness is the acceptance property, not an assertion** — concatenating every token's and every
    trivium's source text in offset order equals the file byte-for-byte, over `examples/`, `tests/` and
    the vendored `php-src` checkout `corpus_parse.rs` already walks.
@@ -116,8 +116,8 @@ One file set: a new `crates/nvs-cli/src/doc.rs`, `crates/nvs-cli/src/main.rs`.
 2. **`nvs check --strict-docs`** — a **public** member with no attached doc comment is reported. Silent
    without the flag, in every project, at every other setting. There is nothing for an autofix to
    generate, which is the property `rule:tooling/strict-docs` relies on.
-3. **No hover code lands here.** [ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)
-   § 5's hover row already names the `TriviaKind::DocComment` run as what it reads, and
+3. **No hover code lands here.** `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`
+   's hover row already names the `TriviaKind::DocComment` run as what it reads, and
    [docs/plan/m4b.md](../../plan/m4b.md) already records which half of its tree this goal built — both
    folded when `rule:tooling/doc-comment-is-three-slashes` landed. There is nothing left for this stage to write down.
 

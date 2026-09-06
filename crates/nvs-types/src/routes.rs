@@ -1380,7 +1380,7 @@ struct Doc {
 /// token to read: `nvs_syntax`'s lexer preserves no trivia at all — its own
 /// module doc is that contract, and a token stream that carried comments would
 /// make every consumer skip them — and
-/// [ADR 0099](/docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s
+/// `rule:ide/one-grammar-one-tree`'s
 /// trivia layer, which is where a declaration's doc comment is meant to come
 /// from once `nvs lsp` needs it for hover, is M10's. Until then this is the one
 /// question asked of a comment anywhere in the compiler, it is asked at a

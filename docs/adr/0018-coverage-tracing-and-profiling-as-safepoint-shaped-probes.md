@@ -19,7 +19,7 @@
 
 ## Context
 
-- Xdebug covers four things: step debugging (already decided — [ADR 0016](0016-ide-integration.md) commits
+- Xdebug covers four things: step debugging (already decided — `rule:ide/one-server-two-thin-clients` commits
   `nvs dap` to safepoints for breakpoints), code coverage, call tracing, and profiling — the latter three
   undecided until this ADR, and exactly the kind of decision [AGENTS.md](../../AGENTS.md) wants settled
   before codegen exists rather than retrofitted onto ten milestones of statement lowering.

@@ -1,9 +1,9 @@
-# ADR 0099 — The resilient tree is the AST plus a trivia layer, `nvs-lsp` is synchronous, and an LSP answer is frozen as a `.lspt` case
+# `rule:ide/one-grammar-one-tree` — The resilient tree is the AST plus a trivia layer, `nvs-lsp` is synchronous, and an LSP answer is frozen as a `.lspt` case
 
 - **Status:** Accepted
 - **Date:** 2026-08-26
 - **Scope:** the four things M4B could not start without, each of which
-  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) either left open or specified against a
+  `rule:ide/every-feature-is-staged-behind-its-dependency` either left open or specified against a
   parser that has since turned out to be shaped differently: (1) **what the resilient tree actually is** —
   one grammar and one AST with a trivia layer, not a second `rowan` CST; (2) **what `nvs-lsp` is built on**
   — `lsp-server`/`lsp-types`, synchronously, not `tower-lsp` and therefore not tokio; (3) **how an LSP
@@ -12,11 +12,11 @@
   test each answers to. Beside those, the operational rules that are cheap to state and expensive to
   discover: **diagnostic phase gating** (§ 3), stdout belonging to the protocol, document encoding, the
   frozen setting and command identifiers, and what `language-configuration.json` actually contains (§ 6).
-  It also closes ADR 0040's two open *Revisiting* items that said to decide "once M4B's implementation
+  It also closes `rule:ide/every-feature-is-staged-behind-its-dependency`'s two open *Revisiting* items that said to decide "once M4B's implementation
   starts". It does **not** touch M10's deep half, PhpStorm, `nvs fmt`'s style, or `nvs dap`.
 - **Amends:** [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) §§ 1, 2, 3 and *Revisiting* —
   each fold is applied in that ADR's own body, which states the current rule;
-  [ADR 0016](0016-ide-integration.md) § 2's `nvs lsp` spelling is unchanged, only what is behind it.
+  `rule:ide/vscode-is-the-reference-client`'s `nvs lsp` spelling is unchanged, only what is behind it.
   [docs/plan/m4b.md](../plan/m4b.md) and [docs/plan/m10.md](../plan/m10.md) are rewritten to match.
 - **Amended by:** 0101, 0108, 0111, 0137
 
@@ -28,7 +28,7 @@
 > `rowan`: `tokens ⊕ trivia` reconstructs the file byte-for-byte, which is the losslessness `nvs fmt` needs
 > at M10, and the AST's spans plus one index answer "what is under the cursor". `nvs check`/`nvs run`
 > become that same parse followed by "refuse if anything was reported", so there is **one grammar and one
-> tree**, and ADR 0040's own named cost — a second parser mode to keep in step with a grammar M2–M4 is
+> tree**, and `rule:ide/every-feature-is-staged-behind-its-dependency`'s own named cost — a second parser mode to keep in step with a grammar M2–M4 is
 > still changing — is deleted rather than paid. `nvs-lsp` is built on rust-analyzer's `lsp-server` and
 > `lsp-types`, synchronously over threads, because `tower-lsp` would put tokio into a workspace whose
 > entire runtime thesis is that it does not have an async runtime. An LSP answer is frozen the way stdout
@@ -41,7 +41,7 @@
 
 ## Context
 
-Four things were assumed rather than checked when [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md)
+Four things were assumed rather than checked when `rule:ide/every-feature-is-staged-behind-its-dependency`
 was written, and each turns out to change the work.
 
 - **The parser is already infallible.** `crates/nvs-syntax/src/parser/mod.rs` § *Error recovery* is explicit:
@@ -50,7 +50,7 @@ was written, and each turns out to change the work.
   `ExprKind::Error` node; every loop that parses a bare sequence with no separator forces a token of
   progress if an iteration consumed none. `$u->` with nothing after it already parses to a property access
   whose name is `MemberName::Ident(<empty span at the cursor>)` — which is precisely the node member
-  completion needs. ADR 0040 § 2 described building that property; it already holds.
+  completion needs. `rule:ide/the-tree-survives-a-syntax-error` described building that property; it already holds.
 - **What is missing is trivia and an index, and trivia has exactly one site.** `Lexer::skip_trivia`
   ([lexer.rs:357](../../crates/nvs-syntax/src/lexer.rs)) is the single function that consumes whitespace,
   `//`, `#` and `/* */`, and it consumes them without emitting a token. That one function is the whole
@@ -65,7 +65,7 @@ was written, and each turns out to change the work.
   [docs/adr/README.md](README.md) § *Decisions taken at project start* records
   thread-per-core, shared-nothing and stackful coroutines as the runtime design; `tower-lsp` would add
   tokio, tower and `async-trait` to a project that has spent five milestones not needing them, and every
-  future dependency review would carry that tree. rust-analyzer — the precedent ADR 0040 already leans on
+  future dependency review would carry that tree. rust-analyzer — the precedent `rule:ide/every-feature-is-staged-behind-its-dependency` already leans on
   for the tree design — does not use `tower-lsp` either: it uses its own `lsp-server`, which is a few
   hundred lines of stdio framing over `crossbeam-channel`, plus `lsp-types` for the message structs.
 - **Nothing in this repository can express an LSP answer as a check.** The driver's stop path is exit
@@ -77,10 +77,10 @@ was written, and each turns out to change the work.
 
 Two smaller corrections, both of which would have been discovered as a session's wasted call:
 
-- ADR 0040 § 3 says the AST panel is "backed by the CLI's existing `nvs ast --json` command (already
+- `rule:ide/every-feature-is-staged-behind-its-dependency` says the AST panel is "backed by the CLI's existing `nvs ast --json` command (already
   shipped in M1)". `nvs ast` exists; `--json` does not — [main.rs:201](../../crates/nvs-cli/src/main.rs)
   prints `{stmts:#?}`, Rust's own debug formatting, which has no stability contract at all.
-- ADR 0040 excluded semantic tokens in § 1 and then required them in its *Verification* list. Both
+- `rule:ide/every-feature-is-staged-behind-its-dependency` excluded semantic tokens in § 1 and then required them in its *Verification* list. Both
   sentences cannot be right.
 
 ## Decision
@@ -120,14 +120,14 @@ pub struct Parsed {
   code path to keep in step: each is `parse(...)` followed by "refuse if any error was reported", which is
   what they already do. The strict entry point stays as a thin wrapper so no call site changes.
 
-**Why not the `rowan` CST ADR 0040 § 2 specified.** That ADR's reasoning was sound and its evidence —
+**Why not the `rowan` CST `rule:ide/the-tree-survives-a-syntax-error` specified.** That ADR's reasoning was sound and its evidence —
 rust-analyzer — is the right precedent; what it got wrong is the starting point. `rowan` exists because a
 typed AST is *lossy by construction*: it drops trivia and error tokens, so an IDE needs a second,
 untyped, complete tree underneath it. Novis's AST is not lossy once trivia is retained beside it, and it
 already never aborts. Building the second tree would mean rewriting ~5,600 lines of grammar from "return
 a node" to "emit `Start`/`Token`/`Finish` events", then re-deriving the typed AST as a view over green
 nodes — a multi-week rewrite of the most heavily tested part of the compiler, while M2–M4 are still
-changing it, to obtain properties the tree above already has. It also **removes** ADR 0040's own named
+changing it, to obtain properties the tree above already has. It also **removes** `rule:ide/every-feature-is-staged-behind-its-dependency`'s own named
 Negative ("`nvs-syntax` now carries two parser entry points sharing one grammar ... real, ongoing
 maintenance cost"): there is one entry point, so there is nothing to keep in step.
 
@@ -204,7 +204,7 @@ it — and that test is what keeps the list from drifting back toward M10's cata
 | `textDocument/documentLink` | the path literal in `require './foo.nvs'` and in an `autoload` declaration, made clickable. The graph is already resolved for `definition`; this is that resolution pointed at the literal rather than at a name |
 | `nvs/redactions` | the ranges the client conceals — a literal token or interpolation slot whose static type carries `secret` (`rule:security/redaction-ranges-come-from-the-server` and `rule:security/redaction-covers-bytes-only`). The one non-standard request here, and it is non-standard because LSP has no shape for "do not show this to the room" |
 
-Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
+Plus **two code actions**, and only two, closing `rule:ide/every-feature-is-staged-behind-its-dependency` *Revisiting*'s "one or two cheap ones early"
 question: the casing fix (`rule:core-api/identifier-casing`/[0030](0030-no-leading-underscores-constructor-spelling.md))
 and the legacy-cast fix `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Both
 are admitted for one reason and it is not that they are useful: their replacement text is **already
@@ -248,7 +248,7 @@ it does.
 at; a link into the repository would be a link to a Rust constant, which is worse than none. When there is
 a site, this is the one field that has to change.
 
-Everything else in ADR 0040 § 3's catalog stays at M10, unchanged — explicitly including
+Everything else in `rule:ide/every-feature-is-staged-behind-its-dependency`'s catalog stays at M10, unchanged — explicitly including
 `documentHighlight` and inlay hints, which look adjacent to the three additions above and are not: the
 first needs resolution applied to *every* occurrence, which is a different walk from resolving one, and
 the second wants a settings story and encodes idioms that are still moving through M5–M9.
@@ -353,7 +353,7 @@ asks a question of a document that is usually not even valid. Sharing the *forma
 
 ```
 --TEST--
-member completion survives an unclosed brace (ADR 0040 § 2, ADR 0099 § 1)
+member completion survives an unclosed brace (`rule:ide/the-tree-survives-a-syntax-error`, `rule:ide/one-grammar-one-tree`)
 --FILE--
 <?nvs
 class User { public string $name; public function greet(): string { return "hi"; } }
@@ -418,7 +418,7 @@ showing server health and version; `nvs run`/`nvs test` as Tasks; and the AST pa
   `nvs.test`, `nvs.showAst`, `nvs.restartServer`, and from the same source `nvs.revealSecret` and
   `nvs.hideSecrets`. Nothing else is contributed at M4B, and anything added later is added, never
   renamed — which is the rule `rule:security/redaction-ranges-come-from-the-server` was applied under, not an exception to it, and the rule under which
-  [ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6
+  `rule:ide/check-json-is-the-diagnostic-record-as-a-document`
   adds, at M10, the settings `nvs.check.scope`, `nvs.codeLens.enable` and `nvs.template.services`, the
   command `nvs.checkWorkspace`, and a second request of Novis's own, `nvs/regions` — and under which
   [ADR 0111](0111-a-php-builtin-completes-to-its-novis-destination.md) § 5 adds, at the same milestone, the
@@ -508,7 +508,7 @@ which is the only place that tier runs at all.
   behaviour: frozen expectation, exit code, `N passed, M failed`, and a coverage gate that enumerates its
   own source of truth. No model judgment enters the stop path, which is the condition
   [loop-authoring.md](../agent/loop-authoring.md) § 3 sets for running a goal unattended at all.
-- **One grammar, one tree.** ADR 0040's largest named cost is not paid, it is deleted. There is no second
+- **One grammar, one tree.** `rule:ide/every-feature-is-staged-behind-its-dependency`'s largest named cost is not paid, it is deleted. There is no second
   parse mode to keep in step with M2–M4's continuing grammar changes, because there is no second mode.
 - **`nvs fmt` gets its prerequisite for free and earlier.** [M10](../plan/m10.md) already depends on this
   tree for comment preservation; the trivia layer is what it needs, and it lands here.
@@ -535,7 +535,7 @@ which is the only place that tier runs at all.
 
 ## Alternatives rejected
 
-- **Build the `rowan` CST as ADR 0040 § 2 specifies.** Rejected in *Decision § 1*: it re-derives properties
+- **Build the `rowan` CST as `rule:ide/the-tree-survives-a-syntax-error` specifies.** Rejected in *Decision § 1*: it re-derives properties
   the existing parser already has, at the cost of rewriting the most-tested part of the compiler while the
   grammar is still changing, and it adds the two-modes-to-keep-in-sync cost that ADR itself listed as its
   own largest negative. Revisited only if incremental reparse becomes the binding constraint, and then
@@ -557,7 +557,7 @@ which is the only place that tier runs at all.
 - **Run `@vscode/test-electron` every loop iteration.** Rejected: minutes per iteration, a display
   requirement on the WSL leg, and a new class of flake on the stop path. Memoized against the green tree
   instead, exactly like the valgrind sweep.
-- **Ship the TextMate grammar without semantic tokens, per ADR 0040 § 1's exclusion.** Rejected: the
+- **Ship the TextMate grammar without semantic tokens, per `rule:ide/the-first-server-answers-a-closed-list`'s exclusion.** Rejected: the
   qualifier modifiers of *Decision § 4* are the cheapest demonstration the language has of the model ADRs
   0024 and 0033 are built on, and a regex grammar cannot produce them at any price.
 
@@ -578,13 +578,13 @@ which is the only place that tier runs at all.
   `tests/` and the vendored `php-src` corpus byte-for-byte. Parsing every prefix of every `examples/*.nvs`
   at a token boundary panics on none of them, answers a `SyntaxIndex` lookup at the final offset on all of
   them, and reports at least one diagnostic on each prefix that is genuinely incomplete. A fuzz target
-  feeding truncated and mid-edit inputs finds no panic in five minutes — closing ADR 0040 *Revisiting*'s
+  feeding truncated and mid-edit inputs finds no panic in five minutes — closing `rule:ide/every-feature-is-staged-behind-its-dependency` *Revisiting*'s
   second open item, which asked whether that target was worth having: it is, and it is separate from the
   existing whole-file `parse` target because a truncated input is a different shape of input.
 - **The server:** `nvs lsp-test tests/lsp/` reports `0 failed`, and
   `every_request_answers_every_construct` names no empty cell. Typing an incomplete statement — an
   unclosed brace, a trailing `->` — leaves diagnostics, hover, completion and semantic tokens working on
-  the well-formed code around it, which is ADR 0040's core claim and is a `.lspt` case per request rather
+  the well-formed code around it, which is `rule:ide/every-feature-is-staged-behind-its-dependency`'s core claim and is a `.lspt` case per request rather
   than a claim. A full re-analysis of a 1,000-line document stays under the guard's bound.
 - **The rules that are invisible when they hold:** the worked example in *Decision § 3* is a `.lspt` case
   in both directions — gated, it publishes `E0102` and not `E0301`; with `phase=all`, both — so the gate

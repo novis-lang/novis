@@ -55,7 +55,7 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The acceptance paragraph alone; the colour lists are ADR 0099 §§ 4 and 6, already named above.
+# The acceptance paragraph alone; the colour lists are `rule:ide/highlighting-is-two-layers` and `rule:ide/contributions-are-frozen-and-only-ever-added`, already named above.
 milestones = ["M4B:verify"]
 
 [valgrind]
@@ -101,7 +101,7 @@ want = ["grammar:", "contributions:", "protocol:", "0 failing"]
 # the suite would report no results and the iteration would go red over a window manager. Nor can it be
 # skipped: there is no platform key on a `command` check, and `memoize` only short-circuits a check that
 # has already PASSED. Leaving it out is the only way to keep it off that desktop. CI owns it, on Linux
-# under `xvfb-run`, which is where ADR 0099 § 8 puts the milestone gate. Goal prose stage 8.
+# under `xvfb-run`, which is where `rule:ide/headless-gates-the-loop-the-host-run-gates-the-milestone` puts the milestone gate. Goal prose stage 8.
 #
 # Packaging stays: `vsce` is headless, and a `.vsix` that does not build is a broken artifact.
 # ---------------------------------------------------------------------------------------------------

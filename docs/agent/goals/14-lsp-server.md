@@ -2,8 +2,8 @@
 
 Build `crates/nvs-lsp`: `lsp-server` and `lsp-types`, **synchronous, no async runtime**, speaking LSP over
 stdio behind `nvs lsp`. [docs/plan/m4b.md](../../plan/m4b.md) is the scope and this file does not restate
-it; [ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) is the current rule wherever it
-and [ADR 0040](../../adr/0040-vscode-deep-tooling-and-resilient-parsing.md) seem to differ.
+it; `rule:ide/one-grammar-one-tree` is the current rule wherever it
+and `rule:ide/every-feature-is-staged-behind-its-dependency` seem to differ.
 
 **What is different about this goal, and what every session must hold: for the first time the loop is
 verifying something that is not a program's stdout.** An LSP answer is not printed by anything, and the
@@ -88,7 +88,7 @@ session.
 - **`definition`** — within the document or anywhere in its resolved graph.
 - **`completion`** — keywords filtered by position; members off a resolved receiver, instance and static,
   user classes and `Core` registry classes alike; enum cases after `Type::`; in-scope variables.
-  **No workspace symbol search** — that needs M10's index, and ADR 0108 puts it there by name.
+  **No workspace symbol search** — that needs M10's index, and `rule:ide/five-features-are-one-reference-index` puts it there by name.
 
 ## Stage 7 — the five projections
 
@@ -105,7 +105,7 @@ one walk each, **no new analysis in any of them.**
 `rule:security/redaction-ranges-come-from-the-server` and `rule:security/redaction-covers-bytes-only`:
 a `TextDocumentIdentifier` in, a list of `{range, kind}` out, `kind` being `secretLiteral` today and an
 open string for whatever a later qualifier needs. The server computes the ranges because the alternative is
-the client deciding what a secret is, which ADR 0016 § 1 forbids.
+the client deciding what a secret is, which `rule:ide/one-server-two-thin-clients` forbids.
 
 **Its fail direction is named and is not a preference:** a range whose expression cannot be typed but whose
 binding declares `secret` is answered **anyway**, so a value does not flash on screen on every keystroke
@@ -118,7 +118,7 @@ Casing ([0029](../../adr/0029-identifier-casing-is-checked.md)/[0030](../../adr/
 and `(int)$x` → `$x as int` ([0034](../../adr/0034-legacy-cast-syntax-rejected.md)), both translations of a
 `Suggestion` the `Diagnostic` already carries, registered under `source.fixAll.nvs`. **A code action whose
 fix the checker would have to compute is off path** — that boundary is the whole content of this stage, and
-[ADR 0114](../../adr/0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) is the worked
+`rule:ide/narrow-an-annotation-to-its-literal` is the worked
 example of one that sits on the far side of it, at M10.
 
 Expect `Diagnostic::suggestions` to be sparsely populated: it has been carried since M0 and read by
@@ -149,7 +149,7 @@ the same chapter. `python tools/reference.py --check` is in the acceptance list.
   apply to a tenth standard request is the one that admitted `selectionRange`, `foldingRange` and
   `documentLink`: the data structure this goal already builds **is** the answer, so the request is a
   projection rather than a feature. `documentHighlight` is the worked example of one that fails it —
-  ADR 0108 owns it, at M10. A session that finds another one "would be easy" applies the test honestly and
+  `rule:ide/five-features-are-one-reference-index` owns it, at M10. A session that finds another one "would be easy" applies the test honestly and
   puts it in `## Backlog` when it fails.
 - **No ADR slots.** ADRs 0099, 0101, 0040, 0117 and 0137 decide everything here. Anything smaller is
   decided-and-recorded in this crate's module doc, never a new number and never `BLOCKED`.

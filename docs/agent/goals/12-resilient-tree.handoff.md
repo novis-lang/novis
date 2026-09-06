@@ -4,7 +4,7 @@
 
 **Goal 12 — the resilient tree — has just started; nothing of it has landed yet.** Goal 11's whole list
 is this goal's Stage 1 floor, and goal 11 already built the trivia layer and `Parsed { stmts, trivia }`,
-so the tree work left is the index and explicit recovery rather than the whole of ADR 0099 § 1.
+so the tree work left is the index and explicit recovery rather than the whole of `rule:ide/one-grammar-one-tree`.
 
 **Stage 0 is empty and stays empty.** The four M4 language holes M4B was staged with are closed, and
 `bool as int` is not the fourth one — it is `E0708`, a decision of `rule:types/conversion`. A session that finds a

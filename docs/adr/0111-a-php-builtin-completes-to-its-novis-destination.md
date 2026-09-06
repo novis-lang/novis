@@ -58,8 +58,8 @@
   its signature table from it. The spec schedules its own classes across milestones — its § *Milestones*
   puts §§ 1–12 at M4S, §§ 14–17 at M8, and § 13 with whichever milestone closes each entry's dependency —
   so until the library is finished the registry holds strictly less than the spec names.
-- **[ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md)
-  § 2 does not settle this either way.** Its rule is about offering a *value a program contains* — a route
+- **`rule:ide/completion-offers-only-what-the-compiler-derived`
+  does not settle this either way.** Its rule is about offering a *value a program contains* — a route
   name, a directive — and refuses convention scans and annotation dialects as sources for those. A PHP
   built-in's name is not a value in anybody's program; it is a fact about a different language, held in a
   checked-in table. The rule as written neither admits nor refuses it, which is a gap to close rather than
@@ -166,7 +166,7 @@ of § 3's table, and is distinguished by the spec naming it where the registry d
 - Two files that describe the same members — the migration table and the registry — start being checked
   against each other, which nothing does today.
 - The layer is one table and one lookup in `nvs-lsp`, so both editor clients get it from the same place,
-  per [ADR 0016](0016-ide-integration.md) § 1.
+  per `rule:ide/one-server-two-thin-clients`.
 
 **Negative**
 

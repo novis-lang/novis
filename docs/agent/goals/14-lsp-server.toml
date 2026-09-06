@@ -66,7 +66,7 @@ playbook = [
 plan = ["Open now", "Blocking"]
 
 # The acceptance paragraph alone; the request set and its rules are this goal's own prose and
-# ADR 0099 §§ 3 and 5, both already in this manifest.
+# `rule:ide/the-request-set-is-closed` and `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`, both already in this manifest.
 milestones = ["M4B:verify"]
 
 [valgrind]

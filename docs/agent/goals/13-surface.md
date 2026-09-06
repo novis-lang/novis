@@ -7,7 +7,7 @@ operator** and [ADR 0124](../../adr/0124-php-86-lands-as-four-refusals-and-one-s
 [docs/plan/m1.md](../../plan/m1.md) items 5 and 6 are the scope.
 
 **Why here, between the tree and the server.** Goal 15's TextMate grammar must colour `|>` and `let`/`is`
-as things Novis **rejects** ([ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 4),
+as things Novis **rejects** (`rule:ide/highlighting-is-two-layers`),
 and `|>` stops being one the moment `rule:expressions/pipeline-substitution` lands. A grammar written against a surface that changes two
 goals later is written twice, and its snapshots are re-frozen by a session that has no idea why. Landing
 both now means the grammar, the semantic legend and every `.lspt` case see the final surface once.

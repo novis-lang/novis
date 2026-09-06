@@ -1,8 +1,8 @@
-# ADR 0040 — The VS Code extension is a deep, first-class client; `nvs-syntax` gains a resilient parse mode; a minimal `nvs-lsp` moves ahead of M10
+# `rule:ide/every-feature-is-staged-behind-its-dependency` — The VS Code extension is a deep, first-class client; `nvs-syntax` gains a resilient parse mode; a minimal `nvs-lsp` moves ahead of M10
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
-- **Scope:** the VS Code half of [ADR 0016](0016-ide-integration.md) only — the PhpStorm plugin, and
+- **Scope:** the VS Code half of `rule:ide/one-server-two-thin-clients` only — the PhpStorm plugin, and
   0016's "one server, two thin clients" split, are untouched. Covers: (1) pulling a minimal `nvs-lsp` and
   `editors/vscode` ahead of M10 into a new milestone, **M4B**, right after M4's "usable CLI language"; (2)
   the full v1 feature catalog for the VS Code extension — inspections, refactorings, completion depth, a
@@ -29,13 +29,13 @@
 > result** — a tree that keeps a usable shape around a syntax error — because a document mid-keystroke is
 > syntactically invalid most of the time, and "keep completion working anyway" is not achievable by
 > layering something on top of an all-or-nothing parser afterward. That was originally specified as a
-> second, `rowan`-shaped tree; [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1 found
+> second, `rowan`-shaped tree; `rule:ide/one-grammar-one-tree` found
 > this parser already infallible and narrowed it to trivia plus an offset index over the one existing
 > grammar, which is what *Decision § 2* below now describes.
 
 ## Context
 
-- [ADR 0016](0016-ide-integration.md) scoped the VS Code extension as a thin `vscode-languageclient`
+- `rule:ide/one-server-two-thin-clients` scoped the VS Code extension as a thin `vscode-languageclient`
   wrapper — TextMate grammar, LSP process spawning, format-on-save — landing in M10, after extensions (M9)
   and stdlib/HTTP (M7/M8). It explicitly left a Test Explorer and debugger UI wiring out of scope.
 - The goal now is different: real-world testing of the language should start the moment non-trivial CLI
@@ -80,7 +80,7 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
 **scoped down to a minimal subset**, work that M10 was going to do anyway:
 
 - `crates/nvs-lsp` — created here, not at M10 — built on `lsp-server` and `lsp-types`, **synchronously and
-  with no async runtime** ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 2; `tower-lsp`,
+  with no async runtime** (`rule:ide/the-server-is-synchronous`; `tower-lsp`,
   which earlier drafts of this ADR and of M10 named, would put tokio into a workspace that has
   deliberately never had one). Six requests, and the list is closed:
   `textDocument/publishDiagnostics` (by running the existing `nvs check` pipeline against the resilient
@@ -94,7 +94,7 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
   landing one or two cheap ones early. A `LanguageStatusItem` shows server health/version per the research
   above.
 - `editors/vscode` — created here, not at M10 — the TextMate grammar, `.nvs` registration and
-  `language-configuration.json` from ADR 0016 § 2, `nvs lsp` process spawning, and `nvs run`/`nvs test` as
+  `language-configuration.json` from `rule:ide/vscode-is-the-reference-client`, `nvs lsp` process spawning, and `nvs run`/`nvs test` as
   VS Code Tasks. Semantic tokens are **in** — [ADR 0099 § 4](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
   owns the two-layer split and the token legend, whose `tainted`/`secret` modifiers are the point of the
   layer rather than a detail of it. **Not yet included:** format-on-save (`nvs fmt` doesn't exist until
@@ -106,7 +106,7 @@ low-churn instinct [AGENTS.md](../../AGENTS.md) already applies to documentation
   considered and rejected — see *Alternatives rejected*.
 
 M10's remaining VS Code scope after M4B lands is everything in *Decision § 4* below. M10's PhpStorm scope
-is entirely unchanged from [ADR 0016](0016-ide-integration.md).
+is entirely unchanged from `rule:ide/one-server-two-thin-clients`.
 
 ### 2. `nvs-syntax` gains a resilient, error-recovering parse mode
 
@@ -116,7 +116,7 @@ happen on nearly every keystroke. `nvs-syntax`'s existing parser is built for wh
 (`nvs check`/`nvs run`) and has no such mode today.
 
 This was first specified as a second parse mode producing a `rowan`-shaped CST beside the AST, modeled on
-rust-analyzer's approach from *Context*. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1
+rust-analyzer's approach from *Context*. `rule:ide/one-grammar-one-tree`
 narrowed that after reading the parser: it is **already** infallible in the sense that matters — every
 `parse_*` method returns a node rather than a `Result`, a missing token is reported at the empty span
 where it should have been without consuming what follows, and `$u->` with nothing after it already parses
@@ -142,7 +142,7 @@ to a property access whose name was synthesized at the cursor. `rowan` exists be
   little simplicity — one lexer flag, two node kinds and an index — and buys nothing on security,
   correctness or the request path (priorities 1–3), because none of it is linked into the compiled
   artifact `nvs run` produces. What it *does* give up is `rowan`'s nearly-free incremental reparse, so
-  every analysis reparses the document; ADR 0099 § 6's latency guard is what keeps that a measured trade
+  every analysis reparses the document; `rule:ide/contributions-are-frozen-and-only-ever-added`'s latency guard is what keeps that a measured trade
   rather than an assumption.
 
 This is scoped as a prerequisite for M4B's completion, and lands with it (not before it as separate
@@ -163,7 +163,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   `nvs run`/`nvs test` as Tasks, and a `LanguageStatusItem`.
 - **An AST explorer panel**, backed by `nvs ast` in `crates/nvs-cli` — which ships the `--json` flag and a
   frozen schema for it **at M4B**, since M1 shipped only the command and its `{stmts:#?}` debug output,
-  which has no stability contract ([ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7). A
+  which has no stability contract (`rule:ide/ast-json-schema-is-frozen`). A
   tree view renders that output for the active file, resilient tree by default so the panel works on a
   file that does not compile. This does not need `Core\Ast` (`rule:tooling/reflection-and-source-parsing-are-core-features`)
   at all — that's the *language-level* reflective parse a running Novis program calls; the *editor* panel is
@@ -203,7 +203,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   inserting the correct fully-qualified name (never an alias, same `rule:statements/nothing-gets-a-second-name` constraint), inlay hints for
   `var`-inferred types (`rule:types/var-inference`) and call-site parameter names.
 - Format-on-save and the format commands, wired to `nvs fmt` once it exists
-  (`rule:tooling/fmt-is-one-canonical-style`) — unchanged from ADR 0016 § 2.
+  (`rule:tooling/fmt-is-one-canonical-style`) — unchanged from `rule:ide/vscode-is-the-reference-client`.
 - **A native Test Explorer**, using VS Code's finalized Testing API, wired to `nvs test`/`.nvst`, with
   **coverage** fed through VS Code's own `FileCoverage` API from the Clover/lcov exporters M10 already
   builds (`rule:testing/debug-probes`) — no custom
@@ -213,44 +213,44 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   Profile" command opens it in speedscope.app or an embedded webview that speaks the same format. No
   bespoke flamegraph renderer is built from scratch, per the research in *Context*.
 - **Debugger UI wiring for VS Code**: a `DebugAdapterDescriptorFactory` and a `launch.json` configuration
-  schema targeting `nvs dap`. This **reverses** [ADR 0016](0016-ide-integration.md) § 4's deferral for VS
+  schema targeting `nvs dap`. This **reverses** `rule:ide/the-debug-adapter-does-not-wait-for-an-editor`'s deferral for VS
   Code specifically — `nvs dap` already ships in M10, DAP is a protocol VS Code already renders a full UI
   for, and "staged behind its dependency" means once `nvs dap` exists in the same milestone, wiring it up
   is the small remaining step, not a separate fast-follow. **PhpStorm's debugger UI wiring stays deferred**
-  exactly as ADR 0016 states — this ADR does not reach into the PhpStorm side at all.
+  exactly as `rule:ide/one-server-two-thin-clients` states — this ADR does not reach into the PhpStorm side at all.
 - **Finding a symbol's other uses, and the four features that are the same index**:
   `textDocument/references`, `documentHighlight`, CodeLens (references, implementors, overrides),
   `typeHierarchy`, and unused-member dimming — one workspace index answering five requests, never five
-  walks ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 1).
+  walks (`rule:ide/five-features-are-one-reference-index`).
   `references` is in this list because it was missing from it, not because it was deferred.
 - **Completion from the tables the compiler already builds** — route names and their parameters, `nvs.toml`
   directives, `#[Api]` fields — under one closed rule: the server offers a value only where the compiler
   already derives that value for another reason, and never from a convention scan, an annotation dialect or
   a network request
-  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 2).
+  (`rule:ide/completion-offers-only-what-the-compiler-derived`).
   That rule is Novis's whole answer to "framework support", and it is why no per-framework module enters
   `nvs-lsp`.
 - **HTML, CSS and JavaScript services inside an inline-HTML region**, forwarded to VS Code's own language
   services across region boundaries the server reports (`nvs/regions`) — Emmet, tag closing and renaming,
   the colour picker, validation. **Formatting is excluded**, so `nvs fmt` stays the only formatter that
   touches a `.nvs` file
-  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 3,
+  (`rule:ide/a-template-region-gets-services-but-no-second-formatter`,
   `rule:tooling/fmt-is-never-a-diagnostic`). This is not a small addition for Novis specifically:
   `rule:programs/first-party-framework` makes inline HTML the template engine, so this region is
   where an application's markup is written.
 - **Four code actions that write rather than fix** — implement missing members, override a method,
   declare the function you just called, and narrow an `array<mixed>` annotation to the type of the literal
   under it — each bounded to text a declaration or a literal already determines
-  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 4).
+  (`rule:ide/a-code-action-writes-only-what-is-already-determined`).
 - **The DAP capabilities the wired-up UI is only as deep as** — conditional breakpoints, hit counts,
   logpoints, exception filters, stepping exclusions, path mappings, the value returned after a step out,
   and a `spawn`ed isolate presented as a thread
-  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 5).
+  (`rule:ide/the-debugger-ui-is-as-deep-as-the-adapter`).
   Those are `nvs dap`'s work rather than the extension's; the editor renders each for free once the adapter
   reports it.
 - **`nvs check --json`**, and a `nvs.check.scope` of `"workspace"` — which is what the unused-member
   dimming above needs in order to be correct rather than merely quiet
-  ([ADR 0108](0108-one-reference-index-completion-from-derived-facts-and-services-in-a-template-region.md) § 6).
+  (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`).
 
 **Gated on M9 (`.nvsx` extensions exist):**
 
@@ -272,7 +272,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 **Positive**
 
 - Real Novis programs can be written and debugged-by-inspection (diagnostics/hover/completion, even without
-  a debugger yet) in VS Code from M4B onward — roughly five milestones earlier than ADR 0016's plan — which
+  a debugger yet) in VS Code from M4B onward — roughly five milestones earlier than `rule:ide/one-server-two-thin-clients`'s plan — which
   is the whole point: the language gets exercised by a real editor while M5–M9 are still being built,
   surfacing rough edges in the type system, stdlib shape and diagnostics wording while they are still cheap
   to change.
@@ -291,7 +291,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 **Negative**
 
 - **Every analysis reparses the whole document.** This is what *Decision § 2* gave up by not adopting
-  `rowan`, whose red/green design makes incremental reparse nearly free, and ADR 0099 § 6's latency guard
+  `rowan`, whose red/green design makes incremental reparse nearly free, and `rule:ide/contributions-are-frozen-and-only-ever-added`'s latency guard
   is the only thing standing between it and a slow editor on a large file. If that guard ever fails, the
   answer is real incremental work at M10 — item-level caching over the offset index first — and not a
   smaller number in the test. What is *not* a cost any more, and was in this ADR's first draft: there is
@@ -301,22 +301,22 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   built, tested and kept working through M5–M9 even though nothing in those milestones depends on them —
   the same "keep it running" burden any early-shipped surface carries.
 - M10's estimate needs revising: it no longer includes the *minimal* VS Code work (moved to M4B), but it
-  gains real scope ADR 0016 previously deferred or excluded — inspections/refactorings, a Test Explorer
+  gains real scope `rule:ide/one-server-two-thin-clients` previously deferred or excluded — inspections/refactorings, a Test Explorer
   with coverage, profiler visualization, and now VS Code's debugger UI wiring specifically. Net effect on
   the 14-week estimate is not assumed to be zero.
 - VS Code's debugger UI wiring landing in M10 for VS Code but not PhpStorm means the two editor clients are
-  now visibly asymmetric in a way ADR 0016 did not have (both were symmetric "LSP-bridge, no debugger UI").
+  now visibly asymmetric in a way `rule:ide/one-server-two-thin-clients` did not have (both were symmetric "LSP-bridge, no debugger UI").
   That asymmetry is intentional — the user's ask was to go deep on VS Code specifically — but it is a
   divergence a future PhpStorm-depth pass (out of this ADR's scope) will need to address or explicitly
   accept.
 
 ## Alternatives rejected
 
-- **Leave VS Code entirely at M10, as ADR 0016 originally scoped it.** Rejected: conflicts directly with
+- **Leave VS Code entirely at M10, as `rule:ide/one-server-two-thin-clients` originally scoped it.** Rejected: conflicts directly with
   wanting real-world testing to start once M4 produces a usable CLI language, not after M5–M9.
 - **Build a throwaway M4B prototype extension/LSP, discarded before M10's "real" implementation.** Rejected:
   two implementations of the same client/server pair drift and duplicate work, the identical reasoning
-  [ADR 0016](0016-ide-integration.md) § 1 already applies to formatting/language-smarts logic, applied here
+  `rule:ide/one-server-two-thin-clients` already applies to formatting/language-smarts logic, applied here
   to the editor packages themselves.
 - **Skip resilient parsing; accept that completion stops working on a syntax error until it's fixed.**
   Rejected per the explicit goal of top-tier completion — a document is syntactically invalid for most of
@@ -332,7 +332,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 ## Revisiting
 
 - **The equivalent deep-dive for PhpStorm** — this ADR is VS-Code-only by the user's explicit request to
-  start there; PhpStorm stays exactly at [ADR 0016](0016-ide-integration.md)'s LSP-bridge scope, debugger UI
+  start there; PhpStorm stays exactly at `rule:ide/one-server-two-thin-clients`'s LSP-bridge scope, debugger UI
   included, until a future ADR does for PhpStorm what this one does for VS Code.
 - **A live, `Core\Reflect`-backed debug-time object inspector**, and **a request-tree visualization for
   `spawn`/isolates during a debug session** — both named in *Decision § 3*'s uncommitted list, pending the
@@ -343,7 +343,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   a judgement about cost but a fact about the code, namely that a M4B code action exists only where the
   `Diagnostic` already carries the replacement text.
 - ~~**Whether the resilient parse mode's error-node recovery quality needs its own fuzz target.**~~
-  **Closed** by [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) *Verification*: it does,
+  **Closed** by `rule:ide/one-grammar-one-tree` *Verification*: it does,
   and it is separate from the existing whole-file `parse` target because a truncated input is a different
   shape of input. Beside it, and running where the fuzzer does not, is an in-tree sweep over every prefix
   of every `examples/*.nvs` at a token boundary.
@@ -355,7 +355,7 @@ Verification, in the order it becomes possible:
   both code actions round-trip through `nvs-lsp`; the AST panel renders `nvs ast --json`'s tree for the
   active file, including while that file does not compile; typing an incomplete statement (unclosed brace,
   trailing `->`) does not stop completion from working on the well-formed code around it — the resilient
-  parse's core claim, tested directly. [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
+  parse's core claim, tested directly. `rule:ide/one-grammar-one-tree`
   *Verification* is the full list, including the losslessness property, the prefix sweep, the grammar
   snapshot and the latency bound; each of those is what makes one of the claims above checkable by exit
   code rather than by looking at an editor.

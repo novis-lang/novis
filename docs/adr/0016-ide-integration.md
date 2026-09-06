@@ -1,4 +1,4 @@
-# ADR 0016 — IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native
+# `rule:ide/one-server-two-thin-clients` — IDE integration is a thin per-editor client over one language server; PhpStorm goes LSP-bridge before native
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -79,8 +79,8 @@ A standard `vscode-languageclient` extension:
   `rule:security/redaction-ranges-come-from-the-server` owns the rule,
   the reveal, and the list of leak surfaces VS Code gives no way to close.
 
-**The concrete contribution roster for all of the above is [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)
-§ 6**, which moves the extension to M4B and freezes its setting and command identifiers; this section is the
+**The concrete contribution roster for all of the above is `rule:ide/contributions-are-frozen-and-only-ever-added`
+**, which moves the extension to M4B and freezes its setting and command identifiers; this section is the
 shape, that one is the list.
 
 ### 3. PhpStorm plugin — LSP-bridge now, native PSI later

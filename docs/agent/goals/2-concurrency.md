@@ -13,7 +13,7 @@ written against its shape, so a shape that is wrong here is wrong four times.
 
 **The runtime is ours and it is not `async`.** `corosensei` stackful coroutines on a thread-per-core
 scheduler (`rule:concurrency/one-scheduler`), and `tokio` appears in
-neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+neither `Cargo.toml` nor `Cargo.lock` (`rule:ide/one-grammar-one-tree`).
 `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* is the one home for the rule and this
 file does not restate it.
 

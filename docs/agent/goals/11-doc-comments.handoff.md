@@ -11,7 +11,7 @@ machine-readable source with `nvs doc` a renderer over it, and enforcement silen
 
 Two things about the shape of this goal that are easy to get wrong:
 
-- **Stage 2 is M4B's tree item landing early.** ADR 0099 § 1's `Trivia`/`TriviaKind` do not exist in the
+- **Stage 2 is M4B's tree item landing early.** `rule:ide/one-grammar-one-tree`'s `Trivia`/`TriviaKind` do not exist in the
   tree at all, and a doc comment cannot be read without them. Build them *as that section specifies*, so
   M4B inherits them done. The `SyntaxIndex` in the same struct is **M4B's** and has no consumer here.
 - **Hover is not in this goal.** It needs `crates/nvs-lsp`, which does not exist. Stage 6's last item
@@ -23,7 +23,7 @@ Two things about the shape of this goal that are easy to get wrong:
 `crates/nvs-syntax/src/lexer.rs`, `crates/nvs-syntax/src/token.rs`,
 `crates/nvs-syntax/src/parser/mod.rs`.
 
-- [ ] **`Trivia` and `TriviaKind`** — ADR 0099 § 1's shape exactly. `Lexer` gains a flag; `skip_trivia`
+- [ ] **`Trivia` and `TriviaKind`** — `rule:ide/one-grammar-one-tree`'s shape exactly. `Lexer` gains a flag; `skip_trivia`
       (`crates/nvs-syntax/src/lexer.rs:357`) pushes a `Trivia { kind, span }` instead of only advancing.
       Variants: `Whitespace`, `LineComment`, `BlockComment`, `DocComment`. `TriviaKind` goes beside the
       token types in `crates/nvs-syntax/src/token.rs`.
@@ -33,7 +33,7 @@ Two things about the shape of this goal that are easy to get wrong:
       is the case that proves it, and the seven files already carrying `///` are the case that proves
       reclassification needs no edit — both are named tests of the TOML's stage 2 checks.
 - [ ] **`parse_file` returns `Parsed`** — `crates/nvs-syntax/src/parser/mod.rs:504`. Keep the strict
-      entry point as a thin wrapper so no call site changes, which ADR 0099 § 1 requires and which is
+      entry point as a thin wrapper so no call site changes, which `rule:ide/one-grammar-one-tree` requires and which is
       what keeps this slice from touching every crate. Losslessness (`tokens ⊕ trivia` reproduces the
       file) is the acceptance property, over `examples/`, `tests/` and the vendored `php-src` corpus.
 

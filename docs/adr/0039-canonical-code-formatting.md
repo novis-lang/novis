@@ -6,9 +6,9 @@
   modifier order, quoting, trailing commas, import ordering, and the reflow model — plus its CLI surface
   (`nvs fmt`, `nvs fmt --check`, `nvs fmt --diff`), what it deliberately does *not* rewrite (§§ 10-11), and
   how an editor composes it with quick fixes on one keystroke (§ 9). Not `nvs-lsp`'s
-  `textDocument/formatting` wiring or the editor clients, which [ADR 0016](0016-ide-integration.md) already
+  `textDocument/formatting` wiring or the editor clients, which `rule:ide/one-server-two-thin-clients` already
   settles; not the quick fixes themselves, which are
-  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's; not the parser or checker.
+  `rule:ide/every-feature-is-staged-behind-its-dependency`'s; not the parser or checker.
 
 > **In short:** `nvs fmt` rewrites a `.nvs` file into one canonical layout, deterministically — running it
 > twice produces byte-identical output the second time. The style is [PER](https://www.php-fig.org/per/coding-style/)
@@ -65,7 +65,7 @@ No config file, no per-project or per-directory override, no CLI flag that chang
 result for a given input is a pure function of that input and nothing else — the same stance
 `rule:core-api/identifier-casing` already takes for identifier casing, extended from naming
 to layout. A configurable knob would let two files in the same project, or two projects run through the
-same tool, disagree about what "formatted" means — exactly the property ADR 0016's own verification line
+same tool, disagree about what "formatted" means — exactly the property `rule:ide/one-server-two-thin-clients`'s own verification line
 depends on ("both editors agreeing byte-for-byte on the same file's formatted output"). The only flags
 `nvs fmt` accepts are I/O-mode ones: `--check`, `--diff`, `--stdin`, and the target path(s)/glob — never a
 style knob.
@@ -148,10 +148,10 @@ read as promising that two semantically identical files converge; what converges
   `editor.codeActionsOnSave` list — where `editors/vscode` registers ours as `source.fixAll.nvs` — and
   PhpStorm's *Reformat Code* dialog with its own action checkboxes are both already shaped for this, so a
   developer who has not yet learned a rule gets carried by save. Each fix is a diagnostic-backed LSP code
-  action owned by [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3, applied to a file that
+  action owned by `rule:ide/every-feature-is-staged-behind-its-dependency`, applied to a file that
   may not parse at all — a mis-ordered `tainted secret string`
   (`rule:security/secret-qualifier`) is a *parse error* whose diagnostic already
-  names the fix, so those actions run against ADR 0040 § 2's resilient tree, not a successful parse. This
+  names the fix, so those actions run against `rule:ide/the-tree-survives-a-syntax-error`'s resilient tree, not a successful parse. This
   buys the fast iteration without costing `--check` its meaning: `nvs fmt --check` still fails for exactly
   one reason, and a CI job reading it never has to tell "laid out differently" from "semantically wrong."
 
@@ -171,7 +171,7 @@ normalize `IF` or `ECHO` because `rule:core-api/casing-checks-the-leading-charac
 `PascalCase` class names, so nothing lexical separates a mis-typed keyword from a deliberate class
 reference, and guessing would be the only place in the toolchain that guesses. An identifier never
 qualifies either, for a different reason: fixing its casing is a *rename*, which must reach every use site
-across the workspace, and `nvs fmt` is a single-file walk. That rename is ADR 0040 § 3's workspace-wide
+across the workspace, and `nvs fmt` is a single-file walk. That rename is `rule:ide/every-feature-is-staged-behind-its-dependency`'s workspace-wide
 code action. A duration unit and an open tag can be nothing else, which is why they and only they are here.
 
 ### 11. `nvs fmt` never reorders class members
@@ -191,12 +191,12 @@ diff-visible code action; it is not something a formatter does on save.
 
 **Positive**
 
-- Two files from two different authors, or two different editors (ADR 0016), converge to the same bytes
+- Two files from two different authors, or two different editors (`rule:ide/one-server-two-thin-clients`), converge to the same bytes
   once formatted — a testable invariant this ADR is what makes well-defined, rather than an aspiration
-  sitting only in ADR 0016's *Verification* section.
+  sitting only in `rule:ide/one-server-two-thin-clients`'s *Verification* section.
 - No reflow algorithm to design or implement (§ 2) keeps `nvs-fmt` close to a whitespace/brace/order
   normalizer walking the existing parse tree, not a new doc-printer engine — a small, second consumer of
-  `nvs-syntax`, in the same spirit as ADR 0016 § 1 already frames `nvs-fmt` and `nvs-lsp` as the only two
+  `nvs-syntax`, in the same spirit as `rule:ide/one-server-two-thin-clients` already frames `nvs-fmt` and `nvs-lsp` as the only two
   consumers of "language smarts."
 - Zero configuration (§ 3) removes an entire category of PR bikeshedding and a `.nvs-fmt.toml` nobody needs
   to review — the same benefit `rule:core-api/identifier-casing` already banked for casing, extended to layout.
@@ -260,7 +260,7 @@ diff-visible code action; it is not something a formatter does on save.
 - A future ADR could add width-based reflow for the narrow set of positions where PER itself names a soft
   column limit, if long unformatted lines turn out to be a real pain point in practice. This ADR declines
   to build that for v1; it does not close the door on it.
-- Range-formatting edge cases beyond what [ADR 0016](0016-ide-integration.md) already scopes (partial
+- Range-formatting edge cases beyond what `rule:ide/one-server-two-thin-clients` already scopes (partial
   statements, mid-expression selections) are LSP wiring, not a rule change here.
 - **Inline HTML is unspecified by this ADR and needs a decision before M10.** Novis lexes inline HTML and
   the `<?=` echo tag (`rule:statements/nvs-is-the-only-open-tag`), and nothing above says
@@ -284,7 +284,7 @@ to test against)
   `//`, `#` and `/* */` and pushes no token, so the strict entry point `nvs check`/`nvs run` use carries no
   comments at all, and a formatter walking *that* tree would delete every one — which § 4's "comments are
   left byte-for-byte untouched" cannot survive.
-  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 2 already closes this: M4B's second,
+  `rule:ide/the-tree-survives-a-syntax-error` already closes this: M4B's second,
   error-recovering entry point produces a **lossless** tree — "every byte of the source, including
   whitespace/comments, is recoverable from it" — and that ADR already names `nvs fmt` as its later second
   consumer. So the capability is scheduled two milestones ahead of this ADR and needs no slice of its own;

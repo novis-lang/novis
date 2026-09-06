@@ -35,7 +35,7 @@ changes" is unaffected; `var` only changes how that first type gets there.**
   naming `array<T> $x = [1, 2];` as the fix. This is the one case `var` cannot cover, for the same reason
   `rule:types/arrays` checks an array literal against a target rather than inferring one. That a literal's own
   type *can* be computed does not reopen this —
-  [ADR 0114](0114-an-array-literals-own-type-is-synthesized-for-one-code-action.md) computes one for an
+  `rule:ide/narrow-an-annotation-to-its-literal` computes one for an
   editor action whose answer lands as text in the file, read in a diff and approved, where an element type
   inferred onto a `var` binding is visible nowhere at all. An empty or heterogeneous literal is exactly
   where that difference bites, and it is a difference in legibility rather than in capability. The

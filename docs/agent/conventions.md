@@ -160,7 +160,7 @@ needs one, and adding it to a case that already exists is the whole edit.
 An LSP answer, frozen the way the section above freezes stdout. Sibling of `.nvst` and deliberately a
 separate suite: `nvs test`'s `N passed` is a number the loop gates on, and it must keep meaning one thing.
 The format is `crates/nvs-lsp`'s module doc; the section lexer is the same one `.nvst` uses. Lands at
-M4B — [ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 5.
+M4B — `rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`.
 
 ```
 --TEST--

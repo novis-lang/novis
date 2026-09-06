@@ -14,11 +14,11 @@ must colour their surface.
 **One assertion in *Verify* re-anchors.** "`tokio` appears in neither `Cargo.toml` nor `Cargo.lock`" is
 still exactly true and still checked by `crates/nvs-runtime/tests/manifest_policy.rs` — but by the time
 this milestone runs, `hyper` and its five dependencies are in the tree from goal 6. The claim is about a
-*runtime*, never about the `Future` trait; ADR 0099's own bullet now says so.
+*runtime*, never about the `Future` trait; `rule:ide/one-grammar-one-tree`'s own bullet now says so.
 
-Pulled ahead of M10 by [ADR 0040](../adr/0040-vscode-deep-tooling-and-resilient-parsing.md) so real-world
+Pulled ahead of M10 by `rule:ide/every-feature-is-staged-behind-its-dependency` so real-world
 testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
-[ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) settles the four things that ADR left
+`rule:ide/one-grammar-one-tree` settles the four things that ADR left
 open or specified against a parser that turned out to be shaped differently; where the two disagree, 0099
 is the current rule and 0040's body has been folded to match.
 
@@ -34,7 +34,7 @@ parse followed by "refuse if anything was reported", which is what they already 
 [goal 11](../agent/goals/11-doc-comments.md).**
 `rule:tooling/doc-comment-is-three-slashes` needs a doc comment to survive
 lexing, which is the same one edit to `skip_trivia`, so that goal builds the `Trivia` vector, all four
-`TriviaKind` variants and the losslessness property to ADR 0099 § 1's specification. What is still
+`TriviaKind` variants and the losslessness property to `rule:ide/one-grammar-one-tree`'s specification. What is still
 this milestone's, and has no consumer before it: the **`SyntaxIndex`**, and the explicit-recovery half —
 `MemberName::Missing` and `ExprKind::Error`'s span — which completion needs and a doc comment does not.
 
@@ -116,7 +116,7 @@ is decorated only if the user asks (`nvs.taint.mark`, default `off`): a glyph is
 a construct looks stays the theme's call. The AST panel inherits the same placeholder in
 `nvs ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `nvs-lang.nvs`; `package-lock.json` is committed because
 `npm ci` needs it; CI produces an installable `.vsix`; **nothing is published** —
-[ADR 0016](../adr/0016-ide-integration.md) *Revisiting* keeps that open.
+`rule:ide/one-server-two-thin-clients` *Revisiting* keeps that open.
 
 **How editor behaviour is checked.** A **`.lspt` case** is the sibling of `.nvst`: the same section lexer,
 a `<|>` cursor, a `--REQUEST--` line and a frozen canonical `--EXPECT--` rendering, run by **`nvs
@@ -133,7 +133,7 @@ the Test Explorer, profiler visualization, debugger UI, and any code action whos
 not already compute. The last two of those look adjacent to what M4B does build and are not:
 `documentHighlight` needs resolution applied to *every* occurrence, a different walk from resolving one,
 and inlay hints encode idioms still moving through M5–M9. No PhpStorm work at all — PhpStorm stays
-entirely at M10 per [ADR 0016](../adr/0016-ide-integration.md).
+entirely at M10 per `rule:ide/one-server-two-thin-clients`.
 
 **Verify:** concatenating tokens and trivia in offset order reproduces every file in `examples/`, `tests/`
 and the vendored `php-src` corpus byte-for-byte. Parsing every prefix of every `examples/*.nvs` at a token
@@ -142,7 +142,7 @@ diagnostic on each prefix that is genuinely incomplete; a fuzz target over trunc
 finds no panic in five minutes. `nvs lsp-test tests/lsp/` reports `0 failed` and the coverage matrix has
 no empty cell — including a case per request proving that an unclosed brace or a trailing `->` does not
 stop diagnostics, hover, completion or semantic tokens working on the well-formed code around it, which is
-ADR 0040's core claim. A full re-analysis of a 1,000-line document stays under the named latency bound —
+`rule:ide/every-feature-is-staged-behind-its-dependency`'s core claim. A full re-analysis of a 1,000-line document stays under the named latency bound —
 the measurement that says giving up incremental reparse still pays. The grammar snapshot assigns the
 expected scope to every construct listed above, `#[Route]` included and `===` receiving no operator scope,
 and every scope it emits is on the standard-name allowlist. The gate of *Diagnostics are phase-gated* is a

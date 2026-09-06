@@ -1,6 +1,6 @@
 # Loop goal 12 — the resilient tree, and one home for a position
 
-Finish the half of [ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 1 that
+Finish the half of `rule:ide/one-grammar-one-tree` that
 goal 11 did not build. That goal landed the trivia layer because a doc comment cannot be read without
 it; what is still owed is the part only an editor needs — **an index from a byte offset to the
 innermost node and its ancestors, and recovery a consumer can tell apart from what the user wrote.**
@@ -55,7 +55,7 @@ Every prefix of every `examples/*.nvs` at a token boundary: no panic, a `SyntaxI
 offset, and a diagnostic on each prefix that is genuinely incomplete. Then a `fuzz_target` over truncated
 and mid-edit inputs, **separate** from the existing whole-file `parse` target — a truncated input is a
 different shape of input, and folding it into the existing target hides which one found a crash
-([ADR 0099](../../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md) *Verification*).
+(`rule:ide/one-grammar-one-tree` *Verification*).
 
 ## Stage 5 — position arithmetic has exactly one home
 
@@ -79,7 +79,7 @@ itself, `nvs lsp-test`, and the canonical rendering are goal 14's: [conventions.
 `--json` and `--resilient` on `run_ast` in `crates/nvs-cli/src/main.rs`. A node is `kind`, `span` as
 `[start, end]`, its own scalar fields and `children`; **trivia and recovery nodes are included**, because
 the panel this feeds is least useful on a file that compiles. `--resilient` is the default, and the schema
-is frozen by a snapshot over `examples/`. ADR 0040 § 3 assumed this already existed; it does not, and
+is frozen by a snapshot over `examples/`. `rule:ide/every-feature-is-staged-behind-its-dependency` assumed this already existed; it does not, and
 `{stmts:#?}` has no stability contract.
 
 It is documented under `docs/reference/tools/10-cli.md`'s **existing** `# nvs ast` heading — two new
@@ -91,7 +91,7 @@ regenerating is how `docs/novis.md` goes quietly stale.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these
 
-- **One grammar, one tree. The `rowan` question is closed** by ADR 0099 § 1, which names what was given
+- **One grammar, one tree. The `rowan` question is closed** by `rule:ide/one-grammar-one-tree`, which names what was given
   up (incremental reparse) and what protects the trade (goal 14's latency guard). If the implementation
   seems to force the opposite conclusion, keep this design, record *that* in `nvs-syntax`'s module doc
   with the reason, and put the CST in the handoff's `## Backlog` — never start a rewrite mid-run.

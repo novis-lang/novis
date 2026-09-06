@@ -11,7 +11,7 @@ files = [
 [context]
 
 modules = [
-  # `skip_trivia` -- ADR 0099 s1's one site, and the run-length rule lands in it.
+  # `skip_trivia` -- `rule:ide/one-grammar-one-tree` s1's one site, and the run-length rule lands in it.
   "crates/nvs-syntax/src/lexer.rs",
   # Where `TriviaKind` lives, beside the token types the LSP and the snapshot tests share.
   "crates/nvs-syntax/src/token.rs",

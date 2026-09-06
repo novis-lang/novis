@@ -242,7 +242,7 @@ load-balanced across cores; a request never migrates between cores.
 
 **That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
 scheduler of our own (`rule:concurrency/one-scheduler`), and `tokio` appears in
-neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
+neither `Cargo.toml` nor `Cargo.lock` (`rule:ide/one-grammar-one-tree`).
 Earlier drafts of this section and of `rule:http-server/a-core-is-never-blocked-on-a-syscall`
  said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
 

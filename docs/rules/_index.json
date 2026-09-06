@@ -99,6 +99,11 @@
       "topic": "tooling",
       "title": "Tooling",
       "order": 200
+    },
+    {
+      "topic": "ide",
+      "title": "The editor",
+      "order": 210
     }
   ]
 }

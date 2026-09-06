@@ -1,4 +1,4 @@
-# ADR 0108 — One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter
+# `rule:ide/five-features-are-one-reference-index` — One reference index answers five features, editor completion may only offer what the compiler already derived, and a template region gets services but no second formatter
 
 - **Status:** Accepted
 - **Date:** 2026-08-28
@@ -41,8 +41,8 @@
 
 ## Context
 
-- [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) set out to be the *full* v1 catalog for the
-  VS Code client, and [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) froze what M4B ships of
+- `rule:ide/every-feature-is-staged-behind-its-dependency` set out to be the *full* v1 catalog for the
+  VS Code client, and `rule:ide/one-grammar-one-tree` froze what M4B ships of
   it. Neither was written against a worked example of a finished product in the same niche.
 - **The review that produced this ADR** read DEVSENSE's PHP Tools documentation set in full — its VS Code
   feature pages, the deeper Visual Studio feature set the same engine drives, its Zed integration, and two
@@ -89,7 +89,7 @@ index's read side, and it is named here because it was absent**, not deferred. F
 each one query against it and none gets a walk of its own:
 
 - **`textDocument/documentHighlight`** — the occurrences of the symbol under the cursor, within the file.
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6 kept this out of M4B because it needs
+  `rule:ide/contributions-are-frozen-and-only-ever-added` kept this out of M4B because it needs
   resolution applied to *every* occurrence rather than to one, which is the same thing the index is; that
   reasoning places it here rather than nowhere.
 - **CodeLens** above a declaration: reference count, and for a type its implementors, and for a method the
@@ -173,10 +173,10 @@ and validation in the half of a `.nvs` file that is markup.
   grammar, for the identical reason `rule:security/redaction-ranges-come-from-the-server`
   gives for redaction ranges — the server knows, the client draws, and a client that guesses is a second
   implementation of the lexer.
-- **This is not language logic in the client**, so [ADR 0016](0016-ide-integration.md) § 1 holds: the
+- **This is not language logic in the client**, so `rule:ide/one-server-two-thin-clients` holds: the
   extension forwards a request to a service it did not write and holds no knowledge of HTML, CSS or Novis
   while doing it. The dependency allowlist test of
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6 is what keeps it that way.
+  `rule:ide/contributions-are-frozen-and-only-ever-added` is what keeps it that way.
 - **Formatting is excluded, and this is the load-bearing half of the section.** The embedded services are
   not registered as formatting providers, and `editor.formatOnSave` in a `.nvs` file runs `nvs fmt` over
   the whole file and nothing else. Wiring VS Code's HTML formatter into the markup regions would put a
@@ -189,7 +189,7 @@ and validation in the half of a `.nvs` file that is markup.
 
 ### 4. Four code actions that write only what a declaration or a literal already determines
 
-[ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3's M10 list is entirely *fixes* — each
+`rule:ide/every-feature-is-staged-behind-its-dependency`'s M10 list is entirely *fixes* — each
 backed by a diagnostic. Four **actions that write** join it, three of them generators, each producing only
 what a declaration or a literal already determines:
 
@@ -221,7 +221,7 @@ exists to save typing has no reason to be written at all.
 
 ### 5. The debugger UI is only as deep as the adapter, so the adapter's capabilities are named here
 
-[ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) § 3 wires `nvs dap` into VS Code's existing
+`rule:ide/every-feature-is-staged-behind-its-dependency` wires `nvs dap` into VS Code's existing
 debugger UI and stops. That is correct about the editor work and silent about the adapter, and the
 distinction matters because **every item below renders in a UI that already exists and appears only if
 `nvs dap` implements the corresponding capability**. Each is therefore M10 scope for `nvs dap`, not for the
@@ -241,13 +241,13 @@ extension:
   frame's worth of state the adapter has and the UI will render for free.
 - **A `spawn`ed isolate is a DAP thread** ([0006](0006-isolated-script-execution.md)), which is the
   standard presentation and needs no protocol extension. The *tree* of isolates does — that stays in
-  [ADR 0040](0040-vscode-deep-tooling-and-resilient-parsing.md) *Revisiting* where it already is.
+  `rule:ide/every-feature-is-staged-behind-its-dependency` *Revisiting* where it already is.
 
 ### 6. `nvs check --json`, the check scope, and the identifiers all of this adds
 
 - **`nvs check --json`** writes the same `Diagnostic` records the terminal renderer prints — code, spans,
   severity, help and `suggestions` — as one machine-readable document with a schema frozen the way
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 7 freezes `nvs ast --json`'s. It is part
+  `rule:ide/ast-json-schema-is-frozen` freezes `nvs ast --json`'s. It is part
   of the CLI surface `rule:packaging/a-dependency-break-is-absorbed-never-forwarded` versions. The text
   rendering stays the default and is what the Tasks `problemMatcher` reads; nothing about the terminal
   output changes. It exists for CI and for the agents that increasingly drive this compiler, including the
@@ -258,7 +258,7 @@ extension:
   without changing the setting, which is the cheap version of the same thing. **`nvs check` on the command
   line is untouched** — it has always analysed what it is given.
 - **Frozen identifiers added** to
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md) § 6's roster, under that section's own rule
+  `rule:ide/contributions-are-frozen-and-only-ever-added`'s roster, under that section's own rule
   that a name is added and never renamed: settings `nvs.check.scope`, `nvs.codeLens.enable`,
   `nvs.template.services`; command `nvs.checkWorkspace`; request `nvs/regions`.
 - **`extensionKind: ["workspace"]`.** The extension spawns `nvs lsp`, which must be the binary next to the
@@ -285,7 +285,7 @@ extension:
 
 **Negative**
 
-- **M10 grows again**, having already absorbed ADR 0040's deep half. Six additions, one of which (§ 3) is a
+- **M10 grows again**, having already absorbed `rule:ide/every-feature-is-staged-behind-its-dependency`'s deep half. Six additions, one of which (§ 3) is a
   request-forwarding layer with its own failure modes at region boundaries. The milestone's estimate is not
   assumed to be unchanged, for the second time.
 - **§ 2's rule will be argued with.** The first user with a package whose route-like table is built at
@@ -294,7 +294,7 @@ extension:
 - **Workspace-scope diagnostics are the expensive setting**, and it is the one whose cost the plan has
   measured least. It is off by default for that reason, and § 1's dimming is silent under the default —
   a feature that appears only when a setting is changed is a feature some users will never find.
-- **`nvs/regions` is a second request of Novis's own.** The protocol surface that ADR 0099 wanted to hold at
+- **`nvs/regions` is a second request of Novis's own.** The protocol surface that `rule:ide/one-grammar-one-tree` wanted to hold at
   one is now two, and each one is a thing a non-VS-Code client must implement to reach parity.
 
 ## Alternatives rejected
@@ -341,7 +341,7 @@ extension:
   resolve and typecheck without reaching codegen — so it is an ordinary Rust crate `rustc` can build for
   `wasm32-unknown-unknown`, and it never depended on [0025](0025-wasm-browser-target.md)'s retired Novis
   backend. The optionality is cheap to keep; nothing schedules it.
-- **Marketplace publishing** stays exactly where [ADR 0016](0016-ide-integration.md) *Revisiting* left it —
+- **Marketplace publishing** stays exactly where `rule:ide/one-server-two-thin-clients` *Revisiting* left it —
   this ADR adds features, not a distribution channel.
 
 ## Verification
@@ -350,7 +350,7 @@ All at M10, in the order each becomes possible:
 
 - A `.lspt` case per request added here — `references`, `documentHighlight`, `typeHierarchy` — resolves at
   a cursor and matches a frozen rendering, and
-  [ADR 0099](0099-the-resilient-tree-is-the-ast-plus-trivia.md)'s `every_request_answers_every_construct`
+  `rule:ide/one-grammar-one-tree`'s `every_request_answers_every_construct`
   matrix gains a row for each, so an unanswered construct fails by exit code rather than by inspection.
 - **The five features of § 1 share one index**, checked structurally: `nvs-lsp` has exactly one symbol-index
   construction site, and `references`, `documentHighlight`, the CodeLens provider, `typeHierarchy` and the

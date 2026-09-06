@@ -167,7 +167,6 @@ from the commit bodies of c7a9afca6 through 44ba60ce9, re-anchored to the lines 
 - docs/adr/0007-explicit-type-system.md:420 — "failures in these fifteen classes" but the table above it holds sixteen rows.
 - crates/nvs-diagnostics/src/lib.rs:1671 — "ADR 0007 § 7's fifteenth deliberate divergence" will resolve to the framing rule; it should cite `rule:php-migration/an-element-write-needs-storage-to-write-back-into`.
 - tests/conformance/lang/a-discarded-expression-statement-still-runs.nvst:2 — cites bare 0007 § 7 for a claim (an expression statement is evaluated and its value discarded) that no row of the divergence table states; after the rewrite it names the framing rule for nothing, and wants a citation of whatever rule owns expression statements or none.
-
 ## B20 — tooling
 
 - docs/adr/0086-core-cli-terminal-is-a-sink.md:379 — § 8 says every `Core\Cli` member throws in a request and in a spawned isolate, but no member in `crates/nvs-stdlib/src/cli.rs` checks its context, and the landed `docs/rules/core-classes/cli-arguments.md:14` records that the shipped `arguments()` answers empty inside a request rather than throwing; the record and the landed rule disagree about the same surface.
