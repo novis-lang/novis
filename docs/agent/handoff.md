@@ -2,53 +2,65 @@
 
 ## State
 
-**Goal 9 stage 3 is complete** — all six of its `cargo-named` checks are green.
-`crates/nvs-db/src/plan.rs` is ADR 0145 §§ 6-8's vocabulary and holds no SQL: `Grade` (ordered, so
-§ 6's grade-up rule is `Grade::up_to`), `Change` (the closed set a diff may produce), `Step` and
-`Plan`. `crates/nvs-db/src/ddl.rs:495`'s `step` is the only place a `Step` is built, because § 6 puts
-the grade in the dialect emitter. Both modules' own doc comments own every design call they made —
-the after-shape convention on `Change`, why `Plan::first_refused` reads only the runnable steps, and
-the six known gaps that are § 5's input rather than a bug.
+**Goal 9 stage 4's read direction has its SQL.** `crates/nvs-db/src/catalog.rs` is ADR 0145 § 4:
+`Read` names the two reads an introspection makes — `Columns` and `Indexes` — `Read::row` names the
+columns each answers in order, and `query(read, dialect)` is the eight statements, keyed on `Dialect`
+and never on `Driver`. The module's own doc owns every design call: why the primary key arrives
+through the index read on all four, why SQL Server's index read is the one statement reaching `sys`,
+why an out-of-vocabulary index is dropped rather than reported mangled, and four known gaps.
 
-**`examples/schema.nvs` is still the driver's reported failure, and that is the ordinary state** until
-stage 6 lands the `Core\Db\Schema` member — see the playbook bullet for the `cargo-named` checks it
+Slices 1 and 3 of the group both landed and are **one commit**, because they are one file and
+`session.py --wrap` stages by path. SQLite is asserted end to end against a real in-memory
+`rusqlite` — `crate::ddl` emits, the catalog read reads it back — which is the only dialect whose
+server is a file and so the only one testable with no container.
+
+**`examples/schema.nvs` is still the driver's reported failure, and that is the ordinary state**
+until stage 6 lands the `Core\Db\Schema` member; the playbook bullet owns the `cargo-named` checks it
 masks. `nvs.toml` still owes it an `[[app]]` with `connect = ["schema"]`, the `db.schema` grant and a
 `[db.schema]` SQLite block.
 
-**The `[context]` manifest gap is closed in the tree, not just reported**: `adrs` now names
-`0145 §4`, `0145 §5` and `0145 §9` — the three sections stages 4, 5 and 6 need — and `modules` gained
-`ddl.rs` and `plan.rs`. §§ 6-8 are deliberately *not* listed: they are landed, and their rules now
-live in `plan.rs`'s module doc, which the map prints.
+Nothing in the orientation pack was missing: `[context]` printed § 4 and the three anchors the item
+named, and all three were the ones needed.
 
 ## Next group
 
-**Stage 4, the catalog readers** — one file set: a new `crates/nvs-db/src/catalog.rs` beside the
-emitters, and `crates/nvs-db/src/schema.rs` for the read direction. All three slices are ADR 0145 § 4,
-which the pack now prints. Nothing here needs a server: the queries are text and the assembly is over
-rows, so both halves are unit-testable exactly as `ddl.rs` is.
+**Stage 4 slice 2, the row assembly** — one file set: `crates/nvs-db/src/catalog.rs` for the reverse
+map and `crates/nvs-db/src/schema.rs` for what it builds. All of it is ADR 0145 § 4, and the finding
+that splits it into three is this: **the reverse type map is over the *server's* printed spelling,
+not over what `ddl.rs` emitted.** PostgreSQL's `format_type` answers `character varying(200)` where
+the emitter wrote `VARCHAR(200)`, and `timestamp with time zone` where it wrote `TIMESTAMPTZ`. It is
+also **not injective** — PG and SQLite both read `INTEGER` for `Int(Normal)` and `Uint(Small)`,
+`BYTEA`/`BLOB` for both `Bytes` widths, and `NUMERIC(20, 0)` for `Uint(Big)` and for
+`Decimal { precision: 20, scale: 0 }` — so the map is a *choice* function and which case it picks is
+§ 5's normalisation budget, decided in the doc comment beside it.
 
-- [ ] **The catalog query per dialect** — `postgres_reads_pg_catalog_and_the_others_read_information_schema`.
-      One function returning the SQL that reads a database's tables, columns and indexes, keyed on
-      `Dialect` and never on `Driver`, as the emitters already are. Anchors:
-      `crates/nvs-db/src/sql.rs:72` (`Dialect`), `crates/nvs-db/src/ddl.rs:199` (`column_type`, the
-      write direction these have to read back), `crates/nvs-db/src/schema.rs:851`
-      (`ScalarType::from_spelling`).
+- [ ] **The type spelling becomes a `ScalarType`, per dialect** — `every_catalog_spelling_the_emitter_wrote_reads_back_as_its_own_type`.
+      The reverse of `column_type`, over the server's own words, lower-cased and whitespace-tolerant
+      as `from_spelling` already is. Its test is a round trip over the emitters rather than a table of
+      expected names: for every `ScalarType` and every `Dialect`, the emitted spelling must read back
+      as a type whose emission is the same string. Anchors:
+      `crates/nvs-db/src/ddl.rs:199` (`column_type`), `crates/nvs-db/src/schema.rs:855`
+      (`from_spelling`, the canonical-name reader this must not be confused with),
+      `crates/nvs-db/src/catalog.rs:141` (`query`, whose `Read::row` doc says which value is the type).
 - [ ] **The rows become one `Schema` value** — `every_driver_introspects_into_the_same_schema_value_shape`.
-      An *agreement* test over all five: the same catalog rows assemble into the same value whichever
-      driver produced them. Anchors: `crates/nvs-db/src/schema.rs:253` (`ScalarType::describes`),
-      `crates/nvs-db/src/schema.rs:851`, `crates/nvs-db/src/ddl.rs:199`.
-- [ ] **SQLite reads neither catalog** — `sqlite_reads_sqlite_master_and_its_pragmas`. `sqlite_master`
-      plus `pragma table_info` and `pragma index_list`, which answer in columns nothing else does.
-      Anchors: `crates/nvs-db/src/sqlite.rs:423` (`column_type`), `crates/nvs-db/src/schema.rs:851`.
+      A driver-neutral row struct this module owns, then a fold over the two reads' rows in their
+      `ORDER BY` order: columns into `Column`s in ordinal order, index rows into the primary key
+      (`primary = 1`), the unique constraints (`unique = 1`) and the plain indexes. The SQLite
+      assertion in `sqlite_reads_sqlite_master_and_its_pragmas` is the fixture to extend — it already
+      applies `ddl::create_table` and reads both statements back.
+      Anchors: `crates/nvs-db/src/catalog.rs:90` (`Read`, and `Read::row`'s positions),
+      `crates/nvs-db/src/schema.rs:489` (`Table`), `crates/nvs-db/src/schema.rs:358` (`Column`).
+- [ ] **A server's default spelling becomes a `ColumnDefault`** — `a_default_the_emitter_wrote_reads_back_as_the_same_case`.
+      The seven cases plus `Now`, over what each catalog prints: PostgreSQL casts (`'x'::text`),
+      MySQL's bare literal and its `CURRENT_TIMESTAMP`, SQL Server's doubled parentheses
+      (`(('x'))`), SQLite's verbatim text. A spelling outside the set is refused rather than passed
+      through, exactly as `from_spelling` refuses a type.
+      Anchors: `crates/nvs-db/src/schema.rs:306` (`ColumnDefault`), `crates/nvs-db/src/ddl.rs:199`.
 
 ## Backlog
 
-- `nvs schema dump --connection main` must print `nvs_jobs` and `nvs_dead_jobs` — stage 4's second
-  check, `docs/agent/loop-goal.toml:4529`; `crates/nvs-cli/src/queue.rs` is where it is wired in.
-- Stage 5's diff over normalized values, and the empty-plan property — ADR 0145 § 5.
-- Stage 6: the `Core\Db\Schema` rows, the `db.schema` capability, and `nvs.toml`'s `[[app]]` entry —
-  ADR 0145 § 9, and the driver's standing failure.
-- A SQL Server default is a separately named constraint and no `Change` carries the name, so a
-  default change there is not emitted — `ddl.rs`'s known gap 4, and stage 4 is what can supply it.
-- A SQLite unique constraint added after the fact is an index, where one written into a `CREATE TABLE`
-  leaves an `sqlite_autoindex_…` — `ddl.rs`'s known gap 5, and § 5's input.
+- Stage 5's normalisation is where every gap in `catalog.rs`'s module doc is paid for — ADR 0145 § 5.
+- The four-server matrix has never run a catalog query; `crates/nvs-db/src/matrix.rs` is the harness
+  and `NVS_DB_MATRIX_DRIVER` the gate, so the non-SQLite statements are unproven against a server.
+- Stage 6's `Core\Db\Schema` member is what turns the driver's reported failure green — ADR 0145 § 9.
+- `nvs.toml` owes `examples/schema.nvs` its `[[app]]`, `db.schema` grant and `[db.schema]` block.

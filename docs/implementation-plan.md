@@ -41,7 +41,7 @@
 > the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 6 (M7) is green; goal 9 stage 4 opens: `nvs_db::plan` grades a step, and
+> **Open now:** **Goal 6 (M7) is green; goal 9 stage 4 reads: `nvs_db::catalog` is § 4's SQL, and
 > `nvs_db::schema` holds the array form.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db`
 > is open**: `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k
 > rows; `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's

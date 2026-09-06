@@ -8481,6 +8481,15 @@ sibling in the same namespace unqualified.
   snapshot within thirty lines of each other. When an anchor names the crate holding one input, read
   the `Cargo.toml` of the crate holding the *other* one before opening the file it names — the same
   one-call test the misfiled-check bullets use, asked of production code rather than of a test.
+- **SQLite reports no `notnull` for a primary-key column, so an introspected `INTEGER PRIMARY KEY`
+  reads back *nullable* and no `Table` can be built from the row.** `pragma_table_info` sets
+  `notnull` only where the text said `NOT NULL`; a rowid alias's is implicit, and for the other key
+  forms SQLite keeps a documented compatibility hole that lets a null into a primary key at all. The
+  fix belongs in the catalog statement — `crates/nvs-db/src/catalog.rs`'s SQLite column read is
+  `p."notnull" = 0 AND p.pk = 0` — and not in the assembly above it, because a reader whose rows
+  cannot become a value is the wrong layer to discover that in. The same shape of trap is waiting
+  wherever a server records a constraint as a property of something other than the column: assert an
+  introspected fixture against the `Schema` that produced it, never against the catalog's own words.
 
 ## Divergences and refusals already pinned
 
