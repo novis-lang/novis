@@ -12,7 +12,7 @@
 //! do-nothing process the platform can start, waited to completion. It is a floor
 //! in two directions, deliberately —
 //!
-//! * a real replacement spawns an *interpreter*, not `/bin/true`, so the honest
+//! * a real replacement spawns an *interpreter*, not `true`, so the honest
 //!   comparison is strictly worse than what is measured here, and
 //! * nothing Novis does can make this number smaller.
 //!
@@ -22,14 +22,28 @@
 //! — the runtime a PHP script would actually be starting — takes 35.9 ms to boot
 //! and exit.
 
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// The cheapest process the host can start and have exit immediately.
 ///
-/// `/bin/true` exists for exactly this purpose on Unix. Windows has no
-/// equivalent binary, so the shell's built-in `exit` is the closest thing;
-/// `cmd.exe` is heavier than a minimal image, which makes the Windows figure a
-/// more generous floor than the Unix one rather than a less generous one.
+/// `true` exists for exactly this purpose on Unix, but not at one path:
+/// coreutils installs it as `/usr/bin/true` and Linux distributions that have
+/// merged `/bin` into `/usr/bin` keep `/bin/true` working as a symlink, while
+/// macOS ships only `/usr/bin/true` and has no `/bin/true` at all. So the path
+/// is resolved rather than assumed — an absolute one, not a `PATH` lookup,
+/// because what is being timed is a process start and a `PATH` walk would be
+/// measured as part of it.
+///
+/// Windows has no equivalent binary, so the shell's built-in `exit` is the
+/// closest thing; `cmd.exe` is heavier than a minimal image, which makes the
+/// Windows figure a more generous floor than the Unix one rather than a less
+/// generous one.
+///
+/// # Panics
+///
+/// Panics if no `true` binary is found, which means the probe cannot say
+/// anything useful about this host.
 #[must_use]
 pub fn noop_command() -> Command {
     let mut cmd = if cfg!(windows) {
@@ -37,7 +51,11 @@ pub fn noop_command() -> Command {
         c.args(["/d", "/c", "exit"]);
         c
     } else {
-        Command::new("/bin/true")
+        let path = ["/usr/bin/true", "/bin/true"]
+            .into_iter()
+            .find(|path| Path::new(path).is_file())
+            .expect("the host must have a `true` binary in /usr/bin or /bin");
+        Command::new(path)
     };
     // No inherited handles: writing to a captured pipe would measure the pipe.
     cmd.stdin(Stdio::null())
@@ -55,7 +73,7 @@ pub fn noop_command() -> Command {
 /// # Panics
 ///
 /// Panics if the process cannot be started or reaped, which means the host is
-/// missing `/bin/true` or `cmd.exe` and the probe cannot say anything useful.
+/// missing `true` or `cmd.exe` and the probe cannot say anything useful.
 pub fn spawn_noop() {
     let status = noop_command()
         .status()
