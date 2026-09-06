@@ -500,14 +500,16 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 if !routes.rows().is_empty() {
                     ctx.set_routes(std::sync::Arc::clone(&routes));
                 }
-                let Some(entry) = unit.function(crate::SCRIPT) else {
+                let Some(entry) = unit.script() else {
                     // Not reachable for a unit that compiled, and a failure
                     // value rather than a panic for `program_over`'s reason: a
                     // child may not end its parent.
                     ctx.set_pending("the program under test has no script frame");
                     return nvs_runtime::Value::null();
                 };
-                nvs_runtime::call(entry, ctx, &[]).unwrap_or_else(|_| nvs_runtime::Value::null())
+                entry
+                    .call(ctx)
+                    .unwrap_or_else(|_| nvs_runtime::Value::null())
             });
         // `Isolate` and not `Host::start_isolate`: the seam's operation takes no
         // request, and the request is exactly what decides the child's sink —
@@ -535,7 +537,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 /// than any one test.
 fn compile(checked: &crate::Checked) -> Result<Rc<nvs_codegen::Unit>, String> {
     let program = nvs_ir::lower::lower_program(
-        crate::SCRIPT,
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
         &checked.program_files(),
         &checked.exprs,
         &checked.interner,
@@ -1386,11 +1388,13 @@ fn answer_on_the_wire(
             if !carried.rows().is_empty() {
                 ctx.set_routes(std::sync::Arc::clone(&carried));
             }
-            let Some(entry) = unit.function(crate::SCRIPT) else {
+            let Some(entry) = unit.script() else {
                 ctx.set_pending("the program under test has no script frame");
                 return nvs_runtime::Value::null();
             };
-            nvs_runtime::call(entry, ctx, &[]).unwrap_or_else(|_| nvs_runtime::Value::null())
+            entry
+                .call(ctx)
+                .unwrap_or_else(|_| nvs_runtime::Value::null())
         });
     nvs_server::Reply::Run(
         nvs_host::Isolate::new(

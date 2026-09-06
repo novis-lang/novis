@@ -61,7 +61,15 @@ pub(crate) fn lower(source: &str) -> nvs_ir::Program {
     );
 
     let layouts = nvs_types::build_class_layouts(&files, &module.graph);
-    nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
+    nvs_ir::lower::lower_file(
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+        &stmts,
+        src,
+        &exprs,
+        &interner,
+        &enums,
+        &layouts,
+    )
 }
 
 /// Compiles and runs `source` against `ctx`, returning the compiled status.
@@ -73,10 +81,8 @@ pub(crate) fn lower(source: &str) -> nvs_ir::Program {
 pub(crate) fn run_with(ctx: &mut Ctx, source: &str) -> Result<Value, i32> {
     let unit = compile(source).expect("the fixture compiles");
     unit.install_in(ctx);
-    let entry = unit
-        .function("<script>")
-        .expect("the script frame was compiled");
-    call(entry, ctx, &[])
+    let entry = unit.script().expect("the script frame was compiled");
+    entry.call(ctx)
 }
 
 /// Compiles, runs, and returns whatever the script echoed.

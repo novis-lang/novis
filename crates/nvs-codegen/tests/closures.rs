@@ -212,11 +212,9 @@ fn live_bytes_of_run(source: &str) -> isize {
     let unit = compile(source).expect("the fixture compiles");
     let mut ctx = Ctx::buffered();
     unit.install_in(&mut ctx);
-    let entry = unit
-        .function("<script>")
-        .expect("the script frame was compiled");
+    let entry = unit.script().expect("the script frame was compiled");
     let before = nvs_runtime::budget::live_bytes();
-    call(entry, &mut ctx, &[]).expect("the script ran to completion");
+    entry.call(&mut ctx).expect("the script ran to completion");
     nvs_runtime::budget::live_bytes() - before
 }
 

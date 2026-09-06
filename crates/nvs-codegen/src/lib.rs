@@ -277,6 +277,35 @@ pub enum CodegenError {
 ///
 /// Holding the [`JITModule`] is what keeps the code mapped — see the crate
 /// docs' known gap 7 on why nothing unmaps it.
+///
+/// # Calling into a unit from Rust
+///
+/// A compiled function's argument array is `[receiver, ...declared arguments]`
+/// — `1 + arity` slots, slot 0 the implicit receiver and the first declared
+/// parameter at slot **1**. [`nvs_runtime::NvsFn`] owns that rule. What matters
+/// on this side of it is that [`nvs_runtime::call`] is handed a pointer and
+/// never a length, so a hand caller that passes the declared arguments alone
+/// reads one `Value` past the end of its own slice for *every* parameter and
+/// gets no diagnostic from anywhere — it answers with whatever was next in
+/// memory, which on one platform was the right answer by luck.
+///
+/// So the shape is not documented at the caller, it is **named**: take the
+/// entry point that matches what you are calling and there is nothing left to
+/// spell wrong.
+///
+/// | You are calling | Take |
+/// |---|---|
+/// | the entry script frame, which has no receiver at all | [`Self::script`], then [`ScriptFn::call`] |
+/// | a `static` method — receiver is the called class | [`Self::call_static`] |
+/// | an instance method, on a fresh instance | [`Self::call_on_new_instance`] |
+/// | [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 8's fixture | [`Self::build_fixture`] |
+/// | nothing — you only want to know it compiled | [`Self::has_function`] |
+///
+/// [`Self::raw_function`] is the escape hatch underneath all of them, and the
+/// only callers it should have are `benches/abi-probe`'s three, which build the
+/// slot array once outside a timed loop on purpose. Reaching for it anywhere
+/// else means writing the receiver slot by hand, which is the thing this list
+/// exists to stop.
 pub struct Unit {
     /// Kept alive for its pages; never read again after `compile` returns.
     _module: JITModule,
@@ -325,19 +354,75 @@ impl std::fmt::Debug for Unit {
     }
 }
 
-impl Unit {
-    /// The compiled function `name` names, ready to call — through
-    /// [`nvs_runtime::call`], which is the safe wrapper over [`NvsFn`]'s
-    /// pointer contract.
+/// A [`Unit`]'s entry script frame, ready to run.
+///
+/// A script frame is the one compiled function with **no** implicit receiver
+/// (`nvs_ir::lower`'s *No implicit receiver*), so its ABI slot array is empty.
+/// This type is how that stops being something a caller has to know: there is
+/// no argument to pass, so there is no argument to pass short, and [`Self::call`]
+/// is the only spelling of the call.
+///
+/// One word and `Copy`, so a caller that has to know the frame exists before it
+/// builds the machinery to run it — `nvs run` checks before it starts a
+/// scheduler — carries this across the gap instead of carrying a label and
+/// looking it up again later.
+#[derive(Debug, Clone, Copy)]
+pub struct ScriptFn(NvsFn);
+
+impl ScriptFn {
+    /// Runs the frame on `ctx`.
     ///
-    /// **The pointer alone is not enough to call a method with.** Slot 0 of
-    /// the argument array is the implicit receiver and the first declared
-    /// parameter is at slot 1 ([`NvsFn`] owns the rule), so a caller that
-    /// hands [`nvs_runtime::call`] the declared arguments alone reads one
-    /// `Value` past the end of its own slice and answers with whatever was
-    /// next in memory. Reach a `static` method through [`Self::call_static`],
-    /// an instance method through [`Self::call_on_new_instance`], and use this
-    /// directly only for a script frame, which has no receiver.
+    /// # Errors
+    ///
+    /// The status the run reported, with its message left on `ctx` — this is
+    /// [`nvs_runtime::call`]'s own result, unchanged.
+    pub fn call(self, ctx: &mut nvs_runtime::Ctx) -> Result<nvs_runtime::Value, i32> {
+        nvs_runtime::call(self.0, ctx, &[])
+    }
+}
+
+impl Unit {
+    /// This unit's **entry script frame**, ready to run: the top-level
+    /// statements of the program's first file, which is what an embedder
+    /// enters.
+    ///
+    /// `None` if no such frame was compiled. For a program that went through
+    /// the front end that means the label drifted rather than that the program
+    /// had no top-level statements — every file gets a frame, and
+    /// [`nvs_ir::lower::ENTRY_SCRIPT_LABEL`] is the one home of the string the
+    /// producer and this consumer both spell.
+    #[must_use]
+    pub fn script(&self) -> Option<ScriptFn> {
+        self.raw_function(nvs_ir::lower::ENTRY_SCRIPT_LABEL)
+            .map(ScriptFn)
+    }
+
+    /// Whether this unit compiled a function called `name`.
+    ///
+    /// What a test asks when the claim is that a lowering *happened* — a
+    /// property hook's `get` body, a namespaced method's class-qualified label
+    /// — and nothing beyond it. It answers without handing back a pointer, so
+    /// an existence check cannot quietly grow into a call that fills no
+    /// receiver slot.
+    #[must_use]
+    pub fn has_function(&self, name: &str) -> bool {
+        self.entries.contains_key(name)
+    }
+
+    /// The raw code pointer compiled under `name`, with **its whole ABI
+    /// contract left to the caller**.
+    ///
+    /// The pointer alone is not enough to call a method with. Slot 0 of the
+    /// argument array is the implicit receiver and the first declared parameter
+    /// is at slot 1 ([`NvsFn`] owns the rule), so a caller that hands
+    /// [`nvs_runtime::call`] the declared arguments alone reads one `Value`
+    /// past the end of its own slice for every parameter, on every platform,
+    /// with no diagnostic anywhere.
+    ///
+    /// Nothing in this workspace should reach for this except a measurement
+    /// that has to build its slot array once, outside the loop it is timing.
+    /// [`Unit`]'s own docs name the entry point for every other shape, and one
+    /// of them fills the receiver slot for you.
     #[must_use]
     #[expect(
         unsafe_code,
@@ -346,7 +431,7 @@ impl Unit {
                   with exactly `NvsFn`'s signature in `compile` and \
                   `finalize_definitions` has made its pages executable"
     )]
-    pub fn function(&self, name: &str) -> Option<NvsFn> {
+    pub fn raw_function(&self, name: &str) -> Option<NvsFn> {
         let code = *self.entries.get(name)?;
         Some(unsafe { std::mem::transmute::<*const u8, NvsFn>(code) })
     }
@@ -409,7 +494,7 @@ impl Unit {
 
     /// Calls the `static` method `Class::method` from outside compiled code,
     /// with `args` in written order and nothing else — this fills the receiver
-    /// slot [`Self::function`] leaves to the caller.
+    /// slot [`Self::raw_function`] leaves to the caller.
     ///
     /// A `static` method's receiver is the **called class**, so slot 0 gets
     /// this unit's descriptor for `class` rather than a null: late static
@@ -459,7 +544,7 @@ impl Unit {
         args: &[nvs_runtime::Value],
     ) -> Option<Result<nvs_runtime::Value, i32>> {
         let label = format!("{class}::{method}");
-        let target = self.function(&label)?;
+        let target = self.raw_function(&label)?;
         // Both maps are filled per compiled function and `shapes` in the
         // earlier pass, so a hit in one is a hit in the other.
         let arity = self.shapes.get(&label)?.arity;
@@ -503,7 +588,7 @@ impl Unit {
         method: &str,
         needs: &[String],
     ) -> Option<Result<(), i32>> {
-        let target = self.function(&format!("{class}::{method}"))?;
+        let target = self.raw_function(&format!("{class}::{method}"))?;
         let receiver =
             nvs_runtime::Value::class_desc(self.classes.desc(self.classes.id_of(class)?));
         Some(fixtures.build(ctx, method, target, receiver, needs))
@@ -1767,7 +1852,15 @@ mod tests {
         );
 
         let layouts = nvs_types::build_class_layouts(&files, &module.graph);
-        nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts)
+        nvs_ir::lower::lower_file(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &stmts,
+            src,
+            &exprs,
+            &interner,
+            &enums,
+            &layouts,
+        )
     }
 
     /// Compiles `source` and hands back the JIT with its tables intact —

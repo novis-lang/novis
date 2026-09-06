@@ -295,9 +295,7 @@ fn a_fatal_releases_the_frames_locals() {
     let unit = compile(&source).expect("the fixture compiles");
     let mut ctx = Ctx::buffered();
     unit.install_in(&mut ctx);
-    let entry = unit
-        .function("<script>")
-        .expect("the script frame was compiled");
+    let entry = unit.script().expect("the script frame was compiled");
 
     // The run is measured, not the compile: what is under test is what the
     // compiled code hands back, and the front end's own allocations would
@@ -307,7 +305,7 @@ fn a_fatal_releases_the_frames_locals() {
     nvs_runtime::prime_empty_array();
     let before = live_bytes();
     let spent = allocated_bytes();
-    assert_eq!(call(entry, &mut ctx, &[]).err(), Some(FATAL));
+    assert_eq!(entry.call(&mut ctx).err(), Some(FATAL));
     assert!(
         allocated_bytes() - spent >= FILLER,
         "the local's buffer did not come through this allocator, so the \

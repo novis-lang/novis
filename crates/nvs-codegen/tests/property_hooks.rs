@@ -64,8 +64,8 @@ echo (new Box(2))->doubled;
 ",
     )
     .expect("the fixture compiles");
-    assert!(unit.function("Box::$doubled::get").is_some());
-    assert!(unit.function("Box::$doubled::set").is_none());
+    assert!(unit.has_function("Box::$doubled::get"));
+    assert!(!unit.has_function("Box::$doubled::set"));
 }
 
 /// A hook that throws propagates through

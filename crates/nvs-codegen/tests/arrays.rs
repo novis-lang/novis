@@ -131,12 +131,10 @@ echo $bag->get(\"a\") . $bag->get(\"b\");
 #[cfg(debug_assertions)]
 fn allocations_of_run(source: &str) -> usize {
     let unit = compile(source).expect("the fixture compiles");
-    let entry = unit
-        .function("<script>")
-        .expect("the script frame was compiled");
+    let entry = unit.script().expect("the script frame was compiled");
     let mut ctx = Ctx::buffered();
     let before = nvs_runtime::budget::allocations();
-    call(entry, &mut ctx, &[]).expect("the script ran to completion");
+    entry.call(&mut ctx).expect("the script ran to completion");
     nvs_runtime::budget::allocations() - before
 }
 

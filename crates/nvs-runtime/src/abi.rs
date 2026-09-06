@@ -79,8 +79,10 @@ pub const EXITED: i32 = 3;
 /// passes only the declared arguments does not get a diagnostic — it reads one
 /// `Value` past the end of its own slice for **every** parameter, and answers
 /// with whatever was next in memory. [`crate::dispatch`], [`crate::closure`]
-/// and `nvs_codegen::Unit::call_static` are the constructors that get it
-/// right; prefer one of those to building the array by hand.
+/// and `nvs_codegen::Unit`'s named entry points — `script`, `call_static`,
+/// `call_on_new_instance`, `build_fixture` — are the constructors that get it
+/// right, and that type's own docs are the table of which one is which; prefer
+/// one of them to building the array by hand.
 pub type NvsFn = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
 
 /// A runtime helper. Identical to [`NvsFn`] — that identity is the point of

@@ -18,8 +18,8 @@ fn every_lowered_method_is_compiled_under_its_class_qualified_name() {
         "<?nvs\nnamespace App;\nclass Math {\n    public static function id(int $n): int {\n        return $n;\n    }\n}\necho App\\Math::id(7);\n",
     )
     .expect("the fixture compiles");
-    assert!(unit.function("App\\Math::id").is_some(), "{unit:?}");
-    assert!(unit.function("<script>").is_some(), "{unit:?}");
+    assert!(unit.has_function("App\\Math::id"), "{unit:?}");
+    assert!(unit.script().is_some(), "{unit:?}");
 }
 
 #[test]

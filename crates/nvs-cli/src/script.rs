@@ -379,7 +379,7 @@ impl Compiler {
         let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
         let lowered = nvs_ir::lower::lower_program(
-            crate::SCRIPT,
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
             &checked.program_files(),
             &checked.exprs,
             &checked.interner,
@@ -479,7 +479,7 @@ fn program_over(compiled: Rc<Compiled>) -> Program {
         // doc owns why this and not a release here.
         ctx.set_isolate_argument(args);
 
-        let Some(entry) = compiled.unit.function(crate::SCRIPT) else {
+        let Some(entry) = compiled.unit.script() else {
             // Not reachable for a unit that compiled — every program has a
             // script frame — but it is a failure value rather than a panic,
             // because a child may not be able to end its parent.
@@ -489,7 +489,7 @@ fn program_over(compiled: Rc<Compiled>) -> Program {
         // An error status leaves the throw on the context, which is where
         // `nvs_host::Isolate`'s own `finish` reads it from; there is nothing
         // to carry back by hand.
-        nvs_runtime::call(entry, ctx, &[]).unwrap_or_else(|_| Value::null())
+        entry.call(ctx).unwrap_or_else(|_| Value::null())
     })
 }
 

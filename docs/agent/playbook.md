@@ -9037,9 +9037,13 @@ every session. Nothing below was reworded on the way.
   — late static binding's whole mechanism — and the first declared parameter is at slot **1**
   (`nvs_ir::lower`, and `nvs_runtime::NvsFn` for the contract). Every compiled call site fills it, so a
   Rust caller that passes only the declared arguments gets no diagnostic: it reads one `Value` past the
-  end of its own slice for every parameter and answers with whatever was next in memory. Reach a static
-  method through `nvs_codegen::Unit::call_static`, never through `Unit::function` plus
-  `nvs_runtime::call`. The tell is an answer that is a *neighbouring* argument, or a plausible-looking
+  end of its own slice for every parameter and answers with whatever was next in memory.
+  `nvs_codegen::Unit` no longer hands out a callable that leaves that to you: `script`, `call_static`,
+  `call_on_new_instance` and `build_fixture` each fill slot 0, and `has_function` answers "did it
+  compile?" without a pointer at all. The raw accessor is `raw_function`, named so a caller has to say it
+  means it, and its only callers are `benches/abi-probe`'s three, which build the slot array once outside
+  a timed loop — converting *those* to `call_static` allocates inside a nanosecond-resolution measurement
+  and moves two guarded ratios, so leave them. The tell is an answer that is a *neighbouring* argument, or a plausible-looking
   zero — and it hides completely behind a `Value::int(0)` argument, which is what four of the
   workspace's five hand-built calls passed.
 - **A sanitizer changing an answer does not mean the sanitizer is involved.** ASAN turned the above into

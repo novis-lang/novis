@@ -1080,12 +1080,6 @@ fn capture_conv(param: &nvs_types::RouteParam) -> nvs_runtime::routes::CaptureCo
     }
 }
 
-/// The label the script frame is compiled and looked up under.
-///
-/// `nvs_ir::lower::lower_script` leaves the name to its caller; this is the
-/// same spelling `nvs-ir`'s own snapshots use.
-const SCRIPT: &str = "<script>";
-
 fn run_run(
     path: &std::path::Path,
     dump_ir: bool,
@@ -1101,7 +1095,7 @@ fn run_run(
     let src = checked.map.file(checked.id);
 
     let program = nvs_ir::lower::lower_program(
-        SCRIPT,
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
         &checked.program_files(),
         &checked.exprs,
         &checked.interner,
@@ -1143,7 +1137,7 @@ fn run_run(
     // seam holding it outlives no part of this run — `runner::UnderTest` is the
     // one holder, and an `Rc` is what lets the run and the seam both name it.
     let unit = std::rc::Rc::new(unit);
-    let Some(entry) = unit.function(SCRIPT) else {
+    let Some(entry) = unit.script() else {
         eprintln!("internal error: the script frame was not compiled");
         return ExitCode::FAILURE;
     };
@@ -1295,7 +1289,7 @@ fn run_run(
         move |ctx| {
             // The returned value is discarded exactly as it was when this was a
             // direct call: the script frame answers with null.
-            let outcome = nvs_runtime::call(entry, ctx, &[]).map(|_| ());
+            let outcome = entry.call(ctx).map(|_| ());
             // ADR 0072 § 6: a CLI run has no response, so the script's own
             // frame returning is when "after the response" is —
             // `nvs_runtime::deferred` owns that reading and why a request that

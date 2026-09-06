@@ -551,8 +551,15 @@ fn compile_source(name: &str, text: &str) -> (nvs_ir::Program, nvs_codegen::Unit
     assert!(!diags.has_errors(), "{name} stopped type-checking");
 
     let layouts = nvs_types::build_class_layouts(&files, &module.graph);
-    let program =
-        nvs_ir::lower::lower_file("<script>", &stmts, src, &exprs, &interner, &enums, &layouts);
+    let program = nvs_ir::lower::lower_file(
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+        &stmts,
+        src,
+        &exprs,
+        &interner,
+        &enums,
+        &layouts,
+    );
     let unit = nvs_codegen::compile(&program).expect("the fixture compiles");
     (program, unit)
 }
@@ -678,12 +685,19 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let per_frame = (t_deep - t_shallow) / 16.0;
 
     let (_program, unit) = compile_arith();
+    // `raw_function` and not `Unit::call_static`, which is the entry point a
+    // hand caller otherwise wants: that one builds the slot array per call and
+    // looks a descriptor up, and both are measurable against a loop iteration.
+    // The array below is built once, outside the timing.
     let sum = unit
-        .function("Bench::sum")
+        .raw_function("Bench::sum")
         .expect("the fixture declares Bench::sum");
     let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
     // Argument slot 0 is the implicit receiver every lowered method carries;
-    // `Bench::sum` is static, so it is `null` — see `emit_call`'s own docs.
+    // `Bench::sum` is static, so it is `null` — see `emit_call`'s own docs. A
+    // `null` there is honest only because this fixture uses no late static
+    // binding; `Unit::call_static` passes the real called-class descriptor, and
+    // anything that reads `static::` needs that and not this.
     let args = [
         nvs_runtime::Value::null(),
         nvs_runtime::Value::int(ITERATIONS),
@@ -1217,11 +1231,13 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // identical measurement over `$m`.
     let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
     // Argument slot 0 is the implicit receiver every lowered method carries;
-    // these are static, so it is `null` — see `emit_call`'s own docs.
+    // these are static, so it is `null` — see `emit_call`'s own docs, and the
+    // note above `Bench::sum` on why the raw path rather than
+    // `Unit::call_static` is what a measurement at this resolution wants.
     let args = [nvs_runtime::Value::null(), nvs_runtime::Value::int(ROUNDS)];
     let mut per_pair = |one: &str, four: &str| -> f64 {
-        let one = unit.function(one).expect("the fixture declares it");
-        let four = unit.function(four).expect("the fixture declares it");
+        let one = unit.raw_function(one).expect("the fixture declares it");
+        let four = unit.raw_function(four).expect("the fixture declares it");
         let t_one = ns_per_op(2_000, 5, || {
             black_box(nvs_runtime::call(one, &mut ctx, &args)).expect("the loop ran");
         });
