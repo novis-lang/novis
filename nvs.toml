@@ -66,6 +66,19 @@ entry = "examples/files.nvs"
 read = true
 write = true
 
+# `examples/tempdir.nvs` is the block above with one line fewer of program: it
+# creates a directory, writes into it and stops, leaving ADR 0131 § 3's sweep to
+# take it away. The grant is the same `true` for the same reason — the path is
+# the host's and no checkout could write it down — and it stays `write = true`
+# rather than being narrowed to the root, because the member asks the check of
+# the *entry* it is about to create (§ 2), not of the root it creates under.
+[[app]]
+entry = "examples/tempdir.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
 # `examples/upload.nvs` is the same shape for the same reason — it receives a
 # part into a directory `Core\IO::temporaryDir()` chose on the host — so its
 # block is the one above rather than a narrower spelling of it. ADR 0105's rule

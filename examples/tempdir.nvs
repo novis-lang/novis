@@ -1,0 +1,34 @@
+<?nvs
+// A temporary directory, as a program: the one thing this fixture shows is
+// what it does *not* contain — there is no cleanup line at the bottom.
+//
+// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+// is the whole story. `Core\IO::temporaryDir` hands back a directory under
+// the root Novis owns (§ 2), the program writes into it as it likes, and
+// when the script ends the runtime deletes it (§ 3) — after the last user
+// code, off the request path, and without ever throwing. So a fixture that
+// tidied up after itself would be pinning nothing: the interesting claim is
+// that walking off the end of this file is enough, which
+// `a_finished_scripts_temporary_dir_is_gone_from_the_owned_root` asserts
+// from outside once the script is over.
+//
+// Compare `examples/files.nvs`, which removes what it made. That one is
+// about `Core\IO`'s four verbs, and its `removeDir` is there so the fixture
+// leaves nothing behind. Here leaving something behind is the point, and the
+// runtime is what takes it away. There is deliberately nothing to opt into:
+// no `temporaryFile`, no per-call persist, and the one escape hatch —
+// `[debug] keep_temporary` (§ 5) — belongs to the operator, not to the
+// program, because a script that could exempt its own files could be made to
+// hoard them.
+//
+// The line this prints is frozen in `docs/agent/loop-goal.toml` (stage 5);
+// the source is not.
+
+string $dir = Core\IO::temporaryDir();
+string $note = Core\Path::join($dir, "note.txt");
+
+Core\IO::write($note, "hello from a temporary\n");
+echo "wrote and read: ", Core\Str::trim(Core\IO::readText($note)), "\n";
+
+// And that is the end of the program. `$dir` still exists as this line runs;
+// it does not exist by the time the process is gone.
