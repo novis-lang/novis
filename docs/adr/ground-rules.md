@@ -454,3 +454,7 @@ spellings rejected, and the reasoning.
   ([0134](0134-every-shipped-feature-owes-four-proofs.md)).
 - A push runs only the jobs its diff can break; everything else runs nightly and at release, and no
   job exists in two workflows ([0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md)).
+- **A schema is a value over a closed vocabulary and a plan is the difference between it and a live
+  server — there is no version number, no raw SQL inside a schema, no DDL parser, and absence never
+  drops anything** ([0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md))
+  ([0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md)).

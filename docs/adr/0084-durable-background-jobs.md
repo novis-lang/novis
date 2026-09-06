@@ -17,7 +17,7 @@
   payload is an output, so a `secret` cannot enter one.
   [0064](0064-configuration-file-format.md) — its block roster gains `[queue]`, § 2's block.
   [docs/implementation-plan.md](../implementation-plan.md) — M8 gains the queue.
-- **Amended by:** none.
+- **Amended by:** 0145
 - **Depends on:** [0067](0067-core-db.md) — the queue has no storage engine of its own.
 
 > **In short:** a job is **a row in a table in a database `Core\Db` already talks to**. That single choice
@@ -109,10 +109,14 @@ max_attempts = 5
 visibility   = 5m
 ```
 
-- **The runtime owns the schema.** One jobs table and one dead-letter table, created and upgraded by
-  `nvs queue migrate`, an explicit operator command. DDL is an injection sink and a privileged act
+- **The runtime owns the schema, and owns it as a value.** One jobs table and one dead-letter table,
+  expressed as a [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) `Core\Db\Schema`
+  and converged by `nvs queue migrate`, an explicit operator command. That is one description of the two
+  tables rather than one per dialect, which is what makes the next bullet's "all five" hold: a
+  hand-written DDL list per backend is one chance to drift per backend, and the backend nobody wrote is
+  indistinguishable from one nobody supports. DDL is an injection sink and a privileged act
   ([0024](0024-taint-tracking-for-injection-sinks.md)); the runtime never issues it implicitly at boot or
-  from a request.
+  from a request, and applying the plan takes 0067 § 3's `db.schema` like any other DDL.
 - **It may be the application's own database, and that is the recommended configuration**, because § 3's
   transactional enqueue requires it. A separate queue database is permitted and silently gives up that
   property — the documentation must say so at the point where the option is offered.

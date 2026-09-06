@@ -16,7 +16,7 @@
   standing rule that ADR already states), and § 5's `Core\Db::inList` joins its binding rules.
   [0051](0051-standard-library-tiers.md) — § 3's Native entry names MariaDB as a driver distinct from
   MySQL, and § 4's two questions gain the MariaDB authentication-plugin case.
-- **Amended by:** 0071, 0084, 0103
+- **Amended by:** 0071, 0084, 0103, 0145
 
 > **In short:** one API replaces `PDO`, `mysqli`, `pgsql` and `sqlite3`. A program names a connection
 > (`Core\Db::connect("main")`) and the credentials live in root-owned `nvs.toml`, gated by a new
@@ -108,13 +108,22 @@ that reset fails. `close()` releases one early. `Db::connect` after a `close()` 
 
 ### 3. `db.connect` and `db.open`, and what that means for ADR 0058
 
-Two deny-by-default capabilities:
+Three deny-by-default capabilities:
 
 ```toml
 [capabilities]
 db.connect = ["main", "replica"]        # which config blocks a program may open
 db.open    = ["*.tenants.internal"]     # which hosts dynamic settings may reach
+db.schema  = ["main"]                   # which of those a program may issue DDL to
 ```
+
+The first two gate *reaching* a database and the third gates *issuing DDL* to one, which is a strictly
+larger act than any query: DDL takes no parameters, so it is a sink nothing can be bound through
+([0024](0024-taint-tracking-for-injection-sinks.md)), and its effects outlive every transaction on several
+backends. `db.schema` names configuration blocks, like `db.connect` and unlike `db.open`, and an ungranted
+name throws naming the capability. Applying a
+[0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) plan is the one thing that requires
+it; computing one is an ordinary read under `db.connect`.
 
 A `db.open` entry beginning `*.` matches a host whose name ends with the entry's remainder **at a label
 boundary**, case-insensitively: `*.tenants.internal` grants `a.tenants.internal` and
@@ -372,6 +381,13 @@ mean, and the only alternative that obeys § 4 literally (a `Zone` argument at e
 SQLite has no date or time types; mapping keys off the *declared* column type and throws on a value that
 does not parse.
 
+**This table is read in both directions.** The rows above are the read direction — what a column's value
+becomes. [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 2 reads the same table the
+other way to decide what SQL type a schema value's column is *created* as, one canonical choice per Novis
+type per dialect. It is one table used twice rather than two tables to keep in step, and a named test holds
+the directions together: a type written through the write direction must introspect back to the type it was
+written from.
+
 ### 10. What `nvs check` proves about a literal query
 
 Under [0057](0057-intrinsic-literal-folding.md)'s closed intrinsic list, a literal SQL argument is
@@ -381,7 +397,10 @@ matches no `db.open` grant pattern is likewise a check-time diagnostic, since `n
 the machine that compiles.
 
 Full per-dialect SQL parsing is **not** done: it would mean maintaining four vendors' grammars in
-`nvs-syntax` forever. Schema-aware checking is a *Revisiting* item below.
+`nvs-syntax` forever. **That refusal covers DDL as well as queries**, and is why
+[0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 4 reads an existing database by
+catalog query rather than by parsing the `CREATE TABLE` a server prints. Schema-aware checking is a
+*Revisiting* item below.
 
 ### 11. A query is a trace event
 
@@ -542,8 +561,10 @@ observe whether the handshake happened.
   find the product surprising. If operators routinely lower it, the default is wrong rather than the model.
 - **Schema-aware checking** (`nvs check --schema`) — validate literal queries and `queryAs<T>` shapes
   against a live schema, the way `sqlx::query!` does, turning a first-row `DbError` into a compile error.
-  Wants its own ADR: it introduces a build-time dependency on a reachable database and a cache format for
-  the introspected schema.
+  Wants its own ADR: it introduces a build-time dependency on a reachable database. The cache format it
+  also wanted now exists —
+  [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 1's array form is a schema read
+  off a live server and written to a file.
 - **LOB streaming** — when a real program needs to read a BLOB larger than a request's memory cap. This is
   the deferred item most likely to become a blocker rather than an inconvenience.
 - **Stored procedures with multiple result sets and `OUT` parameters** — when porting an application whose
@@ -553,7 +574,6 @@ observe whether the handshake happened.
   [0083](0083-persistent-connections-are-isolates.md)'s connection isolates and
   [0084](0084-durable-background-jobs.md)'s workers are both candidates, and a bridge to `Core\Topic` is the
   obvious shape. Blocked only on someone needing it.
-- **A portable `Core\Db\Schema`** — if migration tooling in `nvs` itself needs it, rather than userland.
 
 ## Verification
 
