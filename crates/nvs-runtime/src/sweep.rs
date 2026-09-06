@@ -43,13 +43,17 @@
 //! [ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md) already
 //! answers with storage.
 //!
-//! # § 4's orphan sweep is elsewhere, and its predicate is here
+//! # § 4's orphan sweep decides here and acts elsewhere
 //!
 //! A script killed outright ran no [`Drop`] and so ran nothing above. What it
 //! left behind is § 4's, and that sweep runs in exactly two places — the
 //! `nvs serve` boot and `nvs tmp clean` — neither of which is in this crate.
-//! What *is* here is the rule they share: [`owner_is_alive`], a predicate over
-//! one path, so that two walks cannot come to disagree about who owns an entry.
+//! What *is* here is everything they share: [`owner_is_alive`], the predicate
+//! over one path, and [`orphans`], the walk over one root that applies it. The
+//! doors differ only in what they do with the list — the boot hands it to
+//! [`refusals`], `tmp clean` prints it and, with `--dry-run`, does nothing
+//! else — so there is no reading of "whose entry is this" for the two of them
+//! to come to disagree about.
 //!
 //! [`refusals`] is the part with no logging in it, which is what makes the
 //! behaviour testable without a sink to read back.
@@ -191,10 +195,9 @@ pub fn refusals(paths: Vec<PathBuf>) -> Vec<(PathBuf, std::io::Error)> {
 /// [ADR 0131] § 4's predicate, and the only thing the orphan sweep decides on.
 ///
 /// **A function over a path and nothing else**: no context, no configuration,
-/// no directory walk and no clock. § 4's two callers — the `nvs serve` boot and
-/// `nvs tmp clean` — each walk the owned root themselves and ask this of one
-/// entry at a time, so the rule they share is one function rather than two
-/// walks that agree today. Neither walk is here yet.
+/// no directory walk and no clock. [`orphans`] is the walk that asks it of one
+/// entry at a time, and § 4's two doors reach it through that, so the rule they
+/// share is one function rather than two walks that agree today.
 ///
 /// **Liveness, never age.** An age rule is precisely what deletes a
 /// long-running process's files out from under it; this cannot, because a live
@@ -217,6 +220,52 @@ pub fn owner_is_alive(path: &std::path::Path) -> bool {
         return true;
     };
     pid_is_alive(pid)
+}
+
+/// [ADR 0131] § 4's walk: the entries of the owned root whose owner is dead,
+/// sorted, and nothing deleted.
+///
+/// **It answers rather than acts**, because that is the whole of what § 4's two
+/// doors have in common. The `nvs serve` boot hands this list to [`refusals`];
+/// `nvs tmp clean` prints each path and hands over the same list, or, under
+/// `--dry-run`, prints it and hands over nothing. A walk that deleted as it went
+/// could not serve the third of those, and each door would grow its own
+/// predicate — which is the one thing § 4 cannot afford, since the two of them
+/// disagreeing means over-deleting.
+///
+/// **A root, not a context.** Each door knows its own root
+/// ([`crate::capability::temp_root`]) and neither has a [`Ctx`] to be asked
+/// through; taking the path keeps the root decided in one place and leaves this
+/// as testable as [`owner_is_alive`] is.
+///
+/// **Every ambiguity skips, exactly as the predicate does.** A root that cannot
+/// be listed answers "nothing to sweep" — a root nothing has created yet is the
+/// ordinary state of a first boot, and one the platform refuses to read is an
+/// ambiguity, which § 4 resolves toward under-deleting like every other. An
+/// entry whose kind cannot be read is skipped. So is anything that is not a
+/// directory: `capability::temp_dir` creates directories and only directories,
+/// so a file or a symlink wearing the name is something this runtime did not
+/// write — and following a link out of the owned root is the one move that
+/// would turn the sweep into the deletion primitive an attacker wanted.
+///
+/// Sorted so that two doors reporting the same root report it in the same
+/// order, rather than in whatever order the filesystem enumerated. The cost is
+/// a sort over one directory, paid twice in the life of a machine.
+///
+/// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
+#[must_use]
+pub fn orphans(root: &std::path::Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut dead: Vec<PathBuf> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .filter(|path| !owner_is_alive(path))
+        .collect();
+    dead.sort();
+    dead
 }
 
 /// The pid out of an entry name `capability::temp_dir` wrote, or `None` for
@@ -479,6 +528,52 @@ mod tests {
                 "{what} is not this runtime's to delete, so it reads as alive: {name}"
             );
         }
+    }
+
+    /// § 4's walk, asserted by **what the whole root came back as** rather than
+    /// by one path being in the answer.
+    ///
+    /// Every entry below is a *deletion* if the walk is one filter too loose,
+    /// so a case that only asked "is the orphan listed" would pass against a
+    /// walk that listed the live owner's directory and the operator's notes
+    /// beside it. Two orphans rather than one because the answer is sorted and
+    /// one path cannot show an order. And the entries are still on disk
+    /// afterwards, which is the walk's other half: it answers, and the door
+    /// deletes.
+    #[test]
+    fn the_walk_answers_every_dead_owners_directory_and_nothing_else() {
+        let root = scratch("orphans");
+        // Above every platform's pid ceiling, for the reason the predicate's
+        // own case gives: no process can be holding it, so this is not a race.
+        let dead = i32::MAX - 1;
+        let first = root.join(format!("nvs-{dead}-0000000000000001"));
+        let second = root.join(format!("nvs-{dead}-0000000000000002"));
+        let live = root.join(format!("nvs-{}-0123456789abcdef", std::process::id()));
+        for path in [&first, &second, &live, &root.join("notes")] {
+            std::fs::create_dir_all(path).expect("the scratch root is writable");
+        }
+        // A file wearing a dead owner's name: `temp_dir` writes directories and
+        // only directories, so this is not one of ours however it is spelled.
+        std::fs::write(root.join(format!("nvs-{dead}-0000000000000003")), b"")
+            .expect("the scratch root is writable");
+
+        assert_eq!(
+            orphans(&root),
+            vec![first.clone(), second.clone()],
+            "the two dead owners' directories, in order, and nothing else in {}",
+            root.display()
+        );
+        assert!(
+            first.is_dir() && second.is_dir(),
+            "the walk answers what is dead and deletes none of it"
+        );
+        assert_eq!(
+            orphans(&root.join("never-created")),
+            Vec::<PathBuf>::new(),
+            "a root nothing has created yet has nothing to sweep"
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// § 5's escape hatch, both halves in one case: **each** kept path is named

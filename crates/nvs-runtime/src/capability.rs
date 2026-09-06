@@ -782,7 +782,9 @@ pub fn temp_dir(ctx: &mut Ctx, member: &str) -> Result<PathBuf, Fault> {
     /// root that is not writable, a temporary directory someone has filled with our names.
     const ATTEMPTS: u32 = 16;
 
-    let root = temp_root(ctx);
+    // The snapshot, never the request's overlay — [`temp_root`]'s doc owns why that is the only
+    // tree this may be asked of.
+    let root = temp_root(ctx.config().map(|request| &request.snapshot().config));
     for attempt in 0..ATTEMPTS {
         let path = root.join(format!("nvs-{}-{:016x}", std::process::id(), nonce()));
         require(ctx, Cap::FsWrite, Scope::Path(&path), member)?;
@@ -827,19 +829,27 @@ fn nonce() -> u64 {
 /// [ADR 0131] § 2's owned root: `[io] temp_root` where a tree set it, else a `novis` subdirectory of
 /// the platform temporary directory.
 ///
-/// Read off the snapshot rather than through the request's overlay because `io.temp_root` is
-/// `System`-class and `Boot` (`nvs_config::directive`), so there is no spelling by which a request
-/// could have written one — and a context with no configuration at all gets the default rather than
+/// **Pass the snapshot's tree, never a request's overlay.** `io.temp_root` is `System`-class and
+/// `Boot` (`nvs_config::directive`), so there is no spelling by which a request could have written
+/// one, and a root a request could move is a sweep pointed wherever that request liked. `None` — a
+/// context with no configuration at all, or a door outside a context — gets the default rather than
 /// a refusal, since this decides *where* and the grant still decides *whether*.
+///
+/// **Public because § 4's two doors need the same answer this one does.** The `nvs serve` boot and
+/// `nvs tmp clean` walk the root that [`temp_dir`] created under, and a second reading of `[io]
+/// temp_root` in the CLI is how the walk and the writer come to disagree; [`crate::sweep::orphans`]
+/// takes the path this hands back. It reads a tree rather than a [`Ctx`] for the same reason: those
+/// two doors have a configuration and no context.
 ///
 /// An empty string is treated as unset. It is what a `temp_root = ""` in a file means to every other
 /// path key here, and joining a name onto it would otherwise create the directory in the process's
 /// working directory, which is the one place a temporary must never land.
 ///
 /// [ADR 0131]: ../../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
-fn temp_root(ctx: &Ctx) -> PathBuf {
-    ctx.config()
-        .and_then(|config| config.snapshot().config.io.as_ref())
+#[must_use]
+pub fn temp_root(config: Option<&nvs_config::Config>) -> PathBuf {
+    config
+        .and_then(|config| config.io.as_ref())
         .and_then(|io| io.temp_root.as_deref())
         .filter(|root| !root.is_empty())
         .map_or_else(|| std::env::temp_dir().join("novis"), PathBuf::from)
