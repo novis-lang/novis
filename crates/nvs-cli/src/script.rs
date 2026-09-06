@@ -1030,4 +1030,92 @@ mod tests {
             "child said hello\n"
         );
     }
+
+    /// A context granting every write and naming `root` as ADR 0131 § 2's owned
+    /// root, written the way an operator writes both — the grant because
+    /// `Core\IO::temporaryDir` asks `fs.write` for the path it is about to
+    /// create (ADR 0118 § 2), and the root because the default is the platform
+    /// one and a case asserting a root is empty must own that root outright.
+    ///
+    /// Not [`granting_ctx`]: that one is the `script.spawn` grant a fixture
+    /// which spawns needs, and this case spawns nothing.
+    fn rooted_at(root: &std::path::Path) -> Ctx {
+        use nvs_config::tree::{CapFs, Capabilities, Io, Setting};
+
+        let mut snapshot = nvs_config::Snapshot::default();
+        snapshot.config.capabilities = Some(Capabilities {
+            fs: Some(CapFs {
+                write: Some(Setting::Bool(true)),
+                ..CapFs::default()
+            }),
+            ..Capabilities::default()
+        });
+        snapshot.config.io = Some(Io {
+            temp_root: Some(root.to_string_lossy().into_owned()),
+        });
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_config(std::sync::Arc::new(snapshot));
+        ctx
+    }
+
+    /// ADR 0131 § 3 read end to end: a whole script asks for a temporary
+    /// directory, fills it, ends — and the owned root holds nothing.
+    ///
+    /// `-p nvs-runtime` already pins the sweep per context, which is the same
+    /// claim one layer down; what only this layer can say is that a *program*
+    /// compiled from a file and run as an isolate reaches it, because the
+    /// context that owns the tracked path is the one `nvs_host::Isolate::run`
+    /// makes and drops, and nothing in this crate arranges that on purpose.
+    ///
+    /// Three assertions and each is load-bearing. The directory landing under
+    /// the configured root is what stops the emptiness below from being vacuous
+    /// — a member ignoring `[io] temp_root` leaves a root that was empty all
+    /// along. The file written inside it is what makes the removal recursive
+    /// rather than an `rmdir` that happened to succeed on an empty directory.
+    /// And the root *surviving* is § 2's: the sweep takes what § 1 handed out,
+    /// never the root it created under, which is the one directory the next
+    /// script on this host still needs.
+    #[test]
+    fn a_finished_scripts_temporary_dir_is_gone_from_the_owned_root() {
+        let root = std::env::temp_dir().join(format!("nvs-cli-swept-{}", std::process::id()));
+        // A pid outlives one `cargo test`, so a case that panicked in an earlier
+        // run under this number would otherwise leave an entry behind and fail
+        // this one for it.
+        let _ = std::fs::remove_dir_all(&root);
+        let entry = a_file_running(
+            "temporary-dir",
+            r#"string $dir = Core\IO::temporaryDir();
+Core\IO::write($dir . "/note.txt", "written while the script ran");
+echo $dir, "\n";"#,
+        );
+
+        let compiler = Compiler::default();
+        let program = compiler
+            .resolve(&entry.to_string_lossy())
+            .expect("the entry compiles");
+        let completion = run_under(program, rooted_at(&root));
+
+        assert!(completion.ok, "error: {:?}", completion.error);
+        let made = std::path::PathBuf::from(String::from_utf8_lossy(&completion.output).trim_end());
+        assert!(
+            made.starts_with(&root),
+            "the script's directory was made under the configured root: {} is not under {}",
+            made.display(),
+            root.display()
+        );
+        assert!(
+            !made.exists(),
+            "and the script ending took it away, note and all: {} is still there",
+            made.display()
+        );
+        assert!(
+            root.is_dir()
+                && root
+                    .read_dir()
+                    .is_ok_and(|mut entries| entries.next().is_none()),
+            "leaving the owned root itself standing and empty"
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
+    }
 }
