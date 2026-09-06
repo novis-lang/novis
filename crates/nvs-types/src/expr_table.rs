@@ -754,11 +754,12 @@ pub enum ExprInfo {
     /// reads the frame's late-static-binding class
     /// ([`nvs_ir::lower`'s `Lowering::lsb`](/crates/nvs-ir/src/lower/mod.rs)),
     /// and `$obj::class` reads the receiver's own
-    /// ([`nvs_ir::ir::InstKind::ClassDescOf`]). `nvs-ir` picks which by
-    /// matching the class side's own `ExprKind`, so nothing about *which*
-    /// descriptor needs recording here — what this entry carries is the fact
-    /// that the checker accepted a run-time `::class` at all, which keeps
-    /// `nvs-ir`'s folded arm a checker invariant rather than a guess.
+    /// ([`nvs_ir::ir::InstKind::ClassDescOf`](/crates/nvs-ir/src/ir.rs)).
+    /// `nvs-ir` picks which by matching the class side's own `ExprKind`, so
+    /// nothing about *which* descriptor needs recording here — what this entry
+    /// carries is the fact that the checker accepted a run-time `::class` at
+    /// all, which keeps `nvs-ir`'s folded arm a checker invariant rather than
+    /// a guess.
     ///
     /// A `Foo::class`/`self::class`/`parent::class` never reaches this: those
     /// name a class the compiler resolves, so ADR 0011's "inlined at every use
