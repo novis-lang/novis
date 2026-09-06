@@ -1175,6 +1175,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   line after it, and a `rule:` token, a `file.rs:NN` anchor, a `§ N` or a `Core\Foo::bar` can break
   at its space. Scan the whole text and let the pattern's own `\s+` decide; line-oriented reading is
   only safe for things a line *is* — a heading, a table row, an indent. [until: reviewed 2026-09-06]
+- **A `loop-goal.toml` `command` check's `want` is an *ordered* list, so two names in it
+  assert an order as much as a presence.** `nvs schema dump`'s wanted `nvs_jobs` before
+  `nvs_dead_jobs`, which no server answers: every catalog query in `nvs_db::catalog` orders
+  by table name, so the dump is alphabetical and the check read as unwritten work forever.
+  Before writing output to satisfy a `want`, ask whether the order it names is one the data
+  can have — and when it is not, fix the `want` and say in a comment which ordering is real.
+  [until: reviewed 2026-09-06]
 
 ## Running things
 

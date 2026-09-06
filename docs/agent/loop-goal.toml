@@ -4543,14 +4543,18 @@ tests = [
   "every_driver_introspects_into_the_same_schema_value_shape",
   "postgres_reads_pg_catalog_and_the_others_read_information_schema",
   "sqlite_reads_sqlite_master_and_its_pragmas",
+  "an_applied_schema_reads_back_through_the_connection_a_command_opens",
 ]
 
+# The two names are in the order the *catalog* answers them and not the order the queue's
+# migration creates them: every introspection query orders by table name, so a `want` written
+# jobs-first asserts an ordering no server produces. `nvs_dead_jobs` sorts before `nvs_jobs`.
 [[check]]
 kind = "command"
 stage = "4 introspection"
 name = "nvs schema dump answers a schema value"
 argv = ["{nvs}", "schema", "dump", "--connection", "main"]
-want = ["nvs_jobs", "nvs_dead_jobs"]
+want = ["nvs_dead_jobs", "nvs_jobs"]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the property the whole goal reduces to, and the three grades. Goal prose stage 5.
