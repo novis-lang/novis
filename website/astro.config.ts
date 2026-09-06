@@ -84,10 +84,7 @@ export default defineConfig({
             { label: 'Hello, World!', link: '/docs/getting-started/hello-world/' },
           ],
         },
-        {
-          label: 'Release notes',
-          items: [{ label: 'Release notes', link: '/docs/release-notes/' }],
-        },
+        { label: 'Release notes', link: '/docs/release-notes/' },
         {
           label: 'Core reference',
           collapsed: true,
