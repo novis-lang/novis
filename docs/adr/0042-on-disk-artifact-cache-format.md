@@ -18,8 +18,10 @@
 > wrong machine, the wrong compiler build or a different set of extensions is a plain cache miss, never a
 > file that gets opened and then rejected. Each file still carries a self-describing header (magic, format
 > version, the same `env_hash`, a BLAKE3 checksum of the payload) as defense in depth against a hash
-> collision or a hand-placed file. A reader `mmap`s the file read-only, hashes the mapped bytes in place, and only calls `mprotect`
-> to make it executable once the checksum matches — the existing W^X discipline, extended one step
+> collision or a hand-placed file. The payload is a relocatable object rather than an image of finished
+> pages, so a reader maps it private and writable, hashes those bytes in place, resolves its undefined
+> symbols against this process's own helper and class-descriptor addresses, and only then calls `mprotect`
+> to make it executable — the existing W^X discipline, extended one step
 > earlier. A writer compiles to a temp file, `fsync`s it, and does one atomic rename onto the final,
 > content-addressed path; if that path already exists, the writer's own copy is simply discarded, never
 > overwritten. No lock file, anywhere, ever. Eviction rides the already-expensive cold-compile path at a
@@ -64,16 +66,18 @@
   open+read on every wrong-environment entry sharing that content hash. Folding the environment into the
   *address* turns that into a plain, cheap "no such file" — the same cost as a cache miss, not a
   cache-hit-then-reject.
-- **Compressing the payload (zstd or similar).** Rejected for this specific payload: the entire benefit of
-  a warm hit is `mmap` the bytes directly as the pages the JIT would otherwise have produced. Compression
-  would force a decompress-into-a-fresh-buffer step before that mapping could happen at all, spending CPU
+- **Compressing the payload (zstd or similar).** Rejected for this specific payload: a warm hit maps the
+  file's bytes once and writes only where a relocation points. Compression would force a
+  decompress-into-a-fresh-buffer step over the whole payload before any of that could start, spending CPU
   to save disk space that a compiled unit does not have much of in the first place, and forfeiting the
-  zero-copy read this design is built around.
-- **`mmap` read-only → hash the mapped bytes → `mprotect` to executable only on match**, versus reading the
-  file into a heap buffer first. `mmap` lets the page cache do the I/O work exactly once and lets BLAKE3
-  (already multi-GB/s single-threaded) run directly over the mapped region with no extra copy — strictly
-  less I/O and less memory movement than an explicit `read()` into a buffer, for the same verification
-  guarantee.
+  single-pass read this design is built around.
+- **`mmap` private and writable → hash the mapped bytes → relocate → `mprotect` to executable only on
+  match**, versus reading the file into a heap buffer first. `mmap` lets the page cache do the I/O work
+  exactly once and lets BLAKE3 (already multi-GB/s single-threaded) run directly over the mapped region
+  with no extra copy — strictly less I/O and less memory movement than an explicit `read()` into a buffer,
+  for the same verification guarantee. Writable because the relocations have to land somewhere, and private
+  because they must never reach the file: a patched page belongs to this process, and the file at that path
+  stays the bytes its checksum covers.
 
 ## Decision
 
@@ -121,15 +125,44 @@ magic ("NVSC") | format_version: u16 | env_hash: 32 bytes
 depth against a `BLAKE3` collision or a file placed at that path by hand rather than produced by this
 runtime — a second, independent check bought for the cost of one comparison.
 
+**The payload is what `nvs_codegen::compile_object` writes: one host-format relocatable object per unit**,
+not an image of the pages the JIT would have produced. It is the same `nvs_ir::Program`, walked by the same
+lowering the JIT walks, through a second `Module` that *records* a relocation everywhere the JIT resolves
+an address — so the two paths keep one semantics, and the file carries no address the compiling process
+invented. What it defines is this unit's own functions, one per `nvs_ir` function and named from that
+function's label, the entry frame among them being the one `nvs_ir::lower::ENTRY_SCRIPT_LABEL` names. What
+it leaves **undefined** is exactly what belongs to a process rather than to a program: every runtime
+helper, and every class descriptor, as `nvs_class_desc_<escaped label>` — `nvs-codegen`'s
+`class_desc_symbol` is the one home of that spelling. A payload therefore cannot be executed where it
+lands, and § 3 is what makes it runnable. A change to that convention — which symbols a payload leaves
+undefined, or what a reader must do with them — is a `format_version` bump, so an older file becomes a
+plain miss rather than one some reader relocates under yesterday's rules.
+
 ### 3. Reading: verify fully before a single page becomes executable
 
-`mmap` the file `PROT_READ` (never starting from `PROT_EXEC`). Check `magic`/`format_version`/`env_hash`
-against what this process expects — any mismatch is a cache miss, not an error. Compute
+`mmap` the file `PROT_READ | PROT_WRITE`, **`MAP_PRIVATE`** (never starting from `PROT_EXEC`). Check
+`magic`/`format_version`/`env_hash` against what this process expects — any mismatch is a cache miss, not
+an error. Compute
 `BLAKE3` over the mapped payload bytes and compare to the header's checksum — any mismatch is a cache miss:
 delete the file (it can only be corrupt or tampered, never a second valid version — see §5) and fall
-through to compiling fresh. Only once the checksum matches does the payload's pages get `mprotect`'d to
+through to compiling fresh.
+
+Only once the checksum matches is a byte of the payload touched, and what happens then is § 2's
+consequence: **relocate, then protect.** Walk the object's relocations and resolve each undefined symbol
+against this process's own addresses — a runtime helper's, and, for an `nvs_class_desc_*`, the address of
+the `ClassDesc` this process allocated for the class that symbol names — writing each into the private
+mapping. Only after that do the payload's pages get `mprotect`'d to
 `PROT_READ | PROT_EXEC`, extending the W^X discipline the JIT's own freshly-compiled pages already follow
-one step earlier in the pipeline. **No failure mode here reaches a panic, a `FATAL`, or a `Throwable` — a
+one step earlier in the pipeline: a mapping is writable or executable, never both at once, and the
+transition runs one way.
+
+The mapping is **private** for the same reason it is writable. Patching is what makes a payload runnable
+here and it must never reach the file, whose bytes are what the checksum covers and what the next process
+will relocate for itself. Verification is untouched by the patching that follows it — the hash runs over
+the mapped bytes while they are still the file's, so no relocation can launder a corrupt payload past the
+check. A symbol this process cannot resolve is a miss on the same terms as a wrong `env_hash`, and the file
+is *not* deleted for it: an unresolvable name says the artifact was written against a runtime this one no
+longer matches, which is "not this process's file" rather than "broken". **No failure mode here reaches a panic, a `FATAL`, or a `Throwable` — a
 bad cache entry is invisible to the script being run, exactly as invisible as a cold cache would be**
 ([ADR 0002](0002-error-propagation.md)'s checked-return discipline, extended to a compile-pipeline internal
 that never had a caller to report to in the first place).
@@ -198,9 +231,10 @@ re-litigated further here since M9 has not started.
 
 **Positive**
 
-- A one-off CLI invocation pays a JIT compile exactly once per distinct (content, target, compiler build)
-  triple, ever — every subsequent invocation, on any process, is an `mmap` + verify + `mprotect`, no
-  compile, matching the "why should a one-shot script recompile every time" question this ADR answers.
+- A one-off CLI invocation pays a compile exactly once per distinct (content, target, compiler build)
+  triple, ever — every subsequent invocation, on any process, is an `mmap` + verify + relocate +
+  `mprotect`, no compile, matching the "why should a one-shot script recompile every time" question this
+  ADR answers.
 - Corruption, truncation, and wrong-environment artifacts are all cache misses, never crashes — the runtime
   behaves as if the cache entry never existed, which is always a safe fallback since a cache miss is already
   a handled, ordinary path (a fresh compile).
@@ -237,8 +271,9 @@ re-litigated further here since M9 has not started.
 - **Keying purely by content hash, checking environment fields only after opening the file.** See
   *Investigation* — turns a wrong-environment miss into a wasted open-then-reject instead of a plain failed
   lookup.
-- **Compressing the payload.** See *Investigation* — defeats the zero-copy `mmap`-as-executable-pages design
-  this ADR is built around, for a payload class (compiled native code) that is already small.
+- **Compressing the payload.** See *Investigation* — defeats the map-verify-relocate design this ADR is
+  built around, which reads a payload exactly once, for a payload class (compiled native code) that is
+  already small.
 - **A directory-level `fsync` on every write, for crash durability.** Rejected: the failure this would guard
   against — losing an entry on a crash before it reaches disk — degrades to an ordinary cache miss on the
   next run, not a correctness or security defect, so the extra sync buys nothing this design needs.
