@@ -56,6 +56,7 @@ ROOT = loop.ROOT
 RUNDIR = loop.RUNDIR
 LOGDIR = loop.LOGDIR
 STOP = loop.STOP
+PAUSE = loop.PAUSE
 RUNEND = loop.RUNEND
 
 MARKER = RUNDIR / "supervisor"
@@ -720,6 +721,14 @@ def supervise(opts, passthrough) -> int:
         if STOP.exists():
             say(f"{rel(STOP)} is present -- not starting another leg", C.YELLOW)
             break
+        # A leg boundary is a boundary the driver cannot hold at: it is not running. And it is
+        # not an idle moment either -- `checkpoint` below may spend it on a `claude` optimization
+        # pass that edits this tree exactly the way a session does. A hold honoured only inside
+        # `loop.py` would therefore be a hold with a gap in it, once every `--probe-every`
+        # sessions. There is no console here, so this is the file channel alone.
+        if loop.hold_pause():
+            say("a stop was asked for during the hold -- not starting another leg", C.YELLOW)
+            break
         remaining = opts.max_sessions - served_total
         size = leg_size(opts, remaining, since)
         leg += 1
@@ -747,6 +756,9 @@ def supervise(opts, passthrough) -> int:
             return 0 if code == 0 else code
         if STOP.exists():
             say(f"{rel(STOP)} is present -- stopping", C.YELLOW)
+            break
+        if loop.hold_pause():
+            say("a stop was asked for during the hold -- stopping", C.YELLOW)
             break
         if served_total >= opts.max_sessions:
             # No checkpoint on the way out. A pass exists to make the *next* sessions cheaper,

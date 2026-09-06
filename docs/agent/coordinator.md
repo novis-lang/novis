@@ -58,6 +58,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/logs/<stamp>-supervisor.log` | What the supervisor said *between* legs — every checkpoint, what fired, what it decided, and the rendered optimization pass when one ran — stamped the same way. One per supervised run, named by the supervisor's start. It exists because a leg's `console.log` is closed by the time a checkpoint speaks, and a cadence whose every decision went to the screen alone could not be shown to have fired. Not a transcript — `loop-stats.py` skips it. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
+| `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
 | `.loop/supervisor` | The same marker one level up, held across every leg of a supervised run. `.loop/running` is dropped and retaken at each leg boundary, so it is not the thing to check when asking whether a long run is still going. |
@@ -74,6 +75,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 
     claim .loop/running, or refuse to start because another driver holds it
     if .loop/stop exists                   -> stop
+    if .loop/pause exists, or p was pressed -> hold here, writing `held:` into the file, until it
+                                              is lifted; a stop during the hold still stops
     record HEAD
     run: claude -p <docs/agent/session-prompt.md> --model opus [--effort <level>]
               --permission-mode <mode> --output-format stream-json --verbose
@@ -165,6 +168,47 @@ only while a wall is up, because a wall is the only thing it ends. Each has a fi
 to type at. If the account turns out to be limited after all, the retried session is refused again and a
 new wall goes up: one launch spent, and then it waits properly. An overload backoff is parked the same
 way, and `r` drops it the same way.
+
+## Holding the tree
+
+**`p`, or `.loop/pause`, is `.loop/stop` for someone who wants the run back afterwards.** It acts at the
+same boundary — between two sessions, with the last slice committed and nothing in flight — and does the
+same thing to the tree; it simply does not end the process. A person who wants to look at something by
+hand, or another agent that needs the working tree for twenty minutes, should not have to end a
+three-hundred-session run to get it, and starting a second driver instead is what `.loop/running` exists
+to refuse.
+
+**The `held:` line is the handshake, and it is the only part of this that matters to a machine.** A hold
+is *queued* the moment the file appears, and the session in flight can run for another twenty minutes
+after that, still committing. The driver rewrites `.loop/pause` when the hold actually takes effect, and
+an agent's protocol is exactly:
+
+    create .loop/pause -> poll it until `held:` names a time -> do the work -> delete .loop/pause
+
+Nothing else in `.loop/` says this. `.loop/running` says a driver is up, which stays true across a hold —
+correctly, because the driver still owns this tree and a second one must still refuse to start.
+
+**A hold has an owner, and the console outranks the file.** A hold armed by `p` is written to the file as
+`by: user`, and deleting the file does not lift it: the driver writes it straight back, because a decision
+taken at the keyboard is not one an agent gets to overrule. A hold armed by the file is `by: agent`, and
+`p` lifts it — the asymmetry is deliberate, so that the person watching a run held by an agent that
+crashed, or forgot, has one key that always works. A `by: user` hold is deleted when the run ends, so a
+console that has gone away cannot leave a hold behind for the next driver to sit in.
+
+Three more things it does, none of which is obvious:
+
+- **A stop always wins.** `s` or `.loop/stop` during a hold ends the run rather than waiting for somebody
+  to come back and release it, whichever of the two was asked for first.
+- **A queued hold is not a reason to cut a usage wall short.** The hold is taken on the far side of the
+  wall, at the boundary before the next session, so a hold queued during a five-hour wait is honoured when
+  the window reopens rather than slept through — and the agent that queued it waits that long for its
+  `held:` line. `.loop/limit.json` is what says a wall is up.
+- **The supervisor holds at its own boundary too.** A leg boundary is not an idle moment: it is where an
+  optimization pass may start, and a pass edits this tree exactly the way a session does. It has no
+  console between legs, so there the file is the only channel.
+
+Left behind by a hard kill, `.loop/pause` will hold the *next* run before its first session. That is
+visible — the status line says `held` and the console says why — and deleting the file is the whole fix.
 
 Nothing landed was ever lost to this, before or after: every session commits its own slices, so a wall
 costs only the slice in flight. `.loop/interrupted.json` is what keeps even that from costing twice — it
@@ -309,7 +353,9 @@ Watch it with `tail -f .loop/log.md` (`Get-Content .loop/log.md -Wait` in PowerS
 `s` (press it again within five seconds to take it back) or by creating
 `.loop/stop`, which finishes the current session first, or with Ctrl-C, which kills it immediately — the
 repo is still consistent either way, because every session commits before it exits. Both paths drop
-`.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it.
+`.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it. To take the tree
+for a while and give it back rather than stopping, hold it — `p`, or `.loop/pause`, per § *Holding the
+tree* above.
 
 ## The supervisor
 
@@ -332,7 +378,7 @@ for two reasons that have nothing to do with each other:
 sessions and stopped. Every other kind is terminal, including the ones that look recoverable. A stall
 streak, a CLI failing repeatedly and a usage window that never reopened are all reasons a person should
 look, and a supervisor that retried them would turn one bad hour into eight. `.loop/stop` and Ctrl-C stop
-the supervisor, not just the leg.
+the supervisor, not just the leg, and `.loop/pause` holds it between legs as well as inside one.
 
 ### When it spends a session on the loop itself
 

@@ -59,6 +59,7 @@ LOGDIR = RUNDIR / "logs"
 LEDGER = RUNDIR / "log.md"
 STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
+PAUSE = RUNDIR / "pause"
 RETRY = RUNDIR / "retry"
 RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
@@ -388,11 +389,17 @@ class StatusLine:
                         else f"[s] stopping after this session{self.dash}press s to cancel")
         else:
             bits.append("[s] stop after this session")
+        if CONTROL.held:
+            bits.append(f"[p] held{self.dash}press p to carry on")
+        elif CONTROL.pause_by:
+            bits.append(f"[p] holding after this session{self.dash}press p to cancel")
+        else:
+            bits.append("[p] hold after this session")
         body = self.sep.join(bits)
         room = max(18, self.width() - 3)
         if len(body) > room:
             body = body[: room - len(self.cut)] + self.cut
-        return "  " + C.paint(body, C.YELLOW if CONTROL.stop else C.GRAY)
+        return "  " + C.paint(body, C.YELLOW if CONTROL.stop or CONTROL.pause_by else C.GRAY)
 
     # -- the terminal's own title bar --------------------------------------------------
 
@@ -480,14 +487,16 @@ class StatusLine:
 
 
 class Control:
-    """`r` and `s`, from the console or from `.loop/`.
+    """`r`, `s` and `p`, from the console or from `.loop/`.
 
     A run parked behind a usage wall is waiting on a clock, and the one thing that clock cannot
     know is that the account behind it has changed. Logging in somewhere else is not something
     this driver takes part in, so the wait is interruptible: **`r` retries now**, and **`s` stops
-    the run** after the current session, exactly as `.loop/stop` does.
+    the run** after the current session, exactly as `.loop/stop` does. **`p` holds** at that same
+    boundary without ending the run, so a person or another agent can have the tree for a while
+    and hand it back.
 
-    Three rules the shape follows, each of which is a mistake it would otherwise make:
+    Four rules the shape follows, each of which is a mistake it would otherwise make:
 
     * **`r` exists only while a wall is up** -- a usage window that has closed, or an API that
       answered `529 Overloaded`. It has nothing to end at any other time, and a key that silently
@@ -496,8 +505,16 @@ class Control:
       toggles, and it is acted on `STOP_GRACE` seconds late -- long enough that even a parked run,
       which reads the flag four times a second, can be told to carry on.
     * **A file does everything a key does.** A keypress needs a terminal, and an overnight run is
-      often started with its output redirected, where there is none; `.loop/retry` and
-      `.loop/stop` work from another terminal, over SSH and under `nohup`.
+      often started with its output redirected, where there is none; `.loop/retry`, `.loop/stop`
+      and `.loop/pause` work from another terminal, over SSH and under `nohup`.
+    * **A hold has an owner, and the console outranks the file.** `.loop/pause` is how another
+      agent queues one: create it, wait for the driver to write a `held:` line into it, work, then
+      delete it -- and deleting it is what lifts the hold again. `p` at the console arms the same
+      hold, but one this process owns: deleting the file does not lift it, the driver writes it
+      straight back, and only `p` releases it. The reverse is deliberately allowed -- `p` lifts a
+      hold an agent queued and then forgot, because the person watching a stalled run needs one
+      key that always works. There is no grace window on `p` the way there is on `s`: a hold
+      pressed by accident costs the keypress that undoes it and nothing else.
 
     Read from the ticker thread, which is awake eight times a second anyway, AND from `wait()` in
     the main thread -- so the keys still work under `--no-status`, where there is no ticker. Never
@@ -510,12 +527,20 @@ class Control:
     #: measured in "noticed the wrong key and pressed it again", not in machine time.
     STOP_GRACE = 5.0
 
+    #: How often `.loop/pause` is looked at. The ticker calls `poll` eight times a second and the
+    #: file is a request rather than a deadline: half a second late is invisible to whoever made
+    #: it, and it keeps a five-hour run from stat'ing the same path 140,000 times.
+    PAUSE_POLL = 0.5
+
     def __init__(self):
         self.lock = threading.RLock()
         self.stop = False
         self.stop_at = 0.0  # monotonic; before this, an armed stop is still cancellable
         self.retry = False
         self.parked = False  # a wall is up, so `r` has something to end
+        self.pause_by = ""  # "user", "agent" or "": who owns the hold armed for the next boundary
+        self.held = False  # the driver is sitting in `hold_pause` right now, not merely armed
+        self._pause_seen = 0.0  # monotonic of the last look at the file; see `_sync_pause`
         self.tty = False
         self.saved = None  # POSIX terminal settings, put back by `disable`
 
@@ -599,6 +624,115 @@ class Control:
                     else:
                         say("   [r] does nothing right now; it ends a usage or overload wait",
                             C.GRAY)
+                elif key == "p":
+                    self._toggle_pause()
+            # Here rather than in `pause_reason` alone, so the key row and the status line show a
+            # hold another agent queued *while a session is still running* -- which is the whole
+            # of the interval that agent is waiting through.
+            self._sync_pause()
+
+    # -- the hold ----------------------------------------------------------------------
+
+    def _toggle_pause(self):
+        """`p`. Arms a hold this console owns, or releases whichever hold stands."""
+        if self.pause_by:
+            mine = self.pause_by == "user"
+            self.pause_by = ""
+            self.held = False
+            PAUSE.unlink(missing_ok=True)
+            say("   [p] carrying on -- the hold is lifted" if mine else
+                f"   [p] carrying on -- {rel_to_root(PAUSE)} was another agent's hold, and the "
+                f"console outranks it", C.GREEN)
+            return
+        self.pause_by = "user"
+        self._write_pause()
+        say(f"   [p] hold requested -- the run stops between sessions and waits. Press p again "
+            f"to carry on; deleting {rel_to_root(PAUSE)} will not, because this hold was taken "
+            f"at the console", C.YELLOW)
+
+    def _write_pause(self):
+        """(Re)write `.loop/pause` to say who owns the hold and whether it has taken effect yet.
+
+        The `held:` line is the handshake, and it is the only part of this file that matters to
+        anything but a human. A hold is *queued* the moment the file appears and the session in
+        flight can run for another twenty minutes after that, so an agent that starts editing on
+        the strength of its own `touch` is editing alongside a live session. It waits for
+        `held:`."""
+        mine = self.pause_by == "user"
+        note = ("This hold was taken at the console with `p`, and is lifted there with `p`.\n"
+                "Deleting this file does not lift it -- the driver writes it straight back.\n"
+                if mine else
+                "Delete this file to let the run carry on.\n"
+                "Do not edit this tree until the `held:` line above is there: until then the\n"
+                "hold is only queued, and the session in flight is still committing to it.\n")
+        PAUSE.parent.mkdir(parents=True, exist_ok=True)
+        PAUSE.write_text(
+            f"by:      {'user (the console)' if mine else 'agent (this file)'}\n"
+            f"held:    {f'{datetime.now():%Y-%m-%d %H:%M:%S}' if self.held else '(not yet)'}\n"
+            f"pid:     {os.getpid()}\n"
+            f"\n{note}",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    def _sync_pause(self):
+        """Reconcile the armed hold with the file on disk, at most every `PAUSE_POLL` seconds.
+
+        The file is this process's only input from outside it and the flag is the state, so this
+        is the one place the two meet. Three transitions, and the asymmetry between the last two
+        is the whole ownership rule: a file that appears arms an agent's hold, a file that goes
+        lifts one, and a file that goes while the console owns the hold is simply written back."""
+        now = time.monotonic()
+        if now - self._pause_seen < self.PAUSE_POLL:
+            return
+        self._pause_seen = now
+        there = PAUSE.exists()
+        if self.pause_by == "user":
+            if not there:
+                self._write_pause()
+            return
+        if there and not self.pause_by:
+            self.pause_by = "agent"
+            say(f"   {rel_to_root(PAUSE)} appeared -- the run holds after the current session, "
+                f"and carries on when the file goes", C.YELLOW)
+        elif not there and self.pause_by == "agent":
+            self.pause_by = ""
+            self.held = False
+            say(f"   {rel_to_root(PAUSE)} is gone -- carrying on", C.GREEN)
+
+    def pause_reason(self):
+        """Why the run should hold here, or "". Read once at each session boundary and four times
+        a second inside a hold, so either channel is answered promptly."""
+        with self.lock:
+            self._sync_pause()
+            if self.pause_by == "user":
+                return "p was pressed at the console"
+            if self.pause_by == "agent":
+                return f"{rel_to_root(PAUSE)} present"
+            return ""
+
+    def enter_hold(self):
+        """The hold has taken effect: no session is running and none will start. This is what
+        writes the `held:` line whoever asked for it is waiting on."""
+        with self.lock:
+            self.held = True
+            self._write_pause()
+
+    def leave_hold(self):
+        with self.lock:
+            self.held = False
+            if self.pause_by == "user":
+                self._write_pause()
+
+    def drop_pause(self):
+        """Called when the run ends. A hold taken at the console belongs to a console that is
+        going away with this process, and leaving its file behind would hand the next driver --
+        or the supervisor, between legs -- a hold nobody armed and nobody is watching."""
+        with self.lock:
+            if self.pause_by == "user":
+                PAUSE.unlink(missing_ok=True)
+            self.pause_by = ""
+            self.held = False
 
     # -- what the driver asks ----------------------------------------------------------
 
@@ -617,7 +751,12 @@ class Control:
     def pending(self):
         """Is there a request the caller would act on this instant? Non-consuming, and it asks
         `stop_reason` rather than the flag so that a stop still inside its cancel window does not
-        spin `wait` in a loop of instant returns."""
+        spin `wait` in a loop of instant returns.
+
+        A queued hold is deliberately NOT one of these. This is the predicate that ends a usage
+        wall's sleep, and a hold does not end early: it stays true until somebody lifts it, so a
+        `wait` that returned on it would return instantly, forever. A wall is a wait with nothing
+        running, and the hold is taken at the boundary on the far side of it."""
         return bool(self.stop_reason()) or self.retry or RETRY.exists()
 
     def take_retry(self):
@@ -848,6 +987,46 @@ def wait(seconds, label, until=None):
             return
         TICKER.set(detail=f"{label}{TICKER.sep}{hms(left)} left")
         time.sleep(min(0.25, left))
+
+
+def hold_pause():
+    """Hold here for as long as a pause stands. Returns "" when it lifts and the run may go on,
+    or the reason it should stop instead.
+
+    Deliberately the same boundary `.loop/stop` acts at -- between two sessions, with the last
+    slice committed and nothing in flight. That is the entire value of it: an agent that queued a
+    hold and has seen `held:` land in the file is looking at a tree no session is editing, which
+    is the one thing `.loop/running` on its own cannot promise it. A hold is what `.loop/stop`
+    would be if the run could be started again afterwards, and an agent that only needs the tree
+    for twenty minutes should not have to end a three-hundred-session run to get it.
+
+    A stop always wins, whichever arrives first: `s` (or `.loop/stop`) during a hold ends the run
+    rather than waiting for somebody to come back and release it."""
+    stop = CONTROL.stop_reason()
+    why = CONTROL.pause_reason()
+    if stop or not why:
+        return stop
+    began = time.monotonic()
+    CONTROL.enter_hold()
+    step(f"holding before the next session -- {why}; "
+         + ("press p to carry on" if CONTROL.pause_by == "user"
+            else f"delete {rel_to_root(PAUSE)}, or press p, to carry on"), C.YELLOW)
+    TICKER.set(phase="held", detail=why)
+    try:
+        while True:
+            CONTROL.poll()
+            stop = CONTROL.stop_reason()
+            if stop or not CONTROL.pause_reason():
+                break
+            TICKER.set(detail=f"{why}{TICKER.sep}held {hms(time.monotonic() - began)}")
+            time.sleep(0.25)
+    finally:
+        CONTROL.leave_hold()
+    spent = hms(time.monotonic() - began)
+    step(f"held {spent} -- {'stopping' if stop else 'carrying on'}",
+         C.YELLOW if stop else C.GREEN)
+    ledger(f"       held {spent} -- {why}")
+    return stop
 
 
 def mmss(seconds):
@@ -3774,6 +3953,7 @@ def claim_run(opts):
 
 def release_run():
     RUNNING.unlink(missing_ok=True)
+    CONTROL.drop_pause()
 
 
 def rel_to_root(path):
@@ -4179,9 +4359,11 @@ def drive(opts, goal, chain=None):
     # is painted only when stdout is one, so `nohup` gets the files and `loop.py > log` gets both.
     if not (CONTROL.tty and TICKER.enabled):
         say("controls: " + ("press r to end a usage wait early, s to stop after the current "
-                            "session" if CONTROL.tty else
+                            "session, p to hold after it without ending the run" if CONTROL.tty
+                            else
                             f"create {rel_to_root(RETRY)} to end a usage wait early, "
-                            f"{rel_to_root(STOP)} to stop after the current session"),
+                            f"{rel_to_root(STOP)} to stop after the current session, "
+                            f"{rel_to_root(PAUSE)} to hold after it until the file goes"),
             C.GRAY, driver=True)
 
     # Every acceptance check builds the debug CLI, so from the second session on it is current at
@@ -4223,6 +4405,14 @@ def drive(opts, goal, chain=None):
                 reason, kind = stop, "wall-timeout"
                 break
             wall = None
+
+        # After the wall rather than before it, because this is the last instant before a session
+        # starts and a hold is a promise about the tree, not about the clock. A hold queued during
+        # a five-hour usage wait is therefore honoured when the window reopens, not slept through.
+        held = hold_pause()
+        if held:
+            reason, kind = held, "asked"
+            break
 
         index += 1
         SLICES.start(git("rev-parse", "HEAD"))

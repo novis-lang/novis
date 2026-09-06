@@ -988,13 +988,38 @@ def run_git():
     # one working tree race on every file, and the loop's sessions edit the same few files on nearly
     # every iteration -- so this is the first thing a session needs to know, before it edits anything.
     running = ROOT / ".loop" / "running"
+    paused = ROOT / ".loop" / "pause"
     if running.exists():
         emit()
         emit("!! A WORK LOOP IS RUNNING ON THIS TREE (.loop/running):")
         for line in (read(running) or "").rstrip("\n").split("\n"):
             emit(f"     {line}")
-        emit("!! Its sessions commit to this same tree. Do not edit files alongside it: tell the user,")
-        emit("!! and stop unless they say otherwise. `tail -f .loop/log.md` shows what it is doing.")
+        # The way to work on this tree anyway is named right here rather than only in the doc,
+        # because this warning is the part of it that gets read at the moment it matters. And
+        # `held:`, not the file's existence, is the promise: coordinator.md § Holding the tree.
+        if paused.exists():
+            text = read(paused) or ""
+            queued = "held:" not in text or "(not yet)" in text
+            emit(f"!! A HOLD IS {'QUEUED' if queued else 'IN PLACE'} (.loop/pause):")
+            for line in text.rstrip("\n").split("\n"):
+                if line.strip():
+                    emit(f"     {line}")
+            if queued:
+                emit("!! Queued is not held: the session in flight is still committing to this tree.")
+                emit("!! Wait for the `held:` line above to name a time before you touch anything.")
+            else:
+                emit("!! Held: no session is running and none starts until this file goes. Work, then")
+                emit("!! delete .loop/pause and the loop carries on where it left off.")
+            emit("!! A hold marked `by: user` was taken at the console, and only `p` there lifts it.")
+        else:
+            emit("!! Its sessions commit to this same tree. Do not edit files alongside it: tell the user,")
+            emit("!! and stop unless they say otherwise. `tail -f .loop/log.md` shows what it is doing.")
+            emit("!! To take the tree without ending the run: create .loop/pause, wait for a `held:`")
+            emit("!! line to appear in it, work, then delete it. The loop carries on where it was.")
+    elif paused.exists():
+        emit()
+        emit("!! .loop/pause is present and no loop is running: the next one will hold before its")
+        emit("!! first session. Delete it unless that is what you meant.")
 
     changed = git("status", "--porcelain")
     if changed:
