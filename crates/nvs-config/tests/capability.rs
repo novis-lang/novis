@@ -491,3 +491,53 @@ fn net_connect_takes_no_wildcard_because_it_is_asked_of_an_address() {
     );
     assert!(grants_host(&open, Cap::DbOpen, "a.tenants.internal", &disk));
 }
+
+/// Whether `caps` grants `cap` for the configuration block `name` — [`Scope::Name`], which is the
+/// question `db.connect` and `db.schema` are both asked.
+fn grants_name(caps: &Capabilities, cap: Cap, name: &str, disk: &Disk) -> bool {
+    caps.allows(cap, Scope::Name(name), disk)
+}
+
+/// [ADR 0067](/docs/adr/0067-core-db.md) § 3's third `db.*` grant: `db.schema` names blocks, matches
+/// one exactly, and is **not** implied by the `db.connect` that reached the same database.
+///
+/// The implication is the half worth pinning. `db.schema` gates a different question from either of
+/// its neighbours — not which database may be reached but whether its shape may be changed
+/// ([ADR 0145](/docs/adr/0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) § 9) — so a
+/// deployment that granted `connect` alone has granted no DDL, and a roster arm reading the wrong
+/// field would be invisible to every test that only ever grants both. The grant is asserted first so
+/// that the refusals below are the absence of a grant rather than the fixture answering `false` to
+/// everything.
+#[test]
+fn db_schema_names_blocks_and_does_not_follow_from_db_connect() {
+    let disk = Disk::of(&["/srv"]);
+    let both = granting("[db]\nconnect = [\"main\"]\nschema = [\"main\"]\n", &disk);
+    assert!(grants_name(&both, Cap::DbSchema, "main", &disk));
+
+    // Reaching a database is not permission to alter it: the same tree without the `schema` line
+    // opens the connection and refuses the DDL.
+    let read_only = granting("[db]\nconnect = [\"main\"]\n", &disk);
+    assert!(grants_name(&read_only, Cap::DbConnect, "main", &disk));
+    assert!(!grants_name(&read_only, Cap::DbSchema, "main", &disk));
+
+    // A name is not a hostname: it is matched exactly, so neither another block nor a second casing
+    // of this one is covered — and `db.open`'s wildcard is not a spelling here, since the entry is
+    // compared against a name the operator wrote rather than against a resolved host.
+    let one = granting(
+        "[db]\nconnect = [\"main\", \"replica\"]\nschema = [\"main\"]\n",
+        &disk,
+    );
+    for name in ["replica", "Main", "*", "*.main"] {
+        assert!(
+            !grants_name(&one, Cap::DbSchema, name, &disk),
+            "`db.schema = [\"main\"]` covered {name}",
+        );
+    }
+    assert!(!Cap::DbSchema.is_path_scoped());
+    assert!(!Cap::DbSchema.takes_host_wildcard());
+
+    // And the name a refusal prints is the name a grant line is written under, both ways round, so
+    // an operator pasting the one back into `nvs.toml` gets the capability that refused them.
+    assert_eq!(Cap::DbSchema.name(), "db.schema");
+    assert_eq!(Cap::parse("db.schema"), Some(Cap::DbSchema));
+}

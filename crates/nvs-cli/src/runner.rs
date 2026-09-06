@@ -2264,6 +2264,7 @@ mod tests {
             db: Some(nvs_config::tree::CapDb {
                 connect: Some(nvs_config::tree::Setting::List(vec!["test".into()])),
                 open: None,
+                schema: None,
             }),
             ..nvs_config::tree::Capabilities::default()
         });

@@ -37,7 +37,7 @@ const BLOCKS: &[(&str, &str)] = &[
     ("[limits]", "[limits]\nmemory = \"128M\"\ncpu_time = \"5s\"\nwall_time = \"30s\"\nmax_tasks = 64\nmax_output = \"32M\"\n"),
     ("[limits.hard]", "[limits.hard]\nmemory = \"2G\"\ncpu_time = \"60s\"\nwall_time = \"300s\"\nmax_tasks = 4096\nmax_output = \"512M\"\n"),
     ("[mode]", "[mode]\ndefault = \"production\"\nceiling = \"development\"\n"),
-    ("[capabilities]", "[capabilities]\nscript.spawn = [\"/srv/www/jobs\"]\nprocess.exec = true\ndebug.trace = [\"/var/log/nvs/trace\"]\nfs.read = [\"/srv\"]\nfs.write = [\"/var/tmp\"]\nnet.connect = [\"reports.internal\"]\ndb.connect = [\"main\"]\ndb.open = [\"*.tenants.internal\"]\ndebug.profile = [\"/var/log/nvs/profile\"]\n"),
+    ("[capabilities]", "[capabilities]\nscript.spawn = [\"/srv/www/jobs\"]\nprocess.exec = true\ndebug.trace = [\"/var/log/nvs/trace\"]\nfs.read = [\"/srv\"]\nfs.write = [\"/var/tmp\"]\nnet.connect = [\"reports.internal\"]\ndb.connect = [\"main\"]\ndb.open = [\"*.tenants.internal\"]\ndb.schema = [\"main\"]\ndebug.profile = [\"/var/log/nvs/profile\"]\n"),
     ("[[extension]]", "[[extension]]\npath = \"image.nvsx\"\nsha256 = \"abc\"\n"),
     ("[debug]", "[debug]\nmode = [\"coverage\", \"branch\"]\n"),
     ("[log]", "[log]\nhandler = \"handler.nvs\"\nhandler_reserve_memory = \"8M\"\nhandler_reserve_time = \"2s\"\ntarget = \"stderr\"\nformat = \"json\"\nlevel = \"warning\"\n"),

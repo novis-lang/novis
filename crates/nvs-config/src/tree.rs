@@ -254,7 +254,7 @@ pub struct Capabilities {
     pub process: Option<CapProcess>,
     /// `debug.trace` and `debug.profile` (ADR 0018).
     pub debug: Option<CapDebug>,
-    /// `db.connect` and `db.open` (ADR 0067 § 3).
+    /// `db.connect`, `db.open` and `db.schema` (ADR 0067 § 3).
     pub db: Option<CapDb>,
     /// `mail.send` (ADR 0082 § 2).
     pub mail: Option<CapMail>,
@@ -322,6 +322,11 @@ pub struct CapDb {
     pub connect: Option<Setting>,
     /// Which hosts a program-supplied `Db\Settings` may reach; these stay subject to that policy.
     pub open: Option<Setting>,
+    /// Which `[db.<name>]` blocks a program may issue DDL to — `Core\Db\Schema::applySafe` and its
+    /// risky twin (ADR 0145 § 9). Named like `connect` and not like `open`, because what it gates is
+    /// a block and not an address; opening a connection is not permission to change what is behind
+    /// it, so it does not follow from `connect`.
+    pub schema: Option<Setting>,
 }
 
 /// One `[[extension]]` entry — ADR 0003 § 3.

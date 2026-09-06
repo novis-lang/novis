@@ -180,9 +180,11 @@ deny. The roster is closed:
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
+| `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
+| `mail.send` | sending through a `[mail.<name>]` block | the block names |
 
-In this build `fs.read`, `fs.write`, `script.spawn`, `process.exec` and `net.connect` have members
-behind them; the others are accepted and nothing asks for them yet.
+A capability whose member has not landed yet is still accepted here rather than refused, so a grant
+written today keeps meaning the same thing on the build that starts asking for it.
 
 `net.connect` carries a second key, because a granted host is not automatically a reachable address:
 an outbound connection to a loopback, private, link-local or unspecified address is refused whatever

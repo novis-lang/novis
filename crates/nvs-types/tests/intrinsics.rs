@@ -662,6 +662,7 @@ fn granting(host: &str) -> Capabilities {
         db: Some(CapDb {
             connect: None,
             open: Some(Setting::List(vec![host.to_owned()])),
+            schema: None,
         }),
         ..Capabilities::default()
     }

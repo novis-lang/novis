@@ -76,6 +76,16 @@ pub enum Cap {
     DbConnect,
     /// `db.open` — which hosts a program-supplied `Db\Settings` may reach.
     DbOpen,
+    /// `db.schema` — which `[db.<name>]` blocks a program may issue DDL to (ADR 0145 § 9).
+    ///
+    /// Named by block, which is [`DbConnect`](Self::DbConnect)'s shape, but it gates a different
+    /// question from either of the two above: not *which* database may be reached, but whether this
+    /// program may change the shape of one at all. Being able to open a connection is not permission
+    /// to alter what is behind it, so this does not follow from `db.connect` — the same split
+    /// [`ScriptSpawn`](Self::ScriptSpawn) makes against `fs.read`. Computing a plan reads the
+    /// catalog and asks nothing beyond the `db.connect` the program already holds; only applying one
+    /// arrives here.
+    DbSchema,
     /// `mail.send` — which `[mail.<name>]` blocks a program may send through (ADR 0082 § 2).
     ///
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
@@ -183,6 +193,7 @@ impl Cap {
         Self::DebugProfile,
         Self::DbConnect,
         Self::DbOpen,
+        Self::DbSchema,
         Self::MailSend,
     ];
 
@@ -200,6 +211,7 @@ impl Cap {
             Self::DebugProfile => "debug.profile",
             Self::DbConnect => "db.connect",
             Self::DbOpen => "db.open",
+            Self::DbSchema => "db.schema",
             Self::MailSend => "mail.send",
         }
     }
@@ -250,6 +262,7 @@ impl Cap {
             Self::DebugProfile => caps.debug.as_ref()?.profile.as_ref(),
             Self::DbConnect => caps.db.as_ref()?.connect.as_ref(),
             Self::DbOpen => caps.db.as_ref()?.open.as_ref(),
+            Self::DbSchema => caps.db.as_ref()?.schema.as_ref(),
             Self::MailSend => caps.mail.as_ref()?.send.as_ref(),
         }
     }
@@ -270,6 +283,7 @@ impl Cap {
             Self::DebugProfile => caps.debug.as_mut()?.profile.as_mut(),
             Self::DbConnect => caps.db.as_mut()?.connect.as_mut(),
             Self::DbOpen => caps.db.as_mut()?.open.as_mut(),
+            Self::DbSchema => caps.db.as_mut()?.schema.as_mut(),
             Self::MailSend => caps.mail.as_mut()?.send.as_mut(),
         }
     }
