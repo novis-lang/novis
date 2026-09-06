@@ -65,10 +65,11 @@ When choosing between designs:
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 
-## The five rules you will otherwise break
+## The rules you will otherwise break
 
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
-[docs/agent/commands.md](docs/agent/commands.md).
+[docs/agent/commands.md](docs/agent/commands.md), except the last, whose home is
+[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
@@ -85,6 +86,10 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
    order, stopping at the first failure.
 5. **Finish with one call:** `python tools/session.py --wrap <file>` applies steps 4 and 5 below — plan
    fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
+6. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
+   old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
+   history this repository keeps. No dates, no counts of things that can change, no measured figures the
+   code does not enforce; `python tools/prose.py --check` fails on a date and is what makes it stick.
 
 ## Session workflow
 

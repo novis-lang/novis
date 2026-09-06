@@ -151,6 +151,7 @@ you have questions and answers them in one call:
 ```sh
 python tools/peek.py crates/nvs-ir/src/lower/expr.rs:3065-3120 \
                      crates/nvs-types/src/expr/members.rs:@public_property_names \
+                     rule:types/conversion \
                      docs/decisions/0036.md:"### 4" \
                      "crates/nvs-runtime/src/*.rs:re:slot_get"
 python tools/peek.py --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
@@ -160,6 +161,13 @@ Locators are `120-160`, `120+30`, `@symbol`, `re:pattern` (optionally `re:patter
 `"## Heading"`, or nothing for a whole small file — and the path may be a glob, which is how one call
 sweeps a crate. Prefer `re:` to the `/pattern/` spelling: Git Bash rewrites a leading `/` into a Win32
 path before the tool sees it. `--locate` is what a handoff's `file.rs:NN` anchors are made of.
+
+**A `rule:` citation is a target on its own** — `rule:types/conversion`, backticks and all if you
+pasted it out of a doc comment — and it answers with that rule's fragment, which is the rule. The
+token is the path (`docs/rules/types/conversion.md`), so nothing is looked up and the miss names
+`rules.py --list`. There are about 18,500 of these tokens in the tree, which makes id-to-text the
+most frequent lookup there is here; batch it beside the code you were reading anyway rather than
+translating it by hand.
 
 **And when you do not know the file yet, read its seams before its lines.** `python tools/peek.py
 --outline <path>` prints one line per `fn`/`struct`/`enum`/`trait`/`impl`, with where it starts and how
@@ -241,10 +249,15 @@ a check being skipped: the inputs are bit-identical. Only green is cached, the e
 hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
 run; a wider one does satisfy a narrower.
 
-**The docs gates are not in that list and `verify.py` runs none of them.** `check-links.py`,
-`layout.py`, `adr.py --check`, `plan.py --check`, `playbook.py --check` and `release.py --check` are
-CI's `docs` job — Python-only, no toolchain, about a second together — and `session.py --wrap` runs the
-link half in-process so a wrap cannot commit a link it just broke.
+**The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
+`rules.py --render --check`, `check-links.py`, `layout.py`, `adr.py --check`, `plan.py --check`,
+`playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
+second together — and `session.py --wrap` runs **two** of them in-process, so a wrap cannot commit what
+it just broke: the link half always, and the two rulebook halves when the session has edited
+`docs/rules/`. That trigger is the difference between the two gates. A dead link is a per-file fact, so
+the link gate can ask HEAD which findings are inherited; a rulebook finding is a property of the whole
+tree, so the conservative equivalent is to ask whether this session touched the rulebook at all —
+including a rename, which is what makes a citation elsewhere go dead.
 
 `layout.py` is the one a **code** change trips. It holds CONTRIBUTING.md's layout listing to the tree:
 every row names something on disk, every crate, bench package and tracked top-level directory has a row,
@@ -252,6 +265,27 @@ and an `[audited unsafe]` marker matches the crate's own `[lints]`. So **a slice
 crate owes that file one line**, and `python tools/layout.py --rows` drafts it from the crate's own `//!`
 opening sentence. Nothing else in the tree notices a new crate: that block is prose, and a build cannot
 fail over it.
+
+## The comment gate
+
+```sh
+python tools/prose.py                     # every source comment carrying a date, with its line
+python tools/prose.py --check             # quiet on success, exit 1 on a finding (CI)
+python tools/prose.py --changed           # only what differs from HEAD, plus the changelog warnings
+```
+
+[conventions.md](conventions.md) § *A code comment* is the rule and this is the half of it a machine can
+judge: **a source comment carries no date.** A date inside backticks is a value the code is talking about
+— a SQL literal, an epoch constant, the day a fixture is built on — and passes; a bare one in prose is
+either history, which `git log` already holds, or a value in the wrong clothes. So the escape hatch is
+backticks rather than an allowlist, and there is nothing to keep in sync.
+
+`--changed` adds the half that cannot be a gate: a **warning** on lines this tree has added that carry
+changelog wording — "used to", "previously", "no longer". Each of those has an honest present-tense use,
+so failing on them would be a check authors learn to route around; asked about a line you just wrote, it
+is a question you can answer. Run it before the wrap when a slice edited prose. The scanner underneath
+knows which bytes of a `.rs`, `.nvs`, `.nvst`, `.py`, `.toml`, `.ts` or workflow file are comment rather
+than code, and `prose.py --list` is the file set.
 
 ## The user-facing reference, and its proof
 

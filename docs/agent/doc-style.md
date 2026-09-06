@@ -14,6 +14,11 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   patches in their head, and it is how `rule:types/declaration` came to carry eighteen of them at
   once. `git log` is the changelog, and the records are the frozen reasoning; neither is a thing the
   rule's own text describes.
+- **A comment is prose too.** Every line on this page binds a `//!` header, a `///` on a `Core` member and
+  a `#` in a manifest exactly as it binds a file under `docs/`: present tense, rewritten whole rather than
+  overlaid, and carrying no date and no measured number it does not own.
+  [conventions.md](conventions.md) § *A code comment* is the home of the shape, and `python
+  tools/prose.py --check` is what keeps it from drifting back.
 - **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
 - A choice that would be expensive to reverse gets its own numbered decision record if the reasoning is
   subtle or contested; otherwise a paragraph in *Decisions taken at project start* in

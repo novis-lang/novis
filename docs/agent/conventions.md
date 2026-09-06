@@ -40,6 +40,44 @@ Write the message to a file and use `git commit -F <file>` — never `-m` for an
 [commands.md](commands.md). `git log -1 --format=%B` is not needed to remember this; that is what this
 section is for.
 
+## A code comment
+
+A comment says what the code does **now**. It is never a record of how the code got here, and this
+repository has exactly one of those: `git log`. (`CHANGELOG.md` is a generated subset of it, written by
+`tools/release.py` and edited by nobody.) The same rule that keeps a rule's fragment true in the present
+tense — [doc-style.md](doc-style.md) § *Edit the rule, never overlay it* — is the rule for a `//!` header,
+a `///` on a `Core` member, a `#` in a manifest and a `//` inside a `.nvst` case. Prose is prose.
+
+The failure this exists to stop is cumulative, and it is the one an agent makes by default: a comment is
+edited by writing the new truth **beside** the old one — "originally a `Vec`, now a slab", "this was
+later widened to also take a closure" — and after enough sessions the comment is a diff of every session
+that touched the file, which a reader has to replay in their head to learn what the function does today.
+**So a comment is rewritten as a whole and never appended to.** When the code under it changes, write
+the comment again from the code as it now stands and delete the sentence describing what it used to do;
+rephrase the whole paragraph if that is what it takes. Reasoning is still worth writing — but in the
+present tense, as what this shape buys rather than what the previous shape cost, citing the record that
+owns it (`docs/decisions/0007.md § 3`, `rule:types/conversion`) instead of restating it.
+
+These are therefore never in a comment:
+
+- **A date.** When something was decided, changed or measured is not a property of the code. `git blame`
+  answers it exactly; a comment answers it approximately and then rots. `python tools/prose.py --check`
+  fails the build on one, and that check is why this is stated as an absolute.
+- **A count of anything that can change** — "the four subsystems", "the third of these", "all ten
+  members". The next feature makes it wrong, and the only edit such a sentence ever gets is the one that
+  bumps the digit, which is a session spent on nothing. Write "each subsystem", "the members below", and
+  let the list be its own count. A number that is a fixed property of the code — a two-word header, a
+  16-byte alignment, a limit the code enforces, an ABI offset — is a fact about the code and stays.
+- **A measurement the code does not enforce** — "takes a minute or two", "cut it by 40%", "eight
+  sessions paid it". A measured number lives with the guard test or the perf note that took it
+  ([doc-style.md](doc-style.md)), and a comment quoting one is a copy that no run ever updates. State
+  the shape of the cost instead — "the release relink dominates this step" — and cite the home when the
+  figure itself is the argument.
+
+None of this asks for a comment to be shorter or plainer. A dense paragraph explaining why a lock is
+held across an await is exactly what belongs here; it just gets written as though it had always been
+true.
+
 ## A `.nvst` test case
 
 Canonical worked example, with every section that matters:
@@ -321,11 +359,58 @@ so a link in a string literal there is relative to the *generated* file.
 Neither form is what rustdoc follows: a relative link in a doc comment resolves against the generated
 HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a check on any of this.
 
+## A rule fragment
+
+A rule is **two files**, and a decision that creates or modifies one writes both in the same commit as
+the record. The pair is `docs/rules/<topic>.json` — the structure, which carries no prose — and
+`docs/rules/<topic>/<slug>.md` — the prose, which carries no structure. `docs/rules/<topic>.md` is
+generated from the two by `python tools/rules.py --render` and **is never edited**, along with
+[ground-rules.md](../ground-rules.md) and [divergences.md](../divergences.md).
+
+The JSON entry, appended to the topic's `rules` array in the position the chapter should read it:
+
+```json
+{
+  "id": "core-classes/schema-plan",
+  "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
+  "status": "shipped",
+  "because": ["0145", "0067"],
+  "divergesFromPhp": "the sentence after “PHP …” — omit the field entirely when it does not",
+  "seeAlso": ["core-classes/schema-converges"],
+  "guardedBy": ["tests/conformance/core/db-schema-plans-every-difference.nvst"]
+}
+```
+
+- **The `id` is the path.** `core-classes/schema-plan` is `docs/rules/core-classes/schema-plan.md`, and
+  the citation token everywhere is `rule:core-classes/schema-plan`. The topic half namespaces it, so two
+  topics cannot collide, and `python tools/peek.py rule:core-classes/schema-plan` reads it.
+- **The `title` is the rule as one statement of what is now true** — the same voice as a record's H1 and a
+  commit subject, and the line `ground-rules.md` prints. Not a topic ("Plan grades"), not an instruction.
+- **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
+  not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
+  and the pack marks a designed rule where it prints one.
+- **`because` is decision records, first-created-then-amended**, and it is one half of a relation whose
+  other half is those records' `changes:` blocks. Writing one without the other is what `rules.py --check`
+  refuses.
+- **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
+  the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
+
+The fragment is ordinary markdown with **no heading and no front matter**: the title lives in the JSON,
+so the file opens on the first sentence of the rule. Its **opening sentence is cut verbatim** into
+`ground-rules.md`, so write a sentence that stands alone. Body length is the rule's own business — one
+paragraph where one is enough, four where the rule has a table of cases in it.
+
+**Then run `python tools/rules.py --render`**, which rewrites the three generated files. `--check` and
+`--render --check` are CI's `docs` job, and `session.py --wrap` runs both for any session that has
+touched `docs/rules/` — so a fragment edited without a render, or a rule renamed under its citations,
+refuses the wrap rather than reaching CI.
+
 ## A decision record
 
 A record is the reasoning behind a rule, frozen on acceptance at `docs/decisions/NNNN.md`. **The rule
-is not in it** — the rule is a fragment under [docs/rules/](../rules/), and the record is what its
-`because` list names. There is no scaffolder: a new record is written by hand from the shape below and
+is not in it** — the rule is a fragment under [docs/rules/](../rules/), written to the shape in
+§ *A rule fragment* above, and the record is what its `because` list names. Writing one without the
+other is half a decision, and the two are one commit. There is no scaffolder: a new record is written by hand from the shape below and
 claims the next free number, which is one more than the highest file in `docs/decisions/`. Newest
 worked example: [0104](../decisions/0104.md).
 
