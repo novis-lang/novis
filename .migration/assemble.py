@@ -71,6 +71,10 @@ PARTS = cfg["parts"]
 EXTRA_BRIDGE: dict[str, str] = cfg.get("bridge", {})
 CLAIM_OK: set[str] = set(cfg.get("claim_ok", []))
 RENAME: dict[str, str] = cfg.get("rename", {})
+#: part file -> ids to drop from that part: a co-author restated a rule under the same slug, and the
+#: other author's copy is the one kept. The part's remaps and seeAlso keep naming the id, which now
+#: resolves to the surviving copy.
+DROP: dict[str, list[str]] = cfg.get("drop", {})
 STITCH: list[list[str]] = cfg.get("stitch", [])
 OUT = HERE / f"{UNIT}.apply.md"
 CARRIED = HERE / "wants-carried.json"
@@ -140,6 +144,7 @@ for name in PARTS:
             except json.JSONDecodeError as exc:
                 problems.append(f"{name}: json-rules does not parse: {exc}")
                 continue
+            part_rules = [r for r in part_rules if rename_id(r["id"]) not in DROP.get(name, [])]
             for r in part_rules:
                 r["id"] = rename_id(r["id"])
                 r["seeAlso"] = [rename_id(s) for s in r.get("seeAlso", [])] or r.get("seeAlso", [])
@@ -151,6 +156,8 @@ for name in PARTS:
             path = rest
             for old, new in RENAME.items():
                 path = path.replace(f"/{old.split('/', 1)[1]}.md", f"/{new.split('/', 1)[1]}.md")
+            if TOPIC + "/" + pathlib.PurePosixPath(path).stem in DROP.get(name, []):
+                continue
             fragments.append((path, rename_text(body.strip("\n"))))
         elif kind == "remap":
             match = re.match(r"^(.+?)\s*->\s*(\S+)$", rest)
@@ -269,7 +276,8 @@ for entry in carried:
             else:
                 carried_now.append(f"{entry['id']} -> {entry['anchor']} ({top}, not landed)")
                 still.append(entry)
-    else:
+    elif state["units"].get(entry["unit"], {}).get("status") == "done":
+        # that chapter's JSON is in the tree, so a wish that resolves now is a hand edit
         if target:
             item = dict(entry, resolved=target)
             if item not in landed_wants:
@@ -277,6 +285,8 @@ for entry in carried:
             landed_now.append(f"{entry['unit']}: {entry['id']} -> {entry['anchor']} = {target}")
         else:
             still.append(entry)
+    else:
+        still.append(entry)  # another unit still in flight retries this at its own assembly
 
 for rid, sib in STITCH:
     if rid not in by_id:
