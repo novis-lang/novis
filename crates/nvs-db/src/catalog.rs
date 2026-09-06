@@ -1005,10 +1005,17 @@ fn column_of(row: &ColumnRow, dialect: Dialect) -> Result<Column, SchemaError> {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{SocketAddr, ToSocketAddrs};
+    use std::time::{Duration, Instant};
+
     use super::*;
-    use crate::conn::Driver;
+    use crate::conn::{Connection, Driver};
     use crate::ddl;
+    use crate::matrix::{Location, Server};
     use crate::schema::Ident;
+    use crate::{
+        MariaConn, MariaTarget, MySqlConn, MySqlTarget, PgConn, PgTarget, TdsConn, TdsTarget,
+    };
 
     /// Every read, in the order [`Read`] declares them.
     const READS: [Read; 2] = [Read::Columns, Read::Indexes];
@@ -1579,6 +1586,22 @@ mod tests {
     /// `scalar_type`'s own doc names every case, and § 5 owes the declared
     /// side the same normalisation. A fixture carrying one would be asserting
     /// that gap closed rather than that the assembly is one function.
+    ///
+    /// Two of its names are load-bearing, because
+    /// [`introspects_back_to_an_empty_plan`] applies this value to four real
+    /// servers and each refused an earlier spelling of it:
+    ///
+    /// - **The index is over `weight` and not over the unbounded `note`.** SQL
+    ///   Server refuses an index whose key column is `NVARCHAR(MAX)` outright,
+    ///   and MySQL takes one only as [`crate::ddl`]'s prefix key, so an index
+    ///   over unbounded text is a construct the vocabulary holds and the five
+    ///   backends do not agree on. That disagreement is its own question and
+    ///   `crate::schema`'s gap list is where it is written down; a fixture
+    ///   carrying it would report it as a round-trip failure on every run.
+    /// - **The `int` column is `weight` and not `rank`.** `RANK` is reserved on
+    ///   MySQL 8, and `rule:core-classes/schema-is-a-value`'s identifiers are
+    ///   validated rather than delimited — so a name a backend reserves is a
+    ///   `CREATE TABLE` that server will not parse, whatever this crate does.
     fn assembled_fixture() -> Schema {
         let wide = Table::new(
             "wide",
@@ -1591,7 +1614,7 @@ mod tests {
                 Column::new("note", ScalarType::Text { max: None })
                     .unwrap()
                     .null(),
-                Column::new("rank", ScalarType::Int(IntWidth::Normal))
+                Column::new("weight", ScalarType::Int(IntWidth::Normal))
                     .unwrap()
                     .default(ColumnDefault::Int(7))
                     .unwrap(),
@@ -1606,7 +1629,7 @@ mod tests {
         .unwrap()
         .unique("wide_label", &["label"])
         .unwrap()
-        .index("wide_note", &["note"])
+        .index("wide_weight", &["weight"])
         .unwrap();
         let pair = Table::new(
             "pair",
@@ -1930,5 +1953,191 @@ mod tests {
             plan.is_empty(),
             "the schema this server was given is not the schema it answers:\n{plan}"
         );
+    }
+
+    /// How long one matrix handshake below may take.
+    ///
+    /// `crates/nvs-db/tests/handshake.rs`'s bound, for its reason: the server
+    /// is a container the harness may have started moments ago, and a leg that
+    /// hangs reports nothing at all.
+    const MATRIX_DEADLINE: Duration = Duration::from_secs(10);
+
+    /// This process's server, when the matrix pointed it at `driver`'s.
+    ///
+    /// [`crate::matrix`]'s skip rule, written once over the driver rather than
+    /// four times as `handshake.rs` writes it: the matrix runs one driver per
+    /// process, so each case below asks for the one backend it can assert
+    /// about and the other three return without asserting.
+    fn matrix_server(driver: Driver) -> Option<Server> {
+        let endpoint = crate::matrix::endpoint()?;
+        if endpoint.driver != driver {
+            return None;
+        }
+        let Location::Server(server) = endpoint.location else {
+            unreachable!("SQLite is the only driver reached by path, and this is not it")
+        };
+        Some(server)
+    }
+
+    /// Where the harness published `server`, as the address a driver opens.
+    ///
+    /// Resolved here rather than inside a driver for the reason
+    /// `handshake.rs`'s twin gives: the *name* stays on the target because that
+    /// is what the certificate is checked against.
+    fn matrix_address(server: &Server) -> SocketAddr {
+        (server.host.as_str(), server.port)
+            .to_socket_addrs()
+            .expect("the matrix host is an address")
+            .next()
+            .expect("the matrix host resolves to somewhere")
+    }
+
+    /// `rule:core-classes/schema-is-a-value`'s acceptance criterion against a
+    /// real server: apply [`assembled_fixture`] to `conn`, introspect it back
+    /// through the same reader `nvs schema plan` uses, and the plan between the
+    /// two is **empty**.
+    ///
+    /// The four cases below are this function and a handshake, because the
+    /// property is one property: what differs between the backends is which
+    /// spellings [`crate::ddl`] wrote and which words the catalog answered, and
+    /// § 5 normalises every one of those out of the *comparison*. A case that
+    /// asserted a per-backend list of tolerated differences would be asserting
+    /// this module's current gaps rather than the criterion.
+    ///
+    /// **The fixture's own tables are what is compared, not the database.** A
+    /// matrix server is shared — the queue's cases push rows into `nvs_jobs` on
+    /// the same database — and every table a schema value does not declare is a
+    /// `DropTable` report, which `rule:core-classes/schema-absence-never-destroys`
+    /// is right to raise and which says nothing about whether what was applied
+    /// came back. Narrowing the *read* keeps this case about the round trip;
+    /// that a report is raised and never run is
+    /// `a_table_the_schema_does_not_declare_is_reported_and_never_dropped`'s
+    /// question.
+    ///
+    /// The tables are dropped first rather than created `if not exists`: the
+    /// emitter writes no such guard ([`ddl::create_table`]), and a run against
+    /// a table an *earlier* fixture created would otherwise assert about that
+    /// one.
+    fn introspects_back_to_an_empty_plan(conn: &mut Connection) {
+        let dialect = Dialect::of(conn.driver());
+        let applied = assembled_fixture();
+        for table in applied.tables() {
+            let drop = format!("DROP TABLE IF EXISTS {}", table.name());
+            crate::direct::run(conn, &drop).expect("the server ran the drop");
+        }
+        for statement in ddl::create_schema(&applied, dialect) {
+            crate::direct::run(conn, &statement)
+                .unwrap_or_else(|err| panic!("the server refused `{statement}`: {err}"));
+        }
+
+        let read = crate::direct::schema_of(conn).expect("the catalog answered a schema");
+        let mine: Vec<Table> = read
+            .tables()
+            .iter()
+            .filter(|table| applied.table(table.name()).is_some())
+            .cloned()
+            .collect();
+        let plan = crate::plan::diff(&applied, &Schema::new(mine).unwrap(), dialect);
+        assert!(
+            plan.is_empty(),
+            "the schema this server was given is not the schema it answers:\n{plan}"
+        );
+    }
+
+    /// [`introspects_back_to_an_empty_plan`] on PostgreSQL.
+    #[test]
+    fn an_applied_schema_introspects_back_to_an_empty_plan_on_postgres() {
+        let Some(server) = matrix_server(Driver::Postgres) else {
+            return;
+        };
+        let target = PgTarget {
+            host: &server.host,
+            user: &server.user,
+            password: &server.password,
+            database: &server.database,
+            tls_ca_file: Some(server.ca.as_path()),
+            time_zone: 0,
+            statement_cache: 8,
+        };
+        let conn = PgConn::connect(
+            matrix_address(&server),
+            &target,
+            Some(Instant::now() + MATRIX_DEADLINE),
+        )
+        .expect("the matrix server accepts a handshake verified against its own anchor");
+        introspects_back_to_an_empty_plan(&mut Connection::Postgres(conn));
+    }
+
+    /// [`introspects_back_to_an_empty_plan`] on MySQL.
+    #[test]
+    fn an_applied_schema_introspects_back_to_an_empty_plan_on_mysql() {
+        let Some(server) = matrix_server(Driver::MySql) else {
+            return;
+        };
+        let target = MySqlTarget {
+            host: &server.host,
+            user: &server.user,
+            password: &server.password,
+            database: &server.database,
+            tls_ca_file: Some(server.ca.as_path()),
+            time_zone: 0,
+            statement_cache: 8,
+        };
+        let conn = MySqlConn::connect(
+            matrix_address(&server),
+            &target,
+            Some(Instant::now() + MATRIX_DEADLINE),
+        )
+        .expect("the matrix server accepts a handshake verified against its own anchor");
+        introspects_back_to_an_empty_plan(&mut Connection::MySql(conn));
+    }
+
+    /// [`introspects_back_to_an_empty_plan`] on MariaDB, which shares MySQL's
+    /// dialect and answers its own catalog.
+    #[test]
+    fn an_applied_schema_introspects_back_to_an_empty_plan_on_mariadb() {
+        let Some(server) = matrix_server(Driver::MariaDb) else {
+            return;
+        };
+        let target = MariaTarget {
+            host: &server.host,
+            user: &server.user,
+            password: &server.password,
+            database: &server.database,
+            tls_ca_file: Some(server.ca.as_path()),
+            time_zone: 0,
+            statement_cache: 8,
+        };
+        let conn = MariaConn::connect(
+            matrix_address(&server),
+            &target,
+            Some(Instant::now() + MATRIX_DEADLINE),
+        )
+        .expect("the matrix server accepts a handshake verified against its own anchor");
+        introspects_back_to_an_empty_plan(&mut Connection::MariaDb(conn));
+    }
+
+    /// [`introspects_back_to_an_empty_plan`] on SQL Server.
+    #[test]
+    fn an_applied_schema_introspects_back_to_an_empty_plan_on_sqlserver() {
+        let Some(server) = matrix_server(Driver::SqlServer) else {
+            return;
+        };
+        let target = TdsTarget {
+            host: &server.host,
+            user: &server.user,
+            password: &server.password,
+            database: &server.database,
+            tls_ca_file: Some(server.ca.as_path()),
+            time_zone: 0,
+            statement_cache: 8,
+        };
+        let conn = TdsConn::connect(
+            matrix_address(&server),
+            &target,
+            Some(Instant::now() + MATRIX_DEADLINE),
+        )
+        .expect("the matrix server accepts a handshake verified against its own anchor");
+        introspects_back_to_an_empty_plan(&mut Connection::SqlServer(conn));
     }
 }

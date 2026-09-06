@@ -42,14 +42,14 @@
 > the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 9 stage 6 is whole: the three members, and `nvs schema plan|apply|dump`
-> converges a database from the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13.
-> **`Core\Db` is open**: `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`,
-> `stream` walks 10k rows; `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs
-> h1 as goal 2's `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file;
-> `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before an
-> isolate; § 6's walk decides the peer, `400` on a bad token; § 8's accept backs off, § 5's drain
-> answers the probe; `Core\Response` has seven, `Core\Request` thirteen, an upload walks;
+> **Open now:** **Goal 9 stages 5-6 are whole: `nvs schema plan|apply|dump` converges a database
+> from the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
+> `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows;
+> `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
+> `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file; `E0621`/`E0622` refuse a
+> mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before an isolate; § 6's walk decides
+> the peer, `400` on a bad token; § 8's accept backs off, § 5's drain answers the probe;
+> `Core\Response` has seven, `Core\Request` thirteen, an upload walks;
 > `rule:http-server/secure-headers-with-nothing-written` and
 > `rule:http-server/cors-is-closed-until-origins-are-named` hold; `route()`, `match`, `methodsFor`,
 > CSRF and the label read one match; four capture kinds convert, decoded once; § 7's mount answers a

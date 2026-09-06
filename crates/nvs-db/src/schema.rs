@@ -43,14 +43,19 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The reverse direction reads but does not yet assemble.** § 4's catalog
-//!    queries live in [`crate::catalog`] — each a read with one row shape,
-//!    keyed on `Dialect` — and nothing yet turns those rows back into a
-//!    [`Schema`]. The half that is missing is per dialect and is the reverse of
-//!    [`crate::ddl::column_type`]: [`ScalarType::from_spelling`] reads this
-//!    vocabulary's canonical names and a catalog answers the server's. § 8's
-//!    emitters sit beside this module, in [`crate::ddl`], keyed on `Dialect`
-//!    rather than on a driver.
+//! 1. **Two constructs this vocabulary holds are not portable, and nothing
+//!    here refuses either.** Both were found by applying a schema to all five
+//!    servers — `catalog`'s `an_applied_schema_introspects_back_to_an_empty_plan_on_*`
+//!    is that walk, and its fixture's own doc is where each is written down.
+//!    An **index over unbounded text** is refused outright by SQL Server, whose
+//!    key column may not be `NVARCHAR(MAX)`, and taken by MySQL only as
+//!    [`crate::ddl`]'s prefix key. An **identifier a backend reserves** —
+//!    `RANK` is a keyword on MySQL 8 — is a `CREATE TABLE` that server will not
+//!    parse, and no emitter here can prevent it, because
+//!    `rule:core-classes/schema-is-a-value` validates an identifier rather than
+//!    delimiting it. Closing either is a builder that refuses the construct or
+//!    an emitter that has a spelling for it, and which one is a decision the
+//!    milestone that needs it takes.
 //! 2. **§ 11's exclusions are not represented and must not be added casually.**
 //!    Foreign keys, partial and expression indexes, index types, collations,
 //!    check constraints and the rest are out of v1 because they have no portable
