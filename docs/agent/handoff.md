@@ -2,48 +2,50 @@
 
 ## State
 
-**Goal 8's stage 2 is on disk.** `nvs_config::cache::program_id` combines each unit's content hash
-in program order with the environment digest and returns a `ProgramId` that displays as 64 lowercase
-hex characters (`crates/nvs-config/src/cache.rs:150`); the four tests the TOML's stage 2 check names
-are green. A `nvs run` computes it at its context wiring and writes it onto the `Ctx`
-(`crates/nvs-cli/src/main.rs:1311`, `crates/nvs-runtime/src/ctx/wiring.rs:389`), so stage 3's member
-has a slot to read and hashes nothing itself.
+**Goal 8's stage 3 is on disk, and it was the last stage with a check.**
+`Core\Program::id()` is a registry row, a card, a body and an `address()` arm in
+`crates/nvs-stdlib/src/program.rs:78`; it reads `Ctx::program_id` and hashes, caches, memoizes and
+truncates nothing, because `nvs_config::cache::program_id` did the combine once at program
+resolution. ADR 0061 gained § 6 as the folded amendment the goal pre-authorized — the formula, the
+plain-`string` decision, and the circularity that forbids folding the id into a unit — and no new
+ADR number was taken. `examples/program-id.nvs` prints the two frozen lines; three `.nvst` cases pin
+the shape, the constancy within a run, and the agreement between two units of one program.
 
-**Only the CLI run path writes one.** A served request's context gets an empty id: the "recomputed
-at the hot-reload swap" half of the goal's standing decision needs a swap, and `nvs-cli`'s `Compiler`
-still compiles once per written path and never revalidates (`docs/agent/loop-goal.toml:3740`). What
-an unwritten id answers is stage 3's decision, not a blocker — the safe answer is that the member
-refuses the way `Core\Command`'s name-less members do.
+**Only the CLI run path writes an id.** `crates/nvs-cli/src/serve.rs:588` hands each request an
+isolate over a `Ctx` nobody wrote one onto, so the member throws there. That refusal is asserted by
+`program::tests::id_refuses_a_context_no_host_wrote_an_identity_onto` rather than by a case: a
+`.nvst` runs under `nvs run`, which always writes the id, so no case can reach the path — which is
+the `no case can reach this` declaration `every_error_path_is_asserted_or_declared_unreachable`
+requires. The "recomputed at the hot-reload swap" half of the goal's standing decision still needs a
+swap `nvs-cli`'s `Compiler` does not perform.
 
-Nothing is blocked. `orient.py`'s `[context] modules` did not print `nvs-cli`'s `src/main.rs` or
-`src/cache.rs`, which is where stage 2's threading actually landed; add both patterns.
+Nothing is blocked. Two `[context]` gaps in `docs/agent/loop-goal.toml`: `modules` still does not
+print `nvs-cli`'s `src/main.rs` or `src/cache.rs` (the previous session asked for both and the
+manifest is unchanged), and nothing under `shapes` names the `--FILE <path>--` auxiliary-file section
+of a `.nvst` case, which the third case here needed — I read an existing case for the spelling.
 
 ## Next group
 
-**Stage 3: the member** — one file set, `crates/nvs-stdlib/src/program.rs` plus the ADR, and the
-first item is prose that decides the other two.
+**The served half of the id** — one file set, `crates/nvs-cli/src/serve.rs` and
+`crates/nvs-cli/src/main.rs`, and the first slice decides the other two.
 
-- [ ] **ADR 0061's folded amendment** — `docs/adr/0061-compile-time-autoload-and-program-discovery.md:177`
-      (§ 5 is the last section; add a new one rather than renumbering §§ 4-5, which are cross-linked)
-      and `:125` (§ 3, the sibling member's section, for the shape to match). Give `Core\Program` its
-      first and only *runtime* member: the formula, the plain-`string` decision, and why the id
-      cannot be a compile-time-folded constant — folding it into a unit changes that unit's bytes,
-      hence its content hash, hence the id just folded. No new ADR number.
-- [ ] **The row, the card and the body** — `crates/nvs-stdlib/src/program.rs:47` (`CLASS`), `:63`
-      (the cards, in row order), `:1` (the module doc's "members never run" claim, which this member
-      breaks) and `crates/nvs-stdlib/src/lib.rs:391` (`address`). The body reads
-      `nvs_runtime::Ctx::program_id` (`crates/nvs-runtime/src/ctx/wiring.rs:389`) and formats
-      nothing; `conventions.md`'s five edits is the checklist.
-- [ ] **The cases** — three new `.nvst` under `tests/conformance/core/`, each asking a different
-      question, and `examples/program-id.nvs`, whose `exact` check at
-      `docs/agent/loop-goal.toml:4443` wants exactly `id is 64 lowercase hex characters` and `two
-      reads within one run agree` on stdout. The registry's coverage floor is three
-      (`crates/nvs-stdlib/tests/conformance_coverage.rs:1`).
+- [ ] **A served request's context carries the program id** — `crates/nvs-cli/src/serve.rs:588`
+      (`isolate`, where a request's `Ctx` is wired before the isolate runs) and
+      `crates/nvs-cli/src/main.rs:1321` (the `nvs run` write, which is the shape to copy verbatim).
+      ADR 0061 § 6 computes the id at program resolution, and `serve` resolves at boot — so compute
+      it once there and write it onto every request's context, never per request.
+- [ ] **A `-p nvs-cli` test that a served request answers the same id as `nvs run`** —
+      `crates/nvs-cli/src/serve.rs:588` for the seam and `crates/nvs-cli/src/script.rs:602`
+      (`run_serving`) for the twenty-line fixture shape a test in this crate needs. Agreement between
+      the two hosts is the claim; either one's 64 characters on its own proves nothing.
+- [ ] **Say what "recomputed at the swap" means while nothing revalidates** —
+      `docs/adr/0061-compile-time-autoload-and-program-discovery.md:200` (§ 6's third paragraph) and
+      `crates/nvs-cli/src/serve.rs:588`. ADR 0017's swap is the other moment the answer changes, and
+      `nvs-cli`'s `Compiler` compiles once per written path and never revalidates, so § 6 currently
+      states a rule the tree cannot exercise. One paragraph, in the ADR or in `serve.rs`'s module doc.
 
 ## Backlog
 
-- A served request writes no program id — see `## State`; it lands with ADR 0017's unit-table swap,
-  which stage 7's own checks are also waiting on (`docs/agent/loop-goal.toml:3740`).
-- Stage 3 also owes `docs/reference/core/Program.md` beside the registry card, per ADR 0117.
-- When this goal's last check goes green the driver takes goal 9 — `Core\Db\Schema`.
-  `docs/agent/goals/chain.toml` is the schedule and this does not restate it.
+- `[context] modules` needs `nvs-cli/src/main.rs` and `nvs-cli/src/cache.rs` — `docs/agent/loop-goal.toml`.
+- `[context] shapes` has no entry for a `.nvst` `--FILE <path>--` section — `docs/agent/conventions.md` owns the shape.
+- Every chapter under `docs/reference/core/` carries exactly one example, so a new member extends the existing one — `docs/agent/doc-style.md`.
