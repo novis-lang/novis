@@ -8,6 +8,7 @@ its place, and without ever letting the tree end a session in a half-migrated st
     python tools/migrate-docs.py --status          the unit board: done, in flight, pending
     python tools/migrate-docs.py --snapshot        A3: capture the baseline. ONCE, before anything moves
     python tools/migrate-docs.py --topic-map       A5: propose the section-to-topic map for review
+                                                   (refuses once the map has been judged by hand)
     python tools/migrate-docs.py --next            the next unit's work order -- a whole session prompt
     python tools/migrate-docs.py --unit B9         that unit's work order instead of the next one
     python tools/migrate-docs.py --apply FILE      one transaction: write, rewrite, gate, or restore
@@ -282,11 +283,16 @@ def cmd_snapshot(state: dict, force: bool) -> int:
 # --------------------------------------------------------------------------- A5: topic map
 
 
-def cmd_topic_map(state: dict) -> int:
+def cmd_topic_map(state: dict, force: bool = False) -> int:
     """Propose an owner topic for every ADR section, from the citation graph and the titles.
 
     This is a *proposal*. The user reviews it, and it is the thing that makes parallel authoring
     safe: without it, two topics independently claim one rule, or neither does.
+
+    It is also **destructive by construction**: it writes the heuristic's answer over whatever is
+    already there. After the review the file is worth much more than this function can produce -- A5
+    corrected 99 UNASSIGNED anchors and 310 misfilings by hand -- so a map carrying rows the
+    heuristic would not reproduce is refused unless `--force`. See the guard below.
     """
     if not SNAPSHOT.exists():
         print("take the snapshot first: python tools/migrate-docs.py --snapshot", file=sys.stderr)
@@ -335,6 +341,37 @@ def cmd_topic_map(state: dict) -> int:
             unsure.append(anchor)
             best = "UNASSIGNED"
         mapping[anchor] = best
+
+    # THE GUARD. This command *overwrites* the map from the heuristic, and the heuristic is the
+    # thing A5 exists to correct: it left 99 anchors UNASSIGNED and misfiled 310 more. Re-running it
+    # over a reviewed map silently discards every one of those calls, and there is no signal that it
+    # happened -- the file still looks like a topic map. So the rows that disagree with the
+    # heuristic are counted first, and any disagreement refuses the run.
+    if TOPIC_MAP.exists():
+        current = json.loads(TOPIC_MAP.read_text(encoding="utf-8")).get("sections", {})
+        judged = sorted(a for a, topic in current.items() if mapping.get(a) != topic)
+        if judged and not force:
+            print(f"REFUSED: {TOPIC_MAP.relative_to(ROOT)} carries {len(judged)} row(s) the heuristic "
+                  f"would not reproduce.", file=sys.stderr)
+            print("Those are hand calls -- A5's whole deliverable -- and this command would drop "
+                  "every one:\n", file=sys.stderr)
+            for anchor in judged[:8]:
+                print(f"  {anchor:<16} {current[anchor]:<16} <- heuristic says "
+                      f"{mapping.get(anchor, '(nothing)')}", file=sys.stderr)
+            if len(judged) > 8:
+                print(f"  ... and {len(judged) - 8} more", file=sys.stderr)
+            resolved = sum(1 for a, t in current.items() if t != "UNASSIGNED")
+            print(f"\n{resolved}/{len(current)} anchors currently carry a topic; the heuristic alone "
+                  f"reaches {len(mapping) - len(unsure)}.", file=sys.stderr)
+            print("\nIf you genuinely want the heuristic's proposal back, `--topic-map --force` "
+                  "writes it and\nkeeps the current map beside it as topic-map.previous.json. "
+                  "`git log -p -- .migration/topic-map.json`\nis the other way back.", file=sys.stderr)
+            return 1
+        if judged:
+            previous = TOPIC_MAP.with_name("topic-map.previous.json")
+            previous.write_text(TOPIC_MAP.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"--force: {len(judged)} hand-judged row(s) overwritten. The map they were in is "
+                  f"now {previous.relative_to(ROOT)}.\n")
 
     TOPIC_MAP.write_text(
         json.dumps({"generated": date.today().isoformat(), "sections": mapping}, indent=2) + "\n",
@@ -1047,7 +1084,8 @@ def main() -> int:
     ap.add_argument("--self-destruct", action="store_true", help="C9: remove the machinery")
     ap.add_argument("--dry-run", action="store_true", help="with --apply: say what it would do")
     ap.add_argument("--no-fix", action="store_true", help="with --sweep: report, repair nothing")
-    ap.add_argument("--force", action="store_true", help="with --snapshot: retake it")
+    ap.add_argument("--force", action="store_true",
+                    help="with --snapshot: retake it. with --topic-map: overwrite hand-judged rows")
     ap.add_argument("--yes", action="store_true", help="with --self-destruct: actually do it")
     args = ap.parse_args()
 
@@ -1060,7 +1098,7 @@ def main() -> int:
     if args.snapshot:
         return cmd_snapshot(state, args.force)
     if args.topic_map:
-        return cmd_topic_map(state)
+        return cmd_topic_map(state, args.force)
     if args.gate:
         return cmd_gate(args.quick)
     if args.apply:

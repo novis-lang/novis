@@ -183,7 +183,7 @@ the table below is the shape and the order.
 | A2 | `tools/migrate-docs.py` — the resumable driver: state file, unit registry, `--status`, `--next`, `--apply`, `--gate` |
 | A3 | **The snapshot.** Every goal's `orient.py` pack, `brief.py`, `novis.md`, and all 586 distinct `(ADR, §)` citations with their resolved target text, captured before anything moves |
 | A4 | The gate, all six checks, wired into `verify.py` |
-| A5 | **The topic map** — every one of the 852 `###` sections assigned to exactly one topic. Reviewed by the user before Phase B opens |
+| A5 | **The topic map** — every one of the 960 anchors assigned to exactly one topic. Reviewed by the user before Phase B opens, and `--topic-map` refuses to overwrite it afterwards |
 
 A1 and A3 are disjoint and may run in parallel. A5 is what makes fan-out safe: without it, two
 authors independently claim "a successful `as` strips `tainted`" for `types/conversion` and for
@@ -250,4 +250,5 @@ TOPIC types  (unit B9 of 36)
 | The format is wrong at scale | The B1 pilot, and the review that follows it |
 | The loop edits the tree concurrently | The driver runs beside the loop, never inside it; each transaction stages only its own files and re-runs the gate before committing |
 | A rule falls between two topics | The A5 topic map, and `rules.py --check` counting mapped-but-unclaimed sections down to zero |
+| **The topic map is regenerated and the review is lost** | `--topic-map` writes the heuristic's answer over whatever is there, and a heuristic map looks exactly like a judged one. It now counts the rows it would not reproduce — 409 of 960 after A5 — and refuses unless `--force`, which keeps the map it replaced as `topic-map.previous.json` |
 | Twenty-two chapters drift in style | The B1 exemplar in every author prompt, and the normalising pass at C8 |
