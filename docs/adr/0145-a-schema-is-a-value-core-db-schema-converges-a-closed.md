@@ -245,6 +245,13 @@ Dropping is therefore an operation someone **writes**, and it is `Destructive`. 
 `allowDrops` and no strict mode: the escape hatch for "I really do want that gone" is the SQL the plan
 already printed, in the same `Core\Db::execute` that has always been where a statement a human wrote goes.
 
+A report is a step the plan **carries and never applies**, and that distinction is what keeps § 9's
+`applySafe` usable at all: every plan against a shared database holds reports, they are `Destructive` by
+the paragraph above, and a rule reading *every* step's grade would therefore refuse every plan ever
+computed against a real database. `applySafe` reads the grades of the steps it would **run**. Both kinds
+are counted, printed and given complete SQL — a report the plan did not show would be worse than one it
+will not apply.
+
 ### 8. The plan is a document, and every step carries complete SQL
 
 A plan is a value whose steps each expose their grade, the reason for that grade, and **complete,
