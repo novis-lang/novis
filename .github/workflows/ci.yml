@@ -345,8 +345,8 @@ jobs:
         run: python tools/rules.py --check
       - name: The generated rulebook pages match the fragments they are rendered from
         run: python tools/rules.py --render --check
-      - name: ADR field set, heading order, cross-links and the derived index table
-        run: python tools/adr.py --check
+      - name: Every decision record's field set, heading order, cross-links and derived counters
+        run: python tools/records.py --check
       - name: Every markdown link resolves, with matching case
         run: python tools/check-links.py
       - name: CONTRIBUTING.md's layout listing still describes the tree

@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Which CI lanes a push or a pull request needs, from the paths its diff touched.
 
 `.github/workflows/ci.yml`'s `changes` job runs this, and every other job in that file gates on one

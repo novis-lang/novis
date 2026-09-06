@@ -84,7 +84,7 @@ import sys
 import textwrap
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import adr as adrlib  # noqa: E402  -- the Adr parser has one home, and this is it
+import records as adrlib  # noqa: E402  -- the Adr parser has one home, and this is it
 
 # `adr` already replaced `sys.stdout` with a utf-8 wrapper on import. Wrapping *that* one's buffer
 # a second time leaves the first wrapper unreferenced, and closing it on collection closes the
@@ -216,7 +216,7 @@ def shape(a) -> list[str]:
 def frontmatter(a) -> dict:
     """The frozen record's YAML block, read off its own lines: `date`, `status`, and under
     `changes:` the `creates` and `modifies` lists of rule ids. Read here rather than through the
-    parser's fields so this tool's one dependency on `adr.py` stays the record's text and title.
+    parser's fields so this tool's one dependency on `records.py` stays the record's text and title.
 
     The shape is fixed by the freeze (docs/agent/conventions.md, *A decision record*): scalars as
     `key: value`, the two lists as `    - id` items under their key."""

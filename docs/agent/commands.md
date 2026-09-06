@@ -87,7 +87,7 @@ Loop-days are the index's own data, and it refuses on a table it cannot read who
 The rulebook is the same arrangement one tree over: `python tools/rules.py --render` writes
 `docs/rules/<topic>.md`, `docs/ground-rules.md` and `docs/divergences.md` from the topic JSON and the
 fragments, which own every line, and `--check` reports a rendered copy that has drifted. The decision
-records under `docs/decisions/` are frozen and derive nothing by hand: `python tools/adr.py --check` is
+records under `docs/decisions/` are frozen and derive nothing by hand: `python tools/records.py --check` is
 their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern `docs/novis.md`
 already established below — derive the machine-derivable half, and let a `--check` fail when the
 committed copy stops agreeing with it.
@@ -250,7 +250,7 @@ hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict 
 run; a wider one does satisfy a narrower.
 
 **The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
-`rules.py --render --check`, `check-links.py`, `layout.py`, `adr.py --check`, `plan.py --check`,
+`rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
 `playbook.py --check` and `release.py --check` are CI's `docs` job — Python-only, no toolchain, about a
 second together — and `session.py --wrap` runs **two** of them in-process, so a wrap cannot commit what
 it just broke: the link half always, and the two rulebook halves when the session has edited

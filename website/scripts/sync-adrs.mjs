@@ -51,7 +51,7 @@ function rewriteBody(md, selfNumber) {
     return `](${githubFile(repoPath)})`
   })
   // Bare in-directory file references that are not links stay as they are —
-  // the corpus always links, tools/adr.py checks that.
+  // the corpus always links, tools/records.py checks that.
   void selfNumber
   return md
 }

@@ -3,7 +3,7 @@
 How to run a cleanup pass over `docs/`. Revised 2026-08-27, after the pass that read all 102 records
 end to end, and again when the docs migration froze the records and moved the rules into the rulebook;
 the 2026-08-23 and 2026-08-21 instruction sets are superseded, and most of what they asked a reader to
-check by hand is now `python tools/adr.py` and `python tools/rules.py --check`.
+check by hand is now `python tools/records.py` and `python tools/rules.py --check`.
 
 **Read this before starting, then start with the tools.** The 2026-08-27 pass spent its first third
 answering questions the tools now answer in one call — which is exactly why they exist, and why
@@ -15,17 +15,17 @@ this file is shorter than the one it replaces.
 ([doc-style.md](doc-style.md) § *Length targets*). Doc length never triggers a pass, and nothing in
 CI, `brief.py` or `orient.py` measures a doc against a number.
 
-Run one when the **user** fires it, or when `python tools/adr.py` or `python tools/rules.py --check`
+Run one when the **user** fires it, or when `python tools/records.py` or `python tools/rules.py --check`
 reports findings that accumulated between passes. The tools are the standing signal; this file is the
 method for what they cannot decide.
 
 ## Start here, always
 
 ```
-python tools/adr.py            # the record audit: the YAML block, structure, links, § refs, stale counters
-python tools/adr.py --stats    # size and section shape per record
-python tools/adr.py --orphans  # what nothing links to, and what is most cited
-python tools/adr.py --graph NNNN   # what one record created and modified, and who else touched those rules
+python tools/records.py            # the record audit: the YAML block, structure, links, § refs, stale counters
+python tools/records.py --stats    # size and section shape per record
+python tools/records.py --orphans  # what nothing links to, and what is most cited
+python tools/records.py --graph NNNN   # what one record created and modified, and who else touched those rules
 python tools/rules.py --check  # the rulebook: every id, fragment, `because`, `seeAlso`, guard and citation
 python tools/check-links.py    # every link in every markdown file, case included
 ```
@@ -52,7 +52,7 @@ something new — what is currently true is the rule's fragment under `docs/rule
 live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` and by
 `tools/check-migration.py` — and from the `[context]` manifest in `docs/agent/loop-goal.toml` that the
 running loop reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
-Insert as `§ 3a`; delete a section's *content* and keep its number. `adr.py`'s **section refs** check
+Insert as `§ 3a`; delete a section's *content* and keep its number. `records.py`'s **section refs** check
 catches the citations that are already wrong, not the ones a renumber would create.
 
 **3. The loop may be running while you work.** `tools/session.py --wrap` stages a slice's own files and
@@ -123,12 +123,12 @@ Read for these directly; there is no check for any of them.
 
 ## Finishing
 
-1. `python tools/adr.py`, `python tools/rules.py --check` and `python tools/check-links.py` all clean.
+1. `python tools/records.py`, `python tools/rules.py --check` and `python tools/check-links.py` all clean.
    There is no build to break — this is a docs pass, and a broken or mis-cased cross-link is the only
    mechanical risk.
 2. If the pass changed the record set's *shape*, update this file and [conventions.md](conventions.md)
    § *A decision record* in the same commit — that section is the shape's only copy, and
-   `tools/adr.py`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
+   `tools/records.py`'s `CANONICAL` list is the heading set it names. A rule the tool enforces is documented
    once, there; a rule it cannot enforce is documented here.
 3. Commit with line counts before and after in the message.
 4. Follow [AGENTS.md](../../AGENTS.md)'s session workflow: overwrite [handoff.md](handoff.md) — unless

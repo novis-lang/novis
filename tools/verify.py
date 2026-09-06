@@ -130,7 +130,7 @@ of up to `DOC_GATE_EVERY` sessions wide, and it let two red `lint` jobs reach CI
 
 ## Why the documentation gates are not steps here
 
-`rules.py --check`, `adr.py --check`, `check-links.py`, `plan.py --check` and `playbook.py --check`
+`rules.py --check`, `records.py --check`, `check-links.py`, `plan.py --check` and `playbook.py --check`
 all exit non-zero on a structural finding, and all of them are Python-only and finish in about a
 second together, so they look like cheap steps to add in front of `build`. They are CI's `docs` job
 instead, and

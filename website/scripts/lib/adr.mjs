@@ -1,7 +1,7 @@
 /**
  * Parser for the repository's decision records (docs/decisions/NNNN.md).
  *
- * The corpus is mechanically consistent — `tools/adr.py --check` in the repo
+ * The corpus is mechanically consistent — `tools/records.py --check` in the repo
  * enforces the frozen shape — so this parser can rely on that shape and *fail
  * loudly* when it is not met, rather than guessing.
  *

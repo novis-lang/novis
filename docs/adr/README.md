@@ -18,7 +18,7 @@ fragment under `docs/rules/` and names the earlier record only through its own `
 sits in `docs/adr/` for historical reasons; the records moved at the docs migration's unit C1.
 
 **A section number is a public identifier.** `0007 § 3` is cited from `crates/`, from the goal
-manifests and from other records. Sections are never renumbered, and `python tools/adr.py --check`
+manifests and from other records. Sections are never renumbered, and `python tools/records.py --check`
 reports a citation into a section that does not exist.
 
 **Measured numbers.** A record quotes only its own measurements, and every one is guarded by a test in

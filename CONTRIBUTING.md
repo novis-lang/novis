@@ -124,7 +124,7 @@ this file is checked by them and by nothing else:
 ```sh
 python tools/check-links.py    # every markdown link resolves, with matching case
 python tools/layout.py         # the layout listing below still describes the tree
-python tools/adr.py --check    # ADR field set, heading order, and the derived index table
+python tools/records.py --check    # a record's field set, heading order, and the derived counters
 python tools/plan.py --check   # every milestone row agrees with the file it names
 ```
 

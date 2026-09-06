@@ -10,13 +10,13 @@ earlier record only through the rule's `because` list, which the rulebook holds 
 validates. This tool is what keeps the records mechanically honest against that shape, and it
 answers the same way every time the questions a cleanup pass used to answer by reading 143 files.
 
-    python tools/adr.py                 the full audit, grouped by check, exit non-zero on a finding
-    python tools/adr.py --check         the same, quiet on success -- the CI shape
-    python tools/adr.py --only links    one named check, by the name the audit prints
-    python tools/adr.py --stats         one line per record: size, section shape, rationale share
-    python tools/adr.py --graph 0066    the rules a record creates and modifies, and who else shaped them
-    python tools/adr.py --orphans       records no other record links to, and the most cited
-    python tools/adr.py --residue       changelog prose a frozen body should not carry
+    python tools/records.py                 the full audit, grouped by check, exit non-zero on a finding
+    python tools/records.py --check         the same, quiet on success -- the CI shape
+    python tools/records.py --only links    one named check, by the name the audit prints
+    python tools/records.py --stats         one line per record: size, section shape, rationale share
+    python tools/records.py --graph 0066    the rules a record creates and modifies, and who else shaped them
+    python tools/records.py --orphans       records no other record links to, and the most cited
+    python tools/records.py --residue       changelog prose a frozen body should not carry
 
 THE SHAPE A RECORD IS HELD TO
 

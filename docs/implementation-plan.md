@@ -39,7 +39,7 @@
 >
 > **ADR slices landed:** **each ADR's own *Verification* section is the authority on what its slice
 > covers, and this field never restates one** — `python tools/brief.py --where <keyword>` routes to
-> the ADR that owns a topic, and `python tools/adr.py --stats` shapes the whole set. What a crate
+> the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
 > **Open now:** **Goal 6 (M7) is green; goal 9 stage 6 opens: `plan::diff` is § 5's comparison,

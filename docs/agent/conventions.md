@@ -458,8 +458,8 @@ changes:
   record's number; every rule under `modifies` gets this number appended to its `because`. The freeze
   derived `changes:` from `because` in exactly that way — first entry created, the rest amended — so a
   record and the rulebook must keep agreeing. `python tools/rules.py --check` refuses a rule whose
-  `because` is empty or names something that is not a record id; `python tools/adr.py --check` audits
-  the record; `python tools/adr.py --graph NNNN` prints what the record created and modified and which
+  `because` is empty or names something that is not a record id; `python tools/records.py --check` audits
+  the record; `python tools/records.py --graph NNNN` prints what the record created and modified and which
   records share a rule with it, derived from every `changes:` block.
 - **The H1 is `# ADR NNNN — <the decision as a statement>`**, and it is the title every index derives
   from. `Scope`, `Depends on` and `Validated by` are the three bullets that may follow it, each present
@@ -468,7 +468,7 @@ changes:
   block or derived from it.
 - **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
   `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
-  `tools/adr.py`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
+  `tools/records.py`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
   a `###` subsection under `Decision`. Use only the sections that have content; `Revisiting` is for a
   decision with a real trigger to reconsider it.
 - **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from

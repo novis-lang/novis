@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Audit docs/spec/02-php-migration.md against the PHP inventory and the Core member list.
 
 Rule 2 of the library review -- every change gets a migration path -- is only auditable if every PHP
