@@ -22,8 +22,8 @@ const groups: Group[] = [
   { title: 'Start', match: (id) => !id.includes('/'), pages: [] },
   { title: 'Getting started', match: (id) => id.startsWith('docs/getting-started') || id === 'docs', pages: [] },
   { title: 'Release notes', match: (id) => id.startsWith('docs/release-notes'), pages: [] },
+  { title: 'The rulebook', match: (id) => id.startsWith('docs/rules'), pages: [] },
   { title: 'Core reference', match: (id) => id.startsWith('docs/core'), pages: [] },
-  { title: 'Architecture decision records', match: (id) => id.startsWith('docs/adr'), pages: [] },
 ]
 
 for (const doc of docs.sort((a, b) => a.id.localeCompare(b.id))) {

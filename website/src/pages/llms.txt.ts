@@ -25,14 +25,14 @@ export const GET: APIRoute = async () => {
 
   const body =
     `# Novis\n\n> ${SITE_DESCRIPTION}\n\n` +
-    `This file lists every page of the Novis website. The Core reference documents the\n` +
-    `standard library (one page per member, generated from the language's own\n` +
-    `specification); the ADR section publishes the project's architecture decision\n` +
-    `records verbatim.\n` +
+    `This file lists every page of the Novis website. The rulebook states every rule the\n` +
+    `language holds itself to, chapter by chapter, each marked shipped or designed; the\n` +
+    `Core reference documents the standard library, one page per member, generated from\n` +
+    `the language's own specification.\n` +
     section('Start here', (id) => !id.includes('/')) +
     section('Getting started', (id) => id === 'docs' || id.startsWith('docs/getting-started') || id.startsWith('docs/release-notes')) +
-    section('Core reference', (id) => id.startsWith('docs/core')) +
-    section('Architecture decision records', (id) => id.startsWith('docs/adr'))
+    section('The rulebook', (id) => id.startsWith('docs/rules')) +
+    section('Core reference', (id) => id.startsWith('docs/core'))
 
   return new Response(body, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } })
 }

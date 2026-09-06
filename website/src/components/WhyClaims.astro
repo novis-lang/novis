@@ -2,11 +2,11 @@
 /**
  * Renders the claims collection (src/content/claims/) grouped by category.
  * Adding a claim to the page = adding one markdown file to that folder.
- * "ADR NNNN" in the proof/tradeoff lines is linkified automatically and gets
- * the site-wide hover tooltip.
+ * "ADR NNNN" in the proof/tradeoff lines is linkified automatically, to the
+ * frozen decision record in the repository.
  */
 import { getCollection, render } from 'astro:content'
-import { withBase } from '~/lib/base'
+import { decisionRecord } from '@config/site.mjs'
 
 const CATEGORIES: { id: string; title: string; blurb: string }[] = [
   { id: 'security', title: 'Security', blurb: 'The reason Novis exists. Nothing below is an option or a linter rule — it is how the language is built.' },
@@ -30,9 +30,14 @@ const byCategory = CATEGORIES.map((cat) => ({
 })).filter((cat) => cat.claims.length > 0)
 
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-const linkAdrs = (s: string) =>
+/**
+ * "ADR NNNN" in a claim's proof or tradeoff becomes a link to the frozen
+ * decision record in the repository, and reads as "decision NNNN" — the site
+ * publishes rules, and the records stay where they are written.
+ */
+const linkDecisions = (s: string) =>
   escape(s)
-    .replace(/ADR (\d{4})/g, `<a href="${withBase('/docs/adr/')}$1/">ADR $1</a>`)
+    .replace(/ADR (\d{4})/g, (_m, n) => `<a href="${decisionRecord(n)}">decision ${n}</a>`)
     .replace(/`([^`]+)`/g, '<code>$1</code>')
 ---
 
@@ -62,13 +67,13 @@ const linkAdrs = (s: string) =>
               {entry.data.proof && (
                 <p class="nv-claim-proof">
                   <strong>Proof — </strong>
-                  <span set:html={linkAdrs(entry.data.proof)} />
+                  <span set:html={linkDecisions(entry.data.proof)} />
                 </p>
               )}
               {entry.data.tradeoff && (
                 <p class="nv-claim-tradeoff">
                   <strong>The honest cost — </strong>
-                  <span set:html={linkAdrs(entry.data.tradeoff)} />
+                  <span set:html={linkDecisions(entry.data.tradeoff)} />
                 </p>
               )}
             </article>

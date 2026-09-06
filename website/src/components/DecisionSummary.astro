@@ -11,15 +11,17 @@
  *
  * The prose deliberately carries no cross-references; the one link per entry is
  * added here, by the renderer, so a reader who wants the full reasoning can
- * reach it without the text being about where to reach it.
+ * reach it without the text being about where to reach it. It leaves the site:
+ * the frozen records stay in the repository, and what is true now is the
+ * rulebook under /docs/rules/.
  */
 import decisions from '../data/decisions.json'
-import { withBase } from '~/lib/base'
+import { externalLinkAttrs } from '@config/external-links.mjs'
 
 const total = decisions.groups.reduce((n, g) => n + g.entries.length, 0)
 ---
 
-<div class="dec not-content" data-nv-no-adr-tooltip>
+<div class="dec not-content">
   <nav class="dec-jump" aria-label="Jump to a group">
     {
       decisions.groups.map((group) => (
@@ -55,8 +57,8 @@ const total = decisions.groups.reduce((n, g) => n + g.entries.length, 0)
               >
                 <h3 class="dec-headline">{entry.headline}</h3>
                 <p class="dec-body">{entry.body}</p>
-                <a class="dec-more" href={withBase(entry.url)}>
-                  the full decision
+                <a class="dec-more" href={entry.url} {...externalLinkAttrs(entry.url)}>
+                  the full record
                 </a>
               </li>
             ))}

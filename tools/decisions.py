@@ -102,6 +102,10 @@ SOURCE = os.path.join(ROOT, "docs", "decisions.toml")
 RENDER_MD = os.path.join(ROOT, "docs", "decisions.md")
 RENDER_JSON = os.path.join(ROOT, "website", "src", "data", "decisions.json")
 
+#: Where a decision record is read on the web. The website links out to it rather than republishing
+#: it: `website/config/site.mjs` holds the same two constants for everything on the site's own side.
+GITHUB_BLOB = "https://github.com/novis-lang/novis/blob/main"
+
 #: (id, heading, what belongs here). The heading is what a reader sees; the third column is what an
 #: author consults to place an entry, and is the only description of a group anywhere.
 GROUPS = [
@@ -438,10 +442,10 @@ def render_json(entries: dict, adrs: dict) -> str:
                         "adr": e["adr"],
                         "headline": e["headline"],
                         "body": e["body"],
-                        # The site's route for a record. `website/scripts/sync-adrs.mjs` reads the
-                        # frozen records from docs/decisions/ and still publishes them under
-                        # /docs/adr/, so the route did not move when the files did.
-                        "url": f"/docs/adr/{e['adr']}/",
+                        # Where the full record is read. The site publishes the rulebook --
+                        # what is true now -- and not the frozen rationale behind it, so this
+                        # leaves for the repository rather than naming a page.
+                        "url": f"{GITHUB_BLOB}/docs/decisions/{e['adr']}.md",
                     }
                     for e in rows
                 ],

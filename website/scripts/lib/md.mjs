@@ -6,21 +6,24 @@
  */
 
 import path from 'node:path'
-import { githubFile } from '../../config/site.mjs'
+import { githubFile, decisionRecord } from '../../config/site.mjs'
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 /**
- * Rewrite a spec-relative link target for the site: ADR links become site
- * pages, everything else repo-relative goes to GitHub.
+ * Rewrite a spec-relative link target for the site: everything repo-relative
+ * goes to GitHub, including the decision records, which the site does not
+ * publish — `config/site.mjs` § `decisionRecord` is why.
  * @param {string} target link target as written in docs/spec/…
  * @param {string} fromRepoDir repo-relative dir of the source file, e.g. 'docs/spec'
  */
 export function rewriteTarget(target, fromRepoDir) {
-  const adr = /(?:^|\/)(\d{4})-[^/]*\.md(#.*)?$/.exec(target)
-  if (adr && target.includes('adr')) return `/docs/adr/${adr[1]}/${adr[2] ?? ''}`
+  // A spec link into the old `docs/adr/NNNN-slug.md` tree: the records live at
+  // `docs/decisions/NNNN.md` now, and only in the repository.
+  const record = /(?:^|\/)(\d{4})-[^/]*\.md(?:#.*)?$/.exec(target)
+  if (record && target.includes('adr')) return decisionRecord(record[1])
   if (/^[a-z]+:/i.test(target) || target.startsWith('/')) return target
   const repoPath = path.posix.normalize(path.posix.join(fromRepoDir, target)).split('#')[0]
   if (repoPath.startsWith('..')) return target
@@ -31,9 +34,7 @@ export function rewriteTarget(target, fromRepoDir) {
 export function inlineHtml(md, fromRepoDir) {
   return escapeHtml(md)
     .replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_, text, target) => {
-      const href = rewriteTarget(target, fromRepoDir)
-      const adr = /^\/docs\/adr\/(\d{4})\//.exec(href)
-      return `<a href="${href}"${adr ? ` data-adr="${adr[1]}"` : ''}>${text}</a>`
+      return `<a href="${rewriteTarget(target, fromRepoDir)}">${text}</a>`
     })
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')

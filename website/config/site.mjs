@@ -27,10 +27,22 @@ export const SITE_DESCRIPTION =
   "Novis — a programming language for the web. Secure by design, not by discipline: untrusted data is tracked and blocked from anywhere dangerous, secrets can't leak, and downloaded code does only what you allow. Fast, like you would expect."
 
 /**
- * Deep link into the repository tree (for e.g. `docs/adr/0002-….md`).
+ * Deep link into the repository tree (for e.g. `docs/rules/security/tainted-sources.md`).
  * @param {string} repoRelativePath
  * @returns {string}
  */
 export function githubFile(repoRelativePath) {
   return `${GITHUB_URL}/blob/${GITHUB_BRANCH}/${repoRelativePath.replace(/^\/+/, '')}`
+}
+
+/**
+ * The frozen decision record behind a rule, by its four-digit number. The
+ * records are rationale the repository keeps and the site does not publish:
+ * a rule says what is true now, and its `because` points back at why it was
+ * decided. One home, in the repository.
+ * @param {string} number four digits, e.g. '0046'
+ * @returns {string}
+ */
+export function decisionRecord(number) {
+  return githubFile(`docs/decisions/${number}.md`)
 }
