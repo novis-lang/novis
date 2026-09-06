@@ -90,10 +90,9 @@ retired = "2026-09-05"
 [[goal]]
 name = "22 warm-start"
 md = "docs/agent/goals/22-warm-start.md"
-toml = "docs/agent/goals/22-warm-start.toml"
-handoff = "docs/agent/goals/22-warm-start.handoff.md"
 milestone = "post-parity"
 preflight = "docker"
+retired = "2026-09-06"
 
 # Post-parity: ADR 0131's temporary-directory sweep. It rides the same chain after the program's gate
 # because its server half — the post-response sweep and the boot orphan sweep — needs the `nvs-server`

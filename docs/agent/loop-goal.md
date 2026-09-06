@@ -1,89 +1,84 @@
-# Loop goal 22 — The on-disk artifact cache has a producer
+# Loop goal 7 — ADR 0131's temporary-directory sweep
 
-[ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) is built and unreachable. Goal 3 item 14
-landed it "exactly as specified" — `crates/nvs-cli/src/cache.rs` has the content-addressed layout, the
-`fsync`/`rename` write, the mmap-verify-then-execute read, the probabilistic eviction sweep and its own
-test suite — and **nothing calls it.** `grep -rn "crate::cache" crates/nvs-cli/src/` returns nothing:
-the only caching on the run path is `crates/nvs-cli/src/script.rs:76`'s in-process `HashMap`, which
-dies with the process. Every `nvs run` and every `nvs serve` boot compiles from source, every time.
+Land [ADR 0131](../adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md):
+every directory `Core\IO::temporaryDir` hands out dies with its script, swept by the runtime without ever
+throwing; a dead process's leftovers are reclaimed at `nvs serve` boot and under `nvs tmp clean`, keyed on
+owner liveness and never on age. The ADR is **written and accepted** — this goal implements it and does
+not reopen it. It sits after the parity program because the post-response sweep and the boot sweep both
+live in `nvs-server`, which goal 6 creates.
 
-When this goal is green a second run of the same program on the same toolchain does not compile it,
-and the number that says so is measured rather than asserted.
+This goal is small by chain standards: one design, five crates touched at one seam each. Its floor is the
+whole parity program, which is most of what its acceptance list weighs.
 
-It sits after goal 21 because the reason the cache has no producer was recorded in a handoff backlog
-that a goal switch then deleted, and goal 21 is what builds the file such a note now goes in. It sits
-before goal 7 because a warm start is the largest single latency item on the chain and everything
-after it only adds source to compile.
+## Two things every session must hold
 
-Goal 21's whole acceptance list is this goal's floor, and it is never traded.
+**The sweep never throws and never runs user code.** A path already gone is the goal state; a refused
+deletion is one log line, retried by whichever sweep comes next (0131 § 3). The sweep is native teardown
+placed *after* the last user code — after [0127](../adr/0127-the-end-of-a-script-is-observable.md)'s
+`onExit` queue on a CLI ending, after [0072](../adr/0072-core-task-structured-concurrency.md) § 6's
+`afterResponse` work on a request — and off the request path. `Core\IO::remove`/`removeDir` keep
+throwing; only the automatic sweeps are silent-but-logged (0131 § 6).
+
+**The orphan sweep's predicate is owner liveness, never age**, and it only ever walks the owned root
+(0131 §§ 2, 4). Every failure mode must fall toward under-deleting: a recycled pid leaks an entry until a
+later sweep, and no test or fix may introduce a path that deletes a live owner's directory. `tmp clean`
+has no force flag.
 
 ## Stage 0 — the catch-up
 
-Nothing. `crates/nvs-cli/src/cache.rs` is written against ADR 0042 as specified and stays; what
-changes is § 3's *letter*, and stage 4 is where that amendment is written rather than left as a
-surprise for a reader of the ADR.
+Nothing. ADR 0131 landed with its spec § 14 amendment in the same change; no fixture predates the rule.
 
 ## Stage 1 — the floor
 
-Goal 21's whole acceptance list, carried in verbatim by `tools/goal-switch.py`.
+Goal 6's whole acceptance list — the entire parity program, six goals deep, never traded.
 
-## Stage 2 — the keystone: `nvs-codegen` can emit the same IR a second way
+## Stage 2 — the keystone: the owned root and the end-of-script sweep
 
-The whole obstacle, and `crates/nvs-cli/src/cache.rs`'s own known gap is the diagnosis. A warm hit
-cannot map the JIT's finished pages, for two independent reasons: `cranelift_jit::JITModule` has no
-serialization at all, and — the one that would survive such an API — `crates/nvs-codegen/src/emit.rs`
-bakes **host addresses in as `iconst` immediates carrying no relocation record**. Three sites do it: a
-class descriptor's address in `class_desc`, the same address again in the `instanceof` lowering, and a
-statically resolved target's code address through `method_address`. Those are valid only for the
-process that allocated the descriptors and compiled the callee.
+1. **The owned root.** `capability::temp_dir` creates under `[io] temp_root` (a Boot key in
+   `nvs-config`), else a private `novis` subdirectory of the platform temporary directory — no longer
+   bare `std::env::temp_dir()`. Entry naming (`nvs-<pid>-<nonce>`) and the `fs.write` check are
+   unchanged.
+2. **The tracked list and the sweep.** The runtime records each path `temporaryDir` answers, per script;
+   at every ending the process survives, native teardown deletes what still stands, after the `onExit`
+   queue, throwing nothing, logging refusals.
+3. **The registry card** rewritten in the same slice per
+   [0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md): the "removing
+   it is the program's own job" paragraph is replaced by 0131's contract, and `docs/novis.md`
+   regenerated.
 
-1. **A second `Module` implementation** — `cranelift-object`'s, producing an `ObjectProduct` — behind
-   the same `nvs_ir::Program` walk, so there is one lowering and two backends rather than two
-   lowerings. `crates/nvs-codegen/src/lib.rs:449`'s `compile` is the entry point that gains a sibling.
-2. **A named symbol for every address the JIT bakes in.** Each of the three sites above emits a
-   relocation against a symbol the loader can resolve, instead of an immediate. Under `JITModule` the
-   symbol resolves to the same address it bakes today, so the hot path is unchanged and the two
-   backends stay one walk.
-3. **A guard test that the two agree**: the same program through both modules produces the same
-   observable answers, which is what stops the object path drifting into a second semantics.
+## Stage 3 — the server: post-response and boot
 
-Files: `crates/nvs-codegen/src/lib.rs`, `crates/nvs-codegen/src/emit.rs`.
+1. **A request's temporary dirs are swept after its `afterResponse` work**, off the request path; an
+   aborted request's dirs are swept by the surviving worker
+   ([0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)).
+2. **`nvs serve` boot runs the orphan sweep** over the owned root, before traffic: every `nvs-<pid>-*`
+   entry whose pid is dead is removed; live owners are skipped.
 
-## Stage 3 — the relocating read path, and the wiring
+## Stage 4 — `nvs tmp clean`
 
-4. **A warm hit maps private-writable, verifies, relocates, then makes the pages executable.** This
-   **amends [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) § 3's letter**, which maps
-   `PROT_READ` and `mprotect`s the very same mapping; a relocated image needs a private writable one
-   first. The checksum discipline is untouched — the hash still covers the file's bytes and the
-   patching happens after it.
-5. **`nvs run` and `nvs serve` consult the cache.** `crates/nvs-cli/src/runner.rs:384`'s `compile` and
-   `crates/nvs-cli/src/script.rs:84`'s resolver are the two seams, and the in-process `HashMap` stays
-   in front of the on-disk store rather than being replaced by it: they answer different questions
-   (this process again, versus this machine again).
+The same orphan sweep as a subcommand: prints each path it removes, `--dry-run` prints and deletes
+nothing, exits 0 when there is nothing to do. No force flag, per the standing decision above.
 
-## Stage 4 — the amendment and the measurement
+## Stage 5 — `keep_temporary`, the fixture, the suites
 
-6. **ADR 0042 § 3's read path is rewritten to what landed**, in the ADR's own body — never as an
-   overlay, per AGENTS.md — and its *Investigation* paragraph about mapping "the bytes directly as the
-   pages the JIT would otherwise have produced" is corrected to what stage 2 proves is reachable.
-7. **The warm-start figure is measured and recorded**, not asserted: `benches/` gains a cold-versus-
-   warm run of a real program, and the number goes in the ADR beside the decision. A cache that does
-   not measurably beat compiling is a cache to delete, and this is the check that would say so.
+1. **`[debug] keep_temporary`** (reloadable, [0078](../adr/0078-config-reload-and-control-socket.md)):
+   the end-of-script sweep logs each path it would have deleted and deletes none. No in-language setter
+   exists or is added.
+2. **`examples/tempdir.nvs`** — a script that creates a temporary dir, writes and reads a file inside
+   it, and prints what it read; a named integration test then asserts the directory is gone from the
+   owned root after the run.
+3. The conformance and differential suites, and the leak sweep, still green.
 
 ## Standing decisions
 
-- **This goal opens no new ADR number.** It folds its amendment into
-  [ADR 0042](../adr/0042-on-disk-artifact-cache-format.md) §§ 2–3 and nothing else.
-- **The object backend is a second `Module`, never a second lowering.** If the two cannot share the
-  `nvs_ir::Program` walk, the goal stops and says so rather than forking `emit.rs` — a second
-  lowering is a second semantics, and this repository has one execution tier on purpose.
-- **A warm hit that fails verification is a cold compile, silently.** A corrupt or stale payload is
-  never an error a user sees; it is a miss. ADR 0042 already says so and this restates the
-  consequence rather than the rule: nothing in this goal may make a cache problem into a program
-  failure.
-- **`nvs run` keeps working with the cache directory absent, unwritable or full.** Every one of those
-  is a miss, and the eviction sweep already decided what a full cache does.
-- **If stage 2 proves unreachable**, the safe fallback is recorded and taken: `cache.rs` is
-  **deleted** rather than left compiled-in with no caller, and ADR 0042 is retired with the reason.
-  Dead code that looks like a feature is worse than an absent feature, which is the whole finding
-  this goal came out of.
+- **ADR 0131 is the design and is not reopened.** Its sections are the items above; a conflict between
+  this file and the ADR is a bug in this file. No new ADR numbers in this goal.
+- **Pid-liveness has a per-platform edge** (recycled pids, access-denied on `OpenProcess`). Any
+  ambiguity resolves toward *skip* — under-delete, never over-delete — decided-and-recorded in the
+  sweep module's doc comment, never `BLOCKED`.
+- **Windows deletion refusals are expected, not failures.** A held handle (indexer, scanner) makes the
+  sweep log and move on; tests that need a refusal simulate one by holding the handle themselves.
+- **`[io]` is a new config section**; its shape follows
+  [0064](../adr/0064-configuration-file-format.md) and its key classification
+  [0078](../adr/0078-config-reload-and-control-socket.md) — `temp_root` Boot, `keep_temporary`
+  reloadable, both recorded in the registry's reloadability field.
