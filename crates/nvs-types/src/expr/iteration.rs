@@ -150,8 +150,7 @@ impl ForeachSource {
     }
 }
 
-/// Classifies a `foreach` subject, diagnosing one that is none of `rule:iteration/two-interfaces`
-/// § 3's three shapes.
+/// Classifies a `foreach` subject, diagnosing one that is none of `rule:iteration/foreach-subjects`'s three shapes.
 pub(crate) fn foreach_source(subject_ty: TypeId, span: Span, env: &mut Env<'_>) -> ForeachSource {
     let source = classify_foreach_source(subject_ty, span, env);
     if let Some(drive) = source.drive() {

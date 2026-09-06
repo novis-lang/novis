@@ -46,8 +46,7 @@
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
-//!   `rule:errors/diagnostic-record`
-//!   § 3's rendering of a failure into a development response is the
+//!   `rule:errors/renderings`'s rendering of a failure into a development response is the
 //!   configuration slice's, because a mode is what decides it and this loop has
 //!   not been given one.
 //!   [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) is not
@@ -1065,8 +1064,7 @@ where
 /// whatever it echoed before it failed. That is a decision rather than an
 /// omission: a page rendered half-way is worse than none, and the failure
 /// itself reaches a response only where a mode says it may
-/// (`rule:errors/diagnostic-record`
-/// § 3's HTML rendering of a `Throwable`, in development), which is the
+/// (`rule:errors/renderings`'s HTML rendering of a `Throwable`, in development), which is the
 /// configuration slice's. Until there is a mode to ask, the fail-closed answer
 /// is the status and nothing else.
 /// What a response carries when nothing declared otherwise —
@@ -1153,8 +1151,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
 }
 
 /// `400`, carrying nothing — ADR 0097 § 6's one refusal, joining
-/// `rule:errors/ambiguous-input-refused`
-/// § 2's closed list.
+/// `rule:errors/http-message-defects`'s closed list.
 ///
 /// No body for [`failed`]'s reason and one more of its own: the peer that would
 /// read it is a proxy, the operator who needs the detail is reading a log, and

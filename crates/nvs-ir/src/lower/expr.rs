@@ -2847,8 +2847,7 @@ impl<'a> Lowering<'a> {
         built
     }
 
-    /// `Core\Program::implementing<T>()` — `rule:programs/no-runtime-autoload`
-    /// § 3's expansion, emitted as the array literal it is specified to be.
+    /// `Core\Program::implementing<T>()` — `rule:programs/implementing`'s expansion, emitted as the array literal it is specified to be.
     ///
     /// One `InstKind::New` per implementor with no arguments, gathered into
     /// one `InstKind::ArrayNew` — instruction for instruction what

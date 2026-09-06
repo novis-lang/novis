@@ -494,8 +494,7 @@
 //!     member, throwing through [`ir::Helper::LiteralMismatch`] with the
 //!     accepted set named. § 3's enum-case subset is in that set now: every
 //!     lowering entry point takes the run's `nvs_types::EnumTable` (handed
-//!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/closed-integer-type`
-//!     § 1/§ 2's declaration errors are not reported twice), which is where a
+//!     back by `nvs_types::check_program` rather than rebuilt, so `rule:enums/declaration`/§ 2's declaration errors are not reported twice), which is where a
 //!     case's constant lives — [`nvs_types::ExprInfo::EnumCase`] carries one only for
 //!     a case written as an *expression*, and a case named in a **type** has
 //!     no expression to record one against. An enum operand is reinterpreted

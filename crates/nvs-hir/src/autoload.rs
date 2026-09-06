@@ -1,6 +1,5 @@
 //! The compile-time autoload map: which file declares a name
-//! (`rule:programs/no-runtime-autoload`
-//! §§ 1-2).
+//! (`rule:programs/autoload` and `rule:programs/one-declaration-per-autoloaded-file`).
 //!
 //! [`crate::requires`] owns the graph walk; this module owns the *map* it
 //! consults. The two halves stay apart because they answer different
@@ -9,8 +8,7 @@
 //! it".
 //!
 //! A [`Site`] is one `autoload` declaration, already cooked out of its
-//! spans and paired with the directory of the file that wrote it — `rule:programs/no-runtime-autoload`
-//! § 1's "paths are relative to THIS file, never to the entry point".
+//! spans and paired with the directory of the file that wrote it — `rule:programs/autoload`'s "paths are relative to THIS file, never to the entry point".
 //! [`AutoloadMap::build`] turns a program's sites into prefix → roots, and
 //! [`AutoloadMap::resolve`] turns a [`QName`] into the file that declares it,
 //! probing each root in declaration order and returning the whole ordered
@@ -307,8 +305,7 @@ impl AutoloadMap {
         found
     }
 
-    /// Renders the resolved map for `nvs check --autoload-map` — `rule:programs/no-runtime-autoload`
-    /// § 1's last sentence, which asks for what was *skipped* and what was
+    /// Renders the resolved map for `nvs check --autoload-map` — `rule:programs/autoload`'s last sentence, which asks for what was *skipped* and what was
     /// *shadowed* beside the prefixes that resolve.
     ///
     /// Paths are shown relative to `base` where they sit under it. The module

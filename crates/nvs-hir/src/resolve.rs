@@ -195,8 +195,7 @@ impl Resolver {
             // `hierarchy::resolve_supertype`, which has always taken all
             // three. Importing a reserved global is not a corner case but the
             // ordinary way a namespaced file reaches the exception tree:
-            // `rule:statements/a-qualified-name-is-absolute`
-            // § 2 gives a short name no fallback to the root, so `use
+            // `rule:statements/no-fallback-to-the-root-namespace` gives a short name no fallback to the root, so `use
             // Throwable;` is how `catch (Throwable $e)` is written under a
             // `namespace`, and trusting only `Core` here made that the one
             // spelling § 2 requires and this function refused.

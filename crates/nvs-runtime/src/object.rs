@@ -370,8 +370,7 @@ pub struct ClassDesc {
     /// [`ClassDesc::field_is_secret`] for why that direction is the safe one.
     ///
     /// This is the property half of
-    /// `rule:errors/diagnostic-record`
-    /// § 5's redaction row, and it is carried rather than computed for the
+    /// `rule:errors/record-transformations`'s redaction row, and it is carried rather than computed for the
     /// reason nothing below the checker could compute it: `secret` is a
     /// qualifier on a declared type, and a `secret string` is byte-identical
     /// to a `string` in every representation under it. `nvs_types` decides it,

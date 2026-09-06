@@ -15,8 +15,7 @@
 use super::*;
 
 impl Ctx {
-    /// Arms `rule:errors/escalation-ladder`
-    /// § 1's two stack addresses from a base address and a ceiling: the hard
+    /// Arms `rule:errors/on-limit`'s two stack addresses from a base address and a ceiling: the hard
     /// floor `ceiling` bytes below `base`, and the soft limit
     /// [`STACK_RESERVE`] above the floor.
     ///

@@ -21,8 +21,7 @@
 //!   any request ever sets a bit — that is what makes coverage and tracing
 //!   start/stoppable *mid-request*, which the rejected instrumented-tier
 //!   design could not do.
-//! * [`STACK_LIMIT_OFFSET`] — `rule:errors/escalation-ladder`
-//!   § 1's call-stack ceiling, compared against the stack pointer at the same
+//! * [`STACK_LIMIT_OFFSET`] — `rule:errors/on-limit`'s call-stack ceiling, compared against the stack pointer at the same
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
 //!   paid for.
@@ -43,8 +42,7 @@
 //! Novis compiles natively, so a user call is a real machine frame and
 //! exhausting the stack is a `SIGSEGV` rather than something
 //! `rule:errors/propagation`'s checked returns
-//! could carry. `rule:errors/escalation-ladder`
-//! § 1's answer is a bounds pair, armed per request and compared at every
+//! could carry. `rule:errors/on-limit`'s answer is a bounds pair, armed per request and compared at every
 //! non-leaf function entry:
 //!
 //! * `stack_limit` is the **soft** address. Crossing it is a catchable
@@ -507,8 +505,7 @@ pub struct Ctx {
     pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
-    /// Where a **diagnostic** writes — `rule:errors/diagnostic-record`
-    /// § 4's destination for a CLI `Core\Debug::dump`, and later for the log
+    /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`, and later for the log
     /// target's own records.
     ///
     /// A second sink rather than a fourth [`OutputSink`] variant, because the
@@ -1248,8 +1245,7 @@ pub const STACK_CEILING: usize = 8 << 20;
 /// allocates no further calls cannot cross the floor.
 pub const STACK_RESERVE: usize = 256 << 10;
 
-/// Which of `rule:errors/escalation-ladder`
-/// § 1's resource limits stopped the request, as the tier-1 handler is told it.
+/// Which of `rule:errors/on-limit`'s resource limits stopped the request, as the tier-1 handler is told it.
 ///
 /// § 1 spells that handler's parameter `LimitReport`, and this is what the
 /// report is built from: [`Ctx::run_limit_handler`] hands the closure an array

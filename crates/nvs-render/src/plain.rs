@@ -1,5 +1,4 @@
-//! `rule:errors/diagnostic-record`
-//! § 3's plaintext rendering — the one the terminal sink selects, and the
+//! `rule:errors/renderings`'s plaintext rendering — the one the terminal sink selects, and the
 //! first of the three to exist.
 //!
 //! # What it looks like, and why

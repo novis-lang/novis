@@ -4,8 +4,7 @@
 //! § 4's date pattern grammar — the one `Core\Time\DateTime::format` emits
 //! from and `Core\Time::parse` reads with, in **CLDR** letters
 //! (`yyyy-MM-dd HH:mm:ss`, `EEEE, d MMMM yyyy`) rather than PHP's `date()`
-//! ones — and `rule:programs/first-party-framework`
-//! § 2's `Core\Cldr::pluralCategory`, the cardinal plural rules a message
+//! ones — and `rule:programs/framework-core-half`'s `Core\Cldr::pluralCategory`, the cardinal plural rules a message
 //! catalog selects a form with, and `Core\Cldr::ordinalCategory` beside it for
 //! the forms a *place* takes.
 //!

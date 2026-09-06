@@ -435,8 +435,7 @@ impl Ctx {
         }
     }
 
-    /// Runs `rule:errors/escalation-ladder`
-    /// § 1's tier-1 handler, if this request registered one — the last thing a
+    /// Runs `rule:errors/on-limit`'s tier-1 handler, if this request registered one — the last thing a
     /// program gets to do about a resource limit, and it happens *before* the
     /// breach is recorded as the `FATAL` the ladder goes on to print.
     ///

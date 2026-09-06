@@ -98,8 +98,7 @@ pub struct Class {
     /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,
     /// which means "nothing told this class", never "no slot is `secret`".
     ///
-    /// `rule:errors/diagnostic-record`
-    /// § 5's redaction row states one rule about one record, and its property
+    /// `rule:errors/record-transformations`'s redaction row states one rule about one record, and its property
     /// half cannot be decided anywhere below the checker: `secret` is a
     /// qualifier on a *declared* type, and every representation under it — the
     /// tag, the slot, the allocation — is the same one a plain `string` has.

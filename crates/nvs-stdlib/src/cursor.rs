@@ -1,6 +1,5 @@
 //! The cursor `docs/spec/01-core-library.md` § 9's collections hand a
-//! `foreach` — `rule:iteration/two-interfaces`
-//! § 1's `Iterator<T>` half, over a snapshot list.
+//! `foreach` — `rule:iteration/two-interfaces`'s `Iterator<T>` half, over a snapshot list.
 //!
 //! # Decision: a `Core` collection answers a `foreach` through its method table
 //!

@@ -486,8 +486,7 @@ pub(crate) fn reject_secret_throwable_message(
 }
 
 /// ADR 0033 § 4's debug-dump sink at its *call-site* half, which is how
-/// `rule:errors/diagnostic-record`
-/// § 5's redaction row states it: a property whose declared type carries
+/// `rule:errors/record-transformations`'s redaction row states it: a property whose declared type carries
 /// `secret` becomes a Redacted node, and a `secret` value handed straight to
 /// the dump is refused by `nvs check`. The two halves are one rule about one
 /// record seen from its two ends — what the walk finds behind an object, and

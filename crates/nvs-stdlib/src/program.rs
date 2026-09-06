@@ -1,5 +1,4 @@
-//! `Core\Program` — `rule:programs/no-runtime-autoload`
-//! § 3's program enumeration beside § 6's program identity: one member the
+//! `Core\Program` — `rule:programs/implementing`'s program enumeration beside § 6's program identity: one member the
 //! compiler answers and one that is the only reason this module runs at all.
 //!
 //! # Why `implementing<T>()` never runs

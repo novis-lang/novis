@@ -25,8 +25,7 @@
 //! against a test that loops. What answers a synthetic request is the entry the
 //! application is served by, whose top-level statements are exactly what a
 //! served request runs; a program whose top level calls `Core\Test::request`
-//! would therefore answer its own request with another one, forever. `rule:errors/escalation-ladder`
-//! § 1's script-depth ceiling would eventually stop it, but a depth breach
+//! would therefore answer its own request with another one, forever. `rule:errors/on-limit`'s script-depth ceiling would eventually stop it, but a depth breach
 //! reports as an engine limit rather than as the mistake it is, so
 //! [`answer`] refuses the second one at the door and says so. The same refusal
 //! is what keeps a *served* request from making one: a request already being

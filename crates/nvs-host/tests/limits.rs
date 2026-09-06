@@ -1,5 +1,4 @@
-//! What a resource limit does to a request in flight — `rule:errors/escalation-ladder`
-//! § 1's ladder, asked at the safepoint poll that is the only place a program
+//! What a resource limit does to a request in flight — `rule:errors/on-limit`'s ladder, asked at the safepoint poll that is the only place a program
 //! allocating without calling anything can be stopped — and, for the one
 //! ceiling that bounds a *tree* rather than a request, at the `spawn script`
 //! that would pass it, because nothing is over `max_script_depth` until an

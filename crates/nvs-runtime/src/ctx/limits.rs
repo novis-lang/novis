@@ -266,8 +266,7 @@ impl Ctx {
     }
 
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
-    /// no cap — `rule:errors/escalation-ladder`
-    /// § 1.
+    /// no cap — `rule:errors/on-limit`.
     ///
     /// This is the ceiling a timer compares the request thread's CPU clock
     /// against before it raises [`SafepointFlags::CPU_LIMIT`]; the field doc

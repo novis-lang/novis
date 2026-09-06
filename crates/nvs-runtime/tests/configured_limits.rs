@@ -1,5 +1,4 @@
-//! What a `[limits]` directive is by the time a request reads it — `rule:errors/escalation-ladder`
-//! § 1's ceilings, resolved once by `Ctx::set_config` and read as bare integers
+//! What a `[limits]` directive is by the time a request reads it — `rule:errors/on-limit`'s ceilings, resolved once by `Ctx::set_config` and read as bare integers
 //! everywhere after it.
 //!
 //! The cases here ask the *reader*: a directive written as a string with a

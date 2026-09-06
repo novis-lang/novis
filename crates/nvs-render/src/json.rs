@@ -1,5 +1,4 @@
-//! `rule:errors/diagnostic-record`
-//! § 3's JSON rendering — what a log target emits under `[log] format = "json"`,
+//! `rule:errors/renderings`'s JSON rendering — what a log target emits under `[log] format = "json"`,
 //! and the second of the three renderings to exist.
 //!
 //! # Why it is here rather than in `nvs-runtime`
@@ -72,8 +71,7 @@ use crate::{Elision, Envelope, Node, Record, Rendered, Scalar, Source};
 /// One record as a JSON Lines line — the terminating newline included, because
 /// a JSON Lines record without it is not one.
 ///
-/// Infallible on purpose: this is what `rule:errors/escalation-ladder`
-/// § 6's tier-4 floor calls with its one shot, so a record always renders to a
+/// Infallible on purpose: this is what `rule:errors/log-write`'s tier-4 floor calls with its one shot, so a record always renders to a
 /// line rather than to a `Result` the floor has nowhere to send.
 #[must_use]
 pub fn line(record: &Record) -> String {

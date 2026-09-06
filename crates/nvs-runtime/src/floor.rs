@@ -75,8 +75,7 @@ use crate::string::NvsStr;
 use crate::throwable::Thrown;
 use crate::value::Value;
 
-/// One uncaught `Throwable` as `rule:errors/escalation-ladder`
-/// § 6's record, at [`Level::Error`].
+/// One uncaught `Throwable` as `rule:errors/log-write`'s record, at [`Level::Error`].
 ///
 /// The frames are carried as one `backtrace` field in the `#0`-first form
 /// [`Thrown::trace_as_string`] renders, rather than as a node per frame: § 6

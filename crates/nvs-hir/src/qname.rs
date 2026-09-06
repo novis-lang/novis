@@ -14,8 +14,7 @@ use std::fmt;
 /// machine and not another. This is a decided property, not a gap —
 /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 /// § 1 states it, and
-/// `rule:programs/no-runtime-autoload`
-/// § 1 already relies on it to keep an autoloaded file's on-disk name exact.
+/// `rule:programs/autoload` already relies on it to keep an autoloaded file's on-disk name exact.
 /// Do not "fix" it back toward PHP.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct QName {

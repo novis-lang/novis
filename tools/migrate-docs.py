@@ -743,6 +743,13 @@ SECTION_ITEM = r"\d+[a-z]?(?:\s*[-–]\s*\d+[a-z]?)?|\*[^*\n]+\*"
 #: What separates them: `§§ 2-3`, `§§ 3, 5`, `§§ 3 and 6`, `§§ 1, 3 and 4`.
 SECTION_SEP = r",\s*and\s+|,\s*|\s+and\s+|\s*&\s*"
 SECTION_LIST = rf"(?:{SECTION_ITEM})(?:\s*(?:{SECTION_SEP})(?:{SECTION_ITEM}))*"
+#: What may sit between a record and its `§`. In a doc comment or a `//!` module header the two are
+#: routinely on different lines, so the gap crosses a line break *and* the next line's comment
+#: marker. Matching only `\s*` here read `[ADR 0046](...)\n/// § 2` as a **bare** record citation,
+#: rewrote it to the bare record's rule and stranded the `§ 2` as prose: a citation that names the
+#: wrong rule and still resolves, which is the one failure gate check 1 cannot see. Because the
+#: match now spans the break, substituting it collapses the two lines into one correct one.
+SECTION_GAP = r"[ \t]*(?:\r?\n[ \t]*(?://!|///|//|\#|\*|>)?[ \t]*)?"
 
 
 def format_rust(backup: dict[Path, str | None]) -> list[Path]:
@@ -824,10 +831,11 @@ def plan_citation_rewrites(remap: dict[str, str]) -> dict[Path, tuple[str, int]]
 #: reference-style link it replaced. Both were silent before the B1 pilot measured them: they
 #: resolve, so gate check 1 passes, and only a reader notices. The transaction refuses instead.
 DEBRIS = (
-    (re.compile(r"`rule:[a-z0-9-]+/[a-z0-9-]+`\s*(?:[-–,]|\s+and\s+)\s*(?:\d|\*[^*\n]{1,40}\*)"),
+    (re.compile(rf"`rule:[a-z0-9-]+/[a-z0-9-]+`{SECTION_GAP}"
+                rf"(?:[-–,]|\s+and\s+)\s*(?:\d|\*[^*\n]{{1,40}}\*)"),
      "stranded section"),
     (re.compile(r"\[`rule:[a-z0-9-]+/[a-z0-9-]+`\]"), "rule token inside link brackets"),
-    (re.compile(r"`rule:[a-z0-9-]+/[a-z0-9-]+`\s*§"), "leftover section marker"),
+    (re.compile(rf"`rule:[a-z0-9-]+/[a-z0-9-]+`{SECTION_GAP}§"), "leftover section marker"),
 )
 
 
@@ -851,8 +859,8 @@ def rewrite_citations(text: str, by_record: dict[str, dict[str | None, str]]) ->
             rf"(?:\[ADR\s+{record}\]|(?<!\[)ADR\s+{record}(?!\d))"
             rf"(?:\([^)]*\))?"
             rf"(?!\s*:)"
-            rf"(?:\s*§+\s*(?P<sections>{SECTION_LIST}))?"
-            rf"(?!\s*§)"
+            rf"(?:{SECTION_GAP}§+[ \t]*(?P<sections>{SECTION_LIST}))?"
+            rf"(?!{SECTION_GAP}§)"
         )
 
         def substitute(match: re.Match[str]) -> str:

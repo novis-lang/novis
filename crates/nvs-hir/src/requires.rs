@@ -33,8 +33,7 @@
 //! force the caller to re-read the graph to find out what was in it.
 //!
 //! The same worklist runs
-//! `rule:programs/no-runtime-autoload`
-//! § 1's autoload resolution, as a fixpoint rather than a second pass. Each
+//! `rule:programs/autoload`'s autoload resolution, as a fixpoint rather than a second pass. Each
 //! file's walk harvests three things, not one: its `require` targets, its
 //! `autoload` declarations, and every name it uses where a class, interface,
 //! enum or `type` alias is meant. When the `require` graph is drained the
@@ -177,8 +176,7 @@ pub struct Loaded {
 /// another one would rename a program nobody had edited.
 ///
 /// The third element is the [`AutoloadMap`] the walk consulted, handed back
-/// rather than dropped so `nvs check --autoload-map` can print it (`rule:programs/no-runtime-autoload`
-/// § 1). It is complete for any program that reached the first probe — which
+/// rather than dropped so `nvs check --autoload-map` can print it (`rule:programs/autoload`). It is complete for any program that reached the first probe — which
 /// is every program, since the walk consults the map once the `require` graph
 /// drains, whether or not a name is still waiting on it.
 #[must_use]
@@ -457,8 +455,7 @@ fn canonicalize(path: &Path) -> Option<PathBuf> {
 /// Reports a `require` whose literal path resolved only because the
 /// filesystem folds case —
 /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-/// § 3, extending `rule:programs/no-runtime-autoload`
-/// § 1's exact-name rule from `autoload` to `require`.
+/// § 3, extending `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
 ///
 /// The comparison is free of extra syscalls: `canonicalize` on Windows and
 /// macOS already hands back the entry's true on-disk spelling, so this is a

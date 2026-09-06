@@ -1,5 +1,4 @@
-//! `Core\Fatal` — `rule:errors/escalation-ladder`
-//! §§ 1-2's tiers 1 and 2: the two places a program gets to say anything at all
+//! `Core\Fatal` — `rule:errors/on-limit` and `rule:errors/on-uncaught-throw`'s tiers 1 and 2: the two places a program gets to say anything at all
 //! after a resource limit has stopped it, or after a throw reached the root of
 //! the request with nothing left to catch it.
 //!

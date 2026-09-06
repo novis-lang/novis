@@ -24,8 +24,7 @@
 //!
 //! # Report and shed, never kill
 //!
-//! Firing writes one record to `rule:errors/escalation-ladder`
-//! § 4's floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
+//! Firing writes one record to `rule:errors/engine-floor`'s floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and ADR 0106 § 14 declines the process boundary
 //! that would make it possible, so detection is the whole of what happens here.

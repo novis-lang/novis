@@ -1513,8 +1513,7 @@ pub fn hooks_of(owner: &QName, name: &str, table: &SignatureTable) -> PropertyHo
 }
 
 /// Whether a declaration's written return type is exactly the `static` atom —
-/// what [`MethodSig::returns_static`] records, and the one spelling `rule:statements/static-is-a-member-modifier`
-/// § 1's late static binding takes.
+/// what [`MethodSig::returns_static`] records, and the one spelling `rule:statements/static-is-a-member-modifier`'s late static binding takes.
 ///
 /// Read off the *written* type rather than the lowered one, because lowering
 /// is precisely what loses the distinction: [`crate::lower::lower_type`]

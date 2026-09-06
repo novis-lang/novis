@@ -73,7 +73,7 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
   bracket-for-parenthesis substitution over a construct whose element grammar is already identical, so it is
   the cheapest rewrite the converter has been given yet — cheaper than ADR 0034's `(int)$x` → `$x as int`,
   which at least has to identify an operand.
-- **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADR 0034,
+- **A further, small subtraction from the "pragmatic superset" promise**, in the same vein as ADRs 0034,
   0045 and 0049. A PHP file using `list()` anywhere no longer parses unconverted. Mitigated by the fact
   that Novis already requires every destructuring leaf to carry a type, so no real PHP `list()` call site
   parses unedited regardless of which bracket it uses.

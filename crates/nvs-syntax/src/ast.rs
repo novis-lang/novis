@@ -528,8 +528,7 @@ pub struct Param {
     /// The declared type, or `None` if omitted (a diagnostic was already
     /// reported for the omission).
     pub ty: Option<Type>,
-    /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`
-    /// § 1. The mechanism is copy-in/copy-out at the call site, which is why
+    /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`. The mechanism is copy-in/copy-out at the call site, which is why
     /// the word is `inout` rather than `ref`.
     pub inout: bool,
     /// Whether this is a variadic parameter (`...$x`).
@@ -589,8 +588,7 @@ pub enum FnBody {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
-    /// diagnostic per `rule:statements/static-is-a-member-modifier`
-    /// § 4, but still parsed so the caller can build the node and keep going.
+    /// diagnostic per `rule:statements/a-closure-binds-this-only-where-it-uses-it`, but still parsed so the caller can build the node and keep going.
     pub is_static: bool,
     /// The optional self-name, visible only inside `body`.
     pub name: Option<Span>,
@@ -1631,8 +1629,7 @@ pub struct UseDecl {
 }
 
 /// `autoload 'Prefix' from 'a', 'b';` or `autoload discover 'glob';` — the
-/// two forms of `rule:programs/no-runtime-autoload`
-/// § 1, whose grammar [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
+/// two forms of `rule:programs/autoload`, whose grammar [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)
 /// owns.
 ///
 /// Every string here is a *span*, not a cooked value, exactly as
@@ -1707,8 +1704,7 @@ pub struct TypeAliasDecl {
 ///
 /// It never descends into a nested `fn` body, because a closure appears only
 /// as an *expression* and this walk visits none — so ADR 0031's closures
-/// cannot make their enclosing method a generator, which is exactly `rule:iteration/two-interfaces`
-/// § 4's "`yield` is lexically confined to the generator's own body".
+/// cannot make their enclosing method a generator, which is exactly `rule:iteration/generators`'s "`yield` is lexically confined to the generator's own body".
 #[must_use]
 pub fn is_generator_body(body: &Block) -> bool {
     body.stmts.iter().any(stmt_yields)

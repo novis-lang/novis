@@ -1,5 +1,4 @@
-//! `rule:programs/no-runtime-autoload`
-//! § 3: `Core\Program::implementing<T>()`, answered here rather than at run
+//! `rule:programs/implementing`: `Core\Program::implementing<T>()`, answered here rather than at run
 //! time.
 //!
 //! The sibling of [`crate::retrieval`], and the same pass shape for the same

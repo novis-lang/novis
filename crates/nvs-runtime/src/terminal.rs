@@ -96,8 +96,7 @@
 //! ADR 0086 § 5's in-place output is the module's third half: [`Region`] owns
 //! the cursor between the two ends of one `Core\Cli::live` call. § 8 makes
 //! putting the terminal back an obligation on **every** exit path — a throw, a
-//! fatal, an internal panic (`rule:errors/escalation-ladder`
-//! § 5), a signal — and the only construct in Rust that runs on all of them is
+//! fatal, an internal panic (`rule:errors/panics-bypass-user-code`), a signal — and the only construct in Rust that runs on all of them is
 //! a destructor. So restoration is [`Region`]'s `Drop` and lives nowhere else:
 //! there is no `close()` a caller can forget, no `finally` for a Novis program
 //! to write, and no second copy of the escape sequence that shows the cursor

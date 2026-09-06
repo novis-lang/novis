@@ -519,8 +519,7 @@ pub struct RouteParam {
 /// precedence makes the path key a shape rather than the written text. Order
 /// is what makes the pair deterministic — a duplicate is always reported at
 /// the row that arrives second, and the load order it arrives in does not
-/// depend on filesystem enumeration (`rule:programs/no-runtime-autoload`
-/// § 3).
+/// depend on filesystem enumeration (`rule:programs/implementing`).
 #[derive(Debug, Default)]
 pub struct RouteTable {
     rows: Vec<Route>,

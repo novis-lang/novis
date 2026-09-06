@@ -967,8 +967,7 @@ pub(crate) fn lower_generator_current(
     }
 }
 
-/// The message [`lower_generator_current`]'s guard raises, at both of `rule:iteration/two-interfaces`
-/// § 1's two points.
+/// The message [`lower_generator_current`]'s guard raises, at both of `rule:iteration/two-interfaces`'s two points.
 const OUTSIDE_THE_PROTOCOL: &str =
     "current() outside the iteration protocol: it answers only after advance() returned true";
 

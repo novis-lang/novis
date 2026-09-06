@@ -63,8 +63,7 @@ pub enum OutputSink {
     /// The process's standard error — the *diagnostic* channel's destination,
     /// and never a request's `echo`.
     ///
-    /// `rule:errors/diagnostic-record`
-    /// § 4 sends a CLI `Core\Debug::dump` here rather than to stdout, so
+    /// `rule:errors/debug-dump` sends a CLI `Core\Debug::dump` here rather than to stdout, so
     /// `prog | jq` and `prog > out.txt` keep working while a program is being
     /// debugged. `var_dump` writing to stdout is a small thing that makes PHP
     /// CLI tools unpipeable, and there is no reason to inherit it.
@@ -100,8 +99,7 @@ pub enum OutputSink {
 }
 
 /// Where a record goes when `[log] target` names no destination — which is a
-/// different channel for each of `rule:errors/diagnostic-record`
-/// § 6's two writers, and the same one for both as soon as it does name one.
+/// different channel for each of `rule:errors/record-producers`'s two writers, and the same one for both as soon as it does name one.
 ///
 /// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
 /// the home of why the unconfigured default is a split rather than a single
@@ -161,8 +159,7 @@ impl Ctx {
         write_to(&mut self.output, bytes)
     }
 
-    /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/diagnostic-record`
-    /// § 4's destination for a CLI `Core\Debug::dump`.
+    /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`.
     ///
     /// Deliberately **not** routed through [`Self::captures`]: a
     /// `Core\Out::capture` redirects what a program `echo`s, and a dump is not
@@ -181,8 +178,7 @@ impl Ctx {
     /// `unconfigured` says when the directive names nothing.
     ///
     /// **This is the only reader of that directive**, and both of
-    /// `rule:errors/diagnostic-record`
-    /// § 6's writers reach it: `Core\Log::write` with [`LogChannel::Output`]
+    /// `rule:errors/record-producers`'s writers reach it: `Core\Log::write` with [`LogChannel::Output`]
     /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. § 6's
     /// claim is about *sameness* — one serialiser, two callers — and a
     /// destination each caller resolved for itself is the second way that
@@ -257,8 +253,7 @@ impl Ctx {
         }
     }
 
-    /// Fills the envelope keys `rule:errors/escalation-ladder`
-    /// § 6 asks for beyond `level` and `msg` — `ts`, `request_id`, and
+    /// Fills the envelope keys `rule:errors/log-write` asks for beyond `level` and `msg` — `ts`, `request_id`, and
     /// `trace_id`/`span_id` when a trace is active.
     ///
     /// **Called by both of § 6's writers**, `Core\Log::write` and

@@ -6,8 +6,7 @@
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
 //!   `--autoload-map` prints the resolved `autoload` map in place of the
 //!   success line, which is
-//!   `rule:programs/no-runtime-autoload`
-//!   § 1's last sentence; the shape is `nvs_hir::autoload`'s module doc.
+//!   `rule:programs/autoload`'s last sentence; the shape is `nvs_hir::autoload`'s module doc.
 //! * `nvs run` (M3) — all of the above, then compile and execute. Its two
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.

@@ -1,5 +1,4 @@
-//! `Core\Debug` — `rule:errors/diagnostic-record`
-//! § 4's `dump` and `render`, and the walk that turns a runtime value into
+//! `Core\Debug` — `rule:errors/debug-dump`'s `dump` and `render`, and the walk that turns a runtime value into
 //! § 1's record.
 //!
 //! ```text

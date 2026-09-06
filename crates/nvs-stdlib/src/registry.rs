@@ -1332,8 +1332,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::serialize::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
-    // § 16. `rule:errors/diagnostic-record`
-    // § 4's `dump` and `render` only — the coverage, trace and profile members
+    // § 16. `rule:errors/debug-dump`'s `dump` and `render` only — the coverage, trace and profile members
     // that section also lists are ADR 0018's and land at M10.
     crate::debug::CLASS,
     // [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)

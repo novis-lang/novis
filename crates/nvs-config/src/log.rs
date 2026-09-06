@@ -288,8 +288,7 @@ mod tests {
         }
     }
 
-    /// The level directive's grammar, asked through the same check the target's is: `rule:errors/diagnostic-record`
-    /// § 2's five in both of the spellings the documentation uses, and one refusal for everything
+    /// The level directive's grammar, asked through the same check the target's is: `rule:errors/log-level`'s five in both of the spellings the documentation uses, and one refusal for everything
     /// else — including the near-miss a PSR-3 habit produces, which is the whole reason this is
     /// checked at all.
     ///

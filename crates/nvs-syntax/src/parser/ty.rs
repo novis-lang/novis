@@ -283,8 +283,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `<` at all) and the span covering `name_span` through the closing `>`.
     ///
     /// The parser deliberately accepts this after *any* name and imposes no
-    /// arity: `rule:iteration/two-interfaces`
-    /// § 2's one narrow door is `Iterable`/`Iterator`, but which names are
+    /// arity: `rule:iteration/concrete-generic-implements`'s one narrow door is `Iterable`/`Iterator`, but which names are
     /// generic is `nvs_hir::interfaces`' roster and only the checker reads
     /// it. Parsing `Foo<int>` and refusing it later gets the reader a
     /// diagnostic that names the rule, instead of a cascade off a `<` that

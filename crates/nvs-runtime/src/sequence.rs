@@ -1,5 +1,4 @@
-//! Draining `rule:iteration/two-interfaces`
-//! § 3's three iterable shapes from native code.
+//! Draining `rule:iteration/foreach-subjects`'s three iterable shapes from native code.
 //!
 //! `Core\Arr::from` is the first member whose parameter is *whatever `foreach`
 //! accepts* — `nvs_stdlib::registry::CoreTy::Iterated`, which owns why an

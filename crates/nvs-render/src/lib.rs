@@ -63,8 +63,7 @@
 //! has to run the other way.
 //!
 //! **This crate is a leaf, and that is what the second producer cost.** Its
-//! dependents are `nvs-runtime` — `rule:errors/escalation-ladder`
-//! § 6's tier-4 floor, which renders an uncaught `Throwable` through
+//! dependents are `nvs-runtime` — `rule:errors/log-write`'s tier-4 floor, which renders an uncaught `Throwable` through
 //! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
 //! render reached from the other caller. Its only dependency is `serde_json`.
 //! It used to depend on `nvs-syntax` for [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
@@ -88,11 +87,9 @@ pub mod json;
 pub mod plain;
 pub mod text;
 
-/// `rule:errors/diagnostic-record`
-/// § 2's five levels, with the fixed syslog mapping that section's table gives.
+/// `rule:errors/log-level`'s five levels, with the fixed syslog mapping that section's table gives.
 ///
-/// The mapping is fixed because `rule:errors/escalation-ladder`
-/// § 4 names `syslog` as a target and a severity is not optional there.
+/// The mapping is fixed because `rule:errors/engine-floor` names `syslog` as a target and a severity is not optional there.
 ///
 /// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
 /// takes is `nvs_stdlib::registry`'s and lands with that member at M8; when it
@@ -278,8 +275,7 @@ pub enum Scalar {
     Bytes(Vec<u8>),
 }
 
-/// What an [`Node::Elided`] node says was cut, and how much of it — `rule:errors/diagnostic-record`
-/// § 5.
+/// What an [`Node::Elided`] node says was cut, and how much of it — `rule:errors/record-transformations`.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Elision {
     /// The subtree below [`Caps::depth`] was cut.
@@ -427,8 +423,7 @@ pub struct Source {
     pub member: Option<String>,
 }
 
-/// What is true of a whole record and nothing about how it looks — `rule:errors/diagnostic-record`
-/// § 1's table.
+/// What is true of a whole record and nothing about how it looks — `rule:errors/diagnostic-record`'s table.
 ///
 /// Every field but [`Self::level`] is optional, and an absent one is **omitted**
 /// by a rendering rather than rendered empty — [ADR 0076](/docs/adr/0076-observability-export.md)
@@ -436,8 +431,7 @@ pub struct Source {
 /// producer that has no request to name should not have to invent one.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Envelope {
-    /// RFC 3339, as `rule:errors/escalation-ladder`
-    /// § 6 already fixes.
+    /// RFC 3339, as `rule:errors/log-write` already fixes.
     pub ts: Option<String>,
     /// § 2's level.
     pub level: Level,

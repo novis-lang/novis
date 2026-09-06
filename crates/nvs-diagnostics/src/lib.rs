@@ -180,15 +180,13 @@ pub mod code {
     /// string literal — an interpolated `"$dir"`, a concatenation, a
     /// variable. Every path resolves at compile time, relative to the file
     /// the declaration appears in, so there is nothing to interpolate from;
-    /// see `rule:programs/no-runtime-autoload`
-    /// § 1, which carries `require`'s literal-only restriction for the same
+    /// see `rule:programs/autoload`, which carries `require`'s literal-only restriction for the same
     /// reason.
     pub const E_AUTOLOAD_PATH_NOT_LITERAL: Code = Code::new("E0123");
     /// A `for` init clause holding a declaration *and* an expression, in
     /// either order — `for (int $i = 0, $j = 1; …)` and
     /// `for ($j = 1, int $i = 0; …)` alike. See
-    /// `rule:iteration/for-init-clause`
-    /// § 3, whose § 1 makes the clause one or the other and never both.
+    /// `rule:iteration/for-init-refusals`, whose § 1 makes the clause one or the other and never both.
     pub const E_FOR_INIT_MIXES_DECL_AND_EXPR: Code = Code::new("E0124");
     /// A `for` init clause holding two declarations, `for (int $i = 0, int
     /// $j = 0; …)` — the shape a reader coming from C writes. Separate from
@@ -505,12 +503,10 @@ pub mod code {
     /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
     /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
     /// § 3, which extends
-    /// `rule:programs/no-runtime-autoload`
-    /// § 1's exact-name rule from `autoload` to `require`.
+    /// `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314");
     /// Two `autoload` declarations in one program claim the same namespace
-    /// prefix — `rule:programs/no-runtime-autoload`
-    /// § 1's "one prefix has one home". An explicit prefix deliberately does
+    /// prefix — `rule:programs/autoload`'s "one prefix has one home". An explicit prefix deliberately does
     /// *not* collide with a `discover` glob that would produce the same one:
     /// there the glob skips the name, which is what makes a vendor override
     /// work.
@@ -624,7 +620,7 @@ pub mod code {
     pub const E_ENUM_ARITHMETIC_UNSUPPORTED: Code = Code::new("E0415");
     /// `as` from one enum type to a *different* enum type, even when both
     /// share the same underlying integer type — rejected outright; an
-    /// explicit `match` naming every case is the replacement. See `rule:enums/closed-integer-type`
+    /// explicit `match` naming every case is the replacement. See ADR 0010
     /// § 5.
     pub const E_ENUM_CONVERSION_UNSUPPORTED: Code = Code::new("E0416");
     /// `as Core\Html\Markup` on anything but a source-literal string — a
@@ -2081,8 +2077,7 @@ pub mod code {
     pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
     /// ADR 0033 § 4's debug-dump sink, as
-    /// `rule:errors/diagnostic-record`
-    /// § 5's redaction row states it: a `secret`-qualified value written at a
+    /// `rule:errors/record-transformations`'s redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
     /// It is a *call-site* rule rather than a parameter type, for ADR 0033

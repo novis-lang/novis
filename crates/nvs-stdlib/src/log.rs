@@ -1,7 +1,5 @@
-//! `Core\Log` — `rule:errors/escalation-ladder`
-//! § 6's reporting half: one member a program writes a record with, and
-//! `rule:errors/diagnostic-record`
-//! § 2's `Core\Log\Level` beside it because that member is the only thing that
+//! `Core\Log` — `rule:errors/log-write`'s reporting half: one member a program writes a record with, and
+//! `rule:errors/log-level`'s `Core\Log\Level` beside it because that member is the only thing that
 //! takes one.
 //!
 //! **The level enum's integers are the syslog severities, not ordinals.** ADR

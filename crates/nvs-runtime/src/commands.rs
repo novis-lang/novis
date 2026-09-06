@@ -125,8 +125,7 @@ pub enum ArgConv {
     Unconverted,
 }
 
-/// One enum case's constant value, in `rule:enums/closed-integer-type`
-/// § 2's own two integer types.
+/// One enum case's constant value, in `rule:enums/one-backing-type`'s own two integer types.
 ///
 /// `nvs_types::enums::EnumValue` as a running program holds it, and **not**
 /// widened to the `i128` [`crate::object::EnumCases`] holds. The two carry the

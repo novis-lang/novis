@@ -11,8 +11,7 @@
 //! this module has no opinion about them beyond the defaults below.
 //!
 //! **The bound is enforced before the write, never after.** A record is a line
-//! (`rule:errors/diagnostic-record`
-//! § 3's JSON Lines), so rotating mid-record would produce two files each
+//! (`rule:errors/renderings`'s JSON Lines), so rotating mid-record would produce two files each
 //! holding half of one, and a log reader would be right to reject both. A write
 //! that would take the current file past `max_bytes` rotates first and lands
 //! whole in the new one, which means a file may exceed `max_bytes` by nothing

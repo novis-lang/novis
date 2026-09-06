@@ -137,8 +137,7 @@
 //! and for the same reason.
 //!
 //! The name is matched **byte for byte**
-//! (`rule:errors/ambiguous-input-refused`
-//! § 3): no dot, space or bracket is substituted in either direction. That
+//! (`rule:errors/cookie-name-bytes`): no dot, space or bracket is substituted in either direction. That
 //! mangling is PHP's `register_globals`-era name repair, it is what
 //! CVE-2024-2756 was, and the superglobals it served are what
 //! `rule:statements/no-host-populated-variables` deleted.
@@ -1562,8 +1561,7 @@ fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
 /// The cookie the program asked for, or `None` where the request carries none it
 /// is allowed to see.
 ///
-/// **A `__Host-` name that arrived twice is not visible**, which is `rule:errors/ambiguous-input-refused`
-/// § 3's "a non-conforming cookie carrying the prefix is not visible on read"
+/// **A `__Host-` name that arrived twice is not visible**, which is `rule:errors/cookie-name-bytes`'s "a non-conforming cookie carrying the prefix is not visible on read"
 /// stated over the one non-conformance a `Cookie` field can actually show. The
 /// prefix means host-locked and `Path=/`, so a conforming browser holds at most
 /// one of them per host; two lines are either a client that is not one or a

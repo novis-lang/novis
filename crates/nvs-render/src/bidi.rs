@@ -9,8 +9,7 @@
 //! lives in one module rather than beside the lexer's string handling.
 //!
 //! **It lives in this crate rather than in `nvs-syntax` because this crate is
-//! the leaf.** `rule:errors/diagnostic-record`
-//! § 1 puts the record model below both the runtime and the compiler front end,
+//! the leaf.** `rule:errors/diagnostic-record` puts the record model below both the runtime and the compiler front end,
 //! and § 5 routes the bidi transformation through this predicate — so with
 //! `nvs-runtime` a dependent, `nvs-render` → `nvs-syntax` → `nvs-diagnostics`
 //! would have closed a cycle. The module moved down whole rather than being

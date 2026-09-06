@@ -1085,8 +1085,7 @@ mod tests {
         release(hook);
     }
 
-    /// ADR 0127 § 2's third row, asked as an **identity** exactly as `rule:errors/escalation-ladder`
-    /// § 2's tier-2 handler is: the report carries the very allocation the
+    /// ADR 0127 § 2's third row, asked as an **identity** exactly as `rule:errors/on-uncaught-throw`'s tier-2 handler is: the report carries the very allocation the
     /// program threw, so a hook can read its class, message and backtrace back
     /// through the ordinary members rather than a copy of what it said.
     #[test]

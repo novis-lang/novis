@@ -3,8 +3,7 @@
 //!
 //! # Why this exists now
 //!
-//! It was harmless while nothing dispatched through an interface. `rule:iteration/two-interfaces`
-//! § 1's `Iterator<T>` changed that: its members are bodiless *on purpose*
+//! It was harmless while nothing dispatched through an interface. `rule:iteration/two-interfaces`'s `Iterator<T>` changed that: its members are bodiless *on purpose*
 //! ([`crate::iter_lib`]'s own docs own why — a call resolving to a bodiless
 //! declaration has no compiled function to name, so it dispatches on the
 //! receiver's runtime class, which is exactly what driving a cursor of

@@ -1199,8 +1199,7 @@ pub fn lower_property_hook(
 /// `return 1` is indistinguishable from a fall-through. So the difference is
 /// spelled once, where the frame is lowered and its caller is still known.
 ///
-/// - [`ScriptRole::Required`] — `rule:statements/require-is-the-only-inclusion-construct`
-///   § 3's `1`, which is PHP's own answer for an `include` of a file that
+/// - [`ScriptRole::Required`] — `rule:statements/a-require-expression-is-mixed`'s `1`, which is PHP's own answer for an `include` of a file that
 ///   never `return`s, kept for the construct PHP has.
 /// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
 ///   a `return` produces"

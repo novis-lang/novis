@@ -18,8 +18,7 @@
 //!
 //! # Three bounds, and the one that is not here
 //!
-//! - [`MAX_PARTS`] — `rule:errors/ambiguous-input-refused`
-//!   § 4's part count, which bounds *bookkeeping*: a body far inside every byte
+//! - [`MAX_PARTS`] — `rule:errors/multipart-part-count`'s part count, which bounds *bookkeeping*: a body far inside every byte
 //!   cap can still hold a million parts.
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
 //!   headers cannot grow the buffer.
@@ -51,8 +50,7 @@ use nvs_runtime::RequestBody;
 
 use crate::request::REQUEST_BODY;
 
-/// `rule:errors/ambiguous-input-refused`
-/// § 4's `[limits] max_multipart_parts` default, as a constant until that row
+/// `rule:errors/multipart-part-count`'s `[limits] max_multipart_parts` default, as a constant until that row
 /// exists.
 ///
 /// PHP's own number after CVE-2023-0662, and it counts *every* part: a field

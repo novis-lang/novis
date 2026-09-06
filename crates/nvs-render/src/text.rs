@@ -1,5 +1,4 @@
-//! `rule:errors/diagnostic-record`
-//! § 5's control-byte and bidi transformations, over one implementation.
+//! `rule:errors/record-transformations`'s control-byte and bidi transformations, over one implementation.
 //!
 //! The table is [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
 //! § 1's, unchanged, and the bidi rule is
@@ -20,8 +19,7 @@
 //! CWE-117 for the plaintext rendering. A human-readable log line is not
 //! `"$k=$v"` concatenation here: it renders nodes whose control bytes are
 //! already substituted, so a newline inside a tainted value cannot forge an
-//! entry. That is the property `rule:errors/escalation-ladder`
-//! § 6 chose JSON Lines to guarantee, preserved as the condition on adding a
+//! entry. That is the property `rule:errors/log-write` chose JSON Lines to guarantee, preserved as the condition on adding a
 //! human-readable target at all.
 
 use std::borrow::Cow;

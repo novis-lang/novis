@@ -829,8 +829,7 @@ pub enum ExprInfo {
         ty: TypeId,
     },
     /// `Core\Program::implementing<T>()`, keyed by the call's own span —
-    /// `rule:programs/no-runtime-autoload`
-    /// § 3's enumeration, already answered.
+    /// `rule:programs/implementing`'s enumeration, already answered.
     ///
     /// The sibling of [`ExprInfo::CoreConst`] for a fold whose answer is not a
     /// constant: § 3 expands the call "to an array literal of `new`

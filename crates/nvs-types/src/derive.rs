@@ -443,8 +443,7 @@ fn codec_ty(declared: TypeId, env: &Env<'_>) -> Erased {
         // `crate::layout` keys on and `nvs_ir::lower::lower_file` joins
         // through, so `nvs-codegen` can resolve it to a descriptor.
         Ty::Class(name, _) => (CodecTy::Class, None, Some(name.to_string()), None),
-        // § 2's enum. What travels is the roster and not the name: `rule:enums/closed-integer-type`
-        // § 6 reserves an enum tag that nothing writes, so by the time a case
+        // § 2's enum. What travels is the roster and not the name: `rule:enums/representation` reserves an enum tag that nothing writes, so by the time a case
         // is a value it is the integer behind it, and a decoder has nothing to
         // resolve a name against. The membership test is therefore the whole
         // of the decode — see `nvs_stdlib::EnumCases`.

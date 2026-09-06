@@ -1,0 +1,830 @@
+[
+ {
+  "file": "crates/nvs-cli/src/main.rs",
+  "line": 9,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0061",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-config/src/log.rs",
+  "line": 291,
+  "now": "errors/diagnostic-record",
+  "stranded": "2",
+  "record": "0092",
+  "orig_sections": "2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 183,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1, which carries",
+  "record": "0087",
+  "orig_sections": "2",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 190,
+  "now": "iteration/for-init-clause",
+  "stranded": "3, whose",
+  "record": "0100",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 508,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0030",
+  "orig_sections": "1 to allow no leading underscore at all",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 512,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0030",
+  "orig_sections": "2-3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 627,
+  "now": "enums/closed-integer-type",
+  "stranded": "5",
+  "record": "0061",
+  "orig_sections": "1, which carries",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-diagnostics/src/lib.rs",
+  "line": 2084,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0109",
+  "orig_sections": "3, whose",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-hir/src/aliases.rs",
+  "line": 6,
+  "now": "statements/nothing-gets-a-second-name",
+  "stranded": "6",
+  "record": "0015",
+  "orig_sections": "6",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/aliases.rs",
+  "line": 27,
+  "now": "statements/nothing-gets-a-second-name",
+  "stranded": "5/7",
+  "record": "0015",
+  "orig_sections": "5/7",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/autoload.rs",
+  "line": 2,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1-2",
+  "record": "0061",
+  "orig_sections": "1-2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/autoload.rs",
+  "line": 12,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0061",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/autoload.rs",
+  "line": 310,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0062",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-hir/src/qname.rs",
+  "line": 17,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1 already relies on it to keep an autoloaded file",
+  "record": "0062",
+  "orig_sections": "1 states it, and",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-hir/src/requires.rs",
+  "line": 36,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0061",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/requires.rs",
+  "line": 180,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0062",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-hir/src/requires.rs",
+  "line": 460,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1",
+  "record": "0061",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-hir/src/resolve.rs",
+  "line": 198,
+  "now": "statements/a-qualified-name-is-absolute",
+  "stranded": "2 gives a short name no fallback to the root, so",
+  "record": "0113",
+  "orig_sections": "2 gives a short name no fallback to the root, so",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-host/src/watchdog.rs",
+  "line": 27,
+  "now": "errors/escalation-ladder",
+  "stranded": "4",
+  "record": "0106",
+  "orig_sections": "7 is the whole specification, and its first clause decides this module",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-host/tests/limits.rs",
+  "line": 1,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-ir/src/ir.rs",
+  "line": 101,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0092",
+  "orig_sections": "5",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-ir/src/lib.rs",
+  "line": 497,
+  "now": "enums/closed-integer-type",
+  "stranded": "1/",
+  "record": "0031",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-ir/src/lower/expr.rs",
+  "line": 2850,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0027",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-ir/src/lower/generator.rs",
+  "line": 970,
+  "now": "iteration/two-interfaces",
+  "stranded": "1",
+  "record": "0028",
+  "orig_sections": "2 says",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-ir/src/lower/mod.rs",
+  "line": 1202,
+  "now": "statements/require-is-the-only-inclusion-construct",
+  "stranded": "3",
+  "record": "0038",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-render/src/bidi.rs",
+  "line": 12,
+  "now": "errors/diagnostic-record",
+  "stranded": "1 puts the record model below both the runtime and the compiler front end,",
+  "record": "0092",
+  "orig_sections": "1 puts the record model below both the runtime and the compiler front end,",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/json.rs",
+  "line": 1,
+  "now": "errors/diagnostic-record",
+  "stranded": "3",
+  "record": "0092",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/json.rs",
+  "line": 75,
+  "now": "errors/escalation-ladder",
+  "stranded": "6",
+  "record": "0106",
+  "orig_sections": "10",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 66,
+  "now": "errors/escalation-ladder",
+  "stranded": "6",
+  "record": "0020",
+  "orig_sections": "6",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 91,
+  "now": "errors/diagnostic-record",
+  "stranded": "2",
+  "record": "0092",
+  "orig_sections": "2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 94,
+  "now": "errors/escalation-ladder",
+  "stranded": "4 names",
+  "record": "0020",
+  "orig_sections": "4 names",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 281,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0091",
+  "orig_sections": "6",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 430,
+  "now": "errors/diagnostic-record",
+  "stranded": "1",
+  "record": "0091",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-render/src/lib.rs",
+  "line": 439,
+  "now": "errors/escalation-ladder",
+  "stranded": "6 already fixes",
+  "record": "0092",
+  "orig_sections": "5",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-render/src/plain.rs",
+  "line": 1,
+  "now": "errors/diagnostic-record",
+  "stranded": "3",
+  "record": "0092",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/text.rs",
+  "line": 1,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0092",
+  "orig_sections": "5",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-render/src/text.rs",
+  "line": 23,
+  "now": "errors/escalation-ladder",
+  "stranded": "6 chose",
+  "record": "0086",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/commands.rs",
+  "line": 128,
+  "now": "enums/closed-integer-type",
+  "stranded": "2",
+  "record": "0010",
+  "orig_sections": "2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/hooks.rs",
+  "line": 438,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0127",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/isolate.rs",
+  "line": 433,
+  "now": "errors/escalation-ladder",
+  "stranded": "3",
+  "record": "0083",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/limits.rs",
+  "line": 269,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/mod.rs",
+  "line": 24,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0018",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/mod.rs",
+  "line": 46,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/mod.rs",
+  "line": 510,
+  "now": "errors/diagnostic-record",
+  "stranded": "4",
+  "record": "0106",
+  "orig_sections": "5",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/mod.rs",
+  "line": 1251,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/output.rs",
+  "line": 66,
+  "now": "errors/diagnostic-record",
+  "stranded": "4 sends a",
+  "record": "0088",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/output.rs",
+  "line": 103,
+  "now": "errors/diagnostic-record",
+  "stranded": "6",
+  "record": "0088",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/output.rs",
+  "line": 164,
+  "now": "errors/diagnostic-record",
+  "stranded": "4",
+  "record": "0092",
+  "orig_sections": "4 sends a",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/output.rs",
+  "line": 184,
+  "now": "errors/diagnostic-record",
+  "stranded": "6",
+  "record": "0088",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/output.rs",
+  "line": 260,
+  "now": "errors/escalation-ladder",
+  "stranded": "6 asks for beyond",
+  "record": "0106",
+  "orig_sections": "10",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/ctx/safepoint.rs",
+  "line": 18,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0106",
+  "orig_sections": "5",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/floor.rs",
+  "line": 78,
+  "now": "errors/escalation-ladder",
+  "stranded": "6",
+  "record": "0106",
+  "orig_sections": "10",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/inproc.rs",
+  "line": 28,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/logfile.rs",
+  "line": 14,
+  "now": "errors/diagnostic-record",
+  "stranded": "3",
+  "record": "0106",
+  "orig_sections": "10 requires to be a finite number",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/object.rs",
+  "line": 373,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0116",
+  "orig_sections": "2 is the decision",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/src/sequence.rs",
+  "line": 1,
+  "now": "iteration/two-interfaces",
+  "stranded": "3",
+  "record": "0053",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-runtime/src/terminal.rs",
+  "line": 99,
+  "now": "errors/escalation-ladder",
+  "stranded": "5",
+  "record": "0118",
+  "orig_sections": "2 is why the split is at this crate",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-runtime/tests/configured_limits.rs",
+  "line": 1,
+  "now": "errors/escalation-ladder",
+  "stranded": "1",
+  "record": "0020",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-server/src/serve.rs",
+  "line": 49,
+  "now": "errors/diagnostic-record",
+  "stranded": "3",
+  "record": "0116",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-server/src/serve.rs",
+  "line": 1068,
+  "now": "errors/diagnostic-record",
+  "stranded": "3",
+  "record": "0097",
+  "orig_sections": "4",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-server/src/serve.rs",
+  "line": 1156,
+  "now": "errors/ambiguous-input-refused",
+  "stranded": "2",
+  "record": "0092",
+  "orig_sections": "3",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-stdlib/src/cldr.rs",
+  "line": 7,
+  "now": "programs/first-party-framework",
+  "stranded": "2",
+  "record": "0082",
+  "orig_sections": "2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/cursor.rs",
+  "line": 2,
+  "now": "iteration/two-interfaces",
+  "stranded": "1",
+  "record": "0053",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/debug.rs",
+  "line": 1,
+  "now": "errors/diagnostic-record",
+  "stranded": "4",
+  "record": "0092",
+  "orig_sections": "4",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/fatal.rs",
+  "line": 1,
+  "now": "errors/escalation-ladder",
+  "stranded": "1-2",
+  "record": "0020",
+  "orig_sections": "1-2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/log.rs",
+  "line": 1,
+  "now": "errors/escalation-ladder",
+  "stranded": "6",
+  "record": "0020",
+  "orig_sections": "6",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/log.rs",
+  "line": 3,
+  "now": "errors/diagnostic-record",
+  "stranded": "2",
+  "record": "0092",
+  "orig_sections": "2",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/multipart.rs",
+  "line": 21,
+  "now": "errors/ambiguous-input-refused",
+  "stranded": "4",
+  "record": "0105",
+  "orig_sections": "1-2",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-stdlib/src/multipart.rs",
+  "line": 54,
+  "now": "errors/ambiguous-input-refused",
+  "stranded": "4",
+  "record": "0095",
+  "orig_sections": "4",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/program.rs",
+  "line": 1,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0061",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/registry.rs",
+  "line": 1335,
+  "now": "errors/diagnostic-record",
+  "stranded": "4",
+  "record": "0088",
+  "orig_sections": "2",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-stdlib/src/request.rs",
+  "line": 140,
+  "now": "errors/ambiguous-input-refused",
+  "stranded": "3",
+  "record": "0105",
+  "orig_sections": "1, the parse itself being",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-stdlib/src/request.rs",
+  "line": 1565,
+  "now": "errors/ambiguous-input-refused",
+  "stranded": "3",
+  "record": "0095",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-stdlib/src/script.rs",
+  "line": 1088,
+  "now": "errors/escalation-ladder",
+  "stranded": "2",
+  "record": "0072",
+  "orig_sections": "5",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-syntax/src/ast.rs",
+  "line": 531,
+  "now": "statements/inout-is-the-by-reference-spelling",
+  "stranded": "1",
+  "record": "0036",
+  "orig_sections": "2",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-syntax/src/ast.rs",
+  "line": 592,
+  "now": "statements/static-is-a-member-modifier",
+  "stranded": "4, but still parsed so the caller can build the node and keep going",
+  "record": "0107",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-syntax/src/ast.rs",
+  "line": 1634,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "1, whose grammar",
+  "record": "0043",
+  "orig_sections": "4",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-syntax/src/ast.rs",
+  "line": 1710,
+  "now": "iteration/two-interfaces",
+  "stranded": "4",
+  "record": "0008",
+  "orig_sections": "4, but still parsed so the caller can build the node and keep going",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-syntax/src/parser/ty.rs",
+  "line": 286,
+  "now": "iteration/two-interfaces",
+  "stranded": "2",
+  "record": "0119",
+  "orig_sections": "1",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-types/src/commands.rs",
+  "line": 7,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3 scan",
+  "record": "0061",
+  "orig_sections": "3 scan",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/commands.rs",
+  "line": 42,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0061",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/commands.rs",
+  "line": 326,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0061",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/conformance.rs",
+  "line": 6,
+  "now": "iteration/two-interfaces",
+  "stranded": "1",
+  "record": "0053",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/derive.rs",
+  "line": 446,
+  "now": "enums/closed-integer-type",
+  "stranded": "6 reserves an enum tag that nothing writes, so by the time a case",
+  "record": "0067",
+  "orig_sections": "9",
+  "aligned": false
+ },
+ {
+  "file": "crates/nvs-types/src/expr/iteration.rs",
+  "line": 153,
+  "now": "iteration/two-interfaces",
+  "stranded": "3",
+  "record": "0053",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/expr/quals.rs",
+  "line": 489,
+  "now": "errors/diagnostic-record",
+  "stranded": "5",
+  "record": "0092",
+  "orig_sections": "5",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/expr_table.rs",
+  "line": 832,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0031",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/program.rs",
+  "line": 1,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0061",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/routes.rs",
+  "line": 522,
+  "now": "programs/no-runtime-autoload",
+  "stranded": "3",
+  "record": "0046",
+  "orig_sections": "3",
+  "aligned": true
+ },
+ {
+  "file": "crates/nvs-types/src/signatures.rs",
+  "line": 1516,
+  "now": "statements/static-is-a-member-modifier",
+  "stranded": "1",
+  "record": "0008",
+  "orig_sections": "1",
+  "aligned": true
+ },
+ {
+  "file": "tests/conformance/core/a-child-without-return-answers-null.nvst",
+  "line": 29,
+  "now": "statements/require-is-the-only-inclusion-construct",
+  "stranded": "3 pins for the construct",
+  "record": "0021",
+  "orig_sections": "3 pins for the construct",
+  "aligned": true
+ },
+ {
+  "file": "tests/conformance/core/arr-from-limit-bounds-the-drive-on-both-sides.nvst",
+  "line": 9,
+  "now": "iteration/two-interfaces",
+  "stranded": "1 gives an",
+  "record": "0053",
+  "orig_sections": "1 gives an",
+  "aligned": true
+ }
+]

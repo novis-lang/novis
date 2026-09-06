@@ -4,8 +4,7 @@
 //! # Why these are recognized names rather than shape aliases
 //!
 //! § 6 builds a *table* from them while compiling — the same
-//! `rule:programs/no-runtime-autoload`
-//! § 3 scan ADR 0077's route table is built by — so a userland
+//! `rule:programs/implementing` scan ADR 0077's route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
 //! [ADR 0071](/docs/adr/0071-derived-codecs.md) § 1's rule, so both
@@ -39,8 +38,7 @@
 //!
 //! **The whole program at once**, from the end of [`crate::check::check_program`]:
 //! [`check_table`] reports § 6's third error, a duplicate command name. It is a
-//! question about the enumeration rather than about a declaration — `rule:programs/no-runtime-autoload`
-//! § 3's scan is what brings two files' commands into one program — so it waits
+//! question about the enumeration rather than about a declaration — `rule:programs/implementing`'s scan is what brings two files' commands into one program — so it waits
 //! for every file, exactly as [`crate::routes::check_table`] does.
 //!
 //! **Every method, from [`crate::attributes`]' own walk:**
@@ -323,8 +321,7 @@ pub struct Command {
 /// attached to it, and a map would drop the row that error is reported
 /// against. Order is what makes the pair deterministic — the collision is
 /// always reported at the row that arrives second, and the load order does not
-/// depend on filesystem enumeration (`rule:programs/no-runtime-autoload`
-/// § 3).
+/// depend on filesystem enumeration (`rule:programs/implementing`).
 #[derive(Debug, Default)]
 pub struct CommandTable {
     rows: Vec<Command>,

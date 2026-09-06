@@ -430,8 +430,7 @@ impl Ctx {
     /// script first — and it is a ceiling on a report, not a budget for work.
     pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
 
-    /// A context for `rule:errors/escalation-ladder`
-    /// § 3's **tier-3 handler** — [`Self::isolate`] with the failing request's
+    /// A context for `rule:errors/handler-script`'s **tier-3 handler** — [`Self::isolate`] with the failing request's
     /// budget left behind.
     ///
     /// § 3's one deliberate exception to [ADR 0006](/docs/adr/0006-isolated-script-execution.md):
