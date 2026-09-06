@@ -4343,17 +4343,37 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the server: the post-response sweep, and the boot orphan sweep. 0131 §§ 3-4.
+# Stage 3 -- the two sweeps a server takes part in: after a response, and at boot. 0131 §§ 3-4.
 # ---------------------------------------------------------------------------------------------------
 
+# Filed `-p nvs-runtime`, not `-p nvs-server`, and both names are kept for the ledger's sake. Each case
+# needs a script that took a temporary directory and a piece of `afterResponse` work, and that work is
+# a `callable` with no compiler in front of it -- a leaked `ClassTable` carrying an `invoke` address,
+# which is `unsafe`. `crates/nvs-server` inherits the workspace's `unsafe_code = "forbid"` (its
+# `Cargo.toml` says so in as many words) and an `#[expect]` cannot open a `forbid`, so no fixture for
+# these compiles there. nvs-runtime is `deny`, the queue that must have drained first is
+# `crates/nvs-runtime/src/deferred.rs`, and the sweep is `Ctx::drop`'s -- beside both, for the reason
+# stage 2's sweep check gives.
 [[check]]
 kind = "cargo-named"
 stage = "3 server sweeps"
-name = "nvs-server (post-response and boot)"
-args = ["test", "-p", "nvs-server"]
+name = "nvs-runtime (the post-response sweep)"
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "a_requests_temporary_dirs_are_swept_after_its_after_response_work",
   "an_aborted_requests_dirs_are_swept_by_the_surviving_worker",
+]
+
+# Filed `-p nvs-cli`: § 4's boot sweep is `nvs serve`'s, and `nvs serve` is this binary's subcommand --
+# `crates/nvs-cli/src/serve.rs`, whose `sweep_orphans` owns why it runs there and on no other
+# invocation. `nvs-server` is the accept loop that command hands a bound socket to; it boots nothing
+# and reads no configuration tree, so the walk could never have run there.
+[[check]]
+kind = "cargo-named"
+stage = "3 server sweeps"
+name = "nvs-cli (the boot orphan sweep)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
   "serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one",
 ]
 

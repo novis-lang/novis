@@ -2130,6 +2130,17 @@ is why" — is this file.
   definition — or read the window once you know the line, since `orient.py` already printed the line
   number of the check that opened the session. A bare word is only cheap in a file where that word is
   rare.
+- **A `loop-goal.toml` check can be filed in the crate whose *name* matches the subcommand, and the
+  subcommand lives in `nvs-cli`.** Stage 3's `serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one`
+  was filed `-p nvs-server`, which reads right — `nvs serve` boots a server — and is wrong: `nvs serve`
+  is a subcommand of the `nvs` binary (`crates/nvs-cli/src/serve.rs`), and `nvs-server` is the
+  accept-loop library that command hands an already-bound socket to. It resolves no configuration tree
+  and boots nothing, so a boot-time walk of `[io] temp_root` could never have run there. The tell is
+  one call — `grep -n 'Command::' crates/nvs-cli/src/main.rs` lists every subcommand beside the module
+  that answers it — and it is quicker than the sibling bullets' manifest and `[lints]` checks, both of
+  which *pass* here: nvs-cli does depend on nvs-server, which is exactly why the name resemblance
+  survives every test but this one. Triage a check naming a `nvs <verb>` behaviour by where the entry
+  point is, not by what the crate may do.
 
 ## Running things
 
