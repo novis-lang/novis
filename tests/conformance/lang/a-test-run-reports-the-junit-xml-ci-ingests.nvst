@@ -1,5 +1,5 @@
 --TEST--
-`nvs test --format=junit` writes one `testsuite` per class, with the same verdicts the JSON twin carries (ADR 0079 § 22)
+`nvs test --format=junit` writes one `testsuite` per class, with the same verdicts the JSON twin carries (`rule:testing/report-formats`)
 --RUN--
 test --format=junit
 --FILE--

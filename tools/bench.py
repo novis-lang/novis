@@ -48,7 +48,7 @@ why quoting either without saying which is a misuse.
 The ratio columns are `<engine> / nvs` on the `work` figures: **above 1.0 means Novis is faster**,
 and 0.5 means Novis takes twice as long. Each is a ratio of two numbers measured on the same machine
 within seconds of each other, which is the only comparison a wall-clock figure supports --
-[ADR 0026](../docs/adr/0026-performance-measurement-methodology.md) is why a cross-machine
+`rule:testing/perf-two-mechanisms` is why a cross-machine
 history is counted in instructions instead, and this suite is that ADR's § 3 secondary figure
 rather than a competitor to it.
 

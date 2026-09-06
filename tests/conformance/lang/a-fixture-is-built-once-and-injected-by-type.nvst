@@ -1,10 +1,10 @@
 --TEST--
-a `#[Fixture]` is built once for its class and injected into each test declaring its type, ADR 0079 § 8
+a `#[Fixture]` is built once for its class and injected into each test declaring its type, `rule:testing/fixtures`
 --RUN--
 test
 --FILE--
 <?nvs
-// ADR 0079 § 8: a fixture is built **once, in the parent isolate**, and
+// `rule:testing/fixtures`: a fixture is built **once, in the parent isolate**, and
 // injected into each test that declares a parameter of its type — resolution
 // is by type, settled while compiling. So this case is the runner's own report
 // (`--RUN--` above), a fixture's value being observable nowhere else.

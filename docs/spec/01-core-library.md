@@ -1005,7 +1005,7 @@ only meaningful on a `mixed`, and the checker already knows every other case.
 members are ordinary `Core` members obeying [ADR 0063](../adr/0063-core-api-conventions.md); what is not
 ordinary is that `#[Test]`, `#[Fixture]`, `#[TestWith]`, `#[Property]` and `#[Bench]` are read while
 compiling, that `assertEquals<T>` makes a type-mismatched comparison a compile error, and that each test
-runs in its own isolate. [ADR 0079](../adr/0079-testing-is-a-language-feature.md) owns all of that,
+runs in its own isolate. `rule:testing/test-attribute` owns all of that,
 including which milestone each piece lands in; this file fixes only the roster's shape.
 
 **`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having

@@ -352,7 +352,7 @@ pub struct Inst {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum InstKind {
-    /// ADR 0018 § 1's statement-boundary probe site: marks where the
+    /// `rule:testing/debug-probes`'s statement-boundary probe site: marks where the
     /// previous lowered statement's instructions end and the next one's
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
@@ -2452,7 +2452,7 @@ pub enum Terminator {
     /// built at lowering time because that is where a [`nvs_diagnostics::Span`]
     /// can still be resolved to a line — `nvs-codegen` sees only byte offsets.
     /// The line is the enclosing statement's, read from the same per-statement
-    /// span table [`Function::stmt_spans`] already carries for ADR 0018's
+    /// span table [`Function::stmt_spans`] already carries for `rule:testing/debug-probes`'s
     /// probes; there is no second position table.
     ///
     /// A `FATAL` pushes nothing: it is not a `Throwable` at all
@@ -2513,7 +2513,7 @@ pub enum Terminator {
     /// deliberately not taken yet (see `nvs-codegen`'s own known gaps).
     ///
     /// Each arm carries its own [`EdgeId`] for the same reason
-    /// [`Terminator::Branch`]'s two do: ADR 0018 § 1's branch probe is
+    /// [`Terminator::Branch`]'s two do: `rule:testing/debug-probes`'s branch probe is
     /// per-edge, and retrofitting ids onto edges already lowered is the cost
     /// [`crate::ids`] exists to avoid.
     Switch {
@@ -2526,7 +2526,7 @@ pub enum Terminator {
         /// The stable id of the default edge.
         default_edge: EdgeId,
     },
-    /// A two-way conditional branch, carrying the [`EdgeId`] ADR 0018's
+    /// A two-way conditional branch, carrying the [`EdgeId`] `rule:testing/debug-probes`'s
     /// branch probe needs on *each* outgoing edge.
     Branch {
         /// The condition value.

@@ -1296,8 +1296,7 @@ pub fn current_task() -> Option<TaskId> {
 /// ADR 0072 § 4's "control does not leave the call with work still running" is
 /// the promise `Core\Task::all` and `::map` keep by construction. This is how
 /// a caller that is *not* one of those members reads the same fact off the
-/// tree — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-/// § 16's runner, which fails a test whose task tree outlived it rather than
+/// tree — `rule:testing/task-tree-and-virtual-clock`'s runner, which fails a test whose task tree outlived it rather than
 /// letting the teardown cancel it silently. A child that has ended is already
 /// out of the tree ([`Scheduler::orphan`], run the moment its coroutine
 /// returns and before whatever was awaiting it is resumed), so a task joined

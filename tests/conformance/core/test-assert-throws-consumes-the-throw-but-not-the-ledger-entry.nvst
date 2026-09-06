@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertThrows` consumes the throw it matched without discharging the failure that raised it, and `assertCount` names both sides of an empty subject -- ADR 0079 §§ 4, 5
+`Core\Test::assertThrows` consumes the throw it matched without discharging the failure that raised it, and `assertCount` names both sides of an empty subject -- `rule:testing/assertions-are-typed` and `rule:testing/failure-ledger`
 --FILE--
 <?nvs
 // § 5's ledger is what `expectFailure` reads, and `assertThrows` never writes

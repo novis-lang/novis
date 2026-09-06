@@ -29,6 +29,11 @@
       "topic": "attributes",
       "title": "Attributes",
       "order": 60
+    },
+    {
+      "topic": "testing",
+      "title": "Testing",
+      "order": 70
     }
   ]
 }

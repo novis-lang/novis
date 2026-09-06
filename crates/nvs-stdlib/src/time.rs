@@ -3372,7 +3372,7 @@ pub(crate) fn monotonic_micros() -> i128 {
     i128::try_from(origin.elapsed().as_micros()).unwrap_or(i128::MAX)
 }
 
-/// ADR 0079 § 12's `at:` reading — an RFC 3339 timestamp such as
+/// `rule:testing/determinism-declared-on-the-test`'s `at:` reading — an RFC 3339 timestamp such as
 /// `2026-01-01T00:00:00Z` — as nanoseconds since the Unix epoch, or `None` for
 /// text that is not one.
 ///
@@ -3395,7 +3395,7 @@ pub(crate) fn instant_at_nanos(nanos: i128) -> Option<Timestamp> {
     Timestamp::from_nanosecond(nanos).ok()
 }
 
-/// The wall clock `ctx` reads: ADR 0079 § 12's fixed one where a
+/// The wall clock `ctx` reads: `rule:testing/determinism-declared-on-the-test`'s fixed one where a
 /// `#[Test(at: …)]` armed it, and the host's otherwise.
 ///
 /// `None` only for a fixed reading outside the representable range, which
@@ -3419,7 +3419,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Time::now(): Instant` — the wall clock, which replaces `time`,
     /// `microtime` and `date_create` at once.
     ///
-    /// The one member ADR 0079 § 12's fixed clock reaches. A context with one
+    /// The one member `rule:testing/determinism-declared-on-the-test`'s fixed clock reaches. A context with one
     /// armed answers that reading instead of the host's; every context outside
     /// a `#[Test(at: …)]` has none, so the cost on the ordinary path is one
     /// predictable not-taken branch and the fixed reading is unreachable from a

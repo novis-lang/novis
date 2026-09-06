@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — ADR 0079 § 4, ADR 0035 § 2, ADR 0047 § 5
+`Core\Test::assertNull` asks "is the tag null", not "is this falsy": every falsy value that is not `null` fails, so does every truthy one, and three spellings of `null` hold — `rule:testing/assertions-are-typed`, ADR 0035 § 2, ADR 0047 § 5
 --FILE--
 <?nvs
 // `assertNull`'s parameter is `mixed` (ADR 0007 § 2's one unchecked position),

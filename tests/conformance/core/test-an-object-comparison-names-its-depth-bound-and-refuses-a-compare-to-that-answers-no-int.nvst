@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — ADR 0079 § 4, ADR 0013
+`Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — `rule:testing/assertions-are-typed`, ADR 0013
 --FILE--
 <?nvs
 // An Novis array cannot contain itself (ADR 0090 § 3), so an object graph is

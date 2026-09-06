@@ -63,7 +63,7 @@
 //! of the same value and the reason the field set is this and not ADR 0006's
 //! full table: `code`, `trace` and a limit breach's `error->limit` are named by
 //! § *Failure is a value, not an exception* and are **item 22's**, together
-//! with the top-level `return` contract that fills `value`. ADR 0018's
+//! with the top-level `return` contract that fills `value`. `rule:testing/debug-probes`'s
 //! coverage data lands on the same shape later, and costs nothing structurally
 //! — ADR 0036 § 3's width subtyping makes a field added to the answer
 //! invisible to every call site that does not read it.

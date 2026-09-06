@@ -2,7 +2,7 @@
 
 [`benches/userland/README.md`](../../benches/userland/README.md) owns what a case is.
 [`tools/bench.py`](../../tools/bench.py) owns how it is measured.
-[ADR 0026](../adr/0026-performance-measurement-methodology.md) owns why the ratio is a secondary
+`rule:testing/perf-two-mechanisms` owns why the ratio is a secondary
 figure and the instruction count is the headline. **This file owns the one thing none of those
 does: why a given number is what it is, and which piece of work moves it.**
 
@@ -483,7 +483,7 @@ ever reads zero passes just as well when it is broken.
 - **Statement probes and safepoints are ~80 % of the instructions in the tightest loop** — three
   `ctx` loads and branches around four instructions of work, from `--dump-asm` on a bare `while`.
   It costs 1.5 ns against a native ~0.5 ns, and removing it means trading
-  [ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s guarantee
+  `rule:testing/debug-probes`'s guarantee
   that a probe can be switched on for a request already running. That is a decision, not a defect,
   and its natural gate is [ADR 0091](../adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)'s
   production mode at M6 — an amendment to 0018 when it gets there, not now.

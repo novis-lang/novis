@@ -15,8 +15,7 @@
 
 use super::*;
 
-/// One entry of [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-/// § 5's ledger: an assertion that ran, and how it came out.
+/// One entry of `rule:testing/failure-ledger`'s ledger: an assertion that ran, and how it came out.
 ///
 /// The outcome is the *message*, not a `bool`, because the ledger is what the
 /// runner reports from — reading the exception state instead is exactly the
@@ -33,7 +32,7 @@ pub struct AssertionOutcome {
 }
 
 /// One `Core\Test::assertMatchesInline` that did not hold — the material
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 14's
+/// `rule:testing/inline-snapshots`'s
 /// `nvs test --update` splices from.
 ///
 /// Both halves are the *text*, because both halves of the join are: the
@@ -400,7 +399,7 @@ impl Ctx {
     ///
     /// # Decision: an ancestor matches
     ///
-    /// ADR 0079 § 4's `Core\Test::assertThrows` is the caller, and a test
+    /// `rule:testing/assertions-are-typed`'s `Core\Test::assertThrows` is the caller, and a test
     /// naming `RuntimeError` is claiming no more than that the failure is one
     /// — matching a subclass is what PHP's own `expectException` does, and it
     /// is the reading under which the assertion agrees with the `catch` a
@@ -477,8 +476,7 @@ impl Ctx {
     }
 
     /// Appends one entry to
-    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 5's ledger — what every `Core\Test` assertion does, whether it held
+    /// `rule:testing/failure-ledger`'s ledger — what every `Core\Test` assertion does, whether it held
     /// or not.
     ///
     /// Recording the *passing* ones as well is not bookkeeping for its own
@@ -498,7 +496,7 @@ impl Ctx {
 
     /// Removes every **failed** entry recorded at or after `mark`, answering
     /// how many there were — `Core\Test::expectFailure(callable)`'s half of
-    /// ADR 0079 § 5.
+    /// `rule:testing/failure-ledger`.
     ///
     /// The passing entries in that range stay: they are assertions that really
     /// ran, and § 20 counts them. Only the failure is discharged, and only
@@ -529,7 +527,7 @@ impl Ctx {
         std::mem::take(&mut self.assertions)
     }
 
-    /// Records ADR 0079 § 14's mismatch — `Core\Test::assertMatchesInline` is
+    /// Records `rule:testing/inline-snapshots`'s mismatch — `Core\Test::assertMatchesInline` is
     /// the one caller, and it calls this beside the failed ledger entry rather
     /// than instead of it.
     pub fn record_snapshot_mismatch(&mut self, expected: String, produced: String) {
@@ -670,7 +668,7 @@ mod tests {
 
     #[test]
     fn expect_failure_discharges_only_the_failures_inside_its_own_body() {
-        // ADR 0079 § 5: the discharge is what `Core\Test::expectFailure` does,
+        // `rule:testing/failure-ledger`: the discharge is what `Core\Test::expectFailure` does,
         // and it is deliberately narrow in both directions — a failure recorded
         // *before* the mark is another test's problem and stays, and a passing
         // assertion inside the body really ran, so § 20 still counts it.

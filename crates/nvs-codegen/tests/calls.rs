@@ -1,4 +1,4 @@
-//! A static call end to end — resolution, recursion, declared defaults, ADR 0018's call tracing, and `rule:errors/propagation`'s panic containment.
+//! A static call end to end — resolution, recursion, declared defaults, `rule:testing/debug-probes`'s call tracing, and `rule:errors/propagation`'s panic containment.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -204,7 +204,7 @@ fn the_call_probe_costs_nothing_observable_with_every_bit_off() {
 
 #[test]
 fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
-    // ADR 0018 § 1's call-site pair. `quadruple` is entered first and left
+    // `rule:testing/debug-probes`'s call-site pair. `quadruple` is entered first and left
     // last; both `double` calls nest inside it, and every exit carries the
     // status the call site is about to branch on.
     let mut ctx = Ctx::buffered();

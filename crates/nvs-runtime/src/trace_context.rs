@@ -2,7 +2,7 @@
 //! [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace id, the span an outbound
 //! call names as its parent, and the sampled flag, read from and rendered as a W3C `traceparent`.
 //!
-//! **This is not [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+//! **This is not `rule:testing/debug-probes`'s
 //! trace, which [`Ctx::trace`](crate::Ctx::trace) holds**, and the two share nothing but the word.
 //! That one records an event per compiled call site and is a debugging surface; this one is three
 //! identifiers a whole request carries. ADR 0076 § 2 opens by separating them, because conflating

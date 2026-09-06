@@ -1,7 +1,7 @@
 //! Novis's CFG/SSA IR: the one representation between the checked AST and
 //! `nvs-codegen`, carrying explicit safepoints, refcount operations and
 //! runtime-helper calls, with a stable per-statement and per-edge id
-//! ([ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)).
+//! (`rule:testing/debug-probes`).
 //!
 //! [`lower`] is the whole front-to-IR pass, split across `lower/` by area;
 //! [`ir`] is the data; [`ty`] is this crate's own representation-level type

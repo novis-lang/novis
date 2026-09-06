@@ -15,8 +15,7 @@
 //!   function entry and loop back edge (`docs/adr/README.md`'s project-start
 //!   decisions). Load, test, predicted-not-taken branch to the
 //!   [`nvs_safepoint`] slow path.
-//! * [`DEBUG_FLAGS_OFFSET`] — [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's probe check, at every statement boundary and every call site. Same
+//! * [`DEBUG_FLAGS_OFFSET`] — `rule:testing/debug-probes`'s probe check, at every statement boundary and every call site. Same
 //!   shape, same cost class, and present in every compiled unit whether or not
 //!   any request ever sets a bit — that is what makes coverage and tracing
 //!   start/stoppable *mid-request*, which the rejected instrumented-tier
@@ -198,8 +197,7 @@ bitflags::bitflags! {
 }
 
 bitflags::bitflags! {
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's per-request debug-flags word.
+    /// `rule:testing/debug-probes`'s per-request debug-flags word.
     ///
     /// Setting a bit on a request that is already running is the whole
     /// mechanism: no recompilation, no re-resolution, no second cache key.
@@ -223,7 +221,7 @@ bitflags::bitflags! {
 pub struct Ctx {
     /// Hot. Read inline by every safepoint poll; see the module docs.
     safepoint: SafepointFlags,
-    /// Hot. Read inline by every ADR 0018 probe site; see the module docs.
+    /// Hot. Read inline by every `rule:testing/debug-probes` probe site; see the module docs.
     debug: DebugFlags,
     /// Hot. Polled from inside a helper whose runtime scales with its input —
     /// see the module docs' *The request's deadline* section. Zero while the
@@ -591,7 +589,7 @@ pub struct Ctx {
     /// [ADR 0076](/docs/adr/0076-observability-export.md) § 2, whose id
     /// is Novis's only request identifier.
     ///
-    /// **Not [`Self::trace`]**, which is ADR 0018's per-call-site event list;
+    /// **Not [`Self::trace`]**, which is `rule:testing/debug-probes`'s per-call-site event list;
     /// [`crate::trace_context`]'s module doc opens on why the two are separate
     /// and what each is for.
     ///
@@ -684,8 +682,7 @@ pub struct Ctx {
     /// O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     program_id: String,
-    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 12's fixed clock: the wall-clock reading `Core\Time::now` answers
+    /// `rule:testing/determinism-declared-on-the-test`'s fixed clock: the wall-clock reading `Core\Time::now` answers
     /// with, in nanoseconds since the Unix epoch, or `None` for a context that
     /// reads the host's clock.
     ///
@@ -706,8 +703,7 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
     fixed_clock: Option<i128>,
-    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 12's seeded generator, as its **live state** rather than as the seed
+    /// `rule:testing/determinism-declared-on-the-test`'s seeded generator, as its **live state** rather than as the seed
     /// it started from, or `None` for a context whose draws come from the
     /// operating system.
     ///
@@ -722,7 +718,7 @@ pub struct Ctx {
     /// generator does not weaken `Core\Random`: the only writer is the test
     /// runner arming a `#[Test(seed: …)]` isolate, so every context a request
     /// or a `nvs run` ever gets has `None` here and draws from the CSPRNG
-    /// `nvs_stdlib::random`'s module docs describe. ADR 0079 § 12 puts
+    /// `nvs_stdlib::random`'s module docs describe. `rule:testing/determinism-declared-on-the-test` puts
     /// `Core\Random\Seeded` behind a separate *type* in production for exactly
     /// this reason, and this field does not reopen that — it adds no spelling a
     /// program outside a test can write.
@@ -730,8 +726,7 @@ pub struct Ctx {
     /// **What it spends:** two words per request, and one predictable
     /// not-taken branch per draw.
     random_state: Option<u64>,
-    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 18's second mechanism, as the one thing a test can observe of it: the
+    /// `rule:testing/in-process-request`'s second mechanism, as the one thing a test can observe of it: the
     /// base URL of the ephemeral listener the runner bound for a
     /// `#[Test(server: true)]` case, or `None` for every other context there
     /// has ever been.
@@ -758,8 +753,7 @@ pub struct Ctx {
     ///
     /// **Beside [`Self::fixed_clock`] because it is the same idea** — a test
     /// declares the world its subject runs in, and the isolate is what scopes
-    /// the declaration ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 2 gives each test its own context). A queue held in a `thread_local`
+    /// the declaration (`rule:testing/isolate-per-test` gives each test its own context). A queue held in a `thread_local`
     /// would outlive the test that filled it and answer the next one's prompt,
     /// which is the failure a fixed clock avoids the same way.
     ///
@@ -882,8 +876,7 @@ pub struct Ctx {
     /// allocation holding an [`Inbound`] — itself three short allocations — for
     /// one that does.
     inbound: Option<Box<Inbound>>,
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
+    /// `rule:testing/debug-probes`'s statement-boundary hit counters, indexed by `nvs_ir::StmtId`.
     ///
     /// Written only from [`nvs_probe_stmt`], which compiled code reaches only
     /// when the [`DebugFlags`] word above is non-zero — so a request with no
@@ -891,20 +884,19 @@ pub struct Ctx {
     ///
     /// **A stand-in, not the final shape.** `nvs_ir::StmtId` numbers from zero
     /// within *each* function, so two functions' statements collide in this
-    /// one table. ADR 0018 wants path → line → count, which needs the unit and
+    /// one table. `rule:testing/debug-probes` wants path → line → count, which needs the unit and
     /// function a statement belongs to; that qualification arrives with
     /// `Core\Debug` and the Clover/lcov exporters in M10. What this table is
     /// for now is proving the mechanism: the probe fires at exactly the
     /// statements a request executed, and nowhere else.
     stmt_hits: Vec<u64>,
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's call-site trace, in the order the probes fired.
+    /// `rule:testing/debug-probes`'s call-site trace, in the order the probes fired.
     ///
     /// Written only from [`nvs_probe_call_enter`]/[`nvs_probe_call_exit`],
     /// under the same "the flags word was non-zero" gate `stmt_hits` is under.
     ///
     /// **A stand-in, not the final shape**, for the same reason `stmt_hits`
-    /// is one, plus a second: ADR 0018 has trace and profile data *stream to
+    /// is one, plus a second: `rule:testing/debug-probes` has trace and profile data *stream to
     /// a sink* rather than accumulate, precisely because a long-running
     /// request's trace is call-count-proportional. This vector is bounded by
     /// nothing, which is why it exists only until `Core\Debug` names a sink —
@@ -976,8 +968,7 @@ pub struct Ctx {
     /// § 2): what releases it is dropping this context, and nothing else knows
     /// when that happens.
     isolate_argument: Value,
-    /// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 5's per-test assertion ledger, in the order the assertions ran.
+    /// `rule:testing/failure-ledger`'s per-test assertion ledger, in the order the assertions ran.
     ///
     /// It lives here, and nowhere a program can name, because that is the
     /// whole of what makes it work: the runner reads the ledger rather than

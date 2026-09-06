@@ -1,4 +1,4 @@
-//! [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+//! `rule:testing/debug-probes`'s
 //! probes, and what a request records for them.
 //!
 //! The probe sites are emitted unconditionally and cost a load and a
@@ -43,16 +43,16 @@ pub enum FaultSite {
 /// § 1's four kinds a [`TraceEvent`] is.
 ///
 /// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
-/// a `call` event's shape exactly as ADR 0018 defined it, and the three other
+/// a `call` event's shape exactly as `rule:testing/debug-probes` defined it, and the three other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
 /// A `query`'s field set is fixed by [ADR 0067](/docs/adr/0067-core-db.md)
 /// § 11 and lives in `nvs_db::QuerySpan`, which is where the driver already
 /// holds it; a per-kind payload is what § 4's export needs and what lands with
-/// ADR 0018's sink, alongside the `PROFILE` timing the `trace` field's own doc
+/// `rule:testing/debug-probes`'s sink, alongside the `PROFILE` timing the `trace` field's own doc
 /// comment defers for the same reason.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TraceKind {
-    /// A call site's entry or exit — ADR 0018 § 1's probe pair, and the only
+    /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and the only
     /// kind anything in the tree records today.
     Call,
     /// A cycle-collector pause — ADR 0041 § 2. The collector's run routine
@@ -66,8 +66,7 @@ pub enum TraceKind {
     Query,
 }
 
-/// One [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1 call-site trace record, tagged with
+/// One `rule:testing/debug-probes` call-site trace record, tagged with
 /// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
 /// § 1's kind.
 ///
@@ -103,7 +102,7 @@ impl Ctx {
     /// The per-statement hit counters gathered so far, indexed by
     /// `nvs_ir::StmtId` — empty for a request that ran with
     /// [`DebugFlags::COVERAGE`] off throughout. See the field's own doc
-    /// comment for why this is a stand-in for ADR 0018's path → line → count
+    /// comment for why this is a stand-in for `rule:testing/debug-probes`'s path → line → count
     /// shape rather than that shape itself.
     #[must_use]
     pub fn stmt_hits(&self) -> &[u64] {
@@ -138,7 +137,7 @@ impl Ctx {
     /// set's second home, and the one nobody edits when a driver adds to it.
     /// What it costs is that a consumer reads text where it will later read
     /// fields — which is what the `trace` field's own doc comment already says
-    /// this vector is, a stand-in until ADR 0018's sink gives every kind its
+    /// this vector is, a stand-in until `rule:testing/debug-probes`'s sink gives every kind its
     /// payload.
     ///
     /// The rendering is `QuerySpan`'s `Display`, so § 11's "never parameters"
@@ -156,7 +155,7 @@ impl Ctx {
     /// The call-site trace gathered so far, in the order the probes fired —
     /// empty for a request that ran with [`DebugFlags::TRACE`] off
     /// throughout. See the field's own doc comment for why this accumulates
-    /// in memory today and will not once ADR 0018's sink exists.
+    /// in memory today and will not once `rule:testing/debug-probes`'s sink exists.
     #[must_use]
     pub fn trace(&self) -> &[TraceEvent] {
         &self.trace
@@ -185,8 +184,7 @@ impl Ctx {
     }
 }
 
-/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1's statement-boundary probe — the slow path behind the debug-flags
+/// `rule:testing/debug-probes`'s statement-boundary probe — the slow path behind the debug-flags
 /// check, reached only when the word compiled code loaded was non-zero.
 ///
 /// Deliberately the same *shape* as [`nvs_safepoint`]: one cached load and one
@@ -252,8 +250,7 @@ unsafe fn callee_label<'a>(name: *const u8, len: usize) -> Cow<'a, str> {
     String::from_utf8_lossy(bytes)
 }
 
-/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1's call-site **entry** probe — the slow path behind the debug-flags
+/// `rule:testing/debug-probes`'s call-site **entry** probe — the slow path behind the debug-flags
 /// check compiled code emits before every call.
 ///
 /// The callee is passed as a pointer and length into the compiled unit's own
@@ -287,8 +284,7 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
     }
 }
 
-/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-/// § 1's call-site **exit** probe, carrying the checked-return `status` the
+/// `rule:testing/debug-probes`'s call-site **exit** probe, carrying the checked-return `status` the
 /// call site is about to branch on — which is why a trace shows a thrown or
 /// `FATAL` exit as it happened rather than as a reconstruction.
 ///
@@ -395,7 +391,7 @@ mod tests {
     fn a_call_probe_records_the_callee_and_the_status_it_is_handed() {
         // The exit probe carries the checked-return status the call site is
         // about to branch on, so a thrown or `FATAL` exit is recorded as it
-        // happened rather than reconstructed — ADR 0018 § 1.
+        // happened rather than reconstructed — `rule:testing/debug-probes`.
         let mut ctx = Ctx::buffered();
         ctx.set_debug_flags(DebugFlags::TRACE);
         let name = b"Boom::inner";
@@ -466,7 +462,7 @@ mod tests {
 
     #[test]
     fn coverage_can_be_turned_on_and_off_mid_request() {
-        // ADR 0018's whole argument for a runtime-checked flag over a second
+        // `rule:testing/debug-probes`'s whole argument for a runtime-checked flag over a second
         // compiled tier: a harness brackets one test inside a running request.
         let mut ctx = Ctx::buffered();
         let probe = |ctx: &mut Ctx, stmt: u32| {

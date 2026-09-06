@@ -40,7 +40,7 @@
   allowed to differ — and coroutine-based generators would make that false for the first time.
 - This ADR blocks work already in progress: M2's IR must model suspension points inside loop bodies, and
   retrofitting them once M3 builds on the IR is expensive — the same argument the plan already makes for
-  [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s probe ids.
+  `rule:testing/debug-probes`'s probe ids.
 
 ## Decision
 

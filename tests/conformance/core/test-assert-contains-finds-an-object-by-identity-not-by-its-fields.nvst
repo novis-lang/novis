@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertContains` finds an object by identity, so a twin holding the same fields is not in the array and an alias of an entry is — the row that parts it from a field comparison — ADR 0079 § 4, ADR 0090 § 3
+`Core\Test::assertContains` finds an object by identity, so a twin holding the same fields is not in the array and an alias of an entry is — the row that parts it from a field comparison — `rule:testing/assertions-are-typed`, ADR 0090 § 3
 --FILE--
 <?nvs
 // `Core\Arr::contains`'s comparison answers the object row by identity: two

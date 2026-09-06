@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertThrows` matches the class its body threw, an ancestor included, and `assertDoesNotThrow` is the claim that a body completes -- ADR 0079 §§ 4, 20
+`Core\Test::assertThrows` matches the class its body threw, an ancestor included, and `assertDoesNotThrow` is the claim that a body completes -- `rule:testing/assertions-are-typed` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
 // The two members on § 4's roster whose subject is a `callable` rather than a

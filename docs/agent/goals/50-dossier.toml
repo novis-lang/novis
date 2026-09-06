@@ -15,7 +15,7 @@ modules = [
 
 rules = ["0134", "0026", "0079", "0117", "0004", "0063"]
 
-# None. ADR 0134 is this goal's decision and it is already written; the goal prose says what the one
+# None. `rule:testing/four-proofs` is this goal's decision and it is already written; the goal prose says what the one
 # new thing -- a session may now fire the emitter -- is recorded in instead.
 adrs = []
 

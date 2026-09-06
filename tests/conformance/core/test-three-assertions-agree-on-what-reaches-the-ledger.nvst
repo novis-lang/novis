@@ -1,5 +1,5 @@
 --TEST--
-`assertSame`, `assertCount` and `assertDoesNotThrow` agree on what reaches ADR 0079 § 5's ledger: a failure is recorded whether or not its throw is caught, and a pass leaves nothing to discharge -- ADR 0079 §§ 4, 5, 20
+`assertSame`, `assertCount` and `assertDoesNotThrow` agree on what reaches `rule:testing/failure-ledger`'s ledger: a failure is recorded whether or not its throw is caught, and a pass leaves nothing to discharge -- `rule:testing/assertions-are-typed`, `rule:testing/failure-ledger` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
 // § 5 makes the ledger the record and the throw the control flow, so the

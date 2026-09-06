@@ -1,5 +1,5 @@
 --TEST--
-a `#[Test]` method is a row the runner reports, in declaration order, judged off the ledger (ADR 0079 §§ 1, 5, 20, 22, 23)
+a `#[Test]` method is a row the runner reports, in declaration order, judged off the ledger (`rule:testing/test-attribute`, `rule:testing/failure-ledger`, `rule:testing/runner-is-strict`, `rule:testing/report-formats` and `rule:testing/nvst-is-separate`)
 --RUN--
 test
 --FILE--
@@ -73,7 +73,7 @@ final class AlphaTest {
     ✗ aCaughtFailureStillFails         %f ms
       Core\Test::assertSame failed: `$actual` is "actual", `$expected` is "expected"
     ✗ aTestThatAssertsNothingFails     %f ms
-      it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty — write `Core\Test::assertDoesNotThrow` where the claim is that a call completes
+      it asserted nothing: `rule:testing/runner-is-strict` fails a test whose ledger is empty — write `Core\Test::assertDoesNotThrow` where the claim is that a call completes
   ZebraTest
     ✓ zulu                             %f ms
 

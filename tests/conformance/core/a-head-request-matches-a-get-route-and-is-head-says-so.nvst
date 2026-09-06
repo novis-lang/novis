@@ -21,7 +21,7 @@ a `HEAD` request matches the `Get` route the table holds, `Core\Request::method`
 //
 // What is *not* asserted here is the answer's body being discarded. That is
 // the server's half of the same convention — `Core\Test::request` answers in
-// process, with no wire to drop bytes on (ADR 0079 § 18) — and this case is
+// process, with no wire to drop bytes on (`rule:testing/in-process-request`) — and this case is
 // about the half ADR 0102 § 1 makes readable by the program at all.
 class Pages {
     // `rule:attributes/access-is-a-required-sibling`: the access decision is a required sibling of every

@@ -195,8 +195,7 @@ pub enum ThrownClass {
     /// `ArithmeticError` — overflow (ADR 0007), division by zero.
     Arithmetic,
     /// `Core\Test\Failure` — a failed assertion
-    /// ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 5), which that section makes an ordinary `Throwable` precisely so a
+    /// (`rule:testing/failure-ledger`), which that section makes an ordinary `Throwable` precisely so a
     /// composite assertion, a retry wrapper or a test *of* an assertion can
     /// intercept one by name.
     ///

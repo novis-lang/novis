@@ -1,5 +1,5 @@
 --TEST--
-`nvs test --format=json` writes one versioned object per run, and the program's own output goes to standard error (ADR 0079 § 22)
+`nvs test --format=json` writes one versioned object per run, and the program's own output goes to standard error (`rule:testing/report-formats`)
 --RUN--
 test --format=json
 --FILE--

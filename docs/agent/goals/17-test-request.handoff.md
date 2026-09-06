@@ -5,7 +5,7 @@
 **Goal 17 — the request a test builds, and the peer facts it carries — has just started; nothing of it has
 landed yet.** Goal 16's whole list is this goal's Stage 1 floor.
 
-The scope line matters more here than in most goals: **ADR 0079 § 18's dispatch half is M8's and is out of
+The scope line matters more here than in most goals: **`rule:testing/in-process-request`'s dispatch half is M8's and is out of
 scope.** This goal builds the request and freezes its shape; it does not run one through a route table. A
 session wiring a route table has left the goal.
 
@@ -36,7 +36,7 @@ since the module was written: `nvs_server::forwarded` already answers both facts
 - Stage 3 (the peer on `Inbound`, populated at `crates/nvs-server/src/serve.rs:1344`/`:1443` and
   `crates/nvs-cli/src/serve.rs:323`; then `clientIp`/`scheme`/`host` with the five edits each) is the
   second group. It shares `ctx.rs` with stage 2 and adds `nvs-server` and `nvs-stdlib`.
-- Stage 4 is prose: ADR 0079 § 18 amended to carry the signature and `Core\Test\Response`'s readers
+- Stage 4 is prose: `rule:testing/in-process-request` amended to carry the signature and `Core\Test\Response`'s readers
   (including `json()`/`jsonAs<T>()`), and spec § 13's `Core\Test` row rewritten in § 15's bullet shape.
   It closes no gate — §§ 13/16/17 are excluded from the coverage walk on purpose
   (`crates/nvs-stdlib/tests/spec_registry_coverage.rs:583`) and this goal does not change that.

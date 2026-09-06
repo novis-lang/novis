@@ -206,7 +206,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   ([ADR 0039](0039-canonical-code-formatting.md)) — unchanged from ADR 0016 § 2.
 - **A native Test Explorer**, using VS Code's finalized Testing API, wired to `nvs test`/`.nvst`, with
   **coverage** fed through VS Code's own `FileCoverage` API from the Clover/lcov exporters M10 already
-  builds ([ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) — no custom
+  builds (`rule:testing/debug-probes`) — no custom
   gutter-rendering code, per the research in *Context*.
 - **Profiler visualization**: `nvs run --profile` emits its sampling-profiler output in the open
   **speedscope** JSON format (in addition to whatever machine-readable format `nvs` itself wants); a "View

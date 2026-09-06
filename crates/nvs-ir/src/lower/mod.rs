@@ -1434,7 +1434,7 @@ pub(crate) struct Lowering<'a> {
     /// of that same backtrace frame.
     ///
     /// A cache of the span [`Self::lower_stmt`] just handed
-    /// [`IdGen::next_stmt`], not a second table: ADR 0018's per-statement id
+    /// [`IdGen::next_stmt`], not a second table: `rule:testing/debug-probes`'s per-statement id
     /// already owns it, and [`Function::stmt_spans`] is where it ends up.
     cur_stmt_span: Span,
     /// How many `foreach` statements this frame has lowered so far — the
@@ -2026,7 +2026,7 @@ impl<'a> Lowering<'a> {
     /// `<file>` is the source's name exactly as it was opened — the path as
     /// given on the command line — so the rendered trace is byte-for-byte
     /// identical on every platform. `<line>` is the enclosing statement's,
-    /// from the span ADR 0018's per-statement id already carries.
+    /// from the span `rule:testing/debug-probes`'s per-statement id already carries.
     pub(crate) fn frame_label(&self) -> String {
         let (line, _) = self.src.line_col(self.cur_stmt_span.start);
         format!("{}() at {}:{}", self.fn_label, self.src.name(), line + 1)

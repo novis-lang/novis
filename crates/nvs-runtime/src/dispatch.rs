@@ -434,7 +434,7 @@ pub(crate) fn call_unwind(
     })
 }
 
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 8's
+/// `rule:testing/fixtures`'s
 /// fixtures, built once and owned until the class they belong to is done with.
 ///
 /// It exists to put the **ownership** of a built fixture in one place. A
@@ -561,7 +561,7 @@ impl Drop for Fixtures {
     }
 }
 
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 9's
+/// `rule:testing/data-rows`'s
 /// data row, materialized into the values one call takes.
 ///
 /// It sits beside [`Fixtures`] for that type's own reason: a row's `string` is
@@ -644,7 +644,7 @@ impl Drop for RowValues {
     }
 }
 
-/// One test isolate's own copies of the fixtures it asked for — ADR 0079 § 8's
+/// One test isolate's own copies of the fixtures it asked for — `rule:testing/fixtures`'s
 /// "built once in the parent, copied into each test", which is
 /// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
 /// § 2's graph copy and nothing else.
@@ -731,7 +731,7 @@ impl Drop for CrossedFixtures {
     }
 }
 
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 20's
+/// `rule:testing/runner-is-strict`'s
 /// one test: a fresh instance of `class`, its `method` called on that instance
 /// with `args` — § 8's fixtures, in the order the checker resolved them — and
 /// the instance released.
@@ -754,7 +754,7 @@ impl Drop for CrossedFixtures {
 /// The status of whichever call failed, with its message on `ctx`:
 ///
 /// - [`crate::THROWN`] when the constructor or the method threw, which is the
-///   test failing — a failed assertion arrives here as ADR 0079 § 5's
+///   test failing — a failed assertion arrives here as `rule:testing/failure-ledger`'s
 ///   `Core\Test\Failure` like any other throw;
 /// - [`crate::THROWN`] for a constructor that declares parameters, which
 ///   nothing supplies: § 7 makes the constructor `setUp` and § 8 injects into
@@ -806,7 +806,7 @@ pub unsafe fn construct_and_call(
                 ctx,
                 Fault::thrown(format!(
                     "`{}`'s constructor declares {} parameter(s), and this runner supplies \
-                     none: ADR 0079 § 7 makes the constructor `setUp`, and § 8's fixtures \
+                     none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and § 8's fixtures \
                      fill the test method's own parameters",
                     desc.name(),
                     row.arity

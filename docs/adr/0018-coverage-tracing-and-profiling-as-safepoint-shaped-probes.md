@@ -1,4 +1,4 @@
-# ADR 0018 — Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier
+# `rule:testing/debug-probes` — Coverage, tracing and profiling are safepoint-shaped probes, not a second compiled tier
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -198,10 +198,10 @@ claim about what a native member costs would be a number with no guard test, whi
 [README.md](README.md) § *Measured numbers* forbids.
 
 One stream, three consumers — coverage above, [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s
-timeline, and [ADR 0079](0079-testing-is-a-language-feature.md) § 15's `#[Bench]`. A fourth number would be a
+timeline, and `rule:testing/bench-counters`'s `#[Bench]`. A fourth number would be a
 fifth place to look. The counters are comparable across machines but **not across Novis versions**, since M12's
 optimising tier will eliminate work; comparing Novis's own releases is
-[ADR 0026](0026-performance-measurement-methodology.md)'s question and uses callgrind, which is why the two
+`rule:testing/perf-two-mechanisms`'s question and uses callgrind, which is why the two
 do not overlap.
 
 ### Probes on is a tested configuration, not a production-only one

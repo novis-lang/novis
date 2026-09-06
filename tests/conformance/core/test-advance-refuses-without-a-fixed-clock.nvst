@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, says so, and moves nothing -- ADR 0079 § 12
+`Core\Test::advance` refuses where no `#[Test(at: ...)]` fixed a clock, says so, and moves nothing -- `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
 // § 12 fixes a clock on the test *declaration* and `advance` is its mutator, so

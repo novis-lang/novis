@@ -184,7 +184,7 @@ is a consumer of it.
 ## Stage 7 — the testing surface the isolate unlocks
 
 25. **Every `#[Test]` runs in its own isolate**, sharing nothing but compiled code, with the runner owning
-    the test's task tree — [ADR 0079](../../adr/0079-testing-is-a-language-feature.md) §§ 2, 12, 16. This
+    the test's task tree — `rule:testing/isolate-per-test`, `rule:testing/determinism-declared-on-the-test` and `rule:testing/task-tree-and-virtual-clock`. This
     is what makes `nvs test` parallel, and it is here rather than at M4 because the isolate is here.
 26. **`#[Test(at:, seed:)]` puts the clock and the generator under the test's control.** Same ADR, same
     sections. A test that is flaky because it read the wall clock is a test the language should have made
@@ -239,6 +239,6 @@ there by the switch that left it and folded forward at every switch since.
 
 `Core`'s pure half (goal 1, and it is the floor) — except that Stage 0b adds a name to every slot it
 already has, and changes no member's shape. Every capability-bearing `Core` member (goal 4) — the
-transport is not the client. The listener (goal 6). ADR 0018's `TRACE`/`PROFILE` safepoint bits, which
+transport is not the client. The listener (goal 6). `rule:testing/debug-probes`'s `TRACE`/`PROFILE` safepoint bits, which
 have no consumer until an exporter exists; the three spawn-construct trace events wait with them, and
 m5.md already says so.

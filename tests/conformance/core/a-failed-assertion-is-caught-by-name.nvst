@@ -1,5 +1,5 @@
 --TEST--
-A failed assertion throws `Core\Test\Failure`, which is an ordinary `Throwable` a program catches, constructs and re-raises -- ADR 0079 § 5
+A failed assertion throws `Core\Test\Failure`, which is an ordinary `Throwable` a program catches, constructs and re-raises -- `rule:testing/failure-ledger`
 --FILE--
 <?nvs
 // § 5's whole first half: catching one is "not only allowed, it is necessary",

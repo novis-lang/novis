@@ -1,8 +1,8 @@
 --TEST--
-a `#[Test]` or `#[Fixture]` parameter is resolved against the class's fixtures by type, or refused where it is written, ADR 0079 § 8
+a `#[Test]` or `#[Fixture]` parameter is resolved against the class's fixtures by type, or refused where it is written, `rule:testing/fixtures`
 --FILE--
 <?nvs
-// ADR 0079 § 8 resolves a parameter **by type, checked while compiling**, "so
+// `rule:testing/fixtures` resolves a parameter **by type, checked while compiling**, "so
 // an unsatisfiable parameter is a diagnostic rather than a null at runtime".
 // The accepted shapes are written first, so a position that stops being
 // accepted fails there rather than as a missing refusal.

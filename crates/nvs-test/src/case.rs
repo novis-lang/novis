@@ -36,7 +36,7 @@ pub enum Oracle {
 ///
 /// `--RUN--` names it, and the default is [`Subcommand::Run`] — a case is a
 /// program whose output is the expectation. [`Subcommand::Test`] is the other
-/// half of [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 23:
+/// half of `rule:testing/nvst-is-separate`:
 /// the program declares `#[Test]` classes and what the case pins is the
 /// runner's own report of running them.
 ///
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn a_machine_format_is_a_spelling_of_the_test_subcommand() {
-        // ADR 0079 § 22's formats are a closed list, so each is a value of the
+        // `rule:testing/report-formats`'s formats are a closed list, so each is a value of the
         // roster rather than a flag string carried along — what a `--RUN--`
         // section names is a whole command line.
         let parsed = case(&format!("--RUN--\ntest --format=json\n{MINIMAL}")).expect("it parses");

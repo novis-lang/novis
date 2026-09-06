@@ -231,7 +231,7 @@ deadline       = "30s"    # Runtime  — the default a call inherits when it nam
 
 - **`max_concurrent` is `System`.** It bounds how much a core holds after responses are on the wire, which
   is a host-sizing decision and not a request-local one — the same class and the same reasoning
-  [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) gives for `[debug] mode`
+  `rule:testing/debug-probes` gives for `[debug] mode`
   being unchangeable upward from inside a request.
 - **Past the cap, `afterResponse` throws** — a `RuntimeError` at the call site, while the request is still
   running and can still decide what to do (respond anyway, do the work inline, tell the caller to retry).

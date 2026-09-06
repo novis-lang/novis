@@ -37,7 +37,7 @@ Novis makes exactly three claims, and no incumbent language can add any of them 
 secret leakage are compile
 errors**; **a request, a job, a connection and an untrusted script are each a budgeted isolate in one
 process**; and **suspension has no colour**. Raw speed against PHP is measured
-([ADR 0026](../adr/0026-performance-measurement-methodology.md)) and is not the pitch: persistent-worker PHP
+(`rule:testing/perf-two-mechanisms`) and is not the pitch: persistent-worker PHP
 runtimes and PHP 8's JIT have answered enough of that argument that it no longer justifies a rewrite on its
 own. The PHP-shaped syntax is an **on-ramp, never a compatibility promise**, and `rule:programs/no-compatibility-promise` forbids any
 document from implying otherwise.
@@ -230,7 +230,7 @@ drift. Deferring it to M9 would mean retrofitting.
     │ nvs-http      │               │ nvs-cli       │
     │ h1, TCP + UDS │               │ run / test    │
     └───────────────┘               └───────────────┘
-       one handle(Request) -> Response seam; ADR 0079's
+       one handle(Request) -> Response seam; `rule:testing/test-attribute`'s
        synthetic request and #[Test(server: true)] are its
        other callers. No transport trait, no FCGI.
 ```

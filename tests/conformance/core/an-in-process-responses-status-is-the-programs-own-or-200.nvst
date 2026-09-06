@@ -1,5 +1,5 @@
 --TEST--
-an in-process response carries the status the program declared, and `200` where it declared none, asserted on both sides in one run — ADR 0079 § 18
+an in-process response carries the status the program declared, and `200` where it declared none, asserted on both sides in one run — `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // A bound named on both sides: the last value the program chose and the first

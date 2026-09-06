@@ -1,5 +1,5 @@
 --TEST--
-a `#[Test(retries: n)]` that fails and then passes is flaky rather than green, and an allowance nothing needs is never spent (ADR 0079 §§ 20, 22)
+a `#[Test(retries: n)]` that fails and then passes is flaky rather than green, and an allowance nothing needs is never spent (`rule:testing/runner-is-strict` and `rule:testing/report-formats`)
 --RUN--
 test
 --FILE--

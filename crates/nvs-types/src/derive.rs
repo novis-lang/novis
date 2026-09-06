@@ -143,13 +143,13 @@ pub const DB_DERIVE: &str = r"Core\Db\Derive";
 /// chosen, so forcing them equal would need an escape hatch immediately.
 pub const DB_FIELD: &str = r"Core\Db\Field";
 
-/// `#[Test(skip?: string, …)]` — ADR 0079 § 1's marker, on a method. It is
+/// `#[Test(skip?: string, …)]` — `rule:testing/test-attribute`'s marker, on a method. It is
 /// the class the assertions are members of, so the `use Core\Test;` that lets
 /// a test body write `Test::assertEquals(…)` is the same one that places the
 /// attribute; [`crate::testing`] owns the payload.
 pub const TEST: &str = r"Core\Test";
 
-/// `#[Fixture]` — ADR 0079 § 8's marker, on a `static` method whose return
+/// `#[Fixture]` — `rule:testing/fixtures`'s marker, on a `static` method whose return
 /// type is what a test asks for by declaring a parameter of it. It sits in
 /// the `Core\Test` namespace beside [`crate::error_lib`]'s `Core\Test\Failure`
 /// rather than being a second segment of the class itself, because it names
@@ -158,7 +158,7 @@ pub const TEST: &str = r"Core\Test";
 /// [`crate::testing`] owns what it may carry, which is nothing.
 pub const FIXTURE: &str = r"Core\Test\Fixture";
 
-/// `#[TestWith(...)]` — ADR 0079 § 9's data row, on a `#[Test]` method. It
+/// `#[TestWith(...)]` — `rule:testing/data-rows`'s data row, on a `#[Test]` method. It
 /// sits in the `Core\Test` namespace beside [`FIXTURE`] and for that entry's
 /// reason exactly, and it keeps the ADR's own spelling rather than the
 /// shorter `With` a namespace would allow: `#[TestWith]` is what § 9 writes,

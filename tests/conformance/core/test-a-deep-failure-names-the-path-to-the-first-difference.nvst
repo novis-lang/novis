@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertEqualsDeep` reports where two subjects first differ, as a path a program would subscript with, and stops at the container whose *shape* differs -- ADR 0079 § 4
+`Core\Test::assertEqualsDeep` reports where two subjects first differ, as a path a program would subscript with, and stops at the container whose *shape* differs -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // § 4's walk reports **where**, not only that. That promise has two halves the

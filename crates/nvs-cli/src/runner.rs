@@ -1,4 +1,4 @@
-//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)'s
+//! `rule:testing/test-attribute`'s
 //! runner: the `#[Test]` table a compile already built (§ 1), constructed and
 //! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
 //! the exception state — and reported in one of § 22's three formats.
@@ -181,7 +181,7 @@ impl Outcome {
             return self;
         }
         let named = format!(
-            "it left {running} task(s) still running when it returned: ADR 0079 § 16 \
+            "it left {running} task(s) still running when it returned: `rule:testing/task-tree-and-virtual-clock` \
              fails a test whose task tree outlives it — `Core\\Task::all` and `::map` \
              return with nothing still running, and a `spawn script` is finished by `await`"
         );
@@ -250,7 +250,7 @@ struct Case {
 /// Compiles `checked` and runs every `#[Test]` it declares that `filter`
 /// selects, reporting in `format`.
 ///
-/// `update` is ADR 0079 § 14's `nvs test --update`: after the suite, and only
+/// `update` is `rule:testing/inline-snapshots`'s `nvs test --update`: after the suite, and only
 /// then, each failed snapshot is spliced back into the source that wrote it.
 /// The verdicts are the same either way — a run that rewrote a snapshot still
 /// reports the test that produced it as failed, because it did, and the
@@ -353,7 +353,7 @@ pub(crate) fn run(
 
 /// Runs the whole suite **inside one task**, on a [`nvs_host::Scheduler`] of
 /// this run's own with a reactor and an isolate resolver installed over it —
-/// ADR 0079 § 16's "the runner owns the test's task tree", and the same three
+/// `rule:testing/task-tree-and-virtual-clock`'s "the runner owns the test's task tree", and the same three
 /// installations `nvs run` makes (`crate::main`, § *What `run` executes*).
 ///
 /// Without it there is no task beneath a test at all: `nvs_host::Wake::current`
@@ -417,7 +417,7 @@ fn run_suite_in_a_task(
     // not in. Nothing edits a file mid-suite, so the revalidation policy in it
     // chooses nothing.
     let compiler = crate::script::Compiler::new(config);
-    // And ADR 0079 § 18's unit under test, over the same run: a `Core\Test`
+    // And `rule:testing/in-process-request`'s unit under test, over the same run: a `Core\Test`
     // member reaches it the way a `spawn script` reaches the resolver, so the
     // two guards nest rather than either one being a special case.
     let ran = nvs_runtime::script::scoped(&compiler, || {
@@ -546,7 +546,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
 }
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of
-/// this run shares — ADR 0079 § 2's "shares compiled code with its siblings"
+/// this run shares — `rule:testing/isolate-per-test`'s "shares compiled code with its siblings"
 /// is this `Rc` and the program closure each child holds a clone of.
 ///
 /// `Err` is the message to render; a compile that fails ends the run rather
@@ -746,7 +746,7 @@ enum FixtureFailure {
     Exited(i64),
 }
 
-/// ADR 0079 § 8's fixtures for one class, built **once** and in dependency
+/// `rule:testing/fixtures`'s fixtures for one class, built **once** and in dependency
 /// order, into `fixtures`.
 ///
 /// Only what a test that is going to run actually asks for is built: a fixture
@@ -841,7 +841,7 @@ fn retry_allowance(case: &nvs_types::testing::TestCase) -> usize {
         .unwrap_or(0)
 }
 
-/// ADR 0079 § 12's `at:` option — the instant this test's isolate reads its
+/// `rule:testing/determinism-declared-on-the-test`'s `at:` option — the instant this test's isolate reads its
 /// wall clock at, in nanoseconds since the Unix epoch — or `None` for a test
 /// that reads the host's clock.
 ///
@@ -866,7 +866,7 @@ fn fixed_clock(case: &nvs_types::testing::TestCase) -> Result<Option<i128>, &str
     nvs_stdlib::time::fixed_clock_nanos(at).map(Some).ok_or(at)
 }
 
-/// ADR 0079 § 12's `seed:` option — the seed this test's isolate puts its
+/// `rule:testing/determinism-declared-on-the-test`'s `seed:` option — the seed this test's isolate puts its
 /// `Core\Random` draws on — or `None` for a test that draws from the operating
 /// system.
 ///
@@ -887,7 +887,7 @@ fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
 /// One `#[Test]` method: skipped for its stated reason, or a fresh instance of
 /// its class with the method called on it.
 ///
-/// **The verdict is read off ADR 0079 § 5's ledger, not off the exception
+/// **The verdict is read off `rule:testing/failure-ledger`'s ledger, not off the exception
 /// state**, and that is the whole of what makes a test hard to pass by
 /// accident. A body that caught its own `Core\Test\Failure` returns normally
 /// and has still failed; a body that asserted nothing at all returns normally
@@ -1186,7 +1186,7 @@ fn run_the_test(
     })
 }
 
-/// Whether this case asked for ADR 0079 § 18's second mechanism.
+/// Whether this case asked for `rule:testing/in-process-request`'s second mechanism.
 ///
 /// `server` is a `bool` in `nvs_types::testing`'s roster, so anything else has
 /// already been refused while compiling and reading it back as absent here
@@ -1201,7 +1201,7 @@ fn wants_server(case: &nvs_types::testing::TestCase) -> bool {
 }
 
 /// The `[db.<name>]` block this case asked to run inside a transaction of —
-/// ADR 0079 § 17 — or `None` for a test that names none.
+/// `rule:testing/db-transaction` — or `None` for a test that names none.
 ///
 /// `db` is a `string` in `nvs_types::testing`'s roster, so a non-text value has
 /// already been refused while compiling and reading it back as absent here
@@ -1217,7 +1217,7 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
     })
 }
 
-/// ADR 0079 § 18's second mechanism, bound: one ephemeral listener over the
+/// `rule:testing/in-process-request`'s second mechanism, bound: one ephemeral listener over the
 /// program under test, and the task accepting on it.
 ///
 /// **Why a second mechanism at all**, when § 18's first one already runs a
@@ -1481,7 +1481,7 @@ fn run_case(
         // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
         // like any other assertion.
         return Outcome::Failed(vec![
-            "it asserted nothing: ADR 0079 § 20 fails a test whose ledger is empty — write \
+            "it asserted nothing: `rule:testing/runner-is-strict` fails a test whose ledger is empty — write \
              `Core\\Test::assertDoesNotThrow` where the claim is that a call completes"
                 .to_owned(),
         ]);
@@ -1489,7 +1489,7 @@ fn run_case(
     Outcome::Passed
 }
 
-/// The calls one `#[Test]` method makes — ADR 0079 § 9's "each row is its own
+/// The calls one `#[Test]` method makes — `rule:testing/data-rows`'s "each row is its own
 /// reported case".
 ///
 /// A method with no `#[TestWith]` row is § 1's single call under its own name.
@@ -1888,7 +1888,7 @@ fn snapshot_sites(checked: &crate::Checked) -> Vec<SnapshotSite> {
         .collect()
 }
 
-/// ADR 0079 § 14's updater: splices each failed snapshot's produced rendering
+/// `rule:testing/inline-snapshots`'s updater: splices each failed snapshot's produced rendering
 /// into the literal the test wrote, and writes nothing else anywhere.
 ///
 /// # The join, and what it refuses
@@ -2072,7 +2072,7 @@ mod tests {
     }
 
     /// [`verdicts_filtered`] over a context the caller built, for the one
-    /// fixture whose configuration is more than a grant: ADR 0079 § 17 needs a
+    /// fixture whose configuration is more than a grant: `rule:testing/db-transaction` needs a
     /// `[db.<name>]` block, and a fixture has no `nvs.toml` beside it to carry
     /// one.
     fn verdicts_on(
@@ -2119,7 +2119,7 @@ mod tests {
 
     #[test]
     fn test_request_dispatches_in_process_through_the_compiled_route_table() {
-        // ADR 0079 § 18's first mechanism, asserted where it lives: `nvs-test`
+        // `rule:testing/in-process-request`'s first mechanism, asserted where it lives: `nvs-test`
         // holds the `.nvst` format and declares no dependencies at all, so the
         // crate that can build both halves of this — a checked program and a
         // runtime context in one scope — is this one.
@@ -2153,7 +2153,7 @@ mod tests {
 
     #[test]
     fn a_test_with_server_true_gets_an_ephemeral_listener() {
-        // ADR 0079 § 18's second mechanism, and the crate that can assert it is
+        // `rule:testing/in-process-request`'s second mechanism, and the crate that can assert it is
         // this one for the first mechanism's reason: a listener needs a checked
         // program and a runtime context in one scope, and `nvs-test` declares no
         // dependencies at all.
@@ -2231,7 +2231,7 @@ mod tests {
 
     #[test]
     fn a_test_with_db_runs_inside_a_transaction_that_is_rolled_back() {
-        // ADR 0079 § 17, and the crate that can assert it is this one for the
+        // `rule:testing/db-transaction`, and the crate that can assert it is this one for the
         // reason the two mechanisms above are asserted here: the transaction is
         // opened around a test's isolate, which needs a checked program and a
         // runtime context in one scope.
@@ -2293,7 +2293,7 @@ mod tests {
 
     #[test]
     fn each_test_runs_in_its_own_isolate_sharing_only_compiled_code() {
-        // ADR 0079 § 2 and `rule:statements/an-isolate-has-its-own-statics`: the two tests share the one compiled
+        // `rule:testing/isolate-per-test` and `rule:statements/an-isolate-has-its-own-statics`: the two tests share the one compiled
         // unit and nothing else, so the second reads its static's *declared*
         // initial value however hard the first wrote to it. Asserted as a
         // verdict rather than as a number, because the fixture's own
@@ -2320,7 +2320,7 @@ mod tests {
 
     #[test]
     fn a_test_at_a_fixed_clock_reads_that_clock() {
-        // ADR 0079 § 12. Three cases in one fixture because the claim is about
+        // `rule:testing/determinism-declared-on-the-test`. Three cases in one fixture because the claim is about
         // the isolate and not about the reading: the clock a test declared is
         // what `Core\Time::now` answers inside it, `Core\Test::advance` moves
         // that same reading, and the sibling that declared no `at:` still reads
@@ -2379,7 +2379,7 @@ mod tests {
 
     #[test]
     fn a_test_with_a_seed_draws_the_same_sequence_twice() {
-        // ADR 0079 § 12's other half. Two tests declaring the same seed draw
+        // `rule:testing/determinism-declared-on-the-test`'s other half. Two tests declaring the same seed draw
         // the same three numbers, which is the promise; a third declaring a
         // different seed does not, so the assertion is about the seed and not
         // about a generator that answers one constant; and a fourth declaring
@@ -2409,7 +2409,7 @@ mod tests {
 
     #[test]
     fn the_runner_owns_the_tests_task_tree() {
-        // ADR 0079 § 16, both halves, from the language surface. The first
+        // `rule:testing/task-tree-and-virtual-clock`, both halves, from the language surface. The first
         // test's `Core\Task::all` has children only because the suite is
         // itself a task (ADR 0072 § 1's "a child of the calling task"), so a
         // runner that ran off a bare stack fails it rather than passing it
@@ -2444,7 +2444,7 @@ mod tests {
         );
     }
 
-    /// ADR 0079 § 14, both halves in one case because they are one claim: the
+    /// `rule:testing/inline-snapshots`, both halves in one case because they are one claim: the
     /// updater writes the produced rendering into the `$expected` literal that
     /// asked for it, and nothing else in `nvs test` writes to a source file at
     /// all.

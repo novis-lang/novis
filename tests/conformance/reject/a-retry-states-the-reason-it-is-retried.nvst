@@ -1,8 +1,8 @@
 --TEST--
-a `#[Test(retries: n)]` with no `because:` beside it is refused where it is written, ADR 0079 § 20 charging a written reason for every retry
+a `#[Test(retries: n)]` with no `because:` beside it is refused where it is written, `rule:testing/runner-is-strict` charging a written reason for every retry
 --FILE--
 <?nvs
-// ADR 0079 § 20 grants retries and charges a reason for them in one sentence:
+// `rule:testing/runner-is-strict` grants retries and charges a reason for them in one sentence:
 // a retried test is reported as flaky rather than green, and the `because:`
 // is what a reader of the attribute has in place of the run that produced it.
 // The rule is a dependency between two options rather than a type, which is

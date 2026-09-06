@@ -1,5 +1,5 @@
 --TEST--
-a request tree that deferred work keeps running once its answer is complete, and the answer is complete: nothing the deferred closure writes can reach the response the caller already holds — ADR 0072 § 6, ADR 0079 § 18
+a request tree that deferred work keeps running once its answer is complete, and the answer is complete: nothing the deferred closure writes can reach the response the caller already holds — ADR 0072 § 6, `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // `task-after-response-runs` asks *when* a deferred closure runs, on a host

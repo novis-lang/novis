@@ -202,8 +202,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 ///
 /// The walk every ADR 0071 § 1 name that carries a payload shares, because a
 /// recognized name is matched *nominally* and so has no shape to be checked
-/// against: what it may hold is a roster its own module declares — ADR 0079
-/// § 1's is [`crate::testing`]'s, ADR 0086 § 6's two are [`crate::commands`]',
+/// against: what it may hold is a roster its own module declares — `rule:testing/test-attribute`'s is [`crate::testing`]'s, ADR 0086 § 6's two are [`crate::commands`]',
 /// ADR 0077 § 1's is [`crate::routes`]'. Three answers per field and they are
 /// deliberately three: a name no row declares, a value at the wrong type, and
 /// a name given twice.
@@ -211,7 +210,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// Called only for a payload [`check_attribute`] has already proved constant,
 /// for this module's own reason: the author is told about a value they wrote
 /// before they are told what it failed to satisfy. A rule *between* two
-/// options — ADR 0079 § 20's `retries` requiring `because` — is one this walk
+/// options — `rule:testing/runner-is-strict`'s `retries` requiring `because` — is one this walk
 /// cannot state, and stays with the roster that declares it.
 ///
 /// `attribute` is the name as a diagnostic writes it, without its `#[]`.

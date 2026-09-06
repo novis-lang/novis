@@ -1,5 +1,5 @@
 --TEST--
-an in-process request made from inside one is refused at the door, naming why — ADR 0079 § 18
+an in-process request made from inside one is refused at the door, naming why — `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // The edge of the sibling cases: what answers a synthetic request is the

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertEquals` compares an object only through `Comparable`, and its refusal names the class and the two members that do work on it -- ADR 0079 § 4, ADR 0013 § 2
+`Core\Test::assertEquals` compares an object only through `Comparable`, and its refusal names the class and the two members that do work on it -- `rule:testing/assertions-are-typed`, ADR 0013 § 2
 --FILE--
 <?nvs
 // ADR 0013 gives an object no ordering but the one its class declares, so the

@@ -117,7 +117,7 @@ Fields that do not exist yet are not printed. `nvs info` grows a configuration s
 [ADR 0005](0005-config-changeability.md)'s `nvs.toml` lands in M6, an artifact-cache section with
 [ADR 0042](0042-on-disk-artifact-cache-format.md) in the same milestone, and a loaded-extension section
 with [ADR 0003](0003-extension-system.md) in M9. It reports no per-request state, ever — that is
-[ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s territory and is
+`rule:testing/debug-probes`'s territory and is
 flag-gated for reasons this command does not share.
 
 ### 5. No build timestamp

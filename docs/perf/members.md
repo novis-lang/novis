@@ -10,7 +10,7 @@ be — [`benches/userland/`](../../benches/userland/README.md) owns the cross-en
 comparison. `ns/op` is wall clock on the machine named in the heading, with the empty
 program's start-up floor subtracted; `units` is that figure divided by the calibration
 program measured in the same sweep, and it is the only column that means anything on a
-different machine — to about a tenth ([ADR 0026](../adr/0026-performance-measurement-methodology.md)).
+different machine — to about a tenth (`rule:testing/perf-two-mechanisms`).
 `Δ` compares against the previous reading **on the same machine** and is blank when there
 is not one.
 

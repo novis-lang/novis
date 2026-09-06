@@ -28,7 +28,7 @@ what a program may read off a request, and what a test may say to build one.
 [16 request-json](16-request-json.md) replaces spec § 15's three-way body exclusivity with ADR 0139's
 *buffering readers share, streaming readers consume*, adds `Core\Request::json()`/`jsonAs<T>()`, and gives
 `.nvst` the `.phpt` request sections — without which no request-facing member can be proven by a case at
-all. [17 test-request](17-test-request.md) freezes `Core\Test::request`'s shape (ADR 0079 § 18 has an
+all. [17 test-request](17-test-request.md) freezes `Core\Test::request`'s shape (`rule:testing/in-process-request` has an
 example and no signature), builds it as one shared `InboundSpec`, and lands the peer fields that
 `Core\Request::clientIp`/`scheme`/`host` have been waiting on. They are last rather than beside goal 6
 because they were decided after it, and goal 16's stage 0 is what pays off the fixtures goal 6 wrote
@@ -105,7 +105,7 @@ and because `{keys, until}` needs the options bag goal 28 stage 2 lands.
 
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
 no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
-which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
+which puts `rule:testing/four-proofs`'s
 whole roster — one goal per group of shipped features owing their four proofs — onto the end of *this*
 chain, and then spends the rest of the session on an **optimization pass aimed forward** rather than
 back: it is the only moment anyone holds all 93 generated goals at once and none of them has been walked,
@@ -155,7 +155,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [14 lsp-server](14-lsp-server.md) | M4B, ADR 0099 §§ 3+5 + ADR 0101 | **`nvs-lsp`** (new), `nvs-cli`, `nvs-types`, `nvs-stdlib` |
 | [15 editor](15-editor.md) | M4B, ADR 0099 §§ 4+6 | **`editors/vscode`** (new, TypeScript) |
 | [16 request-json](16-request-json.md) | M7, ADR 0139 + spec § 15 | `nvs-stdlib`, `nvs-runtime`, `nvs-test`, `nvs-cli` |
-| [17 test-request](17-test-request.md) | M8, ADR 0079 § 18 | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
+| [17 test-request](17-test-request.md) | M8, `rule:testing/in-process-request` | `nvs-runtime`, `nvs-stdlib`, `nvs-server`, `nvs-test`, `nvs-cli` |
 | [18 input-shapes](18-input-shapes.md) | M7, ADR 0140 + ADR 0036/0024 amendments | `nvs-syntax`, `nvs-types`, `nvs-stdlib` |
 | [19 parses](19-parses.md) | M7, ADR 0141 + ADR 0013/0066/0077/0102 amendments | `nvs-hir`, `nvs-types`, `nvs-stdlib`, `nvs-runtime`, `nvs-cli` |
 | [20 unix-sockets](20-unix-sockets.md) | M8, ADR 0142 + ADR 0058/0059 amendments | `nvs-config`, `nvs-stdlib`, `nvs-db`, `nvs-host`, `nvs-diagnostics` |
@@ -169,8 +169,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | [29 signed-urls](29-signed-urls.md) | M8, ADR 0146 + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | 30–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
-| [50 dossier](50-dossier.md) | ADR 0134 | none — it writes the goals that open all of them, then optimizes the loop for their shape |
-| 51 onward | ADR 0134, generated | one group of features per goal, its own `[context]` manifest |
+| [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |
 
 ## The chain contract
 
@@ -242,7 +242,7 @@ TOML for a doubled floor before restarting.
 ## What stops the run
 
 - **The last goal goes green** — which, since goal 50, means the last *generated* one: every group on
-  ADR 0134's roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
+  `rule:testing/four-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
   The parity program's own gate is still goal 6's final check —
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1151
   functions and 253 types** accounted for, every `member` row registered, every one of them cased. The

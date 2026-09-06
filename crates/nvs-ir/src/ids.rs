@@ -1,6 +1,6 @@
 //! Stable per-statement and per-conditional-edge identifiers.
 //!
-//! [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+//! `rule:testing/debug-probes`
 //! needs every lowered statement and every conditional CFG edge to carry an id
 //! a coverage/branch probe can address — reserved here from this crate's
 //! first commit because retrofitting it once M3's codegen builds probe sites
@@ -13,7 +13,7 @@
 //! An id is stable across recompiles of the *same* source: [`lower`](crate::lower)
 //! assigns [`StmtId`]s and [`EdgeId`]s in one deterministic pre-order walk of
 //! the checked AST, so lowering an unchanged file always reproduces the same
-//! numbering. That is the property a probe site needs — ADR 0018 attaches
+//! numbering. That is the property a probe site needs — `rule:testing/debug-probes` attaches
 //! "line N was hit" state to an id captured once when tracing starts, and
 //! that id must still mean the same statement the next time the file is
 //! compiled unchanged.
@@ -45,11 +45,11 @@ macro_rules! id_newtype {
 }
 
 id_newtype!(
-    /// One lowered statement — ADR 0018's coverage-probe unit.
+    /// One lowered statement — `rule:testing/debug-probes`'s coverage-probe unit.
     StmtId
 );
 id_newtype!(
-    /// One conditional CFG edge — ADR 0018's branch-probe unit. Constructed
+    /// One conditional CFG edge — `rule:testing/debug-probes`'s branch-probe unit. Constructed
     /// by [`lower`](crate::lower) for each outgoing edge of an `if`/`while`'s
     /// [`crate::ir::Terminator::Branch`]; `for`/`switch`/`try` will add more
     /// once they land, with no renumbering of ids already handed out.

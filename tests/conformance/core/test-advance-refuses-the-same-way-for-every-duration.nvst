@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::advance` asks whether there is a clock before it looks at what it was asked to move it by, so every duration is refused identically -- ADR 0079 § 12
+`Core\Test::advance` asks whether there is a clock before it looks at what it was asked to move it by, so every duration is refused identically -- `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
 // The ordering, counted rather than read off a line. A member that validated

@@ -68,9 +68,9 @@ pub enum Cap {
     NetConnect,
     /// `process.exec` — the programs a subprocess may be started from.
     ProcessExec,
-    /// `debug.trace` — where a trace may be written (ADR 0018).
+    /// `debug.trace` — where a trace may be written (`rule:testing/debug-probes`).
     DebugTrace,
-    /// `debug.profile` — where a profile may be written (ADR 0018).
+    /// `debug.profile` — where a profile may be written (`rule:testing/debug-probes`).
     DebugProfile,
     /// `db.connect` — which `[db.<name>]` blocks a program may open by name (ADR 0067 § 3).
     DbConnect,

@@ -64,7 +64,7 @@ The primary development platform, and the only one with real setup:
 2. **PHP on the Windows `PATH`.**
 3. **WSL, with a second full toolchain inside it.** Required, not a convenience: three things have no
    Windows story at all — `valgrind`/`callgrind` (no native build,
-   [ADR 0026](adr/0026-performance-measurement-methodology.md)), `cargo-fuzz` (needs libFuzzer), and the
+   `rule:testing/perf-two-mechanisms`), `cargo-fuzz` (needs libFuzzer), and the
    acceptance run's second leg, which exists because a JIT is exactly where a calling-convention
    divergence between two targets hides.
 

@@ -1,5 +1,4 @@
-//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-//! § 1's `#[Test]` attribute: what its payload may hold.
+//! `rule:testing/test-attribute`'s `#[Test]` attribute: what its payload may hold.
 //!
 //! `#[Test]` is one of [`crate::derive::ATTRIBUTES`]' compiler-recognized
 //! names, which is what makes it matched **nominally** rather than by the
@@ -226,7 +225,7 @@ impl OptionTy {
     }
 }
 
-/// ADR 0079 § 1's option shape, in the order that section writes it. Every
+/// `rule:testing/test-attribute`'s option shape, in the order that section writes it. Every
 /// one is optional, so this roster says which names are admitted and at what
 /// type — never which are required.
 const OPTIONS: &[(&str, OptionTy)] = &[
@@ -239,18 +238,18 @@ const OPTIONS: &[(&str, OptionTy)] = &[
     ("because", OptionTy::Str),
 ];
 
-/// One `#[Test]` method of one class — ADR 0079 § 1's table, one row at a
+/// One `#[Test]` method of one class — `rule:testing/test-attribute`'s table, one row at a
 /// time.
 #[derive(Clone, Debug)]
 pub struct TestCase {
-    /// The method's own name, exactly as declared. ADR 0079 § 1: nothing
+    /// The method's own name, exactly as declared. `rule:testing/test-attribute`: nothing
     /// about a test is inferred from this spelling.
     pub method: String,
     /// The options written on the attribute, folded, in source order. An
     /// option the author left out is absent rather than defaulted — what a
     /// missing `retries` means is the runner's question and not this table's.
     pub options: Vec<(String, ConstArg)>,
-    /// ADR 0079 §§ 8-9's injection, resolved: where each declared parameter's
+    /// `rule:testing/fixtures` and `rule:testing/data-rows`'s injection, resolved: where each declared parameter's
     /// value comes from, in **parameter order**.
     ///
     /// An *order* rather than a set, because the runner passes values
@@ -272,7 +271,7 @@ pub struct TestCase {
     pub rows: Vec<Vec<Option<ConstArg>>>,
 }
 
-/// Where one declared parameter's value comes from — ADR 0079 § 9's "each
+/// Where one declared parameter's value comes from — `rule:testing/data-rows`'s "each
 /// parameter's source is unambiguous because fixtures resolve by type and
 /// rows by name".
 ///
@@ -288,7 +287,7 @@ pub enum Injection {
     Row,
 }
 
-/// One `#[Fixture]` method of one class — ADR 0079 § 8's roster, one row at a
+/// One `#[Fixture]` method of one class — `rule:testing/fixtures`'s roster, one row at a
 /// time.
 #[derive(Clone, Debug)]
 pub struct Fixture {
@@ -388,7 +387,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
                     )
                     .with_primary(m.name, format!("`{prior}` already supplies `{described}`"))
                     .with_help(
-                        "ADR 0079 § 8 resolves a fixture by its type, so two of one type leave a \
+                        "`rule:testing/fixtures` resolves a fixture by its type, so two of one type leave a \
                          parameter asking for it with no answer",
                     ),
                 );
@@ -442,7 +441,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
     }
 }
 
-/// ADR 0079 § 8's resolution, for one class: every `#[Test]` and `#[Fixture]`
+/// `rule:testing/fixtures`'s resolution, for one class: every `#[Test]` and `#[Fixture]`
 /// parameter matched **by type** against the roster the walk above collected.
 ///
 /// It is a second pass over the two rosters rather than a step inside that
@@ -573,7 +572,7 @@ fn resolve_parameters(
                 report_row_field(
                     field.span,
                     format!("`{method}` declares no parameter `${name}`"),
-                    "ADR 0079 § 9 matches a data row against the method's parameters by name: \
+                    "`rule:testing/data-rows` matches a data row against the method's parameters by name: \
                      write the field the parameter is called, or declare the parameter",
                     env,
                 );
@@ -612,7 +611,7 @@ fn resolve_parameters(
                         "the data row field `{name}` is not a `{want}` literal, which is what \
                          `{parameter}` is declared as"
                     ),
-                    "ADR 0079 § 9 matches a data row against the method's parameters by name \
+                    "`rule:testing/data-rows` matches a data row against the method's parameters by name \
                      **and** by type, so that a row is compiled into the call it will be made \
                      with",
                     env,
@@ -637,7 +636,7 @@ fn resolve_parameters(
             report_row_field(
                 row.span,
                 format!("this data row of `{method}` gives no `{parameter}`, which another does"),
-                "ADR 0079 § 9 reports each row as its own case, so every one of them fills the \
+                "`rule:testing/data-rows` reports each row as its own case, so every one of them fills the \
                  same parameters: give this row the field too, or take it off the others and \
                  supply the parameter with a `#[Fixture]`",
                 env,
@@ -681,14 +680,14 @@ fn resolve_parameters(
             // refused.
             .with_help(if marker == "#[Test]" {
                 format!(
-                    "ADR 0079 § 8 resolves a parameter by its type and § 9 by its name: \
+                    "`rule:testing/fixtures` resolves a parameter by its type and § 9 by its name: \
                      declare a `public static` `#[Fixture]` on this class returning \
                      `{described}`, or write a `#[TestWith({parameter}: ...)]` row on the \
                      method"
                 )
             } else {
                 format!(
-                    "ADR 0079 § 8 resolves a parameter by its type: declare a `public static` \
+                    "`rule:testing/fixtures` resolves a parameter by its type: declare a `public static` \
                      `#[Fixture]` on this class returning `{described}`"
                 )
             }),
@@ -734,7 +733,7 @@ fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {
         report_row_field(
             row.span,
             format!("this `#[TestWith]` is on a method that {did}"),
-            "ADR 0079 § 9 reports each row of a `#[Test]` as its own case, so a row on \
+            "`rule:testing/data-rows` reports each row of a `#[Test]` as its own case, so a row on \
              anything else names a call that is never made: mark the method `#[Test]`, or \
              drop the row",
             env,
@@ -784,7 +783,7 @@ fn reject_fixture_cycles(
             )
             .with_primary(at, "this fixture is needed to build itself")
             .with_help(
-                "ADR 0079 § 8 builds a fixture before the parameter it fills, so a cycle has no \
+                "`rule:testing/fixtures` builds a fixture before the parameter it fills, so a cycle has no \
                  order to be built in: break it by taking the shared value out into a fixture of \
                  its own",
             ),
@@ -861,7 +860,7 @@ pub(crate) fn attribute_named<'a>(
         .find(|attr| crate::derive::attribute_is(attr, want, ctx, env))
 }
 
-/// ADR 0079 § 8's declaration-shape refusals, for one `#[Fixture]` method,
+/// `rule:testing/fixtures`'s declaration-shape refusals, for one `#[Fixture]` method,
 /// and the type it supplies when there is one.
 ///
 /// Read off the resolved signature for [`check_method_shape`]'s reason
@@ -951,7 +950,7 @@ fn check_fixture_payload(attr: &Attribute, env: &mut Env<'_>) {
     }
 }
 
-/// ADR 0079 § 1's three declaration-shape refusals, for one `#[Test]` method.
+/// `rule:testing/test-attribute`'s three declaration-shape refusals, for one `#[Test]` method.
 ///
 /// All three are read off the resolved signature rather than off `m`'s own
 /// modifier list, for the reason this module's docs give: an omitted
@@ -1114,7 +1113,7 @@ fn check_retries_state_a_reason(fields: &[ObjectLiteralField], env: &mut Env<'_>
         )
         .with_primary(retries.span, "retried for no stated reason")
         .with_help(
-            "ADR 0079 § 20 reports a retried test as flaky rather than green, and charges a \
+            "`rule:testing/runner-is-strict` reports a retried test as flaky rather than green, and charges a \
              written reason for it: `#[Test(retries: 2, because: \"real DNS\")]`",
         ),
     );

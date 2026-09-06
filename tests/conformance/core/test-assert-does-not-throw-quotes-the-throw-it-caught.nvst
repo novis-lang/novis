@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertDoesNotThrow` fails as its own class carrying the caught throw's message, takes the pending throw so nothing downstream sees it, and agrees with a hand-written `try` over a table of bodies — ADR 0079 §§ 4, 20, `rule:errors/propagation`
+`Core\Test::assertDoesNotThrow` fails as its own class carrying the caught throw's message, takes the pending throw so nothing downstream sees it, and agrees with a hand-written `try` over a table of bodies — `rule:testing/assertions-are-typed` and `rule:testing/runner-is-strict`, `rule:errors/propagation`
 --FILE--
 <?nvs
 // The member's whole output on failure is the message of the throw it caught,

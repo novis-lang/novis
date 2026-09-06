@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertContains` holds exactly where `Core\Arr::contains` answers `true` — a haystack-by-needle grid counted rather than read off a row, membership by value and never by key, the numeric domain taken from `Core\Arr` too, and both sides named in the report — ADR 0079 § 4
+`Core\Test::assertContains` holds exactly where `Core\Arr::contains` answers `true` — a haystack-by-needle grid counted rather than read off a row, membership by value and never by key, the numeric domain taken from `Core\Arr` too, and both sides named in the report — `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // `assertContains`'s subject is an `array<T>` and its needle that same `T`,

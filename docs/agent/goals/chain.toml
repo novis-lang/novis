@@ -221,7 +221,7 @@ preflight = "docker"
 # `Core\Test::request`'s shape, frozen, and the peer fields that fall out of its options bag -- which are
 # what `Core\Request::clientIp`/`scheme`/`host` have been waiting on. After goal 16 because it re-points
 # that goal's `.nvst` sections at one shared builder, so the sections have to exist first. The dispatch
-# half of ADR 0079 § 18 stays M8's.
+# half of `rule:testing/in-process-request` stays M8's.
 [[goal]]
 name = "17 test-request"
 md = "docs/agent/goals/17-test-request.md"
@@ -373,7 +373,7 @@ milestone = "M8"
 preflight = "docker"
 
 # The chain stops adding surface here and starts closing what is behind it. The dossier writes no proof: it
-# fires `dossier.py --emit-goals` at this file, so ADR 0134's roster -- one goal per group
+# fires `dossier.py --emit-goals` at this file, so `rule:testing/four-proofs`'s roster -- one goal per group
 # of features owing four proofs -- lands on the end of the chain the driver is already walking, and
 # `Chain.refresh()` in loop.py walks into it without a restart. Everything after goal 50 is generated;
 # nothing after it is hand-written, and it is last because a proof is only worth writing over a feature

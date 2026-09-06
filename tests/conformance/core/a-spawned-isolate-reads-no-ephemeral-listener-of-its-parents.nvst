@@ -1,5 +1,5 @@
 --TEST--
-A `spawn script` isolate reads no listener of its parent's, ADR 0079 § 18's address being the isolate's own — ADR 0006
+A `spawn script` isolate reads no listener of its parent's, `rule:testing/in-process-request`'s address being the isolate's own — ADR 0006
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

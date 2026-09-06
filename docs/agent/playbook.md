@@ -4798,7 +4798,7 @@ is why" — is this file.
   genuinely reachable, but not by a program run from a command line, which is all an ordinary case
   is. `--RUN--\ntest\n` runs the file's `#[Test]` methods instead, and *that* context has no command
   line — so the case is a `#[Test]` that echoes `$e->message` for the corpus and closes with
-  `Core\Test::assertThrows`, because ADR 0079 § 20 fails a test whose ledger is empty. Two things
+  `Core\Test::assertThrows`, because `rule:testing/runner-is-strict` fails a test whose ledger is empty. Two things
   cost time on the way: the runner's report is the expectation, so the echoed line sits at column 0
   above the indented `✓` row, and an empty `--EXPECTF-ERROR--` section is the claim that the run
   *failed* rather than a section left blank.
@@ -6774,8 +6774,7 @@ sibling in the same namespace unqualified.
   that corresponds to no `nvs_ir` block at all — plus the landing block's `Release` and its
   `Propagate`. What actually separates hot from cold in the VCode text is one shape: `testX`
   immediately followed by `jnz labelA; j labelB`. That is how *every* status word is checked — a
-  call's error return, an overflow's `seto`, the safepoint's pending-exception field, and the ADR
-  0018 probe's null table pointer — so walking the `blockN:` graph from the entry and never
+  call's error return, an overflow's `seto`, the safepoint's pending-exception field, and the `rule:testing/debug-probes` probe's null table pointer — so walking the `blockN:` graph from the entry and never
   following that `jnz` gives the path a run that throws nothing takes. Two consequences worth
   knowing before writing a guard: the probe calls are *conditional*, so a "subtract one call per
   `StmtMarker`" correction over a whole-function count is measuring nothing; and `Cell::plainOne`
@@ -7357,9 +7356,9 @@ sibling in the same namespace unqualified.
   (`crates/nvs-stdlib/tests/capability.rs:282`) asserts over *every* member of such a class. So the
   obvious move, a second entry in `NEEDS_NO_CAPABILITY` beside `Core\Cache::local`
   (`crates/nvs-stdlib/tests/capability.rs:279`), is the one that test's own failure message calls
-  "the one move ADR 0118 § 7 forbids". The sibling readers dodge the question by being a *separate
+  "the one move `rule:testing/capability-closure-test` forbids". The sibling readers dodge the question by being a *separate
   class* — `Core\RateLimit\Decision` and `Core\Process\Result` are their own `CoreClass`es and so are
-  not capability-bearing at all. Settle it against ADR 0118 § 7 before writing the row, not after the
+  not capability-bearing at all. Settle it against `rule:testing/capability-closure-test` before writing the row, not after the
   test goes red.
 - **`every_error_path_is_asserted_or_declared_unreachable` scans *upward* for its declaration and
   stops at the first `Fault::` it meets — including one written inside the declaration itself.** A
@@ -8385,12 +8384,12 @@ sibling in the same namespace unqualified.
   matched nothing, silently, so every synthetic request answered with a `null` route and a program
   that branched on the match took the miss branch. `nvs run` installs the table on the script's own
   context (`main.rs`'s `set_routes`); the test runner never does, because a `#[Test]` method runs in
-  an isolate that shares compiled code with the unit and nothing else (ADR 0079 § 2). The failure
+  an isolate that shares compiled code with the unit and nothing else (`rule:testing/isolate-per-test`). The failure
   looks like the *table* being empty rather than like the wrong table being asked. The rule: match
   on the side that holds the compiled unit, and treat a `ctx.routes()` in a helper that may run
   under `nvs test` as a bug.
 - **"Which declaration is this expression inside" is a *stamp* on the table, not a field on
-  `nvs_types::Ctx`.** ADR 0079 § 14's updater needs each written `assertMatchesInline`'s enclosing
+  `nvs_types::Ctx`.** `rule:testing/inline-snapshots`'s updater needs each written `assertMatchesInline`'s enclosing
   `Class::method`, and the obvious move — `current_method` beside `current_class` — costs an edit at
   every one of that struct's thirteen construction sites (`grep -n 'Ctx {' crates/nvs-types/src/`),
   in `signatures.rs` and `retrieval.rs` and `lower.rs`, for a fact one table wants. The expression

@@ -120,8 +120,7 @@ gets its first adversarial traffic.
     the connection actually ends while the tree does not.
 19. **The observability export** — [ADR 0076](../../adr/0076-observability-export.md): `Core\Metrics`, the
     default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
-    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to ADR
-    0018's measured path**. Goal 4 built the outbound half; this closes the loop.
+    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to `rule:testing/debug-probes`'s measured path**. Goal 4 built the outbound half; this closes the loop.
 
 ## Stage 6b — persistent connections
 
@@ -187,7 +186,7 @@ suite gains connections as its third parameterisation rather than a second suite
 
 23. **`Core\Test::request`'s in-process dispatch through the compiled route table**, `#[Test(db:)]`'s
     rolled-back transaction, `#[Test(server: true)]`'s ephemeral listener, and inline snapshots with their
-    source updater — [ADR 0079](../../adr/0079-testing-is-a-language-feature.md) §§ 14, 17, 18. Each waited
+    source updater — `rule:testing/inline-snapshots`, `rule:testing/db-transaction` and `rule:testing/in-process-request`. Each waited
     for a capability that now exists, and `#[Test(db:)]` waited for goal 5.
 
 ## Stage 9 — the load-bearing assertions, and the program's last gate

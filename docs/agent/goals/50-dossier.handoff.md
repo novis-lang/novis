@@ -3,7 +3,7 @@
 ## State
 
 **Goal 50 — queue the dossier — has just started; nothing of it has landed yet.** Goal 20's whole list is
-this goal's floor. There is no design to settle: ADR 0134 decided the four proofs (the goal prose links
+this goal's floor. There is no design to settle: `rule:testing/four-proofs` decided the four proofs (the goal prose links
 it; a handoff is copied to `docs/agent/` and its relative links would break),
 `tools/dossier.py` derives the roster from `nvs meta --json`, and
 `--emit-goals` puts the goals it writes onto the end of the chain the driver is walking. The last sweep

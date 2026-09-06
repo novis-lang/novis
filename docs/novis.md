@@ -21741,7 +21741,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](spec/01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
 | `connection_aborted` | dropped | a client that disappears cancels the request and the runtime unwinds it. There is no state to poll, because polling only ever told a program what had already been decided |
 | `connection_status` | dropped | same |
-| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is [ADR 0018](adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s safepoint-shaped probes, which cost nothing when they are off |
+| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is `rule:testing/debug-probes`'s safepoint-shaped probes, which cost nothing when they are off |
 | `unregister_tick_function` | dropped | same |
 | `cli_set_process_title` | dropped | it mutates process-global state, and one process serves many requests: the title one of them set is a label on all the others |
 | `cli_get_process_title` | dropped | same |

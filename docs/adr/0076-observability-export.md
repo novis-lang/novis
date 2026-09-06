@@ -6,7 +6,7 @@
   derived from [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s existing event kinds, and
   W3C TraceContext in both directions — plus the three-member `Core\Metrics`, the `[metrics]`/`[trace]`
   directives, and the cardinality bound. Not in scope: the coverage/trace/profile *probes* themselves, which
-  are [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s and
+  are `rule:testing/debug-probes`'s and
   [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s, and are reused here unchanged; and the
   sampling profiler, which stays M10's.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) and
@@ -39,7 +39,7 @@
 
 ## Context
 
-- [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) put a debug-flags check at
+- `rule:testing/debug-probes` put a debug-flags check at
   every statement and call site, and [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) added
   `gc`, `spawn` and `query` event kinds inside routines that are already slow. Both are aimed at a
   *developer* debugging a request: Clover, Callgrind, speedscope, NDJSON. Nothing in either reaches a
@@ -82,7 +82,7 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 Every one is read from instrumentation that already exists: the `query` kind from
 [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) § 1, `gc` from § 2, `spawn` from § 3, GC and
 memory from the arena accounting `rule:programs/memory-priority` already requires. **No probe site
-is added to the per-statement/per-call path** [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+is added to the per-statement/per-call path** `rule:testing/debug-probes`
 measures and guards, and that ADR's cost claim is untouched.
 
 **`route` is the one label that would otherwise be unbounded**, and it is why this ADR and
@@ -93,7 +93,7 @@ whole section exists to prevent, and it is not offered as an option.
 
 ### 2. Spans come from the same events, and only four kinds become one
 
-A distributed trace is not the per-call trace [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+A distributed trace is not the per-call trace `rule:testing/debug-probes`
 produces, and conflating them would produce a trace with one span per function call, which no backend can
 store and no human can read. So:
 
@@ -202,7 +202,7 @@ propagate = true                # send traceparent on outbound Core\Http\Client 
 
 Both blocks are **`System`**: where a process ships telemetry, and how much it costs to do so, is a
 deployment decision, and a request able to turn tracing on for itself is the reconnaissance channel
-[ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) already refuses for
+`rule:testing/debug-probes` already refuses for
 `[debug] mode`. A developer wanting a trace of their own request has `Core\Debug`, which is that ADR's
 surface and is unaffected.
 
@@ -289,7 +289,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   are an unsandboxed C agent or a per-framework reimplementation.
 - **Emit a span per `call` event.** Complete, and reuses the existing instrumentation with no filtering.
   Rejected in § 2: a trace with one span per function call is unstorable and unreadable, and it would put
-  export cost on the hot path [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+  export cost on the hot path `rule:testing/debug-probes`
   deliberately keeps cheap.
 - **Label by request path rather than route name.** Zero coupling to
   [ADR 0077](0077-compile-time-routing.md). Rejected: `/users/1`, `/users/2`, … is one series per user, which
@@ -336,7 +336,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   on the scrape endpoint, with correct counts under a load fixture; with `exporter = false` the endpoint does
   not exist.
 - **M7:** a guard test asserts the per-statement/per-call debug-flag cost from
-  [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s own *Revisiting* shows no
+  `rule:testing/debug-probes`'s own *Revisiting* shows no
   regression attributable to this ADR, since no site was added to that path.
 - **M7:** an inbound `traceparent` is continued (same trace id, the root span's parent set from it); a
   malformed one starts a new trace and does not fail the request; a `traceparent` from an untrusted client

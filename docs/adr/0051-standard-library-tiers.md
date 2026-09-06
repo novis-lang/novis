@@ -218,7 +218,7 @@ direction, and `enchant`, whose dictionaries a third-party `.nvsx` would carry t
 carries CLDR.
 
 **Answered by the architecture.** `opcache` ([ADR 0042](0042-on-disk-artifact-cache-format.md),
-[0017](0017-hot-reload-without-restart.md)); `xdebug` ([ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md),
+[0017](0017-hot-reload-without-restart.md)); `xdebug` (`rule:testing/debug-probes`,
 [0041](0041-timeline-export-and-gc-spawn-trace-events.md), [0016](0016-ide-integration.md)); `swoole`,
 `parallel`, `event` and `pthreads`, since the runtime *is* this; `apcu`
 ([ADR 0059](0059-cross-request-state-is-explicit.md)); `mysqlnd` and PHP's own test extensions.

@@ -1,4 +1,4 @@
-# ADR 0134 — Every shipped feature owes four proofs, and the roster of features is derived rather than kept
+# `rule:testing/four-proofs` — Every shipped feature owes four proofs, and the roster of features is derived rather than kept
 
 - **Status:** Accepted
 - **Date:** 2026-09-02

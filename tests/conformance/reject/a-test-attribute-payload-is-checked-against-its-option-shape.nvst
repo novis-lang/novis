@@ -1,8 +1,8 @@
 --TEST--
-a `#[Test]` payload is checked against ADR 0079 § 1's option shape, so an unknown option, a mistyped one, one given twice and a computed value are each refused where they are written — ADR 0079 § 1, `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
+a `#[Test]` payload is checked against `rule:testing/test-attribute`'s option shape, so an unknown option, a mistyped one, one given twice and a computed value are each refused where they are written — `rule:testing/test-attribute`, `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
-// ADR 0079 § 1: `#[Test]` marks a test method. It is one of ADR 0071 § 1's
+// `rule:testing/test-attribute`: `#[Test]` marks a test method. It is one of ADR 0071 § 1's
 // compiler-recognized attributes, so it names no `type` alias and `rule:attributes/attach-sites-and-forms`
 // 's shape rule does not apply to it — its payload is checked against the
 // option shape § 1 writes instead: `{skip?: string, at?: string, seed?: int,

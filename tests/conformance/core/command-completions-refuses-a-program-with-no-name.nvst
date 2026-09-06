@@ -24,7 +24,7 @@ final class CompletionsTest {
         } catch (LogicError $refused) {
             echo $refused->message, "\n";
         }
-        // ADR 0079 § 20: a test whose ledger is empty fails, and the claim
+        // `rule:testing/runner-is-strict`: a test whose ledger is empty fails, and the claim
         // here is the refusal itself — the shell it was asked for changes
         // nothing, because the name is missing before a generator is chosen.
         Test::assertThrows(

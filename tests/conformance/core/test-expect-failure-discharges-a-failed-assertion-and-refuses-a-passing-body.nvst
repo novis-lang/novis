@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::expectFailure` requires that its body failed an assertion, reads the ledger rather than the throw, and is itself a failure when the body passed -- ADR 0079 § 5
+`Core\Test::expectFailure` requires that its body failed an assertion, reads the ledger rather than the throw, and is itself a failure when the body passed -- `rule:testing/failure-ledger`
 --FILE--
 <?nvs
 // The member inverts the usual reading: a body whose assertion *failed* is the

@@ -1,4 +1,4 @@
-//! ADR 0079 § 1's `#[Test]` attribute and § 8's `#[Fixture]`: the payload
+//! `rule:testing/test-attribute`'s `#[Test]` attribute and § 8's `#[Fixture]`: the payload
 //! check, and the two tables the compiler builds from them.
 //!
 //! Neither table has a `.nvst` case for its *rows*: the `#[Test]` one is
@@ -14,7 +14,7 @@ use common::{check_src_declared, check_src_table};
 use nvs_types::defaults::ConstArg;
 use nvs_types::testing::Injection;
 
-/// The one shape ADR 0079 § 1's own example writes, with the `use Core\Test;`
+/// The one shape `rule:testing/test-attribute`'s own example writes, with the `use Core\Test;`
 /// that places both the attribute and the assertions the body calls.
 fn tests_of(members: &str) -> (Vec<String>, Vec<Vec<(String, ConstArg)>>) {
     let (diags, exprs) = check_src_table(&format!(
@@ -80,7 +80,7 @@ fn a_bare_test_carries_no_options_rather_than_defaulted_ones() {
     assert!(options[0].is_empty());
 }
 
-/// ADR 0079 § 8's own worked example's shape, with the two imports that place
+/// `rule:testing/fixtures`'s own worked example's shape, with the two imports that place
 /// the marker and the assertions, and a class for each fixture to build.
 fn fixture_src(members: &str) -> String {
     format!(
@@ -123,7 +123,7 @@ fn a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns() {
 
 #[test]
 fn a_parameter_is_resolved_to_the_fixture_supplying_its_type_in_parameter_order() {
-    // ADR 0079 § 8 resolves by type, and the row records an *order* — which
+    // `rule:testing/fixtures` resolves by type, and the row records an *order* — which
     // fixture answers which parameter — so that the runner reads one rather
     // than re-deriving it. The test is written **above** the fixtures it takes
     // on purpose: resolution is a pass over the whole class, not a step in the
@@ -153,7 +153,7 @@ fn a_parameter_is_resolved_to_the_fixture_supplying_its_type_in_parameter_order(
 
 #[test]
 fn each_test_with_is_a_row_folded_in_parameter_order() {
-    // ADR 0079 § 9's own worked example, plus the fact no line of it states:
+    // `rule:testing/data-rows`'s own worked example, plus the fact no line of it states:
     // a row is folded into **parameter** order rather than into the order its
     // fields happen to be written, because that is the order the call is made
     // in. The second row writes `want` first for exactly that reason.

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — ADR 0079 § 18, ADR 0102 § 1
+`Core\Test::request` runs a request through the compiled route table in this process, so the program answering it reads the match the door took — `rule:testing/in-process-request`, ADR 0102 § 1
 --FILE--
 <?nvs
 // § 18's first mechanism: no socket and no port, and the table it matches

@@ -409,7 +409,7 @@ nvs_runtime::nvs_helper! {
     /// Ordering inside one millisecond is random — gap 3.
     fn nvs_core_uuid_v7(ctx, args: [0]) {
         let _ = args;
-        // ADR 0079 § 12 names this member beside `Core\Time::now` and
+        // `rule:testing/determinism-declared-on-the-test` names this member beside `Core\Time::now` and
         // `Core\Random::int` as one a test makes deterministic, and it is the
         // only one that needs *both* halves: its timestamp comes from the fixed
         // clock through `crate::time::wall_clock`, and its 74 random bits from

@@ -99,7 +99,7 @@ mismatch.
 
 ### 5. Probes
 
-A fully folded call is no longer a call, so [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+A fully folded call is no longer a call, so `rule:testing/debug-probes`'s
 per-call probe does not fire for it, exactly as for any constant-folded expression. The enclosing
 statement's probe is unaffected, so line coverage is unchanged. A *prepared* call — the common case — is
 still a call and still probes normally.

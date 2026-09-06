@@ -1,5 +1,5 @@
 --TEST--
-each `#[TestWith]` row is its own reported case, called with the constants the checker folded (ADR 0079 §§ 8, 9, 20, 22)
+each `#[TestWith]` row is its own reported case, called with the constants the checker folded (`rule:testing/fixtures`, `rule:testing/data-rows`, `rule:testing/runner-is-strict` and `rule:testing/report-formats`)
 --RUN--
 test
 --FILE--

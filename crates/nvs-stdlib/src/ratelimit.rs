@@ -748,8 +748,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Nothing here can fail on the world: there is no store to be unreachable
     /// and no host to be ungranted, which is why the member declares no
-    /// capability (`registry::CAPABILITIES` carries the `None` row and ADR 0118
-    /// § 7 is why that is a row rather than an exemption).
+    /// capability (`registry::CAPABILITIES` carries the `None` row and `rule:testing/capability-closure-test` is why that is a row rather than an exemption).
     ///
     /// # Errors
     ///

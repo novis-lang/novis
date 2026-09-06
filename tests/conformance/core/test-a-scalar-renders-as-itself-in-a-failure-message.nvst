@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s failure messages render each scalar as itself -- `false` is the word, an `int` and a `uint` of the same digits agree, and a `float` and a `decimal` each keep their own spelling -- ADR 0079 § 4
+`Core\Test`'s failure messages render each scalar as itself -- `false` is the word, an `int` and a `uint` of the same digits agree, and a `float` and a `decimal` each keep their own spelling -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // The container arms next door say a *size* because a message goes to a build

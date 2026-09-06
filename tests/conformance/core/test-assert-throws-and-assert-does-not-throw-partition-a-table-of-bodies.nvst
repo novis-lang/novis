@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertThrows` at the root and `Core\Test::assertDoesNotThrow` are one predicate and its negation over every body, and below the root they are not -- ADR 0079 §§ 4, 20
+`Core\Test::assertThrows` at the root and `Core\Test::assertDoesNotThrow` are one predicate and its negation over every body, and below the root they are not -- `rule:testing/assertions-are-typed` and `rule:testing/runner-is-strict`
 --FILE--
 <?nvs
 // The two members read the same three outcomes off one `call_closure`: the
@@ -26,7 +26,7 @@
 
 final class Ask {
     // The verdict as a `bool` rather than as control flow. A refusal is a
-    // `Core\Test\Failure` on both members (ADR 0079 § 4), which is the whole
+    // `Core\Test\Failure` on both members (`rule:testing/assertions-are-typed`), which is the whole
     // reason one helper can ask either of them.
     public static function throws(callable $body, string $class): bool {
         try {

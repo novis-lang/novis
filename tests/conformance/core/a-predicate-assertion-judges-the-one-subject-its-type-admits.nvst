@@ -1,5 +1,5 @@
 --TEST--
-`assertTrue`, `assertNull` and `assertCount` each hold, fail with both sides named, and agree with the equality spelling of the same question -- ADR 0079 § 4
+`assertTrue`, `assertNull` and `assertCount` each hold, fail with both sides named, and agree with the equality spelling of the same question -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // § 4's example writes these three beside the equality table without giving

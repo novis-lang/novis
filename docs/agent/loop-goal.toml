@@ -1269,7 +1269,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 7 -- ADR 0079's `#[Test]`. Last, because it is the only stage that adds a surface rather than
+# Stage 7 -- `rule:testing/test-attribute`'s `#[Test]`. Last, because it is the only stage that adds a surface rather than
 # closing a hole, and because every assertion in its roster is written against Stage 0's operator table.
 # `.nvst` and `#[Test]` answer different questions and are never unified (that ADR § 23); `nvs-test` is
 # built and is not this item.
@@ -1355,7 +1355,7 @@ cases = [
   # ADR 0007 § 3: a key is a `string` and nothing else, and a `&` binding agrees on the element type.
   "tests/conformance/lang/a-foreach-key-binding-is-a-string-and-nothing-else.nvst",
   "tests/conformance/array/a-by-reference-binding-needs-a-variable-and-the-element-type.nvst",
-  # Stage 7. ADR 0079's surface landed -- `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
+  # Stage 7. `rule:testing/test-attribute`'s surface landed -- `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
   # `nvs_types::derive::ATTRIBUTES`, `Core\Test` is `crate::test::CLASS` in `nvs_stdlib::registry`,
   # and the runner reads the table back -- so these five are the cases that own what the deleted
   # `nvs-stdlib (the assertion roster)` check named in Rust: § 5's ledger, § 5's catchable failure,
@@ -1899,7 +1899,7 @@ file = "examples/isolate.nvs"
 want = ["child said hello", "ok=true", "captured=child stdout", "ok=false", "parent still running"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 7 -- the testing surface the isolate unlocks. ADR 0079 §§ 2, 12, 16.
+# Stage 7 -- the testing surface the isolate unlocks. `rule:testing/isolate-per-test`, `rule:testing/determinism-declared-on-the-test` and `rule:testing/task-tree-and-virtual-clock`.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -1907,7 +1907,7 @@ stage = "1 floor"
 # The `#[Test]` runner is `crates/nvs-cli/src/runner.rs`, which is the only crate that depends on
 # both `nvs-host` (the `Isolate`) and the front end that builds a test's program. `crates/nvs-test`
 # is the `.nvst` case runner and depends on neither, so it cannot ask whether a `#[Test]` method got
-# an isolate of its own -- ADR 0079 § 23's "two runners, never unified" from the tooling side.
+# an isolate of its own -- `rule:testing/nvst-is-separate`'s "two runners, never unified" from the tooling side.
 name = "nvs-cli (one isolate per test)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -3624,12 +3624,12 @@ stage = "1 floor"
 name = "nvs-codegen (ADR 0076 § 1 -- the export adds no site to the measured path)"
 args = ["test", "-p", "nvs-codegen"]
 # Moved off `-p nvs-server`, where it could not be honest. What § 1 forbids is an *effect* on emitted
-# code -- "no probe site is added to the per-statement/per-call path ADR 0018 measures" -- and a probe
+# code -- "no probe site is added to the per-statement/per-call path `rule:testing/debug-probes` measures" -- and a probe
 # site is something this crate emits; `crates/nvs-server/Cargo.toml` names neither `nvs-codegen` nor
 # `nvs-ir`, so the door can see a header and a counter and never a site. The test that names the
-# effect therefore lives beside ADR 0018's own probe fixtures and asserts the counts under § 2's trace
+# effect therefore lives beside `rule:testing/debug-probes`'s own probe fixtures and asserts the counts under § 2's trace
 # identity against the same script without one, which is the shape that fails if either a new site is
-# emitted to feed a series or the identity switches ADR 0018's sites on.
+# emitted to feed a series or the identity switches `rule:testing/debug-probes`'s sites on.
 tests = ["no_probe_is_added_to_the_measured_path"]
 
 [[check]]
@@ -3855,7 +3855,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 8 -- the testing surface the server unlocks. ADR 0079 §§ 14, 17, 18.
+# Stage 8 -- the testing surface the server unlocks. `rule:testing/inline-snapshots`, `rule:testing/db-transaction` and `rule:testing/in-process-request`.
 #
 # All four of these were filed `-p nvs-test` and not one of them could ever have run there:
 # `crates/nvs-test/Cargo.toml` declares NO dependencies at all, on purpose -- a test runner that
@@ -3871,7 +3871,7 @@ stage = "1 floor"
 name = "nvs-cli (a test's in-process request)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0079 § 18: `Core\Test::request(...)` builds a request and runs it through ADR 0077's
+  # `rule:testing/in-process-request`: `Core\Test::request(...)` builds a request and runs it through ADR 0077's
   # compiled table and the real middleware chain -- no socket, no port. The synthetic request's
   # body and parameters arrive `tainted`, exactly as a real request's would.
   "test_request_dispatches_in_process_through_the_compiled_route_table",
@@ -3883,7 +3883,7 @@ stage = "1 floor"
 name = "nvs-cli (a test's transaction)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0079 § 17: `#[Test(db: "test")]` opens a transaction on the named connection before the
+  # `rule:testing/db-transaction`: `#[Test(db: "test")]` opens a transaction on the named connection before the
   # test and rolls it back after, so a transaction opened INSIDE the test is a savepoint. Needs
   # the same reachable PostgreSQL goals 4 and 5 need.
   "a_test_with_db_runs_inside_a_transaction_that_is_rolled_back",
@@ -3895,7 +3895,7 @@ stage = "1 floor"
 name = "nvs-cli (a test's ephemeral listener)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0079 § 18's second mechanism: `#[Test(server: true)]` starts a real listener on an
+  # `rule:testing/in-process-request`'s second mechanism: `#[Test(server: true)]` starts a real listener on an
   # ephemeral port for the cases that genuinely need the wire. Two mechanisms are justified
   # there and the ADR says why, so this is not the row above under another name.
   "a_test_with_server_true_gets_an_ephemeral_listener",
@@ -3907,7 +3907,7 @@ stage = "1 floor"
 name = "nvs-cli (an inline snapshot's updater)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
-  # ADR 0079 § 14. The ASSERTION half has landed -- `Core\Test::assertMatchesInline` is a
+  # `rule:testing/inline-snapshots`. The ASSERTION half has landed -- `Core\Test::assertMatchesInline` is a
   # registry row over `Core\Debug::render`'s text, with three `.nvst` cases. What this check
   # names is the UPDATER: `nvs test --update` splices the produced value into the source
   # literal, and nothing else ever writes to a test's own file. It needs the literal's SPAN,

@@ -11,7 +11,7 @@
 //!   dump flags stop one stage earlier and print instead of running:
 //!   `--dump-ir` after lowering, `--dump-asm` after code generation.
 //! * `nvs test` (M4) — run a tree of `.nvst` conformance cases, or a program's
-//!   own `#[Test]` methods. ADR 0079 § 23 keeps the two formats apart and puts
+//!   own `#[Test]` methods. `rule:testing/nvst-is-separate` keeps the two formats apart and puts
 //!   them under one subcommand; which is meant is read off the path. The
 //!   `.nvst` format, and every decision behind it, is [`nvs_test`]'s own
 //!   module doc, and this crate contributes only the argument parsing and the
@@ -228,7 +228,7 @@ enum Command {
     /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
     /// cases.
     ///
-    /// ADR 0079 § 23: one subcommand runs both, because they answer different
+    /// `rule:testing/nvst-is-separate`: one subcommand runs both, because they answer different
     /// questions about the same tree, and which one is meant is read off the
     /// path — a `.nvs`/`.php` file is a program whose compiled test table is
     /// run (§ 1), anything else is a `.nvst` case file or a directory walked
@@ -248,7 +248,7 @@ enum Command {
         /// The PHP binary a `--ORACLE--` case is compared against.
         #[arg(long, value_name = "PATH", default_value = "php")]
         php: PathBuf,
-        /// How a program's `#[Test]` run is reported (ADR 0079 § 22).
+        /// How a program's `#[Test]` run is reported (`rule:testing/report-formats`).
         ///
         /// The default is the human format, and it is what a `.nvst` tree is
         /// always reported in: `nvs_test`'s own report is a conformance
@@ -258,7 +258,7 @@ enum Command {
         #[arg(long, value_name = "FORMAT", default_value = "human")]
         format: runner::Format,
         /// Rewrite each failed `Core\Test::assertMatchesInline` snapshot in
-        /// the source that wrote it (ADR 0079 § 14).
+        /// the source that wrote it (`rule:testing/inline-snapshots`).
         ///
         /// This is the only spelling under which `nvs test` writes to a file at
         /// all, and what it writes is the `$expected` literal and nothing else:
@@ -1223,7 +1223,7 @@ fn run_run(
             return ExitCode::FAILURE;
         }
     };
-    // Shared rather than owned outright, because ADR 0079 § 18's in-process
+    // Shared rather than owned outright, because `rule:testing/in-process-request`'s in-process
     // request runs this same unit's script frame as a child isolate and the
     // seam holding it outlives no part of this run — `runner::UnderTest` is the
     // one holder, and an `Rc` is what lets the run and the seam both name it.
@@ -1328,7 +1328,7 @@ fn run_run(
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.
     unit.install_in(&mut ctx);
-    // ADR 0079 § 18's unit under test, built here because this is the last
+    // `rule:testing/in-process-request`'s unit under test, built here because this is the last
     // point at which the unit and the checked program are both in hand. A CLI
     // run has one, and it is this program: `Core\Test::request` inside a `nvs
     // run` asks the same entry a served request would, which is what lets a
@@ -1472,7 +1472,7 @@ fn run_run(
     // owns why the seam's `&'static` does not oblige a `Box::leak`, and the unit
     // cache goes down with it here.
     let compiler = script::Compiler::new(&for_compiler.config);
-    // ADR 0079 § 18's seam nests inside the resolver's for the same length and
+    // `rule:testing/in-process-request`'s seam nests inside the resolver's for the same length and
     // on the same terms — `runner::UnderTest` owns why the program under test
     // is this crate's to hold.
     let ran = nvs_runtime::script::scoped(&compiler, || {
@@ -1553,7 +1553,7 @@ fn run_test(
     update: bool,
     config: &[PathBuf],
 ) -> ExitCode {
-    // ADR 0079 § 23's "`nvs test` runs both", decided by the path rather than
+    // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs`/`.php` file and a conformance case is
     // not, so nothing has to be spelled out at the call site.
     if paths.iter().any(|path| is_program(path)) {

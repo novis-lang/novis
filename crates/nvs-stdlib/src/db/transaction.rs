@@ -613,7 +613,7 @@ pub(super) fn owned(value: Value) -> Value {
 /// worded as when they read a `[db.<name>]` block or file a connection —
 /// [`CONNECT`]'s slot, filled by the mechanism rather than by a member, since
 /// no `Core` member is on the stack when either of these runs.
-const TEST_TRANSACTION: &str = "ADR 0079 § 17's transaction";
+const TEST_TRANSACTION: &str = "`rule:testing/db-transaction`'s transaction";
 
 /// A [`Fault`] as the one line a caller outside this crate reports it on.
 ///
@@ -632,7 +632,7 @@ fn refusal(fault: &Fault) -> String {
     }
 }
 
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 17's
+/// `rule:testing/db-transaction`'s
 /// outer transaction: `[db.<name>]` opened on `ctx` and left inside a `BEGIN`,
 /// answering the key it is filed under.
 ///

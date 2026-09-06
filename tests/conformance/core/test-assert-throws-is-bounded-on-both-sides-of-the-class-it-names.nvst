@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertThrows` matches the class it names and every descendant of it, and refuses the ancestor, the sibling and the body that throws nothing -- ADR 0079 § 4
+`Core\Test::assertThrows` matches the class it names and every descendant of it, and refuses the ancestor, the sibling and the body that throws nothing -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // The class argument is a *bound*, and ancestry makes it directional: naming

@@ -1,5 +1,5 @@
 --TEST--
-a value that arrived on the request line is `tainted`, and the launderer ADR 0088 § 1 makes name its sink is the whole route from it to that sink — spec § 15, ADR 0024 §§ 1, 3, ADR 0088 §§ 1-2, ADR 0079 § 18
+a value that arrived on the request line is `tainted`, and the launderer ADR 0088 § 1 makes name its sink is the whole route from it to that sink — spec § 15, ADR 0024 §§ 1, 3, ADR 0088 §§ 1-2, `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // `a-launder-row-hands-a-tainted-value-to-the-sink-it-names` walks the same

@@ -89,7 +89,7 @@ pub(crate) const NAME: &str = r"Core\Debug";
 /// Spec § 16's `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
 ///
 /// The coverage, trace and profile members that section also lists are
-/// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
+/// `rule:testing/debug-probes`'s
 /// and land at M10 — that ADR's own scope, which the spec row used to
 /// attribute `dump` to as well.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -288,8 +288,7 @@ impl Seen {
 /// `secret`-redacting text of the whole value, with no trailing newline.
 ///
 /// Public to the crate because
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-/// § 14's inline snapshot is *this* rendering held in a source literal —
+/// `rule:testing/inline-snapshots`'s inline snapshot is *this* rendering held in a source literal —
 /// `Core\Test::assertMatchesInline` calls it rather than growing one of its
 /// own, so a snapshot and a dump of the same value cannot disagree about what
 /// that value looks like, and § 5's redaction reaches a snapshot for free.

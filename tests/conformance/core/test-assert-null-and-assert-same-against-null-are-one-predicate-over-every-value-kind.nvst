@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertNull`, `assertSame` against `null` in either order and `assertEquals` against `null` are one predicate over every kind of value a program can build -- ADR 0079 § 4, ADR 0013 § 1
+`Core\Test::assertNull`, `assertSame` against `null` in either order and `assertEquals` against `null` are one predicate over every kind of value a program can build -- `rule:testing/assertions-are-typed`, ADR 0013 § 1
 --FILE--
 <?nvs
 // `test-assert-null-refuses-every-value-that-is-not-null.nvst` asks two of

@@ -1,4 +1,4 @@
-//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 18's
+//! `rule:testing/in-process-request`'s
 //! in-process request: the seam `Core\Test::request` reaches the unit under
 //! test through.
 //!

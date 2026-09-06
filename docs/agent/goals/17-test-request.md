@@ -1,6 +1,6 @@
 # Loop goal 17 — the request a test builds, and the peer facts it carries
 
-[ADR 0079](../../adr/0079-testing-is-a-language-feature.md) § 18 promises `Core\Test::request(...)`: a
+`rule:testing/in-process-request` promises `Core\Test::request(...)`: a
 test builds a request, it runs through [ADR 0077](../../adr/0077-compile-time-routing.md)'s compiled route
 table and the real middleware chain in-process, and what comes back is asserted. The **dispatch** half of
 that is M8's and is out of this goal's scope. The **request** half is not, and it is the half with a
@@ -65,7 +65,7 @@ Goal 16's whole acceptance list, never traded.
 
 ## Stage 4 — the signature, frozen
 
-1. **ADR 0079 § 18 is amended** to carry the signature rather than an example: the bag above, the
+1. **`rule:testing/in-process-request` is amended** to carry the signature rather than an example: the bag above, the
    mutual-exclusion rule, and `Core\Test\Response` — `status`, `header`, `headers`, `body`, `cookies`,
    `json()` and `jsonAs<T>()`. The last two mirror goal 16's request-side pair so one spelling reads in
    both directions, and a captured response raises none of the claim or caching questions the request side
@@ -92,7 +92,7 @@ Goal 16's whole acceptance list, never traded.
   ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md)). A client address that a proxy
   asserted is peer input; that it passed a trusted-proxy check makes it *trusted enough to believe*, never
   laundered.
-- **This goal opens no new ADR number.** ADR 0079 § 18 is amended in place — an ADR's body always states
+- **This goal opens no new ADR number.** `rule:testing/in-process-request` is amended in place — an ADR's body always states
   the current rule — and spec § 13 and § 15 take the rosters. If a session finds a decision that genuinely
   needs a number, that is the one thing worth stopping for.
 - **What this spends**, per `rule:programs/memory-priority`'s ledger: three short

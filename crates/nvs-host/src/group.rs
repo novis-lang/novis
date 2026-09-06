@@ -32,7 +32,7 @@
 //!   the output of a `Task::map` depend on which child finished first, which is
 //!   exactly the non-determinism § 2's "preserving the input's keys and order"
 //!   removes from the result. Assertions travel the same way, so an assertion
-//!   inside a child still reaches ADR 0079 § 5's ledger, which is the one
+//!   inside a child still reaches `rule:testing/failure-ledger`'s ledger, which is the one
 //!   record a `catch` cannot erase.
 //! - **Fresh, and dropped**: the capture stack, the pending failure, the
 //!   yielder, the stack bounds. A `Core\Out::capture` inside a child is scoped

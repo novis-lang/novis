@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s failure messages name an `array<T>` and a `bytes` by their size and an object by its class, so no container's contents are ever quoted -- ADR 0079 § 4
+`Core\Test`'s failure messages name an `array<T>` and a `bytes` by their size and an object by its class, so no container's contents are ever quoted -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // The neighbouring bound on a quoted `string` would buy nothing if a container

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s failure messages quote a `string` to 64 characters, counted in characters rather than bytes, and mark with an ellipsis only what it dropped -- ADR 0079 § 4
+`Core\Test`'s failure messages quote a `string` to 64 characters, counted in characters rather than bytes, and mark with an ellipsis only what it dropped -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // `shown`'s own doc comment gives the reason the bound exists at all: a

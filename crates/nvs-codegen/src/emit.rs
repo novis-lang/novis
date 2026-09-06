@@ -1016,8 +1016,7 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's statement-boundary probe: the identical load-and-branch shape as
+    /// `rule:testing/debug-probes`'s statement-boundary probe: the identical load-and-branch shape as
     /// [`Self::emit_safepoint`], against the *second* hot word, with no status
     /// to check because [`nvs_runtime::nvs_probe_stmt`] cannot fail.
     ///
@@ -1091,7 +1090,7 @@ impl Emitter<'_, '_> {
 
     /// Puts `bytes` in the unit's data section and materializes its address
     /// and length as two values — the shape every runtime primitive taking
-    /// static bytes wants (`nvs_str_new`, and ADR 0018's call-site probes).
+    /// static bytes wants (`nvs_str_new`, and `rule:testing/debug-probes`'s call-site probes).
     fn emit_bytes(&mut self, bytes: &[u8]) -> Result<(Value, Value), CodegenError> {
         let mut desc = DataDescription::new();
         // A zero-length literal still needs a real address to hand to its
@@ -2786,14 +2785,13 @@ impl Emitter<'_, '_> {
             .map_err(|_| internal("an object field sitting past a 2 GiB offset"))
     }
 
-    /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-    /// § 1's call-site probe, emitted twice per call: once before and once
+    /// `rule:testing/debug-probes`'s call-site probe, emitted twice per call: once before and once
     /// after, `status` distinguishing them.
     ///
     /// Exactly [`Self::emit_stmt_probe`]'s shape — one load of the debug-flags
     /// word, one predicted-not-taken branch, an out-of-line call that never
     /// runs while every bit is off — because it is the same mechanism at a
-    /// different site, and ADR 0018's whole argument is that both are one
+    /// different site, and `rule:testing/debug-probes`'s whole argument is that both are one
     /// cost class rather than a second compiled tier.
     ///
     /// The word is re-read at the exit site rather than the entry site's load
@@ -2856,7 +2854,7 @@ impl Emitter<'_, '_> {
     /// call [`Self::runtime_ref`] returns.
     ///
     /// **It costs one instruction per call and nothing else.** Measured with
-    /// callgrind over `benches/userland` (ADR 0026's currency): naive
+    /// callgrind over `benches/userland` (`rule:testing/perf-two-mechanisms`'s currency): naive
     /// `fib(30)` is 2·F(31)−1 = 2,692,537 calls and gains 2,698,113 retired
     /// instructions, so 1.002 of them per call, and at +1.14% it is the worst
     /// case in the suite. Everything not call-bound is inside the noise floor

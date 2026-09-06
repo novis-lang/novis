@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — ADR 0079 §§ 5, 14, ADR 0063 R2
+`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — `rule:testing/failure-ledger` and `rule:testing/inline-snapshots`, ADR 0063 R2
 --FILE--
 <?nvs
 // A snapshot's failure has to say both halves: what the value rendered as is

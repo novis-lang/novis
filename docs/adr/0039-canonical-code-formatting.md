@@ -181,7 +181,7 @@ keep the order their author wrote, and no "group by visibility, constants before
 rule is adopted — **because declaration order is observable in Novis, so reordering would change what a
 program prints and sends.** [ADR 0071](0071-derived-codecs.md) § 2 makes a derived codec's encode order the
 property declaration order, on purpose and for ETags and cached fixtures;
-[ADR 0079](0079-testing-is-a-language-feature.md) § 15 makes the test runner's report order the declaration
+`rule:testing/bench-counters` makes the test runner's report order the declaration
 order of the cases. PER has no member-ordering rule to defer to in any case — the convention people
 associate with it is one PHP tool's, not the standard's — so this would be Novis inventing a rule and paying
 for it in wire-format churn. A developer who *wants* the reordering can have it as a deliberate,
@@ -234,7 +234,7 @@ diff-visible code action; it is not something a formatter does on save.
   entire point of having one canonical formatter.
 - **Canonical class-member ordering**, PHP-CS-Fixer's `ordered_class_elements` or similar. Rejected in
   § 11, on evidence rather than taste: [ADR 0071](0071-derived-codecs.md) § 2 makes property declaration
-  order the encode order of a derived codec, and [ADR 0079](0079-testing-is-a-language-feature.md) § 15
+  order the encode order of a derived codec, and `rule:testing/bench-counters`
   makes it the test report order, so a formatter that reordered members would change a program's output
   bytes. [ADR 0094](0094-visibility-is-written-at-every-member-declaration.md) § 5 already settled the
   general form of this — "a formatter that changes meaning is not a formatter" — when it refused to let

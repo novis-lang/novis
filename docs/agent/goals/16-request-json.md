@@ -130,7 +130,7 @@ request boundary, so it gets a `valgrind` run of its own rather than riding the 
   [ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 8 and
   [ADR 0105](../../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md) §§ 2–3
   where they state the old rule, and
-  [ADR 0079](../../adr/0079-testing-is-a-language-feature.md) § 23, whose "`.nvst` is unchanged" sentence
+  `rule:testing/nvst-is-separate`, whose "`.nvst` is unchanged" sentence
   becomes "unchanged as a format, and the `.phpt` superset now includes its request sections".
 - **`nvs run --request <file>` is a documented flag, not an environment variable.** A variable that
   changes whether a program is answering a request is a semantic change nothing at the call site shows,

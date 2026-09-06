@@ -1126,7 +1126,7 @@ impl ExprTypeTable {
         self.db_codecs.get(label)
     }
 
-    /// Records ADR 0079 § 1's `#[Test]` table for the class labelled `label`,
+    /// Records `rule:testing/test-attribute`'s `#[Test]` table for the class labelled `label`,
     /// in declaration order — [`crate::testing::check_class_tests`] read it
     /// off that class's members.
     pub(crate) fn record_tests(&mut self, label: String, cases: Vec<crate::testing::TestCase>) {
@@ -1145,7 +1145,7 @@ impl ExprTypeTable {
         self.tests.get(label).map(Vec::as_slice)
     }
 
-    /// Records one written `Core\Test::assertMatchesInline` — ADR 0079 § 14's
+    /// Records one written `Core\Test::assertMatchesInline` — `rule:testing/inline-snapshots`'s
     /// updater material, appended as [`crate::testing::note_inline_snapshot`]
     /// reaches the call.
     ///
@@ -1179,14 +1179,14 @@ impl ExprTypeTable {
     }
 
     /// Every written `Core\Test::assertMatchesInline` in the program, in the
-    /// order the walk reached them — ADR 0079 § 14's `nvs test --update` is the
+    /// order the walk reached them — `rule:testing/inline-snapshots`'s `nvs test --update` is the
     /// one consumer, and a program that writes no snapshot has none.
     #[must_use]
     pub fn inline_snapshots(&self) -> &[crate::testing::InlineSnapshot] {
         &self.inline_snapshots
     }
 
-    /// Records ADR 0079 § 8's `#[Fixture]` roster for the class labelled
+    /// Records `rule:testing/fixtures`'s `#[Fixture]` roster for the class labelled
     /// `label`, in declaration order — [`crate::testing::check_class_tests`]
     /// read it off that class's members, in the same walk that read the
     /// `#[Test]` table above, because the two are one question about one

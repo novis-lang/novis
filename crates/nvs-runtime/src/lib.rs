@@ -120,8 +120,7 @@
 //!   `nvs_ir::InstKind::ConstStr`/`Concat`/`StrAppend`/`Retain`/`Release`;
 //! * the [`SafepointFlags`] word and `nvs_safepoint` slow path backing
 //!   `nvs_ir::InstKind::Safepoint`, and the [`DebugFlags`] word
-//!   [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's probe sites check, with [`nvs_probe_stmt`] as the
+//!   `rule:testing/debug-probes`'s probe sites check, with [`nvs_probe_stmt`] as the
 //!   statement-boundary probe's slow path;
 //! * every `nvs_ir::Helper` variant — see [`helpers`];
 //! * the pending exception, with the [`nvs_raise`]/[`nvs_raise_new`]/

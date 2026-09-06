@@ -1,8 +1,8 @@
 --TEST--
-a `#[Fixture]` is a `public static` method returning the type it supplies, and one class supplies each type once, ADR 0079 § 8
+a `#[Fixture]` is a `public static` method returning the type it supplies, and one class supplies each type once, `rule:testing/fixtures`
 --FILE--
 <?nvs
-// ADR 0079 § 8 builds a fixture once, in the parent isolate, and injects the
+// `rule:testing/fixtures` builds a fixture once, in the parent isolate, and injects the
 // value it returns into each test that declares a parameter of its type. So
 // what the roster records is the type each one supplies, and a declaration
 // that cannot supply one is refused where it is written.

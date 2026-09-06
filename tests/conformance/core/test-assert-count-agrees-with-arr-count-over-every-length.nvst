@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertCount` holds exactly where `Core\Arr::count` answers the expected number — a length-by-expectation grid, both neighbours of every diagonal refused, and `uint`'s far end named in the report — ADR 0079 § 4
+`Core\Test::assertCount` holds exactly where `Core\Arr::count` answers the expected number — a length-by-expectation grid, both neighbours of every diagonal refused, and `uint`'s far end named in the report — `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // `assertCount`'s subject is an `array<T>` and its expectation a `uint`, which

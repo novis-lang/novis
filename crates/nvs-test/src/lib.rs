@@ -47,7 +47,7 @@
 //! ## Which subcommand a case is run through
 //!
 //! `--RUN--` is how a case reaches
-//! [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)'s other
+//! `rule:testing/test-attribute`'s other
 //! runner. `--RUN--\ntest` runs `nvs test case.nvs`, so the program declares
 //! `#[Test]` classes and what the case pins is the *report* of running them —
 //! the only way a `.nvst` can observe the `#[Test]` table at all, since a row

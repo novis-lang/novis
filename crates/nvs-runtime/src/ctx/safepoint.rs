@@ -138,7 +138,7 @@ impl Ctx {
         crate::Fault::Pending(status)
     }
 
-    /// The active [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
+    /// The active `rule:testing/debug-probes`
     /// probes.
     #[must_use]
     pub fn debug_flags(&self) -> DebugFlags {

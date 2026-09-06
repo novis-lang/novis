@@ -1,8 +1,8 @@
 --TEST--
-`Core\Test::serverUrl()` answers `null` wherever no `#[Test(server: true)]` bound a listener, which is every context but that one — ADR 0079 § 18
+`Core\Test::serverUrl()` answers `null` wherever no `#[Test(server: true)]` bound a listener, which is every context but that one — `rule:testing/in-process-request`
 --FILE--
 <?nvs
-// ADR 0079 § 18's second mechanism arms one string on the *test's* own context
+// `rule:testing/in-process-request`'s second mechanism arms one string on the *test's* own context
 // and nothing else ever writes one, so a program that is not a test has no
 // address to read. Rendered rather than compared against `null`, because what
 // is being pinned is the reading itself: an empty string would print

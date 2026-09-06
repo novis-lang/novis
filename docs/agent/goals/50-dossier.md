@@ -1,7 +1,7 @@
 # Loop goal 50 — queue the dossier
 
 **One session, one command, and the chain is a hundred goals longer.**
-[ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md) settled that every shipped feature
+`rule:testing/four-proofs` settled that every shipped feature
 owes four proofs — a test from Novis *and* from Rust, three examples, one measured figure, one file
 written to break it — and `tools/dossier.py` derives that roster from `nvs meta --json` and the reference
 chapters rather than a list anybody maintains. On 2026-09-04 the sweep says **795 features, one of them
@@ -71,7 +71,7 @@ this stage, not its ceiling.
       stub still needs the Write that fills it, and a directory costs nothing to create. So a
       `--scaffold '<id>'` was not built. Confirm the share against your own run before you accept
       that; overturning it means naming what a stub removes that `--bless` and `--partition` do not.
-- [ ] **The fan-out landed before this goal ran, and its width is the thing to confirm.** ADR 0134's
+- [ ] **The fan-out landed before this goal ran, and its width is the thing to confirm.** `rule:testing/four-proofs`'s
       work is file-disjoint by construction — three of the four proofs are attributed by a path derived
       from the feature's id — so `dossier.py --partition` cuts a group into worker briefs and refuses
       when two lanes would write the same path, and every generated goal's prose § *Running this goal
@@ -108,7 +108,7 @@ change in one generated file is discarded by the next emission.
 
 **The perf proof stays on.** `--no-perf` drops 685 of the 3,035 owed proofs and is the obvious way to
 make this smaller, and it is not taken: a figure per feature is what lets a later change be re-measured
-against us rather than against PHP, which is [ADR 0026](../../adr/0026-performance-measurement-methodology.md)'s
+against us rather than against PHP, which is `rule:testing/perf-two-mechanisms`'s
 whole point. The user decided this on 2026-09-04 knowing the size.
 
 **`--per-goal` stays at 18** unless what you read in stage 3 says otherwise. It is a batch size, not a
@@ -118,7 +118,7 @@ the commit. Modelled on 2026-09-05 it is also where the ceiling puts it: at 18 t
 peaks at 186k of the 200k, and 27 would save three hours of a 34-hour program while peaking at 203k.
 Nine costs eleven hours and buys nothing.
 
-**No ADR slot.** ADR 0134 is the decision and it is already written. The one thing this goal *did* decide
+**No ADR slot.** `rule:testing/four-proofs` is the decision and it is already written. The one thing this goal *did* decide
 is recorded in `docs/agent/commands.md` § the dossier: the emitter may now be fired by a session, because
 appending to the live chain and `Chain.refresh()` are what turn "then somebody restarts the driver" into
 "the run continues". Nothing else here is new design.

@@ -1,5 +1,5 @@
 --TEST--
-An inline snapshot holds against exactly one of a table of renderings — its own — over one value of each kind, asserted by counting the whole grid — ADR 0079 § 14
+An inline snapshot holds against exactly one of a table of renderings — its own — over one value of each kind, asserted by counting the whole grid — `rule:testing/inline-snapshots`
 --FILE--
 <?nvs
 // The expectation an inline snapshot holds is `Core\Debug::render`'s text, so

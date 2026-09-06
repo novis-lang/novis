@@ -1,5 +1,5 @@
 --TEST--
-Of the members ADR 0079 § 12 makes deterministic, the readers answer from the host outside a test and only `Core\Test::advance` refuses -- ADR 0079 § 12
+Of the members `rule:testing/determinism-declared-on-the-test` makes deterministic, the readers answer from the host outside a test and only `Core\Test::advance` refuses -- `rule:testing/determinism-declared-on-the-test`
 --FILE--
 <?nvs
 // § 12 names `Core\Time::now`, `Core\Uuid::v7` and `Core\Random::int` as what a

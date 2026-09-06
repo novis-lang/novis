@@ -31,8 +31,7 @@
 ///
 /// # Four entries are namespaced, and they are here rather than in the registry
 ///
-/// `Core\Test\Failure` is [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-/// § 5's assertion failure, and that section makes it "an ordinary
+/// `Core\Test\Failure` is `rule:testing/failure-ledger`'s assertion failure, and that section makes it "an ordinary
 /// `Throwable`" — so it is a *class in this tree* rather than a
 /// `nvs_stdlib::registry` row, which is what buys it every property the root
 /// declares, the inherited constructor, a slot layout, and a `catch` clause

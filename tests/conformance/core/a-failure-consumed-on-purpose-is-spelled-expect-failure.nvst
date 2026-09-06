@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::expectFailure` requires its callable to fail and discharges that failure, and refuses a callable that does not -- ADR 0079 § 5
+`Core\Test::expectFailure` requires its callable to fail and discharges that failure, and refuses a callable that does not -- `rule:testing/failure-ledger`
 --FILE--
 <?nvs
 // § 5's second half. The ledger itself is state a program cannot reach, so

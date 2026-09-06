@@ -81,14 +81,13 @@
 //!   [`nvs_runtime::nvs_stack_check`]. It is the one of the three that is
 //!   *elided*: `emit::is_leaf` answers which functions cannot grow the stack
 //!   past the reserve their caller already checked with, and those carry none;
-//! * [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
-//!   § 1's **debug-flags check**, at every
+//! * `rule:testing/debug-probes`'s **debug-flags check**, at every
 //!   [`nvs_ir::ir::InstKind::StmtMarker`] (branching to
 //!   [`nvs_runtime::nvs_probe_stmt`]) and twice at every call site, before and
 //!   after (branching to [`nvs_runtime::nvs_probe_call_enter`] and
 //!   [`nvs_runtime::nvs_probe_call_exit`]).
 //!
-//! None is behind a flag or a build configuration: ADR 0018's whole
+//! None is behind a flag or a build configuration: `rule:testing/debug-probes`'s whole
 //! argument is that a request already running must be able to have coverage
 //! turned on, which a compiled-in-advance instrumented tier cannot do, and ADR
 //! 0020's is that a stack limit no build enables is a limit that is there when
@@ -139,7 +138,7 @@
 //!    ([`nvs_ir::ir::InstKind::CoreCall`]) compiles too, through the helper
 //!    path unchanged — [`nvs_stdlib`]'s own docs own why it needs no path of
 //!    its own.
-//! 2. **ADR 0018's `BRANCH` probe is not emitted.** It needs a per-edge site
+//! 2. **`rule:testing/debug-probes`'s `BRANCH` probe is not emitted.** It needs a per-edge site
 //!    at [`nvs_ir::ir::Terminator::Branch`]'s lowering, which is the only one
 //!    of that ADR's three sites still missing — the statement-boundary probe
 //!    and the call-site `TRACE`/`PROFILE` pair are both emitted.
@@ -298,7 +297,7 @@ pub enum CodegenError {
 /// | the entry script frame, which has no receiver at all | [`Self::script`], then [`ScriptFn::call`] |
 /// | a `static` method — receiver is the called class | [`Self::call_static`] |
 /// | an instance method, on a fresh instance | [`Self::call_on_new_instance`] |
-/// | [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md) § 8's fixture | [`Self::build_fixture`] |
+/// | `rule:testing/fixtures`'s fixture | [`Self::build_fixture`] |
 /// | nothing — you only want to know it compiled | [`Self::has_function`] |
 ///
 /// [`Self::raw_function`] is the escape hatch underneath all of them, and the
@@ -495,8 +494,7 @@ impl Unit {
     }
 
     /// Constructs the class labelled `class` and calls its `method` on the
-    /// fresh instance — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    /// § 20's one test, run from outside compiled code.
+    /// fresh instance — `rule:testing/runner-is-strict`'s one test, run from outside compiled code.
     ///
     /// `None` when this unit declares no such class, which is an internal
     /// inconsistency for a runner whose roster (`nvs_types::ExprTypeTable::tests`)
@@ -601,7 +599,7 @@ impl Unit {
         Some(nvs_runtime::call(target, ctx, &slots))
     }
 
-    /// Builds ADR 0079 § 8's fixture `method` of `class` into `fixtures`,
+    /// Builds `rule:testing/fixtures`'s fixture `method` of `class` into `fixtures`,
     /// calling it with the values `needs` names — the ones the checker
     /// resolved its own parameters to, and therefore ones an earlier call
     /// already built.

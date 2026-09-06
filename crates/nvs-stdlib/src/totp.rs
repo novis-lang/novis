@@ -250,7 +250,7 @@ fn secret_at<'a>(args: &'a [Value], slot: usize, member: &str) -> Result<&'a [u8
 /// # Errors
 ///
 /// A `LogicError` for a clock outside the range a step count reaches — which a
-/// program can only produce through ADR 0079 § 12's fixed clock, and which is a
+/// program can only produce through `rule:testing/determinism-declared-on-the-test`'s fixed clock, and which is a
 /// `LogicError` for that reason: it is a test declaring an `at:` no TOTP
 /// deployment could have.
 fn step_now(ctx: &nvs_runtime::Ctx, member: &str) -> Result<i64, Fault> {
@@ -321,7 +321,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// No `at` argument: the clock is the runtime's, so a caller cannot pin it
     /// and accidentally mint a code that never expires. A test pins it through
-    /// ADR 0079 § 12's fixed clock instead, which is the same seam
+    /// `rule:testing/determinism-declared-on-the-test`'s fixed clock instead, which is the same seam
     /// `Core\Time::now` reads and is not reachable outside a `#[Test]`.
     fn nvs_core_totp_code(ctx, args: [1]) {
         let secret = secret_at(args, 0, "code")?;

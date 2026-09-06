@@ -1,5 +1,5 @@
 --TEST--
-The entry answering an in-process request reads no listener of its own, so ADR 0079 § 18's two mechanisms do not reach each other
+The entry answering an in-process request reads no listener of its own, so `rule:testing/in-process-request`'s two mechanisms do not reach each other
 --FILE--
 <?nvs
 // § 18 has two mechanisms on purpose: the first runs this same entry over a

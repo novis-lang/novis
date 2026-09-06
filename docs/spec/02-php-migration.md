@@ -884,7 +884,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
 | `connection_aborted` | dropped | a client that disappears cancels the request and the runtime unwinds it. There is no state to poll, because polling only ever told a program what had already been decided |
 | `connection_status` | dropped | same |
-| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is [ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s safepoint-shaped probes, which cost nothing when they are off |
+| `register_tick_function` | dropped | `declare(ticks=…)` does not exist. Sampling a running program is `rule:testing/debug-probes`'s safepoint-shaped probes, which cost nothing when they are off |
 | `unregister_tick_function` | dropped | same |
 | `cli_set_process_title` | dropped | it mutates process-global state, and one process serves many requests: the title one of them set is a label on all the others |
 | `cli_get_process_title` | dropped | same |
@@ -966,7 +966,7 @@ identify.
 | `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
 | `var_export` | member | `Core\Debug::render`, whose rendering is one of `rule:errors/renderings`'s three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](../adr/0052-closed-doors.md)) |
 | `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
-| `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half ([ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) |
+| `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half (`rule:testing/debug-probes`) |
 | `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
 | `token_get_all` | member | `Core\Ast::parse`, which calls the compiler's own lexer and parser and answers with a typed, inert tree rather than an untyped token array ([ADR 0019](../adr/0019-reflection-and-ast-parsing-are-core-features.md) § 3) |
 | `token_name` | dropped | there is no token array whose integer kinds need naming: a node's kind is its type |
@@ -1272,7 +1272,7 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 | `openlog` | dropped | a second logging API, opened with a process-global facility and prefix that every later call reads. Syslog is a `[log] target`, not an API |
 | `syslog` | dropped | that API's write. One serialiser, reached twice, is the rule `Core\Log` and the engine floor already share |
 | `closelog` | dropped | closes what nothing opened |
-| `assert` | member | `Core\Test`'s assertions ([ADR 0079](../adr/0079-testing-is-a-language-feature.md)) where the check belongs to a test. A check the build can delete is worse than no check, so what remains inside a running program is an ordinary `throw` |
+| `assert` | member | `Core\Test`'s assertions (`rule:testing/test-attribute`) where the check belongs to a test. A check the build can delete is worse than no check, so what remains inside a running program is an ordinary `throw` |
 | `assert_options` | dropped | the knobs for that deletion — a global callback, a bail flag, and the severity of the warning it raises instead of stopping |
 
 ## Validation: what survives of `filter`

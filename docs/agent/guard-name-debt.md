@@ -52,7 +52,7 @@ Three causes, and they want different fixes. Do not assume the first one.
    **Fix: rewrite the name in `loop-goal.toml`.** Nothing else.
 2. **The check names a Rust test for work that got pinned in a `.nvst` case instead.** The commonest
    *fix*, and `nvs-stdlib (the assertion roster)` was its cleanest case: `crates/nvs-stdlib/tests/`
-   holds no assertion test file at all because ADR 0079 §§ 4-5 and 22 are pinned by conformance
+   holds no assertion test file at all because `rule:testing/assertions-are-typed`, `rule:testing/failure-ledger` and `rule:testing/report-formats` are pinned by conformance
    cases, so all three names moved and the block itself went. **Fix: decide which tree owns the
    check, and move it** — a `kind = "nvs-suite"` entry, or a Rust test written to match. A block
    whose every name moves is deleted rather than left empty.
@@ -318,7 +318,7 @@ checks are gone rather than renamed.
       `each_test_with_is_a_row_folded_in_parameter_order` (`crates/nvs-types/tests/testing.rs`)
 
 `nvs-stdlib (the assertion roster)` — **the whole `[[check]]` block is gone**, all three names being
-cause 2. ADR 0079's surface is landed, not owed: `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
+cause 2. `rule:testing/test-attribute`'s surface is landed, not owed: `#[Test]`, `#[Fixture]` and `#[TestWith]` are on
 `nvs_types::derive::ATTRIBUTES` (`crates/nvs-types/src/derive.rs:77`), `Core\Test` is
 `crate::test::CLASS` in `nvs_stdlib::registry`, and `crates/nvs-stdlib/src/test.rs` is the assertion
 surface — so what was missing was never the work, only a Rust test naming it, and the four cases

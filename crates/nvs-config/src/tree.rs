@@ -88,7 +88,7 @@ pub struct Config {
     pub capabilities: Option<Capabilities>,
     /// `[[extension]]` — a precompiled binary and its pin (ADR 0003 § 3).
     pub extension: Vec<Extension>,
-    /// `[debug]` — the probe set, default and ceiling in one (ADR 0018).
+    /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,
     /// `[io]` — the root the runtime creates temporary directories under (ADR 0131 § 2).
     pub io: Option<Io>,
@@ -252,7 +252,7 @@ pub struct Capabilities {
     pub net: Option<CapNet>,
     /// `process.exec`.
     pub process: Option<CapProcess>,
-    /// `debug.trace` and `debug.profile` (ADR 0018).
+    /// `debug.trace` and `debug.profile` (`rule:testing/debug-probes`).
     pub debug: Option<CapDebug>,
     /// `db.connect`, `db.open` and `db.schema` (ADR 0067 § 3).
     pub db: Option<CapDb>,
@@ -303,7 +303,7 @@ pub struct CapProcess {
     pub exec: Option<Setting>,
 }
 
-/// The `debug.*` grants — ADR 0018's probe sinks.
+/// The `debug.*` grants — `rule:testing/debug-probes`'s probe sinks.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapDebug {
@@ -339,7 +339,7 @@ pub struct Extension {
     pub sha256: Option<String>,
 }
 
-/// `[debug]` — ADR 0018 § 4, where `nvs.toml` states the default and the ceiling in one value.
+/// `[debug]` — `rule:testing/debug-mode-directive`, where `nvs.toml` states the default and the ceiling in one value.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Debug {

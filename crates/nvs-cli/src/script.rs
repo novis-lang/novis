@@ -545,8 +545,7 @@ pub(crate) fn granting_ctx() -> nvs_runtime::Ctx {
         script: Some(nvs_config::tree::CapScript {
             spawn: Some(nvs_config::tree::Setting::Bool(true)),
         }),
-        // And ADR 0058's outbound pair, for the fixture that reaches ADR 0079
-        // § 18's ephemeral listener over the wire. Both halves are needed and
+        // And ADR 0058's outbound pair, for the fixture that reaches `rule:testing/in-process-request`'s ephemeral listener over the wire. Both halves are needed and
         // that is the rule rather than an inconvenience: `connect` names the
         // host, and `internal` is the operator's written exception for § 3's
         // denied loopback range — a `#[Test(server: true)]` in a real program

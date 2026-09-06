@@ -2186,7 +2186,7 @@ pub mod code {
     /// receiver, or calling the member directly, is the fix; both are what the
     /// help names.
     pub const E_FIRST_CLASS_CALLABLE_ERASED_RECEIVER: Code = Code::new("E0732");
-    /// A `#[Test]` method whose declaration is not the shape ADR 0079 § 1
+    /// A `#[Test]` method whose declaration is not the shape `rule:testing/test-attribute`
     /// requires: `static`, not `public`, or returning anything but `void`.
     ///
     /// One code for the family rather than three, because it is one question —
@@ -2205,7 +2205,7 @@ pub mod code {
     pub const E_TEST_METHOD_SHAPE: Code = Code::new("E0733");
     /// A `#[Test(retries: n)]` with no `because:` beside it.
     ///
-    /// ADR 0079 § 20 grants retries and charges a written reason for them in
+    /// `rule:testing/runner-is-strict` grants retries and charges a written reason for them in
     /// the same sentence: a retry that nobody had to justify is how a suite
     /// stops noticing that it is unreliable, and the reason is what a reader
     /// of the attribute has instead of the run that produced it. It is a
@@ -2215,7 +2215,7 @@ pub mod code {
     pub const E_TEST_RETRIES_WITHOUT_REASON: Code = Code::new("E0734");
     /// A `#[Fixture]` method the runner could not build a value from.
     ///
-    /// ADR 0079 § 8 builds a fixture **once, in the parent isolate**, and
+    /// `rule:testing/fixtures` builds a fixture **once, in the parent isolate**, and
     /// injects the value it returns into each test that declares a parameter
     /// of its type — so a fixture that is not `static` has no instance to be
     /// built against (§ 20 gives each test its own, which is the opposite of
@@ -2235,7 +2235,7 @@ pub mod code {
     /// A `#[Test]` or `#[Fixture]` parameter whose type no `#[Fixture]` of the
     /// class supplies.
     ///
-    /// ADR 0079 § 8 resolves a parameter **by type**, while compiling, so that
+    /// `rule:testing/fixtures` resolves a parameter **by type**, while compiling, so that
     /// "an unsatisfiable parameter is a diagnostic rather than a null at
     /// runtime" — this is that diagnostic, and it is the `Widget` line of that
     /// section's own worked example. One code covers a test's parameter and a
@@ -2246,7 +2246,7 @@ pub mod code {
     pub const E_FIXTURE_PARAMETER_UNSUPPLIED: Code = Code::new("E0736");
     /// A `#[Fixture]` that requires itself, directly or through others.
     ///
-    /// ADR 0079 § 8's last sentence: a fixture may declare fixture parameters
+    /// `rule:testing/fixtures`'s last sentence: a fixture may declare fixture parameters
     /// of its own, and a cycle among them is a compile error. It is separate
     /// from [`E_FIXTURE_PARAMETER_UNSUPPLIED`] because every parameter on such
     /// a cycle *is* supplied — by a roster that cannot be built in any order,
@@ -2255,7 +2255,7 @@ pub mod code {
     /// A `#[TestWith(...)]` data row that does not describe the method it is
     /// attached to.
     ///
-    /// ADR 0079 § 9 matches a row's shape literal against the method's
+    /// `rule:testing/data-rows` matches a row's shape literal against the method's
     /// parameters **by name and by type**, so one code covers every way the
     /// two can fail to line up: a field naming no parameter, a field whose
     /// value is not a literal of that parameter's declared type, a row that

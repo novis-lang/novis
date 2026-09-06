@@ -347,7 +347,7 @@ re-litigated further here since M9 has not started.
   share ever dominates the saving, the answer is a `format_version` that carries the *IR's* class list —
   the compiler's own structure, versioned with the file — and never `ClassDesc` itself.
 - **Exact default values** for `opcache.file_cache_max_size` and the GC probability/divisor pair are left to
-  whoever implements M6, the same way ADR 0018 left exact Clover/lcov shape to its implementer.
+  whoever implements M6, the same way `rule:testing/debug-probes` left exact Clover/lcov shape to its implementer.
 - **Per-ancestor-directory ownership walking** (checking not just the cache directory itself but every
   parent up to some root) versus checking the cache directory alone is left as an implementation-time call
   at M6 — the requirement decided here is that *some* ownership/permission check happens before the

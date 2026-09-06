@@ -1,7 +1,7 @@
 """Which CI lanes a push or a pull request needs, from the paths its diff touched.
 
 `.github/workflows/ci.yml`'s `changes` job runs this, and every other job in that file gates on one
-of the booleans it emits. The `LANES` table below is that policy's only home -- ADR 0143 is the
+of the booleans it emits. The `LANES` table below is that policy's only home -- `rule:testing/ci-lanes` is the
 reasoning, and the workflow holds no `paths:` filter of its own.
 
   python tools/ci-changes.py --base HEAD~1   # what CI would run for the last commit

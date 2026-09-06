@@ -15,7 +15,7 @@ use super::*;
 /// ([`transacting`]), so neither can be read at the point the event is filed.
 /// Reading them early also means a request that turns tracing on midway through
 /// a statement does not get half an event — the span is either filed whole or
-/// not at all, unlike a call site's pair, which ADR 0018 deliberately lets
+/// not at all, unlike a call site's pair, which `rule:testing/debug-probes` deliberately lets
 /// straddle a change.
 ///
 /// **The two readers are one type because they read one span.** § 11 gives the

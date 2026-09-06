@@ -385,7 +385,7 @@ Nothing here builds anything: the release binary on disk is the binary that runs
 refused by name, and the harness warns when the binary is older than the newest file under `crates/`. Two
 timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
 and is not comparable across machines, which is why the cross-machine history in
-[ADR 0026](../adr/0026-performance-measurement-methodology.md) is counted in instructions instead. This
+`rule:testing/perf-two-mechanisms` is counted in instructions instead. This
 suite is that ADR's § 3 secondary figure, in runnable form.
 
 ## The server's throughput, in two legs that are not one series
@@ -435,7 +435,7 @@ python tools/dossier.py --brief 'Core\Str::at'   # one feature's brief, as a wor
 python tools/dossier.py --findings [--clear]     # what the workers hit, collated for one batch fix
 ```
 
-[ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) is why four proofs and not some other
+`rule:testing/four-proofs` is why four proofs and not some other
 number; each tree's README owns what a file in it is ([examples](../examples/README.md),
 [attacks](../../tests/hostile/README.md), [benches](../../benches/members/README.md)); `--help` owns the
 rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
@@ -532,7 +532,7 @@ if C: is what is short). `~/.claude/projects/` keeps one JSONL per session forev
 ## Fuzzing and callgrind on Windows: use WSL
 
 `cargo-fuzz` (the `fuzz/` crate) needs libFuzzer, and `valgrind`/`callgrind`
-([ADR 0026](../adr/0026-performance-measurement-methodology.md)) has no native Windows build at all — do
+(`rule:testing/perf-two-mechanisms`) has no native Windows build at all — do
 both in WSL. From a Windows shell, `wsl.exe -- bash -lc "<command>"` runs a command in the default WSL
 distro, which reaches the repo over `/mnt/<drive>/…`. What that distro must have installed — and why PHP goes in
 it as well, at the same version as the Windows one — is [docs/setup.md](../setup.md).
@@ -554,7 +554,7 @@ From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directo
 `cargo +nightly fuzz run lex -- -max_total_time=300` (and `parse` likewise). CI's `fuzz-smoke` job runs both
 for 300s nightly and at release, carrying the corpus between runs -- not per push, because 60s against a
 corpus that starts empty every time is the same 60s repeated
-([ADR 0143](../adr/0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) § 5).
+(`rule:testing/the-deep-lane`).
 
 For the instruction-count leg: `cargo build --release -p nvs-abi-probe --example callgrind_spike`, then
 `valgrind --tool=callgrind --callgrind-out-file=/tmp/cg.out ./target/release/examples/callgrind_spike`.

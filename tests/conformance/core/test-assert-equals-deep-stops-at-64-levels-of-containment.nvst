@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertEqualsDeep` walks 63 levels of containment and refuses at the 64th, naming `$actual` and the whole path -- ADR 0079 § 4, ADR 0090 § 3
+`Core\Test::assertEqualsDeep` walks 63 levels of containment and refuses at the 64th, naming `$actual` and the whole path -- `rule:testing/assertions-are-typed`, ADR 0090 § 3
 --FILE--
 <?nvs
 // The bound, asserted on both sides. An Novis array cannot contain itself

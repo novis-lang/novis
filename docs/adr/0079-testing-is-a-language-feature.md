@@ -1,4 +1,4 @@
-# ADR 0079 — Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\Test` is typed
+# `rule:testing/test-attribute` — Testing is a language feature: `#[Test]` compiles to a table, every test is its own isolate, and `Core\Test` is typed
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -802,7 +802,7 @@ $ nvs test
 
 $ nvs test --format=junit > results.xml     # every CI system ingests this
 $ nvs test --format=json  > results.json    # versioned schema
-$ nvs test --coverage=clover:cov.xml        # unchanged, ADR 0018
+$ nvs test --coverage=clover:cov.xml        # unchanged, `rule:testing/debug-probes`
 ```
 
 All three formats render one `Outcome` list and a verdict is decided once, so the mark, the JSON string and

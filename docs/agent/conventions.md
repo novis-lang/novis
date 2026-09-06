@@ -84,7 +84,7 @@ candidates; the playbook owns the spellings that will not compile.
 
 ## A feature's four proofs — an example, an attack, a bench, a `covers:` marker
 
-[ADR 0134](../adr/0134-every-shipped-feature-owes-four-proofs.md) makes these owed. **Each tree's own
+`rule:testing/four-proofs` makes these owed. **Each tree's own
 README owns the rules** — [docs/examples/](../examples/README.md), [tests/hostile/](../../tests/hostile/README.md),
 [benches/members/](../../benches/members/README.md) — and this section is only the four skeletons, so
 nothing is copied out of an existing file to get the shape right. `python tools/dossier.py --id

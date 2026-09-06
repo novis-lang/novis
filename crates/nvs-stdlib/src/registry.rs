@@ -1333,10 +1333,9 @@ pub const CLASSES: &[CoreClass] = &[
     crate::validate::CLASS,
     crate::out::CLASS,
     // § 16. `rule:errors/debug-dump`'s `dump` and `render` only — the coverage, trace and profile members
-    // that section also lists are ADR 0018's and land at M10.
+    // that section also lists are `rule:testing/debug-probes`'s and land at M10.
     crate::debug::CLASS,
-    // [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-    // § 4's assertion surface rather than a spec § of its own: testing is a
+    // `rule:testing/assertions-are-typed`'s assertion surface rather than a spec § of its own: testing is a
     // language feature, and `Core\Test` is the same `QName` `#[Test]` names.
     crate::test::CLASS,
     // § 18's in-process request, as the thing one answers with — a class beside
@@ -1754,7 +1753,7 @@ pub const CLASSES: &[CoreClass] = &[
 /// classified, and the ones classified as reaching nothing. Both used to look
 /// alike from here — a member simply absent from the table — so the second kind
 /// lived on a frozen allowlist beside the closure test, where growing it by one
-/// entry was the move ADR 0118 § 7 forbids and the only move a sibling like
+/// entry was the move `rule:testing/capability-closure-test` forbids and the only move a sibling like
 /// `Core\RateLimit::shed` left. Declaring `None` costs a would-be exemption
 /// exactly what a declaration costs, in the same table under the same review,
 /// and buys a total claim in place of an "all but a list" one: every member of a

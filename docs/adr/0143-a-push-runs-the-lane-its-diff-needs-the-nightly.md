@@ -1,4 +1,4 @@
-# ADR 0143 — A push runs the lane its diff needs; the nightly and the release run all of it
+# `rule:testing/ci-lanes` — A push runs the lane its diff needs; the nightly and the release run all of it
 
 - **Status:** Accepted
 - **Date:** 2026-09-05

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertThrows` holds at exactly the pairs where the thrown class descends from the named one, over all 81 pairs of the exception tree -- ADR 0079 § 4
+`Core\Test::assertThrows` holds at exactly the pairs where the thrown class descends from the named one, over all 81 pairs of the exception tree -- `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // `test-assert-throws-is-bounded-on-both-sides-of-the-class-it-names.nvst`

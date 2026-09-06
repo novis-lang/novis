@@ -1,5 +1,5 @@
 --TEST--
-an in-process request to a path the compiled table does not claim still runs the program, which decides for itself what a miss means — ADR 0079 § 18, ADR 0102 § 1
+an in-process request to a path the compiled table does not claim still runs the program, which decides for itself what a miss means — `rule:testing/in-process-request`, ADR 0102 § 1
 --FILE--
 <?nvs
 // The boundary of the sibling case: there, the table claimed the path and the

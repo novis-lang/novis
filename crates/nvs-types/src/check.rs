@@ -615,7 +615,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let entering = crate::response::entering_body(m, ctx, env);
     let outer_writers = std::mem::replace(&mut env.body_writers, entering);
 
-    // ADR 0079 § 14: every inline snapshot the walk below records belongs to
+    // `rule:testing/inline-snapshots`: every inline snapshot the walk below records belongs to
     // *this* method, and stamping the rows afterwards is how they learn it —
     // `ExprTypeTable::own_inline_snapshots` owns why the walk is not told
     // which declaration it is inside. Taken here rather than at the top so a

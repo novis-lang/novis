@@ -66,8 +66,7 @@
 //!
 //! A `#[Test(seed: …)]` isolate draws from [`SplitMix`] instead, so the test's
 //! sequence reproduces
-//! ([ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-//! § 12). Every member reaches its generator through [`draw`], and that is what
+//! (`rule:testing/determinism-declared-on-the-test`). Every member reaches its generator through [`draw`], and that is what
 //! makes the seed all-or-nothing: one that fixed `int` but not `shuffle` would
 //! make a test's reproducibility depend on which members it happened to call.
 //!
@@ -397,8 +396,7 @@ fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
     Value::array(out)
 }
 
-/// [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-/// § 12's seeded generator: SplitMix64, over the single `u64` of state
+/// `rule:testing/determinism-declared-on-the-test`'s seeded generator: SplitMix64, over the single `u64` of state
 /// `nvs_runtime::Ctx` holds.
 ///
 /// **Written here rather than reached for** because the requirement is unusual
@@ -460,7 +458,7 @@ impl rand::TryRng for SplitMix {
     }
 }
 
-/// Runs `with` against the generator this context draws from: ADR 0079 § 12's
+/// Runs `with` against the generator this context draws from: `rule:testing/determinism-declared-on-the-test`'s
 /// seeded one where a `#[Test(seed: …)]` armed it, and the thread's CSPRNG
 /// otherwise.
 ///

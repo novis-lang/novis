@@ -1,5 +1,4 @@
-//! `Core\Test` — [ADR 0079](/docs/adr/0079-testing-is-a-language-feature.md)
-//! § 4's assertion surface, and the other half of the `QName` `#[Test]` already
+//! `Core\Test` — `rule:testing/assertions-are-typed`'s assertion surface, and the other half of the `QName` `#[Test]` already
 //! names.
 //!
 //! The attribute and this class are deliberately **one name**: `#[Test]` marks
@@ -377,7 +376,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// reason [`NAME`] is.
 pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 
-/// What one in-process request answered with — ADR 0079 § 18.
+/// What one in-process request answered with — `rule:testing/in-process-request`.
 ///
 /// A `Core`-owned instance rather than an [ADR 0036] shape, which is the one
 /// place this surface departs from § 18's worked example's `$rs->status`. A
@@ -870,7 +869,7 @@ const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
 };
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::advance(Duration $by): void` — ADR 0079 § 12's mutator for
+    /// `Core\Test::advance(Duration $by): void` — `rule:testing/determinism-declared-on-the-test`'s mutator for
     /// the clock `#[Test(at: …)]` fixed, and the only thing in the language
     /// that moves one.
     ///
@@ -975,7 +974,7 @@ nvs_runtime::nvs_helper! {
     /// what the subject calls; a filler on `Core\Cli` would be a way for
     /// production code to answer its own prompts, which is a door ADR 0086 § 4
     /// has no reason to open. The state is on `nvs_runtime::Ctx` beside the
-    /// fixed clock, and ADR 0079 § 2's per-test isolate is what scopes it —
+    /// fixed clock, and `rule:testing/isolate-per-test`'s per-test isolate is what scopes it —
     /// that field's docs are the home of both decisions.
     ///
     /// **No refusal for a call outside a test**, which is where this differs
@@ -991,7 +990,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::serverUrl(): ?string` — ADR 0079 § 18's second mechanism,
+    /// `Core\Test::serverUrl(): ?string` — `rule:testing/in-process-request`'s second mechanism,
     /// as the one thing a test can observe of it.
     ///
     /// **`null` rather than a throw for a context with no listener**, which is
@@ -1067,7 +1066,7 @@ fn verb_of(ordinal: i64) -> Option<String> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::request(Core\Http\Method $method, string $path): Core\Test\Response`
-    /// — ADR 0079 § 18's in-process request.
+    /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** ADR 0102 § 1's
     /// match is taken on the far side of `nvs_runtime::inproc`, whose
@@ -1080,7 +1079,7 @@ nvs_runtime::nvs_helper! {
     /// parameters, which is dispatch. What runs is the program's own entry,
     /// exactly as a served request runs it.
     ///
-    /// **Known gap, ADR 0079 § 18's second sentence:** the worked example's
+    /// **Known gap, `rule:testing/in-process-request`'s second sentence:** the worked example's
     /// `{headers: ...}` bag and a synthetic body are not here yet, so nothing a
     /// synthetic request carries arrives `tainted` because it carries nothing.
     /// The module doc's own gap list is the home of that.
@@ -1397,7 +1396,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertMatchesInline(mixed $actual, string $expected, {message?: string}):
-    /// void` — ADR 0079 § 14's inline snapshot.
+    /// void` — `rule:testing/inline-snapshots`'s inline snapshot.
     ///
     /// The comparison is between two *renderings*, and only one of them is
     /// built here: `$actual` goes through [`crate::debug::rendered`], which is
@@ -1455,7 +1454,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertThrows(callable $body, string $expected, {message?: string}): void`
-    /// — ADR 0079 § 4's last row, and the one member whose subject is a
+    /// — `rule:testing/assertions-are-typed`'s last row, and the one member whose subject is a
     /// **`callable`** and whose expectation is a class.
     ///
     /// The expectation is a `string` because that is what
@@ -1537,7 +1536,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertDoesNotThrow(callable $body, {message?: string}): void`
-    /// — ADR 0079 § 20's member, and the first of the two whose subject is a
+    /// — `rule:testing/runner-is-strict`'s member, and the first of the two whose subject is a
     /// **`callable`** rather than a value.
     ///
     /// It is § 20's own way out of the empty-ledger rule: a test whose whole
@@ -1590,7 +1589,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::expectFailure(callable $body): void` — ADR 0079 § 5's one
+    /// `Core\Test::expectFailure(callable $body): void` — `rule:testing/failure-ledger`'s one
     /// greppable spelling for "this failure was on purpose".
     ///
     /// It runs `$body`, requires that an assertion inside it **failed**, and
@@ -1650,7 +1649,7 @@ nvs_runtime::nvs_helper! {
 /// The [`Fault`] every failed assertion raises, with the `{message?: string}`
 /// option in front of it where one was given.
 ///
-/// A **catchable** throw rather than a [`Fault::fatal`]: ADR 0079 § 5 makes the
+/// A **catchable** throw rather than a [`Fault::fatal`]: `rule:testing/failure-ledger` makes the
 /// ledger the record and the throw the control flow, and a test that means to
 /// assert its subject throws has to be able to run one inside a `try` — which
 /// is what `Core\Test::assertThrows` is written over.

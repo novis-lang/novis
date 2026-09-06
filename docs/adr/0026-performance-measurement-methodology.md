@@ -1,4 +1,4 @@
-# ADR 0026 — Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards
+# `rule:testing/perf-two-mechanisms` — Performance history is tracked by callgrind instruction counts; wall-clock stays for CI regression guards
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -6,10 +6,10 @@
 - **Scope:** how Novis's *own implementation* is measured and compared over time and across contributor
   machines/OSes — a historical performance dashboard, distinct from the existing per-PR regression guards in
   `benches/abi-probe/tests/perf_guards.rs` (unchanged by this ADR) and from
-  [ADR 0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s in-language profiler
+  `rule:testing/debug-probes`'s in-language profiler
   exposed to *Novis programs* (also unchanged; that ADR is about profiling code written in Novis, this one is
   about profiling the compiler/runtime itself). **Benchmarking an Novis program's own code** is likewise not
-  this ADR's: it is [ADR 0079](0079-testing-is-a-language-feature.md) § 15, which reports ADR 0018's
+  this ADR's: it is `rule:testing/bench-counters`, which reports `rule:testing/debug-probes`'s
   deterministic counters rather than callgrind, because callgrind has no native Windows build and cannot
   resolve symbols inside JIT frames. The two remain distinct measurements of distinct things — a counter
   falls between Novis releases as the optimiser improves, which is the very trend this ADR exists to track.
