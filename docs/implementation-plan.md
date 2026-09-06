@@ -49,9 +49,9 @@
 > h1 as goal 2's `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file;
 > `E0621`/`E0622` refuse a mount and a zero ceiling; § 5's ceiling is arithmetic, `503` before an
 > isolate; § 6's walk decides the peer, `400` on a bad token; § 8's accept backs off, § 5's drain
-> answers the probe; `Core\Response` has seven, `Core\Request` thirteen, an upload walks; ADR 0074
-> §§ 1-2 hold; `route()`, `match`, `methodsFor`, CSRF and the label read one match; four capture
-> kinds convert, decoded once; § 7's mount answers a class, `E0801` refuses `echo`. **ADR 0139's
+> answers the probe; `Core\Response` has seven, `Core\Request` thirteen, an upload walks; `rule:http-server/secure-headers-with-nothing-written` and `rule:http-server/cors-is-closed-until-origins-are-named`
+> hold; `route()`, `match`, `methodsFor`, CSRF and the label read one match; four capture
+> kinds convert, decoded once; § 7's mount answers a class, `E0801` refuses `echo`. **`rule:http-server/a-session-store-answers-four-operations`'s
 > session is whole**: shared or db, `E0626` refuses local, § 1's seven carry it, § 4 sends it. **ADR
 > 0073's ticker fires**: a root isolate, § 6's `overlap` whole; `fleet` needs a lease. **ADR 0072 §§
 > 6-7 land**: `afterResponse` drains detached; § 7's cap counts trees; `rule:observability/the-runtime-exports-what-it-already-measures`'s trace reaches a

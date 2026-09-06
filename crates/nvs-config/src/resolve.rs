@@ -270,7 +270,7 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, files: &dyn Files) -> Roots {
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
 /// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
 /// file § 7 will not take a value from (`E0608`), an `[[app]]` block `rule:config/an-application-is-its-entry-file-path` cannot key
-/// (`E0609`), a `[[schedule]]` entry `rule:config/scheduled-work-is-a-config-block` cannot arm (`E0611`), an `[http]` pair ADR 0074
+/// (`E0609`), a `[[schedule]]` entry `rule:config/scheduled-work-is-a-config-block` cannot arm (`E0611`), an `[http]` pair `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 /// refuses (`E0612`), a `[log] target` `rule:errors/engine-floor` does not spell (`E0613`), or anything either
 /// of `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s per-file
 /// refusals catches (`E0601`/`E0604`), which arrives already carrying its own file's line.
@@ -319,19 +319,19 @@ pub fn resolve(
     // `rule:config/scheduled-work-is-a-config-block`, `rule:config/cron-is-five-fields-and-nothing-more` and `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`, last because it reads the `[capabilities]` the merge settled: a scheduled
     // script is checked against the `script.spawn` roots, which a later file may have replaced.
     crate::schedule::validate(&resolved.config, &origins, files)?;
-    // ADR 0074 §§ 2-3, over the merged tree for the same reason: which `[http.cors] origins` and
+    // `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, over the merged tree for the same reason: which `[http.cors] origins` and
     // `[http.cookies] secure` are in force is a question only the whole stream has answered, and a
     // per-file check would refuse a base file an include was about to correct.
     crate::http::validate(&resolved.config, &origins)?;
-    // ADR 0097 § 5's four inbound waits, beside the outbound half above: what the merge settled is
+    // `rule:http-server/the-server-block-is-boot-class`'s four inbound waits, beside the outbound half above: what the merge settled is
     // the wait the listener will actually be started with, and a `false` there is the one spelling
-    // ADR 0074 has no version of.
+    // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` has no version of.
     crate::server::validate(&resolved.config, &origins)?;
     // `rule:errors/engine-floor`'s target, over the merged tree for the http check's reason and for one of its
     // own: the floor is the rung that reports when nothing else can, so the last place to discover
     // that its destination does not parse is the failure it was configured to report.
     crate::log::validate(&resolved.config, &origins)?;
-    // ADR 0139 § 3, enforcing `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: which store holds a session is the one directive whose
+    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, enforcing `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: which store holds a session is the one directive whose
     // wrong value never reports itself at run time — a per-core session store forgets people rather
     // than failing — so the merged tree is the last moment anything can say so.
     crate::session::validate(&resolved.config, &origins)?;

@@ -1,5 +1,5 @@
 //! `rule:security/db-pool-reset-is-a-boundary`'s pool bounds and § 11's `slow_query` threshold, as the boot reads them: one key in
-//! two shapes, four bounds that are finite with nothing configured (ADR 0074), the three values that
+//! two shapes, four bounds that are finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), the three values that
 //! parse and still cannot describe a pool, and a threshold that is off until an operator writes one.
 //!
 //! The refusals are asserted by **counting**, not by reading one off a line: a reader that grew a
@@ -47,7 +47,7 @@ fn refusal(text: &str) -> Diagnostic {
         .unwrap_or_else(|| panic!("{text}\n-- was accepted, and should not have been"))
 }
 
-/// ADR 0074, which § 13 writes its example against: a block that configures no pool at all still has
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 13 writes its example against: a block that configures no pool at all still has
 /// four finite bounds, and they are the ADR's own numbers.
 #[test]
 fn nothing_configured_is_a_finite_pool() {

@@ -1,0 +1,5 @@
+Four waits bound every connection — `header_timeout` (`10s`), `body_idle_timeout` (`30s`), `write_idle_timeout` (`30s`) and `keepalive_timeout` (`75s`) — and all four are finite with nothing configured. All four are **idle** waits rather than totals: a slow 2 GB upload that keeps moving completes, and a stalled socket does not. Each fires on a stalled connection and none on a slow-but-progressing one.
+
+This is the division of labour with the proxy in one sentence: **a proxy owns size and rate; Novis owns never waiting forever.** Per-IP caps, flood limiting and request-size shedding stay at the edge.
+
+`keepalive_timeout` must exceed the proxy's upstream keep-alive. If the origin closes an idle connection the proxy still believes is live, the proxy writes into a closing socket and the client sees an intermittent 502. nginx's upstream default is 60s; 75s is deliberately above it, and a deployment that raises the proxy's must raise this one. None of the four notices a worker that is alive and never returns; that is the watchdog's job, named in `rule:http-server/the-server-block-is-boot-class`.

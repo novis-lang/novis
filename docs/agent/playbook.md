@@ -1259,7 +1259,7 @@ is why" — is this file.
   what it prints is other sessions' work about to be lost rather than your own.
 - **A `loop-goal.toml` acceptance test can name *two* bounds, and splitting it across two
   `#[test]`s fails the check.** `the_engine_floor_rotates_and_rate_limits_itself` is one name
-  for ADR 0106 § 10's two bullets, so the rate limit and the rotation are asserted in one
+  for `rule:http-server/the-floor-cannot-fill-the-disk`'s two bullets, so the rate limit and the rotation are asserted in one
   function even though they are two slices and two mechanisms. The check is `kind =
   "cargo-named"` and matches the test's *name*: a `the_engine_floor_rotates` beside a
   `the_engine_floor_rate_limits` reads better, passes `cargo test`, and leaves the driver
@@ -1781,8 +1781,7 @@ is why" — is this file.
   than taking a neighbouring band's number: the decision exists, and one `grep -n E0500
   docs/adr/README.md` finds it.
 - **A program leg for a *later stage*'s fixture fails from the day the goal starts, and
-  `orient.py`'s banner asks you to close it first.** `examples/upload.nvs`'s frozen `want` is ADR
-  0105's whole surface — `Core\Request::files()`, a `Part`, `saveTo` — and `crates/nvs-stdlib` has
+  `orient.py`'s banner asks you to close it first.** `examples/upload.nvs`'s frozen `want` is `rule:http-server/an-upload-is-received-only-through-files`'s whole surface — `Core\Request::files()`, a `Part`, `saveTo` — and `crates/nvs-stdlib` has
   no `request.rs` at all, so no Stage 4 session can close it. It has been the reported failure for
   sixteen consecutive sessions and it holds the run to 55 of the goal's ~137 checks, because the
   driver stops at the first failure and a program leg runs ahead of every `stage` whose string does
@@ -1812,10 +1811,10 @@ is why" — is this file.
   the tell is the same: the claim is about the *tree*, so something in the pack already answers it.
 
 - **A crate doc's `ADR NNNN § N` citation can be off by one, and the handoff will copy it forward
-  rather than check it.** `nvs-config`'s `tree.rs` cited ADR 0074 § 2 for `[http.headers]`, § 3 for
+  rather than check it.** `nvs-config`'s `tree.rs` cited `rule:http-server/cors-is-closed-until-origins-are-named` for `[http.headers]`, § 3 for
   `[http.cors]` and § 4 for `[http.cookies]`; the ADR's actual headings are § 1 secure headers, § 2
   CORS, § 3 cookies, § 4 "every directive is `Runtime`". All three blocks were one section high,
-  and this session's own handoff item had inherited the shift — it named "ADR 0074 § 3" for the
+  and this session's own handoff item had inherited the shift — it named "`rule:http-server/cookies-are-secure-httponly-and-lax`" for the
   cookie defaults, which is right, while the group line above it named "§§ 2-4" for "the
   `[http.headers]` defaults and the cookie and override rules", which is the shifted reading. One
   `peek.py <adr>:"re:^### "` prints every heading in a few hundred bytes and settles the whole
@@ -2059,7 +2058,7 @@ is why" — is this file.
   `pin_host`, before the name has been resolved at all. The ruling is pre-authorized and stands; its
   stated reason would have gone into a module doc as a sentence that is simply false, and a module doc
   outlives the goal file that seeded it. Write the doc from what the code does — here the real reason
-  is ADR 0058 § 2's pinned address, which bounds what one *named* host may turn out to be and says
+  is `rule:http-server/allow-url-pins-the-address`'s pinned address, which bounds what one *named* host may turn out to be and says
   nothing about how many names a pattern admits — keep the frozen test name, and say in the handoff
   that the wording was wrong rather than the decision.
 - **A module doc's known gap can give its reason as "`docs/agent/loop-goal.md` § *Standing
@@ -5631,7 +5630,7 @@ is why" — is this file.
   skip — and `:memory:` being per *connection* is the sharpest instrument there is for asking
   whether two calls answered with one connection or two.
 - **An ADR section's own example can contradict the section that owns the spelling, and a test written
-  from the example pins the wrong thing.** ADR 0097 § 10 — *a mount routes and carries nothing else* —
+  from the example pins the wrong thing.** `rule:http-server/a-mount-carries-no-policy` — *a mount routes and carries nothing else* —
   illustrated itself with `[[server.mount]]` / `path = "/shop"` / `root = "/srv/www/shop"`, and neither
   key exists: § 3 gives a mount `scan`, `prefix`, `host`, `entry` and `origin`, so `nvs_config::tree`
   refuses both and a test asserting "the routing keys parse" off that example would have failed for the
@@ -5709,7 +5708,7 @@ is why" — is this file.
   the expected ones, with the line and column already in the corpus's own `case.nvs` numbering.
 - **A `-p <crate>` check is *impossible* rather than unwritten when that crate's `Cargo.toml` does not
   name the crate owning the surface, and that list is a one-call answer.** The
-  `nvs-server (ADR 0105, whole)` check named seven tests about `files()`, a part and its consumers;
+  `nvs-server (`rule:http-server/an-upload-is-received-only-through-files`, whole)` check named seven tests about `files()`, a part and its consumers;
   `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime`, and
   `nvs-stdlib` is not among them — so six of the seven could never have run there however end-to-end
   the claim reads, and the seventh was already landed in `nvs-stdlib` under the check's own spelling.
@@ -5779,7 +5778,7 @@ is why" — is this file.
   member asked by fewer than three `.nvst` cases, and `BELOW_THE_FLOOR` is empty with its own doc
   saying the list "only shrinks" — so a `Core\Session` row cannot land ahead of its three cases, and
   a group cannot carry "the cases for the members above" as a fourth item. For this class every one
-  of those cases is a **refusal** or a directive question, because ADR 0139 § 3's two backends are
+  of those cases is a **refusal** or a directive question, because `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s two backends are
   the shared tier and the database and `tests/conformance/` can reach neither. The three that are
   writable are: no `[session]` block at all (`crates/nvs-stdlib/src/session.rs:119`'s throw names the
   block to write), a backend this core has no connection to (`crate::cache::on_shared`'s `Io` throw,
@@ -8197,7 +8196,7 @@ sibling in the same namespace unqualified.
   dispatcher idle. Debugging it takes timestamps: the trace reads identically without them, because
   the post-response read *does* eventually happen — ten seconds later, when the client's FIN arrives.
 - **A `Core` instance has no property a program can reach, so an ADR that writes `$x->thing` in its
-  example is describing a surface the registry cannot express.** ADR 0105 § 3's worked block reads
+  example is describing a surface the registry cannot express.** `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s worked block reads
   `$part->filename;` and `foreach ($part->content as $chunk)`, and `CoreClass` has `methods`,
   `instance`, `slots` and `constants` — no field roster and no reader synthesis. The rule is already
   settled and stated four times, but only inside `CoreTy::Instance`'s doc and in comments on *other*
@@ -8218,8 +8217,7 @@ sibling in the same namespace unqualified.
   member that is registered now" rather than with anything about the member. Budget all three when
   the row you are adding is qualified.
 - **Two ADRs can describe one wire event, and the one you are handed may state the answer while
-  the other states the precondition.** ADR 0074 § 2 says what a preflight is answered with; ADR
-  0097 § 4 is where a preflight is *defined* — an `OPTIONS` carrying `Origin` **and**
+  the other states the precondition.** `rule:http-server/cors-is-closed-until-origins-are-named` says what a preflight is answered with; `rule:http-server/a-request-resolves-in-five-steps` is where a preflight is *defined* — an `OPTIONS` carrying `Origin` **and**
   `Access-Control-Request-Method` — and the landed `Cors::preflight` read only the second header,
   so it took the policy's answer for a request 0097 calls an ordinary `OPTIONS`. Nothing failed:
   under a closed policy both readings refuse, and the divergence only became reachable when the
@@ -8271,7 +8269,7 @@ sibling in the same namespace unqualified.
   run of lines: `Core\Session` is seven, of which one is gone. `grep -n '<Class>::'` that file
   before writing the row, and the strike goes in the same commit.
 - **A request's per-request state is not on the context the *door* holds, and the filing that says
-  otherwise reads perfectly.** ADR 0139 § 4's write-back arrived filed against
+  otherwise reads perfectly.** `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back arrived filed against
   `crates/nvs-server/src/serve.rs:709` — the line where a request ends with "its `Ctx` still live" —
   and that `ctx.borrow_mut()` is the **connection's** context. The request is a root isolate, so
   `Core\Session::start` opened the record on the *isolate's* `Ctx`, which `nvs-host` builds and drops

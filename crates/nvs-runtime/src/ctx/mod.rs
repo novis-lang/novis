@@ -24,8 +24,8 @@
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
 //!   paid for.
-//! * [`DEADLINE_OFFSET`] — [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//!   § 5's deadline flag, polled from *inside* a helper whose runtime scales
+//! * [`DEADLINE_OFFSET`] — `rule:http-server/time-is-bounded-inside-a-helper`
+//!   's deadline flag, polled from *inside* a helper whose runtime scales
 //!   with its input. See *The request's deadline* below.
 //! * [`STATICS_OFFSET`] — the base of this request's static-property storage,
 //!   loaded inline by every `Class::$prop` read and write. See *Static
@@ -72,8 +72,8 @@
 //! between calls. A helper is *one* call, so a helper whose runtime is O(its
 //! input) — a sort, a scan, an encode, a hash over a large value — runs
 //! entirely inside the gap that poll leaves.
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 5's answer is [`Ctx::deadline_expired`]: a flag, in the line the stack
+//! `rule:http-server/time-is-bounded-inside-a-helper`
+//! 's answer is [`Ctx::deadline_expired`]: a flag, in the line the stack
 //! check has already loaded, polled from inside the loop and amortised over a
 //! batch of iterations. Reading a flag rather than a clock is the whole of why
 //! it is affordable — a clock read amortised over the same batch would cost
@@ -100,7 +100,7 @@
 //! that expires a request only ever holds the root to fire at. [`Ctx::isolate`]
 //! owns what the sharing costs.
 //!
-//! **Who reads it is not a member's decision.** ADR 0106 § 5's first constraint
+//! **Who reads it is not a member's decision.** `rule:http-server/time-is-bounded-inside-a-helper`'s first constraint
 //! puts the poll in a combinator rather than in every helper that remembers to
 //! ask, and that combinator is [`crate::bounded_loop`] — it owns the batch
 //! ([`crate::DEADLINE_POLL_BATCH`]) and what a fired poll returns. Nothing here
@@ -555,8 +555,8 @@ pub struct Ctx {
     /// request runs and nothing during it can move it — `nvs run` reads
     /// `nvs.toml`'s `[[app]] origin` today, and the mount that accepted the
     /// request will write it once there is a server, since
-    /// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-    /// § 3 makes a mount's own origin win over the application's. `None` is a
+    /// `rule:http-server/a-mount-table-expands-at-boot`
+    /// makes a mount's own origin win over the application's. `None` is a
     /// unit that resolves neither, and the link helper throws rather than
     /// answering with an empty authority in it.
     ///
@@ -740,7 +740,7 @@ pub struct Ctx {
     /// A `String` and not a `SocketAddr`: what a program does with it is write
     /// it into a URL, this crate has no URL type, and the scheme is a fact the
     /// runner knows and the address does not carry (§ 18's listener is `http`,
-    /// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 1
+    /// `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
     /// having dropped the TLS listener). `nvs_stdlib::test`'s `serverUrl` is
     /// the only reader and `nvs_cli::runner` the only writer.
     ///
@@ -828,7 +828,7 @@ pub struct Ctx {
     ///
     /// A **list** where the two fields above are words, because a header is a
     /// map rather than a property of the response:
-    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+    /// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
     /// makes `setHeader` an override of *one* policy-owned header on one
     /// response, so what has to cross is every pair a program set rather than
     /// one of them.
@@ -915,8 +915,8 @@ pub struct Ctx {
     /// reaches the yielder through the context it was already handed rather
     /// than through its own signature, so no caller up the chain is marked
     /// `async` and Novis needs no such marker at all
-    /// ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 6, `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*).
+    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`
+    /// , `docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*).
     ///
     /// **Opaque on purpose.** It is a `*const ()` rather than a
     /// `*const corosensei::Yielder<…>` so that the coroutine crate stays out
@@ -1303,8 +1303,8 @@ mod tests {
         assert_eq!(DEADLINE_OFFSET, 16);
         assert_eq!(STACK_LIMIT_OFFSET, 24);
         assert_eq!(STATICS_OFFSET, 40);
-        // The offsets above are the arrangement; this is the property ADR 0106
-        // § 5 actually buys with it, and it is what fails first when a field
+        // The offsets above are the arrangement; this is the property `rule:http-server/time-is-bounded-inside-a-helper`
+        // actually buys with it, and it is what fails first when a field
         // is added rather than appended.
         for (name, offset) in [
             ("safepoint", SAFEPOINT_OFFSET),

@@ -221,7 +221,7 @@ fn boot_refuses(text: &str) -> bool {
     resolve(&Roots::Files(vec![p("nvs.toml")]), &mut sources, &files).is_err()
 }
 
-/// ADR 0074 §§ 2-3, as the **agreement** the ADR's own sentence asks for: each pair is refused "at
+/// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, as the **agreement** the ADR's own sentence asks for: each pair is refused "at
 /// boot with the line named and at runtime by `Core\Config::set` returning `false`".
 ///
 /// This is the case that needs one implementation rather than two. It never asserts what either
@@ -235,7 +235,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
     // The row's own line is written out twice rather than appended to the block, because `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
     // still refuses a key set twice **in one file**: an appended override would refuse the boot
     // as a duplicate and the two mechanisms would agree for a reason that has nothing to do with
-    // ADR 0074.
+    // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`.
     //
     // (the block without the key, the line it starts at, the key, the value moved to, that line)
     let moves = [
@@ -300,7 +300,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
         assert_eq!(
             by_set, by_boot,
             "`{key} = {value}` over `{block}` is refused by the boot ({by_boot}) and by \
-             `Core\\Config::set` ({by_set}); ADR 0074 §§ 2-3 make those one rule",
+             `Core\\Config::set` ({by_set}); `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax` make those one rule",
         );
         agreed += 1;
         refused += usize::from(by_set);
@@ -473,7 +473,7 @@ fn the_mode_table_is_exactly_the_five_directives_the_adr_lists() {
     }
 }
 
-/// ADR 0091 §§ 4-5 through the API a program actually holds: the flip is bounded by the ceiling, it
+/// `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` through the API a program actually holds: the flip is bounded by the ceiling, it
 /// carries § 3's rows with it, and it is request-local like every other `set`.
 ///
 /// The last clause is the one a shared registry would get wrong, and it is asked here for the same

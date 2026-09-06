@@ -628,7 +628,7 @@ mod tests {
         );
     }
 
-    /// ADR 0106 § 10's two bounds on the floor, asked of the **sink** rather
+    /// `rule:http-server/the-floor-cannot-fill-the-disk`'s two bounds on the floor, asked of the **sink** rather
     /// than of either caller — which is the section's own shape, so that no
     /// caller has to be trusted to be rare.
     ///
@@ -687,7 +687,7 @@ mod tests {
             other[0]
         );
 
-        // ADR 0106 § 10's first bullet. Two records fit in a 256-byte file and
+        // `rule:http-server/the-floor-cannot-fill-the-disk`'s first bullet. Two records fit in a 256-byte file and
         // 64 of them do not, so the rotation is reached many times over and the
         // retention bound is what stops the target growing with the loop.
         const MAX_BYTES: u64 = 256;

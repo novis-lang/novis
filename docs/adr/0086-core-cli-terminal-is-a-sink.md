@@ -256,7 +256,7 @@ Without this the rule above buys nothing on the case it was written for: a CI jo
 pty, or a `docker run -t` with no keyboard behind it, has a terminal by every test a process can
 make, and a blocking read there hangs exactly as long as the pipeline's own timeout allows. **No
 parameter lengthens it**, on any of the five members: a `timeout` option would be the spelling for an
-unbounded wait that ADR 0074 exists to deny, and the trade — a person who walks away mid-answer gets
+unbounded wait that `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` exists to deny, and the trade — a person who walks away mid-answer gets
 a throw rather than an indefinite wait — is priced at `rule:programs/memory-priority`'s ordering, where a program that
 cannot hang outranks one that never gives up. `nvs_stdlib::cli`'s
 `no_prompt_blocks_without_a_deadline` holds both halves.

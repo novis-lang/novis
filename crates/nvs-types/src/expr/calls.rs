@@ -376,7 +376,7 @@ pub(crate) fn infer_static_call(
         // `array<mixed>`, so an element that names a binding is asked about by
         // name. See [`reject_secret_logged_argument`].
         reject_secret_logged_argument(owner, name, args, &arg_types, scope, env);
-        // ADR 0074 § 7's non-idempotent retry, and this is the only call path
+        // `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s non-idempotent retry, and this is the only call path
         // that can reach it: every member carrying the obligation is a static
         // one (`nvs_stdlib::http`'s `CLIENT` writes an empty `instance`), so
         // [`infer_method_call`] has no arm of this hook rather than a missing

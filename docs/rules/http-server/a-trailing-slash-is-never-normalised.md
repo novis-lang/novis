@@ -1,0 +1,3 @@
+`/users` and `/users/` are different URIs, and whether they name one resource is application knowledge. The server never adds a slash, never removes one and never redirects between the two; `/users/` does not reach a `/users` route.
+
+Of the three conventions applied above the route table this is the only one a proxy does trivially, and the one the never-repair instinct (`rule:errors/ambiguous-input-refused`) argues hardest against: a normalisation the server invents is an equivalence the application did not write. It is distinct from `rule:routing/a-trailing-segment-may-be-absent`, where a route *declares* that its last segment may be missing — that is the application stating the equivalence, which is exactly where the decision belongs.

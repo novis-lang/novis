@@ -1,8 +1,8 @@
 --TEST--
-`Core\Request\Part::readAll`'s bound is one `uint` of bytes in a closed bag, so a size written as text is refused and so is an option the bag does not declare — while `content()` takes nothing at all — ADR 0105 § 3, `rule:core-api/shape-rules` R2, spec § 15
+`Core\Request\Part::readAll`'s bound is one `uint` of bytes in a closed bag, so a size written as text is refused and so is an option the bag does not declare — while `content()` takes nothing at all — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, `rule:core-api/shape-rules` R2, spec § 15
 --FILE--
 <?nvs
-// The bag, asked at both of its edges. ADR 0105 § 3 writes the deliberate
+// The bag, asked at both of its edges. `rule:http-server/a-part-is-consumed-in-one-of-three-ways` writes the deliberate
 // large buffer as `max: "200M"` in prose; the argument is a count of bytes,
 // because a size in text would be a second parser in front of a number and
 // `rule:errors/ambiguous-input-refused` refuses to guess what one means. `[limits] memory` is written that

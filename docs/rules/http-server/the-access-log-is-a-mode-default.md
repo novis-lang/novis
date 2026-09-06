@@ -1,0 +1,5 @@
+`[log] access` is one of the five `Runtime` defaults a mode selects (`rule:config/a-mode-is-five-defaults`): `true` in development, `false` in production. In production an access line is a third copy of a fact the proxy's log and the root span already hold, written with request-path I/O; in development there is no proxy and traces are sampled, so it is the most useful thing the server prints.
+
+It renders through the one diagnostic record — text in development, JSON in production (`rule:errors/renderings`) — and there is deliberately **no Common or Combined Log Format**, which would be a second renderer. The fields are method, path, status, duration, response bytes, `clientIp`, the route name when the application matched one, and the trace id (`rule:errors/log-fields`). The health probe is skipped.
+
+**An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.

@@ -1,5 +1,5 @@
-//! [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-//! §§ 1-2's multipart body: the parse that turns what arrived on the wire into
+//! `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+//! 's multipart body: the parse that turns what arrived on the wire into
 //! the parts `Core\Request::files()` yields and the form fields
 //! `Core\Request::post()` reads.
 //!
@@ -25,7 +25,7 @@
 //! - [`REQUEST_BODY`] — § 2's buffered form fields, which are bytes parsed into
 //!   memory and are charged exactly as `body()`'s are.
 //!
-//! **`upload_total` is not one of them.** ADR 0105 § 5 puts that cap on the
+//! **`upload_total` is not one of them.** `rule:http-server/request-body-and-upload-total-are-two-caps` puts that cap on the
 //! wire, in `nvs_server::body`, which is where a body is refused before dispatch
 //! and where a chunked one is stopped mid-stream. Charging it a second time here
 //! would be a bound this layer cannot enforce for the bytes it never sees — the
@@ -78,7 +78,7 @@ const PADDING: usize = 64;
 ///
 /// Single-pass by construction: the cursor only moves forward and nothing that
 /// has been handed out is kept, so the type cannot answer the same part twice.
-/// That is ADR 0105 § 1's "single-pass" stated as a representation rather than
+/// That is `rule:http-server/an-upload-is-received-only-through-files`'s "single-pass" stated as a representation rather than
 /// as a rule a caller has to keep.
 #[derive(Debug)]
 pub(crate) struct Multipart {
@@ -198,7 +198,7 @@ impl Multipart {
 
     /// How many parts this parse has opened, field parts included.
     ///
-    /// The identity ADR 0105 § 3's "valid only while this part is the
+    /// The identity `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only while this part is the
     /// iterator's current one" is checked against: a `Core\Request\Part` is
     /// stamped with this at the moment it is answered, so a program holding an
     /// older one is refused rather than handed the current part's bytes. It
@@ -230,7 +230,7 @@ impl Multipart {
     /// Walks what is left of the body, buffering every field part it passes and
     /// draining every file part.
     ///
-    /// `Core\Request::post()`'s whole reading, and the reason ADR 0105 § 2 can
+    /// `Core\Request::post()`'s whole reading, and the reason `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` can
     /// promise *every* field rather than the ones that happened to arrive first:
     /// a form is free to write a text input after a file input, and a `post()`
     /// answering what the walk had reached would report that field absent.
@@ -854,7 +854,7 @@ mod tests {
         Ok((read, parse))
     }
 
-    /// ADR 0105 § 2: `filename` is the whole distinction, so the same part
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`: `filename` is the whole distinction, so the same part
     /// shape answers as a file or as a form field depending on one parameter —
     /// and the fields go where `post()` will read them rather than to the
     /// caller.
@@ -929,7 +929,7 @@ mod tests {
         }
     }
 
-    /// ADR 0105 § 1: advancing past a part nobody consumed drains it, so
+    /// `rule:http-server/an-upload-is-received-only-through-files`: advancing past a part nobody consumed drains it, so
     /// ignoring an upload is not touching it rather than a call.
     #[test]
     fn advancing_past_an_unconsumed_part_drains_it() {

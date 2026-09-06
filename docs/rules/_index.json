@@ -89,6 +89,11 @@
       "topic": "observability",
       "title": "Observability",
       "order": 180
+    },
+    {
+      "topic": "http-server",
+      "title": "The HTTP server",
+      "order": 190
     }
   ]
 }

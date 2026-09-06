@@ -99,8 +99,8 @@ pub(super) fn warm_connection(lease: &nvs_runtime::pool::Lease) -> Option<nvs_db
 /// refusing rather than queueing, and so does a call with no task beneath it: a
 /// `nvs run` of a CLI program is one task, so there is no peer that could free
 /// a slot and waiting could only be this core standing still —
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 6's tier-B failure.
+/// `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+/// 's tier-B failure.
 ///
 /// **The wording of that refusal is the caller's**, handed in as `full` and
 /// completed with the clause saying which ending it was. The two members have

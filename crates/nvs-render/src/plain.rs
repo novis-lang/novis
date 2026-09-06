@@ -80,7 +80,7 @@ pub fn render_nodes(nodes: &[Node]) -> String {
 /// The envelope's one line: the level, then each present field in the order
 /// `rule:errors/diagnostic-record`'s table writes them.
 ///
-/// ADR 0106 § 10's `count` closes the line as `x37` rather than as a
+/// `rule:http-server/the-floor-cannot-fill-the-disk`'s `count` closes the line as `x37` rather than as a
 /// `name=value` like its neighbours: it is a multiplier on the line it trails,
 /// not another identifier to read, and a reader tailing a log wants it where
 /// the eye already is.

@@ -13,8 +13,8 @@
 //!
 //! # Decision: the configuration's mounts are the table, and a bare file is a table of one
 //!
-//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-//! § 2 is the server's governing rule — a request *selects* an entry point from
+//! `rule:http-server/a-path-is-never-derived-from-a-url`
+//! is the server's governing rule — a request *selects* an entry point from
 //! a set enumerated before it arrived and may never construct one — and § 4's
 //! mount table is that set. A tree that writes `[[server.mount]]` gets **the
 //! whole of it**: [`nvs_config::mount::expand`] walked § 3's globs against the
@@ -98,7 +98,7 @@ pub(crate) fn run(
 ) -> ExitCode {
     // `rule:config/the-config-is-an-immutable-snapshot`'s snapshot, resolved exactly as `nvs run` resolves it and
     // for the same reason: a tree that does not resolve is a refusal to start.
-    // The `[server]` block is `Boot`-class as a whole (ADR 0097 § 5), so this
+    // The `[server]` block is `Boot`-class as a whole (`rule:http-server/the-server-block-is-boot-class`), so this
     // is the only time it is read.
     let mut sources = SourceMap::new();
     let (snapshot, origins) = match crate::config::boot_origins(config, path, &mut sources) {
@@ -131,7 +131,7 @@ pub(crate) fn run(
         Ok(entries) => entries,
         Err(diagnostic) => return report(diagnostic, &sources),
     };
-    // ADR 0106 § 13: the ceiling is the smaller of what the file asked for and
+    // `rule:http-server/admission-is-arithmetic-not-a-number`: the ceiling is the smaller of what the file asked for and
     // what this machine affords at the per-request cap, and a clamp is logged
     // **once, here**, naming both directives and both numbers. Silently is what
     // that section rejected — the observed capacity of a small instance changes
@@ -145,11 +145,11 @@ pub(crate) fn run(
     if let Some(note) = ceiling.clamp_note() {
         eprintln!("note: {note}");
     }
-    // ADR 0074 § 1's header set, resolved once beside the valve: with nothing
+    // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing
     // written under `[http.headers]` it is the whole of what every response this
     // server writes carries beside its body, and `nvs_server::secure` owns the
     // three details § 1 calls decisions rather than transcription.
-    // ADR 0097 § 6: who may assert a client address or a scheme, resolved once
+    // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`: who may assert a client address or a scheme, resolved once
     // here beside the two above. An entry that names no network is dropped and
     // reported — `nvs_server::forwarded`'s module doc owns why dropping is the
     // fail-safe direction, and this is the boot that has somewhere to say so.
@@ -170,7 +170,7 @@ pub(crate) fn run(
     // § 6's boot `Warn` below needs the address this process actually binds —
     // which the flags have not had their say over yet.
     let nobody_trusted = trusted.is_empty();
-    // ADR 0074 § 2: closed until `[http.cors] origins` names somebody, which is
+    // `rule:http-server/cors-is-closed-until-origins-are-named`: closed until `[http.cors] origins` names somebody, which is
     // what a tree that wrote no `[http.cors]` resolves to — `nvs_server::cors`
     // owns what closed means and where the refusal is taken.
     let serving = Serving::new(
@@ -186,7 +186,7 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
-    // ADR 0097 § 6's boot `Warn`: `production`, nothing bound but the loopback,
+    // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s boot `Warn`: `production`, nothing bound but the loopback,
     // and nobody trusted. That is the shape of a proxied deployment that forgot
     // the directive — nothing off this machine can reach it except through a
     // proxy, and it is about to answer that proxy's address as every client's.
@@ -297,7 +297,7 @@ pub(crate) fn run(
     // a file to send — `nvs_server::statics`, the same policy a configured
     // deployment serves under — or a file to run as `rule:security/isolate-shares-nothing`'s isolate, the same
     // type `spawn script` runs and deliberately not a second isolation path
-    // (ADR 0097's crate doc). With one mount at `/` and `dispatch = "entry"`
+    // (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s crate doc). With one mount at `/` and `dispatch = "entry"`
     // that is step 5 every time and the resolve is a cache hit on the unit
     // compiled above, so what it costs per request is one `Program` over shared
     // code.
@@ -393,7 +393,7 @@ pub(crate) fn run(
                 inbound.push_header(name.as_str(), value.as_bytes());
             }
             // And who it came from, which this handler is *told* rather than
-            // reading: ADR 0097 § 6's walk ran on the connection, before the
+            // reading: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk ran on the connection, before the
             // ceiling and before this closure, because the answer decides
             // policy on responses no handler ever sees. Both of its answers
             // land here together — `Inbound::set_peer` owns why they are one
@@ -429,7 +429,7 @@ pub(crate) fn run(
             // does.
             let (head, incoming) = request.into_parts();
             // And the body, which crosses as `nvs_runtime::RequestBody` and not
-            // as bytes — ADR 0105 § 5, and that trait's own docs are the
+            // as bytes — `rule:http-server/request-body-and-upload-total-are-two-caps`, and that trait's own docs are the
             // argument. It is split rather than handed over: `hyper`'s
             // `Incoming` is polled with the *connection's* context and the
             // isolate is a peer task, so what the carrier gets is the pulling
@@ -507,7 +507,7 @@ pub(crate) fn run(
         let draining = draining.clone();
         move |_ctx| {
             // `ControlFlow::Continue` forever: a development server runs until
-            // the process is stopped, and ADR 0097 § 5's drain is the slice that
+            // the process is stopped, and `rule:http-server/the-server-block-is-boot-class`'s drain is the slice that
             // gives this command a control socket to be asked by.
             let served = nvs_server::serve_on_this_core(
                 &mut listener,
@@ -687,7 +687,7 @@ fn sweep_orphans(config: &nvs_config::Config) {
     }
 }
 
-/// ADR 0097 § 4's one row for a tree that mounts nothing: the file named on the
+/// `rule:http-server/a-request-resolves-in-five-steps`'s one row for a tree that mounts nothing: the file named on the
 /// command line, mounted at `/`, with the directory it sits in as the mount
 /// root.
 ///
@@ -847,7 +847,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// ADR 0097 § 5's own sentence: the flag overrides the file. Asserted
+    /// `rule:http-server/the-server-block-is-boot-class`'s own sentence: the flag overrides the file. Asserted
     /// against a configured entry that is nothing like it, so a reading that
     /// merged the two rather than replacing would fail here.
     #[test]

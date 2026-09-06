@@ -22,7 +22,7 @@
 //! answer would be a second place a deployment could be pointed at a different server.
 //!
 //! **The bounds are finite with nothing configured**, per
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md), and § 6 has no unbounded
+//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and § 6 has no unbounded
 //! spelling at all: a job is retried a fixed number of times and then kept, so `max_attempts =
 //! false` is not a bound this module can read. `QueueBounds::DEFAULTS` transcribes § 2's own
 //! example rather than choosing numbers.

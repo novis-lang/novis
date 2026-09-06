@@ -74,8 +74,8 @@
 //! in a CLI program has nowhere to put them if the program is not one. The
 //! root is `TaskRoot::Request`, so a panic that reaches it fails this run
 //! rather than retiring anything
-//! ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 2).
+//! (`rule:http-server/containment-does-not-end-at-the-helper`
+//! ).
 
 #![allow(
     clippy::print_stdout,
@@ -204,7 +204,7 @@ enum Command {
     },
     /// Serve a `.nvs`/`.php` file over HTTP, on one core, until stopped.
     ///
-    /// ADR 0097's development server and proxied origin. The file is compiled
+    /// `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s development server and proxied origin. The file is compiled
     /// before the socket is bound and every request runs it as `rule:security/isolate-shares-nothing`'s
     /// isolate; § 4's mount table is the slice that replaces the argument with
     /// a set of entry points, and `serve`'s module doc owns why one path on the
@@ -213,7 +213,7 @@ enum Command {
         /// The file every request runs.
         file: PathBuf,
         /// The address to listen on, as `host:port` — the last word over
-        /// `[server] listen` (ADR 0097 § 5).
+        /// `[server] listen` (`rule:http-server/the-server-block-is-boot-class`).
         #[arg(long, value_name = "ADDR")]
         listen: Option<String>,
         /// The port to listen on, keeping the host `[server] listen` chose.
@@ -1418,7 +1418,7 @@ fn run_run(
                 // nothing about the status it is passing on.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }
-            // ADR 0139 § 4's write-back, and the second of its two ends — the
+            // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, and the second of its two ends — the
             // other is `nvs-host`'s isolate teardown, which is where an HTTP
             // request ends. **After the hooks**, because an exit hook is user
             // code that may still write to the session, and here inside the
@@ -1501,7 +1501,7 @@ fn run_run(
         return ExitCode::FAILURE;
     }
 
-    // ADR 0106 § 2's outer boundary caught a panic under the task root. For a
+    // `rule:http-server/containment-does-not-end-at-the-helper`'s outer boundary caught a panic under the task root. For a
     // request that is a failed request; for a CLI run it is this process's
     // failure, reported as the fatal it is rather than unwinding out of `main`.
     if let Err(panic) = finished.outcome {

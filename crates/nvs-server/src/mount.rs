@@ -1,4 +1,4 @@
-//! [ADR 0097] § 4's five steps: the request that arrived, resolved against the
+//! `rule:http-server/a-request-resolves-in-five-steps`'s five steps: the request that arrived, resolved against the
 //! table [`nvs_config::mount`] expanded at boot.
 //!
 //! ```text
@@ -72,7 +72,6 @@
 //! The table itself is one allocation per configuration generation, shared by
 //! every request and never rebuilt on the request path.
 //!
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -898,7 +897,7 @@ mod tests {
     /// either line alone.
     ///
     /// The stripped path is asserted **equal across the two**, which is what
-    /// ADR 0097 § 3 bought and what § 7 exists to give back: an application
+    /// `rule:http-server/a-mount-table-expands-at-boot` bought and what § 7 exists to give back: an application
     /// written against its own root sees `/orders/17` under both mounts, and the
     /// only thing telling it which tenant it is serving is the capture.
     #[test]
@@ -952,7 +951,7 @@ mod tests {
         assert!(words(&unmounted).is_empty());
     }
 
-    /// ADR 0097 § 2's governing rule, as a **set equality** rather than as a list
+    /// `rule:http-server/a-path-is-never-derived-from-a-url`'s governing rule, as a **set equality** rather than as a list
     /// of refusals: the paths a booted server can execute are exactly the entries
     /// [`nvs_config::mount::expand`] enumerated, no more and no fewer.
     ///
@@ -1116,7 +1115,7 @@ mod tests {
         assert!(sent.contains(&p("/www/blog/public/style.css")));
     }
 
-    /// M7's path traversal suite — ADR 0097 § 2 and § 4 step 3, one row per
+    /// M7's path traversal suite — `rule:http-server/a-path-is-never-derived-from-a-url` and § 4 step 3, one row per
     /// published technique rather than one case per file.
     ///
     /// The suite is run at the **widest** reading of the table, `dispatch =

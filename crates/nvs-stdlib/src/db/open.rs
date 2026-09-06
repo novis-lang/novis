@@ -74,7 +74,7 @@ pub(super) const RETRIES_ARG: usize = 4;
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a duration that is zero or negative, on
-/// `Core\Http`'s reading: ADR 0074 § 5 has no spelling for an unbounded wait,
+/// `Core\Http`'s reading: `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for an unbounded wait,
 /// and a zero one is that spelling said quietly. A [`Fault::fatal`] for a slot
 /// that is neither a `Duration` nor `Tag::Null`, which the row's type rules out.
 pub(super) fn deadline_of(args: &[Value]) -> Result<Option<std::time::Instant>, Fault> {
@@ -651,7 +651,7 @@ nvs_runtime::nvs_helper! {
     /// [`crate::db::pool::settings_bounds`]: the `[db.<name>.pool]` table of the
     /// block these very settings describe, if a deployment wrote one, and
     /// `PoolBounds::DEFAULT` otherwise — the same bounds a block that writes no
-    /// `pool` key takes, which is what ADR 0074's *finite with nothing
+    /// `pool` key takes, which is what `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s *finite with nothing
     /// configured* already means one layer down, and the only other candidate
     /// (`OFF`) is § 13 declining to pool `open` at all, which that section
     /// spends a bullet requiring. The consequence an operator has to be told
@@ -695,7 +695,7 @@ nvs_runtime::nvs_helper! {
             nvs_config::capability::Scope::Host(host),
             OPEN,
         )?;
-        // And § 3's other half — ADR 0058's table, which is what a
+        // And § 3's other half — `rule:http-server/allow-url-pins-the-address`'s table, which is what a
         // program-supplied address is subject to and an operator-written one is
         // not. The name is resolved once, here, and the socket below opens to
         // exactly the address that was checked.
@@ -865,7 +865,7 @@ nvs_runtime::nvs_helper! {
 /// writes its journal beside the database and a connection that cannot is one
 /// that fails at the first statement rather than at `open`.
 ///
-/// **ADR 0058's address table is not consulted**, and that is not an omission:
+/// **`rule:http-server/allow-url-pins-the-address`'s address table is not consulted**, and that is not an omission:
 /// there is no address. The reason § 3 subjects `open`'s host to it — a
 /// program-supplied address can be attacker-influenced into the ranges a
 /// database lives at — is answered here by `fs.read`/`fs.write`, which is the
@@ -1507,7 +1507,7 @@ mod tests {
         )
         .expect_err("and nothing here grants `net.connect` for any host at all");
 
-        // ADR 0058's door on that same deployment, refusing the host before it
+        // `rule:http-server/allow-url-pins-the-address`'s door on that same deployment, refusing the host before it
         // is resolved — the first of the two ways a database on loopback would
         // be unreachable if a named endpoint went through it.
         let by_door = nvs_runtime::capability::pin_host(&ctx, HOST, CONNECT)

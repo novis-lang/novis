@@ -110,7 +110,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // one it does not (`rule:config/three-changeability-classes`, `rule:security/isolate-shares-nothing`) — so which grants exist is not this registry's question.
     Directive { key: "capabilities", class: Class::RuntimeTighten, apply: Apply::Reload },
     // `rule:config/three-changeability-classes` names a response header as the counter-example to `System`: a request may set any of
-    // ADR 0074's policy directives for itself, because it could already write the header directly.
+    // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy directives for itself, because it could already write the header directly.
     Directive { key: "http", class: Class::Runtime, apply: Apply::Reload },
     // `[log] format` and `level` are rows of `rule:config/a-mode-is-five-defaults`'s mode table, and no row in that table is
     // `System`-class.
@@ -137,7 +137,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // nothing is re-created. `nvs_runtime::Ctx::write_log_record` is its only reader.
     Directive { key: "log.target", class: Class::System, apply: Apply::Reload },
     // The four `Boot` rows `rule:config/reloadability-is-its-own-field` names, less the thread-per-core count the module doc
-    // records as unspelled. `[server]`'s whole block is `Boot` per ADR 0097 § 5, which is more than
+    // records as unspelled. `[server]`'s whole block is `Boot` per `rule:http-server/the-server-block-is-boot-class`, which is more than
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
     // Neither of the other two `[cache]` keys is an artifact directory at all, and both are more
@@ -166,7 +166,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },
-    // ADR 0139 § 3: where a fleet's sessions live is a deployment decision, so `System`; `Boot`
+    // `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: where a fleet's sessions live is a deployment decision, so `System`; `Boot`
     // rather than `Reload` because a backend swapped under a running server strands every live
     // record in the store nothing reads any more, which is the one failure a session store has.
     Directive { key: "session", class: Class::System, apply: Apply::Boot },

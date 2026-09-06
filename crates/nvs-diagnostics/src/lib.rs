@@ -1318,7 +1318,7 @@ pub mod code {
     /// configuration simply does not say the file may be run.
     pub const E_BAD_SCHEDULE: Code = Code::new("E0611");
 
-    /// An `[http]` pair with no correct meaning: ADR 0074 § 2's `origins =
+    /// An `[http]` pair with no correct meaning: `rule:http-server/cors-is-closed-until-origins-are-named`'s `origins =
     /// ["*"]` with `credentials = true`, or § 3's `same_site = "None"` with
     /// `secure = false`. Both are refused rather than warned about because
     /// neither is a weak policy — every browser rejects both outright, so the
@@ -1406,8 +1406,8 @@ pub mod code {
     /// `E0616`'s reason: what it reads is a grant, not a type.
     pub const E_UNGRANTED_HOST: Code = Code::new("E0618");
 
-    /// A `[server]` wait that would never end: `false`, or `0`. ADR 0074's
-    /// headline is that Novis never waits forever and ADR 0097 § 5 states its
+    /// A `[server]` wait that would never end: `false`, or `0`. `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
+    /// headline is that Novis never waits forever and `rule:http-server/the-server-block-is-boot-class` states its
     /// four inbound waits as finite with nothing configured, so `false` — which
     /// removes a ceiling everywhere else in the tree (`rule:config/three-changeability-classes`) — has no
     /// meaning here and is refused rather than read as a default. `0` is the
@@ -1422,7 +1422,7 @@ pub mod code {
     pub const E_UNBOUNDED_WAIT: Code = Code::new("E0619");
 
     /// A `[server] listen` entry the server cannot bind, or a written array
-    /// with nothing in it. ADR 0097 § 5's array is one flat list whose entries
+    /// with nothing in it. `rule:http-server/the-server-block-is-boot-class`'s array is one flat list whose entries
     /// are a `host:port` or an absolute path meaning a Unix socket, and the
     /// overload is unambiguous because no address can begin with a separator.
     ///
@@ -1434,8 +1434,8 @@ pub mod code {
     /// own default is kept.
     pub const E_BAD_LISTEN: Code = Code::new("E0620");
 
-    /// A `[[server.mount]]` block that does not resolve to a mount. ADR 0097
-    /// § 2 makes the set of paths the server can execute something enumerated
+    /// A `[[server.mount]]` block that does not resolve to a mount. `rule:http-server/a-path-is-never-derived-from-a-url`
+    /// makes the set of paths the server can execute something enumerated
     /// before it accepts anything, so every way a block can fail to name one is
     /// a boot refusal rather than a mount quietly missing from the table.
     ///
@@ -1448,7 +1448,7 @@ pub mod code {
     /// holds none of the files; the second needs the tree it mounts.
     pub const E_BAD_MOUNT: Code = Code::new("E0621");
 
-    /// A `[server] max_in_flight` written as `0`. ADR 0097 § 5's ceiling is a
+    /// A `[server] max_in_flight` written as `0`. `rule:http-server/the-server-block-is-boot-class`'s ceiling is a
     /// safety valve, and that spelling asks for a process that accepts a
     /// connection and then refuses every request on it — the same deployment
     /// `E0620` refuses when `listen` is written empty, reached from the other
@@ -1459,14 +1459,14 @@ pub mod code {
     ///
     /// Only the written magnitude is this code's: the *effective* ceiling is an
     /// arithmetic against the memory budget
-    /// ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 13) and a configured number the budget cannot afford is clamped and
+    /// (`rule:http-server/admission-is-arithmetic-not-a-number`
+    /// ) and a configured number the budget cannot afford is clamped and
     /// logged rather than refused, because a server that will not boot because
     /// two directives disagree is the worse outage.
     pub const E_NO_ADMISSION: Code = Code::new("E0622");
 
     /// A `[server] health_path` that is not an absolute path: `healthz`,
-    /// `/healthz?verbose=1`, or `/` on its own. ADR 0097 § 5's probe answers
+    /// `/healthz?verbose=1`, or `/` on its own. `rule:http-server/the-server-block-is-boot-class`'s probe answers
     /// one exact URL ahead of the mount table, so what is written here is
     /// reserved from every application this server mounts — which is why the
     /// key is off by default, and why a spelling no request could ever carry
@@ -1479,7 +1479,7 @@ pub mod code {
     /// whole request target that reaches no filesystem at all.
     pub const E_BAD_HEALTH_PATH: Code = Code::new("E0623");
 
-    /// An `[http.cookies] same_site` that is none of ADR 0074 § 3's three
+    /// An `[http.cookies] same_site` that is none of `rule:http-server/cookies-are-secure-httponly-and-lax`'s three
     /// spellings — `Strictly`, `lax=true`, or a value left over from another
     /// framework's own key.
     ///
@@ -1513,7 +1513,7 @@ pub mod code {
     /// is why both exist.
     ///
     /// Not `E0612`'s or `E0624`'s refusal reached from another direction:
-    /// both of those are about a value's *meaning* under ADR 0074 §§ 2-3, and
+    /// both of those are about a value's *meaning* under `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, and
     /// this is about whether the bytes can be transmitted at all.
     pub const E_UNCARRIABLE_HEADER: Code = Code::new("E0625");
 
@@ -1521,7 +1521,7 @@ pub mod code {
     ///
     /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed the local cache tier from the candidates and said
     /// the removal is "enforced rather than documented"; this code is that
-    /// enforcement, and ADR 0139 § 3 is where the roster it checks against is
+    /// enforcement, and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` is where the roster it checks against is
     /// written. A session read on one core and written on another must see one
     /// value, and a per-core map cannot give one — so a deployment that wrote
     /// `local` has an authentication surface that forgets people at a rate set
@@ -2950,7 +2950,7 @@ pub mod code {
     /// without complaint of its own.
     pub const E_CLASS_REF_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0795");
 
-    /// ADR 0074 § 7: a request member whose verb repeats an effect —
+    /// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: a request member whose verb repeats an effect —
     /// `Core\Http\Client::post` — asking for retries without
     /// `retryIdempotencyKey`.
     ///

@@ -29,7 +29,7 @@
 //!   counts requests in flight and a request that upgraded has ended, so a
 //!   connection holding a coroutine, 128 KiB of codec buffer and a root isolate
 //!   would be charged to nothing. The two numbers are the same magnitude for
-//!   the same reason — ADR 0106 § 13's arithmetic sizes a slot against what one
+//!   the same reason — `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic sizes a slot against what one
 //!   isolate may hold, and § 1 gives a connection isolate exactly that budget.
 //! - **Connections per tenant** is not a bound of this server's at all, which
 //!   is what § 7's parenthetical says: `rule:core-classes/ratelimit-two-members`
@@ -119,7 +119,7 @@ impl Default for Connection {
     /// [`drain`](Connection::drain) is the other number no ADR writes, and a
     /// second is picked for what the period is *for*: a connection has no
     /// in-flight request to finish — that is what separates it from the drain
-    /// ADR 0097 § 5 gives an HTTP connection — so what the period buys is the
+    /// `rule:http-server/the-server-block-is-boot-class` gives an HTTP connection — so what the period buys is the
     /// frame already on the wire and the answer to it, which is one round trip
     /// on any network an origin is proxied over. Longer would hold a deploy
     /// open for clients that are going to reconnect to the next instance

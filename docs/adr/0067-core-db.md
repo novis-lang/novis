@@ -106,7 +106,7 @@ A connection is **released** by the runtime at request teardown — the job a de
 by the arena instead — which returns it to its core's pool after the reset § 13 requires, or destroys it if
 that reset fails. `close()` releases one early. `Db::connect` after a `close()` acquires a fresh one.
 
-### 3. `db.connect` and `db.open`, and what that means for ADR 0058
+### 3. `db.connect` and `db.open`, and what that means for `rule:http-server/allow-url-pins-the-address`
 
 Three deny-by-default capabilities:
 
@@ -135,7 +135,7 @@ the set of names a program may reach to every name an attacker can get into that
 module doc is the comparison's one home, and § 10's check-time refusal reads it through the same
 predicate a request does.
 
-[ADR 0058](0058-outbound-request-policy.md)'s address policy exists because a **program-supplied** address
+`rule:http-server/allow-url-pins-the-address`'s address policy exists because a **program-supplied** address
 can be attacker-influenced. An address an operator wrote into root-owned configuration is not: it is the
 same authority that grants the capability in the first place. So a `connect`-named endpoint is
 pre-approved and is not additionally checked against the denied ranges — which matters because a database

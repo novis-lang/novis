@@ -1,0 +1,6 @@
+`rule:errors/engine-floor`'s floor writes unconditionally, which is correct, and a request that faults in a loop therefore writes in a loop. Two bounds, both on the **sink** rather than on the callers, so that no caller has to be trusted to be rare:
+
+- **Rotation and a retention bound** on any file target, for the diagnostic log and the access log alike. Everything a target can occupy is `(keep + 1) × max_bytes`, the bound is enforced before the write so a record never straddles two files, and a file that cannot be rotated is a target that grows without bound, which is the one thing the target exists to prevent.
+- **A rate limit with a coalescing counter** — repeated identical records within a window become one record carrying a count. The record shape is `rule:errors/diagnostic-record`'s and gains a `count` field rather than a second shape; it is the one key written by a sink rather than by a producer. The next occurrence after the window carries how many it stands for, and a record that differs is never held back.
+
+A full disk also stops compilation, which would convert a log problem into a total outage. **A write failure in the on-disk artifact cache falls back to compiling in memory** and reports once; the cache is an optimisation and is treated as one.

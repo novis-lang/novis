@@ -1,9 +1,9 @@
 --TEST--
-`Core\Session::start` refuses a tree that configured no store, naming the block to write rather than choosing one for it -- ADR 0139 §§ 1, 3
+`Core\Session::start` refuses a tree that configured no store, naming the block to write rather than choosing one for it -- `rule:core-api/session-roster` and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
 --FILE--
 <?nvs
-// ADR 0139 § 3: an absent `[session]` block is not a default backend. The safe
-// answer for a store nobody chose is no store — the direction ADR 0074 takes
+// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: an absent `[session]` block is not a default backend. The safe
+// answer for a store nobody chose is no store — the direction `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` takes
 // for everything it leaves unconfigured — so a bare `start()` here is a refusal
 // and not a session on whichever store happened to be reachable.
 uint $refused = 0;

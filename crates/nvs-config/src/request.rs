@@ -18,8 +18,8 @@
 //! name no [`Directive`](crate::directive::Directive) row governs, a `System` one, a value that
 //! does not spell its unit, a value above the `[limits.hard]` ceiling, a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
-//! leave this request holding one of ADR 0074 §§ 2-3's meaningless `[http]` pairs, and a mode
-//! outside ADR 0091 § 5's ceiling — a name that is not one of the two modes being outside every
+//! leave this request holding one of `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
+//! outside `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling — a name that is not one of the two modes being outside every
 //! ceiling. Nothing on this path throws, so a program cannot catch a refusal and cannot tell one
 //! from another — which is the API `rule:config/ini-set-is-core-config-set` states and not an omission.
 //!
@@ -216,7 +216,7 @@ impl Request {
             .unwrap_or_else(|| mode::PRODUCTION.to_string())
     }
 
-    /// ADR 0091 § 5's ceiling: `[mode] ceiling` where the tree states one, else the mode the host
+    /// `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling: `[mode] ceiling` where the tree states one, else the mode the host
     /// started in.
     ///
     /// Read off the snapshot and never off the overlay, which is the whole of what makes the ceiling
@@ -231,7 +231,7 @@ impl Request {
         self.started()
     }
 
-    /// ADR 0074 §§ 2-3, asked of what this request would be left holding.
+    /// `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, asked of what this request would be left holding.
     ///
     /// The same two combinations the boot refuses, refused here as `false` with the value unchanged
     /// — § 2 states both halves and [`http`](crate::http) is the one place the condition is

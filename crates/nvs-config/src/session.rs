@@ -1,4 +1,4 @@
-//! [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md) § 3's
+//! `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s
 //! `[session] backend`: the two stores a session record may live in, and the boot-time refusal of
 //! the one `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
 //!
@@ -25,7 +25,7 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::resolve::{Origin, origin_note};
 use crate::tree::Config;
 
-/// One of ADR 0139 § 3's two stores, as written.
+/// One of `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s two stores, as written.
 ///
 /// The type carries no `Local` variant and must not gain one: what makes `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` enforced is
 /// that there is no value of this type meaning the per-core tier, so no later reader can select it
@@ -70,7 +70,7 @@ impl Backend {
 /// value".
 const REFUSED: &str = "local";
 
-/// ADR 0139 § 3 over the merged tree: every `[session] backend` names a store § 3 admits.
+/// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` over the merged tree: every `[session] backend` names a store § 3 admits.
 ///
 /// The merged tree rather than each file, for [`crate::http::validate`]'s reason — a base file
 /// naming `local` that an include replaces is not a deployment running on `local`, and refusing it
@@ -102,7 +102,9 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
          core accepted the request, which is an authentication bug wearing a cache's clothes"
             .to_owned()
     } else {
-        format!("ADR 0139 § 3 admits {spellings}, and nothing else")
+        format!(
+            "`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` admits {spellings}, and nothing else"
+        )
     };
     Err(Diagnostic::error(
         code::E_SESSION_BACKEND,
@@ -135,7 +137,7 @@ mod tests {
         }
     }
 
-    /// ADR 0139 § 3, both sides of the roster: the two words it admits resolve, and the one ADR
+    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, both sides of the roster: the two words it admits resolve, and the one ADR
     /// 0059 § 4 removed is refused with that section named rather than with a generic
     /// unknown-value message an operator learns nothing from.
     #[test]

@@ -45,8 +45,8 @@
 //!
 //! # It cannot fill the disk it writes to
 //!
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 10: the floor writes unconditionally, which is correct, so a request that
+//! `rule:http-server/the-floor-cannot-fill-the-disk`
+//! : the floor writes unconditionally, which is correct, so a request that
 //! faults in a loop writes in a loop. [`report`] therefore holds
 //! § 10's second bound — repeated identical records inside
 //! [`COALESCING_WINDOW`] become one record carrying [`nvs_render::Envelope::count`].
@@ -166,8 +166,8 @@ pub fn text(value: &str) -> Node {
 
 /// Renders `record` as `rule:errors/renderings`'s JSON Lines line and writes it where
 /// `[log] target` says — `ctx`'s diagnostic channel where it says nothing —
-/// unless [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 10's window has already written it.
+/// unless `rule:http-server/the-floor-cannot-fill-the-disk`
+/// 's window has already written it.
 ///
 /// [`Ctx::write_log_record`] is the routing and the only reader of that
 /// directive; this is one of its two callers and `Core\Log::write` is the
@@ -200,7 +200,7 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
     let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
 }
 
-/// How long one record holds the window open — ADR 0106 § 10's rate limit,
+/// How long one record holds the window open — `rule:http-server/the-floor-cannot-fill-the-disk`'s rate limit,
 /// which is what keeps a request faulting in a loop from writing in a loop.
 ///
 /// One second, and **not a directive**: a bound that exists so the disk cannot

@@ -32,13 +32,13 @@ that spike into `nvs-host` and gives it a reactor; it does not re-litigate wheth
 
 ## Stage 0 — the catch-up, and it is the containment rule
 
-[ADR 0106](../../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) was accepted after M4
+`rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` was accepted after M4
 was reported done and it **amends `rule:errors/propagation`**: containment moves outward from the helper to the worker
 task. Every mechanism this goal builds sits inside that boundary, so it goes first — a scheduler written
 against the old boundary is a scheduler whose panic path is wrong, and it is wrong in the place that is
 hardest to find later.
 
-1. **The worker task is the containment boundary, not the helper.** ADR 0106 §§ 1–3: `catch_unwind` wraps
+1. **The worker task is the containment boundary, not the helper.** `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`, `rule:http-server/containment-does-not-end-at-the-helper` and `rule:http-server/no-path-reaches-abort`: `catch_unwind` wraps
    the worker task; nothing on a teardown path may panic; teardown stops recursing. `nvs_runtime`'s
    existing `catch_unwind` at the ABI is the inner boundary and stays — this is the outer one.
    `crates/nvs-runtime/src/abi.rs:336` is the helper-body macro that owns the inner rule.
@@ -109,9 +109,9 @@ is a consumer of it.
    program rests on** — see § *Standing decisions* for its ADR slot, which is the first slice of this
    stage rather than a follow-up to it.
 5. **Timers.** A timer wheel on the same reactor, because a deadline is what `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s
-   `{limit, deadline}` and ADR 0074 § 5's "no spelling for an unbounded wait" both resolve to. One
+   `{limit, deadline}` and `rule:http-server/no-spelling-for-an-unbounded-wait`'s "no spelling for an unbounded wait" both resolve to. One
    implementation; a sleep and a deadline are the same mechanism seen twice.
-6. **The blocking pool.** ADR 0106 § 6: filesystem calls, name resolution and waiting on a child process
+6. **The blocking pool.** `rule:http-server/a-core-is-never-blocked-on-a-syscall`: filesystem calls, name resolution and waiting on a child process
    go to a pool **bounded at twice the core count**, because they have no readiness to wait on. The bound
    is per worker and never grows with requests served — that is the ADR's own footprint statement and it
    is not a number to tune during the run.

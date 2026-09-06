@@ -13,8 +13,8 @@ What the goal is really buying is two things at once. `Core\Test::request` has n
 English word in spec § 13's table and one example in the ADR — so the bag gets written down and built.
 And because that bag carries `clientIp`, `scheme` and `host`, the same edit lands the three
 `Core\Request` members that `crates/nvs-stdlib/src/request.rs:20` has listed as "waiting on a carrier"
-since the module was written: `nvs_server::forwarded` already answers both facts per request (ADR 0097
-§ 6, landed), and nothing carries the answer down.
+since the module was written: `nvs_server::forwarded` already answers both facts per request (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`
+, landed), and nothing carries the answer down.
 
 ## Next group
 

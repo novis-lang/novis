@@ -83,8 +83,8 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
 ```
 
 1. **These sign the route's *identity*, not its path.** `rule:core-classes/router-signed-url`: one compiled table serves at
-   `/ModuleA`, `/ModuleB` or `/` ([ADR 0097](../../adr/0097-development-server-and-proxied-origin.md)
-   § 3), so a signature over an assembled path stops verifying when a mount moves and one over the
+   `/ModuleA`, `/ModuleB` or `/` (`rule:http-server/a-mount-table-expands-at-boot`
+   ), so a signature over an assembled path stops verifying when a mount moves and one over the
    route name and its typed parameters does not. **That property is the acceptance test**, not an
    aside.
 2. **`signedRoute` verifies against `Core\Request::route()`** — the match the server already made

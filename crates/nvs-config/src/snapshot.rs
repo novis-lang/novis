@@ -71,7 +71,7 @@ pub struct Snapshot {
     /// a sub-table, so it is read off directly instead of merged: the global `[mode]` is a table
     /// with `default` and `ceiling` in it, and folding a string over that would replace both.
     pub mode: Option<String>,
-    /// `[app] origin` — what `Core\Router::urlAbsolute` prepends (ADR 0097 § 3), from the most
+    /// `[app] origin` — what `Core\Router::urlAbsolute` prepends (`rule:http-server/a-mount-table-expands-at-boot`), from the most
     /// specific block that set one, and read off directly for [`mode`](Snapshot::mode)'s reason.
     /// This is a URL and never a [`struct@Origin`], which is where a value was written.
     pub origin: Option<String>,

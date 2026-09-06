@@ -1,4 +1,4 @@
-//! [ADR 0097] § 6's forwarded walk: which address the request came from, and
+//! `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s forwarded walk: which address the request came from, and
 //! whether anything it carried is allowed to say otherwise.
 //!
 //! Two facts leave this module — the client address and the effective scheme —
@@ -63,7 +63,6 @@
 //! allocation at all. A request from an unproxied deployment reads no header
 //! and touches neither.
 //!
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::net::IpAddr;
 
@@ -510,7 +509,7 @@ mod tests {
         trusted
     }
 
-    /// The whole of ADR 0097 § 6's first rule, asked as a partition rather than
+    /// The whole of `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s first rule, asked as a partition rather than
     /// as one example: for every combination of a written `trusted_proxies` and
     /// a peer, the client address and the effective scheme are the peer's own
     /// **unless** the peer is trusted — and then they are what it asserted.

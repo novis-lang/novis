@@ -22,7 +22,7 @@ try {
 // And the host it does grant, which is the asymmetry stated as a contrast:
 // this is the very address `Core\Db::connect` reaches with no `net` key
 // written at all, and `open` still cannot have it. A program-supplied address
-// stays subject to ADR 0058's table, so the grant is not the last word --
+// stays subject to `rule:http-server/allow-url-pins-the-address`'s table, so the grant is not the last word --
 // `net.internal` would be, and this deployment writes none.
 try {
     var $near = Core\Db::open({

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::saveTo`'s path is a sink and `filename()` is the client's claim, so the one line every upload traversal has been written on does not compile — ADR 0105 §§ 2 and 4, `rule:security/tainted-qualifier`
+`Core\Request\Part::saveTo`'s path is a sink and `filename()` is the client's claim, so the one line every upload traversal has been written on does not compile — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:core-classes/io-write-stream`, `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // `rule:core-classes/io-write-stream` makes `saveTo` a delegation to `Core\IO::writeStream`, and this

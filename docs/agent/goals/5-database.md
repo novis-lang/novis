@@ -62,7 +62,7 @@ crates, and it has the reset that § 13 calls the good case. The other four are 
 4. **A connection is named, or built from settings, and is memoized for the request** — § 2. The settings
    are **five types, not one loose shape**: SQLite takes a `path` and has no `host`, so a `host` on a
    SQLite settings literal is a **compile error** rather than a silently ignored field.
-5. **`db.connect` and `db.open`, and what they mean for ADR 0058** — § 3. Connections are named in
+5. **`db.connect` and `db.open`, and what they mean for `rule:http-server/allow-url-pins-the-address`** — § 3. Connections are named in
    root-owned config. A `connect`-named private-range endpoint succeeds with **no `net.connect` grant**,
    while a `db.open` target in a denied range fails — the two capabilities answer different questions and
    collapsing them is the mistake.

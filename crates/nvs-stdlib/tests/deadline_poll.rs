@@ -1,8 +1,8 @@
 //! A member whose runtime scales with its input stops when the deadline has
 //! passed, and stops at the batch boundary the combinator owns.
 //!
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 5's first constraint puts the poll in `nvs_runtime::bounded_loop` rather
+//! `rule:http-server/time-is-bounded-inside-a-helper`
+//! 's first constraint puts the poll in `nvs_runtime::bounded_loop` rather
 //! than in each helper that remembers to ask, and `Core\Arr::map` is the first
 //! member to adopt it: a callback per entry, over an array a request supplied,
 //! is the definition of the shape that ADR exists for. What is pinned here is

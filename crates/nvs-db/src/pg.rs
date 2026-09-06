@@ -254,7 +254,7 @@ impl<'a> PgTarget<'a> {
     /// refusal that reader's doc comment promises somebody makes.
     ///
     /// The address is not here. § 3 pre-approves an operator-written endpoint
-    /// and [ADR 0058](/docs/adr/0058-outbound-request-policy.md) pins
+    /// and `rule:http-server/allow-url-pins-the-address` pins
     /// it, so `host`'s resolution to a [`SocketAddr`] belongs to whoever
     /// checked the `db.connect` capability, and [`PgConn::connect`] takes that
     /// address beside this target. What is here is the name the certificate is

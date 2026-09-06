@@ -1,4 +1,4 @@
-# ADR 0106 — Nothing a request can send terminates or wedges a worker
+# `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` — Nothing a request can send terminates or wedges a worker
 
 - **Status:** Accepted
 - **Date:** 2026-08-27
@@ -42,7 +42,7 @@ Four decisions already stand between a request and its neighbours, and each clos
 `rule:errors/escalation-ladder` gives every `FATAL` a path that ends in a log line, including
 the call-stack limit that would otherwise be a `SIGSEGV`.
 `rule:errors/ambiguous-input-refused` refuses text whose spelling and meaning come
-apart instead of repairing it. [ADR 0097](0097-development-server-and-proxied-origin.md) caps in-flight
+apart instead of repairing it. `rule:http-server/two-deployments-and-nothing-a-proxy-owns` caps in-flight
 work and waits for nothing forever.
 
 None of them says what happens on the paths that go *around* all four. The audit that produced this ADR
@@ -289,7 +289,7 @@ else owns the question.
 
 ### 13. Admission is arithmetic, not a number
 
-[ADR 0097](0097-development-server-and-proxied-origin.md)'s `max_in_flight` refuses work before allocating
+`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s `max_in_flight` refuses work before allocating
 an isolate, which is the right shape. But a ceiling on *concurrency* and a cap on *per-request memory* that
 have no stated relationship do not bound anything together: their product is what the machine must hold,
 and if that product exceeds what it has, the operating system's out-of-memory killer is the real admission

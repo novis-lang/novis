@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http::allowUrl` answers a `Core\Http\Target` rather than a `string`, and a name that resolves to nothing is refused — ADR 0058 § 2
+`Core\Http::allowUrl` answers a `Core\Http\Target` rather than a `string`, and a name that resolves to nothing is refused — `rule:http-server/allow-url-pins-the-address`
 --FILE--
 <?nvs
 // The approval succeeds and the answer is a value, not laundered text. That is

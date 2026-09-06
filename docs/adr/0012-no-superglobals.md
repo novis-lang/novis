@@ -136,7 +136,7 @@ The mechanics are **not** this ADR's, for the same reason [ADR 0008](0008-static
 ADR fixes the *shape* — a class, explicit start, no ambient array — and the storage backend, its
 selection via an `rule:config/three-changeability-classes`-style directive, locking semantics and garbage
 collection are a real feature with their own questions. All four are answered in
-[ADR 0139](0139-a-session-is-a-record-its-store-issued.md): the backends are the shared cache tier and
+`rule:http-server/a-session-store-answers-four-operations`: the backends are the shared cache tier and
 the database, with the local tier refused at boot naming
 `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`; there is no lock; and expiry is the store's own
 rather than a sweeper's.

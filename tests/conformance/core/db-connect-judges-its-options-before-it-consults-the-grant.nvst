@@ -1,5 +1,5 @@
 --TEST--
-Core\Db::connect refuses a zero `timeout` before it asks `db.connect` anything, and `{shared: false}` opens nothing the grant does not already cover — `rule:core-classes/db-connection-is-named`, ADR 0074 § 5, `rule:security/capability-check-at-the-door`
+Core\Db::connect refuses a zero `timeout` before it asks `db.connect` anything, and `{shared: false}` opens nothing the grant does not already cover — `rule:core-classes/db-connection-is-named`, `rule:http-server/no-spelling-for-an-unbounded-wait`, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // Nothing is configured in this run, so `db.connect` grants nothing and every
@@ -13,7 +13,7 @@ try {
     echo $refused->message, "\n";
 }
 
-// ADR 0074 § 5 has no spelling for an unbounded wait, and `0s` is that
+// `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for an unbounded wait, and `0s` is that
 // spelling said quietly -- so it is refused rather than read as "no deadline",
 // which is the reading that would hang a request on a server that never
 // answers.

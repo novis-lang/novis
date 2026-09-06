@@ -1,4 +1,4 @@
-# ADR 0105 — An uploaded file is a stream, and there is one way to receive it
+# `rule:http-server/an-upload-is-received-only-through-files` — An uploaded file is a stream, and there is one way to receive it
 
 - **Status:** Accepted
 - **Date:** 2026-08-27

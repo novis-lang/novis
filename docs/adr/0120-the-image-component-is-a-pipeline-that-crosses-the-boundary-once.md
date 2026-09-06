@@ -107,7 +107,7 @@ does not outlive a request.
 ```nvs
 use Novis\Image\{Image, Fit, Format};
 
-$source = $part->readAll();                      // ADR 0105: bounded by request_body
+$source = $part->readAll();                      // `rule:http-server/an-upload-is-received-only-through-files`: bounded by request_body
 $img = Image::open($source)                      // header only — nothing is decoded yet
     ->resize({fit: Fit::Cover, width: 800, height: 600})
     ->sharpen()

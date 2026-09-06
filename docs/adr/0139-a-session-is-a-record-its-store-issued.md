@@ -1,4 +1,4 @@
-# ADR 0139 — A session is a record its store issued, and its backend is never the local tier
+# `rule:http-server/a-session-store-answers-four-operations` — A session is a record its store issued, and its backend is never the local tier
 
 - **Status:** Accepted
 - **Date:** 2026-09-04

@@ -72,7 +72,7 @@ echo "kept ", Names::total($db), "\n";
 echo "alan ", Names::held($db, "alan"), "\n";
 --FILE nvs.toml--
 # § 3: a SQLite connection's file path comes from its config block, so
-# `db.connect` covers it and there is no address for ADR 0058's table to have an
+# `db.connect` covers it and there is no address for `rule:http-server/allow-url-pins-the-address`'s table to have an
 # opinion about.
 [capabilities.db]
 connect = ["main"]

@@ -1,8 +1,8 @@
 //! The blocking pool: where a call that has no readiness to wait on runs, so
 //! that it runs somewhere other than on a core.
 //!
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 6 is this module's specification and its one home: filesystem calls, name
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+//! is this module's specification and its one home: filesystem calls, name
 //! resolution and waiting on a child process go here, the reactor thread issues
 //! no call that can block on external state, and the pool is **bounded at twice
 //! the core count**. A socket read is not one of these — [`crate::net`] parks on
@@ -45,7 +45,7 @@
 //!
 //! Two containments, and they are not the same one. [`run`] catches the panic of
 //! the function it was given and carries it back to the *task's own stack*,
-//! where it resumes and meets the containment boundary ADR 0106 § 2 put at the
+//! where it resumes and meets the containment boundary `rule:http-server/containment-does-not-end-at-the-helper` put at the
 //! task root — a panicking `Core\IO` call fails one request, exactly as it
 //! would have on the core. The pool thread catches anything that still escapes a
 //! job, because a thread lost to an unwind is a thread the bound above no longer
@@ -66,7 +66,7 @@ type Job = Box<dyn FnOnce() + Send + 'static>;
 
 /// How many threads one worker's pool may start.
 ///
-/// **Twice the core count**, which is ADR 0106 § 6's number and its reasoning:
+/// **Twice the core count**, which is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s number and its reasoning:
 /// blocking work is waiting rather than computing, so a core may have several
 /// calls outstanding at once, and the factor is what lets it — while the *bound*
 /// is what keeps a workload's blocking fan-out from turning into a thread count
@@ -157,7 +157,7 @@ impl BlockingPool {
     /// doing its job rather than a failure: the alternative — refusing the work
     /// — would put an error on every filesystem call that means nothing but
     /// "the machine is busy", and the alternative to *that* is the unbounded
-    /// pool ADR 0106 § 6 rejects.
+    /// pool `rule:http-server/a-core-is-never-blocked-on-a-syscall` rejects.
     pub fn submit<F>(&mut self, job: F)
     where
         F: FnOnce() + Send + 'static,
@@ -227,7 +227,7 @@ impl Drop for BlockingPool {
         // TLS destructor — and on Windows those run under the loader lock,
         // while a thread being joined needs that same lock to run its own
         // destructors and exit. Joining here deadlocks the worker at the one
-        // moment it is trying to finish, which is the wedge ADR 0106 is about,
+        // moment it is trying to finish, which is the wedge `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` is about,
         // arriving from the teardown path rather than from a request.
         //
         // What the threads do instead: each sees `shutdown` the next time it
@@ -370,7 +370,7 @@ where
 /// inherited from a job's unwind — and the queue behind the lock is a `VecDeque`
 /// of boxes that is no less consistent for it. Refusing the work instead would
 /// wedge every later blocking call on one panicking job, which is precisely the
-/// tier B failure ADR 0106 exists to prevent.
+/// tier B failure `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` exists to prevent.
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
@@ -392,7 +392,11 @@ mod tests {
 
     #[test]
     fn the_bound_is_twice_the_core_count() {
-        assert_eq!(bound(), cpus().len().max(1) * 2, "ADR 0106 § 6's number");
+        assert_eq!(
+            bound(),
+            cpus().len().max(1) * 2,
+            "`rule:http-server/a-core-is-never-blocked-on-a-syscall`'s number"
+        );
         assert!(
             bound() >= 2,
             "a pool that can start no threads drains nothing"
@@ -493,7 +497,7 @@ mod tests {
     }
 
     /// Item 6's two halves in one place: the call reaches the *pool* rather
-    /// than the core, and the pool it reaches is ADR 0106 § 6's — bounded at
+    /// than the core, and the pool it reaches is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s — bounded at
     /// twice the core count, per worker, however many calls are in flight. The
     /// jobs overlap on purpose (each holds its thread while the rest are
     /// submitted), so a pool that grew with the fan-out would be caught here
@@ -532,7 +536,11 @@ mod tests {
         assert_eq!(elsewhere.get(), calls);
 
         let (threads, limit) = pool_size();
-        assert_eq!(limit, cpus().len().max(1) * 2, "ADR 0106 § 6's number");
+        assert_eq!(
+            limit,
+            cpus().len().max(1) * 2,
+            "`rule:http-server/a-core-is-never-blocked-on-a-syscall`'s number"
+        );
         assert!(
             threads <= limit,
             "{calls} concurrent calls started {threads} threads against a bound of {limit}"
@@ -561,7 +569,7 @@ mod tests {
     }
 
     /// A panic in the work is the request's, not the pool's: it comes back to
-    /// the task's own stack, where ADR 0106 § 2's containment boundary is.
+    /// the task's own stack, where `rule:http-server/containment-does-not-end-at-the-helper`'s containment boundary is.
     #[test]
     fn a_panic_in_the_work_comes_back_to_the_task() {
         let mut sched = Scheduler::new();

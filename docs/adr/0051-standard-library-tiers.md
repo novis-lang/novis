@@ -96,7 +96,7 @@ failable). `Core\Xml`, one API replacing six extensions, and `Core\Html`, whose 
 (`rule:core-classes/html-parsing`). `Core\Uri` (PHP 8.5's `uri`). `Core\Mime` (`fileinfo`, by magic bytes rather than
 libmagic's rule interpreter). `Core\Compress` (`zlib`, plus brotli and zstd — Tier 0 for the same
 reason `Core\Zip` is, that a decompression bomb is *policy* and policy must be non-optional; the built-in
-server compresses nothing itself, per [ADR 0097](0097-development-server-and-proxied-origin.md) § 1).
+server compresses nothing itself, per `rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 `Core\Zip`. `Core\Decimal` and
 `Core\BigInt` (`rule:types/decimal`). `Core\Os` (`posix`, minus fork). `Core\Cli`
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
@@ -209,7 +209,7 @@ says ambiguous input is refused rather than fixed up; and `amqp` and `kafka`, ag
 (`rule:concurrency/enqueue-commits-with-your-write`), whose transactional enqueue is a **stronger** guarantee than
 either broker offers, not a weaker substitute for one. By **test 1** plus a thin audience: `soap`, whose
 remaining users can compose `Core\Xml` with `Core\Http\Client`, and which PHP's own `ext/soap` has not been
-meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and ADR 0058's
+meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `Core\Storage` and `rule:http-server/allow-url-pins-the-address`'s
 outbound policy replace; and `ssh2`, where the credential handling is a priority-1 surface we decline to
 own and `Core\Process` can invoke a real `ssh` binary under `process.exec`. Outside the audience
 `rule:programs/audience` names at all: `snmp`, a device-monitoring tool whose

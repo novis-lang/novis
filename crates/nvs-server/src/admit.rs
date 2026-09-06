@@ -1,7 +1,7 @@
-//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-//! § 5's in-flight ceiling, as
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 13 amended it: the arithmetic that turns a written `max_in_flight` into an
+//! `rule:http-server/the-server-block-is-boot-class`
+//! 's in-flight ceiling, as
+//! `rule:http-server/admission-is-arithmetic-not-a-number`
+//! amended it: the arithmetic that turns a written `max_in_flight` into an
 //! effective one, and the one relaxed counter that refuses a request over it.
 //!
 //! # Why an arithmetic and not a number
@@ -10,7 +10,7 @@
 //! stated relationship do not bound anything together — their product is what
 //! the machine is actually asked to hold, and where that product exceeds what
 //! it has, the operating system's out-of-memory killer is the real admission
-//! controller. It terminates the process, which is ADR 0106 tier A's failure
+//! controller. It terminates the process, which is `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` tier A's failure
 //! arriving through the one door every cap above it was supposed to have
 //! closed. So [`Ceiling::of`] takes the **smaller** of what the file asked for
 //! and what the budget affords, and [`Ceiling::clamp_note`] is the sentence an

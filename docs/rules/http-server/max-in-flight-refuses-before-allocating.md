@@ -1,0 +1,5 @@
+`[server] max_in_flight` (`10000`) is a process-wide safety valve, not a worker pool. At the ceiling the server answers a fixed `503` with `Retry-After: 1` **before allocating an isolate, compiling anything or running any Novis code** — a cap that allocates in order to refuse does not protect what it exists to protect, and the consequence accepted is that this path has no custom error page.
+
+The count is process-wide through one relaxed atomic rather than per core, so one hot core cannot refuse while its neighbours idle; that counter is not on the value path the non-atomic-refcount decision protects. Not accepting at all was rejected: behind a proxy a silent refusal surfaces as a 504 blamed on the wrong component, and gives the proxy no signal to fail over on.
+
+The effective ceiling is an arithmetic, not this number alone: the smaller of what is configured here and what the memory budget affords against the per-request cap, clamped and logged once at boot when the two disagree. A concurrency ceiling and a per-request memory cap with no stated relationship bound nothing together, and their product is what the machine is actually asked to hold.

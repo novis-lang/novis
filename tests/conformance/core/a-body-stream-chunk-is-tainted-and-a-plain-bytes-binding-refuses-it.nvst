@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::bodyStream` walks `tainted bytes`, so a chunk carries the same mark `body` puts on the same octets and a plain `bytes` binding refuses it — spec § 15, `rule:security/tainted-qualifier`, ADR 0105 § 3
+`Core\Request::bodyStream` walks `tainted bytes`, so a chunk carries the same mark `body` puts on the same octets and a plain `bytes` binding refuses it — spec § 15, `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
 --FILE--
 <?nvs
 // The qualifier on the *element* is the thing a streaming reader could quietly

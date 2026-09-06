@@ -1,7 +1,7 @@
 //! One core, one scheduler, one run queue of stackful coroutines.
 //!
-//! This is [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 6's "one single-threaded scheduler of our own pinned per core", and the
+//! This is `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+//! 's "one single-threaded scheduler of our own pinned per core", and the
 //! shape `benches/abi-probe` has been modelling since M0 — its `Ctx` doc calls
 //! itself "deliberately shaped like the real `Ctx` will be", and this module is
 //! what it was shaped like.
@@ -566,8 +566,8 @@ pub struct Finished {
     pub ctx: Ctx,
     /// `Err` if a panic reached the task's root and was contained there by
     /// [`nvs_runtime::run_task`], which is
-    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 2's outer boundary. [`TaskPanic::retires_worker`] is the only
+    /// `rule:http-server/containment-does-not-end-at-the-helper`
+    /// 's outer boundary. [`TaskPanic::retires_worker`] is the only
     /// decision a caller has to make from one.
     pub outcome: Result<(), TaskPanic>,
 }
@@ -690,7 +690,7 @@ impl Drop for Scheduler {
     /// once per task, at the death of the worker that owned it —
     /// `rule:programs/memory-priority`'s
     /// O(in-flight) rather than O(requests served) — and what it buys is
-    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)'s
+    /// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s
     /// rule that no path reaches `abort()`, which is the one this would
     /// otherwise be. The ordinary end of a request never arrives here:
     /// [`Scheduler::run`] returns when its tasks are done, and one still parked
@@ -736,7 +736,7 @@ impl Scheduler {
     /// `in_coroutine` moves it. That also keeps every caller free of raw
     /// pointers.
     ///
-    /// `root` decides what a panic beneath this task costs: ADR 0106 § 2 fails
+    /// `root` decides what a panic beneath this task costs: `rule:http-server/containment-does-not-end-at-the-helper` fails
     /// a [`TaskRoot::Request`] as one request and retires the worker for a
     /// [`TaskRoot::Worker`].
     ///
@@ -1676,7 +1676,7 @@ mod tests {
 
     #[test]
     fn a_panic_in_one_task_is_contained_and_its_neighbours_still_run() {
-        // ADR 0106 § 2's outer boundary, applied by the scheduler rather than
+        // `rule:http-server/containment-does-not-end-at-the-helper`'s outer boundary, applied by the scheduler rather than
         // written per task. The neighbour is what the test is really about:
         // containment that killed the core would still make the panicking
         // task's own assertion pass.
@@ -2282,7 +2282,7 @@ mod tests {
 
     #[test]
     fn a_worker_retiring_over_a_helper_frame_leaks_rather_than_aborts() {
-        // ADR 0106: no path reaches `abort()`. `Drop for Scheduler` unwinds
+        // `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`: no path reaches `abort()`. `Drop for Scheduler` unwinds
         // what it can and leaks what it cannot, and the leak is deliberate —
         // the doc on that `Drop` says what it spends. Reaching the assert at
         // all is the whole test; the process not surviving is the failure.

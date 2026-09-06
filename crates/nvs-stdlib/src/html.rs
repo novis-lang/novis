@@ -681,7 +681,7 @@ mod tests {
     /// speaks for the terminal. `Core\Http::allowUrl` answers
     /// `Core\Http\Target`, which is a pinned-address capability handle and not
     /// a text carrier at all: the column here is *`nvs_runtime::is_carrier`* —
-    /// "the sink writes this value's bytes out raw" — and ADR 0058's sink
+    /// "the sink writes this value's bytes out raw" — and `rule:http-server/allow-url-pins-the-address`'s sink
     /// neither auto-launders nor escapes anything.
     ///
     /// `Core\Taint::assertTrusted` is the third, and the one row that names no

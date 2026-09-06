@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // `rule:security/unclassified-parameter-refuses-tainted`: an unclassified `string` parameter refuses a tainted argument.
-// § 4's table classifies `text`'s body contagious instead, and ADR 0074 is why
+// § 4's table classifies `text`'s body contagious instead, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is why
 // it may -- `nosniff` is on with nothing configured, so a `text/plain` body is
 // never re-parsed as HTML by a browser.
 tainted string $t = "from the wire" as tainted string;

@@ -925,7 +925,7 @@ fn required_key_names(options: &[crate::ty::CoreShapeField]) -> String {
         .join(", ")
 }
 
-/// ADR 0074 § 7 at its compile-time half: a request member whose verb repeats
+/// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key` at its compile-time half: a request member whose verb repeats
 /// an *effect* — `Core\Http\Client::post` — may not ask for retries without an
 /// idempotency key.
 ///

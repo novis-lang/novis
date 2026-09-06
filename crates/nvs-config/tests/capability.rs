@@ -457,7 +457,7 @@ fn a_bare_star_is_refused_as_a_second_spelling_of_every_host() {
 /// The wildcard is `db.open`'s alone. A `*.` entry under `net.connect` grants no host, and the
 /// exact entry beside it still does.
 ///
-/// ADR 0058 § 2's door is why the two capabilities differ: `net.connect` names what a program may
+/// `rule:http-server/allow-url-pins-the-address`'s door is why the two capabilities differ: `net.connect` names what a program may
 /// *reach*, and the address it is pinned to is resolved from that name afterwards, so widening the
 /// set of names by a pattern widens it by every name an attacker can get into the zone's DNS
 /// without the operator having written any one of them down. `db.open`'s zone is one the operator

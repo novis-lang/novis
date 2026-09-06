@@ -53,7 +53,7 @@
 //!
 //! [`nvs_core_cache_shared`] is where the grant is asked for and where the
 //! address is pinned; `put` and `get` on the store it answers ask nothing. That
-//! is [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's own
+//! is `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s own
 //! shape — `Core\Http::allowUrl` is the launderer and `Core\Http\Client` the
 //! thing that talks — and it is what makes the address a *pin*: a check at the
 //! operation instead would leave a window in which a second resolution answers
@@ -267,7 +267,7 @@ const TIMEOUT: &str = "cache.shared.timeout";
 /// a patience one: a store that has not answered in five seconds is a store the
 /// request should be told about rather than one it should keep waiting for. It
 /// is deliberately not "unbounded unless configured", which
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`
 /// refuses to give any outbound wait a spelling for.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -693,7 +693,7 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
     };
 
     let (host, port) = endpoint(&url, member)?;
-    // ADR 0058 § 2: the door answers with the address, and the connection is
+    // `rule:http-server/allow-url-pins-the-address`: the door answers with the address, and the connection is
     // made to *that* — the whole of why a name is not resolved again below.
     let address = nvs_runtime::capability::pin_host(ctx, &host, member)?;
     open_shared(SocketAddr::new(address, port), timeout_of(ctx), member)

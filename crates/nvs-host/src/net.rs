@@ -73,7 +73,7 @@
 //! `nvs_server::io`'s § *The clock* is the caller it was found by.
 //!
 //! A *deadline* and not a per-call duration, deliberately:
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5
+//! `rule:http-server/no-spelling-for-an-unbounded-wait`
 //! bounds an operation, and a duration re-read on each wait would push the
 //! bound out again every time the peer sent one more byte — an unbounded wait
 //! wearing a timeout's spelling. What it spends is nothing per stream that has
@@ -293,7 +293,7 @@ impl NvsStream<mio::net::TcpStream> {
     /// [`NvsTcp::connect`], giving up with `TimedOut` if the handshake is not
     /// up within `after`.
     ///
-    /// ADR 0074 § 5's `connect_timeout`, at the level that can actually
+    /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s `connect_timeout`, at the level that can actually
     /// enforce it. The bound is on the **handshake** and is lifted before the
     /// stream is handed back, so a later read takes whatever deadline its
     /// caller sets and not the leftover of getting here — the two are separate
@@ -1636,7 +1636,7 @@ mod tests {
         );
     }
 
-    /// Tier B, from ADR 0106 § 6: what a park hands back is the *core*, so a
+    /// Tier B, from `rule:http-server/a-core-is-never-blocked-on-a-syscall`: what a park hands back is the *core*, so a
     /// task that never touched a socket runs to completion while its neighbour
     /// is still waiting on one. The order is recorded rather than inferred —
     /// the neighbour finishes between the parked task's two lines.

@@ -168,7 +168,7 @@ drop, an open file is closed — because none of that is script code.
 This is deliberate and it is the same reasoning `rule:errors/escalation-ladder` applies at every
 tier of its ladder. There are exactly three ways to be cancelled — a sibling threw, the deadline expired, or
 the parent died, which for the root task includes its client disconnecting: the connection is the root's
-parent, and [ADR 0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7a cancels the
+parent, and `rule:http-server/an-abandoned-request-is-cancelled-at-the-drop` cancels the
 whole request tree when it drops — and all three mean the request is already failing. Running arbitrary
 user cleanup at that point means running unbudgeted code inside a failure, which is how a timeout becomes
 a hang.

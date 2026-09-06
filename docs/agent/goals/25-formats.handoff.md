@@ -42,5 +42,5 @@ this — a sandboxed decoder gets the memory cap for free and the traversal rule
   at *read* time so a program cannot opt out by extracting entries itself; the bomb is stage 2's bound
   applied per entry and across the archive. The proofs are the four attacks, each refused by a
   diagnostic that names the rule rather than by a failed file operation.
-- **The server still compresses nothing** (ADR 0097 § 1). This goal gives a *program* a compressor and
+- **The server still compresses nothing** (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). This goal gives a *program* a compressor and
   puts none in the response path.

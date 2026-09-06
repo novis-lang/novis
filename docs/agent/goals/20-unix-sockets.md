@@ -14,7 +14,7 @@ an address to pin, and a socket path has neither, so nothing outbound could reac
 `crates/nvs-host/src/net.rs` has carried since goal 2.
 
 The transport is not the work. `NvsUnix` exists, parks on the same reactor, and
-[ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 5 already admits a socket path on
+`rule:http-server/the-server-block-is-boot-class` already admits a socket path on
 the listening side. What this goal writes is the authority answer, the two spellings, one refusal, and
 the `AF_UNIX` connect path in three database drivers.
 

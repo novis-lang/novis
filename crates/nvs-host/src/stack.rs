@@ -57,7 +57,7 @@ use corosensei::stack::{DefaultStack, Stack as _};
 /// Reserved, not committed — this module's docs own why that distinction is the
 /// whole footprint answer, and why the number is 1 MiB rather than anything
 /// else. Public because it is the quantity an admission decision counts ahead
-/// of time (ADR 0106 § 7), which is the only thing outside this crate that has
+/// of time (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`), which is the only thing outside this crate that has
 /// a reason to know it.
 pub const TASK_STACK_SIZE: usize = 1 << 20;
 
@@ -128,7 +128,7 @@ impl StackPool {
     /// If the OS refuses the reservation. Nothing softer is available here —
     /// `Scheduler::spawn` has no error to return and a task with no stack
     /// cannot be queued — and nothing softer is wanted either: address space is
-    /// precisely the resource ADR 0106 § 7's admission arithmetic counts before
+    /// precisely the resource `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s admission arithmetic counts before
     /// it admits a request, so a refusal at this point means admission let in
     /// work the worker could not hold. That arithmetic is goal 3's; until it
     /// exists this is the same `expect` `corosensei`'s own default stack does.

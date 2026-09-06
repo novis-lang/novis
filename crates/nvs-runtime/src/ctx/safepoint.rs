@@ -7,8 +7,8 @@
 //!
 //! The two are one file because they are one decision made twice.
 //! `rule:errors/on-limit`'s stack pair and
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 5's deadline both put a *load and a compare* on the request path and push
+//! `rule:http-server/time-is-bounded-inside-a-helper`
+//! 's deadline both put a *load and a compare* on the request path and push
 //! everything else behind it, and reading the accessor beside the helper that
 //! acts on it is what keeps the two ends of that compare in agreement.
 
@@ -42,8 +42,8 @@ impl Ctx {
     }
 
     /// Whether this request's deadline has passed —
-    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 5's poll, and the module docs' *The request's deadline* section owns
+    /// `rule:http-server/time-is-bounded-inside-a-helper`
+    /// 's poll, and the module docs' *The request's deadline* section owns
     /// what it costs and who may call it.
     ///
     /// One relaxed load, through a handle in the line the stack check has

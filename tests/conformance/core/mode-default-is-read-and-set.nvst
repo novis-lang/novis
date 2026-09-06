@@ -1,5 +1,5 @@
 --TEST--
-`mode.default` is the one key a mode is read and set at, and the flip is what makes the set observable — ADR 0091 §§ 3-5
+`mode.default` is the one key a mode is read and set at, and the flip is what makes the set observable — `rule:config/a-mode-is-five-defaults`, `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
 // § 4: the mode is written and read at the dotted key, and reading it is the

@@ -554,7 +554,7 @@ fn the_validate_default_is_selected_by_the_run_mode() {
     assert_eq!(
         written("").validate,
         Validate::Never,
-        "a host that wrote nothing at all is in production, which is ADR 0091 § 5's row for it",
+        "a host that wrote nothing at all is in production, which is `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s row for it",
     );
     assert_eq!(
         written("[mode]\ndefault = \"production\"\n").validate,

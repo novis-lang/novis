@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // `rule:core-classes/db-capabilities` gives `open` two halves for the four drivers with an address:
-// the `db.open` grant, then ADR 0058's table against the resolved host. The
+// the `db.open` grant, then `rule:http-server/allow-url-pins-the-address`'s table against the resolved host. The
 // SQLite arm has neither a host nor an address, so what stands in their place
 // is the path — asked of `db.open` under `nvs_config`'s canonicalise-then-
 // prefix rule, and then of `fs.read` and `fs.write`, which is § 3's own

@@ -1,4 +1,4 @@
-//! [ADR 0097] §§ 2-3's mount table: `[[server.mount]]` blocks read into the literal set of entry
+//! `rule:http-server/a-path-is-never-derived-from-a-url` and `rule:http-server/a-mount-table-expands-at-boot`'s mount table: `[[server.mount]]` blocks read into the literal set of entry
 //! files a server may execute, with every glob already expanded against the disk.
 //!
 //! § 2 is the rule the rest of the ADR is built to keep — a request **selects** an entry point from
@@ -31,7 +31,6 @@
 //! Cost: one directory listing per `*` per scanned segment, at boot and at reload, and one
 //! [`Mounted`] per resolved mount held per configuration generation. Nothing here runs per request.
 //!
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -104,7 +103,7 @@ fn shape(
         (Some(_), Some(_)) => {
             return Err(refuse(
                 format!("{} names both `scan` and `entry`", ordinal(index)),
-                "ADR 0097 § 3 gives a mount one source: `scan` is a glob expanded against the disk \
+                "`rule:http-server/a-mount-table-expands-at-boot` gives a mount one source: `scan` is a glob expanded against the disk \
                  at boot, `entry` is the one literal file that overrides it",
                 "keep `scan` to cover a fleet of modules, or drop it and keep `entry` for the one \
                  irregular module this block is for",
@@ -114,7 +113,7 @@ fn shape(
         (None, None) => {
             return Err(refuse(
                 format!("{} names neither `scan` nor `entry`", ordinal(index)),
-                "ADR 0097 § 2 enumerates every path the server may execute before it accepts \
+                "`rule:http-server/a-path-is-never-derived-from-a-url` enumerates every path the server may execute before it accepts \
                  anything, and a block naming no file contributes none",
                 "add `entry` with the one file this mount serves, or `scan` with the glob that \
                  finds it under `[server] root`",
@@ -126,7 +125,7 @@ fn shape(
     if block.prefix.is_none() && block.host.is_none() {
         return Err(refuse(
             format!("{} matches on neither `prefix` nor `host`", ordinal(index)),
-            "ADR 0097 § 4 step 1 selects a mount by host and by prefix, so a block naming neither \
+            "`rule:http-server/a-request-resolves-in-five-steps` step 1 selects a mount by host and by prefix, so a block naming neither \
              is one no request can ever reach",
             "add `prefix = \"/\"` to serve this mount at the root, or `host` for the name it \
              answers on",
@@ -296,7 +295,7 @@ fn root_of(
                 root.display()
             ),
             format!(
-                "ADR 0097 § 2 enumerates every executable path before the server accepts anything, \
+                "`rule:http-server/a-path-is-never-derived-from-a-url` enumerates every executable path before the server accepts anything, \
                  and the enumeration starts here: {why}"
             ),
             "point `server.root` at the directory the mounted modules live under",
@@ -359,7 +358,7 @@ fn scanned(
                 return Err(refuse(
                     format!("`{capture}` is not a name a mount capture may take"),
                     format!(
-                        "ADR 0097 § 3 bounds a capture to `[A-Za-z0-9._-]`, forbids a leading dot \
+                        "`rule:http-server/a-mount-table-expands-at-boot` bounds a capture to `[A-Za-z0-9._-]`, forbids a leading dot \
                          and refuses a reserved device name, and `{}` matched it under \
                          `server.root`",
                         path.display()
@@ -394,7 +393,7 @@ fn mounted(
                 path.display()
             ),
             format!(
-                "ADR 0097 § 2 knows every path this server can execute before it binds a socket, \
+                "`rule:http-server/a-path-is-never-derived-from-a-url` knows every path this server can execute before it binds a socket, \
                  so a mount naming a file that is not on disk is a server that would answer a \
                  request with nothing: {why}"
             ),
@@ -413,7 +412,7 @@ fn mounted(
                 entry.display()
             ),
             format!(
-                "ADR 0097 § 3 bounds every mount to `{}`, which is what keeps the executable set \
+                "`rule:http-server/a-mount-table-expands-at-boot` bounds every mount to `{}`, which is what keeps the executable set \
                  something an operator can read off the tree",
                 root.display()
             ),
@@ -523,7 +522,7 @@ fn duplicate(
             "{} answers at {key}, and so does an earlier one",
             ordinal(index)
         ),
-        "ADR 0097 § 3 lets one explicit `entry` override one scanned mount at a key and stops \
+        "`rule:http-server/a-mount-table-expands-at-boot` lets one explicit `entry` override one scanned mount at a key and stops \
          there: two blocks claiming a key is a request whose answer depends on which was read first",
         "give one of them its own `prefix` or `host`, or drop it if the other already covers the \
          module",

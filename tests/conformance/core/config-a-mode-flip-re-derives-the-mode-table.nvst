@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config::set("mode.default", …)` re-derives the five directives the mode selects, leaving every explicit line alone — ADR 0091 §§ 3-5
+`Core\Config::set("mode.default", …)` re-derives the five directives the mode selects, leaving every explicit line alone — `rule:config/a-mode-is-five-defaults`, `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
 // § 4: the mode is read and written at `mode.default`, and reading it is the

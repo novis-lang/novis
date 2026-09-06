@@ -31,8 +31,8 @@
 //!   a grant reachable two ways is what `rule:core-api/shape-rules` R20 forbids. `*` alone therefore matches no host
 //!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
 //! - **The wildcard is `db.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
-//!   grant is asked of a *name* and then [ADR 0058](/docs/adr/0058-outbound-request-policy.md)
-//!   § 2's door pins the address that name resolved to; a pattern there would widen the set of
+//!   grant is asked of a *name* and then `rule:http-server/allow-url-pins-the-address`
+//!   's door pins the address that name resolved to; a pattern there would widen the set of
 //!   names an attacker-influenced argument may reach without the operator having written any one of
 //!   them down, which is the whole thing that ADR refuses. `db.open`'s targets are program-supplied
 //!   too, but a tenant-per-subdomain deployment cannot enumerate them, and its blast radius is one

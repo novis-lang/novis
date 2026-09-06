@@ -1,0 +1,5 @@
+An absent `Host` on HTTP/1.1 is a `400`. A mount's `host` is compared against the host part only: the port is stripped, the value is ASCII-lowercased and one trailing dot is removed — three equivalences the relevant specifications define, so this is the *accept verbatim* branch of `rule:errors/ambiguous-input-refused` rather than a repair. Non-ASCII in `Host` is refused; punycode matches literally. `Host: A.EXAMPLE.COM:8080.` matches the mount declared for `a.example.com`.
+
+A deployment that declares only host mounts gets a `404` for an unknown host, with no allowlist directive to remember — the failure Django had to add `ALLOWED_HOSTS` for. The forwarded walk never reaches this value: what a trusted proxy may assert is the client address and the scheme, and neither is read here.
+
+The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.

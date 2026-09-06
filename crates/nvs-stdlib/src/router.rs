@@ -16,14 +16,14 @@
 //! `nvs-types` interns a roster row by name.
 //!
 //! Spec § 17's `Core\Http\Client` shares the `Core\Http` prefix and is a
-//! different domain ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
+//! different domain (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 //! owns it). When it lands it names *this* enum: a namespace prefix is not a
 //! module boundary, and a second `Core\Http\Method` would be two rosters
 //! disagreeing about what `Post` is worth.
 //!
 //! # What the cases are, and what the order buys
 //!
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
+//! `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`
 //! names eight verbs and `rule:security/csrf-is-on-by-default`
 //! names four of them as the ones CSRF enforcement covers. Those four are
 //! this enum's contiguous *tail*, the same arrangement — and for the same
@@ -32,7 +32,7 @@
 //!
 //! `CONNECT` is deliberately not a case. It establishes a proxy tunnel, so it
 //! is neither something a `#[Route]` may be declared under nor something
-//! [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s pinned
+//! `rule:http-server/allow-url-pins-the-address`'s pinned
 //! client sends; a case a program can write and pass nowhere is surface with no
 //! meaning behind it, which is [`crate::registry::ENUMS`]' own test for
 //! admitting an entry.
@@ -51,8 +51,8 @@
 //! 2. **The mount prefix is the half of the laundering that has nowhere to come
 //!    from.** [`substitute`] percent-encodes every value it puts in a segment,
 //!    which is § 4's launder and is real; what is not is
-//!    ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-//!    § 3)'s prefix in front of it, because a program run off the command line
+//!    (`rule:http-server/a-mount-table-expands-at-boot`
+//!    )'s prefix in front of it, because a program run off the command line
 //!    is mounted nowhere. `urlAbsolute` is in the same position for the same
 //!    reason and says so where a program can see it: it reads
 //!    [`Ctx::origin`](nvs_runtime::Ctx::origin) and throws when a unit has
@@ -80,7 +80,7 @@ use crate::uri::{Form, encode};
 pub(crate) const METHOD_NAME: &str = r"Core\Http\Method";
 
 /// `rule:routing/route-attribute`'s `Core\Http\Method` — the eight verbs
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7
+/// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`
 /// names, safe ones first so that `rule:security/csrf-is-on-by-default`'s CSRF set is the contiguous
 /// tail from `Post` on.
 ///
@@ -706,7 +706,7 @@ fn substitute(template: &str, params: &Value, member: &str) -> Result<String, Fa
 nvs_runtime::nvs_helper! {
     /// `Core\Router::url` over a name the compiler resolved — see [`link`].
     ///
-    /// The mount prefix ADR 0097 § 3 has this member prepend is empty here and
+    /// The mount prefix `rule:http-server/a-mount-table-expands-at-boot` has this member prepend is empty here and
     /// only here: a program run off the command line is mounted nowhere, and
     /// there is no server yet to be mounted by. The prefix joins in front of
     /// [`substitute`]'s answer when one exists, which is why the substitution
@@ -726,8 +726,8 @@ nvs_runtime::nvs_helper! {
     /// was resolved *before* the request ran, out of
     /// [`Ctx::origin`](nvs_runtime::Ctx::origin), and never a value the
     /// request could have influenced. A unit that resolves none throws here
-    /// rather than answering with an empty authority in it, which is ADR 0097
-    /// § 3's rule at the one place a CLI run can enforce it: § 6 puts the
+    /// rather than answering with an empty authority in it, which is `rule:http-server/a-mount-table-expands-at-boot`
+    /// 's rule at the one place a CLI run can enforce it: § 6 puts the
     /// *boot* error at mount expansion, and there is no mount off the command
     /// line to expand.
     fn nvs_core_router_link_absolute(ctx, args: [2]) {
@@ -1186,7 +1186,7 @@ mod tests {
     }
 
     /// Each case's value is its own index, so the tail bound above is also the
-    /// position ADR 0074 § 7's roster reads at.
+    /// position `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s roster reads at.
     #[test]
     fn every_case_carries_a_distinct_value_in_declaration_order() {
         for (index, (_, value)) in METHOD.cases.iter().enumerate() {

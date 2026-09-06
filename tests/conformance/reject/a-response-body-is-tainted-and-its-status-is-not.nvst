@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Response::text` answers a `tainted string` and `::status` an ordinary `int`, so a plain `string` binding refuses the body and nothing refuses the code — `rule:security/tainted-qualifier`, ADR 0074 § 6
+`Core\Http\Response::text` answers a `tainted string` and `::status` an ordinary `int`, so a plain `string` binding refuses the body and nothing refuses the code — `rule:security/tainted-qualifier`, `rule:http-server/retry-is-opt-in-jittered-and-closed`
 --FILE--
 <?nvs
 // The claim is *a bound asserted on both sides*: the two readers of one value

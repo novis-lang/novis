@@ -35,8 +35,8 @@ pub(super) const STATEMENT_TIMEOUT_ARG: usize = 3;
 ///
 /// # Errors
 ///
-/// A thrown `RuntimeError` for a duration that is zero or negative — ADR 0074
-/// § 5 has no spelling for an unbounded wait and a zero one is that spelling said
+/// A thrown `RuntimeError` for a duration that is zero or negative — `rule:http-server/no-spelling-for-an-unbounded-wait`
+/// has no spelling for an unbounded wait and a zero one is that spelling said
 /// quietly — and a [`Fault::fatal`] for a slot that is neither a `Duration` nor
 /// `Tag::Null`, which the row's type rules out.
 pub(super) fn statement_deadline(
@@ -1432,7 +1432,7 @@ mod tests {
         );
 
         // And a zero is refused rather than read as "unbounded", which is the
-        // spelling ADR 0074 § 5 does not have.
+        // spelling `rule:http-server/no-spelling-for-an-unbounded-wait` does not have.
         let zero = crate::time::duration_of(0);
         let refused = [Value::null(), Value::null(), Value::null(), zero];
         assert!(

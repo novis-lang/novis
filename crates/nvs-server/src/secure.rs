@@ -1,4 +1,4 @@
-//! [ADR 0074] § 1's secure header set: what every response this server writes carries
+//! `rule:http-server/secure-headers-with-nothing-written`'s secure header set: what every response this server writes carries
 //! when nothing is configured.
 //!
 //! § 1 is a table of shipped defaults rather than a feature — `nosniff`, `frame-ancestors
@@ -11,7 +11,7 @@
 //! # Decision: the set *fills*, it does not overwrite, and that is what makes `setHeader` an override
 //!
 //! Spec § 15 gives a program an override of a policy-owned header on one response and
-//! [ADR 0074] § 4 is why the policy is not narrowing-only. Written as an insert, that would be
+//! `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` is why the policy is not narrowing-only. Written as an insert, that would be
 //! an ordering rule — every policy header applied before the program's, on every path a
 //! response can leave by — and a path that got the order wrong would silently take the
 //! member's effect away on exactly the headers it exists to change.
@@ -28,7 +28,7 @@
 //!
 //! **HSTS is emitted on an `https` effective scheme and not otherwise**, which is [`Scheme`]:
 //! a parameter of [`Secure::fill`] rather than a fact read off the socket, because Novis never
-//! terminates TLS ([ADR 0097] § 1) and the only thing that can assert `https` is a *trusted*
+//! terminates TLS (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) and the only thing that can assert `https` is a *trusted*
 //! proxy's `X-Forwarded-Proto` (0097 § 6). That walk is [`crate::forwarded`] and
 //! [`crate::serve::serve_connection`] is the one call site that may pass [`Scheme::Https`] —
 //! it does so for a request whose peer is in `[server] trusted_proxies` and that said so.
@@ -60,8 +60,6 @@
 //! naming the line is `nvs-config`'s to raise, this crate has no `nvs-diagnostics` dependency,
 //! and the fail-safe reading above is correct with or without it. The backlog owns that slice.
 //!
-//! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use hyper::HeaderMap;
 use hyper::header::{self, HeaderName, HeaderValue};
@@ -84,20 +82,19 @@ const PERMISSIONS_POLICY: HeaderName = HeaderName::from_static("permissions-poli
 /// in this module reads it.
 ///
 /// **Declared one crate down**, in `nvs_runtime`, and re-exported here under the name every
-/// call site in this crate already spells. ADR 0097 § 6's walk decides it once per request and
+/// call site in this crate already spells. `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk decides it once per request and
 /// two things then read that answer: this module, which sends HSTS only over `Https`, and
 /// `nvs_runtime::Inbound`, which carries it to `Core\Request::scheme()`. A second enum here
 /// would be a second home for one fact and a conversion at the seam between them.
 pub use nvs_runtime::Scheme;
 
-/// [ADR 0074] § 1's header set, resolved from `[http.headers]` and rendered once.
+/// `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved from `[http.headers]` and rendered once.
 ///
 /// Boot-fixed and process-wide: `[http.headers]` is `Runtime`-class in the ADR's own table, but
 /// nothing in this milestone re-reads it under a live socket, so a server holds one of these
 /// and every core shares it. A reload that must move these is the slice that gives
 /// [`crate::serve::serve_on_this_core`] a snapshot to re-read rather than a value.
 ///
-/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 #[derive(Clone, Debug)]
 pub struct Secure {
     /// Every header that does not depend on the request, in the order § 1 lists them.
@@ -294,7 +291,7 @@ mod tests {
         )
     }
 
-    /// ADR 0074 § 1's whole point: a tree that wrote no `[http.headers]` gets the set anyway.
+    /// `rule:http-server/secure-headers-with-nothing-written`'s whole point: a tree that wrote no `[http.headers]` gets the set anyway.
     #[test]
     fn nothing_configured_is_section_ones_shipped_set() {
         let headers = filled(&Secure::default(), Scheme::Http);

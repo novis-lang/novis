@@ -1,5 +1,5 @@
 --TEST--
-A file part's two consumers are the two shapes and neither is the other: `content()` is a walk that no `array` binding accepts, and `readAll()` is one value that no `foreach` drives — ADR 0105 § 3, `rule:iteration/foreach-subjects`, spec § 15
+A file part's two consumers are the two shapes and neither is the other: `content()` is a walk that no `array` binding accepts, and `readAll()` is one value that no `foreach` drives — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, `rule:iteration/foreach-subjects`, spec § 15
 --FILE--
 <?nvs
 // The pair of edges that says § 3's split is real. `content()` answers a walk

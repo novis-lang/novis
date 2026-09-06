@@ -1,4 +1,4 @@
-//! [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)'s session store:
+//! `rule:http-server/a-session-store-answers-four-operations`'s session store:
 //! the identifier a store issues, the record it keeps under it, and the two directives that decide
 //! where that store is and how long a record survives.
 //!
@@ -413,7 +413,7 @@ const DESTROY_DOC: MethodDoc = MethodDoc {
 /// could name a limiter key that reads a session record.
 pub(crate) const PREFIX: &str = "nvs:session:";
 
-/// `[session] backend` — ADR 0139 § 3's store, as `nvs_config::session::Backend` spells it.
+/// `[session] backend` — `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s store, as `nvs_config::session::Backend` spells it.
 const BACKEND: &str = "session.backend";
 
 /// `[session] ttl` — how long an untouched record survives.
@@ -454,9 +454,9 @@ pub(crate) fn key_of(id: &str) -> Vec<u8> {
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a tree that configured no `[session]` block, naming the block to
-/// write. ADR 0139 § 3: an absent block is not a default backend, because the safe answer for a
+/// write. `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`: an absent block is not a default backend, because the safe answer for a
 /// store nobody chose is no store — the same direction
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) takes for everything it
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` takes for everything it
 /// leaves unconfigured.
 ///
 /// A word this module cannot spell is the same throw, and it is unreachable from a server that
@@ -617,7 +617,7 @@ nvs_runtime::nvs_helper! {
             Backend::Shared => {}
             Backend::Db => {
                 return Err(Fault::thrown(format!(
-                    "{NAME}::start(): `[session] backend = \"db\"` names a store ADR 0139 § 3 \
+                    "{NAME}::start(): `[session] backend = \"db\"` names a store `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` \
                      admits and this build does not serve yet — write `backend = \"shared\"`, or \
                      see `crates/nvs-stdlib/src/session.rs`'s module doc for which half is on disk"
                 )));
@@ -870,7 +870,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::set(string $key, mixed $value): void` — ADR 0139 §§ 1 and 4's write into the
+    /// `Core\Session::set(string $key, mixed $value): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write into the
     /// request's own copy of the record, replacing `$_SESSION[$key] = …`.
     ///
     /// **Nothing reaches the store here.** § 4 loads the record once and writes it whole when the
@@ -902,7 +902,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::remove(string $key): void` — ADR 0139 §§ 1 and 4, replacing `unset($_SESSION
+    /// `Core\Session::remove(string $key): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `unset($_SESSION
     /// [$key])`.
     ///
     /// **A key the record does not hold is not a refusal, and does not mark it changed either.**
@@ -926,7 +926,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::clear(): void` — ADR 0139 §§ 1 and 4, replacing `$_SESSION = []`.
+    /// `Core\Session::clear(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `$_SESSION = []`.
     ///
     /// **The session survives; only the record goes.** The identifier stays live in the store and
     /// in the client's cookie, which is what separates this from `destroy()`: a program clearing a
@@ -1003,7 +1003,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::destroy(): void` — ADR 0139 §§ 1 and 4, replacing `session_destroy`.
+    /// `Core\Session::destroy(): void` — `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`, replacing `session_destroy`.
     ///
     /// **The request is left with no session**, so every member of this class throws again
     /// afterwards — the same answer as before the first `start()`, because it is the same state.
@@ -1040,7 +1040,7 @@ nvs_runtime::nvs_helper! {
 /// line of the program.
 const SENDER: &str = "Core\\Session's write-back at the end of the request";
 
-/// ADR 0139 § 4's write-back, as the function every session this module opens carries.
+/// `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, as the function every session this module opens carries.
 ///
 /// Installed on [`nvs_runtime::Session::write_back`] by `start` and `regenerate`, and reached
 /// through [`Ctx::end_session`] at the end of the program that opened the record — the isolate an
@@ -1056,7 +1056,7 @@ const SENDER: &str = "Core\\Session's write-back at the end of the request";
 ///
 /// **Losing them is the answer, rather than holding the response until the store comes back.** A
 /// request that cannot reach its store at the end has already produced its output; waiting there
-/// is the wedge [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// is the wedge `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 /// is named after, and § 4's last-write-wins already declines to repair a lost write.
 fn send_at_end(ctx: &mut Ctx) {
     // Nothing is copied out of the record: `open_configured` and `on_shared` both borrow, and the
@@ -1258,7 +1258,7 @@ mod tests {
         );
     }
 
-    /// ADR 0139 § 3's whole reason, asserted as the contrast rather than as a round trip.
+    /// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s whole reason, asserted as the contrast rather than as a round trip.
     ///
     /// Two threads are two cores: `crate::cache`'s local tier and its shared connection are both
     /// `thread_local`, so a second thread is exactly what a request landing on another core sees.

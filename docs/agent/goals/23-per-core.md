@@ -24,7 +24,7 @@ answerable rather than racing. Both are called only from `#[cfg(test)]`. Nothing
 
 **Nothing about the design is in the way.** [design.md](../../plan/design.md)
 § *Thread-per-core, shared-nothing runtime* is this shape;
-[ADR 0097](../../adr/0097-development-server-and-proxied-origin.md)'s in-flight ceiling is already a
+`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s in-flight ceiling is already a
 relaxed atomic "so one hot core cannot refuse while its neighbours idle", its watchdog is already per
 worker, and its h2c refusal argues *from* connections being balanced across cores.
 
@@ -65,13 +65,13 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
 
 1. **`[server] listen` binds every entry.** `crates/nvs-cli/src/serve.rs` stops taking the first and
    dropping the rest; `--listen`/`--port` still override the file and still conflict with each other,
-   on ADR 0097 § 5's own sentence.
+   on `rule:http-server/the-server-block-is-boot-class`'s own sentence.
 2. **A core count, read once.** `std::thread::available_parallelism`, bounded by a `[server] workers`
    key with the count as its default, and one `Worker::spawn(cpu, …)` per core. The handshake is per
    process start, which is what `Worker::spawn`'s doc already prices.
 3. **Each core takes its own handle**, via `NvsListener::from_std` on a duplicated descriptor — the
-   constructor's stated purpose. The accept loop, its backoff ([ADR 0097](../../adr/0097-development-server-and-proxied-origin.md)
-   § 8) and the drain probe ([ADR 0017](../../adr/0017-hot-reload-without-restart.md) § 5) run per core.
+   constructor's stated purpose. The accept loop, its backoff (`rule:http-server/the-body-is-read-on-demand-under-two-caps`
+   ) and the drain probe ([ADR 0017](../../adr/0017-hot-reload-without-restart.md) § 5) run per core.
 4. **Draining is fleet-wide, not per core.** `isDraining()` answers the same on every core, and the
    process exits when the last core's in-flight count reaches zero — a request whose isolates are
    still running when the client disconnects leaves none behind, which is M7's acceptance and is now a
@@ -85,7 +85,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
 1. **The state-bleed suite runs across a core boundary** the way it already runs across an isolate
    boundary — a parameterisation of the existing suite, not a second suite, which is what the shared
    `Isolate` bought.
-2. **ADR 0097's in-flight ceiling is fleet-wide and already atomic.** The assertion is that a hot core
+2. **`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s in-flight ceiling is fleet-wide and already atomic.** The assertion is that a hot core
    cannot refuse while its neighbours idle, which is the sentence that atomic was written for.
 3. **The per-worker watchdog fires per worker**, unchanged, and a stalled core does not stall the
    fleet.
@@ -109,7 +109,7 @@ core, and M7's acceptance is that 10k concurrent cold requests compile it **exac
   state; a compiled unit is immutable program text, which is the same exception `rule:security/isolate-shares-nothing` already
   makes when it says an isolate "shares immutable compiled code".
 - **This goal may open one ADR number** for the per-core accept and the shared unit cache, and no
-  second. Every other question it meets is a folded edit to ADR 0097's or `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s body.
+  second. Every other question it meets is a folded edit to `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s or `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s body.
 - **A core count is bounded by configuration, never by a heuristic.** `[server] workers` defaults to
   the available parallelism and is the last word when written; there is no "auto" spelling that means
   something other than the default.

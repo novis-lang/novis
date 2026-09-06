@@ -196,7 +196,7 @@ pub struct PoolBounds {
 
 impl PoolBounds {
     /// § 13's own example, which is this crate's default set — finite with nothing configured, per
-    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md). The ADR writes these
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`. The ADR writes these
     /// four numbers out, so they are transcribed here rather than chosen.
     pub const DEFAULT: PoolBounds = PoolBounds {
         enabled: true,
@@ -262,7 +262,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 /// `E0601` for a bound that is not a duration at all, and for the three that parse and still cannot
 /// describe a pool: a `max` of `0` (which can never hand out a connection), an `idle` above `max`
 /// (which asks for more warm connections than may exist), and a `lifetime` of `0` or `false` — the
-/// first retires a connection before it can be reused and the second is a bound ADR 0074 does not
+/// first retires a connection before it can be reused and the second is a bound `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` does not
 /// allow to be missing. Each of the three has one correct spelling and the help names it.
 pub fn pool_for(
     name: &str,
@@ -440,7 +440,7 @@ fn duration(
     match quantity {
         Quantity::Nanos(nanos) => Ok(Some(Duration::from_nanos(nanos))),
         // `Unit::Duration` yields nothing else, and the reachable one is `false`. Everywhere else in
-        // this tree that reads "no ceiling", which is a meaning a pool bound does not have: ADR 0074
+        // this tree that reads "no ceiling", which is a meaning a pool bound does not have: `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
         // is finite with nothing configured, and finite with something configured too.
         _ => Err(refuse(
             key,

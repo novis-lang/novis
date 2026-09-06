@@ -1,8 +1,8 @@
 --TEST--
-`Core\Http::allowUrl` judges the text before it asks the deployment, so a refusal on the URL itself never depends on a grant — ADR 0058 §§ 1-2
+`Core\Http::allowUrl` judges the text before it asks the deployment, so a refusal on the URL itself never depends on a grant — `rule:security/outbound-url-is-a-sink` and `rule:http-server/allow-url-pins-the-address`
 --FILE--
 <?nvs
-// ADR 0058 § 2 makes this the one door an outbound URL passes through, and the
+// `rule:http-server/allow-url-pins-the-address` makes this the one door an outbound URL passes through, and the
 // order of its questions is part of the contract: what is wrong with the text
 // is decided here, and what is wrong with the deployment is decided by the
 // capability. A caller reading these four sentences can tell which of the two

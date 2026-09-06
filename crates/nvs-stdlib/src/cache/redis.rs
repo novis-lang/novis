@@ -89,7 +89,7 @@ const ELEMENT_CEILING: i64 = 64;
 /// One core's connection to the shared store.
 ///
 /// The address is the one [`super`]'s door pinned and is never re-resolved
-/// here — [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's
+/// here — `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 /// rule that every attempt of one approval reuses the approved address, which is
 /// what closes the window a second DNS answer would open.
 pub(crate) struct Connection {
@@ -155,8 +155,8 @@ impl Connection {
     /// other's: `Core\Cache`'s entries have no expiry at all
     /// (`rule:core-api/two-cache-tiers` gives the tier a cap and not a clock), while every
     /// [`crate::session`] record has one and a record written without one is
-    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
-    /// § 5's sweeper coming back. A default argument would let a caller reach
+    /// `rule:http-server/session-expiry-belongs-to-the-store`
+    /// 's sweeper coming back. A default argument would let a caller reach
     /// the wrong one by omission; two names cannot be omitted.
     ///
     /// # Errors
@@ -181,8 +181,8 @@ impl Connection {
     /// `DEL key` — the entry forgotten, whether or not it was ever there.
     ///
     /// The count the store answers with is discarded on purpose:
-    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
-    /// § 2's `destroy` is "forget the record under an id", and an id there was
+    /// `rule:http-server/a-session-store-answers-four-operations`
+    /// 's `destroy` is "forget the record under an id", and an id there was
     /// no record under is already forgotten — the same answer `load` gives it.
     /// Reading the count would be a second question about existence, which that
     /// section refuses for the reason it refuses `validateId`.

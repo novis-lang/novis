@@ -13,7 +13,7 @@
 //! # Re-pinning is asked of the caller, not done here
 //!
 //! [`send`] takes a `repin` closure and calls it for every redirect hop, which
-//! is [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4's
+//! is `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 //! "every hop is re-checked and re-pinned" with the checking left where the
 //! checking lives. A retry never calls it: § 4's other half is that every
 //! attempt of one call reuses the address the launderer approved, so there is
@@ -44,7 +44,7 @@
 //!
 //! Two things are decided here rather than there. The certificate is checked
 //! against the **host the launderer approved**, never the address it was pinned
-//! to: [ADR 0058](/docs/adr/0058-outbound-request-policy.md) § 4
+//! to: `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`
 //! pins where the bytes go, and pinning is not a claim about who is there. And
 //! a handshake failure splits the same way the rest of this module splits — a
 //! certificate that does not verify is a statement about the other end that a
@@ -128,8 +128,8 @@ pub(crate) struct Reply {
 
 /// What one attempt produced: an answer, or a failure worth trying again.
 ///
-/// The distinction is [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
-/// § 6's "what is retried": a connection failure and a timeout are transport
+/// The distinction is `rule:http-server/retry-is-opt-in-jittered-and-closed`
+/// 's "what is retried": a connection failure and a timeout are transport
 /// weather and come back as [`Attempt::Failed`], while a malformed reply is a
 /// statement about the other end that a second identical request will not
 /// change, so it leaves as a `Fault` and never sleeps first.
@@ -727,7 +727,7 @@ mod tests {
         assert_eq!(carried(&asked[2]), [format!("traceparent: {theirs}")]);
     }
 
-    /// ADR 0058 § 4: every hop is re-checked and re-pinned, and a hop refused
+    /// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`: every hop is re-checked and re-pinned, and a hop refused
     /// on its address fails the request rather than being dropped from the
     /// chain. Both halves are one assertion because they are one rule.
     #[test]
@@ -765,7 +765,7 @@ mod tests {
         served.join().expect("the origin thread");
     }
 
-    /// ADR 0074 § 6: a `503` is retried, the wait is jittered rather than
+    /// `rule:http-server/retry-is-opt-in-jittered-and-closed`: a `503` is retried, the wait is jittered rather than
     /// fixed, and every attempt is inside the one deadline the call started
     /// with — which is what the elapsed time asserts, since a per-attempt
     /// budget would have allowed twice it.

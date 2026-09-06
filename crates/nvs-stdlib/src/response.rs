@@ -50,7 +50,7 @@
 //! two answers to the question of what the body is.
 //!
 //! That channel is a `Completion` field rather than something read off a
-//! `Ctx`, because a served request **is** an isolate (ADR 0097 § 4 step 5) and
+//! `Ctx`, because a served request **is** an isolate (`rule:http-server/a-request-resolves-in-five-steps` step 5) and
 //! the accept loop never holds its context — the completion is the one thing
 //! that crosses.
 //!
@@ -89,7 +89,7 @@
 //!
 //! **It is applied after everything the server wrote for itself**, which is
 //! the whole of what
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4
+//! `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
 //! means by an override: the policy states what a response starts with, a
 //! request may set any value for itself, and this member is the last writer.
 //! The reverse order would leave it with no effect on exactly the headers it
@@ -144,7 +144,7 @@
 //! # `text` takes `tainted`, and the mark is not the word § 4 uses
 //!
 //! § 4's table says the body is **contagious**, and
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) is why
+//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is why
 //! it may be: `X-Content-Type-Options: nosniff` is on with nothing configured,
 //! so a `text/plain` body is not re-parsed as HTML. Removing that default is
 //! visibly a change to two ADRs.
@@ -605,7 +605,7 @@ const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
 pub(crate) const SAME_SITE_NAME: &str = r"Core\Response\SameSite";
 
-/// ADR 0074 § 3's `SameSite`, as the enum the spec says it is and never the
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`'s `SameSite`, as the enum the spec says it is and never the
 /// string `[http.cookies]` writes.
 ///
 /// Numbered from zero, unlike [`REDIRECT`] beside it: this attribute's three
@@ -1050,7 +1050,7 @@ const ADD_COOKIE: &str = "Core\\Response::addCookie()";
 /// § 3's four defaults as they stand for this request.
 ///
 /// A program with no configuration at all still gets them: `Cookies::of(None)`
-/// is ADR 0074 § 3's shipped set, which is the answer a `nvs.toml`-less run
+/// is `rule:http-server/cookies-are-secure-httponly-and-lax`'s shipped set, which is the answer a `nvs.toml`-less run
 /// should have. Throwing there — `Core\Queue::push`'s arrangement over
 /// `[queue]` — would be wrong here, because a missing `[queue]` block means the
 /// deployment runs no jobs while a missing `[http.cookies]` block means it
@@ -1262,7 +1262,7 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        // ADR 0074 § 3's pair, at the call site rather than only at boot: the
+        // `rule:http-server/cookies-are-secure-httponly-and-lax`'s pair, at the call site rather than only at boot: the
         // configured half is refused as `E0624`'s neighbour `E0612`, and this
         // is the same combination arrived at one option at a time. Browsers
         // drop it either way, so a cookie written like this is never stored.
@@ -1519,7 +1519,7 @@ mod tests {
         dropped(other);
     }
 
-    /// ADR 0074 § 3, at the member that owns it: a cookie written with no options bag carries
+    /// `rule:http-server/cookies-are-secure-httponly-and-lax`, at the member that owns it: a cookie written with no options bag carries
     /// `Secure`, `HttpOnly`, `SameSite=Lax` and `Path=/`. The four come off `[http.cookies]`, and a
     /// context with no configuration attached is the tree that wrote no such block — which is the
     /// case § 3 is a statement about, since a deployment that configured the block chose its own.

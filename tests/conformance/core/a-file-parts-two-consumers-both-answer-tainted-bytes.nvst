@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — `rule:security/tainted-qualifier`, ADR 0105 § 3, spec § 15
+`Core\Request\Part::content` and `::readAll` both answer `tainted bytes`, so a plain `bytes` binding refuses either — the mark is on the octets and not on which way they were read — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of the two ways § 3 gives for reaching one upload's bytes.

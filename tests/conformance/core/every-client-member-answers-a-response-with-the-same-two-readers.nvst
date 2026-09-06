@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Http\Client` member answers a `Core\Http\Response`, and the same two readers are written against all five of them — ADR 0074 §§ 5-6, ADR 0058 § 4
+Every `Core\Http\Client` member answers a `Core\Http\Response`, and the same two readers are written against all five of them — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`, `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`
 --FILE--
 <?nvs
 // The depth claim is *invariance over a sweep*, counted rather than read off

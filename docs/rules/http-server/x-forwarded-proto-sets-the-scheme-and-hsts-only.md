@@ -1,0 +1,5 @@
+`X-Forwarded-Proto` from a trusted peer sets the effective scheme, and feeds exactly two things: `Core\Request::scheme()` and HSTS emission. HSTS is emitted when the effective scheme is `https`, not when a TLS connection was terminated — Novis never terminates one — and never on the assertion of an untrusted peer.
+
+It does **not** feed redirects: `Core\Response::redirect` emits `Location` as given and relative is permitted, so no scheme is ever reconstructed and the downgrade-and-loop bug behind a TLS-terminating proxy is removed rather than handled. It does not feed the cookie `Secure` flag, which the response policy sets unconditionally.
+
+There is **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**. `Core\Router::url` answers with a path (`rule:routing/matching-is-not-dispatching`), so Novis never needs to know its own external origin, and deriving one from a header is host-header injection. An external origin, where an application needs one, is configuration: `rule:routing/an-origin-is-per-mount-and-checked-at-boot`.

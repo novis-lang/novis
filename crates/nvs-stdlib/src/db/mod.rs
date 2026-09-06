@@ -149,7 +149,7 @@
 //!    `nvs_db::sqlite::open` off its own arm of § 2's discriminated union,
 //!    which has a file where the other four have an address: `connect` resolves
 //!    no host for it and `open` asks `fs.read` and `fs.write` of the path
-//!    instead of ADR 0058's address table. Past the handshake the
+//!    instead of `rule:http-server/allow-url-pins-the-address`'s address table. Past the handshake the
 //!    list is shorter than that. Binding is whole: [`rendering_of`] pairs § 5's
 //!    dialect with § 9's encoder off the connection's own [`nvs_db::Driver`],
 //!    so a MySQL statement is rewritten to `?` and bound as MySQL reads a

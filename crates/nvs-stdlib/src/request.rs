@@ -13,8 +13,8 @@
 //! what arrived **after** all of those — the same [`nvs_runtime::RequestBody`]
 //! pulled to its end into one value, walked a chunk at a time, walked as the
 //! parts a `multipart/form-data` body declares
-//! ([ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-//! § 1, the parse itself being [`crate::multipart`]'s), or read to its end as
+//! (`rule:http-server/an-upload-is-received-only-through-files`
+//! , the parse itself being [`crate::multipart`]'s), or read to its end as
 //! the form it submitted (§ 2, and `post` is the one of the four that joins
 //! another's reading rather than claiming against it — [`claim_form`]).
 //! `clientIp`, `scheme`, `host`, `mount` and
@@ -23,7 +23,7 @@
 //! `route`/`mount` on the match `nvs_server` makes once
 //! before the handler, and `host` not on a carrier at all — a `Host` line is
 //! already one of [`nvs_runtime::Inbound`]'s headers, and what that member
-//! waits on is whether a *forwarded* host may be believed, which ADR 0097 § 6's
+//! waits on is whether a *forwarded* host may be believed, which `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s
 //! walk answers for an address and a scheme and deliberately not for this.
 //! **`clientIp` and `scheme` wait on nothing now**: ADR
 //! 0097 § 6's walk answers both per request, `nvs_server::serve_connection`
@@ -638,8 +638,8 @@ const CAPTURE_SEGMENTS: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 /// # The prefix is the deployment's, the captures are read as the peer's
 ///
 /// Both come off the `nvs_config::mount` row that
-/// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-/// § 4 step 1 selected, and every such row was expanded against the disk at
+/// `rule:http-server/a-request-resolves-in-five-steps`
+/// step 1 selected, and every such row was expanded against the disk at
 /// boot — § 2's rule that a path is never derived from a URL at request time is
 /// exactly what makes that so. The prefix is therefore one of a set the
 /// operator wrote, and plain. **The captures are `tainted` anyway**, which is
@@ -735,7 +735,7 @@ const BODY_STREAM_CHUNK: usize = 0;
 /// **That is the whole difference between this member and `body`.** A snapshot
 /// would make `bodyStream` a spelling of `body` with an extra allocation, and
 /// then the `[limits] request_body` bound would have to apply to it — which is
-/// exactly what ADR 0105 § 3 offers this member as the way *around*. So
+/// exactly what `rule:http-server/a-part-is-consumed-in-one-of-three-ways` offers this member as the way *around*. So
 /// [`REQUEST_BODY`] is not checked here and nothing accumulates: what the
 /// program holds is whatever it does with each chunk, and that is its own
 /// decision to make and its own memory limit to make it under.
@@ -776,8 +776,8 @@ pub(crate) const FILES_CURRENT_SYMBOL: &str = "nvs_core_request_files_current";
 /// answers, and `null` before the first one and after the last.
 const FILES_PART: usize = 0;
 
-/// The class [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-/// § 1's `files()` answers with — `Iterable<Core\Request\Part>`, given the name
+/// The class `rule:http-server/an-upload-is-received-only-through-files`
+/// 's `files()` answers with — `Iterable<Core\Request\Part>`, given the name
 /// the registry needs to write it.
 ///
 /// # It is its own iterator, for [`BODY_STREAM`]'s reason
@@ -816,13 +816,13 @@ const PART_FIELD: usize = 0;
 const PART_FILENAME: usize = 1;
 const PART_CONTENT_TYPE: usize = 2;
 /// Which part of the body this one is, counted from the start and including the
-/// form-field parts the walk consumed on the way — the identity ADR 0105 § 3's
+/// form-field parts the walk consumed on the way — the identity `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s
 /// "valid only while this part is the iterator's current one" is checked
 /// against, by [`part_parse`] and on behalf of both members that read bytes.
 const PART_ORDINAL: usize = 3;
 
-/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-/// § 2's file part: what one upload declared about itself, ahead of its bytes.
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+/// 's file part: what one upload declared about itself, ahead of its bytes.
 ///
 /// # A part is a file part iff it declared a `filename`
 ///
@@ -1001,7 +1001,7 @@ const CONTENT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request\Part::readAll`'s options — ADR 0105 § 3's one bound.
+/// `Core\Request\Part::readAll`'s options — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s one bound.
 ///
 /// **`max` is a count of bytes and `0` is the absent one.** A bound of zero
 /// accepts only an empty part, so no caller means it, and a sentinel is what
@@ -1122,8 +1122,8 @@ pub(crate) const PART_CONTENT_CURRENT_SYMBOL: &str = "nvs_core_request_part_cont
 const PART_CONTENT_CHUNK: usize = 0;
 const PART_CONTENT_ORDINAL: usize = 1;
 
-/// The class [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-/// § 3's `content()` answers with — `Iterable<bytes>` over one part, given the
+/// The class `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+/// 's `content()` answers with — `Iterable<bytes>` over one part, given the
 /// name the registry needs to write it.
 ///
 /// [`BODY_STREAM`]'s shape for the third time, and its docs are the argument:
@@ -1242,7 +1242,7 @@ enum Reading {
 /// with two of its outcomes moved.
 ///
 /// `files` moves from the refusals to the joins, because what the two members
-/// read is not the same stream twice: ADR 0105 § 2's non-file parts are
+/// read is not the same stream twice: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s non-file parts are
 /// buffered by that walk on its way past, so `post` reads what `files` set
 /// aside rather than the bytes `files` yielded. `body` and `bodyStream` hand
 /// the body over uninterpreted and leave nothing behind, so both still refuse.
@@ -1297,7 +1297,7 @@ fn form_of(ctx: &mut Ctx, declared: Option<Vec<u8>>) -> Result<NvsArray, Fault> 
     }
 }
 
-/// ADR 0105 § 2's buffered fields, with the walk driven to the closing
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s buffered fields, with the walk driven to the closing
 /// delimiter first.
 ///
 /// The drain is what makes *every* field answerable rather than the ones that
@@ -1426,7 +1426,7 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
 /// Whether `verb` names one of [`crate::router::METHOD`]'s eight cases at all —
 /// the question the *door* asks, before an isolate exists.
 ///
-/// ADR 0097 § 2's server refuses a token outside the roster with a `501`
+/// `rule:http-server/a-path-is-never-derived-from-a-url`'s server refuses a token outside the roster with a `501`
 /// (`nvs_server::Reply::not_implemented`), which is what makes
 /// [`nvs_core_request_method`]'s closed answer total in practice: the throw it
 /// still carries is for the program that reached it another way. This predicate
@@ -1434,7 +1434,7 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
 /// deliberately not a copy of the list in the crate that accepts connections.
 ///
 /// `HEAD` is known, on [`method_ordinal`]'s own row: RFC 9110 requires it and
-/// ADR 0097 § 7 runs it as a `GET`.
+/// `rule:http-server/head-runs-as-get` runs it as a `GET`.
 #[must_use]
 pub fn is_known_verb(verb: &str) -> bool {
     method_ordinal(verb).is_some()
@@ -1646,7 +1646,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// The [`MOUNT`] one request carries, built out of the two facts the door
-/// already recorded on the carrier — the whole of how ADR 0097 § 4 step 1's
+/// already recorded on the carrier — the whole of how `rule:http-server/a-request-resolves-in-five-steps` step 1's
 /// selection reaches a program.
 ///
 /// Built per read rather than held, which is [`crate::router::match_value`]'s
@@ -1702,7 +1702,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request\Mount::prefix(): string` — what ADR 0097 § 4 step 2 took
+    /// `Core\Request\Mount::prefix(): string` — what `rule:http-server/a-request-resolves-in-five-steps` step 2 took
     /// off the path before [`nvs_core_request_path`] answered it.
     fn nvs_core_request_mount_prefix(_ctx, args: [1]) {
         mount_slot(args, MOUNT_PREFIX, "prefix")
@@ -1710,8 +1710,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request\Mount::captures(): array<tainted string>` — ADR 0097
-    /// § 3's glob captures of the row that selected this program.
+    /// `Core\Request\Mount::captures(): array<tainted string>` — `rule:http-server/a-mount-table-expands-at-boot`
+    /// 's glob captures of the row that selected this program.
     ///
     /// The array is built once by [`mount_value`] and read back here, so the
     /// two members answer one carrier rather than two readings of it.
@@ -1721,7 +1721,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::isHead(): bool` — ADR 0097 § 7's other half, and the only
+    /// `Core\Request::isHead(): bool` — `rule:http-server/head-runs-as-get`'s other half, and the only
     /// member that can tell a `HEAD` request from the `Get` [`method`] reports.
     ///
     /// A byte comparison against the token the peer wrote rather than a second
@@ -1744,7 +1744,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Request::path(): tainted string` — spec § 15's path, with the
     /// matched mount's prefix already removed.
     ///
-    /// The strip is ADR 0097 § 4 step 2's and happens before the program runs,
+    /// The strip is `rule:http-server/a-request-resolves-in-five-steps` step 2's and happens before the program runs,
     /// so this reads the remainder rather than computing it: an application
     /// mounted at `/admin` and one mounted at `/` see the same paths, which is
     /// the whole point of the mount table.
@@ -1821,8 +1821,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// **What it spends:** for a urlencoded body, the body's own bytes resident
     /// until the request ends; for either kind, one array per call, dropped
-    /// before the call returns. Both are bounded by [`REQUEST_BODY`] — ADR 0105
-    /// § 2's cap on form field text — and both are O(in-flight).
+    /// before the call returns. Both are bounded by [`REQUEST_BODY`] — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// 's cap on form field text — and both are O(in-flight).
     fn nvs_core_request_post(ctx, args: [1]) {
         // Unreachable from source: the row's parameter is `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
@@ -1933,8 +1933,8 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-/// § 5's `[limits] request_body` default, as a constant until that row exists.
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`
+/// 's `[limits] request_body` default, as a constant until that row exists.
 ///
 /// The twin of `nvs_server::body::UPLOAD_TOTAL` and deliberately the smaller of
 /// the two: this one bounds bytes *parsed into memory*, which are resident and
@@ -1942,7 +1942,7 @@ nvs_runtime::nvs_helper! {
 /// body streamed past memory entirely. § 5's table is the home of both numbers
 /// and of why one cap could not have governed both.
 ///
-/// ADR 0105 § 2's buffered multipart form fields are charged against it too, by
+/// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s buffered multipart form fields are charged against it too, by
 /// [`crate::multipart`], for the reason that row gives: a form field's text is
 /// bytes parsed into memory, which is exactly what this cap means.
 pub(crate) const REQUEST_BODY: usize = 8 * 1024 * 1024;
@@ -1951,7 +1951,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Request::body(): tainted string` — spec § 15's whole-body reader,
     /// replacing `file_get_contents('php://input')`.
     ///
-    /// ADR 0105 § 3's first of three ways to read a body, and the only one that
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s first of three ways to read a body, and the only one that
     /// ends with all of it resident — which is why it is the one [`REQUEST_BODY`]
     /// bounds. The pull is [`nvs_runtime::RequestBody::next_chunk`]'s, so it
     /// parks this isolate rather than a thread, and chunk boundaries are the
@@ -1961,7 +1961,7 @@ nvs_runtime::nvs_helper! {
     /// carry the total past [`REQUEST_BODY`] is refused while it is still the
     /// supplier's own borrowed slice, so what this member holds never exceeds
     /// the number it was given. A check made after appending would be a report
-    /// about memory already spent, which ADR 0105 § 5 argues is not a bound at
+    /// about memory already spent, which `rule:http-server/request-body-and-upload-total-are-two-caps` argues is not a bound at
     /// all.
     ///
     /// **Nothing is reserved from `Content-Length`.** The obvious shape reads
@@ -2048,7 +2048,7 @@ fn whole_body(ctx: &mut Ctx, member: &str) -> Result<Vec<u8>, Fault> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request::bodyStream(): Iterable<tainted bytes>` — spec § 15's
-    /// streaming body reader, and ADR 0105 § 3's second of three ways.
+    /// streaming body reader, and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s second of three ways.
     ///
     /// **It reads nothing.** The pull is `advance()`'s, one chunk at a time, so
     /// this call is the walk being *named* rather than taken — which is what
@@ -2181,12 +2181,12 @@ fn body_stream_chunk(value: Value) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::files(): Iterable<Core\Request\Part>` — ADR 0105 § 1's
+    /// `Core\Request::files(): Iterable<Core\Request\Part>` — `rule:http-server/an-upload-is-received-only-through-files`'s
     /// walk over this request's uploads, replacing `$_FILES` and
     /// `move_uploaded_file` with a stream that never reaches a temporary
     /// directory.
     ///
-    /// ADR 0105 § 3's third way of reading one body, and the only one that
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s third way of reading one body, and the only one that
     /// reads it as *structure*. The parse is built here and stored on
     /// [`nvs_runtime::Inbound`], because the walk this answers reaches it again
     /// through a different value on every `advance()` and `post()` will read the
@@ -2251,7 +2251,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_runtime::RequestBody::next_chunk`]'s.
     ///
     /// **Advancing past a part whose bytes nobody read drains it**, which is the
-    /// parse's own behaviour and ADR 0105 § 1's rule — skipping an upload the
+    /// parse's own behaviour and `rule:http-server/an-upload-is-received-only-through-files`'s rule — skipping an upload the
     /// application does not recognise is simply not touching it.
     fn nvs_core_request_files_advance(ctx, args: [1]) {
         let stepped = files_step(ctx, args[0]);
@@ -2412,7 +2412,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Request\Part::name(): tainted string` — the form field this file
     /// arrived under.
     ///
-    /// `tainted` although ADR 0105 § 2 marks only the other two: the class doc
+    /// `tainted` although `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` marks only the other two: the class doc
     /// owns why, and it is that a peer chooses this string as freely as it
     /// chooses the filename.
     fn nvs_core_request_part_name(_ctx, args: [1]) {
@@ -2460,7 +2460,7 @@ fn part_ordinal(value: Value, member: &'static str) -> Result<u64, Fault> {
 /// The parse of this request's body and the body it reads, borrowed together
 /// and **only** while the part stamped `ordinal` is the one the walk is on.
 ///
-/// The one place ADR 0105 § 3's "valid only while this part is the iterator's
+/// The one place `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only while this part is the iterator's
 /// current one" is compared, so `content()`, its `advance()` and `readAll()`
 /// cannot come to disagree about what a stale part is. `Multipart::opened`
 /// counts field parts as well, which is what makes it a position in the body
@@ -2517,8 +2517,8 @@ fn part_parse<'ctx>(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request\Part::content(): Iterable<tainted bytes>` — ADR 0105
-    /// § 3's chunk-at-a-time reading of one upload.
+    /// `Core\Request\Part::content(): Iterable<tainted bytes>` — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
+    /// 's chunk-at-a-time reading of one upload.
     ///
     /// **It reads nothing**, exactly as `bodyStream` reads nothing: the pull is
     /// `advance()`'s. What happens here is the stamp being copied into the walk
@@ -2642,7 +2642,7 @@ fn part_content_chunk(value: Value) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request\Part::readAll({max?}): tainted bytes` — ADR 0105 § 3's
+    /// `Core\Request\Part::readAll({max?}): tainted bytes` — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s
     /// buffered reading of one upload.
     ///
     /// **Two bounds, and which one applies is what the argument says**, which
@@ -2657,7 +2657,7 @@ nvs_runtime::nvs_helper! {
     /// **A `max` over the request's memory ceiling is refused, not clamped.** A
     /// clamp would answer a program that asked for 200M with a refusal naming
     /// 64M at some later chunk, which is the same failure one call further from
-    /// the mistake; ADR 0106 § 13 clamps because an operator's two directives
+    /// the mistake; `rule:http-server/admission-is-arithmetic-not-a-number` clamps because an operator's two directives
     /// disagreeing must not stop a boot, and a program's own call has no such
     /// claim on being started.
     fn nvs_core_request_part_read_all(ctx, args: [2]) {
@@ -2937,7 +2937,7 @@ mod tests {
     /// row per **file** part: what its three readers said, in row order.
     ///
     /// Nothing here reads a part's bytes, so every part this walks is one the
-    /// parse drained on the way to the next — which is exactly ADR 0105 § 1's
+    /// parse drained on the way to the next — which is exactly `rule:http-server/an-upload-is-received-only-through-files`'s
     /// "advancing past an unconsumed part drains it", asserted by the walk
     /// finishing rather than by a counter.
     ///
@@ -3200,7 +3200,7 @@ mod tests {
         let (prefix, captures) = read(&mut served("/acme", &["acme"]));
         assert_eq!(
             prefix, "/acme",
-            "the prefix is what ADR 0097 § 4 step 2 took off the path, verbatim"
+            "the prefix is what `rule:http-server/a-request-resolves-in-five-steps` step 2 took off the path, verbatim"
         );
         assert_eq!(
             captures,
@@ -3482,7 +3482,7 @@ mod tests {
         }
     }
 
-    /// ADR 0105 § 5's cap, named on both sides: a body of exactly
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s cap, named on both sides: a body of exactly
     /// `[limits] request_body` is read, and the same body plus one byte is
     /// refused. A member that stopped one byte early — or one late — prints
     /// plausibly against either half on its own.
@@ -3701,7 +3701,7 @@ mod tests {
     }
 
     /// `bodyStream` against the other two readings, in both directions and
-    /// with **no chunk ever pulled** — ADR 0105 § 3's second of three ways,
+    /// with **no chunk ever pulled** — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s second of three ways,
     /// held to spec § 15.
     ///
     /// The pair its twin above leaves unasked is `bodyStream` and `files`,
@@ -3779,7 +3779,7 @@ mod tests {
           jotted down\r\n--X--\r\n",
     ];
 
-    /// The walk yields ADR 0105 § 2's **file** parts and only those: the form
+    /// The walk yields `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s **file** parts and only those: the form
     /// field is buffered as the walk passes it and never appears as a part, and
     /// a part that declared no type answers RFC 7578 § 4.4's default rather
     /// than nothing. Beside it, the two requests that walk empty — a request
@@ -3839,7 +3839,7 @@ mod tests {
         );
     }
 
-    /// ADR 0105 § 1's two halves in one test, because they are one sentence: the
+    /// `rule:http-server/an-upload-is-received-only-through-files`'s two halves in one test, because they are one sentence: the
     /// walk is **lazy**, and it is the **only** way an uploaded file reaches a
     /// program.
     ///
@@ -3947,7 +3947,7 @@ mod tests {
         );
     }
 
-    /// ADR 0105 § 1's other half: **there is no temp file**, so nothing hands a
+    /// `rule:http-server/an-upload-is-received-only-through-files`'s other half: **there is no temp file**, so nothing hands a
     /// program a path the host chose and there is nothing left over to move.
     ///
     /// Asked of the rosters rather than of a body — the way the walk's own half
@@ -4267,7 +4267,7 @@ mod tests {
         dropped(files);
     }
 
-    /// ADR 0105 § 3's "valid only while this part is the iterator's current
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only while this part is the iterator's current
     /// one", asked of both consumers: a part the walk has moved past refuses
     /// rather than answering the current part's bytes.
     ///
@@ -4353,7 +4353,7 @@ mod tests {
         dropped(files);
     }
 
-    /// ADR 0105 § 3's bound, named on both sides: a part of exactly `max` is
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s bound, named on both sides: a part of exactly `max` is
     /// held, and the same part against one byte less is refused. A member that
     /// stopped one byte early — or one late — prints plausibly against either
     /// half on its own.
@@ -4428,7 +4428,7 @@ mod tests {
         dropped(files);
     }
 
-    /// ADR 0105 § 3's three consumers, asked as **agreement**: the same part on
+    /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s three consumers, asked as **agreement**: the same part on
     /// the same wire hands back the same octets whichever of them reads it, and
     /// the rows that read the octets at all are those three.
     ///
@@ -4670,7 +4670,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// A form written the way ADR 0105 § 2 describes one: a text field, a file,
+    /// A form written the way `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` describes one: a text field, a file,
     /// and **a second text field after the file**.
     ///
     /// The last part is what the fixture exists for. A form is free to write an
@@ -4705,7 +4705,7 @@ mod tests {
         text
     }
 
-    /// ADR 0105 § 2's split read from the other side: a part carrying no
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s split read from the other side: a part carrying no
     /// `filename` is a form field, is buffered as the walk passes it, and is
     /// what `post()` answers — **including the one written after the file**,
     /// which is the position the member is built around.
@@ -4808,7 +4808,7 @@ mod tests {
         );
     }
 
-    /// ADR 0105 § 2's charge, named on both sides: a submitted form is bytes
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s charge, named on both sides: a submitted form is bytes
     /// parsed into memory, so it is bounded by `[limits] request_body` — the
     /// same directive, and the same buffer, `body()` is bounded by.
     ///
@@ -4842,7 +4842,7 @@ mod tests {
     }
 
     /// `post` refuses after `body` and after `bodyStream`, and joins after
-    /// `files` — spec § 15's exclusivity with the one exception ADR 0105 § 2
+    /// `files` — spec § 15's exclusivity with the one exception `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// creates, asserted on both sides because either half alone reads as
     /// correct.
     ///

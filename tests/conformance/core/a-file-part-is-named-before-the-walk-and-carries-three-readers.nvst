@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — spec § 15, ADR 0105 §§ 1-2, `rule:security/request-state-throws-in-an-isolate`
+`Core\Request::files` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first part — spec § 15, `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, `rule:security/request-state-throws-in-an-isolate`
 --FILE--
 <?nvs
 // Where the refusal lands is the question, and it is one only a lazy member can
@@ -10,7 +10,7 @@
 // it ran, and that the sentence names `files` and not one of the three names a
 // `foreach` drives.
 //
-// The body also spells the whole of what ADR 0105 § 2 says a part carries: the
+// The body also spells the whole of what `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` says a part carries: the
 // form field it arrived under, the name the client claimed for it, and the type
 // the client declared. There is no fourth reader and there is deliberately no
 // `size` -- § 2 refuses one, because there is no honest value to put there

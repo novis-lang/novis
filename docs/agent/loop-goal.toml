@@ -311,7 +311,7 @@ tests = [
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0 -- ADR 0106's containment rule, which was accepted after M4 was reported done. It runs in the
+# Stage 0 -- `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s containment rule, which was accepted after M4 was reported done. It runs in the
 # catch-up class because a scheduler written against the old boundary has its panic path wrong, in the
 # place that is hardest to find later.
 # ---------------------------------------------------------------------------------------------------
@@ -321,7 +321,7 @@ stage = "1 floor"
 name = "abi-probe (the outer boundary)"
 args = ["test", "-p", "nvs-abi-probe"]
 tests = [
-  # ADR 0106 §§ 1-3. The inner boundary is `rule:errors/propagation`'s and already green; this is the worker task.
+  # `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`, `rule:http-server/containment-does-not-end-at-the-helper` and `rule:http-server/no-path-reaches-abort`. The inner boundary is `rule:errors/propagation`'s and already green; this is the worker task.
   "a_panic_in_a_worker_task_is_contained_at_the_task",
   "a_teardown_path_that_panics_does_not_recurse",
   # § 4 -- the engine-side counterpart to `rule:errors/on-limit`'s call-stack bound, and the single-helper bound.
@@ -1764,7 +1764,7 @@ tests = [
   "a_rustls_session_streams_over_it_unmodified",
   # Item 5 -- a sleep and a deadline are one mechanism.
   "a_timer_and_a_deadline_are_the_same_wheel",
-  # Item 6 -- ADR 0106 § 6's bound is per worker and never grows with requests served.
+  # Item 6 -- `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s bound is per worker and never grows with requests served.
   "a_blocking_call_goes_to_a_pool_bounded_at_twice_the_core_count",
   # Item 7 -- it reads state the deadline mechanism already keeps; a per-request heartbeat is the bug.
   "the_watchdog_reports_a_wedged_worker_without_a_heartbeat",
@@ -2159,7 +2159,7 @@ tests = [
   "a_malformed_cron_refuses_the_boot",
   "a_scheduled_script_outside_the_spawn_roots_refuses_the_boot",
   "a_fleet_scope_with_no_shared_store_refuses_the_boot",
-  # ADR 0074's, and the clause that needs ONE implementation rather than two.
+  # `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s, and the clause that needs ONE implementation rather than two.
   "cors_star_origins_with_credentials_true_is_refused",
   "same_site_none_without_secure_is_refused",
   "the_same_two_refusals_come_from_config_set_as_from_the_boot",
@@ -2449,10 +2449,10 @@ stage = "1 floor"
 name = "nvs-types (the outbound compile-time rules)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # ADR 0058 §§ 1-2 -- the URL is a sink and `allowUrl` pins.
+  # `rule:security/outbound-url-is-a-sink` and `rule:http-server/allow-url-pins-the-address` -- the URL is a sink and `allowUrl` pins.
   "an_outbound_url_parameter_refuses_a_tainted_operand",
   "allow_url_pins_what_it_launders",
-  # ADR 0074 § 7 -- needs nvs-types, and is therefore the easy one to defer and then forget.
+  # `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key` -- needs nvs-types, and is therefore the easy one to defer and then forget.
   "a_post_retried_without_an_idempotency_key_is_a_compile_error",
   # § 5 -- there is no spelling for an unbounded wait.
   "no_client_member_accepts_an_unbounded_timeout",
@@ -2469,7 +2469,7 @@ tests = [
   "a_denied_address_range_fails_before_a_connection_is_made",
   # § 4.
   "a_redirect_is_re_checked_against_the_same_policy",
-  # ADR 0074 § 6 -- jittered, opt-in, and under ONE covering deadline.
+  # `rule:http-server/retry-is-opt-in-jittered-and-closed` -- jittered, opt-in, and under ONE covering deadline.
   "a_retry_is_jittered_and_shares_the_covering_deadline",
   # `rule:observability/a-trace-id-exists-for-every-request` -- where a trace crosses a service boundary at all.
   "an_outbound_request_carries_traceparent",
@@ -2481,7 +2481,7 @@ tests = [
 # `tools/origin.py` open per leg around the whole sweep -- on Windows for the native fixtures, and a
 # second inside the distro for the WSL leg and the valgrind sweep, because a WSL loopback is its own.
 # The example spawns nothing of its own: `Core\Process::run` runs a program to completion (`rule:core-classes/process-is-argv-only`),
-# and Novis's own server is ADR 0097's, a later milestone -- so an example that started its origin
+# and Novis's own server is `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s, a later milestone -- so an example that started its origin
 # would be an example nobody could run until then. `origin.py` holds every answer 25ms, which is what
 # makes the last line decided by arithmetic rather than by a race between a 1ms budget and a
 # sub-millisecond loopback round trip; its module doc is the home of that reasoning.
@@ -2545,7 +2545,7 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "application_code_and_the_engine_floor_produce_schema_identical_records",
   "on_uncaught_throw_receives_the_real_throwable",
-  # ADR 0106's amendment to `rule:errors/engine-floor` -- the floor cannot fill the disk it writes to.
+  # `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s amendment to `rule:errors/engine-floor` -- the floor cannot fill the disk it writes to.
   "the_engine_floor_rotates_and_rate_limits_itself",
 ]
 
@@ -3295,7 +3295,7 @@ name = "nvs-stdlib (a request line reports what a route table can match)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = ["method_reports_get_for_a_head_request_and_is_head_carries_the_truth"]
 
-# ADR 0097 § 6's forwarded walk: the effective scheme is `Scheme::Http` for every request until a
+# `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s forwarded walk: the effective scheme is `Scheme::Http` for every request until a
 # *trusted* proxy asserts otherwise, and `trusted_proxies` is what decides whether a header may say so at
 # all. Both names are this crate's -- the walk decides, and `serve_connection` hands its whole answer to
 # the handler that builds the carrier (`nvs_runtime::Inbound::set_peer`), which is what
@@ -3320,7 +3320,7 @@ args = ["test", "-p", "nvs-runtime"]
 tests = ["tokio_appears_in_neither_the_manifest_nor_the_lockfile"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the mount table. ADR 0097 § 3's globs expanded at boot, and § 4's five-step resolution.
+# Stage 3 -- the mount table. `rule:http-server/a-mount-table-expands-at-boot`'s globs expanded at boot, and § 4's five-step resolution.
 # ---------------------------------------------------------------------------------------------------
 
 # § 3's expansion is a configuration act and not a server one: it turns written blocks into resolved
@@ -3350,7 +3350,7 @@ tests = [
   "a_request_resolves_through_the_five_steps_in_order",
   "a_prefix_is_stripped_and_the_module_is_relocatable",
   "static_files_are_one_policy_in_both_deployments",
-  # § 5, as amended by ADR 0106: an arithmetic against the memory budget, not a number someone picked.
+  # § 5, as amended by `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`: an arithmetic against the memory budget, not a number someone picked.
   "max_in_flight_is_derived_from_the_memory_budget",
   "an_over_capacity_request_is_refused_with_503_before_it_is_allocated",
   "the_four_idle_timeouts_are_finite",
@@ -3398,7 +3398,7 @@ args = ["test", "-p", "nvs-server"]
 tests = [
   # § 3 -- attached by a request and by nothing else.
   "the_html_sink_is_attached_by_a_request_and_by_nothing_else",
-  # ADR 0074 §§ 1-4 -- with NOTHING configured. The shipped set is pinned twice on purpose: once
+  # `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named`, `rule:http-server/cookies-are-secure-httponly-and-lax` and `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` -- with NOTHING configured. The shipped set is pinned twice on purpose: once
   # over the block that resolves it and once over the wire, which fail differently. The third name
   # is "set_header still wins", under the spelling the tree gave it.
   "nothing_configured_is_section_ones_shipped_set",
@@ -3416,7 +3416,7 @@ tests = [
   "an_isolates_echo_takes_the_terminal_sinks_neutralization",
 ]
 
-# ADR 0074 § 4's cookie is written by a `Core\Response` member, so its defaults are that member's
+# `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`'s cookie is written by a `Core\Response` member, so its defaults are that member's
 # and not the door's -- nothing in `nvs-server` is ever asked what a cookie's flags are.
 [[check]]
 kind = "cargo-named"
@@ -3506,7 +3506,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-stdlib (ADR 0105 -- what is landed)"
+name = "nvs-stdlib (`rule:http-server/an-upload-is-received-only-through-files` -- what is landed)"
 args = ["test", "-p", "nvs-stdlib"]
 # THIS CHECK HOLDS ONLY NAMES THE TREE ALREADY HAS, and the one below holds only names it does not:
 # a landed test bundled with unwritten ones reports nothing, so a session that writes one of the open
@@ -3522,14 +3522,14 @@ tests = [
   "files_is_a_lazy_iterator_and_the_only_way_to_receive_an_upload",
 ]
 
-# ADR 0105's surface is `Core\Request` and `Core\Request\Part`, and both live in `nvs_stdlib::request`.
+# `rule:http-server/an-upload-is-received-only-through-files`'s surface is `Core\Request` and `Core\Request\Part`, and both live in `nvs_stdlib::request`.
 # `crates/nvs-server/Cargo.toml` names four dependencies and `nvs-stdlib` is not among them, so no test
 # that calls `files()` can run under `-p nvs-server` however end-to-end the claim reads. The server's own
 # half of this ADR is § 5's refusal, which is the check after this one.
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-stdlib (ADR 0105 §§ 1-3 -- the walk, the part, and its consumers)"
+name = "nvs-stdlib (`rule:http-server/an-upload-is-received-only-through-files`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways` -- the walk, the part, and its consumers)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   # § 1 -- the other half of "the only way in": there is no temp path to name and no `move_uploaded_file`
@@ -3547,7 +3547,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-server (ADR 0105 § 5 -- refused before an isolate exists)"
+name = "nvs-server (`rule:http-server/request-body-and-upload-total-are-two-caps` -- refused before an isolate exists)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   # § 5 -- refused pre-dispatch when Content-Length already exceeds the cap. This one IS the server's:
@@ -3562,7 +3562,7 @@ file = "examples/upload.nvs"
 # A program leg answers no request, so a body's own facts -- how many parts, what a field was
 # called, what a file claimed to be named -- cannot be among these: `Core\Request::files()` refuses
 # where nothing is inbound (`rule:security/request-state-throws-in-an-isolate`), and that refusal is the first line here. The end-to-end
-# half is the two `ADR 0105 §§ 1-3` checks above, which is where a real multipart body has
+# half is the two ``rule:http-server/an-upload-is-received-only-through-files`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`` checks above, which is where a real multipart body has
 # somewhere to arrive from. What this leg pins is the surface a handler writes -- the walk, the
 # launderer, `saveTo` -- plus § 4's `writeStream`, which a program *can* run.
 want = ["no request", "streamed 10240 bytes", "escape refused", "removed"]
@@ -3598,7 +3598,7 @@ args = ["test", "-p", "nvs-server"]
 # `crates/nvs-server/Cargo.toml` names `hyper`, `nvs-host`, `nvs-config` and `nvs-runtime`, so this
 # crate cannot reach the store at all; and the store's whole wire is `Core\Cache`'s `put` and `get`
 # (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`, `crates/nvs-stdlib/src/cache.rs`), neither of which is a compare-and-set, so no
-# lease can be *taken* anywhere in the tree yet. Inverting the seam the way ADR 0139 § 4 inverts the
+# lease can be *taken* anywhere in the tree yet. Inverting the seam the way `rule:http-server/a-session-is-loaded-once-and-written-whole` inverts the
 # session write-back -- an `fn` pointer through `nvs-runtime` -- would therefore carry an operation
 # the store does not have, and widening the shared tier with an atomic acquire is an ADR-level
 # decision this goal has no slot left for. The name belongs to whichever goal builds the shared
@@ -3918,7 +3918,7 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 9 -- the load-bearing assertions, and the parity program's last gate.
 #
-# Item 26 is ADR 0097's governing rule stated as a test rather than as a suite of attempted escapes: the
+# Item 26 is `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s governing rule stated as a test rather than as a suite of attempted escapes: the
 # set of paths the server can execute after boot EQUALS the expanded mount table. A traversal suite proves
 # that the escapes somebody thought of are refused; this proves the set is closed.
 # ---------------------------------------------------------------------------------------------------
@@ -3950,7 +3950,7 @@ tests = [
   "the_state_bleed_suite_passes_within_a_request_and_across_an_isolate_boundary",
   # Item 26 -- the governing rule, as a set equality.
   "the_executable_path_set_after_boot_equals_the_expanded_mount_table",
-  # ADR 0105's load-bearing case, asserted against a high-water mark.
+  # `rule:http-server/an-upload-is-received-only-through-files`'s load-bearing case, asserted against a high-water mark.
   "a_multipart_body_far_over_the_memory_bound_is_received_at_bounded_resident_memory",
   # The three suites, and the disconnect case.
   "the_path_traversal_suite_passes",

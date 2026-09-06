@@ -14,7 +14,7 @@ spellings, and M8 is left with dispatch and nothing else to invent.
 
 Then the fact that falls out of it. The builder's bag carries `clientIp`, `scheme` and `host` — and those
 are exactly the three `Core\Request` members `crates/nvs-stdlib/src/request.rs:20` lists as known gaps.
-**Two of them are no longer waiting on a carrier**: `nvs_server::forwarded` is ADR 0097 § 6's walk, it
+**Two of them are no longer waiting on a carrier**: `nvs_server::forwarded` is `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk, it
 answers a client address and an effective scheme per request, and `Inbound::set_peer` now carries both
 down — so `clientIp` and `scheme` are each this goal's own five edits, and `host` is the one still owed a
 decision. A builder that can say what a trusted-proxy header resolves to is still the cheapest coverage
@@ -53,14 +53,14 @@ Goal 16's whole acceptance list, never traded.
 1. **`Inbound` gains the peer** — the client address and the effective scheme the request was decided to
    have, plus the host. Set by whoever accepted the request: `crates/nvs-server/src/serve.rs:1344` and
    `:1443` for a served one, `crates/nvs-cli/src/serve.rs:323` for the dev server, `InboundSpec` for a
-   built one. `nvs_server::forwarded` already computes both — ADR 0097 § 6, landed — so this is a field
+   built one. `nvs_server::forwarded` already computes both — `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, landed — so this is a field
    and a hand-over, not a new decision.
 2. **`Core\Request::clientIp()`, `scheme()` and `host()`** — the five edits each, off
    `crates/nvs-stdlib/src/request.rs`'s known-gap list and into spec § 15's registered roster. All three
    are `tainted`: what a proxy asserted is not this process's fact.
 3. **The proof only a built request can give**: a request whose `Forwarded` header says one thing from a
    peer that is not in `[server] trusted_proxies` resolves to the socket peer, and the same request from
-   one that is resolves to what the header said. That is ADR 0097 § 6's whole rule, asserted in-language
+   one that is resolves to what the header said. That is `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s whole rule, asserted in-language
    for the first time.
 
 ## Stage 4 — the signature, frozen

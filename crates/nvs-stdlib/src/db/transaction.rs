@@ -300,7 +300,7 @@ pub(super) const RETRY_BACKOFF_CAP: std::time::Duration = std::time::Duration::f
 ///
 /// **Full jitter — uniform in `[0, base × 2^taken]` — and not the rung
 /// itself**, which is `crate::http::transport`'s shape for
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6 and
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed` and
 /// holds here for a sharper reason: two requests that deadlocked against each
 /// other were, by construction, running at the same time, so an unjittered
 /// backoff hands them the same next instant and they collide again. Spreading
@@ -335,8 +335,8 @@ pub(super) fn retry_backoff(taken: u32) -> std::time::Duration {
 /// With no host on the thread the wait still happens, blocking, for
 /// `Core\Time::sleep`'s reason: there is no scheduler under the call, so there
 /// is no neighbour for
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 6's tier-B failure to have as its victim.
+/// `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+/// 's tier-B failure to have as its victim.
 ///
 /// # Errors
 ///

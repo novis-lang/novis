@@ -88,8 +88,8 @@ const VERSION: u8 = 1;
 /// How deep a graph may nest before it is refused.
 ///
 /// [`walk`] and [`Reader::node`] both recurse, so this is what keeps a hostile
-/// payload off the engine's stack — [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 3's "every depth a request drives is bounded".
+/// payload off the engine's stack — `rule:http-server/no-path-reaches-abort`
+/// 's "every depth a request drives is bounded".
 const MAX_DEPTH: u32 = 256;
 
 /// The node tags of the byte carrier's grammar.

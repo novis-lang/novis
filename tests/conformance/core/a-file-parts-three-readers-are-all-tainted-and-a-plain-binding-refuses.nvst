@@ -1,5 +1,5 @@
 --TEST--
-Every reader `Core\Request\Part` has answers `tainted string`, including the field name the spec leaves unmarked, so a plain `string` binding refuses all three — `rule:security/tainted-qualifier`, ADR 0105 § 2, spec § 15
+Every reader `Core\Request\Part` has answers `tainted string`, including the field name the spec leaves unmarked, so a plain `string` binding refuses all three — `rule:security/tainted-qualifier`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of all three readers at once: what decides the qualifier is
@@ -9,7 +9,7 @@ Every reader `Core\Request\Part` has answers `tainted string`, including the fie
 // over a member that had dropped the mark. The refusal is the pin, and it is
 // the binding that has to fail: `string` narrows through no qualifier bit.
 //
-// `name` is the one worth a case of its own. ADR 0105 § 2 marks `filename` and
+// `name` is the one worth a case of its own. `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` marks `filename` and
 // `contentType` and says nothing about the field name, which is a peer's choice
 // exactly as the other two are -- a client is under no obligation to send back
 // the names the form declared. Left plain, it would have been the one launderer

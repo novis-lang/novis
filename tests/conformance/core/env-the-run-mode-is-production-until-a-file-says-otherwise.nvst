@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::mode` answers `Production` on a host that configured nothing, while the directive it reads is still unset — ADR 0091 §§ 3, 5 and spec § 15
+`Core\Env::mode` answers `Production` on a host that configured nothing, while the directive it reads is still unset — `rule:config/a-mode-is-five-defaults` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` and spec § 15
 --FILE--
 <?nvs
 // § 5's row for a host that wrote no configuration at all is `production`, so a

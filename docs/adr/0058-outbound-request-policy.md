@@ -1,4 +1,4 @@
-# ADR 0058 — Outbound connections carry an address policy; a tainted URL must be laundered and pinned
+# `rule:http-server/allow-url-pins-the-address` — Outbound connections carry an address policy; a tainted URL must be laundered and pinned
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
@@ -114,14 +114,14 @@ regrettable.
 
 Redirects are **not followed by default**. When enabled they are capped in count — the cap is
 `[http.client] max_redirects`, defaulting to `0`
-([ADR 0074](0074-http-defaults-safe-and-finite.md) § 5) — and every hop is re-checked and re-pinned by
+(`rule:http-server/no-spelling-for-an-unbounded-wait`) — and every hop is re-checked and re-pinned by
 § 2's procedure. A redirect to a denied address fails the request rather than being silently dropped from
 the chain — a redirect is the standard way to defeat a check applied only to the first URL.
 
 A **retry** is the opposite case and must not re-resolve: every attempt of a retried call reuses the
 `Target` § 2 pinned, so retrying opens no second resolution for a rebinding attack to poison. Both the
 redirect chain and every retry attempt are covered by one `deadline`
-([ADR 0074](0074-http-defaults-safe-and-finite.md) §§ 5–6).
+(`rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`).
 
 ### 5. The policy lives in the capability, not in the client
 

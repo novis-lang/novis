@@ -159,7 +159,7 @@ What the rule refuses, and why each is a category Novis does not have rather tha
 - **Anything requiring a network request.** The language server makes none — no registry lookup for a
   package name or version, no manifest metadata fetched while typing. A lockfile is on disk and may be
   read; a remote index may not be consulted. An editor that quietly talks to a third party while a
-  developer types is the same class of surprise [ADR 0058](0058-outbound-request-policy.md) refuses for a
+  developer types is the same class of surprise `rule:http-server/allow-url-pins-the-address` refuses for a
   running program, and the reviewed product does exactly this against a package registry.
 
 ### 3. A template region gets the editor's own services, and no second formatter

@@ -503,7 +503,7 @@ mod tests {
     }
 
     /// `rule:core-classes/temporary-dir-sweep`'s "a request that died mid-flight", which is only a sweep at all
-    /// because of [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md):
+    /// because of `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`:
     /// the request goes, the worker does not, and the context it is left
     /// holding is what runs the sweep.
     ///

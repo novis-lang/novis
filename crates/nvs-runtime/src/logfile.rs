@@ -1,6 +1,6 @@
 //! The rotating file target: what a log written to a path costs on disk, which
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 10 requires to be a finite number.
+//! `rule:http-server/the-floor-cannot-fill-the-disk`
+//! requires to be a finite number.
 //!
 //! # The bound is a product, and it is the only number that matters
 //!
@@ -48,7 +48,7 @@ pub const MAX_BYTES: u64 = 8 * 1024 * 1024;
 /// bound — so the default target occupies at most `(4 + 1) * 8 MiB`.
 pub const KEEP: usize = 4;
 
-/// A log file with ADR 0106 § 10's two bounds on it.
+/// A log file with `rule:http-server/the-floor-cannot-fill-the-disk`'s two bounds on it.
 #[derive(Debug)]
 pub struct LogFile {
     /// The live file's path. Rotation `n` is this with `.n` appended.

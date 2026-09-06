@@ -14,7 +14,7 @@
 //! Novis's only request identifier: `Core\Server::traceId()` reads this same id, every `[log]`
 //! record and every error rendering carries it, and it is emitted on the response so a proxy can log
 //! it with one `log_format` line. There is deliberately no second identifier and no inbound
-//! `X-Request-ID` ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 9).
+//! `X-Request-ID` (`rule:http-server/the-trace-id-is-the-request-identifier`).
 //! So the id is generated where a request's state lives — in [`Ctx::new`](crate::Ctx::new), eagerly
 //! — rather than by whichever subsystem asks for it first, which is what would let two of them
 //! disagree.

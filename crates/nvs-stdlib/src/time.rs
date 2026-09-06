@@ -3472,7 +3472,7 @@ nvs_runtime::nvs_helper! {
     /// **Parks the task rather than blocking the core** — the wait goes to
     /// [`nvs_runtime::host::Host::sleep`], which is `nvs-host`'s reactor
     /// arming this task's own deadline, so a neighbour pinned to the same core
-    /// runs while this one waits (ADR 0106 § 6). It is also what makes a
+    /// runs while this one waits (`rule:http-server/a-core-is-never-blocked-on-a-syscall`). It is also what makes a
     /// `Core\Task::all` under a `limit` observable at all: with a blocking
     /// sleep no two children ever overlap.
     ///

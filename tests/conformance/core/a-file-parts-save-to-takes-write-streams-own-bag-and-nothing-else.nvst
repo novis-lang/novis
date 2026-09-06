@@ -6,7 +6,7 @@
 // rather than declaring a pair of its own, so the two cannot drift and there is
 // one place `overwrite` defaults to `false`.
 //
-// Asked at both of its edges, as `readAll`'s is. ADR 0105 § 3 writes a bound in
+// Asked at both of its edges, as `readAll`'s is. `rule:http-server/a-part-is-consumed-in-one-of-three-ways` writes a bound in
 // prose as `max: "50M"`; the argument is a count of bytes, because a size in
 // text is a second parser in front of a number. And the bag is closed: a
 // misspelt option is refused rather than ignored, which is what keeps a program
@@ -14,7 +14,7 @@
 //
 // `temp:` is the one worth naming. PHP's upload had a temporary file and this
 // member is the reason there is none -- so the option a reader might reach for
-// out of habit is not merely undeclared, it is the thing ADR 0105 removed.
+// out of habit is not merely undeclared, it is the thing `rule:http-server/an-upload-is-received-only-through-files` removed.
 foreach (Core\Request::files() as Core\Request\Part $part) {
     $part->saveTo("/tmp/report.pdf", {max: "50M"});
     $part->saveTo("/tmp/report.pdf", {temp: true});

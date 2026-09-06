@@ -12,7 +12,7 @@
 //! [`remove_file`], [`remove_dir`] and [`temp_dir`] behind `fs.write`, and [`open`] behind whichever
 //! of the two its [`Access`] names — [`exec`] is the process
 //! door behind `process.exec`, and [`pin_host`] is the outbound one behind `net.connect`, which
-//! answers an address rather than a yes for ADR 0058 § 2's reason; each of them calls [`require`]
+//! answers an address rather than a yes for `rule:http-server/allow-url-pins-the-address`'s reason; each of them calls [`require`]
 //! before it names a spelling that
 //! performs the effect, which is what makes § 2's claim structural rather than a convention: a member
 //! reaches the OS through a door or not at all, and every door has already asked.
@@ -116,7 +116,7 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
     }
 }
 
-/// [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s outbound door: the one address
+/// `rule:http-server/allow-url-pins-the-address`'s outbound door: the one address
 /// `host` is approved to be reached at, once [`Cap::NetConnect`] has been shown to cover the name
 /// and § 3's policy has been shown to cover the address.
 ///
@@ -124,7 +124,7 @@ fn denial(cap: Cap, scope: Scope<'_>, member: &str) -> String {
 /// would leave a gap between this check and the connection in which a second DNS resolution could
 /// answer differently — the rebinding attack — so the caller is handed the address that was
 /// approved and connects to *that*. Every retry of a call reuses it and only a redirect hop asks
-/// again ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6).
+/// again (`rule:http-server/retry-is-opt-in-jittered-and-closed`).
 ///
 /// **Here rather than in `nvs-stdlib`**, for § 5's reason and for this crate's: the policy is one
 /// policy across `Core\Http`, `Core\Net` and `Core\Db::open`, and resolution is an operating-system

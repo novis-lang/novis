@@ -3,11 +3,11 @@
 //! [`Inbound`] is what a host fills in before the request runs and what
 //! `Core\Request` reads back — method, path, query, headers, the client
 //! address and the [`Scheme`] a trusted proxy asserted
-//! ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md) § 6).
+//! (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`).
 //!
 //! The body is a [`RequestBody`] rather than bytes, and that is this file's one
 //! real decision:
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s finite
+//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s finite
 //! defaults mean a carrier hands the body out a chunk at a time and holds none
 //! of it, so what a request has resident is one chunk and never the whole body.
 //!
@@ -92,8 +92,8 @@ impl Ctx {
 /// The scheme a request effectively arrived over.
 ///
 /// **Effective, not observed**: Novis terminates no TLS
-/// ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-/// § 1), so `Https` is only ever what a *trusted* proxy asserted through
+/// (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`
+/// ), so `Https` is only ever what a *trusted* proxy asserted through
 /// `X-Forwarded-Proto` — § 6's walk is the one thing that decides it, and this
 /// carrier holds its answer rather than re-deriving one.
 ///
@@ -102,16 +102,15 @@ impl Ctx {
 ///
 /// It lives here, one crate below the door, because two readers a crate apart
 /// need the same two values and a copy in each is two answers to one question:
-/// `nvs_server::secure` conditions [ADR 0074] § 1's HSTS header on it, and
+/// `nvs_server::secure` conditions `rule:http-server/secure-headers-with-nothing-written`'s HSTS header on it, and
 /// [`Inbound::scheme`] is what `Core\Request::scheme()` reads. `nvs_server`
 /// re-exports this type rather than declaring its own.
 ///
-/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scheme {
     /// A plaintext connection, and what a trusted proxy asserted nothing about.
     Http,
-    /// TLS, as a trusted proxy asserted it (ADR 0097 § 6).
+    /// TLS, as a trusted proxy asserted it (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`).
     Https,
 }
 
@@ -120,7 +119,7 @@ pub enum Scheme {
 /// came from outside the process.
 ///
 /// **It interprets nothing.** The verb is the bytes the peer wrote, the path is
-/// what is left of the target after ADR 0097 § 4 step 2 stripped the matched
+/// what is left of the target after `rule:http-server/a-request-resolves-in-five-steps` step 2 stripped the matched
 /// mount's prefix, the query is the raw string after the `?` with no
 /// percent-decoding and no bracket convention applied, and a header is one
 /// entry per field line in the spelling and the order the peer sent it. Every
@@ -154,7 +153,7 @@ pub struct Inbound {
     /// pairs and no query yield the same empty set of parameters.
     query: Box<str>,
     /// `rule:routing/a-request-reads-its-mount`
-    /// 's first half: the prefix ADR 0097 § 4 step 2 took off [`Self::path`]
+    /// 's first half: the prefix `rule:http-server/a-request-resolves-in-five-steps` step 2 took off [`Self::path`]
     /// above, which is the one fact about where an application was deployed
     /// that the application itself is allowed to see.
     ///
@@ -168,7 +167,7 @@ pub struct Inbound {
     /// carrier outlives the handler that read the table
     /// (`nvs_server::mount::carry` owns that direction).
     mount_prefix: Box<str>,
-    /// § 7's other half: ADR 0097 § 3's glob captures of the row that selected
+    /// § 7's other half: `rule:http-server/a-mount-table-expands-at-boot`'s glob captures of the row that selected
     /// this request, in order — `{1}` is the first — and empty for every mount
     /// whose `scan` had no `*` to capture with.
     ///
@@ -202,10 +201,10 @@ pub struct Inbound {
     /// of which are bounded before a mount is even selected. A body is not: ADR
     /// 0105 § 5 lets one be `upload_total` large, which is `"256M"` by default
     /// and `"2G"` at its ceiling, so what is held here decides the resident cost
-    /// of every in-flight request and, through ADR 0106 § 13's arithmetic, the
+    /// of every in-flight request and, through `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic, the
     /// number of requests this process may admit at once.
     body: Option<Box<dyn RequestBody>>,
-    /// The address the request came from, as ADR 0097 § 6's walk decided it —
+    /// The address the request came from, as `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk decided it —
     /// the socket's own peer, or what a *trusted* proxy said instead.
     ///
     /// `None` for a peer that has no address at all: a Unix-domain socket that
@@ -227,8 +226,8 @@ pub struct Inbound {
     /// answer, and `Http` for every request until a trusted proxy asserts
     /// otherwise. [`Scheme`] owns why it is two named values.
     scheme: Scheme,
-    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-    /// §§ 1-2's parse of that body, once `Core\Request::files()` has named one
+    /// `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// 's parse of that body, once `Core\Request::files()` has named one
     /// — **type-erased**, because the parse is `nvs_stdlib::multipart`'s and
     /// this crate is below it.
     ///
@@ -261,7 +260,7 @@ pub struct Inbound {
     /// the body it reads is a stream that can be pulled once: the second
     /// `post('description')` on a request would otherwise read an exhausted
     /// supplier and answer `null` for a field the peer sent. A multipart body
-    /// needs nothing here — [`Self::parts`] already holds ADR 0105 § 2's
+    /// needs nothing here — [`Self::parts`] already holds `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s
     /// buffered fields, which is the same fact stored where that parse put it.
     ///
     /// The bytes rather than the parsed array, so that this crate holds no
@@ -272,7 +271,7 @@ pub struct Inbound {
     ///
     /// **What it spends:** the body's own bytes, resident until the request
     /// ends, only for a request whose program called `post()` — bounded by
-    /// `[limits] request_body`, which ADR 0105 § 2 makes the cap on form field
+    /// `[limits] request_body`, which `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes the cap on form field
     /// text, and O(in-flight).
     form: Option<Box<[u8]>>,
     /// Which member has read the body, once one has — the name it spells
@@ -281,14 +280,14 @@ pub struct Inbound {
     /// `docs/spec/01-core-library.md` § 15 makes `body`, `bodyStream` and
     /// `files` exclusive on one request, and this field is the whole of that
     /// rule. `post` is the fourth member that takes the claim and the only one
-    /// that reads the name back to *join* rather than to refuse — ADR 0105
-    /// § 2's form fields being what a `files` walk sets aside — which is
+    /// that reads the name back to *join* rather than to refuse — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// 's form fields being what a `files` walk sets aside — which is
     /// `nvs_stdlib::request`'s `claim_form` and nothing this crate decides.
     /// **It lives on the carrier rather than on any of the three**,
     /// because what is exclusive is the *request*: each of them consumes the
     /// same stream, so a record kept by one of them could not see the other two
     /// — and the three are two crates apart, `nvs_stdlib::request` owning the
-    /// first two and the parts the third yields being ADR 0105's own machinery.
+    /// first two and the parts the third yields being `rule:http-server/an-upload-is-received-only-through-files`'s own machinery.
     ///
     /// A name rather than a `bool` or an enum of three: the refusal is only
     /// worth raising if it says which reading already happened, since the
@@ -433,7 +432,7 @@ impl Inbound {
             sse: None,
         }
     }
-    /// Records who the request came from, as ADR 0097 § 6's walk decided it.
+    /// Records who the request came from, as `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk decided it.
     ///
     /// Called at most once, by whoever accepted the request, beside the
     /// [`Self::push_header`] calls and before the program runs. Both facts
@@ -479,14 +478,14 @@ impl Inbound {
             .collect();
     }
 
-    /// The prefix ADR 0097 § 4 step 2 took off [`Self::path`], and `""` where
+    /// The prefix `rule:http-server/a-request-resolves-in-five-steps` step 2 took off [`Self::path`], and `""` where
     /// nothing did — the field's own doc owns why those are one answer.
     #[must_use]
     pub fn mount_prefix(&self) -> &str {
         &self.mount_prefix
     }
 
-    /// ADR 0097 § 3's glob captures of the mount that selected this request, in
+    /// `rule:http-server/a-mount-table-expands-at-boot`'s glob captures of the mount that selected this request, in
     /// order, and empty where it had none.
     #[must_use]
     pub fn mount_captures(&self) -> &[Box<str>] {
@@ -940,7 +939,7 @@ impl SseSlot {
 }
 
 /// The body of a served request, as chunks the program pulls one at a time —
-/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+/// `rule:http-server/an-upload-is-received-only-through-files`'s
 /// stream, at the seam where it crosses into a crate that has never heard of
 /// HTTP.
 ///
@@ -949,7 +948,7 @@ impl SseSlot {
 /// The alternative was for whoever accepted the request to read the body to its
 /// end and hand [`Inbound`] a `Box<[u8]>` beside its three strings, which is
 /// what PHP does and what every part of this design would then be built on top
-/// of. ADR 0105 § 5 rules it out arithmetically rather than as a preference.
+/// of. `rule:http-server/request-body-and-upload-total-are-two-caps` rules it out arithmetically rather than as a preference.
 /// That section states **two** caps because they measure two different things:
 /// `request_body` (`"8M"`, ceiling `"64M"`) bounds *bytes parsed into memory*,
 /// and `upload_total` (`"256M"`, ceiling `"2G"`) bounds *the total of a streamed
@@ -958,8 +957,8 @@ impl SseSlot {
 /// apply the tighter number, so `request_body` would be a check over something
 /// already paid for, which is not a bound. What is left is a per-request
 /// resident cost of `upload_total`, multiplied by `max_in_flight` by
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 13's arithmetic: a 2G ceiling against a memory budget divides the effective
+/// `rule:http-server/admission-is-arithmetic-not-a-number`
+/// 's arithmetic: a 2G ceiling against a memory budget divides the effective
 /// admission ceiling to approximately nothing, so the honest configuration and
 /// the working one stop being the same file.
 ///
@@ -973,7 +972,7 @@ impl SseSlot {
 /// # A chunk is borrowed, not owned
 ///
 /// [`Self::next_chunk`] answers a slice of the supplier's own buffer, valid
-/// until the next pull — ADR 0105 § 3's "valid only while this part is the
+/// until the next pull — `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s "valid only while this part is the
 /// iterator's current one", one layer down and as a lifetime rather than as
 /// advice. A reader that wants to keep bytes copies them into the bound it
 /// chose, which is the point at which a cap can be applied to a number that has
@@ -1008,7 +1007,7 @@ pub trait RequestBody {
     /// # Errors
     ///
     /// A body that cannot be completed: the connection failed under it, the
-    /// peer stopped short of its declared length, or ADR 0105 § 5's
+    /// peer stopped short of its declared length, or `rule:http-server/request-body-and-upload-total-are-two-caps`'s
     /// `upload_total` was crossed mid-stream by a body that declared no length.
     /// The message is for the member reading it to turn into its own throw —
     /// this seam classifies nothing, for [`Inbound`]'s own reason. **An `Err`

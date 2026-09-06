@@ -1,4 +1,4 @@
-//! [ADR 0097] § 5's `[server]` block, read into what a server starts on: the four waits as
+//! `rule:http-server/the-server-block-is-boot-class`'s `[server]` block, read into what a server starts on: the four waits as
 //! durations — with the two magnitudes that would leave a connection unbounded — and `listen` as
 //! the sockets to bind.
 //!
@@ -9,8 +9,8 @@
 //! expand a glob against — [`validate`] runs the half of it that does not.
 //!
 //! **`max_in_flight` resolves to three numbers rather than to one**, which is
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 13: the written ceiling, the cap one request may hold, and what this machine has. [`Capacity`]
+//! `rule:http-server/admission-is-arithmetic-not-a-number`
+//! : the written ceiling, the cap one request may hold, and what this machine has. [`Capacity`]
 //! is those three and nothing more — the division is `nvs_server::admit`'s, because the clamp is an
 //! admission decision and the counter that enforces it lives beside it. This module is the half
 //! that reads a file and asks the operating system one question; it decides nothing.
@@ -23,7 +23,7 @@
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
 //! removes a ceiling (`rule:config/three-changeability-classes`), and that spelling is exactly what
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) has no version of: its
+//! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` has no version of: its
 //! headline is that there is no way to say "wait forever", and a `[server]` wait is the inbound
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
 //! operator who wrote it asked for the one thing the ADR does not offer and would be told nothing.
@@ -48,7 +48,6 @@
 //! address per written `listen` entry held per configuration generation. Nothing here runs on a
 //! request path.
 //!
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::collections::BTreeMap;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -61,7 +60,7 @@ use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Setting};
 use crate::value::{Quantity, Unit};
 
-/// ADR 0097 § 5's four waits, each a number — the whole clock one connection is bounded by.
+/// `rule:http-server/the-server-block-is-boot-class`'s four waits, each a number — the whole clock one connection is bounded by.
 ///
 /// Held by value and copied per configuration generation rather than borrowed from the tree, for
 /// [`crate::queue::QueueBounds`]'s reason: `rule:config/the-config-is-an-immutable-snapshot`
@@ -213,7 +212,7 @@ fn refuse(
     .with_note(format!("{why}{}", origin_note(origins.get(key))))
     .with_help(format!(
         "write how long the server waits, as `10s` — there is no spelling for waiting forever, \
-         and leaving `{key}` out keeps ADR 0097 § 5's own default"
+         and leaving `{key}` out keeps `rule:http-server/the-server-block-is-boot-class`'s own default"
     ))
 }
 
@@ -274,7 +273,7 @@ pub fn listen_on(
             origin_note(origins.get("server.listen"))
         ))
         .with_help(
-            "leave `server.listen` out to keep ADR 0097 § 5's own `127.0.0.1:8000`, or write the \
+            "leave `server.listen` out to keep `rule:http-server/the-server-block-is-boot-class`'s own `127.0.0.1:8000`, or write the \
              address this deployment answers on",
         ));
     }
@@ -358,14 +357,14 @@ pub fn health_path(
     ))
     .with_help(
         "write the one absolute path the probe asks for, as `/healthz`, or leave \
-         `server.health_path` out to keep ADR 0097 § 5's own off",
+         `server.health_path` out to keep `rule:http-server/the-server-block-is-boot-class`'s own off",
     ))
 }
 
 /// § 5's own number, transcribed rather than chosen — the ADR writes it out.
 const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
 
-/// The three numbers ADR 0106 § 13's admission arithmetic is over: what the file asked for, what
+/// The three numbers `rule:http-server/admission-is-arithmetic-not-a-number`'s admission arithmetic is over: what the file asked for, what
 /// one request may hold, and what this machine has.
 ///
 /// Deliberately **not** the answer — the division, the clamp and the log line are
@@ -427,7 +426,7 @@ pub fn capacity_for(
             ))
             .with_help(
                 "write how many requests may be in flight at once, as `10000`, or leave \
-                 `server.max_in_flight` out to keep ADR 0097 § 5's own default",
+                 `server.max_in_flight` out to keep `rule:http-server/the-server-block-is-boot-class`'s own default",
             ));
         }
         Some(written) => written,
@@ -586,7 +585,7 @@ mod tests {
         assert_eq!(suffixed.keepalive, Waits::default().keepalive);
     }
 
-    /// ADR 0074's headline, as the two refusals that hold it up. Both sides are named in one case
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline, as the two refusals that hold it up. Both sides are named in one case
     /// because a resolution that refused only `false` would still accept the `0` that closes every
     /// connection as it arrives.
     #[test]

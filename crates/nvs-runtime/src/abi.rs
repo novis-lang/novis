@@ -22,8 +22,8 @@
 //!
 //! The helper wrapper is the **inner** one, and it only ever sees a fault
 //! raised beneath a JIT frame.
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 2 puts the **outer** one at the root of every task, because the code a
+//! `rule:http-server/containment-does-not-end-at-the-helper`
+//! puts the **outer** one at the root of every task, because the code a
 //! worker runs with no request beneath it — the accept loop, the HTTP reader,
 //! the compiled-unit cache index — has no helper frame to be contained by.
 //! [`run_task`] is that boundary and [`TaskRoot`] is the whole of what
@@ -266,8 +266,8 @@ pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
 
 /// How many iterations of a [`bounded_loop`] pass between two deadline polls.
 ///
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 5 requires the *amortised* poll to stay under the stack check's own
+/// `rule:http-server/time-is-bounded-inside-a-helper`
+/// requires the *amortised* poll to stay under the stack check's own
 /// per-call cost, and this constant is the only thing that number depends on:
 /// a poll is one relaxed load and a compare against a line
 /// [`crate::nvs_stack_check`] has already brought in, so dividing it by 256
@@ -280,8 +280,8 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 
 /// Runs a helper's O(input) loop and polls the request's deadline *for* it.
 ///
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 5's first constraint: **the poll is supplied by a bounded-loop
+/// `rule:http-server/time-is-bounded-inside-a-helper`
+/// 's first constraint: **the poll is supplied by a bounded-loop
 /// combinator, not remembered per helper.** The safepoint bounds Novis code
 /// because it sits between calls, and a helper is one call — so a member whose
 /// runtime scales with its input is exactly the shape a deadline cannot
@@ -300,7 +300,7 @@ pub const DEADLINE_POLL_BATCH: usize = 256;
 ///
 /// **A member with no consistent point to abandon at does not reach for this.**
 /// A sort cannot hand back a half-permuted array; where the operation has no
-/// such point the bound belongs on the *input* instead, which is ADR 0106 § 5's
+/// such point the bound belongs on the *input* instead, which is `rule:http-server/time-is-bounded-inside-a-helper`'s
 /// second constraint and what
 /// `rule:core-classes/regex-two-tiers` already did for
 /// patterns. Between two iterations of *this* loop is such a point by
@@ -617,8 +617,8 @@ pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32
 /// What a task's root was running, and therefore who owns a panic that
 /// reaches it.
 ///
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 2 splits containment's two outcomes on exactly this question and on
+/// `rule:http-server/containment-does-not-end-at-the-helper`
+/// splits containment's two outcomes on exactly this question and on
 /// nothing else, so it is the whole of what [`run_task`] has to be told.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskRoot {
@@ -658,7 +658,7 @@ impl TaskPanic {
         self.root
     }
 
-    /// Whether this fault retires the worker, which is ADR 0106 § 2's split
+    /// Whether this fault retires the worker, which is `rule:http-server/containment-does-not-end-at-the-helper`'s split
     /// and the only decision a caller has to make from one of these.
     #[must_use]
     pub const fn retires_worker(&self) -> bool {
@@ -678,7 +678,7 @@ impl std::fmt::Display for TaskPanic {
 /// that stays exactly where it is: it is the inner boundary, it reports through
 /// [`Ctx`] as [`FATAL`], and a fault it catches never reaches here. This one
 /// exists for the code a worker runs with no helper frame under it at all —
-/// ADR 0106 § 2 — and it is applied by whatever spawns the task rather than
+/// `rule:http-server/containment-does-not-end-at-the-helper` — and it is applied by whatever spawns the task rather than
 /// written per call site, for the same reason the macro exists: a boundary a
 /// contributor can forget is not a boundary.
 ///
@@ -738,7 +738,7 @@ thread_local! {
 /// process because it cannot tell a swallowed teardown from a corrupted stack.
 /// That is a path to `abort()` reached by an ordinary worker shutdown with a
 /// request still parked, which
-/// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
+/// `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 /// does not allow.
 ///
 /// It is *narrow* on purpose: the guard is held only across the drop of a
@@ -1043,7 +1043,7 @@ mod tests {
         assert_eq!(fault.root(), TaskRoot::Worker);
         assert!(
             fault.retires_worker(),
-            "shared state faulted, so ADR 0106 § 2 retires the worker"
+            "shared state faulted, so `rule:http-server/containment-does-not-end-at-the-helper` retires the worker"
         );
     }
 
@@ -1142,7 +1142,7 @@ mod tests {
     fn a_run_shorter_than_one_batch_finishes_under_an_expired_deadline() {
         // The other side of the same bound, asserted deliberately: amortising
         // the poll means a loop too short to reach a batch boundary never pays
-        // for one and never stops. ADR 0106 § 5 bounds a helper's *runtime*,
+        // for one and never stops. `rule:http-server/time-is-bounded-inside-a-helper` bounds a helper's *runtime*,
         // and a run under one batch is already bounded.
         let mut ctx = Ctx::buffered();
         ctx.expire_deadline();

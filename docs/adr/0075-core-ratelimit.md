@@ -132,7 +132,7 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 
 - **Edge and flood limiting.** No per-IP limit, no per-path limit, no connection limit, and no `[ratelimit]`
   block in `nvs.toml` doing any of that. A proxy owns it, earlier and cheaper, and the same line
-  [ADR 0074](0074-http-defaults-safe-and-finite.md) draws for request-size and slow-loris handling is drawn
+  `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` draws for request-size and slow-loris handling is drawn
   here. An application that wants to limit per IP can still do so — the client address is a key like any
   other — but Novis does not offer it as a deployment feature, because doing it here means paying for the
   request in order to reject it.
@@ -248,7 +248,7 @@ implementation of somebody else's specification, and it is a few dozen lines wit
 - **A reservation or multi-key form** if a real use case appears — charging a quota across two dimensions
   atomically, or holding a token across an operation. Both are additive.
 - **Circuit breaking** shares `shed`'s per-core-state shape and its approximate guarantee, and
-  [ADR 0074](0074-http-defaults-safe-and-finite.md)'s *Revisiting* already flags it. If it lands, it should
+  `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s *Revisiting* already flags it. If it lands, it should
   be argued together with `shed` rather than separately, so the deployment gets one story about approximate
   per-core state instead of two.
 - **Whether `shed` earns its place** should be re-examined once something actually calls it. If nothing

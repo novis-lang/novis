@@ -36,9 +36,8 @@ pub enum Denied {
     NoSuchOperation(String),
     /// The target names an operation, and the method is not the one it is performed with. A reload
     /// changes what the process is serving, so `GET` is refused rather than treated as a synonym —
-    /// exactly the reason [ADR 0074] § 1 gives for safe methods being safe.
+    /// exactly the reason `rule:http-server/secure-headers-with-nothing-written` gives for safe methods being safe.
     ///
-    /// [ADR 0074]: /docs/adr/0074-http-defaults-safe-and-finite.md
     WrongMethod {
         /// What the operation is performed with, for the `Allow` header the answer carries.
         allow: &'static str,

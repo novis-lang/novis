@@ -101,7 +101,7 @@ pub(crate) const NAME: &str = r"Core\Mail";
 /// How long the whole exchange may take — connect, banner, every command and the
 /// `DATA` body together.
 ///
-/// One bound rather than one per step, for ADR 0074 § 5's reason: a per-step
+/// One bound rather than one per step, for `rule:http-server/no-spelling-for-an-unbounded-wait`'s reason: a per-step
 /// timeout multiplied by the number of steps is the unbounded wait spelled
 /// long-hand, and an SMTP conversation has as many steps as there are
 /// recipients.

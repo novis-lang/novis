@@ -11,8 +11,8 @@
 //!
 //! **The runtime is ours and it is not `async`.** `docs/plan/design.md`
 //! § *Thread-per-core, shared-nothing runtime* is that decision's only home,
-//! and [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 6 is what it buys: a core is never blocked on a syscall, because a task
+//! and `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+//! is what it buys: a core is never blocked on a syscall, because a task
 //! that would wait suspends its own stack and hands the core back. A helper
 //! reaches its yielder through the [`nvs_runtime::Ctx`] it was already given
 //! ([`scheduler::suspend`]), so no function in the chain is marked, no `Core`
@@ -64,7 +64,7 @@
 //! recursion limit's bounds come from — a task's limit is armed from the stack
 //! this crate handed it, not asserted from a ceiling.
 //!
-//! [`blocking`] is the other half of that: the pool ADR 0106 § 6 sends a
+//! [`blocking`] is the other half of that: the pool `rule:http-server/a-core-is-never-blocked-on-a-syscall` sends a
 //! filesystem call, a name resolution or a wait on a child process to, bounded
 //! at twice the core count and started only when work arrives.
 //! [`blocking::run`] is the whole handoff — off the core, back through a
@@ -88,7 +88,7 @@
 //! ordering that makes a lost wakeup impossible and the one permission a whole
 //! connection costs.
 //!
-//! [`watchdog`] is ADR 0106 § 7: one thread for the process, reading the
+//! [`watchdog`] is `rule:http-server/a-wedged-core-is-detected-by-its-deadline`: one thread for the process, reading the
 //! earliest deadline each core publishes through [`timer::DeadlineView`] and
 //! reporting a core that has been behind its own clock by a margin. It reads
 //! state the deadline mechanism keeps anyway, so no worker writes anything for
@@ -218,7 +218,7 @@ impl<T> Worker<T> {
     ///
     /// The panic payload, if one escaped the body. A panic *inside a task* does
     /// not reach here — `nvs_runtime::run_task` contains it at the task root
-    /// and reports it through [`Finished::outcome`], which is ADR 0106 § 2's
+    /// and reports it through [`Finished::outcome`], which is `rule:http-server/containment-does-not-end-at-the-helper`'s
     /// split between a failed request and a retired worker.
     pub fn join(self) -> std::thread::Result<T> {
         self.handle.join()

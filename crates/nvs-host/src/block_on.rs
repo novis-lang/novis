@@ -13,8 +13,8 @@
 //! `Pending` suspends the **task** and not the thread. That is the only reason
 //! the word `block` is honest in the name — the core goes back to its run queue
 //! and serves its other connections, which is
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 6 applied to a poll instead of to a syscall.
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+//! applied to a poll instead of to a syscall.
 //!
 //! # A waker is a permission to poll again, and it decides nothing
 //!

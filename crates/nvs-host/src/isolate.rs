@@ -771,7 +771,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         let record = nvs_runtime::floor::uncaught(thrown);
         crate::ladder::escalate(isolate_ctx, &record);
     }
-    // ADR 0139 § 4's write-back, at the end of the program that opened the
+    // `rule:http-server/a-session-is-loaded-once-and-written-whole`'s write-back, at the end of the program that opened the
     // record: an HTTP request is a root isolate, so this is the line where a
     // request ends, and `Ctx::end_session` is the no-op an isolate that started
     // no session — or only read one — returns from. It runs after the tier-3
@@ -1293,7 +1293,7 @@ mod tests {
         release(done.value);
     }
 
-    /// ADR 0106 § 2's third fault, at this boundary: a **panic** inside the
+    /// `rule:http-server/containment-does-not-end-at-the-helper`'s third fault, at this boundary: a **panic** inside the
     /// child is contained by the child's own task, so it arrives as one more
     /// `ok = false` beside an uncaught throw and a refused answer, and the
     /// parent is still running and still usable afterwards.

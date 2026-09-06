@@ -87,7 +87,7 @@ int $substituted = 0;
 int $unique = 0;
 foreach ($links as string $one) {
     // A link is a path from the root: the mount prefix and the origin are the
-    // two things in front of it (ADR 0097 § 3, `rule:routing/an-absolute-link-takes-a-configured-origin`) and neither is
+    // two things in front of it (`rule:http-server/a-mount-table-expands-at-boot`, `rule:routing/an-absolute-link-takes-a-configured-origin`) and neither is
     // configured here, so every answer begins at `/`.
     if (Core\Str::startsWith($one, "/")) { $rooted = $rooted + 1; }
     // Nothing of § 2's grammar survives into the answer. A row that copied its

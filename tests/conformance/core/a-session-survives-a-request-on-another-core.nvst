@@ -1,5 +1,5 @@
 --TEST--
-a session record may not live in the per-core tier, so the store a request on one core wrote is the store a request on another core reads — `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, ADR 0139 § 3
+a session record may not live in the per-core tier, so the store a request on one core wrote is the store a request on another core reads — `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`, `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
 --FILE--
 <?nvs
 // The claim is about two cores, and it is pinned at the one place a program

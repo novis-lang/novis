@@ -39,7 +39,7 @@ var $columns = $rows->columns();
 echo "column ", $columns[0]->name(), " is ", $columns[0]->type() == Core\Db\ColumnType::Text ? "text" : "something else", "\n";
 --FILE nvs.toml--
 # § 3: a SQLite connection's file path comes from its config block, so
-# `db.connect` covers it and there is no address for ADR 0058's table to have
+# `db.connect` covers it and there is no address for `rule:http-server/allow-url-pins-the-address`'s table to have
 # an opinion about.
 [capabilities.db]
 connect = ["main"]

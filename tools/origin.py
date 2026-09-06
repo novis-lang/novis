@@ -2,10 +2,10 @@
 """The local origin `examples/http.nvs` talks to: one route, one answer, held long enough to be
 timed.
 
-ADR 0058's outbound half is only demonstrable against something that answers, and stage 5's
+`rule:http-server/allow-url-pins-the-address`'s outbound half is only demonstrable against something that answers, and stage 5's
 acceptance check wants `status=200` and `body=ok` from a real socket rather than from a stub. This
 is that something. It is a driver-side fixture, **not** part of the language: Novis's own server is
-[ADR 0097](../docs/adr/0097-development-server-and-proxied-origin.md) and it is a later milestone,
+`rule:http-server/two-deployments-and-nothing-a-proxy-owns` and it is a later milestone,
 so an example that needed one to exist first would be an example nobody could run today.
 
 `tools/loop.py` starts one of these per leg for the whole acceptance sweep -- the Windows one for
@@ -20,7 +20,7 @@ makes the example's last line deterministic.** `examples/http.nvs` asks the *sam
 inside 1ms, and the point it makes is that the budget -- not the server -- is what ends the call. An
 origin on loopback that answers instantly turns that line into a race between a 1ms deadline and a
 sub-millisecond round trip, which would be a fixture that fails one iteration in some. Twenty-five
-milliseconds is far under the default deadline ADR 0074 § 5 gives the first request and far over the
+milliseconds is far under the default deadline `rule:http-server/no-spelling-for-an-unbounded-wait` gives the first request and far over the
 one the last request asks for, so both lines are decided by arithmetic rather than by scheduling.
 
 The reply is written by hand rather than through `http.server`, for two reasons that are the same

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- ADR 0074 § 3, spec § 15
+`Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- `rule:http-server/cookies-are-secure-httponly-and-lax`, spec § 15
 --FILE--
 <?nvs
 // Invariance over a sweep, and the sweep is the options bag. Nothing here reads
@@ -9,7 +9,7 @@
 
 // § 3's pair: `SameSite=None` needs `Secure`. Written alone it is admitted,
 // and that is only true if `secure` defaulted to `true` — with nothing
-// configured, ADR 0074 § 3 says it does.
+// configured, `rule:http-server/cookies-are-secure-httponly-and-lax` says it does.
 uint $admitted = 0;
 try {
     Core\Response::addCookie("sid", "abc", {sameSite: Core\Response\SameSite::None});

@@ -873,7 +873,7 @@ input opens two streams.
 
 `Uri::parse` is an `rule:expressions/intrinsic-literals` intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
-([ADR 0058](../adr/0058-outbound-request-policy.md)).
+(`rule:http-server/allow-url-pins-the-address`).
 
 **`parse` reads RFC 3986 and reports rather than normalizes.** It takes a URI *reference*, so
 `Uri::parse("/a?b")` answers a `Uri` whose `scheme()` is `null`; every component comes back exactly as it
@@ -1090,7 +1090,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   answering `name()`, a `filename()` that is never a path and a `contentType()` — all three `tainted` —
   and consumed by `readAll({max?}): tainted bytes`, by iterating `content(): Iterable<bytes>`, or by
   `saveTo(string $path, {max?, overwrite?})` — there is no temp path, no `move_uploaded_file` and no `size`
-  ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)); a
+  (`rule:http-server/an-upload-is-received-only-through-files`); a
   multipart form's non-file parts are buffered into `post()` as usual;
   `post(string $name): mixed` reads one submitted field by name under `query`'s bracket convention, over
   those buffered parts or over a urlencoded body, and is the one body reader that **joins** a `files` walk
@@ -1099,14 +1099,14 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   the uploads too takes `files()` first; and `bodyStream(): Iterable<tainted bytes>`
   is the raw-body alternative to `body`, carrying the qualifier `body` puts on the same octets, and
   exclusive with it and with `files` on one request
-  ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) §§ 3, 6, 7, 8).
+  (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 - `Core\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the five body members
   `html(Core\Html\Markup)`, `json(mixed)`, `text(string)`, `bytes(bytes, string $contentType)`,
   `sendFile(…)` — replacing `header`, `headers_sent`, `setcookie`, `setrawcookie`, `http_response_code`.
   `setHeader` is a header **sink** and overrides a policy-owned header on one response; `addCookie`'s
   options shape defaults every field from `[http.cookies]`, so a cookie written with no options is
   `Secure; HttpOnly; SameSite=Lax; Path=/` and `SameSite` is an enum, never a string
-  ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)). **One body member per shape, each setting its
+  (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`). **One body member per shape, each setting its
   own `Content-Type`**, replacing a single `write`: `json` serializes the value itself so a tainted one is
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
   `echo` is the sixth, HTML-only path, and mixing it with any of the five on one response is a compile
@@ -1114,12 +1114,12 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
 - `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
   (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown
-  has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
+  has begun (`rule:http-server/the-server-block-is-boot-class`).
 - `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25
   `session_*` functions. `start` is the one that reaches the store, and a member called before it throws
   (`rule:core-classes/session-is-started-explicitly`). Where the record lives is `[session] backend`, which
   names the shared cache tier or the database and refuses the local one
-  ([ADR 0139](../adr/0139-a-session-is-a-record-its-store-issued.md) § 3, enforcing
+  (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, enforcing
   `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`).
 - `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\Mode`, and the constants `EOL`, `OS`,
   `VERSION`; its one enum is `Env\Mode` — `Production`, `Development`. Read-only —

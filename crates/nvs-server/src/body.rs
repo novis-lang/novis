@@ -1,4 +1,4 @@
-//! [ADR 0105]'s request body, at the one seam where it crosses between two
+//! `rule:http-server/an-upload-is-received-only-through-files`'s request body, at the one seam where it crosses between two
 //! tasks: `hyper`'s [`Incoming`] on the connection, and
 //! [`nvs_runtime::RequestBody`] in the request.
 //!
@@ -36,7 +36,6 @@
 //! construction, since [`Supply::pump`] reads one chunk per want and never runs
 //! ahead of the program.
 //!
-//! [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
 
 use std::cell::RefCell;
 use std::pin::Pin;
@@ -49,18 +48,16 @@ use hyper::header::CONTENT_LENGTH;
 use nvs_host::{Waiting, Wake, suspend_current};
 use nvs_runtime::RequestBody;
 
-/// [ADR 0105] § 5's `upload_total`: the total bytes of one request body this
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`'s `upload_total`: the total bytes of one request body this
 /// server will carry, consumed and drained alike.
 ///
 /// The ADR's own default, as a constant, because `[limits] upload_total` is not
 /// a `nvs_config` row yet — that directive and its `[limits.hard]` ceiling are
 /// the configuration slice's, and this constant is the one line it replaces.
 /// The number is load-bearing either way: § 5 makes it the *only* thing
-/// bounding a streamed body, and [ADR 0106] § 13 multiplies it by the in-flight
+/// bounding a streamed body, and `rule:http-server/admission-is-arithmetic-not-a-number` multiplies it by the in-flight
 /// ceiling to get what the machine must hold.
 ///
-/// [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
-/// [ADR 0106]: ../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md
 pub const UPLOAD_TOTAL: u64 = 256 * 1024 * 1024;
 
 /// What the door found where a body would be.
@@ -70,10 +67,9 @@ pub enum Arrived {
     /// distinction RFC 9110 § 8.6 draws and not "the body is empty".
     Absent,
     /// A body whose declared length is already over [`UPLOAD_TOTAL`], refused
-    /// before anything is dispatched — [ADR 0105] § 5's honest oversized client,
+    /// before anything is dispatched — `rule:http-server/request-body-and-upload-total-are-two-caps`'s honest oversized client,
     /// which never reaches application code.
     ///
-    /// [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
     TooLarge,
     /// A body to stream: the connection's half, and the program's.
     Streaming(Supply, Box<dyn RequestBody>),
@@ -177,12 +173,11 @@ impl Supply {
     /// body is buffered by anyone. With a chunk still uncollected it does not
     /// poll either, which is the whole of the O(in-flight) bound.
     ///
-    /// [ADR 0105] § 5's `upload_total` is counted here, because this is the only
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s `upload_total` is counted here, because this is the only
     /// thing that sees every byte: a body that crosses it mid-stream ends as an
     /// error at the pull that would have received the offending chunk, which is
     /// where the ADR puts it for a body that declared no length.
     ///
-    /// [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
     pub fn pump(&mut self, cx: &mut Context<'_>) {
         loop {
             if self.spent || !self.wire.borrow().wanted || self.wire.borrow().chunk.is_some() {
@@ -310,9 +305,8 @@ impl RequestBody for Pull {
 }
 
 /// A body crossing [`UPLOAD_TOTAL`] with no length declared, which is the case
-/// [ADR 0105] § 5 leaves to the wire.
+/// `rule:http-server/request-body-and-upload-total-are-two-caps` leaves to the wire.
 ///
-/// [ADR 0105]: ../../../docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md
 const OVER_CAP: &str = "the request body is larger than the upload_total limit allows";
 
 /// A pull made where there is no task to park, so the connection could never be

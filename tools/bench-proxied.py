@@ -470,7 +470,7 @@ def main() -> int:
         bodies["nginx -> nvs serve"] = http_body(NVS_NGINX_PORT)
         arms["nginx-nvs-serve"] = oha_arm(
             NVS_STACK, "http://nginx/", args, nvs_env,
-            "nginx-nvs-serve", "nginx -> nvs serve", "ADR 0097's proxied origin, one core",
+            "nginx-nvs-serve", "nginx -> nvs serve", "`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s proxied origin, one core",
         )
     except Exception as exc:
         raise RuntimeError(f"{exc}\nnvs said:\n{logs_of(NVS_STACK, 'nvs')}") from exc
@@ -513,7 +513,7 @@ def main() -> int:
 
     caveats = [
         "nginx fronts both peers, which is the only deployment either has -- FPM speaks FastCGI "
-        "and nvs serve is ADR 0097's proxied origin; the proxy's cost is in both numbers",
+        "and nvs serve is `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s proxied origin; the proxy's cost is in both numbers",
         "arm 4 is driven by tools/bench.py's FastCGI client and not by oha, because FPM has no "
         "HTTP origin to point a load generator at; origin-against-origin therefore crosses two "
         "generators and is the weaker of the two ratios",

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Server::isDraining` answers a program that no accept loop is draining, rather than refusing a question about a server that is not there — ADR 0097 § 5
+`Core\Server::isDraining` answers a program that no accept loop is draining, rather than refusing a question about a server that is not there — `rule:http-server/the-server-block-is-boot-class`
 --FILE--
 <?nvs
-// ADR 0097 § 5's last sentence hands an application the fact `[server]
+// `rule:http-server/the-server-block-is-boot-class`'s last sentence hands an application the fact `[server]
 // health_path` answers a proxy with, so that an endpoint of its own can report
 // the same shutdown. A CLI program is the case with no server at all, and the
 // answer here is the boundary: `false`, not a throw and not a refusal, because

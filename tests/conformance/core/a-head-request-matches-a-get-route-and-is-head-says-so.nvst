@@ -1,8 +1,8 @@
 --TEST--
-a `HEAD` request matches the `Get` route the table holds, `Core\Request::method` reports `Get`, and `isHead` is the only member carrying the difference — ADR 0097 § 7, `rule:routing/matched-once-before-the-handler`
+a `HEAD` request matches the `Get` route the table holds, `Core\Request::method` reports `Get`, and `isHead` is the only member carrying the difference — `rule:http-server/head-runs-as-get`, `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
-// ADR 0097 § 7's first convention, asserted from inside the program rather
+// `rule:http-server/head-runs-as-get`'s first convention, asserted from inside the program rather
 // than at the door: a `HEAD` *is* a `Get` whose body is dropped, so a table
 // declaring only `Get` must still match one. Reporting `Head` would fail the
 // application's own `Core\Router::match` against a `Get` row and produce the

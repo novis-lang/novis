@@ -2368,7 +2368,7 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         // The live slots, as an iterator, so the walk goes through
         // `nvs_runtime::bounded_loop` and the deadline poll arrives with the
-        // shape rather than being remembered here — ADR 0106 § 5's first
+        // shape rather than being remembered here — `rule:http-server/time-is-bounded-inside-a-helper`'s first
         // constraint. An entry boundary is a point where abandoning is
         // consistent: `out` is a named local holding whole entries, so
         // propagating a fired poll releases the partial result by dropping it,

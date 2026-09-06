@@ -1,8 +1,8 @@
 //! The watchdog: one thread for the process, noticing a core that has stopped
 //! turning at all.
 //!
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 7 is the whole specification, and its first clause decides this module's
+//! `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
+//! is the whole specification, and its first clause decides this module's
 //! shape: the watchdog **reads the in-flight deadline each worker already
 //! maintains**. So there is no heartbeat here. A worker writes nothing for the
 //! watchdog's benefit, on any path; what it reads is [`crate::timer`]'s
@@ -26,7 +26,7 @@
 //!
 //! Firing writes one record to `rule:errors/engine-floor`'s floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
 //! default target — and does nothing else to the core. A thread cannot be
-//! safely killed in-process and ADR 0106 § 14 declines the process boundary
+//! safely killed in-process and `rule:http-server/the-residue-is-one-named-fault-class` declines the process boundary
 //! that would make it possible, so detection is the whole of what happens here.
 //! The other half of § 7's sentence — the core stops accepting new work and
 //! `max_in_flight` accounts for its share as unavailable — belongs to admission
@@ -35,8 +35,8 @@
 //!
 //! A stall is reported **once per deadline**, not once per sweep: a wedged core
 //! republishes nothing, so its earliest deadline is a stable identity for the
-//! episode. That is [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 10's coalescing rule arriving for free rather than as a second bound on
+//! episode. That is `rule:http-server/the-floor-cannot-fill-the-disk`
+//! 's coalescing rule arriving for free rather than as a second bound on
 //! the sink. A core that recovers and stalls again on a later deadline is a new
 //! episode and reports again.
 //!

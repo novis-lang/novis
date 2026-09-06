@@ -12,7 +12,7 @@
 //!
 //! # Why every call is a handoff, and what it costs
 //!
-//! ADR 0106 § 6 admits exactly two ways to wait: park on readiness, or run off
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall` admits exactly two ways to wait: park on readiness, or run off
 //! the core. A `sqlite3_step` that blocks blocks on a file lock and on the disk,
 //! neither of which the kernel will report as readiness, so this driver has only
 //! the second. [`nvs_host::blocking::run`] takes `FnOnce() -> T + Send +
@@ -517,7 +517,7 @@ impl Drop for SqliteRows<'_> {
 /// Opens the file, and answers the connection `rule:core-classes/db-statement-members`'s statements run on.
 ///
 /// The open itself goes off the core: creating or reading a database header is
-/// a filesystem call, which is ADR 0106 § 6's first named example.
+/// a filesystem call, which is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s first named example.
 ///
 /// Three things are set on the way out, and only the first is a number from the
 /// block:
@@ -963,7 +963,7 @@ fn step(
 ///
 /// `None` restores SQLite's own default, which is to answer `SQLITE_BUSY` at
 /// once rather than to wait unboundedly: an unbounded lock wait is not a shape
-/// this backend has, and it is not one ADR 0074 would allow if it did.
+/// this backend has, and it is not one `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` would allow if it did.
 ///
 /// # Errors
 ///
@@ -985,7 +985,7 @@ pub(crate) fn set_busy_timeout(
 ///
 /// A poisoned mutex here means a pool thread unwound while holding the
 /// connection, and [`nvs_host::blocking::run`] has already carried that panic
-/// back to the task that owns it — where ADR 0106's containment boundary fails
+/// back to the task that owns it — where `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s containment boundary fails
 /// one request. Panicking a second time on the next acquire would fail an
 /// unrelated one.
 fn lock(handle: &Mutex<rusqlite::Connection>) -> std::sync::MutexGuard<'_, rusqlite::Connection> {

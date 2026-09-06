@@ -1401,7 +1401,7 @@ pub const CLASSES: &[CoreClass] = &[
     // doc owns why reporting a grant is not widening one.
     crate::cap::CLASS,
     // § 15's third class that needs no request — so far. What is registered is
-    // ADR 0097 § 5's `isDraining`, which asks the same kind of question those
+    // `rule:http-server/the-server-block-is-boot-class`'s `isDraining`, which asks the same kind of question those
     // two do about the *process* rather than about a request; the rest of
     // `Core\Server` is the request's own environment and waits on a served
     // request carrying it. [`crate::server`]'s module doc owns that gap, and
@@ -1427,17 +1427,17 @@ pub const CLASSES: &[CoreClass] = &[
     // iterator rather than a snapshot, and its own docs say why: the next chunk
     // of a request body does not exist yet when the walk is named.
     crate::request::BODY_STREAM,
-    // What `Core\Request::files` answers with, and ADR 0105 § 1's whole
+    // What `Core\Request::files` answers with, and `rule:http-server/an-upload-is-received-only-through-files`'s whole
     // `Iterable<Part>` — a name for the walk, with every member on the part
     // rather than on it, exactly as the body walk above carries none.
     crate::request::FILES,
-    // And what that walk yields: ADR 0105 § 2's file part, which is a part iff
+    // And what that walk yields: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s file part, which is a part iff
     // it declared a `filename`. Three readers of what one upload said about
     // itself, all of them `tainted`, and no `size` — [`crate::request`]'s `PART`
     // docs own why the spec's two marks became three and why there is no
     // fourth reader.
     crate::request::PART,
-    // And what the part's own `content()` answers: ADR 0105 § 3's walk over one
+    // And what the part's own `content()` answers: `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s walk over one
     // upload's bytes. The body walk above with an identity — `crate::request`'s
     // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
     // over a body does not.
@@ -1507,7 +1507,7 @@ pub const CLASSES: &[CoreClass] = &[
     // § 16's SMTP row, and `rule:programs/framework-core-half`'s transport half. Registered on its own
     // rather than beside `Core\Http` because it shares nothing with it: the
     // endpoint is an operator-named block and not a program-supplied URL, so
-    // ADR 0058's launderer is not in the path at all. [`crate::mail`] owns why
+    // `rule:http-server/allow-url-pins-the-address`'s launderer is not in the path at all. [`crate::mail`] owns why
     // `mail()`'s fourth argument has no successor here.
     crate::mail::CLASS,
     // `rule:programs/framework-core-half`'s other half of the same row pair, and registered beside
@@ -1579,7 +1579,7 @@ pub const CLASSES: &[CoreClass] = &[
     // layout the slot lives in. [`crate::html`] owns why it has no
     // constructor.
     crate::html::MARKUP,
-    // ADR 0058 § 2's launderer, which is where every outbound URL in the
+    // `rule:http-server/allow-url-pins-the-address`'s launderer, which is where every outbound URL in the
     // language has to pass through — and the first `rule:security/tainted-qualifier` launderer whose
     // answer is a value rather than a plain string. [`crate::http`]'s own
     // module doc is the home of why that is the whole design, and of which
@@ -1590,7 +1590,7 @@ pub const CLASSES: &[CoreClass] = &[
     // approved address back out is the one operation that would make pinning
     // decorative.
     crate::http::TARGET,
-    // ADR 0074 § 5's request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
+    // `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, whose URL parameter is the sink `rule:security/outbound-url-is-a-sink`
     // makes it and whose one trailing shape has no spelling for an
     // unbounded wait. Five rows over one bag: the verb is the member's own
     // name, which is what lets § 7 answer "is this retry idempotent" while
@@ -1889,7 +1889,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "run",
         Some(nvs_config::Cap::ProcessExec),
     ),
-    // ADR 0058 §§ 2-3: approving a URL resolves its host, which is an effect,
+    // `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy`: approving a URL resolves its host, which is an effect,
     // and the grant is host-scoped. The address policy behind the same door is
     // not a second capability — it is deny-by-default and applies to every
     // grant, which is why it is a table in `nvs_config::capability` rather than
@@ -1900,7 +1900,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         Some(nvs_config::Cap::NetConnect),
     ),
     // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, gated by
-    // `net.connect` under ADR 0058's policy, and `shared()` is the door — it
+    // `net.connect` under `rule:http-server/allow-url-pins-the-address`'s policy, and `shared()` is the door — it
     // resolves the configured host and connects, while `Core\Cache\Store`'s two
     // operations run on what it approved and so declare nothing, exactly as
     // `Core\Http\Client` declares nothing behind `Core\Http::allowUrl`.
@@ -1968,7 +1968,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // `rule:core-classes/db-capabilities`'s split. `db.connect` names *blocks* and not hosts, for
     // `mail.send`'s reason and by the same authority: the endpoint is one an
     // operator wrote into root-owned configuration. `db.open`'s targets are
-    // program-supplied and reach ADR 0058's address policy in full, which is
+    // program-supplied and reach `rule:http-server/allow-url-pins-the-address`'s address policy in full, which is
     // the whole difference between the two grants — and why they are two.
     (crate::db::NAME, "connect", Some(nvs_config::Cap::DbConnect)),
     (crate::db::NAME, "open", Some(nvs_config::Cap::DbOpen)),
@@ -2405,7 +2405,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
     (crate::request::BODY_STREAM_NAME, &CoreTy::TaintedBytes),
-    // ADR 0105 § 1's `files(): Iterable<Part>`. A concrete element again, and
+    // `rule:http-server/an-upload-is-received-only-through-files`'s `files(): Iterable<Part>`. A concrete element again, and
     // the first one that is an *instance* rather than a scalar: what a
     // multipart body yields is a `Core\Request\Part` whatever the upload was,
     // so there is no receiver variable for it to be one of.
@@ -2413,7 +2413,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
-    // ADR 0105 § 3's `content(): Iterable<bytes>`, whose element is the body
+    // `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s `content(): Iterable<bytes>`, whose element is the body
     // walk's exactly: a chunk of an upload is a chunk of a request body with a
     // delimiter search in front of it, and `tainted` for the same reason.
     (crate::request::PART_CONTENT_NAME, &CoreTy::TaintedBytes),
@@ -2473,7 +2473,7 @@ pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
     ENUMS.iter().find(|found| found.name == name)
 }
 
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 7's
+/// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s
 /// obligation, as the two option names it is written over: a member whose verb
 /// repeats an *effect* may ask for retries only alongside an idempotency key.
 ///
@@ -4146,7 +4146,7 @@ mod tests {
     /// writes `lines(string $path): Iterable<string>` and no member *on* the
     /// thing it answers with, so a `foreach` is the whole of its surface. The
     /// fifth is `Core\Http\Target`, whose two slots the member that connects
-    /// reads: ADR 0058 § 2 pins an approved address into it, and a member
+    /// reads: `rule:http-server/allow-url-pins-the-address` pins an approved address into it, and a member
     /// handing that address back would let a program rebuild the request
     /// around a different one ([`crate::http`]). The sixth and seventh are
     /// `Core\Cli\Color` and `Core\Cli\Style`, whose slots

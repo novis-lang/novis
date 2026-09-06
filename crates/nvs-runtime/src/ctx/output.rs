@@ -86,8 +86,8 @@ pub enum OutputSink {
     /// request — and a `spawn script` child inside a request takes it because
     /// § 3's third row gives that child the *parent's* carrier.
     Body(Vec<u8>),
-    /// A file on disk, under [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 10's rotation and retention bound.
+    /// A file on disk, under `rule:http-server/the-floor-cannot-fill-the-disk`
+    /// 's rotation and retention bound.
     ///
     /// What `[log] target = "file:…"` selects, built by
     /// [`Ctx::write_log_record`]'s reader and reachable directly through
@@ -518,8 +518,8 @@ impl Ctx {
 
     /// Sets one header on this request's response, replacing any value this
     /// request had already set under that name — spec § 15's `setHeader`, and
-    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
-    /// § 4's override of a policy-owned header.
+    /// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
+    /// 's override of a policy-owned header.
     ///
     /// **Set, not add**: the member is named for replacement, and a second
     /// value under one name is [`Self::append_header`]'s question rather than
@@ -602,7 +602,7 @@ impl Ctx {
 /// A row rather than the pair this used to be, because two members declare
 /// headers and they mean opposite things about a name that is already present.
 /// [`Ctx::declare_header`] is
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 4's
+/// `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`'s
 /// override of *one* policy-owned header, so it replaces; [`Ctx::append_header`]
 /// is the `Set-Cookie` path, where a second value under one name is the entire
 /// point. Which of the two a row is cannot be recovered from the pair — a

@@ -1,5 +1,5 @@
 //! `rule:core-classes/queue-storage-is-a-table`'s `[queue]`, as the boot reads it: the `[db.<name>]` it names, three bounds that are
-//! finite with nothing configured (ADR 0074), and the four things a block can say that leave nothing
+//! finite with nothing configured (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and the four things a block can say that leave nothing
 //! able to run a job.
 //!
 //! The refusals are asserted by **counting**, not read off one line: a reader that grew a hole in
@@ -40,7 +40,7 @@ fn refusal(text: &str) -> Diagnostic {
     }
 }
 
-/// ADR 0074, which § 2's example is written against: a block that configures nothing but the
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, which § 2's example is written against: a block that configures nothing but the
 /// connection still has three finite bounds, and they are the ADR's own numbers.
 #[test]
 fn nothing_configured_is_a_finite_queue() {
@@ -99,7 +99,7 @@ fn every_queue_that_cannot_run_a_job_is_refused() {
         "[queue]\nconnection = \"main\"\nmax_attempts = 0\n",
         // § 4's lease, expiring as it is taken.
         "[queue]\nconnection = \"main\"\nvisibility = \"0s\"\n",
-        // ADR 0074's `false` removes a ceiling, which is not a meaning a lease has.
+        // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s `false` removes a ceiling, which is not a meaning a lease has.
         "[queue]\nconnection = \"main\"\nvisibility = false\n",
     ];
 

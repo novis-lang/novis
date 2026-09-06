@@ -91,8 +91,8 @@
 //! Everything above is readiness, and readiness is something the kernel already
 //! knows about. A call with no readiness to wait on — a filesystem call, a name
 //! resolution, a wait on a child process — goes to the blocking pool
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 6 requires, and the thread that finishes it has to be able to say so to a
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+//! requires, and the thread that finishes it has to be able to say so to a
 //! core that is asleep inside `Poll::poll`. [`Reactor::remote_wake`] is that:
 //! it hands out a [`RemoteWake`], the one `Send` thing in this crate, and the
 //! far side wakes it when the answer is ready — or drops it, which wakes the
@@ -176,7 +176,7 @@ struct Remote {
     /// state in the crate, the lock is held for a push or a `Vec::append` and
     /// never across a syscall, and a channel would be a second mechanism saying
     /// the same thing with a second allocation per wake. Contention is bounded
-    /// by the size of the pool, which ADR 0106 § 6 bounds at twice the core
+    /// by the size of the pool, which `rule:http-server/a-core-is-never-blocked-on-a-syscall` bounds at twice the core
     /// count.
     pending: Mutex<Vec<TaskId>>,
     /// How many [`RemoteWake`] handles this core has issued and not yet
@@ -203,8 +203,8 @@ struct Remote {
 /// rule 1's ordering, and for rule 1's reason: a wake arriving in the gap
 /// between a park and its arrangement would have nothing to be recorded
 /// against. Then it is moved to whatever thread is doing the work, which is the
-/// blocking pool [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-/// § 6 sends a filesystem call, a name resolution or a wait on a child process
+/// blocking pool `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+/// sends a filesystem call, a name resolution or a wait on a child process
 /// to. This is the only thing in this crate that is `Send`, and it carries no
 /// reference to the scheduler, the reactor or the task's stack — just the id
 /// and the poke.
@@ -266,7 +266,7 @@ impl Drop for RemoteWake {
     fn drop(&mut self) {
         // A failed poke is not reportable from a drop and must not panic out of
         // one: the thread dropping this handle is quite possibly already
-        // unwinding, and a panic there is the abort ADR 0106 § 2 spent a
+        // unwinding, and a panic there is the abort `rule:http-server/containment-does-not-end-at-the-helper` spent a
         // containment boundary to avoid. The task stays parked until its
         // deadline, which is the bound `crate::timer` puts under every wait.
         let _ = self.deliver();
@@ -438,7 +438,7 @@ impl Reactor {
 
     /// A handle another thread may read this core's earliest deadline through.
     ///
-    /// The watchdog's end of ADR 0106 § 7, taken here rather than from the
+    /// The watchdog's end of `rule:http-server/a-wedged-core-is-detected-by-its-deadline`, taken here rather than from the
     /// [`Timers`] directly because the reactor is what a core has a handle on:
     /// a worker takes its own view once, on its own thread, and hands the copy
     /// out. [`crate::timer`]'s docs own what a reading of it means and why it
@@ -1088,7 +1088,7 @@ mod tests {
     }
 
     /// The whole cross-thread path, in the shape a blocking-pool handoff has
-    /// (ADR 0106 § 6): a task with **no** registration and no deadline parks,
+    /// (`rule:http-server/a-core-is-never-blocked-on-a-syscall`): a task with **no** registration and no deadline parks,
     /// another thread finishes its work and wakes it, and the core comes back
     /// out of a poll it could otherwise only have left by giving up on the
     /// task.

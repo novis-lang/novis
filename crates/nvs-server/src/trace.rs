@@ -7,7 +7,7 @@
 //! § 2 gives every request a trace id whatever the sampling decision, and makes
 //! that id Novis's *only* request identifier — `Core\Server::traceId()` reads
 //! it, every `[log]` record carries it, and there is deliberately no second one
-//! and no inbound `X-Request-ID` (ADR 0097 § 9). An id that a subsystem drew
+//! and no inbound `X-Request-ID` (`rule:http-server/the-trace-id-is-the-request-identifier`). An id that a subsystem drew
 //! for itself on first ask would be a second place for two readers to disagree
 //! about which trace a request is in, so [`nvs_runtime::Ctx::new`] draws a root
 //! eagerly and the only question left is whether *this* request continues

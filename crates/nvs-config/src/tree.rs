@@ -15,7 +15,7 @@
 //! **This tree answers which keys exist, not whether a value is usable.** A `memory = "12 bananas"`
 //! deserializes into a [`Setting::Text`] here and is refused where sizes are parsed; a
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
-//! ([ADR 0074] § 4). Two reasons the split is deliberate: a value refusal wants to name the unit it
+//! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). Two reasons the split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
 //! [ADR 0103 § 3](/docs/adr/0103-configuration-is-a-tree-of-files.md) resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
@@ -29,7 +29,6 @@
 //!
 //! [ADR 0064 § 2a]: ../../../docs/adr/0064-configuration-file-format.md
 //! [ADR 0064 § 3]: ../../../docs/adr/0064-configuration-file-format.md
-//! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 
 use std::collections::BTreeMap;
 
@@ -111,7 +110,7 @@ pub struct Config {
     pub metrics: Option<Metrics>,
     /// `[trace]` — the trace exporter (`rule:observability/metrics-and-trace-blocks-are-system`).
     pub trace: Option<Trace>,
-    /// `[server]` and the `[[server.mount]]` array under it (ADR 0097 §§ 4, 5).
+    /// `[server]` and the `[[server.mount]]` array under it (`rule:http-server/a-request-resolves-in-five-steps` and `rule:http-server/the-server-block-is-boot-class`).
     pub server: Option<Server>,
     /// `[cache]` — the artifact cache's directory (ADRs 0042, 0078 § 2).
     pub cache: Option<Cache>,
@@ -119,7 +118,7 @@ pub struct Config {
     pub control: Option<Control>,
     /// `[opcache]` — revalidation and the file cache (ADRs 0017, 0042 § 9).
     pub opcache: Option<Opcache>,
-    /// `[session]` — where `Core\Session`'s records live, and how long one survives (ADR 0139 § 3).
+    /// `[session]` — where `Core\Session`'s records live, and how long one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
     pub session: Option<Session>,
 }
 
@@ -151,7 +150,7 @@ pub struct App {
     pub entry: Option<String>,
     /// The mode this application starts in, under `[mode] ceiling` like any other.
     pub mode: Option<String>,
-    /// What `Core\Router::urlAbsolute` prepends (ADR 0097 § 3's fallback reads this key).
+    /// What `Core\Router::urlAbsolute` prepends (`rule:http-server/a-mount-table-expands-at-boot`'s fallback reads this key).
     pub origin: Option<String>,
     /// `[app.limits]`, and `[app.limits.hard]` beneath it.
     pub limits: Option<Limits>,
@@ -222,7 +221,7 @@ pub struct LimitSet {
     pub max_output: Option<Setting>,
 }
 
-/// `[mode]` — ADR 0091 § 5, whose two keys `rule:config/three-changeability-classes` gives two different classes.
+/// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose two keys `rule:config/three-changeability-classes` gives two different classes.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mode {
@@ -246,7 +245,7 @@ pub struct Capabilities {
     pub script: Option<CapScript>,
     /// `fs.read` and `fs.write`.
     pub fs: Option<CapFs>,
-    /// `net.connect` (ADR 0058's outbound policy is what it is checked against).
+    /// `net.connect` (`rule:http-server/allow-url-pins-the-address`'s outbound policy is what it is checked against).
     pub net: Option<CapNet>,
     /// `process.exec`.
     pub process: Option<CapProcess>,
@@ -316,7 +315,7 @@ pub struct CapDebug {
 #[serde(default, deny_unknown_fields)]
 pub struct CapDb {
     /// Which `[db.<name>]` blocks a program may open by name. An endpoint named here is
-    /// operator-written and so is pre-approved against ADR 0058's denied ranges.
+    /// operator-written and so is pre-approved against `rule:http-server/allow-url-pins-the-address`'s denied ranges.
     pub connect: Option<Setting>,
     /// Which hosts a program-supplied `Db\Settings` may reach; these stay subject to that policy.
     pub open: Option<Setting>,
@@ -389,7 +388,7 @@ pub struct Log {
     pub level: Option<String>,
 }
 
-/// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and ADR 0074's four defaults blocks.
+/// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s four defaults blocks.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Http {
@@ -414,7 +413,7 @@ pub struct HttpErrors {
     pub detail: Option<String>,
 }
 
-/// `[http.headers]` — ADR 0074 § 1's shipped defaults, applied with no configuration present.
+/// `[http.headers]` — `rule:http-server/secure-headers-with-nothing-written`'s shipped defaults, applied with no configuration present.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpHeaders {
@@ -434,7 +433,7 @@ pub struct HttpHeaders {
     pub permissions_policy: Option<String>,
 }
 
-/// `[http.cors]` — ADR 0074 § 2, closed until origins are named.
+/// `[http.cors]` — `rule:http-server/cors-is-closed-until-origins-are-named`, closed until origins are named.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCors {
@@ -452,7 +451,7 @@ pub struct HttpCors {
     pub max_age: Option<String>,
 }
 
-/// `[http.cookies]` — ADR 0074 § 3, the defaults every `Core\Response::addCookie` inherits.
+/// `[http.cookies]` — `rule:http-server/cookies-are-secure-httponly-and-lax`, the defaults every `Core\Response::addCookie` inherits.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpCookies {
@@ -466,7 +465,7 @@ pub struct HttpCookies {
     pub path: Option<String>,
 }
 
-/// `[http.client]` — ADR 0074 § 5, where nothing has a spelling for an unbounded outbound wait.
+/// `[http.client]` — `rule:http-server/no-spelling-for-an-unbounded-wait`, where nothing has a spelling for an unbounded outbound wait.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpClient {
@@ -474,7 +473,7 @@ pub struct HttpClient {
     pub connect_timeout: Option<String>,
     /// The total, covering every attempt and every redirect hop.
     pub deadline: Option<String>,
-    /// Redirects are off by default (ADR 0058 § 4).
+    /// Redirects are off by default (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
     pub max_redirects: Option<u32>,
 }
 
@@ -774,7 +773,7 @@ pub struct Queue {
     /// supported deployment and not a disabled queue.
     pub workers: Option<u64>,
     /// Attempts a job gets before § 6 moves it to the dead-letter table. Finite with nothing
-    /// configured, per ADR 0074, and there is no spelling for unbounded: § 6's whole shape is
+    /// configured, per `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`, and there is no spelling for unbounded: § 6's whole shape is
     /// that nothing is retried forever and nothing is discarded silently.
     pub max_attempts: Option<u64>,
     /// How long a claimed job stays invisible to other workers before it may be claimed again
@@ -834,7 +833,7 @@ pub struct Trace {
     pub propagate: Option<bool>,
 }
 
-/// `[server]` — ADR 0097 § 5, `Boot` as a whole block: a change here needs a restart.
+/// `[server]` — `rule:http-server/the-server-block-is-boot-class`, `Boot` as a whole block: a change here needs a restart.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Server {
@@ -872,7 +871,7 @@ pub struct Server {
     pub mount: Vec<Mount>,
 }
 
-/// One `[[server.mount]]` entry — ADR 0097 § 4.
+/// One `[[server.mount]]` entry — `rule:http-server/a-request-resolves-in-five-steps`.
 ///
 /// There is no `mode` key: `rule:config/a-mount-routes-and-an-app-block-sets-policy` moved a mount's mode onto the `[[app]]` block, so an
 /// application's mode is one answer wherever the entry file is reached from.
@@ -941,7 +940,7 @@ pub struct CacheShared {
 }
 
 /// `[session]` — where a `Core\Session` record lives, what it is called on the way back, and how
-/// long an untouched one survives (ADR 0139 § 3).
+/// long an untouched one survives (`rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`).
 ///
 /// Three keys and no fourth, all `System`/`Boot` per `crate::directive`'s `session` row: where a
 /// fleet's sessions live is a deployment decision, and moving it while requests are in flight would
@@ -949,7 +948,7 @@ pub struct CacheShared {
 /// and no `save_path` — § 5 gives expiry to the store, and § 3 gives it no backend that keeps files.
 ///
 /// The block being absent is **not** a default backend: `Core\Session::start()` throws naming this
-/// block, which is ADR 0074's "nothing configured is already safe" applied to a store nobody chose.
+/// block, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s "nothing configured is already safe" applied to a store nobody chose.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Session {
@@ -961,7 +960,7 @@ pub struct Session {
     /// it is the one thing that writes the expiry.
     pub ttl: Option<String>,
     /// The cookie name the identifier rides under. Omitted, `nvs_stdlib::session`'s default; the
-    /// cookie's *attributes* are not here, because ADR 0074 § 3 already fixes them for every cookie
+    /// cookie's *attributes* are not here, because `rule:http-server/cookies-are-secure-httponly-and-lax` already fixes them for every cookie
     /// this server writes and a second spelling would be a way to weaken them.
     pub cookie: Option<String>,
 }

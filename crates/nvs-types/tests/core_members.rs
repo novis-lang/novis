@@ -194,7 +194,7 @@ fn a_repeated_option_is_diagnosed() {
     );
 }
 
-/// ADR 0074 § 7, asked of four calls rather than of one, because **it is the
+/// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`, asked of four calls rather than of one, because **it is the
 /// verb that decides**: the same bag is a diagnostic on `post` and accepted on
 /// `get`, since a repeated `GET` is a second question rather than a second
 /// effect.

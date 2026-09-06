@@ -108,7 +108,7 @@ args = ["test", "tests/conformance/"]
 cases = [
   # Still true, and true for a different reason than exclusivity: `rule:security/request-state-throws-in-an-isolate`'s "no request arrived".
   "tests/conformance/core/a-request-refuses-every-read-when-no-request-arrived.nvst",
-  # Re-pointed at ADR 0139: `post` reads a body another buffering reader already held.
+  # Re-pointed at `rule:http-server/a-session-store-answers-four-operations`: `post` reads a body another buffering reader already held.
   "tests/conformance/core/a-request-post-reads-a-body-another-reader-held.nvst",
   "tests/conformance/core/a-request-post-refuses-before-it-reads-the-name-it-was-given.nvst",
 ]
@@ -154,13 +154,13 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the rule: buffering readers share, streaming readers consume. ADR 0139. Goal prose stage 3.
+# Stage 3 -- the rule: buffering readers share, streaming readers consume. `rule:http-server/a-session-store-answers-four-operations`. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
 stage = "3 the rule"
-name = "nvs-stdlib (ADR 0139 -- who may read a body)"
+name = "nvs-stdlib (`rule:http-server/a-session-store-answers-four-operations` -- who may read a body)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_buffering_reader_may_follow_another_buffering_reader",

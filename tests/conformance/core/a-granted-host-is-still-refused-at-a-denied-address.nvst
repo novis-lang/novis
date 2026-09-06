@@ -1,5 +1,5 @@
 --TEST--
-a `net.connect` grant does not reach an address `rule:security/net-address-policy` denies, and the refusal names the range — ADR 0058 §§ 2-3, 5
+a `net.connect` grant does not reach an address `rule:security/net-address-policy` denies, and the refusal names the range — `rule:http-server/allow-url-pins-the-address`, `rule:security/net-address-policy` and `rule:security/the-policy-lives-in-the-capability`
 --FILE--
 <?nvs
 // Both hosts below are granted by name in `nvs.toml`, and both are still

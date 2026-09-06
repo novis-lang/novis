@@ -45,7 +45,7 @@ use crate::tree::{Config, Log};
 pub enum Target<'a> {
     /// `stderr` — the default the floor has with nothing configured.
     Stderr,
-    /// `file:<path>` — a rotating file under ADR 0106 § 10's bound, carrying the path as written.
+    /// `file:<path>` — a rotating file under `rule:http-server/the-floor-cannot-fill-the-disk`'s bound, carrying the path as written.
     File(&'a str),
     /// `syslog` — spelled by § 4 and not yet transported;
     /// `nvs_runtime::Ctx::write_log_record`'s own doc owns what that means for a record today.

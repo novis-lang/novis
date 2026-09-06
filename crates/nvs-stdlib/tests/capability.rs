@@ -396,7 +396,7 @@ fn nvs_stdlib_reaches_the_os_only_through_the_gate() {
 ///
 /// The spellings this refuses are legitimate one class over, which is what makes the sweep a claim
 /// about *paths* rather than a ban on a word: `Core\Uri` has a `scheme` member because a URI is its
-/// subject, and `Core\Http::allowUrl` takes a URL because ADR 0058's outbound door is where a URL
+/// subject, and `Core\Http::allowUrl` takes a URL because `rule:http-server/allow-url-pins-the-address`'s outbound door is where a URL
 /// belongs. Neither takes a path.
 ///
 #[test]

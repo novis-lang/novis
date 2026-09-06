@@ -21,7 +21,7 @@ with these three.
 1. **The § 17 rows** in `docs/spec/01-core-library.md` are one line each and two of them carry no ADR.
    The surface is settled in this goal's stages and those rows are edited to match.
 2. **`Core\Response`'s `Content-Encoding` handling.** `rule:core-api/tier-roster` says the built-in server compresses
-   nothing itself, per [ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 1. That
+   nothing itself, per `rule:http-server/two-deployments-and-nothing-a-proxy-owns`. That
    stays true: this goal gives a *program* a compressor and does not put one in the server's path.
    Any comment implying the server will grow one is corrected here.
 
@@ -87,8 +87,8 @@ spelling.
   an unbounded wait.
 - **A refusal is a diagnostic naming the rule, never a failed I/O error**, so a caller cannot confuse
   "this archive is hostile" with "this disk is full".
-- **The server still compresses nothing** ([ADR 0097](../../adr/0097-development-server-and-proxied-origin.md)
-  § 1). A program may compress its own response body; nothing in the response path does it implicitly.
+- **The server still compresses nothing** (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`
+  ). A program may compress its own response body; nothing in the response path does it implicitly.
 - **Ambiguity about surface resolves toward whole-buffer first**, with streaming added only where the
   migration table names a PHP shape that cannot be expressed without it — recorded in the module doc,
   never `BLOCKED`.

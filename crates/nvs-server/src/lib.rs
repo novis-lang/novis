@@ -1,6 +1,6 @@
 //! The built-in HTTP server: a socket to a root isolate and back.
 //!
-//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
+//! `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
 //! is this crate's specification, and its § 2 is the rule everything else here
 //! is built to keep: **a filesystem path is never derived from a URL at request
 //! time.** A request *selects* an entry point from a table expanded against
@@ -22,7 +22,7 @@
 //! § 3). There is one isolation path in this tree and that is it; a second one
 //! would leave M7's state-bleed suite proving nothing.
 //!
-//! **A connection is bounded by a clock**: ADR 0097 § 5's four waits arrive as
+//! **A connection is bounded by a clock**: `rule:http-server/the-server-block-is-boot-class`'s four waits arrive as
 //! one `nvs_config::server::Waits`, and [`io`]'s docs § *The clock* are where
 //! they are enforced — idle waits refreshed by the bytes that move, never a
 //! total, and no state a connection can be in that is not one of the four.
@@ -42,7 +42,7 @@
 //! `[server]` switches decide only whether step 3 runs.
 //!
 //! [`admit`] is § 5's in-flight ceiling, and it is an **arithmetic** rather than
-//! the number the file wrote: ADR 0106 § 13 takes the smaller of `max_in_flight`
+//! the number the file wrote: `rule:http-server/admission-is-arithmetic-not-a-number` takes the smaller of `max_in_flight`
 //! and what the memory budget affords against the per-request cap, because a
 //! concurrency ceiling and a memory cap with no stated relationship leave the
 //! out-of-memory killer as the real admission control. The valve is asked before
@@ -121,7 +121,7 @@ pub mod trace;
 // written. `hyper` is this crate's dependency and deliberately not its callers'
 // — `rule:packaging/a-c-dependency-answers-two-questions`'s answer is one crate owning h1 — but the parameter type of a
 // `Fn(Request<Incoming>, Origin) -> Reply` has to be nameable outside it — the
-// second parameter is ADR 0097 § 6's walk, which ran on the connection before
+// second parameter is `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk, which ran on the connection before
 // the handler because its answer decides policy on responses no handler sees —
 // and a handler
 // that cannot annotate its own parameter is one whose first statement decides

@@ -817,7 +817,7 @@ def serve_vs_fpm(binary: Path, args) -> int:
     novis = {
         "kind": "nvs-serve",
         "label": "nvs serve",
-        "detail": "ADR 0097's development server, one core",
+        "detail": "`rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s development server, one core",
         "argv": [str(binary), "serve", str(entry), "--listen", f"127.0.0.1:{port}"],
         "cwd": ROOT,
         "port": port,

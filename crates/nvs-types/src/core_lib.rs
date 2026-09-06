@@ -1166,8 +1166,8 @@ mod tests {
     /// fourteenth, fifteenth and sixteenth are `Core\Request\Part`'s three
     /// readers, and they are the same sentence read once more over a
     /// `multipart/form-data` body:
-    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-    /// § 2 marks `filename` and `contentType`, and `name` is marked with them
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+    /// marks `filename` and `contentType`, and `name` is marked with them
     /// because a peer chooses the field name it sends back as freely as it
     /// chooses the other two — `nvs_stdlib::request`'s `PART` doc owns why the
     /// spec's two marks became three. `filename` is the one of the sixteen with
@@ -1353,7 +1353,7 @@ mod tests {
     /// `string` or a nested `array`, `nvs_types` has no tainted array to hold
     /// the second, so both rows answer `mixed` and the mark has nowhere to sit
     /// — `nvs_stdlib::request`'s module doc owns why. They are one hole and not
-    /// two: ADR 0105 § 2 gives a submitted form the parse a query string gets,
+    /// two: `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` gives a submitted form the parse a query string gets,
     /// so a tainted array would close both in the same edit. Naming them here
     /// is what makes closing it an edit to this assertion instead of a test
     /// that stays green across the fix. The other six plain rows are not
@@ -1370,8 +1370,8 @@ mod tests {
     /// two rows are swept here — the marked `captures()` and the sixth plain
     /// row, `prefix()`, which is plain because a mount row was expanded against
     /// the disk at boot rather than derived from the URL
-    /// ([ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-    /// § 2).
+    /// (`rule:http-server/a-path-is-never-derived-from-a-url`
+    /// ).
     #[test]
     fn every_request_member_returning_outside_data_returns_it_tainted() {
         use nvs_stdlib::registry::iterable_element;
@@ -1434,7 +1434,7 @@ mod tests {
              from it, the `void` of bytes that went to a file, the matched route, whose \
              own class carries the mark on the captures it hands back, the mount serving the \
              request, whose class does the same, and that class's own `prefix()` — a mount row \
-             is expanded against the disk at boot (ADR 0097 § 2), so a prefix is the \
+             is expanded against the disk at boot (`rule:http-server/a-path-is-never-derived-from-a-url`), so a prefix is the \
              operator's text and not the peer's. `query` and `post` are the \
              other two and are one known hole — § 9's brackets make a value a `string` or a \
              nested array and there is no tainted array, so a member added here answering a bare \
@@ -1454,7 +1454,7 @@ mod tests {
             hands_on,
             BTreeSet::from([(r"Core\Request", "files", r"Core\Request\Part".to_owned())]),
             "`files()` answers neither bytes nor a marked element: it walks a class this same \
-             sweep covers, so ADR 0105 § 1's one way in is checked by the `Core\\Request\\Part` \
+             sweep covers, so `rule:http-server/an-upload-is-received-only-through-files`'s one way in is checked by the `Core\\Request\\Part` \
              rows above rather than by its own return type"
         );
         assert!(
@@ -1518,7 +1518,7 @@ mod tests {
         );
     }
 
-    /// ADR 0058 § 2's load-bearing half: the launderer's answer is a **value**,
+    /// `rule:http-server/allow-url-pins-the-address`'s load-bearing half: the launderer's answer is a **value**,
     /// not a laundered `string`.
     ///
     /// A `Qual::Launder` that returned `CoreTy::Str` would satisfy `rule:security/launderers-are-sink-named`
@@ -1572,7 +1572,7 @@ mod tests {
         assert!(
             !answer.contains("string"),
             "a `string` answer would have removed the qualifier and left the rebinding gap open, \
-             which is the failure ADR 0058 § 2 exists to close"
+             which is the failure `rule:http-server/allow-url-pins-the-address` exists to close"
         );
 
         let target = CLASSES
@@ -1587,7 +1587,7 @@ mod tests {
         assert_eq!(target.slots, &["url", "address"]);
     }
 
-    /// ADR 0074 § 5, asked of the lowered signature rather than of the row:
+    /// `rule:http-server/no-spelling-for-an-unbounded-wait`, asked of the lowered signature rather than of the row:
     /// **no member of `Core\Http\Client` can be told to wait forever.**
     ///
     /// The guarantee comes from the absence of a spelling, so what this asserts

@@ -1,4 +1,4 @@
-# ADR 0097 — The built-in server is a development server and a proxied origin, and a URL never becomes a path
+# `rule:http-server/two-deployments-and-nothing-a-proxy-owns` — The built-in server is a development server and a proxied origin, and a URL never becomes a path
 
 - **Status:** Accepted
 - **Date:** 2026-08-26

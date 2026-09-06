@@ -156,7 +156,7 @@
 //! `a_test_with_server_true_gets_an_ephemeral_listener`) rather than by a
 //! `.nvst` case, no case ever being inside a `#[Test]`.
 //!
-//! A test reaching its own listener needs ADR 0058's outbound pair granted —
+//! A test reaching its own listener needs `rule:http-server/allow-url-pins-the-address`'s outbound pair granted —
 //! `net.connect` for the host and `net.internal` for § 3's denied loopback
 //! range — because `Core\Http\Client` is the way a program speaks HTTP and
 //! nothing about a listener being the test's own widens that policy. That is a

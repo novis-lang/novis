@@ -102,8 +102,8 @@ pub enum Level {
     Debug,
     /// Ordinary progress.
     Info,
-    /// [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
-    /// § 6's public-bind record.
+    /// `rule:http-server/a-development-server-on-a-public-interface-warns-and-serves`
+    /// 's public-bind record.
     Warn,
     /// An uncaught `Throwable`.
     Error,
@@ -446,8 +446,8 @@ pub struct Envelope {
     /// Where the record was produced.
     pub source: Option<Source>,
     /// How many identical records this one stands for —
-    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 10's coalescing counter, absent for the ordinary record that stands
+    /// `rule:http-server/the-floor-cannot-fill-the-disk`
+    /// 's coalescing counter, absent for the ordinary record that stands
     /// only for itself.
     ///
     /// **Written by the sink, not by the producer**, which is why it is an

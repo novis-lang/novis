@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and ADR 0074
+`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 --FILE--
 <?nvs
 // `rule:security/sink-predicate`: the content type is a sink, because it is the one string here

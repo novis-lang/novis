@@ -1,10 +1,10 @@
 --TEST--
-`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- ADR 0139 §§ 2, 3, `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`
+`Core\Session::start` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-four-operations` and `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`, `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`
 --FILE--
 <?nvs
 // The tree below chooses a store — so the refusal of the neighbouring case, the
 // one that names `[session] backend`, cannot be what arrives here. What arrives
-// instead names `[cache.shared] url`, and that is the assertion: ADR 0139 § 3
+// instead names `[cache.shared] url`, and that is the assertion: `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
 // says a deployment has *one* shared store, and a session store that named a
 // second address would be a second thing to configure for no coherence the
 // first does not already have. A member that had opened an address of its own

@@ -1,4 +1,4 @@
-//! [ADR 0097] § 4's static file policy: the bytes a [`What::Static`] selection
+//! `rule:http-server/a-request-resolves-in-five-steps`'s static file policy: the bytes a [`What::Static`] selection
 //! is, and the four headers that decide whether the peer needs them.
 //!
 //! [`crate::mount`] answered *which* file; this module answers *with* it. The
@@ -31,7 +31,7 @@
 //!   for is repairing the request, and a client that meant to resume would write
 //!   the wrong bytes to disk on the strength of it.
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
-//!   one — which [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s
+//!   one — which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 //!   `nosniff` renders inert rather than leaving to a browser to guess.
 //!
 //! # Decision: the default document is not the mount's root
@@ -58,7 +58,6 @@
 //! cached — and the place a byte cache would go is behind [`Source`], where the
 //! [`OnDisk`] implementation is the only thing that would change.
 //!
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 //! [`What::Static`]: crate::mount::What::Static
 
 use std::ffi::OsStr;
@@ -75,10 +74,9 @@ use hyper::{Response, StatusCode};
 use crate::mount::OnDisk;
 use crate::serve::{Answer, Reply};
 
-/// What a file has to answer before any of it is sent: [ADR 0097] § 4's
+/// What a file has to answer before any of it is sent: `rule:http-server/a-request-resolves-in-five-steps`'s
 /// `ETag` is over these two numbers and nothing else.
 ///
-/// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Stat {
     /// The file's length in bytes, which is also what a `Range` is resolved
@@ -130,7 +128,7 @@ impl Source for OnDisk {
     }
 }
 
-/// [ADR 0097] § 4's static policy over one selected file.
+/// `rule:http-server/a-request-resolves-in-five-steps`'s static policy over one selected file.
 ///
 /// `headers` are the request's, which is all of a request this reads: a method
 /// is `hyper`'s to honour — it drops the body of a `HEAD` while keeping the
@@ -143,7 +141,6 @@ impl Source for OnDisk {
 /// not there. A file that is there and unreadable is a `500`, since that is a
 /// deployment's problem and not the peer's.
 ///
-/// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 #[must_use]
 pub fn send(file: &Path, headers: &HeaderMap, source: &dyn Source) -> Reply {
     let Some(stat) = source.stat(file) else {
@@ -444,7 +441,7 @@ mod tests {
             .map_or_else(String::new, |(_, value)| value.clone())
     }
 
-    /// [ADR 0097] § 4's static paragraph, asserted as **one** policy: the same
+    /// `rule:http-server/a-request-resolves-in-five-steps`'s static paragraph, asserted as **one** policy: the same
     /// file, reached through a development deployment and through a production
     /// one that turned `static` on, is answered byte for byte identically.
     ///
@@ -455,7 +452,6 @@ mod tests {
     /// looser `Range`. Every assertion after the first pair is therefore made
     /// against both answers at once.
     ///
-    /// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
     #[test]
     fn static_files_are_one_policy_in_both_deployments() {
         let fs = Fake::with(&[

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Server::isDraining` is one process-wide fact rather than a per-call one: swept over a hundred calls, every answer agrees with the first and the count says so — ADR 0097 § 5
+`Core\Server::isDraining` is one process-wide fact rather than a per-call one: swept over a hundred calls, every answer agrees with the first and the count says so — `rule:http-server/the-server-block-is-boot-class`
 --FILE--
 <?nvs
 // § 5 puts the drain process-wide on purpose: a shutdown drains the process,

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::addCookie` names both sides of what a cookie carries — a name is a token and a value is RFC 6265's octet, so nothing written can end the attribute -- spec § 15, ADR 0074 § 3
+`Core\Response::addCookie` names both sides of what a cookie carries — a name is a token and a value is RFC 6265's octet, so nothing written can end the attribute -- spec § 15, `rule:http-server/cookies-are-secure-httponly-and-lax`
 --FILE--
 <?nvs
 // A bound asserted on both sides. `setcookie` and `setrawcookie` were one

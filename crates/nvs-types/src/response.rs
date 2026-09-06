@@ -26,7 +26,7 @@
 //! pins the shared-output behaviour they rely on
 //! (`tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst`).
 //!
-//! **Known gap: a mount's entry script.** ADR 0097 § 4's steps 4 and 5 run a
+//! **Known gap: a mount's entry script.** `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5 run a
 //! `.nvs` file's *top-level frame* as the request body, so an entry that echoes
 //! a page and also calls a body member is § 4's sixth row and is not refused
 //! here. The same file is one compiled unit whether the server ran it or

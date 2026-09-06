@@ -1,8 +1,8 @@
 --TEST--
-No `Core\Http\Client` member has a spelling for an unbounded wait: every bound is a `Duration` that cannot be null, and the options bag is a closed set of keys — ADR 0074 § 5
+No `Core\Http\Client` member has a spelling for an unbounded wait: every bound is a `Duration` that cannot be null, and the options bag is a closed set of keys — `rule:http-server/no-spelling-for-an-unbounded-wait`
 --FILE--
 <?nvs
-// ADR 0074 § 5: there is no spelling for "wait forever". `Duration` has no
+// `rule:http-server/no-spelling-for-an-unbounded-wait`: there is no spelling for "wait forever". `Duration` has no
 // infinite value, `deadline` is not nullable, and omitting the option inherits
 // `[http.client]`'s own figure rather than removing the bound — so the absence
 // of a spelling is the guarantee, and no check anywhere has to hold it up.

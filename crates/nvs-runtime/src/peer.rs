@@ -330,7 +330,7 @@ pub trait PeerSocket: std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// The socket failed, or the wait ADR 0074 expired — § 3's "throws on the
+    /// The socket failed, or the wait `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` expired — § 3's "throws on the
     /// send timeout rather than waiting forever".
     fn send(&mut self, frame: PeerFrame) -> Result<(), PeerError>;
 

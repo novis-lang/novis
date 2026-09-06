@@ -42,8 +42,8 @@
 //!
 //! # The clock, and why it lives here
 //!
-//! [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-//! § 5's four waits are the stream's own deadline — `hyper` knows nothing about
+//! `rule:http-server/the-server-block-is-boot-class`
+//! 's four waits are the stream's own deadline — `hyper` knows nothing about
 //! them — and they are **idle** waits rather than totals, so a slow 2 GB upload
 //! completes while a stalled socket does not. That is one rule and two
 //! mechanisms, both of them in this module because this is the only code that
@@ -107,11 +107,11 @@ use nvs_host::NvsTcp;
 /// costs less than this.
 pub const SCRATCH: usize = 8 * 1024;
 
-/// Which of ADR 0097 § 5's four waits bounds this connection right now.
+/// Which of `rule:http-server/the-server-block-is-boot-class`'s four waits bounds this connection right now.
 ///
 /// A connection is always in exactly one of these, starting in [`Phase::Head`]
 /// from the moment it is accepted: there is no unbounded state to fall into,
-/// which is the whole of ADR 0074's headline stated as a type.
+/// which is the whole of `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s headline stated as a type.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Phase {
     /// Reading a request head — `header_timeout`.
@@ -142,7 +142,7 @@ impl Phase {
 
 /// One accepted connection, as the two traits `hyper` drives it through.
 ///
-/// Concrete over [`NvsTcp`] rather than generic over the stream: ADR 0097 § 1
+/// Concrete over [`NvsTcp`] rather than generic over the stream: `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
 /// gives this listener no TLS and no second transport, so a type parameter here
 /// would have exactly one instantiation and would put `mio`'s `Source` in this
 /// crate's public signatures to get it.
@@ -150,7 +150,7 @@ impl Phase {
 pub struct ConnectionIo {
     stream: NvsTcp,
     /// The four numbers, fixed for this connection's life — `[server]` is
-    /// `Boot`-class (ADR 0097 § 5), so a reload does not move them under a
+    /// `Boot`-class (`rule:http-server/the-server-block-is-boot-class`), so a reload does not move them under a
     /// connection already being served.
     waits: Waits,
     /// The phase in force, shared with the connection loop: the module doc
@@ -205,7 +205,7 @@ impl ConnectionIo {
 
     /// The stream underneath, for the caller that has to set a deadline on it.
     ///
-    /// ADR 0097 § 5's idle waits are the stream's own bound and not something
+    /// `rule:http-server/the-server-block-is-boot-class`'s idle waits are the stream's own bound and not something
     /// `hyper` knows about, so [`ConnectionIo::arm`] reaches through here to
     /// move them between the request head, the body and the response — and so
     /// does a caller that has taken the stream back for an upgrade and owns the
@@ -323,7 +323,7 @@ mod tests {
     /// error rather than a silent hole.
     const EVERY_PHASE: [Phase; 4] = [Phase::Head, Phase::Body, Phase::Write, Phase::KeepAlive];
 
-    /// ADR 0097 § 5's four waits, from both sides: with nothing configured every
+    /// `rule:http-server/the-server-block-is-boot-class`'s four waits, from both sides: with nothing configured every
     /// phase is bounded by a finite, non-zero wait, and each phase is bounded by
     /// its **own** one.
     ///

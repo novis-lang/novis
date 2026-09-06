@@ -77,7 +77,7 @@
 //! settles the first: with no terminal there is nothing to wait on. The second
 //! is that a terminal *nobody is sitting at* — a CI job that allocated a pty,
 //! a `docker run -t` with no keyboard behind it — must not hold the program
-//! either, which is ADR 0074's "no spelling for an unbounded wait" reaching
+//! either, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s "no spelling for an unbounded wait" reaching
 //! this surface. So the read is under a clock, and there is no argument
 //! anywhere in the surface that lengthens it.
 //!
@@ -434,7 +434,7 @@ const MAX_ANSWER: usize = 4096;
 /// How long a prompt waits for an answer before it gives up.
 ///
 /// ADR 0086 § 4 says a prompt never blocks, and
-/// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) says
+/// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` says
 /// no wait may be spelled unbounded. Five minutes is what those two come to
 /// here: two orders of magnitude past the seconds a person spends answering a
 /// one-line question, and still short enough that a CI job holding a pty
@@ -443,7 +443,7 @@ const MAX_ANSWER: usize = 4096;
 ///
 /// There is deliberately **no argument that lengthens it**. A `timeout` option
 /// on `ask` would be a spelling for "wait longer", and the value of the rule is
-/// that no program has one — the same reason ADR 0074 gives for the outbound
+/// that no program has one — the same reason `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` gives for the outbound
 /// deadline it mirrors.
 pub const ANSWER_DEADLINE: std::time::Duration = std::time::Duration::from_secs(300);
 

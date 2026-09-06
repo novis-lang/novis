@@ -117,7 +117,7 @@ The one file set the next four items share: a directive's declaration, and how a
 17. **The four new blocks refuse a bad boot, each per its own ADR's *Verification*.**
     `rule:config/scheduled-work-is-a-config-block`: a `[[schedule]]` entry with no `scope`, a
     malformed `cron`, a `script` outside `script.spawn`'s roots, or `scope = "fleet"` with no shared
-    store. [ADR 0074](../../adr/0074-http-defaults-safe-and-finite.md): `origins = ["*"]` with
+    store. `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`: `origins = ["*"]` with
     `credentials = true`, and `same_site = "None"` with `secure = false` — refused at boot **and by
     `Core\Config::set` alike**, which is the clause that needs one implementation rather than two.
 18. **An adversarial suite.** m6.md's *Verify* is the list: a script attempting to widen a capability or

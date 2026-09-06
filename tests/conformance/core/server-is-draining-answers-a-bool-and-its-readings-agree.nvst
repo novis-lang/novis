@@ -1,5 +1,5 @@
 --TEST--
-`Core\Server::isDraining` answers the `bool` itself — it binds to one, its negation inverts it and its one conversion is the textual one, with no falsy stand-in behind any of the three — ADR 0097 § 5, `rule:core-api/shape-rules` R4
+`Core\Server::isDraining` answers the `bool` itself — it binds to one, its negation inverts it and its one conversion is the textual one, with no falsy stand-in behind any of the three — `rule:http-server/the-server-block-is-boot-class`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // The question here is the *type* of the answer, not its value. `rule:core-api/shape-rules` R4

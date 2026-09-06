@@ -321,7 +321,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **Exemplars** — attaching a trace id to a histogram bucket, so a slow-request bucket links to a trace — are
   the highest-value thing missing here and are additive.
 - **A per-attempt span for a retried outbound call**, flagged by
-  [ADR 0074](0074-http-defaults-safe-and-finite.md)'s *Revisiting*: one span with an attempt count, or one
+  `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s *Revisiting*: one span with an attempt count, or one
   per attempt. One span with a count is the current behaviour by default; the question is whether a retried
   call's individual latencies are worth the span multiplication.
 - **A `Core\Metrics` read path**, if anything ever needs to read its own counters. It would land squarely in

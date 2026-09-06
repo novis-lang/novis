@@ -250,7 +250,7 @@
 //! path and this refuses it, PHP refuses a URI whose host is empty and this
 //! accepts `file:///tmp`. And it **launders nothing** — whether a URL may be
 //! *fetched* is `Core\Http::allowUrl` at § 16
-//! ([ADR 0058](/docs/adr/0058-outbound-request-policy.md)); a
+//! (`rule:http-server/allow-url-pins-the-address`); a
 //! `true` here says only that the text is a URI.
 //!
 //! An **empty authority is not a missing one.** `parse("file:///tmp")` answers

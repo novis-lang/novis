@@ -1,5 +1,5 @@
 --TEST--
-A host that configured nothing is production with a production ceiling, so no code path reaches development mode — ADR 0091 § 5
+A host that configured nothing is production with a production ceiling, so no code path reaches development mode — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
 // § 5's first row: nothing is written anywhere, so the host started in

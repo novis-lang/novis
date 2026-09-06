@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Method` declares exactly the eight verbs ADR 0074 § 7 names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — `rule:routing/route-attribute`, `rule:security/csrf-is-on-by-default`, `rule:enums/no-class-machinery`
+`Core\Http\Method` declares exactly the eight verbs `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key` names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — `rule:routing/route-attribute`, `rule:security/csrf-is-on-by-default`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
 // The depth claim is *a bound asserted on both sides*, plus an invariance over

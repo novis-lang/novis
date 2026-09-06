@@ -1,8 +1,8 @@
-//! `Core\Http` — [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s outbound door,
+//! `Core\Http` — `rule:http-server/allow-url-pins-the-address`'s outbound door,
 //! which is one member: the launderer every outbound URL has to pass through, and the pinned
 //! `Core\Http\Target` it answers with.
 //!
-//! ADR 0058 places the class and § 2 gives the signature; what belongs here is why the answer is a
+//! `rule:http-server/allow-url-pins-the-address` places the class and § 2 gives the signature; what belongs here is why the answer is a
 //! value rather than a `string`, why `Core\Http\Target` has no members at all, and which half of
 //! the policy this module holds and which half it does not.
 //!
@@ -16,7 +16,7 @@
 //! So [`allowUrl`](CLASS) hands back a [`TARGET`] carrying **both the URL and the address that was
 //! approved**, and the connection is made to the address inside it. There is no second resolution
 //! for an attacker to poison, and a retry reuses the same `Target` rather than asking again
-//! ([ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 6). ADR 0058 § 2 calls
+//! (`rule:http-server/retry-is-opt-in-jittered-and-closed`). `rule:http-server/allow-url-pins-the-address` calls
 //! this the first `rule:security/tainted-qualifier` launderer whose output is a value rather than a plain string; it is the
 //! reason the roster has one.
 //!
@@ -43,7 +43,7 @@
 //!
 //! # The client's five rows, and the one shape behind all of them
 //!
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5 gives every request
+//! `rule:http-server/no-spelling-for-an-unbounded-wait` gives every request
 //! member the same two parameters: the URL, and one trailing [`OPTIONS`] bag. The URL is `rule:security/outbound-url-is-a-sink`
 //! 's sink — `string | Core\Http\Target`, **both unqualified**, so a `tainted` operand is a
 //! diagnostic and [`allowUrl`](CLASS) is the only way past it. A `Target` argument was pinned by
@@ -94,7 +94,7 @@
 //! [`transport`] composes the request, writes it, reads the reply and decides what is worth trying
 //! again; what stays here is every decision about *whether* a request may happen at all. The seam
 //! is [`transport::send`]'s `repin` closure: a redirect hop is re-checked by calling back into
-//! [`pin`], so ADR 0058 § 4's rule is enforced by the same four questions the first URL passed and
+//! [`pin`], so `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s rule is enforced by the same four questions the first URL passed and
 //! there is no second copy of the policy under the socket. What that module's own doc owns is the
 //! rest — one connection per attempt, how `https` reaches `nvs-host`'s TLS client and which host
 //! name its certificate is checked against, and what a reply is allowed to make this process hold.
@@ -137,7 +137,7 @@ pub(crate) const NAME: &str = r"Core\Http";
 /// What a refusal from this module and from the door below it is written under.
 const MEMBER: &str = r"Core\Http::allowUrl";
 
-/// ADR 0058 § 2's launderer, as the one row `Core\Http` has today.
+/// `rule:http-server/allow-url-pins-the-address`'s launderer, as the one row `Core\Http` has today.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
@@ -182,7 +182,7 @@ const ALLOW_URL_DOC: MethodDoc = MethodDoc {
 /// [`TARGET`]'s name, written once — see [`NAME`].
 pub(crate) const TARGET_NAME: &str = r"Core\Http\Target";
 
-/// ADR 0058 § 2's pinned target: a URL and the one address it was approved at.
+/// `rule:http-server/allow-url-pins-the-address`'s pinned target: a URL and the one address it was approved at.
 ///
 /// No members, for the reason this module's own docs give — a program names it
 /// and hands it on, and reading the address back out is the operation that
@@ -228,7 +228,7 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
 }
 
 /// The address `text` resolves to, once the URL and the deployment have both
-/// approved it — the whole of ADR 0058 §§ 2-3 as this module holds it, written
+/// approved it — the whole of `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy` as this module holds it, written
 /// under `member` so a refusal names the row the caller wrote.
 ///
 /// The order of the four questions is deliberate. The text is parsed and its
@@ -276,8 +276,8 @@ fn pin(ctx: &mut Ctx, text: &str, member: &str) -> Result<std::net::IpAddr, Faul
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http::allowUrl(tainted string $url): Core\Http\Target` — ADR 0058
-    /// § 2, and the only spelling that removes `tainted` from an outbound URL.
+    /// `Core\Http::allowUrl(tainted string $url): Core\Http\Target` — `rule:http-server/allow-url-pins-the-address`
+    /// , and the only spelling that removes `tainted` from an outbound URL.
     ///
     /// The four questions it asks, and the order it asks them in, are [`pin`]'s.
     /// What is here is the answer: a value carrying both the URL and the address
@@ -307,7 +307,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Http\Response";
 /// The `Duration` every time bound in [`OPTIONS`] is spelled as, once.
 const DURATION: CoreTy = CoreTy::Instance(crate::time::DURATION_NAME);
 
-/// The two [`OPTIONS`] names ADR 0074 § 7's refusal is written over, spelled
+/// The two [`OPTIONS`] names `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`'s refusal is written over, spelled
 /// once so the rule and the rows cannot drift apart —
 /// [`crate::registry::idempotent_retry_rule`] hands these to the checker rather
 /// than the checker holding its own copy of them.
@@ -328,7 +328,7 @@ pub(crate) const RETRY_KEY_OPTION: &str = "retryIdempotencyKey";
 /// makes — and it is what a reader of the row sees.
 const URL: CoreTy = CoreTy::Union(&[CoreTy::Text(Qual::Sink), CoreTy::Instance(TARGET_NAME)]);
 
-/// ADR 0074 § 5's `Core\Http\Options`, as the one trailing bag every request
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s `Core\Http\Options`, as the one trailing bag every request
 /// member carries.
 ///
 /// **The absence is the decision.** Every bound here is a `Duration`, which has
@@ -360,7 +360,7 @@ const OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
         default: Const::EmptyArray,
     },
-    // A count rather than a `bool`: ADR 0058 § 4 turns redirects off by default,
+    // A count rather than a `bool`: `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned` turns redirects off by default,
     // and a program that wants them owes a number, since "follow them" with no
     // bound is the unbounded spelling one hop up.
     CoreOption {
@@ -400,7 +400,7 @@ const TARGET_URL_SLOT: usize = 0;
 /// See [`TARGET_URL_SLOT`].
 const TARGET_ADDRESS_SLOT: usize = 1;
 
-/// ADR 0074 § 5's `[http.client]` block, as the answers an omitted option
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s `[http.client]` block, as the answers an omitted option
 /// inherits when the deployment configured nothing.
 ///
 /// The section's own TOML is the home of these three numbers; they are repeated
@@ -413,7 +413,7 @@ const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// is only reachable once a program has opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 
-/// ADR 0074 § 5's request members, over `rule:security/outbound-url-is-a-sink`'s sink.
+/// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
 /// Five rows and one shape: the verb is the member's own name, which is what
 /// makes § 7's idempotency question answerable while compiling. `patch`,
@@ -474,7 +474,7 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// What every request member answers with — ADR 0074 §§ 5-6's reply, as the
+/// What every request member answers with — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`'s reply, as the
 /// two slots a transport fills and the two members that read them back.
 ///
 /// `status` is a member rather than a property and `text` answers a `tainted`
@@ -673,7 +673,7 @@ const HEAD_DOC: MethodDoc = MethodDoc {
 /// # Errors
 ///
 /// A thrown `RuntimeError` naming the option for a bound that is not positive —
-/// ADR 0074 § 5 has no spelling for an unbounded wait, and a zero one is that
+/// `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for an unbounded wait, and a zero one is that
 /// spelling said quietly. A [`Fault::fatal`] for a slot that is neither a
 /// `Duration` nor `Tag::Null`, which the row's own type rules out.
 fn judge_bound(args: &[Value], at: usize, option: &str, member: &str) -> Result<(), Fault> {
@@ -804,7 +804,7 @@ fn headers_of(args: &[Value], member: &str) -> Result<Vec<(String, String)>, Fau
 /// The URL to send to and the address it was approved at.
 ///
 /// A `Target` argument was pinned by the launderer that built it, and asking
-/// again would be the second resolution ADR 0058 § 2 exists to remove — so its
+/// again would be the second resolution `rule:http-server/allow-url-pins-the-address` exists to remove — so its
 /// two slots are read back here and no name is looked up. A plain `string` is
 /// the form § 1 keeps for a URL the program authored, and it goes through the
 /// same door.
@@ -948,7 +948,7 @@ fn traceparent_of(ctx: &Ctx) -> Option<String> {
 }
 
 /// How many redirect hops this call may follow: the option, then
-/// `[http.client] max_redirects`, then ADR 0058 § 4's zero.
+/// `[http.client] max_redirects`, then `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s zero.
 ///
 /// No `Result`, unlike [`bound_of`]: a `uint` has no invalid value to judge and
 /// zero is the default rather than a mistake, so there is nothing here that can
@@ -968,7 +968,7 @@ fn redirects_of(ctx: &Ctx, args: &[Value]) -> u32 {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::get(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
-    /// — ADR 0074 § 5. [`request`] is the body; the verb is this row's own name.
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. [`request`] is the body; the verb is this row's own name.
     fn nvs_core_http_client_get(ctx, args: [8]) {
         request(ctx, args, "get")
     }
@@ -976,7 +976,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::post(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
-    /// — ADR 0074 §§ 5, 7. See [`nvs_core_http_client_get`].
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_post(ctx, args: [8]) {
         request(ctx, args, "post")
     }
@@ -984,7 +984,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::put(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
-    /// — ADR 0074 § 5. See [`nvs_core_http_client_get`].
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_put(ctx, args: [8]) {
         request(ctx, args, "put")
     }
@@ -992,7 +992,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::delete(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
-    /// — ADR 0074 § 5. See [`nvs_core_http_client_get`].
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_delete(ctx, args: [8]) {
         request(ctx, args, "delete")
     }
@@ -1000,14 +1000,14 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Http\Client::head(string|Core\Http\Target $url, Core\Http\Options): Core\Http\Response`
-    /// — ADR 0074 § 5. See [`nvs_core_http_client_get`].
+    /// — `rule:http-server/no-spelling-for-an-unbounded-wait`. See [`nvs_core_http_client_get`].
     fn nvs_core_http_client_head(ctx, args: [8]) {
         request(ctx, args, "head")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\Response::status(): int` — ADR 0074 § 6.
+    /// `Core\Http\Response::status(): int` — `rule:http-server/retry-is-opt-in-jittered-and-closed`.
     ///
     /// A call rather than a property access, for the reason this module's own
     /// docs give: `$response->status` is `E0405` and always will be.
@@ -1033,7 +1033,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\Response::text(): tainted string` — ADR 0074 § 6, `rule:security/tainted-qualifier`
+    /// `Core\Http\Response::text(): tainted string` — `rule:http-server/retry-is-opt-in-jittered-and-closed`, `rule:security/tainted-qualifier`
     /// .
     ///
     /// The slot is handed straight back with a reference taken, since the

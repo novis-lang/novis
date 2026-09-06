@@ -1,4 +1,4 @@
-//! [ADR 0074] §§ 2-3's two meaningless combinations, in the one implementation the boot and
+//! `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s two meaningless combinations, in the one implementation the boot and
 //! `Core\Config::set` both ask — and, beside them, the values under `[http.*]` that are refused
 //! before either question is worth asking.
 //!
@@ -53,7 +53,6 @@
 //! [`Cookies::of`] is a fifth read plus one `String` clone, once per `addCookie` call; the three
 //! byte scans are boot and reload only, over values an operator wrote by hand.
 //!
-//! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 
 use std::collections::BTreeMap;
 

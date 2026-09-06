@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Session` member but `start` throws while the request has started no session, and the refusal names the member that opens one -- ADR 0139 §§ 1, 4
+Every `Core\Session` member but `start` throws while the request has started no session, and the refusal names the member that opens one -- `rule:core-api/session-roster` and `rule:http-server/a-session-is-loaded-once-and-written-whole`
 --FILE--
 <?nvs
 // `rule:core-api/session-roster`: "a member called before `start` throws naming it". That is the

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Session::start`'s identifier is optional and is a string, so every call shape reaches the same store question -- ADR 0139 §§ 1, 2
+`Core\Session::start`'s identifier is optional and is a string, so every call shape reaches the same store question -- `rule:core-api/session-roster` and `rule:http-server/a-session-store-answers-four-operations`
 --FILE--
 <?nvs
 // § 1's signature is `start(?tainted string $presented = null)`, and the two

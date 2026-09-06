@@ -1,4 +1,4 @@
-//! [ADR 0091] §§ 3-5: the two modes, the five defaults a mode selects, and the ceiling that bounds a
+//! `rule:config/a-mode-is-five-defaults`, `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`: the two modes, the five defaults a mode selects, and the ceiling that bounds a
 //! runtime flip.
 //!
 //! **§ 3's table is closed, and this is it.** A mode is a shorthand for the default of five
@@ -28,7 +28,6 @@
 //! default. Closing that means the same table read where the snapshot is built, which is this
 //! module's next caller and not a second copy of the rows.
 //!
-//! [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
 
 /// The dotted key a mode is written and flipped at — § 4's own spelling, and the only one.
 pub const KEY: &str = "mode.default";

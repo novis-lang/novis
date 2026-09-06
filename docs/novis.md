@@ -21636,7 +21636,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `umask` | dropped | it mutates **process-global** state, so one request's call changes every core's writes — unsound for the same reason `putenv` and `setlocale` are gone |
 | `chdir` | dropped | the working directory is process-global too. A path is absolute, or is joined onto a directory the program was configured with, using `Core\Path::join` |
 | `getcwd` | dropped | with nothing able to change it, the working directory is not a request-visible fact; a program that wants a base directory is given one in `nvs.toml` |
-| `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction ([ADR 0105](adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
+| `is_uploaded_file` | dropped | there is no temporary file to interrogate: an upload is never written to one. `Core\Request::files` yields the parts, and a part is a part by construction (`rule:http-server/an-upload-is-received-only-through-files`) |
 | `move_uploaded_file` | member | `Core\IO::writeStream`, given a part from `Core\Request::files` — the part goes to its destination directly, and a write that fails mid-stream removes the partial file (`rule:core-classes/io-write-stream`) |
 | `get_include_path` | dropped | there is no runtime include and so no search path: a program's units are resolved while compiling |
 | `set_include_path` | dropped | same, and it is process-global besides |
@@ -21657,7 +21657,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `stream_bucket_append` | dropped | same |
 | `stream_bucket_prepend` | dropped | same |
 | `stream_bucket_make_writeable` | dropped | same |
-| `stream_context_create` | dropped | a context is an option array keyed by scheme, which is scheme dispatch by another name. Outbound options are `Core\Http\Options` ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `stream_context_create` | dropped | a context is an option array keyed by scheme, which is scheme dispatch by another name. Outbound options are `Core\Http\Options` (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`) |
 | `stream_context_get_default` | dropped | same, and a **default** context is one request setting another's options |
 | `stream_context_set_default` | dropped | same |
 | `stream_context_get_options` | dropped | same |
@@ -21674,7 +21674,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `stream_isatty` | member | `Core\Cli::isTty` |
 | `stream_set_blocking` | dropped | there is no blocking mode to choose. A read suspends the task and hands the core to another; that is what the runtime's reactor is for, and a program that could turn it off could stall a core |
 | `socket_set_blocking` | dropped | same; PHP's own alias |
-| `stream_set_timeout` | dropped | a deadline is an argument at the call, not a mode set on a handle — `Core\Http\Options`'s `deadline`, which has no unbounded spelling ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `stream_set_timeout` | dropped | a deadline is an argument at the call, not a mode set on a handle — `Core\Http\Options`'s `deadline`, which has no unbounded spelling (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`) |
 | `socket_set_timeout` | dropped | same; PHP's own alias |
 | `stream_set_chunk_size` | dropped | chunk and buffer sizes are the runtime's |
 | `stream_set_read_buffer` | dropped | same |
@@ -21719,7 +21719,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `ob_get_status` | dropped | same |
 | `ob_list_handlers` | dropped | same. A `{through:}` filter belongs to the one `capture` that declares it, so there is no list of handlers installed elsewhere |
 | `ob_implicit_flush` | dropped | there is no implicit flushing ([01 § 12](spec/01-core-library.md)) |
-| `ob_gzhandler` | dropped | response compression is configured at the edge, never installed as a callback that rewrites the body — the built-in server compresses nothing itself ([ADR 0097](adr/0097-development-server-and-proxied-origin.md) § 1). `Core\Compress` is for data the program compresses on purpose |
+| `ob_gzhandler` | dropped | response compression is configured at the edge, never installed as a callback that rewrites the body — the built-in server compresses nothing itself (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). `Core\Compress` is for data the program compresses on purpose |
 | `flush` | dropped | a response is written by the runtime when the handler returns. Streaming one is `Core\Response`'s body, which is a value the program produces rather than a global buffer it pushes |
 | `output_add_rewrite_var` | dropped | it edits every URL in the response body on the way out. `Core\Router::url` builds URLs and nothing rewrites them afterwards |
 | `output_reset_rewrite_vars` | dropped | same |
@@ -21800,12 +21800,12 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `get_resource_id` | dropped | same; identity across a collection is `Core\ObjectMap`'s key |
 | `get_resources` | dropped | same, and an enumeration of every open handle in the process is not a per-request fact in a runtime that serves many requests at once |
 | `header` | member | three members, because it is three jobs behind one string: `Core\Response::setHeader`, `Core\Response::redirect` for the `Location:` form, and `Core\Response::setStatus` for the `HTTP/1.1 404` form. `setHeader` is a header **sink**, so a `tainted` value is refused (`rule:security/tainted-qualifier`) — which is response splitting closed structurally rather than by remembering to strip a newline |
-| `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)), and overriding one on a single response is `Core\Response::setHeader` |
+| `header_remove` | dropped | a header exists on a response because the handler set it, so unsetting one is not setting it. The headers a program does not write are policy's (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`), and overriding one on a single response is `Core\Response::setHeader` |
 | `headers_list` | dropped | a read-back of what the engine was told. The handler holding the response is the one that set them |
 | `headers_sent` | dropped | there is no moment at which the headers escaped and a program must start guarding: the server writes a response the handler returned. The one ordering error it was used to avoid — writing a header after a body — is a compile error ([01 § 15](spec/01-core-library.md)) |
 | `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
 | `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
-| `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`) |
 | `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways (`rule:core-api/shape-rules`) |
 | `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers (`rule:security/closed-doors`), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](spec/01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
@@ -21827,12 +21827,12 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `session_module_name` | dropped | the backend is configured, not named at run time by a string that has to match a compiled-in handler |
 | `session_save_path` | dropped | where sessions live is the operator's decision, and a per-request write to it is the same process-global mutation |
 | `session_set_save_handler` | dropped | a userland handler installed into engine-global state, per request, with six callbacks whose ordering is undocumented. A backend is chosen once, in configuration |
-| `session_get_cookie_params` | dropped | a read-back of the cookie policy, which is `[http.cookies]`'s and applies to every cookie alike ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
+| `session_get_cookie_params` | dropped | a read-back of the cookie policy, which is `[http.cookies]`'s and applies to every cookie alike (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`) |
 | `session_set_cookie_params` | dropped | the same policy, mutated per request |
 | `session_cache_limiter` | dropped | it writes `Cache-Control` and `Expires` as a side effect of a session existing, from a four-name vocabulary nobody remembers. Caching headers are `Core\Response::setHeader`, written where they are meant |
 | `session_cache_expire` | dropped | the same headers, and the same answer |
 | `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` (`rule:observability/script-on-exit`) |
-| `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback ([ADR 0097](adr/0097-development-server-and-proxied-origin.md) § 1) |
+| `zlib_get_coding_type` | dropped | it reports which encoding `ob_gzhandler` picked for the response, and response compression is configured at the edge rather than installed as an output callback (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
 | `gzopen` | dropped | reading and decompressing are two jobs (R17): `Core\IO::open`'s handle yields the bytes and `Core\Compress` decodes them. A handle is an object either way, never a `resource` (R14) |
 | `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
 | `gzread` | dropped | the same pair — `Core\IO`'s handle reads, `Core\Compress` decodes |
@@ -21903,7 +21903,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `xmlwriter_write_dtd_attlist` | dropped | an attribute-list declaration, the same schema language, and the one that can carry a default value a resolving parser would inject |
 | `xmlwriter_start_dtd_attlist` | dropped | its pair |
 | `xmlwriter_end_dtd_attlist` | dropped | the other half |
-| `gethostbyname` | dropped | it resolves a name to an address the program then connects to by hand, which is the half of DNS rebinding an application can least afford to own. Resolution happens inside the outbound door, which connects to the address it resolved ([ADR 0058](adr/0058-outbound-request-policy.md)) |
+| `gethostbyname` | dropped | it resolves a name to an address the program then connects to by hand, which is the half of DNS rebinding an application can least afford to own. Resolution happens inside the outbound door, which connects to the address it resolved (`rule:http-server/allow-url-pins-the-address`) |
 | `gethostbynamel` | dropped | the same, as a list, and the same gap |
 | `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
 | `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
@@ -21920,7 +21920,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `ip2long` | dropped | IPv4-only address arithmetic, reached for as subnet containment — a question that has no answer here for half the addresses a server sees, which is precisely the shape a member takes and an `int` does not |
 | `long2ip` | dropped | the inverse, including for the negative `int` a 32-bit `ip2long` produced |
 | `net_get_interfaces` | dropped | enumerating the host's interfaces is an operator's question rather than a request's, and it is a window onto the network's shape with no capability in front of it (`rule:security/capability-check-at-the-door`) |
-| `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under [ADR 0074](adr/0074-http-defaults-safe-and-finite.md)'s finite outbound |
+| `get_headers` | dropped | a request spelled as a string function, with no timeout, no redirect policy and no pinned address. `Core\Http\Client`, under `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s finite outbound |
 | `get_meta_tags` | dropped | it fetches a URL and scrapes `<meta>` out of it with a regex — two jobs, and the second is a parse: `Core\Http\Client` for the bytes, `Core\Html`'s parser for the tags (`rule:core-classes/html-parsing`) |
 | `get_browser` | dropped | it matches a `User-Agent` against a `browscap.ini` the operator is asked to keep current. The header is `Core\Request::header`; behaviour keyed on a parsed browser identity belongs to a package, not to a `Core` member over a data file that ages |
 | `mail` | member | `Core\Mail::send` — an SMTP client with structured headers over an operator-named endpoint, rather than a `sendmail` binary and a header string a caller can inject a second recipient into ([01 § 16](spec/01-core-library.md)) |

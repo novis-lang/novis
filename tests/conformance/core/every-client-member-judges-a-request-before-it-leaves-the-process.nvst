@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Http\Client` member decides the URL and the option bounds before anything leaves the process, and each names itself when it refuses — ADR 0058 §§ 1-3, ADR 0074 §§ 5-6
+Every `Core\Http\Client` member decides the URL and the option bounds before anything leaves the process, and each names itself when it refuses — `rule:security/outbound-url-is-a-sink`, `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy`, `rule:http-server/no-spelling-for-an-unbounded-wait` and `rule:http-server/retry-is-opt-in-jittered-and-closed`
 --FILE--
 <?nvs
 // The depth claim is *agreement*: one question asked of all five members —
@@ -30,7 +30,7 @@ try {
     echo $two->message, "\n";
 }
 
-// ADR 0074 § 5 has no spelling for an unbounded wait, and a zero one would be
+// `rule:http-server/no-spelling-for-an-unbounded-wait` has no spelling for an unbounded wait, and a zero one would be
 // that spelling said quietly — so it is refused rather than treated as absent.
 try {
     var $c = Core\Http\Client::head("http://93.184.216.34/ok", {deadline: 0s});

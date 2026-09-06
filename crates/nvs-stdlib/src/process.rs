@@ -37,7 +37,7 @@
 //!
 //! `rule:core-classes/process-run`. A child process has no readiness a reactor can poll — no
 //! descriptor of ours becomes ready when it exits — so waiting for one is
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 6's
+//! `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s
 //! other case, and [`nvs_host::blocking::run`] is the only spelling of it in
 //! this tree. [`wait_off_core`] is that call and the whole of it: the core is
 //! handed back while the child runs, the task resumes on a remote wake once

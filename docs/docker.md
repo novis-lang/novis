@@ -64,7 +64,7 @@ nvs serve /app/main.nvs --listen 0.0.0.0:8000
 ```
 
 > **If you override the command, keep `--listen 0.0.0.0:8000`.**
-> [ADR 0097](adr/0097-development-server-and-proxied-origin.md) § 5's default is
+> `rule:http-server/the-server-block-is-boot-class`'s default is
 > `127.0.0.1:8000` — correct on a workstation, and inside a container it means the port is
 > published, the process is running and every connection is refused. The failure reads like a
 > Docker networking problem and is a loopback bind. The alternative is to write
@@ -92,7 +92,7 @@ dir = "/var/cache/novis"        # optional; a writable volume here keeps compile
 **Capabilities are denied by default and that does not change in a container.** A program that
 reads files, opens sockets or connects to a database needs the grants in its `[[app]]` block —
 `rule:security/capability-check-at-the-door` for `script.spawn`,
-[ADR 0058](adr/0058-outbound-request-policy.md) for `net`. Running as root in a container grants
+`rule:http-server/allow-url-pins-the-address` for `net`. Running as root in a container grants
 nothing; the container boundary and the capability tree are unrelated mechanisms and both apply.
 
 If you pass `--config`, note that naming any file **disables** the `./nvs.toml` lookup entirely
@@ -103,7 +103,7 @@ mounted `nvs.toml` is silently unread once `--config` appears.
 
 `health_path` is off until you set it. Once set it answers `200` while accepting and `503` while
 draining, with an empty body, and performs **no dependency checks** — a probe that pings the
-database turns a slow database into a simultaneous outage everywhere (ADR 0097 § 5).
+database turns a slow database into a simultaneous outage everywhere (`rule:http-server/the-server-block-is-boot-class`).
 
 There is **no HTTP client inside either image**, so a `HEALTHCHECK` instruction and a Compose
 `healthcheck:` have nothing to run. Neither image ships one, rather than shipping one that
@@ -121,7 +121,7 @@ Under Compose, put the check in whatever proxies to it, or add your own layer wi
 
 ### Scaling
 
-**`nvs serve` is one process on one core**, and one listening socket (ADR 0097). It does not fork
+**`nvs serve` is one process on one core**, and one listening socket (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). It does not fork
 workers, so a container with four CPUs runs one core's worth of Novis. Scale with replicas, and
 give each container roughly one CPU:
 
@@ -133,7 +133,7 @@ deploy:
 ```
 
 Put a proxy in front of them. `keepalive_timeout` must stay above the proxy's upstream keep-alive
-or you get intermittent 502s — ADR 0097 § 5 owns that rule and the numbers.
+or you get intermittent 502s — `rule:http-server/the-server-block-is-boot-class` owns that rule and the numbers.
 
 ### A Compose file that works
 
@@ -198,7 +198,7 @@ Two things to know when a command *writes*:
 > **`nvs serve` installs no signal handler today, so there is no graceful drain.** In-flight
 > requests are cut when the process dies. This is a known gap, not a design choice:
 > `rule:config/no-network-control-surface` puts the drain behind the control
-> socket, and ADR 0097 § 5's `health_path` already answers `503` while draining — the machinery
+> socket, and `rule:http-server/the-server-block-is-boot-class`'s `health_path` already answers `503` while draining — the machinery
 > is designed and not yet built.
 
 That gap has a sharp edge in a container. The main process is pid 1, and the kernel discards any

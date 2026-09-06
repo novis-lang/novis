@@ -103,7 +103,7 @@ at `:255`, the cards after them, the bodies, the `address()` arm at `:982`):
    and `post(name)` indexes into it (`request.rs:1229`), so the whole-form spelling hands over the array
    that already exists. **This does not open a public `post(): array<mixed>`** — `$_POST` stays closed,
    and the array is reachable only through a declared shape.
-3. **`postAs` is a buffering reader** under ADR 0139 — goal 16's rule, unchanged and not re-litigated: it
+3. **`postAs` is a buffering reader** under `rule:http-server/a-session-store-answers-four-operations` — goal 16's rule, unchanged and not re-litigated: it
    may follow another buffering reader and it refuses after a streaming one.
 4. **Three `.nvst` cases each**, over goal 16's stage 2 request sections and goal 17's builder.
 

@@ -8,7 +8,7 @@
 // produced CVE-2024-2756, so the rule is asked here once.
 
 // `__Host-` requires `Secure`, requires `Path=/` and forbids `Domain` — and a
-// bare call conforms, because ADR 0074 § 3's defaults are exactly those two.
+// bare call conforms, because `rule:http-server/cookies-are-secure-httponly-and-lax`'s defaults are exactly those two.
 // That is the whole of how a program writes a host-locked cookie: by naming it.
 uint $accepted = 0;
 try {

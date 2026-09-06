@@ -116,10 +116,10 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 ## Stage 5 — the network
 
 15. **`Core\Http\Client`**, over goal 2's parking stream with `rustls` on it.
-    [ADR 0058](../../adr/0058-outbound-request-policy.md): the URL parameter refuses `tainted`,
+    `rule:http-server/allow-url-pins-the-address`: the URL parameter refuses `tainted`,
     `Core\Http::allowUrl` is the launderer **and it pins**, and the address policy lives in the
     **capability** rather than in the client (§ 5) — which is what makes it enforceable at all.
-16. **Its finiteness half.** [ADR 0074](../../adr/0074-http-defaults-safe-and-finite.md) §§ 5–7: **there is
+16. **Its finiteness half.** `rule:http-server/no-spelling-for-an-unbounded-wait`, `rule:http-server/retry-is-opt-in-jittered-and-closed` and `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: **there is
     no spelling for an unbounded wait**; retry is opt-in, jittered, and covered by the same deadline; and a
     `post` retried without an `idempotencyKey` is a **compile error**. The third is the one that needs
     `nvs-types` and is therefore easy to defer and then forget.
@@ -146,7 +146,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     engine-native logging floor beneath it — `rule:errors/escalation-ladder`.
     `Core\Log`'s JSON-Lines writer **is the same native serialiser the engine floor calls directly**, so
     the two never disagree on log shape; two writers that agree today is the failure this item prevents.
-22. **The floor is rotated and rate-limited**, per ADR 0106's amendment to `rule:errors/engine-floor` — the floor cannot
+22. **The floor is rotated and rate-limited**, per `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s amendment to `rule:errors/engine-floor` — the floor cannot
     fill the disk it writes to.
 23. **`nvs check` refuses a `secret` operand at `Core\Log::write()`'s `fields` argument**, despite that
     parameter's open `array<string, mixed>` type. A qualifier check that an open type defeats is a

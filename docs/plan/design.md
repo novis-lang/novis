@@ -78,7 +78,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `nvs.toml`, root-owned, TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), deny-by-default capabilities + hard per-request limits (`rule:config/three-changeability-classes`) |
-| Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md)) |
+| Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
 | Text and binary | `string` is guaranteed-valid UTF-8 and counts extended grapheme clusters; binary data is the separate `bytes` primitive, counting bytes (`rule:types/bytes`) |
 | Databases | One `Core\Db` API over MySQL, MariaDB (a driver of its own, not a MySQL version), PostgreSQL, SQLite and MS SQL Server: connections named in root-owned config, every statement prepared, a transaction is a closure (`rule:core-classes/db-one-api`) |
 | Tooling | LSP + formatter, test runner, debugger + profiler, package manager |
@@ -100,7 +100,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 `SCRIPT_FILENAME`/`PATH_INFO`/`cgi.fix_pathinfo` RCE family — exists *because* the decision of which file
 to execute is **derived from the URL by one process and trusted by another**. A native server keeps that
 derivation from happening at all, which is
-[ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 2's governing rule. Throughput over
+`rule:http-server/a-path-is-never-derived-from-a-url`'s governing rule. Throughput over
 loopback/UDS differs by single-digit microseconds per request, irrelevant beside script execution. A bespoke
 FCGI record parser would be attack surface we own; `hyper` is memory-safe and among the most-fuzzed HTTP
 stacks in existence. FastCGI is closed rather than deferred: HTTP over a Unix socket already serves every
@@ -112,7 +112,7 @@ streams onto one connection and therefore onto **one core**, which defeats the c
 thread-per-core depends on and cannot be rebalanced, since a request never migrates. It also buys the Rapid
 Reset and `CONTINUATION`-flood classes. No production proxy speaks HTTP/3 to an origin; the edge terminates
 QUIC and talks h1 upstream → h3 is pure cost. TLS is terminated by the proxy, so there is no inbound
-listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 1).
+listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 
 ### Consequences to accept
 
@@ -243,8 +243,8 @@ load-balanced across cores; a request never migrates between cores.
 **That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
 scheduler of our own (`rule:concurrency/one-scheduler`), and `tokio` appears in
 neither `Cargo.toml` nor `Cargo.lock` ([ADR 0099](../adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md)).
-Earlier drafts of this section and of [ADR 0106](../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-§ 6 said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
+Earlier drafts of this section and of `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+ said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
 
 **A socket is therefore a synchronous one that parks its coroutine.** `nvs-host` exposes a stream
 implementing plain `std::io::Read` and `Write` whose `read` returns `WouldBlock` to the reactor, parks the

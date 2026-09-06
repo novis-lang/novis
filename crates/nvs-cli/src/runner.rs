@@ -436,7 +436,7 @@ fn run_suite_in_a_task(
         return Err("internal error: the suite's task did not finish".to_owned());
     };
     if let Err(panic) = finished.outcome {
-        // ADR 0106 § 2's boundary contained a panic under the task root. For a
+        // `rule:http-server/containment-does-not-end-at-the-helper`'s boundary contained a panic under the task root. For a
         // test run that is this process's failure and not a verdict — the
         // runner is what broke, so there is no suite to report.
         return Err(format!("the test run panicked: {}", panic.message()));
@@ -1222,7 +1222,7 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
 ///
 /// **Why a second mechanism at all**, when § 18's first one already runs a
 /// request through the same entry with no socket: what this one answers is
-/// everything between the two — the [ADR 0074] header set actually arriving on
+/// everything between the two — the `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` header set actually arriving on
 /// the wire, chunking, keep-alive, a peer that hangs up mid-body. The in-process
 /// path deliberately never builds a response head, so none of that is a question
 /// it *can* be asked, which is the ADR's "measurably different questions".
@@ -1243,7 +1243,6 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
 /// A request arriving after the test that owns the program has ended finds no
 /// program, which is the same nothing-claims-this a table's own `404` is.
 ///
-/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 struct TestServer {
     /// What the test reads through `Core\Test::serverUrl()` — `http://` and the
     /// bound address, with no trailing slash so a path appends directly.
@@ -1263,8 +1262,8 @@ impl TestServer {
     ///
     /// Every policy this loop serves under is the **default** one rather than
     /// the tree's: a `#[Test(server: true)]` is a claim about what the runtime
-    /// emits with nothing configured (ADR 0074 § 1's set, ADR 0074 § 2's closed
-    /// CORS, ADR 0097 § 5's waits), and reading a deployment's `nvs.toml` here
+    /// emits with nothing configured (`rule:http-server/secure-headers-with-nothing-written`'s set, `rule:http-server/cors-is-closed-until-origins-are-named`'s closed
+    /// CORS, `rule:http-server/the-server-block-is-boot-class`'s waits), and reading a deployment's `nvs.toml` here
     /// would make the test's subject the deployment. `Trusted::of(&[])` is the
     /// same direction stated once more — no forwarded header is read, so the
     /// peer is the peer.
@@ -2257,7 +2256,7 @@ mod tests {
         let mut snapshot = nvs_config::Snapshot::default();
         // `rule:core-classes/db-capabilities`'s grant, for the one name the fixture opens. `net.*` is
         // deliberately not granted beside it: a `[db.<name>]` endpoint is
-        // operator-written and so is pre-approved against ADR 0058's denied
+        // operator-written and so is pre-approved against `rule:http-server/allow-url-pins-the-address`'s denied
         // ranges (`nvs_config::tree::CapDb`), and a test that granted both could
         // not tell which of the two the connection went through.
         snapshot.config.capabilities = Some(nvs_config::tree::Capabilities {

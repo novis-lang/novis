@@ -212,8 +212,8 @@ pub enum SendError<T> {
     /// scheduler is turning beneath this call.
     ///
     /// Waiting here would block the thread, which is the one thing this crate
-    /// exists not to do ([ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 6), and unlike a socket there is nothing to poll instead: a channel is
+    /// exists not to do (`rule:http-server/a-core-is-never-blocked-on-a-syscall`
+    /// ), and unlike a socket there is nothing to poll instead: a channel is
     /// only ever drained by another task on this core, so off a core there is
     /// nobody who could make room.
     WouldBlock(T),

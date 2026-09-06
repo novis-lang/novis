@@ -228,7 +228,7 @@ table, paths governed by nothing — is one name covering two guarantees, which
 - **An application's `nvs.toml` stops naming its store's address.** A grant that says "may reach the
   coherent tier" is portable across deployments that put the tier in different places, which a
   host-scoped grant was not.
-- **Sessions and rate limits over a socket cost no round trip on the network at all.** ADR 0139's "one
+- **Sessions and rate limits over a socket cost no round trip on the network at all.** `rule:http-server/a-session-store-answers-four-operations`'s "one
   round trip on a read and two on a write" becomes a local one where a deployment is single-machine,
   which is priority 3 recovered without spending any of priority 1 — the local *cache* tier is still
   refused a session by [0059](0059-cross-request-state-is-explicit.md) § 4, and for the reason it always

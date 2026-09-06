@@ -1,11 +1,11 @@
 --TEST--
-`Core\Socket::upgrade`'s entry is a sink, so a path that came from outside the program cannot select what a connection runs — `rule:concurrency/an-upgrade-is-spawn-shaped`, ADR 0097 § 2
+`Core\Socket::upgrade`'s entry is a sink, so a path that came from outside the program cannot select what a connection runs — `rule:concurrency/an-upgrade-is-spawn-shaped`, `rule:http-server/a-path-is-never-derived-from-a-url`
 --ARGS--
 sockets/chat.nvs
 --FILE--
 <?nvs
 // The entry's content becomes the instruction "execute this file", which is
-// `rule:security/sink-predicate`'s definition of a sink, and ADR 0097 § 2 is the same rule
+// `rule:security/sink-predicate`'s definition of a sink, and `rule:http-server/a-path-is-never-derived-from-a-url` is the same rule
 // written for the server: a filesystem path is never *constructed* at request
 // time, only selected from a set enumerated before the request arrived. An
 // upgrade is a request-time call, so a word that arrived from outside is shut

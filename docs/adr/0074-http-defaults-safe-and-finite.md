@@ -1,4 +1,4 @@
-# ADR 0074 — HTTP defaults are safe inbound and finite outbound, by construction
+# `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` — HTTP defaults are safe inbound and finite outbound, by construction
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -8,7 +8,7 @@
   deadline-covered. Not in scope: `Core\Request`'s full surface and the server itself, both
   [0097](0097-development-server-and-proxied-origin.md)'s (which also removes the inbound TLS listener this
   ADR left out of scope),
-  and [ADR 0058](0058-outbound-request-policy.md)'s address policy, which is unchanged and enforced under
+  and `rule:http-server/allow-url-pins-the-address`'s address policy, which is unchanged and enforced under
   everything here.
 - **Amends:** [0064](0064-configuration-file-format.md) — four new blocks.
   [0005](0005-config-changeability.md) — their changeability classes, and one refusal that applies at boot
@@ -42,7 +42,7 @@
 
 - Novis already removes whole classes of bug by making the safe thing the only representable thing — SQL
   injection (`rule:security/tainted-qualifier`), SSRF
-  ([ADR 0058](0058-outbound-request-policy.md)), shell injection
+  (`rule:http-server/allow-url-pins-the-address`), shell injection
   (`rule:core-classes/process-is-argv-only`), ReDoS
   (`rule:core-classes/regex-two-tiers`), `alg: none`
   (`rule:security/protocol-roster`). Response headers and outbound timeouts are the two
@@ -175,7 +175,7 @@ route that customises one — noise that trains people to ignore the log.
 [http.client]                     # Runtime
 connect_timeout = "5s"
 deadline        = "30s"           # total, covering every attempt and every redirect hop
-max_redirects   = 0               # ADR 0058 § 4: redirects are off by default
+max_redirects   = 0               # `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`: redirects are off by default
 ```
 
 ```php
@@ -224,7 +224,7 @@ falsy return (`rule:core-api/shape-rules` R4).
 - **What is retried:** a connection failure, a timeout, and status `429`, `502`, `503`, `504`. Nothing else
   — a `400` or a `403` is an answer, and retrying it is a load generator. A `Retry-After` header on a `429`
   or `503` replaces the computed backoff, clamped to the remaining deadline.
-- **Every attempt reuses the `Core\Http\Target` [ADR 0058](0058-outbound-request-policy.md) § 2 pinned.**
+- **Every attempt reuses the `Core\Http\Target` `rule:http-server/allow-url-pins-the-address` pinned.**
   A retry does not re-resolve, so there is no second resolution for a rebinding attack to poison. A
   *redirect* hop still re-checks and re-pins, exactly as that ADR requires.
 
@@ -299,7 +299,7 @@ regardless, and refusing it would buy nothing.
 - **Edge concerns in `nvs.toml` too** — request-size caps, per-IP connection limits, slow-loris timeouts.
   Rejected as this ADR's business: a proxy in front of Novis does those earlier and better, which is the same
   line `rule:core-classes/ratelimit-two-members` draws for flood limiting. M7 still caps a request body, because
-  that is memory it allocates itself ([ADR 0097](0097-development-server-and-proxied-origin.md) § 8, where
+  that is memory it allocates itself (`rule:http-server/the-body-is-read-on-demand-under-two-caps`, where
   the cap is `[limits] request_body` rather than a directive of its own). **That line covers size and rate,
   and explicitly not two other things.** It does not cover **parsing** — request smuggling *is* a
   proxy/origin parser differential, so delegating leniency to the proxy is the mechanism rather than a
@@ -307,7 +307,7 @@ regardless, and refusing it would buy nothing.
   which also caps a multipart **part count**, a cost in bookkeeping that no body-size cap bounds. And it
   does not cover **waiting**: this ADR's own rule that an unbounded default is a defect applies to a
   connection too, so the four idle timeouts in
-  [ADR 0097](0097-development-server-and-proxied-origin.md) § 5 are Novis's, not a proxy's.
+  `rule:http-server/the-server-block-is-boot-class` are Novis's, not a proxy's.
 - **A per-attempt timeout instead of one covering deadline.** What most HTTP clients offer. Rejected: three
   attempts at a "5-second timeout" is a fifteen-second call, and the caller reasoned about five.
 - **Configurable jitter, including off.** Rejected: the one setting whose wrong value harms a service that
@@ -361,5 +361,5 @@ regardless, and refusing it would buy nothing.
   the same through `Client::send` with a dynamic method throws before the first attempt; with a key present,
   every attempt carries the identical `Idempotency-Key`.
 - **M8:** a retried call reuses the pinned address and performs exactly one DNS resolution, asserted against
-  [ADR 0058](0058-outbound-request-policy.md)'s existing test resolver; a redirect hop re-resolves and
+  `rule:http-server/allow-url-pins-the-address`'s existing test resolver; a redirect hop re-resolves and
   re-checks.

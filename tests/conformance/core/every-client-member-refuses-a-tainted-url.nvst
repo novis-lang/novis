@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the launderer answers, so `Core\Http::allowUrl` is the only way one reaches the outbound door — ADR 0058 §§ 1-2
+Every `Core\Http\Client` member refuses a `tainted` URL and accepts what the launderer answers, so `Core\Http::allowUrl` is the only way one reaches the outbound door — `rule:security/outbound-url-is-a-sink` and `rule:http-server/allow-url-pins-the-address`
 --FILE--
 <?nvs
 // `rule:security/outbound-url-is-a-sink` makes the URL parameter of every outbound member a sink: the

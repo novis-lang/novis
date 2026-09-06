@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::filename` is the client's claim about a file on its own machine, so it reaches no path sink until `Core\IO::within` launders it — ADR 0105 § 2, `rule:security/tainted-qualifier`, ADR 0097 § 2
+`Core\Request\Part::filename` is the client's claim about a file on its own machine, so it reaches no path sink until `Core\IO::within` launders it — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, `rule:security/tainted-qualifier`, `rule:http-server/a-path-is-never-derived-from-a-url`
 --FILE--
 <?nvs
 // The boundary this pins is the one PHP crossed: `move_uploaded_file` took a
@@ -7,7 +7,7 @@
 // upload traversal since has been that one line. Here the claimed name is a
 // `tainted string` like any other byte off the connection, so a path built from
 // it is refused where it is written -- and the refusal is the general one, not
-// an upload rule, because ADR 0097 § 2's "a filesystem path is never derived
+// an upload rule, because `rule:http-server/a-path-is-never-derived-from-a-url`'s "a filesystem path is never derived
 // from a URL at request time" is the same rule about the same bytes.
 //
 // The two readers beside it are not paths and are not refused: what a part

@@ -231,8 +231,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // variable. It classifies as a sink for the reason a path always does
             // — its content becomes the instruction "execute this file", `rule:security/sink-predicate`
             // 's definition, and
-            // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-            // § 2 is the same rule written for the server, a filesystem path never
+            // `rule:http-server/a-path-is-never-derived-from-a-url`
+            // is the same rule written for the server, a filesystem path never
             // derived from a URL at request time. `args` takes no expected type at
             // all, for the reason the sibling site takes none: `rule:classes/graph-copy`'s walk
             // decides what may cross, and that is a run-time question for
@@ -912,7 +912,7 @@ fn message_of_delivery(delivery: Delivery) -> Value {
 /// [`no_connection`] on a context with no peer, and a `RuntimeError` naming
 /// what the framing layer reported — which is `rule:concurrency/a-connection-is-a-loop`'s "throws on the
 /// send timeout rather than waiting forever", the timeout itself being the
-/// implementation's under ADR 0074.
+/// implementation's under `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`.
 fn send_frame(
     ctx: &mut Ctx,
     receiver: Value,
@@ -1050,7 +1050,7 @@ nvs_runtime::nvs_helper! {
     /// which throws on the send timeout rather than waiting forever.
     ///
     /// The timeout is the implementation's, under
-    /// [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s rule that
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule that
     /// no outbound wait has an unbounded spelling: this body cannot name a
     /// duration, because the wait happens inside the codec that owns the
     /// descriptor. What it owes is that the failure arrives as a throw at the
@@ -1147,7 +1147,7 @@ mod tests {
         incoming: std::collections::VecDeque<Result<Option<PeerFrame>, PeerError>>,
         /// Every frame the program sent, in order.
         sent: Vec<PeerFrame>,
-        /// What a `send` fails with, if it fails — ADR 0074's finite wait, in
+        /// What a `send` fails with, if it fails — `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s finite wait, in
         /// the wording the framing layer would report it with.
         refuse_send: Option<String>,
         /// Why this socket was closed, once something closed it — § 4's code
@@ -1282,7 +1282,7 @@ mod tests {
     }
 
     /// § 3's "throws on the send timeout rather than waiting forever", which is
-    /// ADR 0074's rule that no outbound wait has an unbounded spelling. The
+    /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule that no outbound wait has an unbounded spelling. The
     /// wait itself is the framing layer's, so what this crate owes is that the
     /// failure arrives as a *throw* at the call site — catchable, with the
     /// connection still the program's to close — and never as a fatal error.

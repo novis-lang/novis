@@ -184,7 +184,7 @@ fn keys_in(block: &str) -> Vec<String> {
     keys
 }
 
-/// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and ADR 0074's policy
+/// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy
 /// blocks are what that names: a request may set any of them for itself, because it could already
 /// write the header directly. The registry states that as the one `http` row covering the whole
 /// block, so the claim holds only through the longest-prefix rule — a later, more specific row
@@ -194,7 +194,7 @@ fn keys_in(block: &str) -> Vec<String> {
 /// to rather than the class of the ones somebody listed.
 #[test]
 fn every_http_response_directive_is_runtime_class() {
-    // ADR 0074 §§ 1-3, the three blocks a *response* reads. `[http.client]` (§ 5) is the outbound
+    // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the three blocks a *response* reads. `[http.client]` (§ 5) is the outbound
     // half and `[http.errors]` is `rule:errors/compile-failure`'s, so neither is this case's question.
     for block in ["http.headers", "http.cors", "http.cookies"] {
         for key in keys_in(block) {

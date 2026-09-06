@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request`'s four readers of the body refuse in one sentence that differs only in the member naming itself, so the fourth of them did not grow a refusal of its own -- `rule:security/request-state-throws-in-an-isolate`, ADR 0105 §§ 2-3, spec § 15
+`Core\Request`'s four readers of the body refuse in one sentence that differs only in the member naming itself, so the fourth of them did not grow a refusal of its own -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` and `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of the four members that read what arrived after the field

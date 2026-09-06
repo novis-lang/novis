@@ -205,7 +205,7 @@ handoff = "docs/agent/goals/15-editor.handoff.md"
 milestone = "M4B"
 preflight = "docker"
 
-# ADR 0139's body rule and the two JSON body readers, plus the `.nvst` request sections that make any of
+# `rule:http-server/a-session-store-answers-four-operations`'s body rule and the two JSON body readers, plus the `.nvst` request sections that make any of
 # it provable in language. It is here rather than beside goal 6 because it was decided after that goal was
 # written, and the rule it replaces is one goal 6 landed: a fixture written against the old wording in the
 # meantime is a fixture rewritten twice, which is what its stage 0 pays off. Docker preflight because its

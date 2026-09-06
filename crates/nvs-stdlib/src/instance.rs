@@ -158,7 +158,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             ),
         ],
     ),
-    // And the third, for the third time: ADR 0105 § 1's walk over a multipart
+    // And the third, for the third time: `rule:http-server/an-upload-is-received-only-through-files`'s walk over a multipart
     // body's file parts, whose next part has not arrived when the walk is named.
     // `crate::request`'s `FILES` docs are the argument.
     (
@@ -169,7 +169,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::request::FILES_CURRENT_SYMBOL),
         ],
     ),
-    // And the fourth: ADR 0105 § 3's walk over one part's bytes, which is the
+    // And the fourth: `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s walk over one part's bytes, which is the
     // body walk above narrowed to a position in the body. `crate::request`'s
     // `PART_CONTENT` docs are the argument.
     (

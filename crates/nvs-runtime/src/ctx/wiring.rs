@@ -15,13 +15,13 @@
 
 use super::*;
 
-/// The session one request has open — ADR 0139 § 4's "loaded once and written
+/// The session one request has open — `rule:http-server/a-session-is-loaded-once-and-written-whole`'s "loaded once and written
 /// whole", as the three things a request holds between `Core\Session::start`
 /// and the write-back at its end.
 ///
 /// **Deliberately not a [`Value`].** The record crosses the store boundary as
 /// `rule:classes/two-copy-depths`'s
-/// byte carrier in both directions — ADR 0139 § 2 says so, for the same reason
+/// byte carrier in both directions — `rule:http-server/a-session-store-answers-four-operations` says so, for the same reason
 /// a `Core\Cache` entry does — so holding the bytes means the context has
 /// nothing to release at teardown and holds no object that could name a
 /// `ClassDesc` an `rule:config/an-edit-reaches-the-next-request-without-a-restart`
@@ -196,8 +196,8 @@ impl Ctx {
         self.session = None;
     }
 
-    /// Send this request's session record, if anything changed it — ADR 0139
-    /// § 4's write-back, at the end of the program that opened it.
+    /// Send this request's session record, if anything changed it — `rule:http-server/a-session-is-loaded-once-and-written-whole`
+    /// 's write-back, at the end of the program that opened it.
     ///
     /// Called by whoever ends a program, and called **unconditionally** by
     /// each of them: a program that started no session, or started one and

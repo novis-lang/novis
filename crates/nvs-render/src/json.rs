@@ -24,8 +24,8 @@
 //! `trace_id`/`span_id` in particular.
 //!
 //! `count` is the one key § 6 does not list, because it is
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 10's later amendment; it sits last of the envelope's own keys and ahead of
+//! `rule:http-server/the-floor-cannot-fill-the-disk`
+//! 's later amendment; it sits last of the envelope's own keys and ahead of
 //! the producer's `fields` for the reason [`Envelope::count`] gives — it is the
 //! sink talking about the record, not the call site talking about the failure.
 //!

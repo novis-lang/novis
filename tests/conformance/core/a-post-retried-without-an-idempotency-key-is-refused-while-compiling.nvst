@@ -1,8 +1,8 @@
 --TEST--
-`Core\Http\Client::post` cannot ask for retries without `retryIdempotencyKey`, and it is the verb that decides — ADR 0074 § 7
+`Core\Http\Client::post` cannot ask for retries without `retryIdempotencyKey`, and it is the verb that decides — `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`
 --FILE--
 <?nvs
-// ADR 0074 § 7: `GET`, `HEAD`, `PUT` and `DELETE` retry freely, because a
+// `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key`: `GET`, `HEAD`, `PUT` and `DELETE` retry freely, because a
 // repeated one is a second question; `POST` repeats an *effect*, so its retries
 // need an `Idempotency-Key` the server can recognise. Both halves of that
 // question are written at the call — the verb is the member's own name, and ADR

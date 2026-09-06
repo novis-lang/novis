@@ -3289,7 +3289,7 @@ mod tests {
     /// The last two assertions are the ones a behavioural test cannot make: the
     /// deadline the real [`ask_terminal`] uses is finite and human-scaled, and
     /// no prompt takes a parameter that lengthens it. A `timeout` option would
-    /// be a spelling for "wait longer", which ADR 0074's rule — the one § 4
+    /// be a spelling for "wait longer", which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule — the one § 4
     /// applies to this surface — exists to deny.
     #[test]
     fn no_prompt_blocks_without_a_deadline() {

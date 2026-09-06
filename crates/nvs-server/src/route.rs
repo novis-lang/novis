@@ -54,7 +54,7 @@
 //! answer ([`crate::cors`]) are all decided from configuration the boot
 //! resolved, so [`crate::serve`] takes them on the connection before a mount is
 //! even selected. A match needs the *unit*, and which unit answers a request is
-//! ADR 0097 § 4's five steps — so this runs where the selected program and the
+//! `rule:http-server/a-request-resolves-in-five-steps`'s five steps — so this runs where the selected program and the
 //! arrived request are both in hand, which is the last point before the isolate
 //! is built. It is still "before the handler" in § 1's sense: no application
 //! code has run.
@@ -75,7 +75,7 @@ use nvs_runtime::routes::Routes;
 ///
 /// The verb and the path are read off the carrier rather than off `hyper`'s
 /// request, because the path a route is declared against is the **mount-
-/// stripped** one — ADR 0097 § 4 step 2's remainder, which
+/// stripped** one — `rule:http-server/a-request-resolves-in-five-steps` step 2's remainder, which
 /// [`crate::mount::Selection::path`] carries and the carrier already holds. A
 /// mounted application is written against its own root, so matching the
 /// prefixed path would fail every route in a table that is otherwise correct.
@@ -290,7 +290,7 @@ mod tests {
         assert!(inbound.route().is_none());
     }
 
-    /// The path matched is ADR 0097 § 4 step 2's remainder — the one the
+    /// The path matched is `rule:http-server/a-request-resolves-in-five-steps` step 2's remainder — the one the
     /// carrier holds — so a mounted application's routes match under any
     /// prefix, and the prefixed path matches nothing.
     #[test]

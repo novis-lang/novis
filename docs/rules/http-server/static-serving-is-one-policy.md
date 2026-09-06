@@ -1,0 +1,5 @@
+Static serving is one policy in both modes, because a second policy is a second security model. The exact file only, and **never a directory listing**; `index.html` is the sole default document; the MIME type comes from a fixed extension table and an unknown extension is `application/octet-stream`, which the response policy's `nosniff` renders inert.
+
+Freshness is `Cache-Control: no-cache` with a strong `ETag` over `(size, mtime_nanos)` and `If-None-Match` — one validator, exact, and specifically **not** `Last-Modified`, whose one-second granularity serves stale bytes for two edits inside the same second. A single `Range` is honoured; a multi-range request, a unit other than `bytes`, or a range the file cannot satisfy is a `416` carrying `Content-Range: bytes */len`, never a silent `200` with the whole body. There is no configurable `max-age`, no `immutable` and no precompressed-variant lookup: this is a development convenience and a fallback, not a CDN.
+
+**A `.nvs` file is never served as source**, under any dispatch, from any mount.

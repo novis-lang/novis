@@ -5,7 +5,7 @@
 - **Scope:** the readiness mechanism each platform uses, the contract between a parking task and the
   reactor, what a `WouldBlock` costs and in which order a stream pays it, and how a task's stack is
   accounted against the request that owns it. It does **not** decide: what a worker admits, which is
-  [ADR 0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7's arithmetic; what the
+  `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s arithmetic; what the
   blocking pool is for or how large it is, which is that ADR's § 6; the `Core\Task` surface, which is
   `rule:concurrency/one-scheduler`; the HTTP client that will sit on top of a
   stream, which is `docs/agent/goals/` goal 4's; or the configurable spelling of any number below,
@@ -122,14 +122,14 @@ stack. The decision, in the terms `rule:programs/memory-priority` asks for:
   touched. The width is set by `rule:errors/on-limit`'s existing bounds pair
   and not chosen freely: `STACK_RESERVE` is already 256 KiB of unwinding room between the soft limit and
   the hard floor, so a stack has to be several times that before the two are coherent.
-- **Charged to the request that owns the task**, and it is the *reservation* that enters ADR 0106 § 7's
+- **Charged to the request that owns the task**, and it is the *reservation* that enters `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s
   admission arithmetic, because address space is the resource an admission decision can actually count
   ahead of time. Resident growth is bounded by the same recursion limit that already bounds it.
 - **Pooled per worker, bounded by that worker's in-flight cap.** A stack is an `mmap`/`VirtualAlloc`
   pair, which is the wrong thing to do per request on the hot path; a freed stack goes back to the
   worker's pool and is handed to the next task. The pool is O(in-flight) by construction — it can never
   hold more stacks than the worker has admitted tasks — which is the property `rule:programs/memory-priority` asks for, and the
-  same shape the blocking pool in ADR 0106 § 6 already has.
+  same shape the blocking pool in `rule:http-server/a-core-is-never-blocked-on-a-syscall` already has.
 - **The host arms the recursion limit from the stack it just handed out.** `crates/nvs-runtime/src/ctx/mod.rs`'s
   module doc records a known gap — the call-stack ceiling is asserted from `STACK_CEILING` rather than
   discovered, because that crate has no way to learn a thread's true bounds. A task on a stack this
@@ -143,7 +143,7 @@ configurable is goal 3's `[limits]` work, and nothing below depends on which way
 
 - **One stream implementation, not two.** Choosing readiness on Windows rather than completion is what
   buys this, and it is the simplicity half of the priority ordering being spent deliberately.
-- **A blocking-looking read is honestly non-blocking**, so ADR 0106 § 6's "a core is never blocked on a
+- **A blocking-looking read is honestly non-blocking**, so `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s "a core is never blocked on a
   syscall" holds for the calls that have readiness — and the calls that have none still go to that
   section's blocking pool. There remains no third option.
 - **A spurious wake is correct, not a bug**, so neither the reactor nor a stream needs to prove

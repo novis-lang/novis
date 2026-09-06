@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::bodyStream` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first chunk — spec § 15, ADR 0105 § 3, `rule:security/request-state-throws-in-an-isolate`
+`Core\Request::bodyStream` names the walk rather than taking it, so a program answering no request is refused where it asked and not at the first chunk — spec § 15, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`, `rule:security/request-state-throws-in-an-isolate`
 --FILE--
 <?nvs
 // Where the refusal lands is the question, and it is one only a lazy member can

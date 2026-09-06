@@ -1,4 +1,4 @@
-//! ADR 0097 §§ 2-3: the `[[server.mount]]` blocks read into the literal set of entry files a server
+//! `rule:http-server/a-path-is-never-derived-from-a-url` and `rule:http-server/a-mount-table-expands-at-boot`: the `[[server.mount]]` blocks read into the literal set of entry files a server
 //! may execute, with every glob already expanded against the disk.
 //!
 //! Every case runs against an in-memory [`Files`] for `tests/app.rs`'s reason — the containment
@@ -139,7 +139,7 @@ fn checked(text: &str) -> Diagnostic {
         .expect_err("this tree should have been refused")
 }
 
-/// ADR 0097 § 3's own example, over a disk that holds three module directories and one that is not
+/// `rule:http-server/a-mount-table-expands-at-boot`'s own example, over a disk that holds three module directories and one that is not
 /// a module at all.
 ///
 /// The count is the assertion that matters: § 2's claim is that the executable set is *enumerated*,

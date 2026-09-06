@@ -1009,12 +1009,12 @@ fn an_overlap_that_is_none_of_the_three_refuses_the_boot() {
     }
 }
 
-/// A tree whose only content is `block`, for the two `[http]` pairs ADR 0074 refuses.
+/// A tree whose only content is `block`, for the two `[http]` pairs `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` refuses.
 fn http(block: &str) -> Fake {
     Fake::with(&[("etc/nvs.toml", block)])
 }
 
-/// ADR 0074 § 2: `origins = ["*"]` is permitted **only** with `credentials = false`, so the pair is
+/// `rule:http-server/cors-is-closed-until-origins-are-named`: `origins = ["*"]` is permitted **only** with `credentials = false`, so the pair is
 /// what refuses and neither half does alone. Asserted on all four combinations, because a check
 /// reading one key would refuse the wildcard public API § 2 explicitly allows and still pass a case
 /// that only tried the bad pair.
@@ -1061,7 +1061,7 @@ fn cors_star_origins_with_credentials_true_is_refused() {
     );
 }
 
-/// ADR 0074 § 3: `same_site = "None"` needs `secure = true`, refused by § 2's mechanism and for §
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`: `same_site = "None"` needs `secure = true`, refused by § 2's mechanism and for §
 /// 2's reason. The absent-key half is the one that matters most — § 3 ships `secure = true`, so a
 /// tree that never writes the key has it in force, and reading an absent boolean as `false` would
 /// refuse a correct configuration.
@@ -1108,7 +1108,7 @@ fn same_site_none_without_secure_is_refused() {
     );
 }
 
-/// ADR 0074 § 3: `same_site` is one of three, and a fourth spelling is refused rather than read as
+/// `rule:http-server/cookies-are-secure-httponly-and-lax`: `same_site` is one of three, and a fourth spelling is refused rather than read as
 /// the default. The pair above cannot decide a value nobody can parse — a browser drops the
 /// attribute and falls back to *its* default — and `nvs_config::http::Cookies` would otherwise have
 /// to choose between repairing it and failing inside a request.
@@ -1146,7 +1146,7 @@ fn a_same_site_that_is_none_of_the_three_is_refused() {
     );
 }
 
-/// ADR 0074 § 2: the three lists reach a preflight's answer as one header line each and `max_age`
+/// `rule:http-server/cors-is-closed-until-origins-are-named`: the three lists reach a preflight's answer as one header line each and `max_age`
 /// reaches it as a number of seconds, so a boot refuses here what `nvs_server::cors` would
 /// otherwise have to repair while answering — an entry the wire cannot carry, and a duration that
 /// is not one. Both halves are one case because they are one rule: § 2's block is resolved into
@@ -1195,7 +1195,7 @@ fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
     );
 }
 
-/// ADR 0074 § 1: the three free-text policies go onto every response verbatim, so a byte a header
+/// `rule:http-server/secure-headers-with-nothing-written`: the three free-text policies go onto every response verbatim, so a byte a header
 /// line cannot carry is refused at boot. `nvs_server::secure` declines to spell such a value and
 /// emits the shipped default instead, which is right for a request in flight and is exactly what
 /// makes the boot refusal necessary — otherwise the deployment's policy is silently not the one in

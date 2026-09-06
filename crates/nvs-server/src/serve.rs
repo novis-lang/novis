@@ -33,8 +33,8 @@
 //!
 //! - **No routing inside this loop.** The handler is still the caller's
 //!   function; what [`crate::mount`] gives it is
-//!   [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-//!   § 4's five steps to answer with, and [`Reply`] is the two things this loop
+//!   `rule:http-server/a-request-resolves-in-five-steps`
+//!   's five steps to answer with, and [`Reply`] is the two things this loop
 //!   can do with one. Nothing here reads a path from request bytes — that
 //!   module's docs own the one place a remainder meets a filesystem, and § 2's
 //!   rule with it.
@@ -49,13 +49,13 @@
 //!   `rule:errors/renderings`'s rendering of a failure into a development response is the
 //!   configuration slice's, because a mode is what decides it and this loop has
 //!   not been given one.
-//!   [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) is not
+//!   `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` is not
 //!   on that list: § 1's header set is filled into every response this loop
 //!   writes ([`crate::secure`]) and § 2's closed CORS refuses a preflight above
 //!   the handler ([`crate::cors`]), neither of which a mode changes.
-//! - **The accept loop backs off.** ADR 0097 § 5's last process-wide bound, as
-//!   [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//!   § 8 states it: descriptor exhaustion is the one `accept` failure the next
+//! - **The accept loop backs off.** `rule:http-server/the-server-block-is-boot-class`'s last process-wide bound, as
+//!   `rule:http-server/the-accept-loop-backs-off`
+//!   states it: descriptor exhaustion is the one `accept` failure the next
 //!   iteration recovers from, so it is the one this loop waits out instead of
 //!   ending on, and the one it logs once per window instead of once per
 //!   attempt. [`AcceptBackoff`] is both halves and nothing else in this file
@@ -166,16 +166,15 @@ impl Body for Answer {
     }
 }
 
-/// What a handler answers one request with — [ADR 0097]'s § 4 outcomes, as the
+/// What a handler answers one request with — `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s § 4 outcomes, as the
 /// two things this loop can do with them.
 ///
 /// A handler used to answer with an [`Isolate`] and nothing else, which was
-/// [ADR 0097] § 4 with only step 5 in it. Step 1's third arrow is a `404` and
+/// `rule:http-server/a-request-resolves-in-five-steps` with only step 5 in it. Step 1's third arrow is a `404` and
 /// step 3 is a file's bytes, and neither is a program: they are responses this
 /// server already holds in full, so the type says so rather than a handler
 /// inventing an isolate whose only job is to `echo` a status.
 ///
-/// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 #[derive(Debug)]
 pub enum Reply {
     /// Run this isolate as a child of the connection, and answer with what it
@@ -218,8 +217,8 @@ impl Reply {
     /// A body whose declared length is already over [`crate::body::UPLOAD_TOTAL`]:
     /// `413`, before a mount is asked for a program.
     ///
-    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-    /// § 5 puts this refusal in the server rather than in each consumer, and
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps`
+    /// puts this refusal in the server rather than in each consumer, and
     /// before dispatch rather than after it, so that the honest oversized client
     /// never reaches application code and nothing has been allocated to tell it
     /// so. A peer that declares no length is bounded on the wire instead, by the
@@ -229,7 +228,7 @@ impl Reply {
         Self::status(StatusCode::PAYLOAD_TOO_LARGE)
     }
 
-    /// [ADR 0097] § 4 step 1's third arrow — no mount covers the request, so
+    /// `rule:http-server/a-request-resolves-in-five-steps` step 1's third arrow — no mount covers the request, so
     /// there is no application to give it to and none to have written this.
     ///
     /// Spelled here rather than at each call site so that a caller does not have
@@ -259,7 +258,7 @@ impl Reply {
         Self::status(StatusCode::NOT_IMPLEMENTED)
     }
 
-    /// [ADR 0097] § 5's probe, answered by a server that is accepting: `200`
+    /// `rule:http-server/the-server-block-is-boot-class`'s probe, answered by a server that is accepting: `200`
     /// with an empty body, no dependency check and no version.
     ///
     /// Spelled here for [`not_found`](Reply::not_found)'s reason, and because
@@ -299,7 +298,7 @@ impl Reply {
     }
 }
 
-/// Whether this server has stopped accepting — ADR 0097 § 5's drain, as the one
+/// Whether this server has stopped accepting — `rule:http-server/the-server-block-is-boot-class`'s drain, as the one
 /// bit a probe and an application both read.
 ///
 /// **The accept loop sets it and nothing else does.** A drain begins when
@@ -354,9 +353,9 @@ impl Draining {
     }
 }
 
-/// What every connection this server hands over is served under: ADR 0097 § 5's
-/// valve and [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)
-/// § 1's header set.
+/// What every connection this server hands over is served under: `rule:http-server/the-server-block-is-boot-class`'s
+/// valve and `rule:http-server/secure-headers-with-nothing-written`
+/// 's header set.
 ///
 /// One argument rather than two because these are the *shared* half of a
 /// connection's context — an [`Arc`] each, boot-fixed, so every core answers
@@ -368,13 +367,13 @@ impl Draining {
 pub struct Serving {
     /// § 5's in-flight ceiling, asked before the handler is.
     admission: Arc<Admission>,
-    /// ADR 0074 § 1's header set, filled into every response this loop writes.
+    /// `rule:http-server/secure-headers-with-nothing-written`'s header set, filled into every response this loop writes.
     secure: Arc<Secure>,
-    /// ADR 0097 § 6's `[server] trusted_proxies`, resolved: who may assert a
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s `[server] trusted_proxies`, resolved: who may assert a
     /// client address or a scheme. Empty is the default and means no forwarded
     /// header is read at all — [`crate::forwarded`] owns that difference.
     trusted: Arc<Trusted>,
-    /// ADR 0074 § 2's cross-origin policy, asked of a preflight before the
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin policy, asked of a preflight before the
     /// handler is. Closed is the default — [`crate::cors`] owns what that means
     /// and why the refusal is taken here rather than in an application.
     cors: Arc<Cors>,
@@ -463,7 +462,7 @@ impl Drop for Peer {
 /// the same type `spawn script` runs, and deliberately **not** a second isolation
 /// path, since M7's state-bleed suite is a parameterisation of one mechanism and
 /// would prove nothing about two of them. Where it is already a response
-/// (ADR 0097 § 4's `404`, or a file), nothing is run for it at all.
+/// (`rule:http-server/a-request-resolves-in-five-steps`'s `404`, or a file), nothing is run for it at all.
 ///
 /// **That isolate runs as a peer task, and the service answers `Pending` until
 /// it has ended.** The request is started here ([`Isolate::start`]) and
@@ -504,8 +503,8 @@ impl Drop for Peer {
 /// — so a request that ignored its body leaves bytes on the wire and `hyper`
 /// ends the connection rather than framing a second request on it. That is the
 /// fail-closed direction and it costs a keep-alive:
-/// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
-/// § 5's cap bounds what a program *asks* for, and draining what it did not ask
+/// `rule:http-server/request-body-and-upload-total-are-two-caps`
+/// 's cap bounds what a program *asks* for, and draining what it did not ask
 /// for would spend the same bytes with nobody having wanted them.
 ///
 /// **`serving` carries § 5's valve, and it is asked before `handler` is.** A
@@ -513,7 +512,7 @@ impl Drop for Peer {
 /// nothing is started for it; [`crate::admit`]'s own docs own the order and why
 /// it is the whole of the guarantee.
 ///
-/// **It carries ADR 0074 § 1's header set too, and this function is the one
+/// **It carries `rule:http-server/secure-headers-with-nothing-written`'s header set too, and this function is the one
 /// place that set is applied.** Every response that leaves here goes through
 /// [`Secure::fill`] — a program's, a mount table's `404`, a static file's and
 /// § 5's `503` alike — and it *fills* rather than overwrites, which is what
@@ -521,8 +520,8 @@ impl Drop for Peer {
 /// [`crate::secure`]'s own docs own that direction, and the effective scheme
 /// this passes.
 ///
-/// **`waits` is the clock, and it is a parameter and not a default.** ADR 0097
-/// § 5's four waits bound this connection from the moment it is accepted, and
+/// **`waits` is the clock, and it is a parameter and not a default.** `rule:http-server/the-server-block-is-boot-class`
+/// 's four waits bound this connection from the moment it is accepted, and
 /// [`crate::io`]'s § *The clock* is where they are actually enforced; what this
 /// function owns is the one phase change no adapter can see, which is that
 /// `hyper` framing a head ends the header wait and answering the request starts
@@ -652,7 +651,7 @@ where
         // waiting for from here is the body, and then nothing until the answer
         // exists.
         phase.set(Phase::Body);
-        // ADR 0097 § 6, and it is asked here rather than once per connection
+        // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, and it is asked here rather than once per connection
         // because what asserts it is a *header*: one connection carries many
         // requests and a proxy writes the line on each. Before the valve below,
         // for the reason the valve is before the handler — this reads borrowed
@@ -660,8 +659,8 @@ where
         // behind a TLS-terminating proxy would be answering with less policy
         // than the request it refused was owed.
         //
-        // ADR 0074 § 1's effective scheme is `https` here and nowhere else:
-        // Novis terminates no TLS (ADR 0097 § 1), so a trusted proxy's
+        // `rule:http-server/secure-headers-with-nothing-written`'s effective scheme is `https` here and nowhere else:
+        // Novis terminates no TLS (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`), so a trusted proxy's
         // `X-Forwarded-Proto` is the only thing that can assert it.
         let origin = match crate::forwarded::walk(arrival, &serving.trusted, request.headers()) {
             Ok(origin) => origin,
@@ -678,14 +677,14 @@ where
         // request reaches its program through is built there — this loop never
         // holds one — and both of the walk's answers belong on it
         // (`nvs_runtime::Inbound::set_peer`). What stays here is the scheme,
-        // read again for ADR 0074 § 1's header set at the end of this closure:
+        // read again for `rule:http-server/secure-headers-with-nothing-written`'s header set at the end of this closure:
         // an `Origin` is `Copy`, so the two readings are one decision.
         //
         // `origin.ignored_address_header()` is § 6's one `Warn` and still has
         // nowhere to go: it goes wherever this loop's other reports go once it
         // has been given a log, and it changes nothing about what is served.
         let scheme = origin.scheme();
-        // ADR 0097 § 5, and this line is the *order* rather than the number:
+        // `rule:http-server/the-server-block-is-boot-class`, and this line is the *order* rather than the number:
         // the ceiling is asked before the handler is, so a refused request has
         // selected no mount, allocated no isolate, compiled nothing and run no
         // Novis code. A valve that allocated in order to refuse would not
@@ -698,7 +697,7 @@ where
             serving.secure.fill(refused.headers_mut(), scheme);
             return Ok::<_, Infallible>(refused);
         };
-        // ADR 0074 § 2, asked here for the reason the valve above it is: a
+        // `rule:http-server/cors-is-closed-until-origins-are-named`, asked here for the reason the valve above it is: a
         // preflight selects no mount, allocates no isolate and runs no Novis
         // code, under an open policy exactly as under a closed one — § 2
         // configures the whole answer, so an application asked to produce it
@@ -955,10 +954,10 @@ where
             }
         }
         // The request took as long as it took — a request's own runtime is
-        // ADR 0106's ceiling and not a socket wait — and what remains on this
+        // `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`'s ceiling and not a socket wait — and what remains on this
         // connection is a peer reading what it asked for.
         phase.set(Phase::Write);
-        // Last, and once for every path above: ADR 0074 § 1's set is what this
+        // Last, and once for every path above: `rule:http-server/secure-headers-with-nothing-written`'s set is what this
         // response carries beside whatever wrote it, and filling leaves a name
         // the answer already spelled for itself exactly as it is. § 2's answer
         // is written on the same terms and at the same point, so a response has
@@ -1075,8 +1074,8 @@ const ECHOED: &str = "text/html; charset=utf-8";
 
 /// What a declaration that is not a header value becomes.
 ///
-/// [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
-/// § 4 already names this for a static file's unknown extension, and it is the
+/// `rule:http-server/a-request-resolves-in-five-steps`
+/// already names this for a static file's unknown extension, and it is the
 /// fail-closed answer for the same reason: `nosniff` renders it inert, so a
 /// program that declared something a header cannot carry gets a body no
 /// browser will execute rather than one it guesses at. Falling back to
@@ -1119,7 +1118,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
     // Last, and that ordering is the whole of what `setHeader` means: spec
     // § 15 gives a program an override of a policy-owned header on one
     // response, so what the program set is written after everything this
-    // server wrote for itself. ADR 0074 § 4 is why the policy is not
+    // server wrote for itself. `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` is why the policy is not
     // narrowing-only, and the reverse order would leave the member with no
     // effect on exactly the headers it exists to change.
     //
@@ -1150,7 +1149,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
     response
 }
 
-/// `400`, carrying nothing — ADR 0097 § 6's one refusal, joining
+/// `400`, carrying nothing — `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s one refusal, joining
 /// `rule:errors/http-message-defects`'s closed list.
 ///
 /// No body for [`failed`]'s reason and one more of its own: the peer that would
@@ -1230,7 +1229,7 @@ fn failed() -> Response<Answer> {
 /// it.
 ///
 /// `admission` is shared with every other core rather than cloned per core,
-/// which is ADR 0097 § 5's "counted process-wide": a per-core share would let
+/// which is `rule:http-server/the-server-block-is-boot-class`'s "counted process-wide": a per-core share would let
 /// one hot core refuse while its neighbours idle. Every connection this loop
 /// hands over gets a handle on the same count.
 ///
@@ -1262,7 +1261,7 @@ fn failed() -> Response<Answer> {
 /// exception is descriptor exhaustion, which [`AcceptBackoff`] waits out rather
 /// than returning: it is a condition of the process and of every other core's
 /// listener too, so ending this loop would turn a transient shortage into a
-/// server that stays down after it clears (ADR 0106 § 8).
+/// server that stays down after it clears (`rule:http-server/the-accept-loop-backs-off`).
 /// [`nvs_host::NvsListener::accept`] already retries the failures that belong
 /// to one connection rather than to the socket. Also `Other` when this is
 /// called off a task, because there is then no parent to put a connection
@@ -1297,7 +1296,7 @@ where
                 accepted
             }
             Err(err) => {
-                // ADR 0106 § 8. `after` answering `None` is every other
+                // `rule:http-server/the-accept-loop-backs-off`. `after` answering `None` is every other
                 // failure, and those still end the loop on the terms above.
                 let Some((wait, note)) = backoff.after(&err, Instant::now()) else {
                     return Err(err);
@@ -1315,15 +1314,15 @@ where
                 continue;
             }
         };
-        // ADR 0097 § 6's peer, taken from the accept rather than asked of the
+        // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s peer, taken from the accept rather than asked of the
         // socket afterwards: this is the one place where who connected is a
         // fact the operating system has just stated, and a `peer_addr` later
         // would be re-deriving it from a descriptor that may already have
         // failed.
         let arrival = Arrival::Tcp(peer.ip());
         let handler = Rc::clone(handler);
-        // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and ADR 0074
-        // § 1's header set is one policy for the whole server, so what a
+        // `Arc`s and not `Rc`s: § 5's valve is counted process-wide and `rule:http-server/secure-headers-with-nothing-written`
+        // 's header set is one policy for the whole server, so what a
         // connection clones is shared by every core rather than by every
         // connection on this one.
         let serving = serving.clone();
@@ -1377,7 +1376,7 @@ where
         }
     }
 
-    // ADR 0097 § 5's drain begins here, and the tail below *is* the drain: this
+    // `rule:http-server/the-server-block-is-boot-class`'s drain begins here, and the tail below *is* the drain: this
     // loop has stopped accepting, so from this line the probe answers `503` and
     // a proxy can take the instance out of rotation while the connections
     // already accepted are still being answered. Marked before the park rather
@@ -1418,7 +1417,7 @@ const FIRST_WAIT: Duration = Duration::from_millis(10);
 /// attempt is going to clear either.
 const LONGEST_WAIT: Duration = Duration::from_secs(1);
 
-/// How often an episode is reported. ADR 0106 § 8's own reason for a window
+/// How often an episode is reported. `rule:http-server/the-accept-loop-backs-off`'s own reason for a window
 /// rather than a line per attempt: at [`LONGEST_WAIT`] the log alone would be a
 /// line a second for as long as the condition lasts.
 const REPORT_WINDOW: Duration = Duration::from_secs(60);
@@ -1441,7 +1440,7 @@ fn out_of_descriptors(err: &io::Error) -> bool {
         .is_some_and(|code| EXHAUSTED.contains(&code))
 }
 
-/// ADR 0106 § 8's bounded backoff, and the once-per-window note that comes with
+/// `rule:http-server/the-accept-loop-backs-off`'s bounded backoff, and the once-per-window note that comes with
 /// it.
 ///
 /// An `accept` that failed with `EMFILE`/`ENFILE` returns immediately and will
@@ -1649,7 +1648,7 @@ mod tests {
     /// What is *not* asserted here is the override itself, because there is
     /// nothing to override yet: the one header this server writes for itself is
     /// `Content-Type`, which the member refuses outright since a body member
-    /// owns it. The ordering in [`answer`] is what ADR 0074 § 1's policy set
+    /// owns it. The ordering in [`answer`] is what `rule:http-server/secure-headers-with-nothing-written`'s policy set
     /// will be overridden by when it lands, and `insert` rather than `append`
     /// is what makes that a replacement.
     #[test]
@@ -1721,7 +1720,7 @@ mod tests {
         );
     }
 
-    /// M7's header injection suite — ADR 0074 § 1, one row per published
+    /// M7's header injection suite — `rule:http-server/secure-headers-with-nothing-written`, one row per published
     /// technique rather than one case per spelling.
     ///
     /// **This is the lower of two layers, and the only one a `-p nvs-server`
@@ -1815,7 +1814,7 @@ mod tests {
         );
 
         // The suite is only worth its length if a pair the member *would* have
-        // admitted still reaches the peer, and if ADR 0074 § 1's set is intact
+        // admitted still reaches the peer, and if `rule:http-server/secure-headers-with-nothing-written`'s set is intact
         // beside it: a door that dropped every declaration would pass all
         // fourteen rows above and nothing here.
         let mut declared = completed("ok", Some("text/plain"));
@@ -2604,7 +2603,7 @@ mod tests {
                 .expect("the write failed");
             // To the end of the head and no further, so that the codec below
             // starts on the first byte after it: the accept key is not the last
-            // field line, ADR 0074 § 1's set being filled in after it.
+            // field line, `rule:http-server/secure-headers-with-nothing-written`'s set being filled in after it.
             let mut head = String::new();
             read_until(&mut socket, "\r\n\r\n", &mut head);
             let mut peer = tungstenite::protocol::WebSocket::from_raw_socket(
@@ -3133,7 +3132,7 @@ mod tests {
         );
     }
 
-    /// The handler ADR 0097 § 6's case answers with: the walk's two answers put
+    /// The handler `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s case answers with: the walk's two answers put
     /// on the carrier exactly as `nvs-cli`'s door puts them there, and a program
     /// that says them back.
     ///
@@ -3184,7 +3183,7 @@ mod tests {
         })
     }
 
-    /// ADR 0097 § 6's answer reaches the program, and it is the *walk's* answer:
+    /// `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s answer reaches the program, and it is the *walk's* answer:
     /// `nvs_runtime::Inbound` carries the client address and the effective
     /// scheme, which is what `Core\Request::clientIp()` and `::scheme()` read.
     ///
@@ -3306,7 +3305,7 @@ mod tests {
     ///
     /// The pause between the two halves is the case rather than realism: the
     /// second half cannot be on the wire when the program asks for it, so the
-    /// only way this answers at all is the shape ADR 0105 § 5 and `rule:concurrency/one-future-per-connection`
+    /// only way this answers at all is the shape `rule:http-server/request-body-and-upload-total-are-two-caps` and `rule:concurrency/one-future-per-connection`
     /// name together — the isolate parks on its own task, the connection's next
     /// read delivers, and the isolate is woken back. A supplier polled from
     /// inside the connection's own poll would deadlock here instead of
@@ -3542,7 +3541,7 @@ mod tests {
     /// already over [`crate::body::UPLOAD_TOTAL`] is answered `413` with no
     /// program having been asked for.
     ///
-    /// ADR 0105 § 5's "before dispatch" is two facts and neither implies the
+    /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s "before dispatch" is two facts and neither implies the
     /// other, so both are asserted: the peer's status, and a counter only a
     /// program that ran could have moved. A refusal taken *after* dispatch
     /// would answer `413` just the same and would already have allocated the
@@ -3708,7 +3707,7 @@ mod tests {
         })
     }
 
-    /// [ADR 0105](/docs/adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)'s
+    /// `rule:http-server/an-upload-is-received-only-through-files`'s
     /// load-bearing case, in M7's own words: a multipart body far larger than
     /// any in-memory bound is received **in full at bounded resident memory**,
     /// asserted against a high-water mark rather than against the request
@@ -4281,7 +4280,7 @@ mod tests {
     }
 
     /// [`served_by`], under a policy the case names — the one thing a request
-    /// cannot state about itself, and what ADR 0097 § 6's case is about.
+    /// cannot state about itself, and what `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s case is about.
     fn served_under<H>(
         mut listener: NvsListener,
         handler: &Rc<H>,
@@ -4311,7 +4310,7 @@ mod tests {
         client.join().expect("the client thread panicked")
     }
 
-    /// A valve every case but the last one is not about, beside ADR 0074 § 1's
+    /// A valve every case but the last one is not about, beside `rule:http-server/secure-headers-with-nothing-written`'s
     /// shipped header set: § 5's own default ceiling with no memory budget to
     /// divide it against, which is what an unconfigured tree resolves to.
     fn wide_open() -> Serving {
@@ -4322,10 +4321,10 @@ mod tests {
                 budget: None,
             }))),
             Arc::new(Secure::default()),
-            // ADR 0097 § 6's default: nothing written, so no forwarded header
+            // `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s default: nothing written, so no forwarded header
             // is read and every request's peer is its own client.
             Arc::new(Trusted::none()),
-            // ADR 0074 § 2's default: no origin named, so nothing crosses and no
+            // `rule:http-server/cors-is-closed-until-origins-are-named`'s default: no origin named, so nothing crosses and no
             // CORS header is emitted at all.
             Arc::new(Cors::default()),
         )
@@ -4447,7 +4446,7 @@ mod tests {
         answer.matches("HTTP/1.1 ").count()
     }
 
-    /// M7's request smuggling suite — ADR 0097 § 1's last paragraph, which is
+    /// M7's request smuggling suite — `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s last paragraph, which is
     /// the one place that ADR does *not* delegate to the proxy: smuggling is a
     /// proxy/origin parser differential, so the deployment that always has a
     /// proxy in front is exactly the one where a lenient origin is dangerous,
@@ -4708,7 +4707,7 @@ mod tests {
     }
 
     /// `rule:concurrency/one-future-per-connection`'s third property: **`Pending` suspends the task and not the
-    /// thread**, which is [ADR 0106] § 6's rule stated about this seam. One
+    /// thread**, which is `rule:http-server/a-core-is-never-blocked-on-a-syscall`'s rule stated about this seam. One
     /// core, two connections, and the second is answered in full while the
     /// first's drive is parked half-way through a request head.
     ///
@@ -4718,7 +4717,6 @@ mod tests {
     /// timeout is what makes a blocked core *fail* here instead of hanging the
     /// suite — an assertion nobody reaches is worth nothing.
     ///
-    /// [ADR 0106]: ../../../docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md
     #[test]
     fn a_connection_never_blocks_the_core_it_runs_on() {
         let mut listener = NvsListener::bind("127.0.0.1:0".parse().expect("a literal address"))
@@ -5003,7 +5001,7 @@ mod tests {
         );
     }
 
-    /// ADR 0074 § 1 over the wire: a server nobody configured answers with the
+    /// `rule:http-server/secure-headers-with-nothing-written` over the wire: a server nobody configured answers with the
     /// secure set, on a response a program wrote and never asked for them.
     ///
     /// Deliberately one connection rather than one per [`Reply`] branch — the
@@ -5067,7 +5065,7 @@ mod tests {
         );
     }
 
-    /// ADR 0074 § 2's closed default, over the wire: a peer that named an origin
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s closed default, over the wire: a peer that named an origin
     /// is told nothing about whether it may read the answer, because
     /// `[http.cors] origins` names nobody.
     ///
@@ -5118,7 +5116,7 @@ mod tests {
         );
     }
 
-    /// ADR 0074 § 2's open half over the wire: a tree that named `https://allowed.example`
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s open half over the wire: a tree that named `https://allowed.example`
     /// tells that origin it may read the answer, tells every other origin nothing, and marks
     /// **both** answers as varying by `Origin`.
     ///
@@ -5199,7 +5197,7 @@ mod tests {
         )
     }
 
-    /// ADR 0074 § 2's other half over the wire: a preflight is answered `403`
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s other half over the wire: a preflight is answered `403`
     /// with `[http.cors] origins` naming nobody, and **no program is asked**.
     ///
     /// The flag is the half of the case that is not the status. A `403` a handler
@@ -5262,7 +5260,7 @@ mod tests {
         );
     }
 
-    /// ADR 0074 § 2's granting half over the wire: a named origin's preflight is
+    /// `rule:http-server/cors-is-closed-until-origins-are-named`'s granting half over the wire: a named origin's preflight is
     /// answered `204` with what the block configures, and **no program is asked**
     /// for that answer either.
     ///
@@ -5331,7 +5329,7 @@ mod tests {
         }
     }
 
-    /// ADR 0097 § 5's probe across a shutdown: `200` while the loop is
+    /// `rule:http-server/the-server-block-is-boot-class`'s probe across a shutdown: `200` while the loop is
     /// accepting, `503` from the moment it stops, both from one run and one
     /// handler.
     ///
@@ -5636,7 +5634,7 @@ mod tests {
         );
     }
 
-    /// ADR 0097 § 5's header wait, as the connection it ends: a peer that opens
+    /// `rule:http-server/the-server-block-is-boot-class`'s header wait, as the connection it ends: a peer that opens
     /// a socket and says nothing holds a coroutine to hear nothing, and the
     /// clock is the only thing that can notice. Asserted as a **closed**
     /// connection rather than as a status — [`crate::io`]'s docs § *The clock*
@@ -5751,7 +5749,7 @@ mod tests {
         );
     }
 
-    /// ADR 0097 § 5's valve, and the load-bearing half of it is the **order**:
+    /// `rule:http-server/the-server-block-is-boot-class`'s valve, and the load-bearing half of it is the **order**:
     /// the handler is never asked, so no mount was selected, no isolate was
     /// allocated and no Novis code ran for a request the ceiling refused. A
     /// case that only asserted the `503` would pass just as well against a cap
@@ -5845,7 +5843,7 @@ mod tests {
         io::Error::from_raw_os_error(EXHAUSTED[0])
     }
 
-    /// ADR 0106 § 8 asks for a backoff on descriptor exhaustion and on nothing
+    /// `rule:http-server/the-accept-loop-backs-off` asks for a backoff on descriptor exhaustion and on nothing
     /// else, so the bound is asserted on both sides: the error the loop must
     /// wait out, and a neighbouring `accept` failure it must still end on. A
     /// backoff that widened to every error would look right against the first

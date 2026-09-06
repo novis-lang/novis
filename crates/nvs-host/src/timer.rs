@@ -4,7 +4,7 @@
 //! `docs/agent/loop-goal.md` § *Stage 2* item 5 is why this is one thing and
 //! not two: `rule:concurrency/limit-and-deadline-are-the-only-bounds`
 //! 's `{limit, deadline}` and
-//! [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md) § 5's "no spelling
+//! `rule:http-server/no-spelling-for-an-unbounded-wait`'s "no spelling
 //! for an unbounded wait" both resolve to *this task must be runnable again at
 //! this instant*. A sleep is that with nothing else to wait for; a deadline is
 //! that raced against readiness. Writing them twice would be two clocks to keep
@@ -51,8 +51,8 @@
 //!
 //! # Reading a core's earliest deadline from another thread
 //!
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-//! § 7's watchdog notices a core that has stopped turning at all, and it does
+//! `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
+//! 's watchdog notices a core that has stopped turning at all, and it does
 //! that by *reading the deadline this module already keeps* rather than by a
 //! heartbeat written per request. [`Timers`] therefore publishes its first
 //! entry into a small `Arc` — [`DeadlineView`] — every time that entry can have
@@ -121,7 +121,7 @@ impl Default for Published {
 
 /// A read-only handle on one core's earliest deadline.
 ///
-/// ADR 0106 § 7's watchdog reads a core through this and touches nothing else:
+/// `rule:http-server/a-wedged-core-is-detected-by-its-deadline`'s watchdog reads a core through this and touches nothing else:
 /// it carries no reference to the scheduler, the reactor or any task's stack,
 /// and reading it neither blocks the core nor can be blocked by it. That makes
 /// it — with `reactor::RemoteWake` — one of the two things in this crate that
@@ -214,7 +214,7 @@ impl Timers {
     ///
     /// Called from every method that can change which entry that is, which is
     /// every method that touches `due`. It is one relaxed store on a path
-    /// already doing a `BTreeSet` insert or removal, which is how ADR 0106 § 7
+    /// already doing a `BTreeSet` insert or removal, which is how `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
     /// gets its watchdog for nothing: what is written is a change to state the
     /// deadline mechanism was keeping anyway, never a beat per request.
     fn publish(&self) {

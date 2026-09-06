@@ -309,7 +309,7 @@ pub struct Completion {
     /// The two fields above own the reasoning for all three; this is the one
     /// of them that is a list, because a header is a map and a status is a
     /// word. Whoever answers applies these **after** the headers it wrote for
-    /// itself, which is the whole of what ADR 0074 § 4 means by an override,
+    /// itself, which is the whole of what `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins` means by an override,
     /// and applies each row the way [`DeclaredHeader::append`] says — a name
     /// this list carries twice is a peer that sees it twice.
     pub headers: Vec<DeclaredHeader>,
@@ -438,8 +438,8 @@ pub trait Host: std::fmt::Debug {
     /// hand over, so it cannot reach a host through
     /// [`Host::run_group`] and would otherwise call
     /// [`std::thread::sleep`] — which stalls every task pinned to the same
-    /// core, [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 6's tier-B failure, where the requests that lose are the neighbours.
+    /// core, `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+    /// 's tier-B failure, where the requests that lose are the neighbours.
     /// It is also what a `Core\Task::all` under a `limit` needs in order to be
     /// a shaper at all: with a blocking sleep no two children ever overlap, so
     /// the limit is unobservable and so is the concurrency it bounds.
@@ -470,8 +470,8 @@ pub trait Host: std::fmt::Debug {
     /// `None` is what a member with nowhere to park refuses on, and it is the
     /// reason this is separate from [`Host::park`] rather than folded into it:
     /// a park with no task under it can only block the core, which
-    /// [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
-    /// § 6 forbids outright, so the member has to learn there is no task
+    /// `rule:http-server/a-core-is-never-blocked-on-a-syscall`
+    /// forbids outright, so the member has to learn there is no task
     /// *before* it commits to waiting.
     fn waker(&self) -> Option<Waker>;
 

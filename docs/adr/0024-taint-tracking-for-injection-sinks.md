@@ -83,7 +83,7 @@ Every method on `Core\Request`, `Core\Server` (header values and any other clien
 tainted), `Core\Session`, `Core\Env`, `Core\Cli`, and `Core\Script::args()` returns the tainted form of
 whatever it already returned. **An outbound reply's body is input in the same sense**, so
 `Core\Http\Response::text()` answers `tainted string`: pinning an address
-([ADR 0058](0058-outbound-request-policy.md) § 2) settles which host the bytes came from and says nothing
+(`rule:http-server/allow-url-pins-the-address`) settles which host the bytes came from and says nothing
 about what is in them, and a reply a program asked for is no safer than one it was sent. Its `status()` is
 not tainted — three digits carry nothing a sink can misread. Structured input stays `array<mixed>` exactly as
 `rule:types/unions-and-mixed` and `rule:types/bytes` already decided —
@@ -304,7 +304,7 @@ Verification, in the order it becomes possible:
   `"literal" as Markup` succeeds.
 - **M7**: `Core\Request::query()`/`::post()`/`::cookie()`/`::files()` and `Core\Server::header()` return
   `tainted string`/`tainted bytes` — for `files()` that is each part's `filename` and `contentType` and
-  every chunk it yields ([ADR 0105](0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)),
+  every chunk it yields (`rule:http-server/an-upload-is-received-only-through-files`),
   and a tainted `filename` reaching `Core\IO::writeStream`'s path argument is one of that ADR's
   verification cases; the path-traversal and header-injection conformance suites already on
   M7's verify list (`rule:config/an-edit-reaches-the-next-request-without-a-restart`'s neighboring milestone paragraph) gain a

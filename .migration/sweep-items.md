@@ -180,7 +180,6 @@ from the commit bodies of c7a9afca6 through 44ba60ce9, re-anchored to the lines 
 - docs/adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md:131 — anchors `nvs meta --json` to `crates/nvs-cli/src/main.rs:509`; the `Meta` subcommand is at `main.rs:367` today, so the line reference is stale.
 - docs/adr/0099-the-resilient-tree-is-the-ast-plus-trivia.md:197 — cites `0137 §§ 1-2` as a section list; the rewriter is expected to expand it to `tooling/doc-comment-is-three-slashes` and `tooling/doc-comment-tags-are-see-and-example`, and the sentence ("defines — prose plus two tags") reads correctly only against the second, so check the expansion by eye.
 - docs/adr/ground-rules.md:337 — cites `0039 §§ 9-11` as a section list; after expansion it should name `tooling/fmt-is-never-a-diagnostic`, `tooling/fmt-normalizes-only-reserved-spellings` and `tooling/fmt-never-reorders-members`, which is what the sentence ("what `nvs fmt` refuses to rewrite") reaches for.
-
 ## B21 — ide
 
 - docs/adr/0040-vscode-deep-tooling-and-resilient-parsing.md:145 — cites "ADR 0099 § 6's latency guard", which will resolve to ide/contributions-are-frozen-and-only-ever-added; the guard is ide/a-full-reanalysis-stays-under-a-bound

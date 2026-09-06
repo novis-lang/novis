@@ -25,7 +25,7 @@ reason about FCGI and it applies here — framing is where request smuggling liv
 to own.
 
 **A filesystem path is never derived from a URL at request time.**
-[ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 2 is the server's governing rule, and
+`rule:http-server/a-path-is-never-derived-from-a-url` is the server's governing rule, and
 § 4's five-step resolution is how it is kept: a request selects a **mount** from a table whose globs were
 expanded against disk **at boot**. The test that says the rule holds is not a traversal fixture — it is the
 assertion that **the set of paths the server can execute after boot equals the expanded mount table**, and
@@ -57,19 +57,19 @@ gets its first adversarial traffic.
    not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.
 4. **The shapes that are rules, not fields.** `method` reports `Get` for a `HEAD` request so a `Get`-only
    route table still matches, with `isHead` carrying the truth; `clientIp` and `scheme` resolve from the
-   socket peer **unless a peer in `[server] trusted_proxies` asserted otherwise** (ADR 0097 § 6); `path` is
+   socket peer **unless a peer in `[server] trusted_proxies` asserted otherwise** (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`); `path` is
    the request path with the matched mount's prefix **removed**, and `mount()` is what was removed.
 
 ## Stage 3 — the mount table
 
-5. **The mount table, expanded at boot** — ADR 0097 § 3, and § 4's five-step resolution over it. This is
+5. **The mount table, expanded at boot** — `rule:http-server/a-mount-table-expands-at-boot`, and § 4's five-step resolution over it. This is
    what makes several entry points under one document root, and vhost-per-module, cost one line each.
 6. **Prefix stripping and the relocatable module it buys**, and **static-file serving as one policy in both
    modes** — the development server and the proxied origin differ in what they serve, not in how they
    decide.
 7. **The `[server]` block**, § 5: four finite idle timeouts, `max_in_flight` with its pre-allocation `503`,
    the optional health path, and `Core\Server::isDraining()`. `max_in_flight` is **the result of an
-   arithmetic against the memory budget** rather than a number someone picked — ADR 0106 amended § 5 to say
+   arithmetic against the memory budget** rather than a number someone picked — `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` amended § 5 to say
    so, and picking a number is the regression.
 8. **A mount routes and carries nothing else; policy is the per-app block's** — § 10. A mount that grows a
    limit or a grant has re-implemented goal 3's `[[app]]`.
@@ -84,7 +84,7 @@ gets its first adversarial traffic.
     by nothing else**, so a scheduled script's and an isolate's `echo` take the terminal sink's
     neutralization instead. Goal 4 built that terminal sink; this is what decides which one is attached.
 11. **The response policy applies with nothing configured** —
-    [ADR 0074](../../adr/0074-http-defaults-safe-and-finite.md) §§ 1–4: secure headers, closed CORS,
+    `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named`, `rule:http-server/cookies-are-secure-httponly-and-lax` and `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`: secure headers, closed CORS,
     `Secure; HttpOnly; SameSite=Lax` cookies, every directive `Runtime` so a request may change it for
     itself and `setHeader` still wins. Goal 3 landed the *boot-time* refusals; this is the runtime half.
 
@@ -100,7 +100,7 @@ gets its first adversarial traffic.
 14. **`Core\Session`**, which **may not be backed by `Core\Cache`'s local tier** — `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` names it as
     a hole that tier must not fill, and a session that vanishes because a core evicted it is an
     authentication bug.
-15. **Uploads** — [ADR 0105](../../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)
+15. **Uploads** — `rule:http-server/an-upload-is-received-only-through-files`
     whole: `files()` is a lazy iterator and **the only way to receive an uploaded file**; a part is a file
     part iff `Content-Disposition` carries `filename`; three ways to consume one; goal 4's
     `Core\IO::writeStream` is where it reaches disk; **there is still no temp file and no
@@ -108,7 +108,7 @@ gets its first adversarial traffic.
     `[limits]`/`[limits.hard]` pair, and `upload_total` is refused **pre-dispatch** when `Content-Length`
     already exceeds it.
 16. **`bodyStream()` is the raw-body alternative to `body`**, exclusive with it and with `files` on one
-    request (ADR 0097 §§ 3, 6, 7, 8).
+    request (`rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`, `rule:http-server/head-runs-as-get` and `rule:http-server/the-body-is-read-on-demand-under-two-caps`).
 
 ## Stage 6 — what runs beside a request
 
@@ -157,7 +157,7 @@ suite gains connections as its third parameterisation rather than a second suite
     that ends with its request is a streaming response (Stage 4) and stays in the request isolate.
 19f. **Bounds and lifetimes** — § 7: connections per process, frame and message size, idle, lifetime and
     send timeouts, subscriber queue depth — every one finite with nothing configured, on the timer table
-    goal 2 built, asserted the way ADR 0074's defaults are. A connection exceeding its memory, CPU or
+    goal 2 built, asserted the way `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s defaults are. A connection exceeding its memory, CPU or
     lifetime budget closes with the defined code and reports as that, never as an out-of-memory.
 19g. **Reload and drain** — § 7, over items 20 and 22: an open connection keeps the compiled unit it began
     with and one opened after the swap runs the new one; `nvs ctl reload` and graceful shutdown close every
@@ -197,10 +197,10 @@ suite gains connections as its third parameterisation rather than a second suite
 25. **A state-bleed suite proves nothing leaks between requests, and the same suite runs across an isolate
     boundary** — which the shared `Isolate` makes a *parameterisation* rather than a second suite. If it is
     two suites, item 2 was not done.
-26. **The set of paths the server can execute after boot equals the expanded mount table.** ADR 0097's
+26. **The set of paths the server can execute after boot equals the expanded mount table.** `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s
     governing rule, stated as a test rather than as a suite of attempted escapes.
 27. **A multipart body far larger than any in-memory bound is received in full at bounded resident
-    memory**, asserted against a high-water mark — ADR 0105's load-bearing case.
+    memory**, asserted against a high-water mark — `rule:http-server/an-upload-is-received-only-through-files`'s load-bearing case.
 28. **Path traversal, header injection and request-smuggling suites pass**, and a request whose isolates
     are still running when the client disconnects leaves none of them behind.
 31. **Live bytes are O(in-flight) under a cycle-building load.** A soak of many thousands of requests,
@@ -235,11 +235,11 @@ there by the switch that left it and folded forward at every switch since.
   wakes on a core other than the one that parked it, and why this is not an executor. Every other design in
   this goal is already argued — 0012, 0017, 0072, 0073, 0074, 0076, 0077, 0078, 0079, 0088, 0093, 0097,
   0102, 0105.
-- **`hyper` stays, and h1 only.** No TLS listener and no h2c — ADR 0097 § 1 dropped both, and a proxy
+- **`hyper` stays, and h1 only.** No TLS listener and no h2c — `rule:http-server/two-deployments-and-nothing-a-proxy-owns` dropped both, and a proxy
   terminates TLS. If a capability appears to need h2, that is Backlog, not a scope decision.
 - **One isolation path.** The request is goal 2's `Isolate`. A second one makes Stage 9's state-bleed suite
   meaningless, which is why item 2 is stated as an item rather than assumed.
-- **`max_in_flight` is an arithmetic, not a number.** ADR 0106 amended ADR 0097 § 5 to say so.
+- **`max_in_flight` is an arithmetic, not a number.** `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` amended `rule:http-server/the-server-block-is-boot-class` to say so.
 - **`tungstenite` is the framing crate**, sync, over `NvsStream` with no adapter, picked under `rule:packaging/a-c-dependency-answers-two-questions`
   's pre-authorization; owning RFC 6455 is refused for the reason owning h1 is.
 - **`receive()` selects over both sources** — `rule:concurrency/a-connection-is-a-loop` — and an isolate's entry is a path or a

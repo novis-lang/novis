@@ -2546,7 +2546,7 @@ nvs_runtime::nvs_helper! {
     /// timeout in this process. Every other member of this class blocks its
     /// core too, and that is not the same thing: a read finishes because the
     /// disk finishes, while a contended lock finishes when another *program*
-    /// decides. That is the wait ADR 0074 leaves no spelling for on the
+    /// decides. That is the wait `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` leaves no spelling for on the
     /// outbound side, and the reading carries over, so this is `try_lock` and
     /// there is no waiting form of it anywhere.
     ///

@@ -4,7 +4,7 @@
 
 **Goal 16 — a body is read once, and JSON is one of the ways to read it — has just started; nothing of it
 has landed yet.** Goal 15's whole list is this goal's Stage 1 floor. The design is settled in the goal
-prose's standing decisions: ADR 0139 replaces spec § 15's three-way exclusivity with *buffering readers
+prose's standing decisions: `rule:http-server/a-session-store-answers-four-operations` replaces spec § 15's three-way exclusivity with *buffering readers
 share, streaming readers consume*; `Core\Request::json({maxDepth?}): tainted mixed` and
 `jsonAs<T>({maxDepth?}): T` both land; `json()` holds its decoded value on the request and `jsonAs<T>()`
 holds nothing; no `Content-Type` gate; an absent or empty body is a `ParseError`. One new ADR number and
@@ -41,7 +41,7 @@ what the ledger names.
 
 ## Backlog
 
-- Stage 3 (ADR 0139, `hold_body`, `claim_body` rewritten, `body()` idempotent) shares
+- Stage 3 (`rule:http-server/a-session-store-answers-four-operations`, `hold_body`, `claim_body` rewritten, `body()` idempotent) shares
   `crates/nvs-runtime/src/ctx/inbound.rs` with stage 2b but nothing else; it is the natural second group and it is
   where the one new ADR number gets spent.
 - Stage 4 (the two members, the five edits each, the spec § 15 bullet, six `.nvst` cases) needs stage 2

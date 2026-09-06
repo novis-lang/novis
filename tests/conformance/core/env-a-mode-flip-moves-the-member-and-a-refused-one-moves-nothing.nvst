@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::mode` and the `mode.default` directive agree after an accepted flip, after a refused one and after a flip back — ADR 0091 §§ 4-5
+`Core\Env::mode` and the `mode.default` directive agree after an accepted flip, after a refused one and after a flip back — `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
 // § 4's flip is a `Core\Config::set` on `mode.default`, and this member reports

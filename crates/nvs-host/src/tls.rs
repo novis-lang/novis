@@ -80,7 +80,7 @@
 //! that, and it is the reading every other client an operator has configured
 //! already has. What is closed permanently is a *program* choosing anchors, or
 //! turning verification off: neither has a spelling here, and the whole point
-//! of ADR 0058's pinned outbound door is that a script does not get to widen a
+//! of `rule:http-server/allow-url-pins-the-address`'s pinned outbound door is that a script does not get to widen a
 //! decision the deployment made.
 //!
 //! What that spends, per `rule:programs/memory-priority`:
@@ -128,7 +128,7 @@ use crate::net::NvsTcp;
 /// and every wait underneath it hands the core back.
 ///
 /// Built by [`NvsTls::over`] from a stream that is already connected, because
-/// where to connect is [ADR 0058](/docs/adr/0058-outbound-request-policy.md)'s
+/// where to connect is `rule:http-server/allow-url-pins-the-address`'s
 /// pinned address and not a name this layer would re-resolve. The name passed
 /// in is what the certificate is checked against, and it is the name the caller
 /// was granted — never the address it was pinned to.

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::post` answers the same way for every name it is given when no request arrived, so nothing about the field reaches the decision -- `rule:security/request-state-throws-in-an-isolate`, ADR 0105 § 2, spec § 15
+`Core\Request::post` answers the same way for every name it is given when no request arrived, so nothing about the field reaches the decision -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`, spec § 15
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line. `post` reads a
@@ -19,7 +19,7 @@ try {
 } catch (LogicError $empty) {
     $refused = $refused + 1;
 }
-// ADR 0105 § 2 gives `post` the bracket convention `query` reads, so a nested
+// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` gives `post` the bracket convention `query` reads, so a nested
 // key is the spelling most able to take a different path through the parse --
 // and it must not reach one, the parse being downstream of this refusal.
 try {

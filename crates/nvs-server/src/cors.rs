@@ -1,4 +1,4 @@
-//! [ADR 0074] § 2's cross-origin policy: which origins `[http.cors] origins` names, and what a
+//! `rule:http-server/cors-is-closed-until-origins-are-named`'s cross-origin policy: which origins `[http.cors] origins` names, and what a
 //! request from one of them — or from anybody else — is answered with.
 //!
 //! § 2's shipped default is `origins = []`, and closed has two observable halves: **no CORS
@@ -13,13 +13,13 @@
 //! wire.
 //!
 //! The second is a decision, and [`Cors::preflight`] is it: an `OPTIONS` carrying `Origin` and
-//! `Access-Control-Request-Method` — [ADR 0097] § 4's two headers — is a browser asking
+//! `Access-Control-Request-Method` — `rule:http-server/a-request-resolves-in-five-steps`'s two headers — is a browser asking
 //! permission, and a server that has named no origin has none to give. **`403` and not `405`**,
 //! because the verb is one this server implements and answers elsewhere — what is refused is the
 //! *origin*, and saying `405` would tell a browser to stop asking about a method rather than that
 //! nobody may cross.
 //!
-//! **It is refused before the handler**, beside ADR 0097 § 5's valve, so a preflight nobody
+//! **It is refused before the handler**, beside `rule:http-server/the-server-block-is-boot-class`'s valve, so a preflight nobody
 //! configured selects no mount, allocates no isolate and runs no Novis code. That is also what
 //! keeps it honest: an application asked to answer an `OPTIONS` would be answering a question
 //! the policy above it had already decided, and the two could disagree.
@@ -108,8 +108,6 @@
 //! is refused at boot and by `Core\Config::set`, both through `nvs_config::http`, because it is
 //! a question about a written configuration rather than about a request.
 //!
-//! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
-//! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use hyper::header::{
     ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
@@ -120,13 +118,12 @@ use hyper::{HeaderMap, Method, StatusCode};
 use nvs_config::tree::{Http, Setting};
 use nvs_config::{Quantity, Unit};
 
-/// [ADR 0074] § 2's policy, resolved from `[http.cors]` at boot.
+/// `rule:http-server/cors-is-closed-until-origins-are-named`'s policy, resolved from `[http.cors]` at boot.
 ///
 /// Boot-fixed and process-wide for the reason [`crate::secure::Secure`] is: § 2's block is
 /// `Runtime`-class in the ADR's own table, and nothing in this milestone re-reads it under a
 /// live socket.
 ///
-/// [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
 #[derive(Clone, Debug)]
 pub struct Cors {
     /// The exact origins `[http.cors] origins` named, as written. **Empty is the whole of what
@@ -227,7 +224,7 @@ impl Cors {
     /// § 2's answer to one preflight, or [`None`] where this request is not a preflight at all.
     ///
     /// A preflight is an `OPTIONS` carrying **both** `Origin` and `Access-Control-Request-Method`,
-    /// which is [ADR 0097] § 4's own definition and is read here as written. Neither header alone
+    /// which is `rule:http-server/a-request-resolves-in-five-steps`'s own definition and is read here as written. Neither header alone
     /// is one: a program may answer an ordinary `OPTIONS` — that is what `Allow` is for — and
     /// refusing every one of them would take a method away in order to close a door it never went
     /// through, while a request that named no origin is not asking to cross whatever else it sent.
@@ -236,7 +233,6 @@ impl Cors {
     /// open policy as under a closed one. The module doc's own section owns why the two are one
     /// rule and why the granting half is `204`.
     ///
-    /// [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
     #[must_use]
     pub fn preflight(&self, method: &Method, request: &HeaderMap) -> Option<Preflight> {
         if method != Method::OPTIONS
@@ -705,7 +701,7 @@ mod tests {
         );
     }
 
-    /// ADR 0097 § 4 names two headers and both are required, so an `OPTIONS` missing either is the
+    /// `rule:http-server/a-request-resolves-in-five-steps` names two headers and both are required, so an `OPTIONS` missing either is the
     /// program's to answer — under an open list as under a closed one, which is the half that would
     /// otherwise take `Allow` away from every application the moment an origin was named.
     ///

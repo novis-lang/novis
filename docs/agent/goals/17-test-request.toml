@@ -18,7 +18,7 @@ modules = [
   "crates/nvs-runtime/src/ctx/inbound.rs",
   # The three members off the known-gap list, and where their rows go.
   "crates/nvs-stdlib/src/request.rs",
-  # ADR 0097 § 6's walk: it already answers the client address and the effective scheme.
+  # `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk: it already answers the client address and the effective scheme.
   "crates/nvs-server/src/forwarded.rs",
   # Where a served request becomes an `Inbound`.
   "crates/nvs-server/src/serve.rs",
@@ -140,7 +140,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "3 the peer facts"
-name = "nvs-server (ADR 0097 § 6's walk reaches the carrier)"
+name = "nvs-server (`rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk reaches the carrier)"
 args = ["test", "-p", "nvs-server"]
 tests = [
   "the_forwarded_walks_answer_is_set_on_the_inbound",

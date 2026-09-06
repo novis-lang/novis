@@ -19,7 +19,7 @@
 //! which dialect a driver gets.
 //!
 //! [`nvs_runtime::TaskRoot::Worker`] and not `Request`, per
-//! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 2:
+//! `rule:http-server/containment-does-not-end-at-the-helper`:
 //! there is no request beneath a worker to charge a panic to.
 //!
 //! ## Why it is stopped rather than left running

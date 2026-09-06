@@ -210,7 +210,7 @@ pub enum ThrownClass {
     /// ([ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 4).
     ///
     /// A throw rather than a block is the whole of that section's second rule,
-    /// and it is [ADR 0074](/docs/adr/0074-http-defaults-safe-and-finite.md)'s
+    /// and it is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
     /// "no spelling for an unbounded wait" on a second surface.
     CliNotInteractive,
     /// `Core\Db\DbError` — the database refused a statement, a connection or a

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::body` answers a `tainted string`, so a request's own bytes reach a grammar sink only through the launderer that names it — spec § 15, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, ADR 0105 § 3
+`Core\Request::body` answers a `tainted string`, so a request's own bytes reach a grammar sink only through the launderer that names it — spec § 15, `rule:security/tainted-qualifier` and `rule:security/launderers-are-sink-named`, `rule:http-server/a-part-is-consumed-in-one-of-three-ways`
 --FILE--
 <?nvs
 // The qualifier is the third thing § 15's signature says, and the only one no
