@@ -8452,6 +8452,17 @@ sibling in the same namespace unqualified.
   the tuple's *spelling* survived the move. Rewriting the row as `("enable_probestack", probes)` — or
   splitting the list per backend — compiles, runs, and silently unpins the stack-clash guarantee.
   Grep `crates/nvs-codegen/tests/backend_policy.rs` for the flag before touching that list.
+- **A value that joins a front-end answer to a configuration digest cannot be computed in the front
+  end, and `Cargo.toml` says so before the anchor in the handoff does.** Goal 8's threading item
+  anchored the program-id combine at `nvs_hir::resolve_program`
+  (`crates/nvs-hir/src/requires.rs:182`), which is where the unit list is — but `crates/nvs-hir/
+  Cargo.toml` does not name `nvs-config`, so `Digest`, `EnvHash` and the combine are all unspellable
+  there, and adding the dependency would point the front end at the deployment's configuration for
+  one hash. The seam is the far end: the *host* holds both halves already, and
+  `crates/nvs-cli/src/main.rs`'s context wiring had `checked.program_files()` and the resolved
+  snapshot within thirty lines of each other. When an anchor names the crate holding one input, read
+  the `Cargo.toml` of the crate holding the *other* one before opening the file it names — the same
+  one-call test the misfiled-check bullets use, asked of production code rather than of a test.
 
 ## Divergences and refusals already pinned
 

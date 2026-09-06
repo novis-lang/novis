@@ -171,7 +171,10 @@ pub struct Loaded {
 /// walk finished collecting each file, which is a deterministic function of
 /// the graph and each file's own `require` order. A caller that must run a
 /// per-file phase in a stable sequence (a diagnostic's file order, a codegen
-/// unit's) can take this vector as given rather than sorting it.
+/// unit's) can take this vector as given rather than sorting it. ADR 0061's
+/// program id is the strictest reader of that contract: it hashes each file's
+/// content digest in this order, so a walk that returned the same files in
+/// another one would rename a program nobody had edited.
 ///
 /// The third element is the [`AutoloadMap`] the walk consulted, handed back
 /// rather than dropped so `nvs check --autoload-map` can print it (ADR 0061

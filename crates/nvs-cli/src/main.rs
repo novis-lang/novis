@@ -1308,6 +1308,23 @@ fn run_run(
             .map(|stem| stem.to_string_lossy().into_owned())
             .unwrap_or_default(),
     );
+    // ADR 0061's program identity, which is the one value written here that is
+    // a fact about the whole graph rather than about the entry file: every
+    // unit's content hash in `resolve_program`'s order, folded with ADR 0078
+    // § 4's environment digest. Computed at this point because it is the last
+    // one where the walked graph and the resolved snapshot are both in hand,
+    // and computed eagerly because the alternative — hashing on the first call
+    // — bills one unlucky request for every unit digest in the program.
+    // `nvs_config::cache::program_id` owns the formula and `Ctx::program_id`
+    // owns what the member is allowed to do with the answer, which is nothing
+    // but hand it over.
+    ctx.set_program_id(
+        nvs_config::cache::program_id(
+            &cache::unit_digests(&checked.program_files()),
+            nvs_config::cache::env_hash(&for_compiler.config),
+        )
+        .to_string(),
+    );
     // Hands the context the unit's class table: the class a helper's
     // bare-message failure is promoted to, and the shared ownership that lets
     // the context outlive the unit. `Unit::install_in` owns both reasons.

@@ -2,8 +2,8 @@
 //!
 //! [`Ctx::new`] and the setters around it: the session, the exit code, the
 //! origin, the configuration snapshot, the trace context, the command and route
-//! tables, `argv` and the program name — each one a value the host knows and
-//! the language cannot ask for, because
+//! tables, `argv`, the program name and the program's identity — each one a
+//! value the host knows and the language cannot ask for, because
 //! [ADR 0012](/docs/adr/0012-no-superglobals.md) leaves nothing ambient to the
 //! language itself.
 //!
@@ -126,6 +126,7 @@ impl Ctx {
             routes: None,
             arguments: Vec::new(),
             program_name: String::new(),
+            program_id: String::new(),
             config: None,
             trace_context: crate::trace_context::TraceContext::started(),
             fixed_clock: None,
@@ -386,6 +387,22 @@ impl Ctx {
         self.program_name = name;
     }
 
+    /// ADR 0061's `Core\Program::id()`: the 64 lowercase hex characters naming
+    /// this program's exact code and environment, or empty for a context no
+    /// host wrote one onto — see [`Self::program_id`]'s field docs for the
+    /// formula and for why nothing here recomputes or truncates it.
+    #[must_use]
+    pub fn program_id(&self) -> &str {
+        &self.program_id
+    }
+
+    /// Hands this program its identity, before it runs — computed by
+    /// `nvs_config::cache::program_id` where the resolved graph and the
+    /// environment digest are both in hand, which is the only place they are.
+    pub fn set_program_id(&mut self, id: String) {
+        self.program_id = id;
+    }
+
     /// ADR 0079 § 12's fixed clock in nanoseconds since the Unix epoch, or
     /// `None` for a context that reads the host's — see [`Self::fixed_clock`]'s
     /// field docs.
@@ -501,6 +518,20 @@ impl Ctx {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0061's id is host-written like everything else in this file: a
+    /// context nobody handed one to has none, and one that was handed one
+    /// answers with exactly those characters — this layer neither computes nor
+    /// shortens an id.
+    #[test]
+    fn a_program_id_is_written_by_the_host_and_never_shortened() {
+        let mut ctx = Ctx::buffered();
+        assert!(ctx.program_id().is_empty());
+
+        let id = "0123456789abcdef".repeat(4);
+        ctx.set_program_id(id.clone());
+        assert_eq!(ctx.program_id(), id);
+    }
 
     #[test]
     fn a_fresh_context_has_nothing_set() {
