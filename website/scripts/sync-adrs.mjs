@@ -90,7 +90,11 @@ fs.rmSync(outPagesDir, { recursive: true, force: true })
 fs.mkdirSync(outPagesDir, { recursive: true })
 fs.mkdirSync(outDataDir, { recursive: true })
 
-const FIELD_ORDER = ['Status', 'Date', 'Scope', 'Amends', 'Amended by', 'Validated by']
+// `Date` is deliberately absent: an ADR's body always states the current rule, so the day it was
+// first written tells a reader nothing they can act on and quietly ages a decision that is current.
+// The corpus keeps the field; the site does not publish it.
+const FIELD_ORDER = ['Status', 'Scope', 'Amends', 'Amended by', 'Validated by']
+const FIELD_HIDDEN = ['Date']
 
 for (const adr of adrs) {
   const rows = []
@@ -105,9 +109,12 @@ for (const adr of adrs) {
     }
     rows.push({ field, rendered })
   }
-  // Any field outside the known order still renders, at the end.
+  // Any field outside the known order still renders, at the end — except the hidden ones, which
+  // would otherwise come back in through here the moment they were dropped from FIELD_ORDER.
   for (const [field, value] of Object.entries(adr.fields)) {
-    if (!FIELD_ORDER.includes(field)) rows.push({ field, rendered: inlineMd(value) })
+    if (!FIELD_ORDER.includes(field) && !FIELD_HIDDEN.includes(field)) {
+      rows.push({ field, rendered: inlineMd(value) })
+    }
   }
 
   const amendedNote =
@@ -162,7 +169,6 @@ const indexData = adrs.map((a) => ({
   number: a.number,
   title: a.title,
   status: a.status,
-  date: a.date,
   inShort: plainText(a.inShort),
   amends: a.amends,
   amendedBy: a.amendedBy,
