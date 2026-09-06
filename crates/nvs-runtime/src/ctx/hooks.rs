@@ -552,3 +552,135 @@ impl Ctx {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::object::{ClassTable, MethodRow, NvsObj};
+
+    thread_local! {
+        /// The temporary directory the hook below is asked about — the one the
+        /// script was handed and the one its context will sweep.
+        static WATCHED: std::cell::RefCell<Option<std::path::PathBuf>> =
+            const { std::cell::RefCell::new(None) };
+        /// What the hook found there, or `None` if it never ran at all — which
+        /// is a distinct failure from finding the directory already gone.
+        static STILL_STANDING: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+    }
+
+    /// The `Core\Script::onExit` hook the case below registers: it looks for
+    /// the temporary directory the script was handed and records whether it was
+    /// still standing when the queue ran.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and each parameter live, \
+                  every one of them retained for this callee to release, and \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn looks_for_the_directory(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        // The receiver and the one report parameter, given back exactly as a
+        // compiled callee's exit sweep gives them back.
+        for slot in 0..2 {
+            // SAFETY: `call_closure` passed two live values and retained each.
+            unsafe { (*args.add(slot)).release() };
+        }
+        let standing = WATCHED.with_borrow(|watched| {
+            watched
+                .as_ref()
+                .expect("the case named a directory before running the queue")
+                .is_dir()
+        });
+        STILL_STANDING.with(|seen| seen.set(Some(standing)));
+        // SAFETY: the caller passed the address of a live `Value` to answer
+        // into, and `void` is a `null` there.
+        unsafe { *out = Value::null() };
+        crate::abi::OK
+    }
+
+    /// A closure value declaring one parameter whose `invoke` is a plain Rust
+    /// function.
+    ///
+    /// [`crate::call_closure`] reads exactly three things off a closure — the
+    /// arity slot, the parameter tags slot, and the `invoke` method's address
+    /// in its class — so a test needs no compiler in front of it to register a
+    /// hook. Everything else in `nvs_ir::lower::lower_closure`'s representation
+    /// is captured state, and a native callback captures nothing.
+    ///
+    /// The table is leaked because a descriptor's *address* is its identity and
+    /// it must outlive every instance made from it; the test process exiting is
+    /// what reclaims it.
+    fn hook_of(invoke: crate::abi::NvsFn) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                // Read off the object's own two slots below rather than off
+                // this row — `crate::call_closure` says so.
+                arity: 0,
+                param_tags: 0,
+                public: true,
+                native: false,
+            }],
+        );
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        #[expect(
+            unsafe_code,
+            reason = "the table above is leaked, so the descriptor outlives \
+                      every instance made from it — `NvsObj::new`'s whole \
+                      obligation"
+        )]
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(crate::closure::CLOSURE_ARITY_SLOT, Value::int(1));
+        object.set_field(
+            crate::closure::CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from(crate::closure::CLOSURE_PARAM_TAG_ANY)),
+        );
+        Value::object(object)
+    }
+
+    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 3's ordering against [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+    /// queue, asserted from the one side that can observe it: the last user
+    /// code still finds the directory it was handed, and the teardown behind it
+    /// is what takes it away.
+    ///
+    /// Both halves are the test. A sweep that ran *before* the queue would
+    /// leave the hook looking at nothing, and a sweep that never ran would
+    /// leave the directory standing after the context is gone — either failure
+    /// alone passes an assertion that names only the other.
+    #[test]
+    fn the_sweep_runs_after_the_on_exit_queue() {
+        let standing = std::env::temp_dir().join(format!(
+            "nvs-exit-hook-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&standing).expect("the platform root is writable");
+        WATCHED.with_borrow_mut(|watched| *watched = Some(standing.clone()));
+
+        let mut ctx = Ctx::buffered();
+        ctx.track_temporary_dir(standing.clone());
+        ctx.push_exit_hook(hook_of(looks_for_the_directory));
+        ctx.run_exit_hooks(Value::null());
+
+        assert_eq!(
+            STILL_STANDING.with(std::cell::Cell::get),
+            Some(true),
+            "a hook is user code, and § 3 puts the sweep after all of it"
+        );
+
+        drop(ctx);
+        assert!(
+            !standing.exists(),
+            "and the context's teardown, which is every ending at once, is what sweeps it"
+        );
+    }
+}
