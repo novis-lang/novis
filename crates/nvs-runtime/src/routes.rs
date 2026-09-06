@@ -456,7 +456,7 @@ impl Match {
     }
 
     /// § 1's declared name, which
-    /// [ADR 0076](/docs/adr/0076-observability-export.md) § 1's `route`
+    /// `rule:observability/default-series`'s `route`
     /// label reads. `None` where the route declares none.
     #[must_use]
     pub fn name(&self) -> Option<&str> {

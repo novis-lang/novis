@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::onExit` runs its hooks FIFO as the last user code of a normal end, and the report says `Normal` with status 0 and no error — ADR 0127 §§ 1-2
+`Core\Script::onExit` runs its hooks FIFO as the last user code of a normal end, and the report says `Normal` with status 0 and no error — `rule:observability/script-on-exit` and `rule:observability/three-endings-fire-the-exit-queue`
 --FILE--
 <?nvs
 // Registration runs nothing: the two hooks below are registered first and the

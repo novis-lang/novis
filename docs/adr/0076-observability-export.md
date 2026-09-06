@@ -1,13 +1,13 @@
-# ADR 0076 — The runtime exports what it already measures, and a label may not be `tainted`
+# `rule:observability/the-runtime-exports-what-it-already-measures` — The runtime exports what it already measures, and a label may not be `tainted`
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
 - **Scope:** what the runtime exports without a line of application code — the default metric set, the spans
-  derived from [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s existing event kinds, and
+  derived from `rule:observability/trace-events-carry-a-kind`'s existing event kinds, and
   W3C TraceContext in both directions — plus the three-member `Core\Metrics`, the `[metrics]`/`[trace]`
   directives, and the cardinality bound. Not in scope: the coverage/trace/profile *probes* themselves, which
   are `rule:testing/debug-probes`'s and
-  [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s, and are reused here unchanged; and the
+  `rule:observability/trace-events-carry-a-kind`'s, and are reused here unchanged; and the
   sampling profiler, which stays M10's.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md) and
   [0041](0041-timeline-export-and-gc-spawn-trace-events.md) — a fourth consumer of the same instrumentation,
@@ -40,7 +40,7 @@
 ## Context
 
 - `rule:testing/debug-probes` put a debug-flags check at
-  every statement and call site, and [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) added
+  every statement and call site, and `rule:observability/trace-events-carry-a-kind` added
   `gc`, `spawn` and `query` event kinds inside routines that are already slow. Both are aimed at a
   *developer* debugging a request: Clover, Callgrind, speedscope, NDJSON. Nothing in either reaches a
   production dashboard, and the data a production dashboard needs — rate, duration, status, query time — is
@@ -80,7 +80,7 @@ Emitted by the runtime and the M7 server, present the moment an exporter is conf
 | `nvs_schedule_runs_total` | counter | `name`, `outcome` (`rule:config/scheduled-work-is-a-config-block`) |
 
 Every one is read from instrumentation that already exists: the `query` kind from
-[ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md) § 1, `gc` from § 2, `spawn` from § 3, GC and
+`rule:observability/trace-events-carry-a-kind`, `gc` from § 2, `spawn` from § 3, GC and
 memory from the arena accounting `rule:programs/memory-priority` already requires. **No probe site
 is added to the per-statement/per-call path** `rule:testing/debug-probes`
 measures and guards, and that ADR's cost claim is untouched.
@@ -240,7 +240,7 @@ series until something registers one. It is charged to the core, not to a reques
 `metrics-exporter-prometheus` for the scrape path. All three are first-class and maintained, so
 *Decisions taken at project start*'s standing rule applies straightforwardly: this is somebody else's
 specification and it is a dependency. What is ours is the wiring from
-[ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s event kinds to spans, and the per-core
+`rule:observability/trace-events-carry-a-kind`'s event kinds to spans, and the per-core
 registry, both of which are about Novis's own runtime and could not be a crate.
 
 ## Consequences

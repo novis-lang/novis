@@ -142,7 +142,7 @@ root itself, not a boundary `rule:security/isolate-shares-nothing` has to copy a
 
 Same zero-retry rule: a handler that itself faults falls straight to tier 3.
 
-After this tier and before native teardown, [ADR 0127](0127-the-end-of-a-script-is-observable.md)'s
+After this tier and before native teardown, `rule:observability/script-on-exit`'s
 `Core\Script::onExit` queue runs. It is not a tier of this ladder: it runs at every non-fatal ending,
 succeeding ones included, needs no reserve, and observes the ending rather than reporting the failure.
 A handler faulting here changes nothing about it — the queue runs either way.
@@ -229,7 +229,7 @@ tier happened to produce a given line.
 same record for a human, with the control-byte substitution that keeps a plaintext target unforgeable).
 The record: one JSON object per line — `ts` (RFC3339), `level`, `message`,
 `request_id`, `trace_id` and `span_id` when a trace is active
-([ADR 0076](0076-observability-export.md) § 6; both fields are omitted rather than empty when it is not),
+(`rule:observability/metrics-and-trace-blocks-are-system`; both fields are omitted rather than empty when it is not),
 and a `fields` object carrying whatever structured context that call site has (error class,
 limit name, a stack summary). Chosen over `logfmt`: an arbitrary error message or a multi-line stack trace
 needs escaping that is correct on the first and only attempt at the true floor, and JSON's escaping is a

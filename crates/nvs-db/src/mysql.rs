@@ -1893,7 +1893,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
         return Err(crate::pg::second_statement(state));
     }
 
-    // ADR 0067 § 11's span, opened before the prepare rather than around the
+    // `rule:observability/a-query-is-a-trace-event`'s span, opened before the prepare rather than around the
     // execute alone: § 1 says a statement's first run on this connection costs
     // two round trips, and what the caller waited is both of them. It is handed
     // `sql` and never `params`, which is the whole of § 11's "never parameters"
@@ -2918,7 +2918,7 @@ pub struct MySqlRows<'a, S: Read + Write = NvsTls<NvsTcp>> {
     affected: u64,
     last_id: u64,
     ended: bool,
-    /// ADR 0067 § 11's trace event for this statement, opened when it went out
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for this statement, opened when it went out
     /// and ended by whatever ends the stream — [`crate::PgRows`]' field, for
     /// [`crate::span`]'s reasons, and the reason § 11 reads across drivers at
     /// all.

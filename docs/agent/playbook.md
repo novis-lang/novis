@@ -5108,8 +5108,7 @@ is why" — is this file.
   hint that a *section* is what is missing. `%A` matches an empty stderr, so the fix is two lines, and it
   is also the case saying out loud that this program is meant to end non-zero.
 
-- **A spawned child never drains its `Core\Script::onExit` queue, so no `.nvst` case can put two of ADR
-  0127 § 2's endings in one file.** `nvs_stdlib::script::run_exit_hooks` has exactly one caller —
+- **A spawned child never drains its `Core\Script::onExit` queue, so no `.nvst` case can put two of `rule:observability/three-endings-fire-the-exit-queue`'s endings in one file.** `nvs_stdlib::script::run_exit_hooks` has exactly one caller —
   `crates/nvs-cli/src/main.rs:896`, the top-level script frame — so a `spawn script` child ends with
   `ok=true` and a captured `output` holding only what its body echoed, with its hooks never run and no
   diagnostic anywhere. Every *bound asserted on both sides* over that table needs two endings and a
@@ -7355,7 +7354,7 @@ sibling in the same namespace unqualified.
   same slice as the members, rather than being added to `HANDLES`: that list is for state read from
   outside the class, not for state nothing reads yet.
 - **A `System` block is still readable by a request — it is `Core\Config::set` that refuses one, not
-  `get`.** ADR 0076 § 6 makes the whole `[trace]` block `System`, which reads like "a request cannot
+  `get`.** `rule:observability/metrics-and-trace-blocks-are-system` makes the whole `[trace]` block `System`, which reads like "a request cannot
   see it" and is not: `nvs_config::Request::get` answers off the snapshot's own table for any dotted
   key, and only `set` consults `Directive::class` and returns `false` for `Class::System`. So
   `ctx.config().and_then(|c| c.get("trace.propagate"))` is the whole read, with no second reader and
@@ -7854,7 +7853,7 @@ sibling in the same namespace unqualified.
   reading one gap bullet as a work estimate. The finding is now gap 6 of
   `crates/nvs-types/src/intrinsics.rs`.
 - **A `PgRows` holds its `&mut Ctx` borrow to the end of the scope, because it has a `Drop`,
-  and the error names neither of those things.** Filing ADR 0067 § 11's span on the context
+  and the error names neither of those things.** Filing `rule:observability/a-query-is-a-trace-event`'s span on the context
   after the drain is `E0499: cannot borrow *ctx as mutable more than once`, pointing at
   `postgres_of`'s borrow twenty lines up and at the closing brace — "first borrow might be
   used here, when `answered` is dropped". NLL ends a borrow at its last *use* only for a type

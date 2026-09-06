@@ -166,9 +166,9 @@ its `ScriptResult` shape provisional pending M5; this fills in that detail rathe
 
 This ADR's audience is a **developer debugging a request**, and every format it names — Clover, lcov,
 Callgrind, NDJSON — reflects that. What a **production dashboard** needs is read from the same
-instrumentation by [ADR 0076](0076-observability-export.md), which adds no probe site to the
+instrumentation by `rule:observability/the-runtime-exports-what-it-already-measures`, which adds no probe site to the
 per-statement/per-call path measured here: it consumes
-[ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s `gc`, `spawn` and `query` event kinds,
+`rule:observability/trace-events-carry-a-kind`'s `gc`, `spawn` and `query` event kinds,
 turns exactly four of them into distributed-tracing spans, and never turns a `call` event into one. The
 cost claim below is therefore unaffected by it, and the guard test named in *Consequences* covers both.
 
@@ -197,7 +197,7 @@ accounting rather than adding a second one. No per-`Core`-member cost table exis
 claim about what a native member costs would be a number with no guard test, which
 [README.md](README.md) § *Measured numbers* forbids.
 
-One stream, three consumers — coverage above, [ADR 0041](0041-timeline-export-and-gc-spawn-trace-events.md)'s
+One stream, three consumers — coverage above, `rule:observability/trace-events-carry-a-kind`'s
 timeline, and `rule:testing/bench-counters`'s `#[Bench]`. A fourth number would be a
 fifth place to look. The counters are comparable across machines but **not across Novis versions**, since M12's
 optimising tier will eliminate work; comparing Novis's own releases is

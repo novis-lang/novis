@@ -407,8 +407,8 @@ pub struct Ctx {
     /// closure for a request that registers one — O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     uncaught_handler: Value,
-    /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
-    /// § 1's end-of-script queue, in registration order — what
+    /// `rule:observability/script-on-exit`
+    /// 's end-of-script queue, in registration order — what
     /// `Core\Script::onExit` appends to and [`Self::run_exit_hooks`] drains
     /// once, as the last user code of the script.
     ///
@@ -426,11 +426,11 @@ pub struct Ctx {
     ///
     /// **What it spends:** one reference per registration, plus whatever each
     /// hook captured, held from the registration to the end of the script —
-    /// per request, O(registrations), which is the spend ADR 0127 § 1 states
+    /// per request, O(registrations), which is the spend `rule:observability/script-on-exit` states
     /// and `rule:programs/memory-priority` asks
     /// for.
     exit_hooks: Vec<Value>,
-    /// Whether [`Self::run_exit_hooks`] has already run — ADR 0127 § 2's "the
+    /// Whether [`Self::run_exit_hooks`] has already run — `rule:observability/three-endings-fire-the-exit-queue`'s "the
     /// queue runs once, at most once per script".
     ///
     /// A flag rather than "the vec is empty": a hook that registers a hook
@@ -586,7 +586,7 @@ pub struct Ctx {
     /// itself is shared and is charged to the snapshot, not to the request.
     config: Option<nvs_config::Request>,
     /// This request's place in a distributed trace —
-    /// [ADR 0076](/docs/adr/0076-observability-export.md) § 2, whose id
+    /// `rule:observability/a-trace-id-exists-for-every-request`, whose id
     /// is Novis's only request identifier.
     ///
     /// **Not [`Self::trace`]**, which is `rule:testing/debug-probes`'s per-call-site event list;
@@ -1082,7 +1082,7 @@ impl Drop for Ctx {
         // `rule:errors/on-uncaught-throw`'s handler is request-local for the same reason and is
         // unregistered the same way — see `Ctx::set_uncaught_handler`.
         self.set_uncaught_handler(Value::null());
-        // ADR 0127 § 1's exit hooks are request-local for the same reason. A
+        // `rule:observability/script-on-exit`'s exit hooks are request-local for the same reason. A
         // script that ended at a `FATAL` or a cancellation reaches here with the
         // queue unrun — § 3 — so this is where those registrations are given
         // back, exactly as an unrun deferred registration is below.

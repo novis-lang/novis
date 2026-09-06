@@ -65,14 +65,14 @@ const MEASURED: &str = "<?nvs\nclass Math {\n    public static function double(i
 
 #[test]
 fn no_probe_is_added_to_the_measured_path() {
-    // ADR 0076 § 1: every default series is read from instrumentation that
+    // `rule:observability/default-series`: every default series is read from instrumentation that
     // already exists, so its export "adds no probe site to the
     // per-statement/per-call path" `rule:testing/debug-probes` measures. A probe site is emitted
     // code, which is why the claim is this crate's — a server sees a header
     // and a counter, never a site.
     //
-    // The case that would break it is a request already carrying ADR 0076
-    // § 2's trace identity, which is what an exporter keys its spans off: a
+    // The case that would break it is a request already carrying `rule:observability/a-trace-id-exists-for-every-request`
+    // 's trace identity, which is what an exporter keys its spans off: a
     // site emitted to feed a series, or an identity that switches `rule:testing/debug-probes`'s
     // own sites on, both move the counts. They are asserted against the same
     // script with no identity, so either failure shows up here while both runs

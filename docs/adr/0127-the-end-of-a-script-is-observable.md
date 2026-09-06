@@ -1,4 +1,4 @@
-# ADR 0127 — The end of a script is observable: `Core\Script::onExit` runs at every non-fatal ending
+# `rule:observability/script-on-exit` — The end of a script is observable: `Core\Script::onExit` runs at every non-fatal ending
 
 - **Status:** Accepted
 - **Date:** 2026-09-01

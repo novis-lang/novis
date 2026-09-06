@@ -1,5 +1,5 @@
 --TEST--
-An `exit($n)` puts the very `$n` on the report rather than a normalized 0 or 1, and that non-zero status arrives with `error` still `null` — ADR 0127 § 2
+An `exit($n)` puts the very `$n` on the report rather than a normalized 0 or 1, and that non-zero status arrives with `error` still `null` — `rule:observability/three-endings-fire-the-exit-queue`
 --FILE--
 <?nvs
 // § 2's middle row, in the column no landed case reads: `exit($n)` is `status`

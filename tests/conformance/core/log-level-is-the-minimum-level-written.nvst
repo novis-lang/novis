@@ -14,7 +14,7 @@
 // The records are read back out of the target rather than off standard output,
 // because a deployment that names a destination gets one: with `[log] target`
 // set, `Core\Log::write` no longer writes the program's own stream. The hook
-// runs as the last user code of the script (ADR 0127 § 1), by which point every
+// runs as the last user code of the script (`rule:observability/script-on-exit`), by which point every
 // record above has been written or dropped.
 Core\Script::onExit(fn (): void => {
     echo Core\IO::readText("app.log");

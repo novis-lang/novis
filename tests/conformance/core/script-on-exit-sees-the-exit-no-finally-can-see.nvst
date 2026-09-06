@@ -1,5 +1,5 @@
 --TEST--
-An `exit` drains the `Core\Script::onExit` queue and runs no `finally`, so the hook observes the one ending nothing else can — ADR 0127 §§ 2 and 4
+An `exit` drains the `Core\Script::onExit` queue and runs no `finally`, so the hook observes the one ending nothing else can — `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`
 --FILE--
 <?nvs
 // The ending this queue exists for. `exit` runs no `finally` — Novis skips it

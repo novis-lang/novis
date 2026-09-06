@@ -195,7 +195,7 @@ fn an_unknown_key_in_the_pool_table_is_refused_by_name() {
     );
 }
 
-/// ADR 0067 § 11's threshold, on both sides of the boundary that matters: unwritten is off, which is
+/// `rule:observability/a-query-is-a-trace-event`'s threshold, on both sides of the boundary that matters: unwritten is off, which is
 /// the ADR's own default and the reason a deployment gets no slow-query log it did not ask for, and
 /// a written `0` is a threshold every statement passes rather than a second spelling of off.
 ///

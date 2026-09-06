@@ -1,5 +1,5 @@
 --TEST--
-An uncaught throw drains the `Core\Script::onExit` queue with the live `Throwable` on the report, at status 1 — ADR 0127 §§ 2 and 4
+An uncaught throw drains the `Core\Script::onExit` queue with the live `Throwable` on the report, at status 1 — `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`
 --FILE--
 <?nvs
 // The third ending, and the only one whose report carries an error. What the

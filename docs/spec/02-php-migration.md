@@ -878,7 +878,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `getmyinode` | dropped | the inode of the running script, which has no meaning here: there is no script file being interpreted at run time |
 | `getrusage` | member | `Core\Os` — `memoryUsage`, `loadAverage` and `cpuCount`, one member per fact rather than one array whose keys differ by platform (R11) |
 | `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
-| `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable ([ADR 0127](../adr/0127-the-end-of-a-script-is-observable.md)) |
+| `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable (`rule:observability/script-on-exit`) |
 | `die` | language | the same statement; `die` is PHP's second spelling of it |
 | `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is `rule:errors/escalation-ladder`'s handler ladder, which is a different mechanism on a reserved budget |
 | `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
@@ -1030,7 +1030,7 @@ than a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
 | `session_set_cookie_params` | dropped | the same policy, mutated per request |
 | `session_cache_limiter` | dropped | it writes `Cache-Control` and `Expires` as a side effect of a session existing, from a four-name vocabulary nobody remembers. Caching headers are `Core\Response::setHeader`, written where they are meant |
 | `session_cache_expire` | dropped | the same headers, and the same answer |
-| `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` ([ADR 0127](../adr/0127-the-end-of-a-script-is-observable.md)) |
+| `session_register_shutdown` | dropped | it exists because a session's write happened at shutdown. Nothing is deferred here, and end-of-script work in general is `Core\Script::onExit` (`rule:observability/script-on-exit`) |
 
 ## Compression
 
@@ -1404,7 +1404,7 @@ site left.
 | `mysqli_connect` | member | `Core\Db::connect`, which names a root-owned `[db.<name>]` block rather than carrying a host, a user and a password in program source (`rule:core-classes/db-connection-is-named`). A connection built at request time — one database per tenant — is `Core\Db::open` |
 | `mysqli_init` | dropped | half a connection: an object that exists only to be configured before `mysqli_real_connect` opens it. There is no unopened `Db\Connection`, so there is no gap between the two calls to configure anything in |
 | `mysqli_real_connect` | dropped | the other half of that two-step, and the only one of the pair that takes flags. `Core\Db::connect` is the whole of it |
-| `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds ([ADR 0067](../adr/0067-core-db.md) §§ 2, 13) — and the runtime reads it, not the program |
+| `mysqli_options` | dropped | sets `MYSQLI_OPT_*` between those two calls. Every option that survives is a key an operator writes — the connection's own `[db.<name>]` block, or `[db.<name>.pool]` for the bounds (`rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary`) — and the runtime reads it, not the program |
 | `mysqli_set_opt` | dropped | an alias of `mysqli_options` |
 | `mysqli_ssl_set` | dropped | certificate, key and CA paths for the handshake. TLS is the `tls` key of the connection's config block and `Tls::VerifyFull` over TCP with nothing configured (`rule:core-classes/db-connection-is-named`); the paths are the operator's |
 | `mysqli_close` | member | `Db\Connection`'s `->close()`, which releases one connection early. The runtime releases the rest at request teardown, and a later `Core\Db::connect` acquires a fresh one (`rule:core-classes/db-connection-is-named`) |
@@ -1430,14 +1430,14 @@ site left.
 | `mysqli_get_proto_info` | dropped | the wire protocol version, the same |
 | `mysqli_get_client_info` | dropped | the client library's version, which in Novis is the driver's and not the program's business |
 | `mysqli_get_client_version` | dropped | the same as an integer |
-| `mysqli_get_client_stats` | dropped | mysqlnd's own counters. What the runtime measures, it exports ([ADR 0076](../adr/0076-observability-export.md)) |
+| `mysqli_get_client_stats` | dropped | mysqlnd's own counters. What the runtime measures, it exports (`rule:observability/the-runtime-exports-what-it-already-measures`) |
 | `mysqli_get_connection_stats` | dropped | the same counters for one connection |
 | `mysqli_get_links_stats` | dropped | the process's opened/reused link counts, which are the per-core pool's (`rule:security/db-pool-reset-is-a-boundary`) and are exported with the rest |
 | `mysqli_thread_id` | dropped | the server's id for this connection, useful only to `KILL` it from another one |
 | `mysqli_thread_safe` | dropped | asks whether the client library was compiled thread-safe. The runtime is thread-per-core and the driver is Rust, so the question has one answer |
 | `mysqli_kill` | dropped | kills another connection by that id — an administrative statement, written as one by a user granted it |
 | `mysqli_refresh` | dropped | `FLUSH` by bitmask, the same |
-| `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's ([ADR 0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md)) and a query is already a trace event ([ADR 0067](../adr/0067-core-db.md) § 11) |
+| `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's (`rule:observability/trace-events-carry-a-kind`) and a query is already a trace event (`rule:observability/a-query-is-a-trace-event`) |
 | `mysqli_dump_debug_info` | dropped | asks the server to write debug information into its own log |
 | `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always (`rule:core-api/shape-rules` R4), so there is no mode to select |
 | `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections (`rule:concurrency/one-scheduler`), not a poll loop over one |
@@ -1583,7 +1583,7 @@ with better manners.
 | `pg_setclientencoding` | dropped | the deprecated spelling, and the same answer |
 | `pg_socket` | dropped | the connection's underlying socket, for the program to wait on itself. The socket is a parking stream the runtime owns: waiting on it hands the core to another request rather than blocking this one |
 | `pg_get_pid` | dropped | the backend process id, whose two uses are cancelling that backend's query and matching a `NOTIFY`. Both are below, and neither is a call site here |
-| `pg_jit` | dropped | an array of JIT-related information read off the connection. Tuning the server is the operator's, and what one statement cost is a `query` trace event ([ADR 0067](../adr/0067-core-db.md) § 11) |
+| `pg_jit` | dropped | an array of JIT-related information read off the connection. Tuning the server is the operator's, and what one statement cost is a `query` trace event (`rule:observability/a-query-is-a-trace-event`) |
 
 ### Statements and escaping
 
@@ -1670,8 +1670,8 @@ with better manners.
 | `pg_set_error_verbosity` | dropped | how much of that message the server composes. What an application branches on is normalised into `kind`, and the message text is not the interface |
 | `pg_set_error_context_visibility` | dropped | whether the `CONTEXT` line appears in it, and the same answer |
 | `pg_last_notice` | dropped | the server's last `NOTICE`, kept per connection. A condition worth acting on throws (`rule:core-classes/db-error`); one that is not is the server's to log |
-| `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners ([ADR 0067](../adr/0067-core-db.md) §§ 12, 13). The durable answer to the same problem is a job row, which commits with the write that enqueued it (`rule:concurrency/enqueue-commits-with-your-write`) |
-| `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter ([ADR 0067](../adr/0067-core-db.md) § 11) |
+| `pg_get_notify` | dropped | a pending `NOTIFY` payload, for a connection that has issued `LISTEN`. That pair is deferred and the pool's reset drops a connection's listeners (`rule:core-classes/db-one-api` and `rule:security/db-pool-reset-is-a-boundary`). The durable answer to the same problem is a job row, which commits with the write that enqueued it (`rule:concurrency/enqueue-commits-with-your-write`) |
+| `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter (`rule:observability/a-query-is-a-trace-event`) |
 | `pg_untrace` | dropped | stops that, and has nothing to stop |
 
 ### Transactions and the array helpers

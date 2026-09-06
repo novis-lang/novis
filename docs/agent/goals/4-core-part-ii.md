@@ -123,7 +123,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     no spelling for an unbounded wait**; retry is opt-in, jittered, and covered by the same deadline; and a
     `post` retried without an `idempotencyKey` is a **compile error**. The third is the one that needs
     `nvs-types` and is therefore easy to defer and then forget.
-17. **Outbound `traceparent` propagation** — [ADR 0076](../../adr/0076-observability-export.md) § 2, which
+17. **Outbound `traceparent` propagation** — `rule:observability/a-trace-id-exists-for-every-request`, which
     is the point at which a trace crosses a service boundary at all. The exporter itself is goal 6's.
 18. **`Core\Net`** — sockets over the runtime's own reactor rather than a second event loop, which is
     `rule:core-api/tier-placement`'s own phrasing and the whole reason goal 2 came first.
@@ -232,12 +232,12 @@ decision and is **not** this stage.
     builds cycles at the top level *and* spawns an isolate that builds a cycle of its own and returns
     an object by the refcount-1 move, then reads that object after the child is gone — the one program
     shape where a missed relink is a use-after-free, run under the WSL valgrind leg that exists to see
-    exactly that. ADR 0041's `gc` trace event is **not** owed here — it attaches to the future
+    exactly that. `rule:observability/trace-events-carry-a-kind`'s `gc` trace event is **not** owed here — it attaches to the future
     collector's run routine, not to teardown.
 
 ## Stage 12 — the exit hook
 
-Added 2026-09-01 by the user's decision: [ADR 0127](../../adr/0127-the-end-of-a-script-is-observable.md)
+Added 2026-09-01 by the user's decision: `rule:observability/script-on-exit`
 — `Core\Script::onExit`, the end-of-script queue that closes the one ending no user code could observe
 (`exit` runs no `finally`). The ADR is the whole contract: § 2's three endings fire the queue, § 3's
 `FATAL` and cancellation never do, § 4 orders it after tier 2 and before native teardown, § 5 makes it

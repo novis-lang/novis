@@ -207,7 +207,7 @@ impl Ctx {
     ///
     /// The two callers are `nvs-host`'s isolate teardown — which is where an
     /// HTTP request ends, since a request is a root isolate — and `nvs run`'s
-    /// root task, after ADR 0127's exit hooks, because a hook is user code
+    /// root task, after `rule:observability/script-on-exit`'s exit hooks, because a hook is user code
     /// that may still write. Neither can reach the store itself, which is what
     /// [`Session::write_back`] is for.
     ///
@@ -298,7 +298,7 @@ impl Ctx {
         self.log = LogTarget::Unread;
     }
 
-    /// This request's place in a distributed trace — ADR 0076 § 2, and never
+    /// This request's place in a distributed trace — `rule:observability/a-trace-id-exists-for-every-request`, and never
     /// `None`, because § 2 has an id exist for every request.
     #[must_use]
     pub fn trace_context(&self) -> &crate::trace_context::TraceContext {

@@ -348,7 +348,7 @@ fn compose(call: &Call<'_>, parts: &Parts) -> Result<String, Fault> {
     if let Some(key) = &call.idempotency_key {
         field(&mut out, "Idempotency-Key", key, call.member)?;
     }
-    // ADR 0076 § 2. Skipped where the caller wrote its own: two `traceparent`
+    // `rule:observability/a-trace-id-exists-for-every-request`. Skipped where the caller wrote its own: two `traceparent`
     // headers are what the W3C format says to treat as no header at all, so
     // sending both would end the trace here rather than continue it.
     if let Some(traceparent) = &call.traceparent
@@ -685,7 +685,7 @@ mod tests {
         );
     }
 
-    /// ADR 0076 § 2: an outbound call propagates `traceparent`, which is what
+    /// `rule:observability/a-trace-id-exists-for-every-request`: an outbound call propagates `traceparent`, which is what
     /// makes a trace cross a service boundary at all.
     ///
     /// Asserted on the head that crossed the socket rather than on

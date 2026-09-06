@@ -1,4 +1,4 @@
-//! [ADR 0076](/docs/adr/0076-observability-export.md) §§ 5 and 7's per-core
+//! `rule:observability/a-registry-is-per-core-and-nothing-reads-it` and `rule:observability/past-max-series-a-new-series-is-refused`'s per-core
 //! registry: the series one core accumulates between scrapes, the shape each
 //! name is fixed to on first use, and the bound past which a new one is refused.
 //!
@@ -49,7 +49,7 @@
 //!
 //! # What is not here yet
 //!
-//! **Nothing scrapes or pushes this.** ADR 0076 § 8's two exporters are
+//! **Nothing scrapes or pushes this.** `rule:observability/the-exporters-are-crates`'s two exporters are
 //! feature-gated dependencies this crate does not carry yet, so what a core
 //! builds today accumulates and is read only by a test. The registry is the half
 //! that could not be a crate — § 8 says so — and it is deliberately whole
@@ -122,7 +122,7 @@ impl Kind {
     }
 }
 
-/// One of ADR 0076 § 1's declared series: a name, what it counts, and the label
+/// One of `rule:observability/default-series`'s declared series: a name, what it counts, and the label
 /// names every member of it carries.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Family {
@@ -136,7 +136,7 @@ pub struct Family {
     pub buckets: &'static [f64],
 }
 
-/// ADR 0076 § 1's nine series, present the moment an exporter is configured.
+/// `rule:observability/default-series`'s nine series, present the moment an exporter is configured.
 ///
 /// Each is read from instrumentation that already exists, which is § 1's own
 /// governing claim and the reason no probe site is added anywhere to carry them.
@@ -506,7 +506,7 @@ impl Registry {
         Ok(())
     }
 
-    /// ADR 0076 § 1's two request series, recorded together from what the door
+    /// `rule:observability/default-series`'s two request series, recorded together from what the door
     /// already knows: the verb, the status that went back, and the **route's
     /// declared name** ([`crate::route::label`]).
     ///
@@ -691,7 +691,7 @@ mod tests {
         }
     }
 
-    /// ADR 0076 § 1: the nine series exist the moment an exporter is configured,
+    /// `rule:observability/default-series`: the nine series exist the moment an exporter is configured,
     /// each fixed to the kind and the labels that section gives it.
     ///
     /// Asserted by **counting** as well as by name: a roster that grew a tenth

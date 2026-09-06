@@ -1035,7 +1035,7 @@ fn match_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault
 
 nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::name(): ?string` — `rule:routing/matched-once-before-the-handler`'s declared name,
-    /// which ADR 0076 § 1's `route` label reads and `Core\Router::url` resolves.
+    /// which `rule:observability/default-series`'s `route` label reads and `Core\Router::url` resolves.
     fn nvs_core_router_match_name(_ctx, args: [1]) {
         match_slot(args, MATCH_ROUTE_NAME, "name")
     }

@@ -400,7 +400,7 @@ pub(crate) fn run(
             // call — and `Core\Request::clientIp()` and `::scheme()` are what
             // read them back.
             inbound.set_peer(origin.client(), origin.scheme());
-            // ADR 0076 § 2's trace, off the header lines just pushed: continued
+            // `rule:observability/a-trace-id-exists-for-every-request`'s trace, off the header lines just pushed: continued
             // where the peer sent a `traceparent` this understands, and a new
             // root where it did not. `nvs_server::trace` owns why the door
             // reads it and why a bad header is never a refusal; every request

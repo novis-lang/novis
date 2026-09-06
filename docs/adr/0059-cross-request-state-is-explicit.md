@@ -105,7 +105,7 @@ being left to the application: **rate limits** are `rule:core-classes/ratelimit-
 
 The test this section states is a test of *what a program relies on*, not of where bytes live, and one
 thing that looks like a violation is not one: a per-core **metrics** registry
-([ADR 0076](0076-observability-export.md) § 5) is mutable state outliving a request, and it passes, because
+(`rule:observability/a-registry-is-per-core-and-nothing-reads-it`) is mutable state outliving a request, and it passes, because
 no program ever reads it to make a decision and its values are approximate aggregates merged at scrape.
 
 ## Consequences

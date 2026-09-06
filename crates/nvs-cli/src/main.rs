@@ -1370,7 +1370,7 @@ fn run_run(
             // other and a child of one is spawned off the caller the scheduler
             // is holding.
             if outcome.is_ok() {
-                // ADR 0127 § 4: the last statement, then the queue, then
+                // `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`: the last statement, then the queue, then
                 // teardown — and *before* the deferred work below, because
                 // `rule:concurrency/after-response-outlives-the-connection`'s `afterResponse` is what runs after the
                 // response and this queue is what delays the end of one.
@@ -1404,7 +1404,7 @@ fn run_run(
                 if !nvs_host::ladder::escalate(ctx, &record) {
                     nvs_runtime::floor::report(ctx, &record);
                 }
-                // ADR 0127 § 4's throw path, at its strongest reading: the
+                // `rule:observability/exit-hooks-run-after-the-ladder-before-teardown`'s throw path, at its strongest reading: the
                 // failure hooks run first "so a misbehaving queue cannot starve
                 // the failure report", and the record above *is* that report —
                 // so the queue runs after tier 3 and the floor as well as after
@@ -1414,7 +1414,7 @@ fn run_run(
             } else {
                 // `exit` drains the queue and a `FATAL` runs none of it —
                 // `nvs_stdlib::script::run_exit_hooks` is the one place that
-                // decides which, per ADR 0127 §§ 2 and 3, so this arm asks
+                // decides which, per `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`, so this arm asks
                 // nothing about the status it is passing on.
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
             }

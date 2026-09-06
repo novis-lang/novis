@@ -107,7 +107,7 @@ raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` (`
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 (`rule:concurrency/one-scheduler`, test 1 — it *is* the request lifecycle),
 `Core\RateLimit` (`rule:core-classes/ratelimit-two-members`, tests 1 and 3),
-`Core\Metrics` ([ADR 0076](0076-observability-export.md), test 1 — it reads the runtime's own counters) and
+`Core\Metrics` (`rule:observability/the-runtime-exports-what-it-already-measures`, test 1 — it reads the runtime's own counters) and
 `Core\Router` (`rule:routing/routes-are-compiled-not-registered`, test 1 — its table is built by a compiler pass).
 `Core\Metrics`'s **exporter** is Native and feature-gated while the class itself is Core, the same split
 this section already uses for the Redis backend behind `Core\Cache`.
@@ -213,7 +213,7 @@ meaningfully maintained for years; `ftp`, a plaintext protocol in decline that `
 outbound policy replace; and `ssh2`, where the credential handling is a priority-1 surface we decline to
 own and `Core\Process` can invoke a real `ssh` binary under `process.exec`. Outside the audience
 `rule:programs/audience` names at all: `snmp`, a device-monitoring tool whose
-observability need `Core\Metrics` and [ADR 0076](0076-observability-export.md) serve from the other
+observability need `Core\Metrics` and `rule:observability/the-runtime-exports-what-it-already-measures` serve from the other
 direction, and `enchant`, whose dictionaries a third-party `.nvsx` would carry the way the intl component
 carries CLDR.
 

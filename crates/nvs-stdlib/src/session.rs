@@ -53,7 +53,7 @@
 //!
 //! What this leaves as the rule: **a session is written back when the program that started it
 //! ends**, which is every isolate — so every HTTP request — and `nvs run`'s root task, after
-//! [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s exit hooks, since
+//! `rule:observability/script-on-exit`'s exit hooks, since
 //! a hook is user code that may still write. A cancelled task is the one end that sends nothing,
 //! because the send parks and a task being torn down may not park.
 //!

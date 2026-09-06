@@ -925,7 +925,7 @@ fn request(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Value, Fault> 
 /// The `traceparent` this call carries: the request's own trace, when
 /// `[trace] propagate` is on.
 ///
-/// [ADR 0076](/docs/adr/0076-observability-export.md) § 2 — propagating
+/// `rule:observability/a-trace-id-exists-for-every-request` — propagating
 /// it is what makes a trace cross a service boundary at all — and § 6 ships the
 /// directive **on**, so a deployment that configured nothing propagates. There
 /// is no per-call option beside it: which traces leave this process is a
@@ -1215,7 +1215,7 @@ mod tests {
         }
     }
 
-    /// ADR 0076 §§ 2 and 6: `[trace] propagate` decides whether this request's
+    /// `rule:observability/a-trace-id-exists-for-every-request` and `rule:observability/metrics-and-trace-blocks-are-system`: `[trace] propagate` decides whether this request's
     /// trace leaves the process, it ships **on**, and what leaves is the
     /// runtime's own id — one per request, not one per call.
     ///

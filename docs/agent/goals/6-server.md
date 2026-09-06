@@ -118,9 +118,9 @@ gets its first adversarial traffic.
 18. **`Core\Task::afterResponse`'s tree stays alive past the connection**, bounded by `[deferred]
     max_concurrent` — `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives`. Goal 2 built the member under compiled-in defaults; this is where
     the connection actually ends while the tree does not.
-19. **The observability export** — [ADR 0076](../../adr/0076-observability-export.md): `Core\Metrics`, the
+19. **The observability export** — `rule:observability/the-runtime-exports-what-it-already-measures`: `Core\Metrics`, the
     default series, W3C `traceparent` **inbound**, with a trace id generated for every request **whether
-    sampled or not**, and spans derived from ADR 0041's existing event kinds **with no probe added to `rule:testing/debug-probes`'s measured path**. Goal 4 built the outbound half; this closes the loop.
+    sampled or not**, and spans derived from `rule:observability/trace-events-carry-a-kind`'s existing event kinds **with no probe added to `rule:testing/debug-probes`'s measured path**. Goal 4 built the outbound half; this closes the loop.
 
 ## Stage 6b — persistent connections
 

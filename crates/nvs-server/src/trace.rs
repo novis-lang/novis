@@ -1,4 +1,4 @@
-//! [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace
+//! `rule:observability/a-trace-id-exists-for-every-request`'s trace
 //! identity, taken at the door: the `traceparent` the request arrived with,
 //! read once, before any application code runs.
 //!
@@ -42,7 +42,7 @@ use nvs_runtime::{Inbound, TraceContext};
 /// `HeaderName` on the way in and the carrier keeps what it was given.
 const TRACEPARENT: &str = "traceparent";
 
-/// Decides ADR 0076 § 2's trace for this request, and records it on the
+/// Decides `rule:observability/a-trace-id-exists-for-every-request`'s trace for this request, and records it on the
 /// carrier.
 ///
 /// The header is read off `inbound` rather than off `hyper`'s request for
@@ -111,7 +111,7 @@ mod tests {
     /// One valid inbound header, and the trace it names.
     const INBOUND: &str = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-    /// ADR 0076 § 2: an inbound `traceparent` is continued — trace id, parent
+    /// `rule:observability/a-trace-id-exists-for-every-request`: an inbound `traceparent` is continued — trace id, parent
     /// span id and sampled flag all adopted — and a request that arrived
     /// without one is a new trace rather than no trace.
     ///
@@ -159,7 +159,7 @@ mod tests {
         );
     }
 
-    /// ADR 0076 § 2: a trace id exists for every request whatever the sampling
+    /// `rule:observability/a-trace-id-exists-for-every-request`: a trace id exists for every request whatever the sampling
     /// decision — sampling governs whether a trace is *exported*, never whether
     /// an id is generated, which is what lets this id be Novis's only request
     /// identifier.
@@ -231,7 +231,7 @@ mod tests {
         (carried, line)
     }
 
-    /// ADR 0076 §§ 2 and 6, across the seam neither crate owns alone: the trace
+    /// `rule:observability/a-trace-id-exists-for-every-request` and `rule:observability/metrics-and-trace-blocks-are-system`, across the seam neither crate owns alone: the trace
     /// id a record carries is the one **this door** decided, and not a second
     /// one drawn where the record was written.
     ///

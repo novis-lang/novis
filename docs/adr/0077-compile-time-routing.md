@@ -283,7 +283,7 @@ its consequences:
 
 ### 6. `route` is also a metric label
 
-[ADR 0076](0076-observability-export.md) § 1 labels its request series with a route's **declared name**,
+`rule:observability/default-series` labels its request series with a route's **declared name**,
 never the raw request path, because a path is unbounded and a name is a closed set known at compile time.
 That is the one place this table is read by something other than the application, and it is why a program
 without one gets no `route` label rather than a cardinality bomb.
@@ -412,5 +412,5 @@ without one gets no `route` label rather than a cardinality bomb.
   modified, and a directory listing that changes without changing the route set recompiles nothing — the
   same pair of assertions `rule:packaging/autoload-probes-fold-into-the-cache-key` already
   requires for a discovery query.
-- **M7:** a matched route's `name` reaches [ADR 0076](0076-observability-export.md)'s `route` label, and a
+- **M7:** a matched route's `name` reaches `rule:observability/the-runtime-exports-what-it-already-measures`'s `route` label, and a
   program with no route table emits the request series with no `route` label rather than with a path.

@@ -107,9 +107,9 @@ pub struct Config {
     pub schedule: Vec<Schedule>,
     /// `[queue]` — the durable job queue and the `[db.<name>]` it stores rows in (`rule:core-classes/queue-storage-is-a-table`).
     pub queue: Option<Queue>,
-    /// `[metrics]` — the metrics exporter (ADR 0076 § 6).
+    /// `[metrics]` — the metrics exporter (`rule:observability/metrics-and-trace-blocks-are-system`).
     pub metrics: Option<Metrics>,
-    /// `[trace]` — the trace exporter (ADR 0076 § 6).
+    /// `[trace]` — the trace exporter (`rule:observability/metrics-and-trace-blocks-are-system`).
     pub trace: Option<Trace>,
     /// `[server]` and the `[[server.mount]]` array under it (ADR 0097 §§ 4, 5).
     pub server: Option<Server>,
@@ -638,14 +638,14 @@ pub struct Database {
     /// also where the default lives — this crate names no driver's constant.
     pub statement_cache: Option<u32>,
     /// How long a statement on this connection may take before it is also written to `Core\Log`
-    /// (ADR 0067 § 11), as `200ms` or `1s`.
+    /// (`rule:observability/a-query-is-a-trace-event`), as `200ms` or `1s`.
     ///
     /// Unset is off, and that is the ADR's own default rather than a number: § 11 gives the
     /// threshold no value, and a slow-query log every deployment gets without asking would be the
     /// ungated output that section refuses. A written `0` is legal and logs every statement, which
     /// is the honest reading of "slower than nothing" and the spelling an operator debugging one
     /// request reaches for. `nvs_config::db::slow_query_for` is the reader, and the line itself is
-    /// `Core\Db`'s — it carries the span ADR 0041's `query` event carries, which is what § 11 means
+    /// `Core\Db`'s — it carries the span `rule:observability/trace-events-carry-a-kind`'s `query` event carries, which is what § 11 means
     /// by *the same facts*.
     pub slow_query: Option<Setting>,
     /// The zone this database's zone-less `DATETIME`/`TIMESTAMP` columns are written in
@@ -806,7 +806,7 @@ pub struct Schedule {
     pub grants: Option<Capabilities>,
 }
 
-/// `[metrics]` — ADR 0076 § 6, `System`.
+/// `[metrics]` — `rule:observability/metrics-and-trace-blocks-are-system`, `System`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Metrics {
@@ -820,7 +820,7 @@ pub struct Metrics {
     pub max_series: Option<u64>,
 }
 
-/// `[trace]` — ADR 0076 § 6, `System`.
+/// `[trace]` — `rule:observability/metrics-and-trace-blocks-are-system`, `System`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Trace {

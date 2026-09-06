@@ -137,7 +137,7 @@ One file set: `crates/nvs-stdlib/src/log.rs`, `crates/nvs-runtime/src/ctx/`,
 `crates/nvs-server/src/trace.rs`.
 
 12. **`ts`, `request_id`, `trace_id` and `span_id` on the record envelope.**
-    [ADR 0076](../../adr/0076-observability-export.md) § 6 lists four fields beside `level` and `msg`
+    `rule:observability/metrics-and-trace-blocks-are-system` lists four fields beside `level` and `msg`
     and `crates/nvs-stdlib/src/log.rs:46` carries none of them. The reason that module recorded — "no
     request, no trace and no clock" — stopped being true inside goal 6, which landed the server,
     `nvs_server::trace`'s context and the whole `[trace]` block. `trace_id`/`span_id` on a record is
@@ -239,7 +239,7 @@ One file set: `crates/nvs-stdlib/src/uri.rs`, `crates/nvs-runtime/src/routes.rs`
   `PoolBounds::DEFAULT` when there is not; `pool = false` becomes a directive an operator may write
   **unscoped** as well as per block, and unscoped it reaches every connection including a program's
   own — which is the audited deployment's whole requirement. Folded into `rule:security/db-pool-reset-is-a-boundary`.
-- **Item 12 is additive and stays additive.** A field with no value is omitted, per ADR 0076 § 6, so
+- **Item 12 is additive and stays additive.** A field with no value is omitted, per `rule:observability/metrics-and-trace-blocks-are-system`, so
   no existing record changes shape. A fixture asserts the *keys* a served request produces and the
   two-key envelope a CLI run produces; it never freezes a timestamp or an id.
 - **Item 13's fallback.** A shared store that cannot compare-and-set leaves a fleet entry unarmed and

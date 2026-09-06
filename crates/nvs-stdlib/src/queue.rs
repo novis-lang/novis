@@ -1816,7 +1816,7 @@ nvs_runtime::nvs_helper! {
         let created = now.to_string().into_bytes();
 
         let block = configured.connection.clone();
-        // ADR 0067 § 11's event belongs to a *statement*, not to `Core\Db`, so this one files it
+        // `rule:observability/a-query-is-a-trace-event`'s event belongs to a *statement*, not to `Core\Db`, so this one files it
         // on the same terms as that class's own — read before the connection takes the context,
         // for the reason [`crate::db::QueryWatch`] gives. The split dialect runs up to four
         // statements, so what a driver hands back is a *list* of spans, filed once the connection
@@ -2073,7 +2073,7 @@ fn inserted(
     })
 }
 
-/// ADR 0067 § 11's events one member is holding until the connection lets the context go, and
+/// `rule:observability/a-query-is-a-trace-event`'s events one member is holding until the connection lets the context go, and
 /// what is reading them.
 ///
 /// **A member's statements are a list here where `Core\Db`'s are one**, which is what a [`Split`]
@@ -2083,7 +2083,7 @@ fn inserted(
 /// other: a span nothing is reading is never taken, and a taken span cannot be filed until the
 /// rows have let go of `ctx`.
 struct Spans {
-    /// What § 11 and ADR 0041's trace are asking for, read before the first statement goes out —
+    /// What § 11 and `rule:observability/trace-events-carry-a-kind`'s trace are asking for, read before the first statement goes out —
     /// [`crate::db::QueryWatch`] owns why it cannot be read at the point the event is filed.
     watch: crate::db::QueryWatch,
     /// One entry per statement that ran, in the order they ran.
@@ -2292,7 +2292,7 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
-        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        // `rule:observability/a-query-is-a-trace-event`'s event, as `push` files it and for the reason given there.
         let mut spans = Spans::of(ctx, &block);
         let counted = counted_row(
             queue_connection(ctx, handle, &block, STATUS_OF)?,
@@ -2384,7 +2384,7 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
-        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        // `rule:observability/a-query-is-a-trace-event`'s event, as `push` files it and for the reason given there.
         let mut spans = Spans::of(ctx, &block);
         // No column is read: `returning id` is in [`CANCEL_POSTGRES`] to make the affected count
         // observable and nothing reads the id, since the caller already holds it —
@@ -2452,7 +2452,7 @@ nvs_runtime::nvs_helper! {
                 ),
             )
         };
-        // ADR 0067 § 11's event, as `push` files it and for the reason given there.
+        // `rule:observability/a-query-is-a-trace-event`'s event, as `push` files it and for the reason given there.
         let mut spans = Spans::of(ctx, &block);
         let read = counted_row(
             queue_connection(ctx, handle, &block, STATS_OF)?,

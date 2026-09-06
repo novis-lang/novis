@@ -74,7 +74,7 @@ pub fn start_statement<'a, S: Read + Write>(
         return Err(crate::pg::second_statement(state));
     }
 
-    // ADR 0067 § 11's span, opened before the request goes out and handed `sql`
+    // `rule:observability/a-query-is-a-trace-event`'s span, opened before the request goes out and handed `sql`
     // and never `params` — `crate::span`'s module doc owns why that is a
     // signature rather than a rule.
     let span = QuerySpan::opened(Driver::SqlServer, sql);

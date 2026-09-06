@@ -855,7 +855,7 @@ impl SqliteConn {
 /// does not go through § 1's cache — a `COMMIT` is worth no entry in an LRU of
 /// prepared statements.
 ///
-/// **It answers the span of the command it sent**, which is ADR 0067 § 11's
+/// **It answers the span of the command it sent**, which is `rule:observability/a-query-is-a-trace-event`'s
 /// event for a statement that lends no [`SqliteRows`] out, for
 /// [`crate::PgConn::begin`]'s reason: which command a level gets is the depth's
 /// answer, so the text only exists down here.

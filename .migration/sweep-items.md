@@ -161,7 +161,6 @@ from the commit bodies of c7a9afca6 through 44ba60ce9, re-anchored to the lines 
 - crates/nvs-runtime/src/ctx/trace.rs:56 — `TraceKind::Call`'s doc says it is "the only kind anything in the tree records today", but `Ctx::record_query` at line 147 files a `Query` and the test at line 420 says "the two kinds anything in the tree records"; the `Call` comment is stale.
 - crates/nvs-config/src/tree.rs:648 — "ADR 0041's `query` event carries, which is what § 11 means" cites a bare 0041 beside a `§ 11` that belongs to 0067; once the bare record resolves to a rule the `§ 11` reads as a section of it, so the sentence should name `rule:...` for 0067 § 11 explicitly.
 - docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md:13 — `Amended by: 0067, 0076` while the body already folds both; harmless until C1 strips it, listed so the freeze does not miss that §§ 1 and 5 are the folded text.
-
 ## B22 — php-migration
 
 - docs/adr/0007-explicit-type-system.md:417 — row 16 lists "a `try` whose `finally` returns" as an exit shape, which 0124 § 1 refuses outright; `crates/nvs-types/src/returns.rs:26` and `:172` implement the same escaping-`finally` case and will need the arm removed or turned into the § 1 refusal when goal 13 lands it.

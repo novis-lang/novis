@@ -364,7 +364,7 @@ pub(super) struct Written {
 }
 
 /// [`queried_rows`] over the PostgreSQL driver: the extended-query stream, § 9's
-/// decode of every row, and ADR 0067 § 11's span taken off the rows before they
+/// decode of every row, and `rule:observability/a-query-is-a-trace-event`'s span taken off the rows before they
 /// are dropped.
 ///
 /// # Errors
@@ -1290,7 +1290,7 @@ nvs_runtime::nvs_helper! {
     /// rule and why it is checked on the rewritten text rather than on a count
     /// are [`batch_of`]'s.
     ///
-    /// **The batch opens and files ADR 0067 § 11's span itself**, which is the
+    /// **The batch opens and files `rule:observability/a-query-is-a-trace-event`'s span itself**, which is the
     /// one thing it does that `execute` leaves to the driver.
     /// Every driver's `execute_many` answers with a count and lends no row
     /// handle out, so there is no handle a driver-built span could ride on and

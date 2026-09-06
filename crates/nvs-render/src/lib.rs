@@ -425,8 +425,8 @@ pub struct Source {
 /// What is true of a whole record and nothing about how it looks — `rule:errors/diagnostic-record`'s table.
 ///
 /// Every field but [`Self::level`] is optional, and an absent one is **omitted**
-/// by a rendering rather than rendered empty — [ADR 0076](/docs/adr/0076-observability-export.md)
-/// § 6's rule for `trace_id`/`span_id`, applied to the whole envelope because a
+/// by a rendering rather than rendered empty — `rule:observability/metrics-and-trace-blocks-are-system`
+/// 's rule for `trace_id`/`span_id`, applied to the whole envelope because a
 /// producer that has no request to name should not have to invent one.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Envelope {

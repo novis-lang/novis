@@ -280,7 +280,7 @@ sweep of `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, which is what
 cycle by the request or isolate that built it. Long-running CLI scripts additionally get an optional
 mark-sweep cycle collector running at safepoints — a decision still open; whichever milestone implements
 its run routine also gives it a `gc`-kind trace event, at no cost to the safepoint poll itself
-([ADR 0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md)).
+(`rule:observability/trace-events-carry-a-kind`).
 
 Both choices here — 16 bytes per value instead of 8, and peak-not-average retention inside a request — cost
 memory to buy correct PHP semantics and a collector that never runs on the request path. That is the

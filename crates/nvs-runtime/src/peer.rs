@@ -55,7 +55,7 @@
 //!
 //! [`slow_subscribers_closed`] is § 4's "a metric increments", as a per-core
 //! count. **Known gap:** nothing exports it yet — it is not one of
-//! [ADR 0076](/docs/adr/0076-observability-export.md) § 1's series, and giving
+//! `rule:observability/default-series`'s series, and giving
 //! it one is `nvs_server::metrics`' edit, in the crate that owns the registry.
 //! The count is maintained either way, so the series is a wiring change rather
 //! than an instrumentation one.
@@ -162,7 +162,7 @@ thread_local! {
 ///
 /// `rule:core-classes/topic`'s metric, as the number an exporter would read. It is a core's
 /// own count and never a process-wide one, which is where
-/// [ADR 0076](/docs/adr/0076-observability-export.md) § 7 already charges a
+/// `rule:observability/past-max-series-a-new-series-is-refused` already charges a
 /// series; the module doc records that nothing exports it yet.
 #[must_use]
 pub fn slow_subscribers_closed() -> u64 {

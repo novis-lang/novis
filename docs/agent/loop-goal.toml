@@ -2471,7 +2471,7 @@ tests = [
   "a_redirect_is_re_checked_against_the_same_policy",
   # ADR 0074 § 6 -- jittered, opt-in, and under ONE covering deadline.
   "a_retry_is_jittered_and_shares_the_covering_deadline",
-  # ADR 0076 § 2 -- where a trace crosses a service boundary at all.
+  # `rule:observability/a-trace-id-exists-for-every-request` -- where a trace crosses a service boundary at all.
   "an_outbound_request_carries_traceparent",
   # `rule:core-api/tier-placement` -- over the runtime's own reactor, not a second event loop.
   "a_socket_read_runs_on_the_reactor_and_parks_its_coroutine",
@@ -2775,7 +2775,7 @@ file = "examples/cycles.nvs"
 want = ["built=1000", "crossed=ok", "done"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 12 -- the exit hook, added 2026-09-01 by the user's decision. ADR 0127: Core\Script::onExit
+# Stage 12 -- the exit hook, added 2026-09-01 by the user's decision. `rule:observability/script-on-exit`: Core\Script::onExit
 # runs a FIFO queue as the last user code at every non-fatal ending -- normal, exit, uncaught throw --
 # never on a FATAL or a cancellation, after tier 2's onUncaughtThrow and before native teardown,
 # observing the ending rather than changing it. Items 38-39 in loop-goal.md. Every test and fixture
@@ -2793,9 +2793,9 @@ tests = [
   "an_exit_call_still_drains_the_on_exit_queue",
   # Item 39 -- the throw path hands the real Throwable, after tier 2's handler has run.
   "an_uncaught_throw_reaches_the_queue_with_the_error",
-  # Item 39 -- ADR 0127 § 3: a limit FATAL runs no hook; Core\Fatal::onLimit is the only observer.
+  # Item 39 -- `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`: a limit FATAL runs no hook; Core\Fatal::onLimit is the only observer.
   "a_limit_fatal_runs_no_on_exit_hook",
-  # Item 39 -- ADR 0127 § 5: a hook's throw is logged and abandoned, and the rest of the queue runs.
+  # Item 39 -- `rule:observability/a-hook-observes-and-never-steers`: a hook's throw is logged and abandoned, and the rest of the queue runs.
   "a_hook_that_throws_is_abandoned_and_the_queue_continues",
 ]
 
@@ -3612,7 +3612,7 @@ tests = [
   "a_schedule_entry_fires_as_a_root_isolate",
   # `rule:concurrency/after-response-outlives-the-connection` and `rule:concurrency/deferred-is-bounded-by-two-directives` is deliberately NOT here any more -- the two checks below are where it went
   # and why. Neither half of it is reachable from a crate that forbids `unsafe_code`.
-  # ADR 0076 -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
+  # `rule:observability/the-runtime-exports-what-it-already-measures` -- a trace id for EVERY request, sampled or not, and no probe on the measured path.
   "an_inbound_traceparent_is_continued_and_a_missing_one_is_generated",
   "a_trace_id_exists_whether_or_not_the_request_is_sampled",
   "the_default_metric_series_are_exported",
@@ -3621,7 +3621,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-codegen (ADR 0076 § 1 -- the export adds no site to the measured path)"
+name = "nvs-codegen (`rule:observability/default-series` -- the export adds no site to the measured path)"
 args = ["test", "-p", "nvs-codegen"]
 # Moved off `-p nvs-server`, where it could not be honest. What § 1 forbids is an *effect* on emitted
 # code -- "no probe site is added to the per-statement/per-call path `rule:testing/debug-probes` measures" -- and a probe

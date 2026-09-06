@@ -149,7 +149,7 @@
 //! `tainted` is refused by the *signature* and not by a body: the name
 //! parameter is a [`CoreTy::Text`] at [`Qual::Sink`], which is § 4's "a name is
 //! built from checked values or it does not compile" — the rule
-//! [ADR 0076](/docs/adr/0076-observability-export.md) already applies to a
+//! `rule:observability/the-runtime-exports-what-it-already-measures` already applies to a
 //! metric label, and for the same reason. A name derived from user input is
 //! how one tenant subscribes to another's stream.
 //!

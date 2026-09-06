@@ -51,7 +51,7 @@
 //!
 //! # The end of a script, and the two halves it is written in
 //!
-//! [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+//! `rule:observability/script-on-exit`'s
 //! `onExit` queue is split across this crate and `nvs_runtime` along the seam
 //! [`crate::fatal`] already uses: **registration and routing** are here, and
 //! the queue itself is [`Ctx`](nvs_runtime::Ctx)'s, because the queue is
@@ -67,7 +67,7 @@
 //!
 //! **What it spends:** one reference per registration plus the hook's own
 //! captures, held to the end of the script — O(registrations) per request, the
-//! spend ADR 0127 § 1 states — and one report allocation per ending, released
+//! spend `rule:observability/script-on-exit` states — and one report allocation per ending, released
 //! the moment the drain is over. `Ctx::exit_hooks` is the home of the first
 //! half.
 //!
@@ -182,15 +182,14 @@ const ON_EXIT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script\ExitReason`'s fully-qualified name — [ADR 0127] § 1.
+/// `Core\Script\ExitReason`'s fully-qualified name — `rule:observability/script-on-exit`.
 ///
-/// [ADR 0127]: ../../../../docs/adr/0127-the-end-of-a-script-is-observable.md
 pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReason";
 
-/// The three endings that fire the queue, as the report's own field — ADR 0127
-/// § 2's table, in its order. See [`crate::registry::ENUMS`].
+/// The three endings that fire the queue, as the report's own field — `rule:observability/three-endings-fire-the-exit-queue`
+/// 's table, in its order. See [`crate::registry::ENUMS`].
 ///
-/// `ExitCall` carries the suffix ADR 0127 § 1 names: a case spelled `Exit`
+/// `ExitCall` carries the suffix `rule:observability/script-on-exit` names: a case spelled `Exit`
 /// would share a spelling with the keyword, and a program writing
 /// `ExitReason::Exit` beside an `exit;` two lines down is reading one word two
 /// ways. There is deliberately no case for a `FATAL` or a cancellation — § 3
@@ -224,7 +223,7 @@ const EXIT_REASON_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// The `Core`-owned class of ADR 0127 § 1's report, and the report's own name.
+/// The `Core`-owned class of `rule:observability/script-on-exit`'s report, and the report's own name.
 pub(crate) const EXIT_REPORT_NAME: &str = r"Core\Script\ExitReport";
 
 /// The `Throwable` an `UncaughtThrow` report carries, as a type a row can name.
@@ -237,7 +236,7 @@ pub(crate) const EXIT_REPORT_NAME: &str = r"Core\Script\ExitReport";
 /// reason.
 const THROWABLE: CoreTy = CoreTy::Instance("Throwable");
 
-/// ADR 0127 § 1's report, as the instance each hook is handed.
+/// `rule:observability/script-on-exit`'s report, as the instance each hook is handed.
 ///
 /// Three accessors rather than the three *properties* § 1 sketches, which is
 /// the same departure `Core\RateLimit\Decision` makes and for the identical
@@ -390,7 +389,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// One ending, as the report ADR 0127 § 2's table describes it.
+/// One ending, as the report `rule:observability/three-endings-fire-the-exit-queue`'s table describes it.
 ///
 /// The **only** place this module builds a report, which is § 5's "fixed before
 /// the first hook runs" as structure rather than as a rule: every route to a
@@ -423,7 +422,7 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> V
     )
 }
 
-/// Runs [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+/// Runs `rule:observability/script-on-exit`'s
 /// end-of-script queue for the ending `outcome` names — the **one** door
 /// between an ending and a hook.
 ///
@@ -882,7 +881,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script::onExit(callable $hook): void` — ADR 0127 § 1.
+    /// `Core\Script::onExit(callable $hook): void` — `rule:observability/script-on-exit`.
     ///
     /// The retain is the whole body's reason for existing, exactly as it is in
     /// `crate::fatal`'s two registrations: a helper's arguments are borrowed
@@ -1014,7 +1013,7 @@ mod tests {
         error: u64,
     }
 
-    /// ADR 0127 § 2's first row, and § 1's FIFO: two hooks registered in order
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s first row, and § 1's FIFO: two hooks registered in order
     /// run in that order, once each, and are handed `Normal` with status `0`.
     #[test]
     fn on_exit_hooks_run_in_registration_order_at_a_clean_end() {
@@ -1064,7 +1063,7 @@ mod tests {
         release(second);
     }
 
-    /// ADR 0127 § 2's second row — the ending that exists to be observed: `exit`
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s second row — the ending that exists to be observed: `exit`
     /// runs no `finally`, and this queue is the only thing that sees it. The
     /// status is the one the call named rather than a zero.
     #[test]
@@ -1084,7 +1083,7 @@ mod tests {
         release(hook);
     }
 
-    /// ADR 0127 § 2's third row, asked as an **identity** exactly as `rule:errors/on-uncaught-throw`'s tier-2 handler is: the report carries the very allocation the
+    /// `rule:observability/three-endings-fire-the-exit-queue`'s third row, asked as an **identity** exactly as `rule:errors/on-uncaught-throw`'s tier-2 handler is: the report carries the very allocation the
     /// program threw, so a hook can read its class, message and backtrace back
     /// through the ordinary members rather than a copy of what it said.
     #[test]
@@ -1125,7 +1124,7 @@ mod tests {
         release(hook);
     }
 
-    /// ADR 0127 § 3's first termination: a resource-limit breach runs **no**
+    /// `rule:observability/a-fatal-and-a-cancellation-run-no-exit-hook`'s first termination: a resource-limit breach runs **no**
     /// hook, and `Core\Fatal::onLimit` on `rule:errors/on-limit`'s reserved slice stays
     /// its one observer.
     ///
@@ -1159,7 +1158,7 @@ mod tests {
         release(hook);
     }
 
-    /// ADR 0127 § 5: a hook that throws is abandoned where it stands and the
+    /// `rule:observability/a-hook-observes-and-never-steers`: a hook that throws is abandoned where it stands and the
     /// queue *continues*, which is the half a first implementation gets wrong —
     /// one bad hook must not silence every hook behind it.
     #[test]

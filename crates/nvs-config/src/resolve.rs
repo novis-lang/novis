@@ -335,7 +335,7 @@ pub fn resolve(
     // wrong value never reports itself at run time — a per-core session store forgets people rather
     // than failing — so the merged tree is the last moment anything can say so.
     crate::session::validate(&resolved.config, &origins)?;
-    // ADR 0076 § 6's two exporters, over the merged tree for the log check's reason and with the
+    // `rule:observability/metrics-and-trace-blocks-are-system`'s two exporters, over the merged tree for the log check's reason and with the
     // same shape of failure as the session one: both blocks are `System`, so what is in force is
     // what this boot read, and a sink nobody can spell exports nothing while looking exactly like a
     // deployment that had nothing to export.

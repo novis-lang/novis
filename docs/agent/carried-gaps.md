@@ -4,7 +4,7 @@
 which `python tools/holes.py` can find on its own because the site is in the source. **This file is
 for the other kind** — a gap that is real, written down in the module doc that owns it, and invisible
 to every tool, because nothing in the tree is shaped wrong. A `Core\Log` record with two keys where
-[ADR 0076](../adr/0076-observability-export.md) § 6 names six compiles, tests green and ships.
+`rule:observability/metrics-and-trace-blocks-are-system` names six compiles, tests green and ships.
 
 **It exists because the handoff cannot hold one.** `docs/agent/handoff.md` is *state*: `tools/loop.py`
 overwrites it with the next goal's seed at every switch, and `tools/goal-switch.py` carries the
@@ -72,7 +72,7 @@ came back are the contract's second rule in plain sight: an owner that went gree
 gap is struck, not renamed.
 
 - **`Core\Metrics`** — spec § 16's class, filed as goal 6's item 19 and left behind by it.
-  [ADR 0076](../adr/0076-observability-export.md)'s exporter, both of its config blocks and the nine
+  `rule:observability/the-runtime-exports-what-it-already-measures`'s exporter, both of its config blocks and the nine
   metrics a core meters all landed; `registry::CLASSES` has no row for the class a program reads them
   through, so no Novis program can name one. `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`.
 - **`Core\Process::spawn`** — `proc_open`'s and `popen`'s streaming half, which

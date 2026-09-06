@@ -84,6 +84,11 @@
       "topic": "packaging",
       "title": "Packaging",
       "order": 170
+    },
+    {
+      "topic": "observability",
+      "title": "Observability",
+      "order": 180
     }
   ]
 }

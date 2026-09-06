@@ -110,7 +110,7 @@
 //!   it stays filed while the portal is open, so it covers every `advance()` up
 //!   to the last row — which is the wait a streaming caller actually takes.
 //!
-//! ADR 0067 § 11's `slow_query` is the neighbour that is neither of these: it
+//! `rule:observability/a-query-is-a-trace-event`'s `slow_query` is the neighbour that is neither of these: it
 //! *reports* a statement that took too long and never stops one.
 //!
 //! # Known gaps

@@ -168,8 +168,8 @@ impl Ctx {
     }
 
     /// Appends `hook` to
-    /// [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)
-    /// § 1's end-of-script queue — what `Core\Script::onExit` does, which is
+    /// `rule:observability/script-on-exit`
+    /// 's end-of-script queue — what `Core\Script::onExit` does, which is
     /// register and run nothing.
     ///
     /// The caller passes an **owned** reference, exactly as
@@ -190,14 +190,14 @@ impl Ctx {
         self.exit_hooks.len()
     }
 
-    /// Whether the queue has already had its one drain — ADR 0127 § 2.
+    /// Whether the queue has already had its one drain — `rule:observability/three-endings-fire-the-exit-queue`.
     #[must_use]
     pub fn exit_hooks_drained(&self) -> bool {
         self.exit_hooks_drained
     }
 
-    /// Runs the end-of-script queue FIFO, handing each hook `report` — ADR 0127
-    /// §§ 2 and 5.
+    /// Runs the end-of-script queue FIFO, handing each hook `report` — `rule:observability/three-endings-fire-the-exit-queue` and `rule:observability/a-hook-observes-and-never-steers`
+    /// .
     ///
     /// **Which endings reach here is not this method's question.** § 3's `FATAL`
     /// and cancellation never fire the queue, and the one place that decides is
@@ -255,7 +255,7 @@ impl Ctx {
     }
 
     /// Reports one failed exit hook and answers whether the drain continues —
-    /// ADR 0127 § 5.
+    /// `rule:observability/a-hook-observes-and-never-steers`.
     ///
     /// Three readings, and only the last stops the queue:
     ///
@@ -645,7 +645,7 @@ mod tests {
         Value::object(object)
     }
 
-    /// `rule:core-classes/temporary-dir-sweep`'s ordering against [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+    /// `rule:core-classes/temporary-dir-sweep`'s ordering against `rule:observability/script-on-exit`'s
     /// queue, asserted from the one side that can observe it: the last user
     /// code still finds the directory it was handed, and the teardown behind it
     /// is what takes it away.

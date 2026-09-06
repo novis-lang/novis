@@ -7,7 +7,7 @@
 //!
 //! # It runs from [`Drop`], which is the whole of "after the last user code"
 //!
-//! § 3 puts the sweep after [ADR 0127](/docs/adr/0127-the-end-of-a-script-is-observable.md)'s
+//! § 3 puts the sweep after `rule:observability/script-on-exit`'s
 //! `onExit` queue on a CLI ending and after
 //! `rule:concurrency/after-response-outlives-the-connection`'s
 //! `afterResponse` work on a request, and has it cover every ending the process

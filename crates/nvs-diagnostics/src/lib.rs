@@ -1536,7 +1536,7 @@ pub mod code {
     /// `[metrics] exporter` or `[trace] exporter` names no exporter that block
     /// has.
     ///
-    /// ADR 0076 § 6 gives metrics a scrape (`prometheus`) or a push (`otlp`)
+    /// `rule:observability/metrics-and-trace-blocks-are-system` gives metrics a scrape (`prometheus`) or a push (`otlp`)
     /// and gives a trace only the push, with `false` the disabled state for
     /// both. The asymmetry is the section's, not a limitation of the exporters:
     /// a scrape answers with a series' current value, and a span is a finished
@@ -1552,7 +1552,7 @@ pub mod code {
 
     /// `[trace] sample` is not a fraction of one.
     ///
-    /// ADR 0076 § 6 writes the head sample as `0.0` to `1.0` inclusive. A
+    /// `rule:observability/metrics-and-trace-blocks-are-system` writes the head sample as `0.0` to `1.0` inclusive. A
     /// number outside that names no smaller or larger sample — it names
     /// nothing, and what a reader does with `sample = 5` depends on which side
     /// of a comparison it lands on, where "record everything" and "record

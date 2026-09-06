@@ -39,14 +39,14 @@ pub enum FaultSite {
 }
 
 /// Which of
-/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// § 1's four kinds a [`TraceEvent`] is.
+/// `rule:observability/trace-events-carry-a-kind`
+/// 's four kinds a [`TraceEvent`] is.
 ///
 /// The tag is the whole of the distinction here, and deliberately so: § 1 keeps
 /// a `call` event's shape exactly as `rule:testing/debug-probes` defined it, and the three other
 /// kinds carry facts of their own that this stand-in vector has nowhere to put.
-/// A `query`'s field set is fixed by [ADR 0067](/docs/adr/0067-core-db.md)
-/// § 11 and lives in `nvs_db::QuerySpan`, which is where the driver already
+/// A `query`'s field set is fixed by `rule:observability/a-query-is-a-trace-event`
+/// and lives in `nvs_db::QuerySpan`, which is where the driver already
 /// holds it; a per-kind payload is what § 4's export needs and what lands with
 /// `rule:testing/debug-probes`'s sink, alongside the `PROFILE` timing the `trace` field's own doc
 /// comment defers for the same reason.
@@ -55,20 +55,20 @@ pub enum TraceKind {
     /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and the only
     /// kind anything in the tree records today.
     Call,
-    /// A cycle-collector pause — ADR 0041 § 2. The collector's run routine
+    /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`. The collector's run routine
     /// does not record one yet.
     Gc,
-    /// An isolate spawn or join — ADR 0041 § 3, and unrecorded for the same
+    /// An isolate spawn or join — `rule:observability/spawn-is-its-own-event`, and unrecorded for the same
     /// reason as [`TraceKind::Gc`].
     Spawn,
     /// One statement, filed from inside a driver's own statement routine —
-    /// ADR 0041 § 1 and ADR 0067 § 11.
+    /// `rule:observability/trace-events-carry-a-kind` and `rule:observability/a-query-is-a-trace-event`.
     Query,
 }
 
 /// One `rule:testing/debug-probes` call-site trace record, tagged with
-/// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// § 1's kind.
+/// `rule:observability/trace-events-carry-a-kind`
+/// 's kind.
 ///
 /// The remaining two fields are the `call` kind's shape, and a `query` reuses
 /// the first of them rather than adding a field per kind — [`Ctx::record_query`]
@@ -76,7 +76,7 @@ pub enum TraceKind {
 /// payload waits on.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TraceEvent {
-    /// Which of ADR 0041 § 1's four kinds this is.
+    /// Which of `rule:observability/trace-events-carry-a-kind`'s four kinds this is.
     pub kind: TraceKind,
     /// What the event is *of*: a [`TraceKind::Call`]'s callee as a
     /// `Class::method` label, and a [`TraceKind::Query`]'s span as the driver
@@ -115,7 +115,7 @@ impl Ctx {
     /// The kind is [`TraceKind::Call`] and is not a parameter: a probe is the
     /// only thing that reaches this method, and the three other kinds are
     /// emitted from routines that carry facts this record has no field for
-    /// (ADR 0041 § 1).
+    /// (`rule:observability/trace-events-carry-a-kind`).
     pub fn record_trace(&mut self, callee: &str, status: Option<i32>) {
         self.trace.push(TraceEvent {
             kind: TraceKind::Call,
@@ -125,14 +125,14 @@ impl Ctx {
     }
 
     /// Records one statement as
-    /// [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-    /// § 1's `query` event — `Core\Db`'s statement routines' whole effect under
+    /// `rule:observability/trace-events-carry-a-kind`
+    /// 's `query` event — `Core\Db`'s statement routines' whole effect under
     /// [`DebugFlags::TRACE`], called once the rows have ended so the span is
     /// complete.
     ///
     /// **The span arrives already rendered, and that is the crate boundary
-    /// rather than laziness.** [ADR 0067](/docs/adr/0067-core-db.md)
-    /// § 11's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
+    /// rather than laziness.** `rule:observability/a-query-is-a-trace-event`
+    /// 's field set lives in `nvs_db::QuerySpan`, in a crate that depends on
     /// this one; a struct here holding the same seven facts would be that field
     /// set's second home, and the one nobody edits when a driver adds to it.
     /// What it costs is that a consumer reads text where it will later read
@@ -417,7 +417,7 @@ mod tests {
         );
     }
 
-    /// ADR 0041 § 1's kind, over the two kinds anything in the tree records: a
+    /// `rule:observability/trace-events-carry-a-kind`'s kind, over the two kinds anything in the tree records: a
     /// probe files a `call` and `Core\Db`'s statement routine files a `query`,
     /// and one vector keeps them apart. Asserted as the whole trace rather than
     /// on the second event, because the tag only earns its place if the first
@@ -429,7 +429,7 @@ mod tests {
         ctx.record_trace("People::all", Some(crate::OK));
         // What `nvs_db::QuerySpan`'s `Display` hands over, which is the whole
         // of what a `query` event carries — no bound value among it, per
-        // ADR 0067 § 11.
+        // `rule:observability/a-query-is-a-trace-event`.
         ctx.record_query("driver=postgres connection=main rows=2 sql=select 1");
         assert_eq!(
             ctx.trace(),

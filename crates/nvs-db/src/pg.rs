@@ -613,7 +613,7 @@ impl PgConn {
         next_row_of(&mut self.wire, &self.state, reading)
     }
 
-    /// ADR 0067 § 11's trace event for the parked stream, or `None` where there
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the parked stream, or `None` where there
     /// is none — [`PgRows::span`] for what a caller reading one mid-stream gets.
     #[must_use]
     pub fn stream_span(&self) -> Option<&QuerySpan> {
@@ -676,7 +676,7 @@ impl PgConn {
     /// [`begin_command`] the rendering of the two options, including which of
     /// § 7's five isolation levels PostgreSQL spells with another name.
     ///
-    /// **It answers the span of the command it sent**, which is ADR 0067 § 11's
+    /// **It answers the span of the command it sent**, which is `rule:observability/a-query-is-a-trace-event`'s
     /// event for a statement that lends no [`PgRows`] out — the shape
     /// `PgConn::execute_many`'s caller builds for itself. The caller cannot
     /// build this one: which command a level gets is the depth's answer and the
@@ -2418,7 +2418,7 @@ pub(crate) struct PgCursor {
     columns: Vec<PgColumn>,
     tag: Option<String>,
     last_id: Option<u64>,
-    /// ADR 0067 § 11's trace event for this statement, opened when it went out
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for this statement, opened when it went out
     /// and ended by whatever ends the stream — [`crate::span`] owns why it is
     /// built from the SQL and never from the parameters.
     span: QuerySpan,
@@ -2720,7 +2720,7 @@ fn open_portal<S: Read + Write>(
         return Err(second_statement(state));
     }
 
-    // ADR 0067 § 11's span, opened before the batch is built so its duration is
+    // `rule:observability/a-query-is-a-trace-event`'s span, opened before the batch is built so its duration is
     // what the caller waited rather than what the server spent. It is handed
     // `sql` and not `params`, which is the whole of § 11's "never parameters" —
     // `crate::span`'s module doc owns why that is a signature and not a rule.
@@ -3363,7 +3363,7 @@ fn simple_command<S: Read + Write>(
         return Err(second_statement(state));
     }
 
-    // ADR 0067 § 11's span, opened where the extended-query path opens its own:
+    // `rule:observability/a-query-is-a-trace-event`'s span, opened where the extended-query path opens its own:
     // once the connection is this command's, so the duration is the round trip
     // and not the wait for a busy one. The text is this module's — § 7's
     // commands carry no caller's SQL at all — and [`QuerySpan`] is what carries

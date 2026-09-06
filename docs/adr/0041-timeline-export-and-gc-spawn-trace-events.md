@@ -1,4 +1,4 @@
-# ADR 0041 — Trace/profile output gains a speedscope-evented timeline export, plus GC-pause and isolate-spawn trace events
+# `rule:observability/trace-events-carry-a-kind` — Trace/profile output gains a speedscope-evented timeline export, plus GC-pause and isolate-spawn trace events
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -6,7 +6,7 @@
   `rule:testing/debug-probes`. Adds a `kind` field to trace
   events (`call` | `gc` | `spawn` | `query`), three new instrumentation points (the cycle collector's run
   routine; the three isolate-spawn/join runtime routines; each `Core\Db` statement, per
-  [ADR 0067](0067-core-db.md) § 11), and a speedscope "evented" export alongside `rule:testing/debug-probes`'s existing
+  `rule:observability/a-query-is-a-trace-event`), and a speedscope "evented" export alongside `rule:testing/debug-probes`'s existing
   Clover/lcov/Callgrind/NDJSON output. Does **not** add any probe to the per-statement/per-call hot path `rule:testing/debug-probes` already committed to, and does not cover coroutine suspend/resume events, an external/live attach
   mechanism, or memory/allocation profiling — all named and deliberately deferred, see *Revisiting*.
 - **Amends:** [0018](0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)
@@ -73,7 +73,7 @@
 args, entry/exit timestamp, checked-return status, result). The `query` kind is emitted from inside
 `Core\Db`'s own statement routines and carries duration, driver, connection name, truncated SQL text, rows
 returned and rows affected — **never a bound parameter value**, since a trace is a `secret` sink
-([ADR 0067](0067-core-db.md) § 11, `rule:security/secret-qualifier`). Like `gc`
+(`rule:observability/a-query-is-a-trace-event`, `rule:security/secret-qualifier`). Like `gc`
 and `spawn` it sits in a routine that is already slow, so it adds nothing to the hot path.
 
 ### 2. GC-pause events (`kind: gc`)
@@ -113,7 +113,7 @@ implementation.
 
 ### 5. A fifth consumer, and which kinds may become a span
 
-[ADR 0076](0076-observability-export.md) reads these same four kinds for **production** telemetry, adding no
+`rule:observability/the-runtime-exports-what-it-already-measures` reads these same four kinds for **production** telemetry, adding no
 instrumentation of its own. It is bound by one rule stated here because this section owns the taxonomy:
 **a `call`-kind event never becomes a distributed-tracing span** — exactly four things do, the request or
 scheduled-run root, a `query`, an outbound HTTP call and a `spawn` — and `gc` becomes a metric rather than a

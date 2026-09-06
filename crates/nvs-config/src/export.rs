@@ -1,4 +1,4 @@
-//! [ADR 0076](/docs/adr/0076-observability-export.md) § 6's two exporters: which sink `[metrics]`
+//! `rule:observability/metrics-and-trace-blocks-are-system`'s two exporters: which sink `[metrics]`
 //! and `[trace]` may ship to, the fraction a head sample is written as, and the boot-time refusal
 //! of everything else.
 //!
@@ -37,7 +37,7 @@ use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Setting};
 use crate::value::as_written;
 
-/// One of ADR 0076 § 6's two export protocols, as written.
+/// One of `rule:observability/metrics-and-trace-blocks-are-system`'s two export protocols, as written.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Exporter {
     /// `prometheus` — the scrape endpoint served at `[metrics] listen`.
@@ -65,7 +65,7 @@ impl Exporter {
 /// § 6's own `max_series`, for a `[metrics]` block that writes an exporter and not a bound.
 const DEFAULT_MAX_SERIES: u64 = 10_000;
 
-/// ADR 0076 § 6's `[metrics]` block, resolved into what one core is asked to build: where its
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s `[metrics]` block, resolved into what one core is asked to build: where its
 /// series ship to, and § 7's bound on how many of them it may hold.
 ///
 /// Only the two values a registry needs. `listen` and `endpoint` are the exporter's own address and
@@ -207,7 +207,7 @@ fn exporter(
         ),
     )
     .with_note(format!(
-        "ADR 0076 § 6 gives `[{}]` {}, and nothing else{}",
+        "`rule:observability/metrics-and-trace-blocks-are-system` gives `[{}]` {}, and nothing else{}",
         block.name(),
         block.roster(),
         origin_note(origins.get(&format!("{}.exporter", block.name())))
@@ -230,7 +230,7 @@ fn sampled(fraction: f64, origins: &BTreeMap<String, Origin>) -> Result<(), Diag
         format!("`[trace] sample = {fraction}` is not a fraction of one"),
     )
     .with_note(format!(
-        "ADR 0076 § 6's head sample runs from `0.0` to `1.0` inclusive{}",
+        "`rule:observability/metrics-and-trace-blocks-are-system`'s head sample runs from `0.0` to `1.0` inclusive{}",
         origin_note(origins.get("trace.sample"))
     ))
     .with_help(

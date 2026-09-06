@@ -1,11 +1,11 @@
 //! The distributed-trace identity of one request —
-//! [ADR 0076](/docs/adr/0076-observability-export.md) § 2's trace id, the span an outbound
+//! `rule:observability/a-trace-id-exists-for-every-request`'s trace id, the span an outbound
 //! call names as its parent, and the sampled flag, read from and rendered as a W3C `traceparent`.
 //!
 //! **This is not `rule:testing/debug-probes`'s
 //! trace, which [`Ctx::trace`](crate::Ctx::trace) holds**, and the two share nothing but the word.
 //! That one records an event per compiled call site and is a debugging surface; this one is three
-//! identifiers a whole request carries. ADR 0076 § 2 opens by separating them, because conflating
+//! identifiers a whole request carries. `rule:observability/a-trace-id-exists-for-every-request` opens by separating them, because conflating
 //! them would produce a distributed trace with one span per function call, which no backend can
 //! store and no human can read.
 //!
@@ -204,7 +204,7 @@ fn from_hex<const N: usize>(text: &str) -> Option<[u8; N]> {
 mod tests {
     use super::TraceContext;
 
-    /// ADR 0076 § 2: an id exists for every request whatever the sampling decision, so a root that
+    /// `rule:observability/a-trace-id-exists-for-every-request`: an id exists for every request whatever the sampling decision, so a root that
     /// nothing will export still renders a header another service can continue.
     #[test]
     fn a_root_trace_has_an_id_and_renders_a_header_that_parses_back() {

@@ -1,14 +1,14 @@
 //! What a statement's span is worth reporting to, asked once before the
 //! statement borrows the context.
 //!
-//! [`QueryWatch`] is the whole of it, and its own doc owns why ADR 0041's trace
-//! and [ADR 0067](/docs/adr/0067-core-db.md) § 11's `slow_query`
+//! [`QueryWatch`] is the whole of it, and its own doc owns why `rule:observability/trace-events-carry-a-kind`'s trace
+//! and `rule:observability/a-query-is-a-trace-event`'s `slow_query`
 //! line are one type rather than two readers.
 
 use super::*;
 
-/// What is reading this statement's span — [ADR 0041](/docs/adr/0041-timeline-export-and-gc-spawn-trace-events.md)
-/// § 1's trace, ADR 0067 § 11's `slow_query` line, both or neither — asked
+/// What is reading this statement's span — `rule:observability/trace-events-carry-a-kind`
+/// 's trace, `rule:observability/a-query-is-a-trace-event`'s `slow_query` line, both or neither — asked
 /// **before** a statement borrows the context.
 ///
 /// A statement holds `ctx` mutably for as long as its rows do
@@ -29,7 +29,7 @@ use super::*;
 /// theirs would be describing a request that never happened.
 #[derive(Clone, Copy)]
 pub(crate) struct QueryWatch {
-    /// ADR 0041 § 1's trace is recording this request.
+    /// `rule:observability/trace-events-carry-a-kind`'s trace is recording this request.
     traced: bool,
     /// § 11's threshold, for the block that wrote one.
     slow: Option<std::time::Duration>,
@@ -83,7 +83,7 @@ impl QueryWatch {
     }
 }
 
-/// ADR 0067 § 11's threshold for the `[db.<name>]` block a statement is running
+/// `rule:observability/a-query-is-a-trace-event`'s threshold for the `[db.<name>]` block a statement is running
 /// on, or `None` for a statement nothing is timing.
 ///
 /// Three cases answer `None` and they are one answer: the block wrote no
@@ -101,7 +101,7 @@ pub(super) fn slow_query_of(ctx: &nvs_runtime::Ctx, name: &str) -> Option<std::t
         .flatten()
 }
 
-/// § 11's slow-query line: the span ADR 0041's trace event carries, written to
+/// § 11's slow-query line: the span `rule:observability/trace-events-carry-a-kind`'s trace event carries, written to
 /// `Core\Log` as one record.
 ///
 /// **The message is the span's own rendering and not a bag of fields**, which is
@@ -120,7 +120,7 @@ pub(super) fn slow_query_record(ctx: &mut nvs_runtime::Ctx, line: &str) {
     let _dropped = ctx.write_log_record(&record, nvs_runtime::LogChannel::Output);
 }
 
-/// Files ADR 0067 § 11's event for a statement that never lent a `PgRows` out —
+/// Files `rule:observability/a-query-is-a-trace-event`'s event for a statement that never lent a `PgRows` out —
 /// § 7's three commands, and the batch `executeMany` is.
 ///
 /// The block goes on here rather than through [`name_span`], which takes the

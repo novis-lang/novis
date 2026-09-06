@@ -11,7 +11,7 @@
 //
 // The floor is reached without ending the run: a `Core\Script::onExit` hook
 // that throws is reported through `nvs_runtime::floor::report` and abandoned,
-// and the drain continues to the next hook (ADR 0127 § 5). That is the one
+// and the drain continues to the next hook (`rule:observability/a-hook-observes-and-never-steers`). That is the one
 // place a floor record is written with user code still to run, so it is the
 // only place the file can be read back from inside the program that filled it.
 Core\Script::onExit(fn (): void => {

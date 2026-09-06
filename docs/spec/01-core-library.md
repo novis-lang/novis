@@ -1113,7 +1113,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   error (`rule:security/response-body-is-one-typed-member`).
 - `Core\Server`: the request's own environment — replacing `$_SERVER` — plus `traceId(): string`, which is
   present on every request whether or not the trace is sampled and is Novis's only request identifier
-  ([ADR 0076](../adr/0076-observability-export.md)), and `isDraining(): bool`, true once graceful shutdown
+  (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown
   has begun ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md) § 5).
 - `Core\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy` — replacing all ~25
   `session_*` functions. `start` is the one that reaches the store, and a member called before it throws

@@ -331,7 +331,7 @@ regardless, and refusing it would buy nothing.
   `rule:concurrency/cross-request-state-is-explicit`'s territory, and its interaction with
   `rule:core-classes/ratelimit-two-members`'s approximate tier should be argued once for both rather than twice.
 - **Per-attempt observability** — whether a retried call reports one span or one per attempt — is
-  [ADR 0076](0076-observability-export.md)'s question, and it should say so rather than being decided here.
+  `rule:observability/the-runtime-exports-what-it-already-measures`'s question, and it should say so rather than being decided here.
 
 ## Verification
 

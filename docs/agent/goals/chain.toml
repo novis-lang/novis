@@ -63,7 +63,7 @@ retired = "2026-09-05"
 # a gap a shipped feature already carries, written down in the module that owns it, and claimed by
 # no entry on this chain: the `db.open` wildcard `rule:core-classes/db-capabilities` writes and nothing reads, `nvs
 # check` never building the grants its own § 10 diagnostic needs, a cycle closed through an array
-# surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, ADR 0076 § 6's four log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s fleet
+# surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/metrics-and-trace-blocks-are-system`'s four log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s fleet
 # lease, spec § 18's `stream`/`streamAs`, the two rules that were waiting on a diagnostic band
 # that has since opened, and the CLDR rosters that throw. Its stage 2 is the keystone and the
 # reason it is first: an outstanding key gains an owner column and the test fails when that owner

@@ -172,7 +172,7 @@ impl Admission {
     /// racers take to give their increments back, and something has to be true
     /// about a number named "in flight" for [`in_flight`](Self::in_flight) to
     /// be worth exporting under
-    /// [ADR 0076](/docs/adr/0076-observability-export.md).
+    /// `rule:observability/the-runtime-exports-what-it-already-measures`.
     #[must_use]
     pub fn admit(&self) -> Option<InFlight<'_>> {
         self.in_flight

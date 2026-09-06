@@ -272,10 +272,10 @@ impl Ctx {
     /// shape — neither the two keys the floor writes with no request in front
     /// of it nor the six a served one carries. Two shapes, not three, is
     /// § 6's sameness. An absent key is omitted rather than written empty,
-    /// which is [ADR 0076](/docs/adr/0076-observability-export.md) § 6's rule
+    /// which is `rule:observability/metrics-and-trace-blocks-are-system`'s rule
     /// for `trace_id`/`span_id` applied to the whole envelope.
     ///
-    /// `request_id` is the trace id, because ADR 0076 § 2 has that be Novis's
+    /// `request_id` is the trace id, because `rule:observability/a-trace-id-exists-for-every-request` has that be Novis's
     /// only request identifier — there is deliberately no second one to stamp.
     /// It repeats in `trace_id` for a sampled trace on purpose: a log pipeline
     /// correlating by request and a tracing backend correlating by trace read

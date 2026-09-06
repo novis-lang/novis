@@ -39,8 +39,8 @@
 //! place for it to be stated.
 //!
 //! A walk read to its end returns the connection to `State::Idle` on the
-//! `advance()` that answers `false`, and that same call is where ADR 0067
-//! § 11's event is filed: a stream's span is the whole statement's, so it is
+//! `advance()` that answers `false`, and that same call is where `rule:observability/a-query-is-a-trace-event`
+//! 's event is filed: a stream's span is the whole statement's, so it is
 //! worth reporting once the statement is over rather than per row. A walk the
 //! program abandons half way holds the connection until the request ends,
 //! which is § 4's documented price and not a leak — the reset § 13 runs before

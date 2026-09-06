@@ -46,7 +46,7 @@
 //! are stamped by
 //! [`Ctx::stamp_envelope`](nvs_runtime::Ctx::stamp_envelope), which is the
 //! method `nvs_runtime::floor` calls too and is the one home for which key
-//! comes from what: `request_id` is ADR 0076 § 2's trace id, that section
+//! comes from what: `request_id` is `rule:observability/a-trace-id-exists-for-every-request`'s trace id, that section
 //! having made it Novis's only request identifier, and `trace_id`/`span_id`
 //! arrive on top of it for a *sampled* trace, which is § 6's "whenever a trace
 //! is active". Without them a log line could not be jumped to from a trace,
@@ -444,8 +444,8 @@ mod tests {
     /// A buffered context **answering a request**, which is the source
     /// [`Ctx::stamp_envelope`] reads `rule:errors/log-write`'s four request keys from.
     ///
-    /// `traceparent` is the only way a trace becomes *active* today: ADR 0076
-    /// § 2's head-based `[trace] sample` is unbuilt, so a root's flag is always
+    /// `traceparent` is the only way a trace becomes *active* today: `rule:observability/a-trace-id-exists-for-every-request`
+    /// 's head-based `[trace] sample` is unbuilt, so a root's flag is always
     /// `false` and an inbound sampled header is the one thing that sets it —
     /// `nvs_runtime::trace_context`'s own *What is not here yet* owns that.
     /// `None` is therefore the ordinary served request, which has an id and no
@@ -505,7 +505,7 @@ mod tests {
     /// that has to be rewritten every run. What is asserted is that the keys
     /// are there, that `ts` leads the line — `rule:errors/renderings`'s reading order — and
     /// that `request_id` is the context's **own** trace id rather than a second
-    /// identifier this member drew for itself, which ADR 0076 § 2 forbids in as
+    /// identifier this member drew for itself, which `rule:observability/a-trace-id-exists-for-every-request` forbids in as
     /// many words.
     #[test]
     fn a_record_written_inside_a_request_carries_ts_and_request_id() {
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(
             doc["request_id"].as_str(),
             Some(expected.as_str()),
-            "ADR 0076 § 2 makes the trace id the only request identifier, so \
+            "`rule:observability/a-trace-id-exists-for-every-request` makes the trace id the only request identifier, so \
              the record names that one rather than minting its own"
         );
         assert!(

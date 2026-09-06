@@ -66,8 +66,7 @@ drivers. It goes in front of the dossier because that entry stops adding surface
 rather than on the end, because goal 6 going green is what *makes* the problem they close.
 [21 carried-gaps](21-carried-gaps.md) takes every gap a shipped feature already carries that no entry on
 this chain claimed: an ADR-written `db.open` wildcard with no reader, `nvs check` never building the
-grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, ADR
-0076 § 6's four missing log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s unarmed fleet lease, spec § 18's
+grants its own diagnostic needs, a cycle closed through an array surviving `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s sweep, `rule:observability/metrics-and-trace-blocks-are-system`'s four missing log-record fields, `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease`'s unarmed fleet lease, spec § 18's
 `stream`/`streamAs`, two rules that were waiting on a diagnostic band that has since opened, and the
 CLDR rosters that throw. Its keystone is the mechanism rather than any of those: an outstanding-members
 key gains an owner column and the test fails when that owner is no longer a live entry, so a switch
