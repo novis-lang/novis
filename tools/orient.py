@@ -807,15 +807,15 @@ def run_standing_decisions() -> None:
         warn(f"{rel(GOAL_MD)} has no `## Standing decisions` section -- loop-authoring.md § 4")
 
 
-#: How many of a record's guard paths and modified-rule ids are named before the row is summarised.
+#: The longest list of rule ids or guard paths that is printed whole; a longer one prints as a count.
 #:
-#: Both lists were printed whole until 2026-09-06, and between them they were 17.8 KB of a 94.9 KB
-#: pack -- 8.2 KB of guard paths and 9.6 KB of bare ids -- against 11.8 KB for the rule titles that
-#: are the section's actual content. Neither list is *readable* at that length: ADR 0067 alone
-#: contributed 43 `.nvst` paths, and a rule id with no title beside it cannot be triaged without
-#: opening the chapter anyway. So both are now a sample plus a count, which is the shape that
-#: answers the only question a session asks of them -- "is there a lot of this, and where does it
-#: live" -- and `python tools/rules.py --show <id>` answers the rest in one call.
+#: A list is either whole or it is a count, never a sample. A record that amended two rules names
+#: both, and a session can follow either; a record that amended sixty names none, because six of
+#: them chosen by sort order are not the six the goal touches, and a bare id with no title beside
+#: it cannot be triaged without opening the chapter anyway. The count still answers the one
+#: question a session asks of a long list -- "is there a lot of this" -- and `python tools/rules.py
+#: --show <id>` answers the rest in one call. A whole rule's own guards, in `run_one_rule`, are the
+#: one list a session acts on directly, so that one is sampled rather than dropped past the cap.
 NAMED_BEFORE_COUNT = 6
 
 
@@ -865,6 +865,8 @@ def run_rules(m: Manifest) -> None:
     emit("AGENTS.md's priority ordering and its four rules are already in your context. These are")
     emit("the rules this goal's own work sits inside. A rule named by id is printed whole, because")
     emit("the fragment IS the rule; a record number expands to the rules it created or changed.")
+    emit("A short changed list is named whole; a long one is only its count, and `brief.py --where`")
+    emit("routes a topic to the chapter that holds the rest.")
     emit()
     if not m.rules:
         warn("[context] rules is empty, so no rule and no decision is named as binding this goal")
@@ -889,14 +891,19 @@ def run_rules(m: Manifest) -> None:
             continue
         emit(f"ADR {entry} -- {len(created)} rule(s) created, {len(changed)} changed:")
         rule_lines(book, [r.id for r in created])
-        # The authored bullets named the mechanism behind a rule in prose ("`tools/dossier.py` is
-        # the whole mechanism"); the rulebook names it as the rule's guard.
-        capped("guarded by", sorted({g for r in created for g in r.guarded_by}),
-               "`rules.py --show <id>` lists a rule's own")
-        # A foundational record sits in the `because` of sixty rules. Ids alone were already the
-        # compromise; a sample of them is the one that fits.
-        capped("changed", [f"rule:{r.id}" for r in changed],
-               "`brief.py --where` routes a topic to its chapter")
+        # The guards a session acts on are the ones under the rules it is held to, and those print
+        # under `run_one_rule`. Across a record's created rules the union is a where-does-it-live
+        # answer, so it is a count here and never a list.
+        guards = {g for r in created for g in r.guarded_by}
+        if guards:
+            emit(f"  guarded by {len(guards)} path(s) (`rules.py --show <id>` lists a rule's own)")
+        # A record that amended two rules names both, and one of them may be the rule the goal is
+        # missing; a foundational record sits in the `because` of sixty and names none of them --
+        # the header line above already carries that count.
+        if changed and len(changed) <= NAMED_BEFORE_COUNT:
+            emit(textwrap.fill("changed: " + ", ".join(f"rule:{r.id}" for r in changed), width=100,
+                               initial_indent="  ", subsequent_indent="  ", break_on_hyphens=False,
+                               break_long_words=False))
         emit()
 
 
