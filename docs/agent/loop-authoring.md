@@ -34,10 +34,16 @@ than the session saved. `loop-stats.py` hard-codes it for that reason and reads 
 only to catch the case where capacity binds first. Raise it only with evidence.
 
 **Then reconsider the strategy, not just the number.** A shape follows from whichever budget binds, and
-that has already flipped once here: with only the clock in view, over half of a session was fixed cost and
-the answer was to group more slices per session; with the 200k ceiling in view, sessions were *already*
-finishing over the line doing one slice, and the answer became to read less per session. Same repository,
-same week, opposite instruction. So:
+that has already flipped once here: with only the clock in view, over half of a session looked like fixed
+cost and the answer was to group more slices per session; with the 200k ceiling in view, sessions were
+*already* finishing over the line doing one slice, and the answer became to read less per session. Same
+repository, same week, opposite instruction.
+
+**That first reading was also wrong, which is worth keeping.** `tail` began at the first `verify.py` call,
+and `--start` — the shape this repository recommends — fires it mid-work, so every edit after it was
+counted as wrap-up. Corrected, the fixed cost is about 22%, not "over half", and the case for grouping was
+always weaker than the number made it look. A measurement that flatters the strategy you already hold is
+the one to re-derive first. So:
 
 | If `loop-stats.py` now says | Then |
 |---|---|
