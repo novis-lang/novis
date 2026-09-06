@@ -147,12 +147,14 @@
 //! run through the JIT: the [`store`](Cache::store) on the cold path and the [`load`](Cache::load)
 //! in front of it are the wiring slice.
 //!
-//! **A warm hit has nowhere to get its class descriptors.** [`Verified::relocate`] resolves an
-//! `nvs_class_desc_*` through the closure its caller hands it, and a runtime helper is one lookup
-//! in `nvs_runtime::symbols()`/`nvs_stdlib::symbols()` — but a descriptor is allocated by
-//! `nvs-codegen`'s own compile, which is exactly what a warm hit skips, and no table of them is
-//! published for a loader to read. The tests here supply a stable dummy and use fixtures that never
-//! dereference one.
+//! **A warm hit's descriptors are settled; its method tables are not.** [ADR 0042] § 2 decides
+//! where a descriptor comes from — `nvs_codegen::Descriptors::of` builds every one out of the
+//! lowered IR, because what a hit skips is codegen and not the front end — and `this_process` in
+//! the tests below is now the whole of § 3's resolver rather than a stand-in. What is still
+//! unwritten is the last step of § 3's order: a `nvs_runtime::MethodRow` holds a compiled
+//! function's address, so binding one has to wait until the payload is placed, and nothing here
+//! walks the placed object's function symbols to do it. Until it does, a fixture may allocate an
+//! instance and read its fields but may not *call a method on one*.
 //!
 //! **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
 //! instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
@@ -453,7 +455,7 @@ enum Landing {
 #[derive(Debug)]
 struct Layout {
     /// Where each allocatable section starts, by the payload's own section index. Keyed by the
-    /// index's number rather than by [`SectionIndex`], which `object` does not order.
+    /// index's number rather than by [`object::SectionIndex`], which `object` does not order.
     sections: BTreeMap<usize, usize>,
     /// Where each undefined symbol's landing starts, and which kind it is — keyed by
     /// [`SymbolIndex`]'s number, for the same reason.
@@ -1628,9 +1630,14 @@ mod tests {
         drop(fs::remove_dir_all(&dir));
     }
 
-    /// § 2's payload for the program at `source`: this binary's own front end, lowered once and
-    /// written through the object backend, which is the only producer § 2 recognises.
-    fn object_for(source: &Path) -> Vec<u8> {
+    /// Both halves of a warm hit for the program at `source`: § 2's payload, written through the
+    /// object backend which is the only producer § 2 recognises, and the descriptors § 2 says the
+    /// *loading* process builds for itself out of the same lowered IR.
+    ///
+    /// The front end runs **once** here, which is what a warm hit does too — § 2's decision is that
+    /// a hit skips codegen and not the front end, so a fixture that ran it twice would be measuring
+    /// a pipeline this cache does not have.
+    fn unit_of(source: &Path) -> (Vec<u8>, nvs_codegen::Descriptors) {
         let checked = crate::front_end(source).expect("a program with no error diagnostics");
         let program = nvs_ir::lower::lower_program(
             nvs_ir::lower::ENTRY_SCRIPT_LABEL,
@@ -1640,28 +1647,32 @@ mod tests {
             &checked.enums,
             &checked.layouts,
         );
-        nvs_codegen::compile_object(&program).expect("a host-format object")
+        (
+            nvs_codegen::compile_object(&program).expect("a host-format object"),
+            nvs_codegen::Descriptors::of(&program),
+        )
     }
 
-    /// § 3's "this process's own addresses", as far as a test can supply them.
+    /// § 3's "this process's own addresses", in full.
     ///
     /// Every runtime and `Core` helper by the address this process really calls it at — the same
-    /// two tables `nvs-codegen`'s JIT resolves through — and an `nvs_class_desc_*` by one stable
-    /// dummy. **The dummy is sound for a fixture that never reaches a descriptor and nowhere
-    /// else**: raising, or allocating an instance, dereferences one. Where a warm hit gets real
-    /// descriptors is the wiring's problem, and the module doc's *Known gaps* says so.
-    fn this_process() -> impl Fn(&str) -> Option<*const u8> {
-        static DESCRIPTOR: u8 = 0;
-
+    /// two tables `nvs-codegen`'s JIT resolves through — and every `nvs_class_desc_*` by the
+    /// address of the descriptor `descriptors` built out of the same program's IR, which is § 2's
+    /// answer to where a warm hit's come from. This resolver is therefore the whole of what § 3
+    /// asks for and not a stand-in: a fixture here may allocate an instance, which dereferences a
+    /// descriptor, where the dummy this replaced only survived fixtures that never reached one.
+    fn this_process(
+        descriptors: &nvs_codegen::Descriptors,
+    ) -> impl Fn(&str) -> Option<*const u8> + '_ {
         let table: BTreeMap<&'static str, *const u8> = nvs_runtime::symbols()
             .into_iter()
             .chain(nvs_stdlib::symbols())
             .collect();
         move |name| {
-            table.get(name).copied().or_else(|| {
-                name.starts_with("nvs_class_desc_")
-                    .then_some(&raw const DESCRIPTOR)
-            })
+            table
+                .get(name)
+                .copied()
+                .or_else(|| descriptors.resolve(name))
         }
     }
 
@@ -1706,7 +1717,7 @@ mod tests {
         fs::write(&source, "<?nvs\nint $n = 40;\necho $n + 2;\n")
             .expect("a scratch directory of this test's own is writable");
 
-        let payload = object_for(&source);
+        let (payload, descriptors) = unit_of(&source);
         let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
         let key = artifact_key(content_hash(&payload), cache.env());
         assert_eq!(
@@ -1716,12 +1727,53 @@ mod tests {
 
         let hit = cache.load(key).expect("a published artifact verifies");
         let loaded = hit
-            .relocate(&this_process())
+            .relocate(&this_process(&descriptors))
             .expect("every symbol the payload leaves undefined has an address here");
         assert_eq!(
             output_of(&loaded),
             "42",
             "the pages a warm hit relocated ran, and reached this process's own `nvs_echo_str`"
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// § 2's descriptors, at the one place a test can tell a real one from a placeholder: a payload
+    /// whose program allocates an instance, names its class and reads a field back.
+    ///
+    /// [`a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable`] would pass
+    /// against *any* address for an `nvs_class_desc_*`, because nothing in that fixture ever
+    /// dereferences one. Everything this fixture prints comes out of the descriptor instead:
+    /// `$box::class` reads the name off it, and allocating the instance reads the slot count that
+    /// decides how much of it `$box->n` may touch. So reaching `Box=42` means the address the
+    /// loader resolved that symbol to was a real `ClassDesc` for this very class — built by *this*
+    /// process out of the IR its own front end just lowered, and never carried in the file. That is
+    /// § 2's decision stated as an observation rather than as prose.
+    #[test]
+    fn a_class_in_a_payload_reaches_the_descriptor_this_process_built() {
+        let dir = scratch("descriptors");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\nclass Box {\n    public int $n = 0;\n}\n\nvar $box = new Box();\n\
+             $box->n = 42;\necho $box::class, \"=\", $box->n;\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+
+        let (payload, descriptors) = unit_of(&source);
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        cache.store(key, &payload).expect("writable");
+
+        let loaded = cache
+            .load(key)
+            .expect("a published artifact verifies")
+            .relocate(&this_process(&descriptors))
+            .expect("every symbol the payload leaves undefined has an address here");
+        assert_eq!(
+            output_of(&loaded),
+            "Box=42",
+            "the relocated code reached a descriptor this process built from the same IR"
         );
 
         drop(fs::remove_dir_all(&dir));
@@ -1741,7 +1793,7 @@ mod tests {
         let source = dir.join("program.nvs");
         fs::write(&source, "<?nvs\necho 7;\n")
             .expect("a scratch directory of this test's own is writable");
-        let payload = object_for(&source);
+        let (payload, descriptors) = unit_of(&source);
         let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
         let key = artifact_key(content_hash(&payload), cache.env());
         cache.store(key, &payload).expect("writable");
@@ -1769,7 +1821,7 @@ mod tests {
         let loaded = cache
             .load(key)
             .expect("the republished artifact verifies")
-            .relocate(&this_process())
+            .relocate(&this_process(&descriptors))
             .expect("every symbol resolves");
         assert_eq!(
             output_of(&loaded),
@@ -1793,7 +1845,7 @@ mod tests {
         let source = dir.join("program.nvs");
         fs::write(&source, "<?nvs\necho 9;\n")
             .expect("a scratch directory of this test's own is writable");
-        let payload = object_for(&source);
+        let (payload, descriptors) = unit_of(&source);
 
         let theirs =
             Cache::new(dir.join("cache"), other_toolchain()).expect("a directory of this test's");
@@ -1828,7 +1880,7 @@ mod tests {
         let loaded = theirs
             .load(their_key)
             .expect("the artifact still verifies for its own environment")
-            .relocate(&this_process())
+            .relocate(&this_process(&descriptors))
             .expect("every symbol resolves");
         assert_eq!(output_of(&loaded), "9");
 

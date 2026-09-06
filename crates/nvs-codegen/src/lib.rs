@@ -694,6 +694,74 @@ pub fn disassemble(program: &Program) -> Result<String, CodegenError> {
     Ok(disasm)
 }
 
+/// Every class descriptor a unit declares, built from the lowered IR and from
+/// nothing else — [ADR 0042](/docs/adr/0042-on-disk-artifact-cache-format.md)
+/// § 2's answer to where a warm cache hit's descriptors come from.
+///
+/// A cached payload leaves every `nvs_class_desc_*` undefined (§ 2) and its
+/// loader resolves one against "the `ClassDesc` this process allocated" (§ 3) —
+/// but a run that skipped codegen allocated none, and no payload carries one.
+/// § 2 closes that the only way that needs neither a format change nor a
+/// serialized runtime type: **what a warm hit skips is codegen, not the front
+/// end**, so the `nvs_ir::Program` the front end has just lowered is walked for
+/// its classes exactly as [`compile`] walks it, and what falls out are the same
+/// descriptors, in the same order, that a cold compile of the same source would
+/// have allocated. A hit already means "the same source and the same
+/// toolchain" — the cache key covers both — so that is an identity rather than
+/// a hope.
+///
+/// What is deliberately **not** here is a method table. A
+/// [`nvs_runtime::MethodRow`] holds a compiled function's address and there is
+/// none until the payload has been placed, so § 3's order is build, place,
+/// relocate, protect, then bind; this type is the first of those steps and
+/// [`UnitBuilder::bind_method_tables`] is the JIT's counterpart to the last.
+///
+/// **Costs** one `ClassDesc` per class the unit declares, plus one symbol name
+/// per class, for as long as the caller holds this — the same allocation the
+/// JIT path already makes at the same scale, and freed with the table.
+#[derive(Debug)]
+pub struct Descriptors {
+    /// Held for the descriptors themselves, exactly as [`Unit`] holds this same
+    /// table: an address handed out by [`Self::resolve`] is written into machine
+    /// code that will dereference it, so the table has to outlive every frame
+    /// that code can enter. Never read here — the wiring that turns placed pages
+    /// into a [`Unit`] is what reads it next.
+    _classes: Classes,
+    /// [`class_desc_symbol`]'s name for each descriptor, to the address a
+    /// relocation against it resolves to. Built once here rather than searched
+    /// per relocation: a loader asks this for every undefined symbol in the
+    /// payload, which is once per class *per referring section*.
+    by_symbol: FxHashMap<String, *const u8>,
+}
+
+impl Descriptors {
+    /// Builds every descriptor `program` declares, parents first.
+    #[must_use]
+    pub fn of(program: &Program) -> Self {
+        let classes = Classes::build(&program.classes);
+        let by_symbol = classes
+            .descriptors()
+            .map(|(label, desc)| (class_desc_symbol(label), desc.cast::<u8>()))
+            .collect();
+        Self {
+            _classes: classes,
+            by_symbol,
+        }
+    }
+
+    /// The address `symbol` names, or [`None`] if it is not a descriptor of a
+    /// class this unit declares — which ADR 0042 § 3 makes a cache miss on the
+    /// footing of a wrong `env_hash`, never an error.
+    ///
+    /// The spelling is asked of [`class_desc_symbol`] rather than matched here,
+    /// so the emitting end and the resolving end of a relocation cannot drift
+    /// apart.
+    #[must_use]
+    pub fn resolve(&self, symbol: &str) -> Option<*const u8> {
+        self.by_symbol.get(symbol).copied()
+    }
+}
+
 /// The compilation unit under construction: whichever [`Module`] will finalize
 /// it, plus the tables every emitted function shares.
 ///
