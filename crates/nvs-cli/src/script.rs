@@ -190,6 +190,20 @@ pub(crate) struct Compiler {
     /// `[opcache] validate` and `revalidate_freq`, read once for the same
     /// reason: both are `System`-class, so no request can move them.
     revalidation: Revalidation,
+    /// [ADR 0042]'s on-disk cache, resolved from the same block and once for
+    /// the same reason — or [`None`] for a host that consults none.
+    ///
+    /// It sits **behind** the two maps above rather than beside them: a path
+    /// this compiler has already resolved is answered out of `units` without a
+    /// file being opened at all, and this is what the compile that map misses
+    /// asks before it walks Cranelift. The two do not overlap, and the disk one
+    /// is the only one that survives the process.
+    ///
+    /// **What it spends:** one open of a content-addressed path per compile
+    /// this cache misses, against a whole backend on every one it answers.
+    ///
+    /// [ADR 0042]: /docs/adr/0042-on-disk-artifact-cache-format.md
+    cache: Option<crate::cache::Cache>,
     /// How many times [`Self::compile`] has run on this cache — the counter
     /// `docs/plan/m7.md`'s acceptance paragraph asks the "compiles it exactly
     /// once" claim to be asserted against, and the only number a caller could
@@ -210,10 +224,13 @@ impl Default for Compiler {
     /// [`nvs_config::Snapshot::default`]'s own state: the default revalidation
     /// policy, and the environment digest of a host with no `[[extension]]`.
     ///
-    /// This is what a caller with no snapshot in hand holds — `nvs test` builds
-    /// its context before any tree is resolved — and it is a correct answer
-    /// there rather than a placeholder: the digest separates environments, and
-    /// a run that read no configuration has exactly this one.
+    /// This is what a caller with no snapshot in hand holds, and it is a
+    /// correct answer rather than a placeholder: the digest separates
+    /// environments, and a run that read no configuration has exactly this one.
+    /// Every subcommand that installs a resolver now holds one — `nvs test`
+    /// resolves the tree above the suite's compile, because ADR 0042's artifact
+    /// key is half configuration — so what is left here is this crate's own
+    /// tests.
     fn default() -> Self {
         Self::new(&Config::default())
     }
@@ -221,14 +238,15 @@ impl Default for Compiler {
 
 impl Compiler {
     /// The compiler for a process running under `config`: its environment
-    /// digest, and the `[opcache]` block's answer to when a resolve looks at a
-    /// file it has already compiled.
+    /// digest, the `[opcache]` block's answer to when a resolve looks at a file
+    /// it has already compiled, and the artifact cache that same block places.
     pub(crate) fn new(config: &Config) -> Self {
         Self {
             paths: RefCell::new(HashMap::new()),
             units: RefCell::new(HashMap::new()),
             env: env_hash(config),
             revalidation: Revalidation::from_config(config),
+            cache: crate::cache::from_config(config),
             compiles: Cell::new(0),
         }
     }
@@ -368,8 +386,17 @@ impl Compiler {
         units.insert(key, state);
     }
 
-    /// The front end and the backend, over one path, with nothing cached: the
-    /// whole of what step 3 costs.
+    /// The front end and the backend, over one path, with this process's own
+    /// table holding nothing for it: the whole of what step 3 costs.
+    ///
+    /// The backend half may still come off disk — [`Self::cache`] is asked here
+    /// and nowhere else — and that is why the counter below keeps counting a
+    /// warm hit as a compile. [ADR 0042] § 2 is explicit that a hit skips
+    /// codegen and not the front end, so the front end really did run; what a
+    /// hit saves is the Cranelift walk, which this counter never claimed to
+    /// measure.
+    ///
+    /// [ADR 0042]: /docs/adr/0042-on-disk-artifact-cache-format.md
     fn compile(&self, path: &str, written: &Path) -> Result<Rc<Compiled>, String> {
         // Counted here rather than at the call site, and before the front end
         // rather than after it: a compile that *failed* is still a compile
@@ -378,18 +405,27 @@ impl Compiler {
         self.compiles.set(self.compiles.get() + 1);
         let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
+        // Held across the lowering and the key alike: § 1's digest is over
+        // every file the `require`/`autoload` graph reached, which is the same
+        // list that was lowered and not the entry file alone.
+        let files = checked.program_files();
         let lowered = nvs_ir::lower::lower_program(
             nvs_ir::lower::ENTRY_SCRIPT_LABEL,
-            &checked.program_files(),
+            &files,
             &checked.exprs,
             &checked.interner,
             &checked.enums,
             &checked.layouts,
         );
+        let unit = crate::cache::unit_for(
+            &lowered,
+            crate::cache::program_digest(&files),
+            self.cache.as_ref(),
+        )
+        .map(|(unit, _)| unit)
+        .map_err(|error| format!("`{path}`: {error}"))?;
         Ok(Rc::new(Compiled {
-            unit: Rc::new(
-                nvs_codegen::compile(&lowered).map_err(|error| format!("`{path}`: {error}"))?,
-            ),
+            unit: Rc::new(unit),
             routes: Arc::new(crate::runtime_routes(checked.exprs.routes())),
         }))
     }
