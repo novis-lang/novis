@@ -86,8 +86,10 @@ modules = [
 
 rules = ["0131", "0004", "0106", "0127", "0072", "0078", "0117", "0064", "0079"]
 
-# 0131 whole: it is this goal's entire design, and every stage implements one of its sections.
-adrs = ["0131"]
+# 0131 whole: it is this goal's entire design, and every stage implements one of its sections. The
+# bare number prints the ADR's *In short* and nothing else, so the three sections the remaining stages
+# live inside are named beside it -- §§ 3-5 were re-sliced by hand in the session that found this.
+adrs = ["0131", "0131 §3", "0131 §4", "0131 §5"]
 
 shapes = ["A `Core` member — the five edits", "A `.nvst` test case", "A commit message"]
 
@@ -4323,11 +4325,16 @@ tests = [
   "the_owned_root_is_created_private_on_first_use",
 ]
 
+# Filed `-p nvs-runtime`, not `-p nvs-host`, and the name is kept for the ledger's sake. The sweep runs
+# from `Ctx::drop` and from nowhere else (`crates/nvs-runtime/src/sweep.rs`'s module doc owns why), so
+# nvs-host neither calls it nor can observe it doing anything an nvs-runtime test cannot -- and
+# `the_sweep_runs_after_the_on_exit_queue` needs a closure with no compiler in front of it, which is
+# cheapest beside the queue that runs it.
 [[check]]
 kind = "cargo-named"
 stage = "2 root and sweep"
-name = "nvs-host (the end-of-script sweep)"
-args = ["test", "-p", "nvs-host"]
+name = "nvs-runtime (the end-of-script sweep)"
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "a_temporary_dir_still_standing_at_script_end_is_removed",
   "a_temporary_dir_the_program_already_removed_is_not_an_error",
@@ -4369,11 +4376,14 @@ tests = [
 # Stage 5 -- keep_temporary, the fixture, the suites. 0131 § 5.
 # ---------------------------------------------------------------------------------------------------
 
+# Filed `-p nvs-runtime` for the reason the stage 2 sweep check above is: the key is read where the
+# sweep branches on it (`crates/nvs-runtime/src/sweep.rs`), nvs-host neither reads it nor can observe
+# it, and the case needs a config snapshot rather than an isolate to say what an operator wrote.
 [[check]]
 kind = "cargo-named"
 stage = "5 keep and prove"
-name = "nvs-host (keep_temporary)"
-args = ["test", "-p", "nvs-host"]
+name = "nvs-runtime (keep_temporary)"
+args = ["test", "-p", "nvs-runtime"]
 tests = [
   "keep_temporary_logs_each_kept_path_and_deletes_none",
 ]
