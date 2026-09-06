@@ -1,6 +1,6 @@
 //! The `nvs` binary.
 //!
-//! Nine subcommands so far, one per milestone that needed one:
+//! Ten subcommands so far, one per milestone that needed one:
 //!
 //! * `nvs ast` (M1) — dump what the parser produced.
 //! * `nvs check` (M2) — parse, resolve, type-check, report every diagnostic.
@@ -47,6 +47,12 @@
 //!   [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
 //!   § 2's contract. A build-time consumer's input, never a runtime feature;
 //!   see [`meta`].
+//! * `nvs tmp clean` —
+//!   [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+//!   § 4's orphan sweep, run by hand: every entry under the owned temporary
+//!   root whose owning process is gone, removed. Keyed on liveness and never on
+//!   age, with `--dry-run` and deliberately no force flag; see [`tmp`], and
+//!   [`serve`] for the other half of § 4, which is the same walk at boot.
 //!
 //! `run` **checks first**: on any diagnostic it reports and exits non-zero
 //! exactly as `check` does, rather than running a program the front end
@@ -99,6 +105,7 @@ mod runner;
 mod script;
 mod serve;
 mod service;
+mod tmp;
 mod worker;
 
 #[derive(ClapParser)]
@@ -319,6 +326,17 @@ enum Command {
         #[command(subcommand)]
         command: QueueCommand,
     },
+    /// Clear what a hard-killed script left in the temporary root.
+    ///
+    /// The operator's half of
+    /// [ADR 0131](/docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md)
+    /// § 4: the runtime deletes a temporary directory when its script ends and
+    /// reclaims the rest at `nvs serve` boot, and this is how a machine that
+    /// never boots a server clears them. See [`tmp`].
+    Tmp {
+        #[command(subcommand)]
+        command: TmpCommand,
+    },
     /// Register this binary with the platform's service manager, or print what
     /// registering it would store.
     ///
@@ -446,6 +464,26 @@ enum QueueCommand {
         #[arg(long)]
         connection: Option<String>,
         /// Print the statements without running them, and succeed.
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
+/// `nvs tmp`'s own subcommands.
+///
+/// One, and there is deliberately no second: ADR 0131 § 4 gives the sweep one
+/// predicate — the owning process is not alive — and no flag that overrides it,
+/// so there is nothing for an operator to ask beyond "do it" and "tell me what
+/// you would do".
+#[derive(Subcommand)]
+enum TmpCommand {
+    /// Remove every entry in the temporary root whose owning process is gone.
+    ///
+    /// Keyed on liveness and never on age, so a long-running process's
+    /// directories are untouchable however old they are. What it can and cannot
+    /// do, and why there is no force flag, is [`tmp`]'s module doc.
+    Clean {
+        /// Print what would be removed and remove nothing.
         #[arg(long)]
         dry_run: bool,
     },
@@ -608,6 +646,9 @@ fn main() -> ExitCode {
                     dry_run,
                 },
         } => queue::migrate(&cli.config, &files, connection.as_deref(), dry_run),
+        Command::Tmp {
+            command: TmpCommand::Clean { dry_run },
+        } => tmp::clean(&cli.config, dry_run),
         Command::Service {
             command:
                 ServiceCommand::Unit {
