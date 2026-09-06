@@ -2207,6 +2207,18 @@ is why" — is this file.
   check that the result still parses.** `migrate-docs.py`'s `DEBRIS` list is that, and it is what
   caught the third instance before it touched 728 files. A validity check is structurally blind to
   a rewrite that names the wrong thing.
+- **Never scan re-wrapped prose line by line for anything holding a space.** `orient.py` and
+  `brief.py` fill a plan field at width 100, so a change *anywhere earlier in the field* reflows
+  every line after it and the wrap lands wherever it lands. `migrate-docs.py`'s loss test read a
+  pack a line at a time; one 31-character replacement in `Open now` moved the wrap into the single
+  space of `ADR 0078`, leaving `**ADR` ending one line and `0078's endpoint lands**` opening the
+  next, and all twenty goals reported losing a record that no unit had touched and whose text was
+  still there in full. It cost five rollbacks of a clean unit. The regex already spanned the break;
+  only the loop stopped it. **Scan the whole text and let the pattern's own `\s+` decide** — the
+  extra cost is nil and the alternative is a result that depends on a column. The same applies to
+  anything else that consumes a digest rather than a source file: `file.rs:NN` anchors, `§ N`
+  spellings, a `Core\Foo::bar` split at its `::`. Line-oriented reading is only safe for things a
+  line *is* — a heading, a table row, an indent.
 
 ## Running things
 
