@@ -2857,6 +2857,19 @@ is why" — is this file.
   that live in the field and must be added to `Relocation::addend()` rather than replacing it. A
   loader written from the guess would have been wrong twice over. Delete the probe once it has
   answered; what it found belongs in the module doc.
+- **The cranelift `NegOverflow` flake is reproducible on demand, and one flag disproves it in a single
+  call: `-- --test-threads=1`.** The bullets above say a `compiled_blob.rs:142`
+  `TryFromIntError(NegOverflow)` is address layout rather than the tree, and say to re-run; what none of
+  them says is how to *settle* it without a re-run lottery. `cargo test -p nvs-cli --bin nvs -- script::
+  cache::` fails `ten_thousand_concurrent_cold_requests_compile_the_file_exactly_once` about half the
+  time, while `script::` alone, `cache::` plus that one test, and *either half* of `cache::` beside it all
+  pass every time — so the trigger is total address space and nothing in any one test. The same set under
+  `--test-threads=1` passes in 1.1s where a failing parallel run takes 12.8s, and that 12s is the
+  *effect* rather than the cause: a task whose compile panics leaves no unit behind, so the next request
+  recompiles, and 1,025 of the 10,000 did. Measured at that test's peak: **14.5 GB** of reserved virtual
+  address space against 91 MB resident — about 1.45 MB of reserved stack per spawned task, 10,000 tasks —
+  which is the mechanism behind "the JIT's blobs landed more than 2 GB apart". `left: 8083, right: 10000`
+  and a panic count that sums to 10,000 with it are one event, not two.
 
 ## Writing a test case
 

@@ -2,57 +2,53 @@
 
 ## State
 
-**ADR 0042 § 3's loader is on disk and green.** `Verified::relocate`
-(`crates/nvs-cli/src/cache.rs:322`) maps a private anonymous region of its own, copies each
-allocatable section of the payload into it at that section's alignment, resolves every undefined
-symbol through a caller-supplied `&dyn Fn(&str) -> Option<*const u8>`, and `make_exec`s — the
-`MmapMut` that was the one writable view is consumed by that call, so W^X is a move rather than a
-rule. § 3, the *In short* and the mapping *Investigation* bullet now say the running pages are the
-**reader's, not the file's**, and why: a relocatable object's sections are laid out for a linker to
-place, a section with no file bytes cannot be placed in place at all, and only a mapping the reader
-owns has room for the landing area. `Cache::load`'s mapping stays read-only for its whole life.
+**ADR 0042 § 2's descriptor question is decided, folded and demonstrated.** A warm hit builds every
+`ClassDesc` itself, out of the IR the front end just lowered — `nvs_codegen::Descriptors`
+(`crates/nvs-codegen/src/lib.rs:723`) is that surface, and the payload carries no class metadata at all
+— so **what a hit skips is codegen, not the front end**. §§ 2–3 now carry the order (build, place,
+relocate, protect, then bind) and the reason it is not a cycle; *Alternatives rejected* holds the
+serialized-`ClassDesc` option and *Revisiting* names the one number that would reopen it, which is
+§ *Verification*'s warm-versus-cold margin — stage 4's test.
 
-**The >2 GB question is decided and recorded** (ADR 0042 § 3, and this module's § *§ 3's loader*):
-a landing area inside the loader's own mapping — eight bytes holding a symbol's full address, and
-`jmp qword ptr [rip + 0]` in front of them for a call — so every displacement written names a
-target inside that mapping. On this host it stays empty, because COFF already reaches an import
-through a `.rdata$.refptr` cell; it is ELF's `PltRelative`/`GotRelative` pair the area exists for.
-`aarch64` is deliberately `Architecture::Unknown` (icache maintenance has no home yet), so every
-artifact is a miss there.
+`cache.rs`'s `this_process` is now the whole of § 3's resolver rather than a stand-in: the dummy
+descriptor is gone, and `a_class_in_a_payload_reaches_the_descriptor_this_process_built` allocates an
+instance, names its class and reads a field back through a descriptor this process built. The rustdoc
+gate is green again (`crates/nvs-cli/src/cache.rs:456` linked a `SectionIndex` it had not imported).
 
-Three of stage 3's six named tests are on disk and pass. Nothing is blocked.
+**The acceptance check's failure was the documented cranelift flake, not a regression** — see the
+playbook's *Running things*: reproducible with `script::` and `cache::` in one binary, gone under
+`--test-threads=1`, and the four named stage-3 tests that exist all pass. Nothing is blocked.
 
 ## Next group
 
-**Stage 3's wiring.** One file set — `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/cache.rs`,
-`crates/nvs-codegen/src/lib.rs`.
+**The wiring.** One file set — `crates/nvs-codegen/src/lib.rs`, `crates/nvs-cli/src/cache.rs`,
+`crates/nvs-cli/src/main.rs`.
 
-- [ ] **Decide where a warm hit's class descriptors come from, and fold it into ADR 0042 § 2.**
-      This is the wiring's real question and it is not settled: § 2 leaves every `nvs_class_desc_*`
-      undefined and § 3 resolves it against "the `ClassDesc` this process allocated", but a run that
-      skips the compile has allocated none, and `nvs-codegen` publishes no table of them —
-      `crates/nvs-codegen/src/lib.rs:1399` is where the JIT fills its own, privately. Either the
-      descriptors are built without a codegen pass (from the layouts the front end already has, so
-      a warm hit skips codegen but not the front end — which is what
-      `a_second_run_of_the_same_program_does_not_compile_it` literally asks for), or § 2 has to
-      carry them in the payload. Pick the first unless it does not hold up: it needs no format
-      change and no serialized runtime type. `crates/nvs-codegen/src/lib.rs:1399`,
-      `crates/nvs-cli/src/cache.rs:322`.
-- [ ] **The wiring itself.** `crates/nvs-cli/src/main.rs:1128` is the `nvs_codegen::compile` a warm
-      hit replaces: the `Cache::load` goes in front of it and the `store` behind it, both keyed on
-      `artifact_key(content_hash(<the source bytes>), env_hash(config))` — not on the payload's own
-      bytes, which is only what this module's tests key on for convenience. Every failure on that
-      path is a miss that falls through to the compile. Drop `cache.rs`'s `#![allow(dead_code)]`
-      when it lands. `crates/nvs-cli/src/main.rs:1128`, `crates/nvs-cli/src/cache.rs:920`.
-- [ ] **The three named tests that need the wiring**, `-p nvs-cli --bin nvs`:
-      `a_second_run_of_the_same_program_does_not_compile_it`,
-      `an_absent_or_unwritable_cache_directory_is_a_miss_and_the_run_succeeds`,
-      `an_edited_source_file_is_a_miss_on_the_next_run`. The tests module already has `object_for`,
-      `this_process` and `output_of` to build on. `crates/nvs-cli/src/cache.rs:1102`,
-      `crates/nvs-cli/src/main.rs:1128`.
+- [ ] **Bind a placed payload's method tables** — § 3's last step, and the one thing a loaded unit still
+      cannot do (a fixture may not call a method on an instance). Mirror the JIT's
+      `bind_method_tables` (`crates/nvs-codegen/src/lib.rs:1617`) with an address source the loader
+      supplies, and give `Loaded` the label-to-address lookup it reads through
+      (`crates/nvs-cli/src/cache.rs:712`, `crates/nvs-cli/src/cache.rs:732`). The spelling is
+      `nvs<index>_<sanitize(label)>` at `crates/nvs-codegen/src/lib.rs:1418`, the index being the
+      position in the very `nvs_ir::Program` the loader also holds; `is_function_symbol` recognises one
+      and `sanitize` is private, so either scan the payload's symbols per label or export the
+      derivation.
+- [ ] **Assemble a `Unit` from placed pages.** `Unit::_module` is a `JITModule`
+      (`crates/nvs-codegen/src/lib.rs:311`) and a loaded unit's code is owned by `Loaded` instead, so
+      that field has to become an owner it can hold either way; `entries`, `shapes` and `statics` all
+      come from the IR or the payload's own symbols, which `finish` shows
+      (`crates/nvs-codegen/src/lib.rs:1516`).
+- [ ] **Consult the cache at the compile site**, `crates/nvs-cli/src/main.rs:1128`, then the three
+      named tests. One wrinkle found this session: `config::boot_snapshot` runs *after* that compile
+      (`crates/nvs-cli/src/main.rs:1160`), so the `[opcache]` directives naming the cache directory are
+      not available where the lookup wants to sit — decide whether the snapshot moves earlier or the
+      directory comes from a pre-boot default. `Cache::new` is `crates/nvs-cli/src/cache.rs:868`.
 
 ## Backlog
 
-- The test resolver hands an `nvs_class_desc_*` a stable dummy address — `cache.rs` *Known gaps*.
-- `aarch64` needs instruction-cache maintenance before it can load — `cache.rs` *Known gaps*.
-- `Unloadable`'s variants are distinguished only for tests; nothing logs one — ADR 0042 § 3.
+- Stage 4's `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names` — the measurement ADR
+  0042 § *Verification* now names, `docs/agent/loop-goal.toml:4294`.
+- Stage 3's `a_second_run_of_the_same_program_does_not_compile_it` and its two miss siblings wait on the
+  wiring above, `docs/agent/loop-goal.toml:4270`.
+- Every `-p nvs-cli` check in this goal will keep flaking about half the time until something reduces
+  that test's 14.5 GB of reserved address space; the playbook's *Running things* holds the measurement.
