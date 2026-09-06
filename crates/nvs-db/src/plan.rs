@@ -8,6 +8,12 @@
 //! change is not the same risk on two backends, and a grade computed anywhere
 //! else would have to be corrected there anyway.
 //!
+//! It is also where [`diff`] lives, and by the same division: § 5's comparison
+//! reads two [`crate::schema::Schema`] values and nothing else, so *finding* a
+//! difference is a question about values where spelling and grading it are
+//! questions about a server. The diff answers the first and hands each change
+//! it found to [`crate::ddl::step`] for the second.
+//!
 //! # A step is never elided
 //!
 //! Every [`Step`] carries complete, terminated SQL, **including the ones the
@@ -33,7 +39,9 @@
 
 use std::fmt;
 
-use crate::schema::{Column, Ident, Key, Table};
+use crate::ddl;
+use crate::schema::{Column, Ident, Key, ScalarType, Schema, Table};
+use crate::sql::Dialect;
 
 /// § 6's three grades: what a step can cost, at worst.
 ///
@@ -364,5 +372,427 @@ impl fmt::Display for Plan {
             }
         }
         Ok(())
+    }
+}
+
+/// Every difference between the schema a program declares and the schema a
+/// database was introspected into, as the plan that closes it in `dialect`.
+///
+/// This is § 5's comparison and the whole of it: `want` and `have` are two
+/// values of one vocabulary, and the diff reads their fields and nothing else.
+/// No statement is emitted, retrieved, parsed or compared here — the SQL a
+/// step carries is [`crate::ddl::step`]'s answer *after* the difference has
+/// already been found, which is why one difference is the same [`Change`] on
+/// all four dialects and only its spelling and its grade move.
+///
+/// The order is the order the steps must run in: `want`'s tables in
+/// declaration order, and within a table its columns in declaration order —
+/// each added or altered — then its new keys, then § 7's reports for what only
+/// the database has. Every `DROP TABLE` report comes last. A report never
+/// runs, so its position is a question about the document rather than about
+/// correctness; [`Plan::runnable`] is what the applier reads.
+///
+/// **A difference the vocabulary cannot name produces no step.** § 2's set is
+/// closed and [`Change`]'s is closed with it, so a primary key that differs
+/// between two tables *both* sides already have is not reported: no change
+/// expresses one, and § 6 grades nothing that does not exist. The case that
+/// occurs is a table only one side has, which carries its key in its
+/// `CREATE TABLE`. For the same reason a key whose columns or kind changed is
+/// a drop and an add under one name, exactly as [`Change`]'s own doc says a
+/// rename is — and by § 7 the drop half of that is reported rather than run.
+///
+/// § 5's normalisation is `dialect`'s other job. Three ways a value a builder
+/// wrote and the same value read back off the server it was applied to differ
+/// without being different schemas, each normalised out of the comparison and
+/// none of them out of the [`Change`] — what a step emits is always `want`'s
+/// own spelling, because that is the name an operator wrote and expects to
+/// read in the SQL:
+///
+/// 1. **Table order.** A read is ordered by whatever the catalog answers and a
+///    built schema by declaration, so the diff matches tables by name and
+///    never by position. The same holds of a table's columns.
+/// 2. **A unique constraint's name** — [`same_key`], which is also § 5's
+///    "implicitly created index".
+/// 3. **The width of SQLite's rowid** — [`same_column`].
+#[must_use]
+pub fn diff(want: &Schema, have: &Schema, dialect: Dialect) -> Plan {
+    let mut changes: Vec<Change> = Vec::new();
+    for table in want.tables() {
+        match have.table(table.name()) {
+            Some(current) => diff_table(table, current, dialect, &mut changes),
+            None => changes.push(Change::CreateTable(table.clone())),
+        }
+    }
+    for table in have.tables() {
+        if want.table(table.name()).is_none() {
+            changes.push(Change::DropTable(table.name().clone()));
+        }
+    }
+    Plan::new(
+        changes
+            .into_iter()
+            .map(|change| ddl::step(change, dialect))
+            .collect(),
+    )
+}
+
+/// The differences between one table a program declares and the same table as
+/// the database has it, appended to `out`.
+///
+/// Every change's `table` is `want`, because [`Change`]'s convention is the
+/// table as it should be *after* the change — and that is true of a report
+/// too, whose after-shape is the one the schema already describes.
+fn diff_table(want: &Table, have: &Table, dialect: Dialect, out: &mut Vec<Change>) {
+    for column in want.columns() {
+        match have.column(column.name()) {
+            None => out.push(Change::AddColumn {
+                table: want.clone(),
+                column: column.clone(),
+            }),
+            Some(current) if !same_column(want, current, column, dialect) => {
+                out.push(Change::ChangeColumn {
+                    table: want.clone(),
+                    from: current.clone(),
+                    to: column.clone(),
+                });
+            }
+            Some(_) => {}
+        }
+    }
+    for (kind, key) in keys(want) {
+        if !keys(have).any(|(other_kind, other)| other_kind == kind && same_key(kind, key, other)) {
+            out.push(Change::AddKey {
+                table: want.clone(),
+                key: key.clone(),
+                kind,
+            });
+        }
+    }
+    for column in have.columns() {
+        if want.column(column.name()).is_none() {
+            out.push(Change::DropColumn {
+                table: want.clone(),
+                column: column.name().clone(),
+            });
+        }
+    }
+    for (kind, key) in keys(have) {
+        if !keys(want).any(|(other_kind, other)| other_kind == kind && same_key(kind, key, other)) {
+            out.push(Change::DropKey {
+                table: want.clone(),
+                key: key.name().clone(),
+                kind,
+            });
+        }
+    }
+}
+
+/// Whether the column the database has is the column the schema declares,
+/// after § 5's normalisation.
+///
+/// Equality of the values first, which is the whole answer on four dialects:
+/// a [`Column`] is its type, its nullability, its identity and its default,
+/// and its name is equal already or this pair would not have been looked up.
+///
+/// The exception is SQLite's rowid. `INTEGER PRIMARY KEY AUTOINCREMENT` is the
+/// only identity that dialect has ([`crate::ddl::rowid_identity`]), it is an
+/// alias for the 64-bit rowid whatever width was declared, and
+/// `pragma table_info` answers the declared type back as `INTEGER` — so a
+/// table written from `Int(Big)` reads as `Int(Normal)` and there is nothing
+/// the server can be asked that would say otherwise. Normalising the width out
+/// is the only alternative to a plan that rewrites the same table forever.
+fn same_column(table: &Table, have: &Column, want: &Column, dialect: Dialect) -> bool {
+    if have == want {
+        return true;
+    }
+    ddl::rowid_identity(table, dialect) == Some(want.name())
+        && matches!(have.ty(), ScalarType::Int(_))
+        && matches!(want.ty(), ScalarType::Int(_))
+        && have.is_nullable() == want.is_nullable()
+        && have.is_identity() == want.is_identity()
+        && have.default_value() == want.default_value()
+}
+
+/// Whether two keys of one kind are the same key, after § 5's normalisation.
+///
+/// **A unique constraint is its columns.** § 5 names "a unique constraint's
+/// implicitly created index" as a normalisation this system lives or dies on,
+/// and the name is where it bites: the constraint is *implemented* as an index
+/// on every one of the five, and what that index is called is the server's
+/// answer rather than ours. SQLite mints `sqlite_autoindex_wide_1` for a
+/// constraint [`crate::ddl`] spelled `CONSTRAINT wide_label UNIQUE (label)`,
+/// and it takes no name for an inline one at all. Two unique constraints over
+/// the same columns in the same order are one constraint whatever either end
+/// calls it — and § 2's vocabulary cannot rename one anyway, so treating the
+/// name as data would only ever produce a drop and an add that never converge.
+///
+/// **An index is its name and its columns.** Every backend takes the name an
+/// operator wrote for a plain index, keeps it and answers it back, and two
+/// indexes over the same columns are a thing a database legitimately has.
+fn same_key(kind: KeyKind, left: &Key, right: &Key) -> bool {
+    match kind {
+        KeyKind::Unique => left.columns() == right.columns(),
+        KeyKind::Index => left.name() == right.name() && left.columns() == right.columns(),
+    }
+}
+
+/// A table's keys, unique constraints first, each with the kind it is.
+fn keys(table: &Table) -> impl Iterator<Item = (KeyKind, &Key)> {
+    table
+        .unique_keys()
+        .iter()
+        .map(|key| (KeyKind::Unique, key))
+        .chain(table.indexes().iter().map(|key| (KeyKind::Index, key)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{IntWidth, ScalarType};
+
+    /// The four dialects, in the order [`Dialect`] declares them.
+    const DIALECTS: [Dialect; 4] = [
+        Dialect::PostgreSql,
+        Dialect::MySql,
+        Dialect::Sqlite,
+        Dialect::SqlServer,
+    ];
+
+    fn col(name: &str, ty: ScalarType) -> Column {
+        Column::new(name, ty).unwrap()
+    }
+
+    /// One table a program declares and one it is about to create, carrying a
+    /// difference of every kind the vocabulary has against [`introspected`].
+    fn declared() -> Schema {
+        Schema::new(vec![
+            Table::new(
+                "kept",
+                vec![
+                    col("id", ScalarType::Int(IntWidth::Big))
+                        .identity()
+                        .unwrap(),
+                    col("name", ScalarType::Text { max: Some(200) }),
+                    col("live", ScalarType::Bool).null(),
+                ],
+            )
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap()
+            .unique("kept_name", &["name"])
+            .unwrap()
+            .index("kept_live", &["live"])
+            .unwrap(),
+            Table::new("fresh", vec![col("id", ScalarType::Int(IntWidth::Big))])
+                .unwrap()
+                .primary_key(&["id"])
+                .unwrap(),
+        ])
+        .unwrap()
+    }
+
+    /// The same database as it actually is: `name` is narrower, `live` is
+    /// missing, `gone` and its index are not declared, and `stale` is a table
+    /// the schema value has never heard of.
+    fn introspected() -> Schema {
+        Schema::new(vec![
+            Table::new(
+                "kept",
+                vec![
+                    col("id", ScalarType::Int(IntWidth::Big))
+                        .identity()
+                        .unwrap(),
+                    col("name", ScalarType::Text { max: Some(40) }),
+                    col("gone", ScalarType::Bool).null(),
+                ],
+            )
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap()
+            .index("kept_gone", &["gone"])
+            .unwrap(),
+            Table::new("stale", vec![col("id", ScalarType::Int(IntWidth::Big))])
+                .unwrap()
+                .primary_key(&["id"])
+                .unwrap(),
+        ])
+        .unwrap()
+    }
+
+    /// § 5, as the property that the *differences* are dialect-free.
+    ///
+    /// Agreement rather than a reading of one dialect's answer: the four
+    /// spell this plan four different ways, and a diff that had reached for
+    /// any of that text — a type name, a quoted identifier, a rebuild — would
+    /// disagree with itself here while still printing plausibly on its own.
+    /// The `to_string` list is the same claim from the other side, since a
+    /// [`Change`] prints only what the values said.
+    #[test]
+    fn the_diff_compares_normalized_values_and_never_sql_text() {
+        let (want, have) = (declared(), introspected());
+        let mut shapes: Vec<Vec<Change>> = Vec::new();
+        let mut documents: Vec<String> = Vec::new();
+        for dialect in DIALECTS {
+            let plan = diff(&want, &have, dialect);
+            shapes.push(
+                plan.steps()
+                    .iter()
+                    .map(|step| step.change().clone())
+                    .collect(),
+            );
+            documents.push(plan.to_string());
+            assert!(
+                diff(&want, &want, dialect).is_empty(),
+                "{dialect:?} found a difference between a value and itself"
+            );
+            assert!(
+                diff(&have, &have, dialect).is_empty(),
+                "{dialect:?} found a difference between a read value and itself"
+            );
+        }
+        for (dialect, shape) in DIALECTS.iter().zip(&shapes) {
+            assert_eq!(
+                shape, &shapes[0],
+                "{dialect:?} found different differences from PostgreSQL"
+            );
+        }
+        for (at, document) in documents.iter().enumerate() {
+            for (other, against) in documents.iter().enumerate().skip(at + 1) {
+                assert_ne!(
+                    document, against,
+                    "{:?} and {:?} spell this plan identically, so the agreement above is vacuous",
+                    DIALECTS[at], DIALECTS[other]
+                );
+            }
+        }
+        let printed: Vec<String> = shapes[0].iter().map(Change::to_string).collect();
+        assert_eq!(
+            printed,
+            [
+                "change column kept.name",
+                "add column kept.live",
+                "add unique key kept_name on kept",
+                "add index kept_live on kept",
+                "drop column kept.gone",
+                "drop index kept_gone on kept",
+                "create table fresh",
+                "drop table stale",
+            ]
+        );
+    }
+
+    /// § 5's normalisation, at the name a unique constraint's index is given.
+    ///
+    /// Both bounds, because the rule is narrow and a blanket "names do not
+    /// count" would pass the first assert alone: a unique constraint over
+    /// *other* columns is still a difference, and a plain index under another
+    /// name is still a difference, since nothing mints one of those.
+    #[test]
+    fn an_implicit_index_a_unique_constraint_created_is_not_a_difference() {
+        let table = |key: &str, on: &str, index: &str| {
+            Schema::new(vec![
+                Table::new(
+                    "wide",
+                    vec![
+                        col("label", ScalarType::Text { max: Some(200) }),
+                        col("note", ScalarType::Text { max: Some(200) }),
+                    ],
+                )
+                .unwrap()
+                .unique(key, &[on])
+                .unwrap()
+                .index(index, &["note"])
+                .unwrap(),
+            ])
+            .unwrap()
+        };
+        let declared = table("wide_label", "label", "wide_note");
+        for dialect in DIALECTS {
+            assert!(
+                diff(
+                    &declared,
+                    &table("sqlite_autoindex_wide_1", "label", "wide_note"),
+                    dialect
+                )
+                .is_empty(),
+                "{dialect:?} saw the server's own name for the constraint's index"
+            );
+            assert_eq!(
+                diff(
+                    &declared,
+                    &table("wide_label", "note", "wide_note"),
+                    dialect
+                )
+                .len(),
+                2,
+                "{dialect:?} lost a unique constraint that moved to another column"
+            );
+            assert_eq!(
+                diff(
+                    &declared,
+                    &table("wide_label", "label", "wide_note_idx"),
+                    dialect
+                )
+                .len(),
+                2,
+                "{dialect:?} normalised the name of a plain index, which nothing mints"
+            );
+        }
+    }
+
+    /// § 7, for a whole table: the operator's own table is shown with the SQL
+    /// that would remove it, and the plan that holds it still runs clean.
+    #[test]
+    fn a_table_the_schema_does_not_declare_is_reported_and_never_dropped() {
+        let app = Table::new("app", vec![col("id", ScalarType::Int(IntWidth::Big))]).unwrap();
+        let want = Schema::new(vec![app.clone()]).unwrap();
+        let have = Schema::new(vec![
+            app,
+            Table::new(
+                "operators_own",
+                vec![col("note", ScalarType::Text { max: Some(40) })],
+            )
+            .unwrap(),
+        ])
+        .unwrap();
+        for dialect in DIALECTS {
+            let plan = diff(&want, &have, dialect);
+            assert_eq!(plan.len(), 1, "{dialect:?}");
+            let step = &plan.steps()[0];
+            assert_eq!(step.change().to_string(), "drop table operators_own");
+            assert!(step.is_report(), "{dialect:?}");
+            assert_eq!(step.grade(), Grade::Destructive, "{dialect:?}");
+            assert!(
+                step.sql()
+                    .iter()
+                    .any(|statement| statement.contains("DROP TABLE operators_own")),
+                "{dialect:?} elided the SQL of a report: {:?}",
+                step.sql()
+            );
+            assert_eq!(plan.runnable().count(), 0, "{dialect:?}");
+            assert!(plan.first_refused().is_none(), "{dialect:?}");
+        }
+    }
+
+    /// § 7 again, one column down — and the case SQLite answers with a whole
+    /// rebuild, which is still a report and still never applied.
+    #[test]
+    fn a_column_the_schema_does_not_declare_is_reported_and_never_dropped() {
+        let declared = vec![col("id", ScalarType::Int(IntWidth::Big))];
+        let mut carried = declared.clone();
+        carried.push(col("added_by_hand", ScalarType::Text { max: Some(40) }).null());
+        let want = Schema::new(vec![Table::new("app", declared).unwrap()]).unwrap();
+        let have = Schema::new(vec![Table::new("app", carried).unwrap()]).unwrap();
+        for dialect in DIALECTS {
+            let plan = diff(&want, &have, dialect);
+            assert_eq!(plan.len(), 1, "{dialect:?}");
+            let step = &plan.steps()[0];
+            assert_eq!(step.change().to_string(), "drop column app.added_by_hand");
+            assert!(step.is_report(), "{dialect:?}");
+            assert_eq!(step.grade(), Grade::Destructive, "{dialect:?}");
+            assert!(!step.sql().is_empty(), "{dialect:?}");
+            assert_eq!(plan.runnable().count(), 0, "{dialect:?}");
+            assert!(plan.first_refused().is_none(), "{dialect:?}");
+        }
     }
 }
