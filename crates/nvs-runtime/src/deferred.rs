@@ -14,7 +14,7 @@
 //!
 //! **A request that did not return ordinarily runs none of it.** An uncaught
 //! throw, a [`crate::EXITED`] and an
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) `FATAL` all
+//! `rule:errors/escalation-ladder` `FATAL` all
 //! leave the request's status on the context, and that status is what the host
 //! is about to report; script running over it would either lose the status or
 //! lose its own. § 6's subject is a request that produced a response, and the
@@ -208,7 +208,7 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         host.run_group(ctx, vec![job], bounds)
     });
     match outcome {
-        // § 6: an uncaught throw goes through ADR 0020's ladder, and tier 2's
+        // § 6: an uncaught throw goes through `rule:errors/escalation-ladder`'s ladder, and tier 2's
         // `onUncaughtThrow` does **not** fire, because it was the finished
         // request's. So this lands at tier 4, the floor, as the same record
         // `Core\Log::write` writes — `crate::floor` owns why one shape and not
@@ -274,7 +274,7 @@ fn call_deferred(child: &mut Ctx, closure: Value) -> Value {
     }
 }
 
-/// The `origin` field both failures above carry — ADR 0020 § 6's "whatever
+/// The `origin` field both failures above carry — `rule:errors/log-write`'s "whatever
 /// structured context that call site has", which here is the one fact a reader
 /// cannot recover from the record otherwise: the throw happened after the
 /// response, in work the request registered rather than in the request.

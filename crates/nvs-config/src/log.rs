@@ -1,5 +1,5 @@
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 4's `[log] target` and
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md) §§ 2-3's
+//! `rule:errors/engine-floor`'s `[log] target` and
+//! `rule:errors/log-level` and `rule:errors/renderings`'s
 //! `[log] level` and `[log] format`: what each names, and the boot-time refusal of everything else.
 //!
 //! **The grammar is here and not at the sink, because two readers need it.** [`Target::of`] is the
@@ -9,7 +9,7 @@
 //! is the worst-shaped one available — a tree that boots green and routes its records nowhere.
 //!
 //! The level's grammar is [`nvs_render::Level::of`] and is read by that same pair, one crate down:
-//! `[log] level` names one of ADR 0092 § 2's five, and the roster's home is the enum a record
+//! `[log] level` names one of `rule:errors/log-level`'s five, and the roster's home is the enum a record
 //! already carries. Only the *refusal* is here — [`levelled`] — because only this crate has the
 //! tree and the origins to say which file the word was written in.
 //!
@@ -36,7 +36,7 @@ use nvs_render::Level;
 use crate::resolve::{Origin, origin_note};
 use crate::tree::{Config, Log};
 
-/// One of ADR 0020 § 4's three destinations, as written.
+/// One of `rule:errors/engine-floor`'s three destinations, as written.
 ///
 /// Borrowed rather than owned: both callers have the written value in hand and neither keeps this
 /// past the sink it builds, so a `String` here would be an allocation per boot per block for a
@@ -71,7 +71,7 @@ impl<'a> Target<'a> {
     }
 }
 
-/// One of ADR 0092 § 3's two log-target renderings, as written.
+/// One of `rule:errors/renderings`'s two log-target renderings, as written.
 ///
 /// Owned by nothing and borrowing nothing, unlike [`Target`] above: a rendering is a choice
 /// between two functions rather than a value carried into a sink, so both readers keep the answer
@@ -159,7 +159,7 @@ fn spelled(written: &str, key: &str, origins: &BTreeMap<String, Origin>) -> Resu
         format!("`[log] target = \"{written}\"` names no destination"),
     )
     .with_note(format!(
-        "ADR 0020 § 4's floor writes to `stderr`, to `file:<path>` or to `syslog`{}",
+        "`rule:errors/engine-floor`'s floor writes to `stderr`, to `file:<path>` or to `syslog`{}",
         origin_note(origins.get(key))
     ))
     .with_help(help.to_string()))
@@ -185,7 +185,7 @@ fn levelled(
         format!("`[log] level = \"{written}\"` names no level"),
     )
     .with_note(format!(
-        "ADR 0092 § 2's roster is `Debug`, `Info`, `Warn`, `Error` and `Critical`{}",
+        "`rule:errors/log-level`'s roster is `Debug`, `Info`, `Warn`, `Error` and `Critical`{}",
         origin_note(origins.get(key))
     ))
     .with_help(
@@ -215,7 +215,7 @@ fn formatted(
         format!("`[log] format = \"{written}\"` names no rendering a log target emits"),
     )
     .with_note(format!(
-        "ADR 0092 § 3 gives this directive two values, `json` and `text`{}",
+        "`rule:errors/renderings` gives this directive two values, `json` and `text`{}",
         origin_note(origins.get(key))
     ))
     .with_help(
@@ -288,7 +288,7 @@ mod tests {
         }
     }
 
-    /// The level directive's grammar, asked through the same check the target's is: ADR 0092
+    /// The level directive's grammar, asked through the same check the target's is: `rule:errors/diagnostic-record`
     /// § 2's five in both of the spellings the documentation uses, and one refusal for everything
     /// else — including the near-miss a PSR-3 habit produces, which is the whole reason this is
     /// checked at all.
@@ -300,13 +300,14 @@ mod tests {
     fn every_level_resolves_in_both_of_its_spellings_and_nothing_else_does() {
         for level in Level::ALL {
             for written in [level.case_name(), level.name()] {
-                validate(&levelled_tree(written), &BTreeMap::new())
-                    .unwrap_or_else(|_| panic!("`{written}` is how ADR 0092 § 2 is read back"));
+                validate(&levelled_tree(written), &BTreeMap::new()).unwrap_or_else(|_| {
+                    panic!("`{written}` is how `rule:errors/log-level` is read back")
+                });
             }
         }
         for written in ["warning", "notice", "DEBUG", "trace", ""] {
             let Err(refused) = validate(&levelled_tree(written), &BTreeMap::new()) else {
-                panic!("`{written}` is not one of ADR 0092 § 2's five");
+                panic!("`{written}` is not one of `rule:errors/log-level`'s five");
             };
             assert_eq!(refused.code, Some(code::E_UNSPELLED_LOG_LEVEL));
             assert!(
@@ -328,7 +329,7 @@ mod tests {
         }
     }
 
-    /// ADR 0092 § 3's two values, and the refusal of everything else — including `html`, which is a
+    /// `rule:errors/renderings`'s two values, and the refusal of everything else — including `html`, which is a
     /// rendering of the same record and is not one of this directive's two.
     ///
     /// The bound is named on both sides in one test because the roster is two long: a check that
@@ -338,7 +339,7 @@ mod tests {
     fn the_two_renderings_a_target_emits_resolve_and_the_third_one_does_not() {
         for written in ["json", "text"] {
             validate(&formatted_tree(written), &BTreeMap::new())
-                .unwrap_or_else(|_| panic!("`{written}` is one of ADR 0092 § 3's two"));
+                .unwrap_or_else(|_| panic!("`{written}` is one of `rule:errors/renderings`'s two"));
         }
         for written in ["html", "JSON", "plain", "jsonl", ""] {
             let Err(refused) = validate(&formatted_tree(written), &BTreeMap::new()) else {

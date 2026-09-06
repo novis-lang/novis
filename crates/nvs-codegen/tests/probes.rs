@@ -12,7 +12,7 @@ use common::*;
 fn a_pending_safepoint_stops_the_script_before_it_writes_anything() {
     // The poll `nvs-codegen` emits at function entry, doing its job: a request
     // whose CPU budget is already spent never reaches its first statement, and
-    // the stop is FATAL rather than THROWN because ADR 0020 keeps a
+    // the stop is FATAL rather than THROWN because `rule:errors/escalation-ladder` keeps a
     // resource-limit report out of `catch` entirely.
     let mut ctx = Ctx::buffered();
     ctx.request_safepoint(SafepointFlags::CPU_LIMIT);

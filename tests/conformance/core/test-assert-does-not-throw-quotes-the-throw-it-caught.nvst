@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertDoesNotThrow` fails as its own class carrying the caught throw's message, takes the pending throw so nothing downstream sees it, and agrees with a hand-written `try` over a table of bodies — ADR 0079 §§ 4, 20, ADR 0002
+`Core\Test::assertDoesNotThrow` fails as its own class carrying the caught throw's message, takes the pending throw so nothing downstream sees it, and agrees with a hand-written `try` over a table of bodies — ADR 0079 §§ 4, 20, `rule:errors/propagation`
 --FILE--
 <?nvs
 // The member's whole output on failure is the message of the throw it caught,
@@ -91,7 +91,7 @@ try {
 }
 
 // 3. And the pending throw is gone: the very next assertion holds rather than
-// inheriting it, which is the half of ADR 0002's protocol a report cannot show.
+// inheriting it, which is the half of `rule:errors/propagation`'s protocol a report cannot show.
 Test::assertDoesNotThrow(fn (): void => { Body::quiet(); });
 Test::assertDoesNotThrow(fn (): string => Body::value());
 echo "two held after a failure\n";

@@ -164,7 +164,7 @@ while (var $msg = $conn->receive()) {                 // suspends; no colour, no
 - **A received frame's payload is `tainted`** — it is untrusted input arriving over a network, exactly like
   a request body — and `Core\Validate` is the only way to launder it
   ([0024](0024-taint-tracking-for-injection-sinks.md) § 3, [0082](0082-the-first-party-framework.md) § 2).
-- **Escalation is [ADR 0020](0020-error-escalation-ladder.md)'s ladder**, with the connection as the unit a
+- **Escalation is `rule:errors/escalation-ladder`'s ladder**, with the connection as the unit a
   fatal error tears down.
 
 ### 4. `Core\Topic` — the only way two connections meet

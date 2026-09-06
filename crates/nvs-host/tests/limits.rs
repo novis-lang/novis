@@ -1,4 +1,4 @@
-//! What a resource limit does to a request in flight — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! What a resource limit does to a request in flight — `rule:errors/escalation-ladder`
 //! § 1's ladder, asked at the safepoint poll that is the only place a program
 //! allocating without calling anything can be stopped — and, for the one
 //! ceiling that bounds a *tree* rather than a request, at the `spawn script`
@@ -270,7 +270,7 @@ fn breached() -> (Ctx, Vec<u8>) {
     (ctx, hog)
 }
 
-/// ADR 0020 § 1: a request past its memory ceiling is stopped, and stopped as
+/// `rule:errors/on-limit`: a request past its memory ceiling is stopped, and stopped as
 /// a `FATAL`.
 ///
 /// The status is the assertion, because the status *is* the catchability:
@@ -297,7 +297,7 @@ fn a_memory_cap_terminates_a_runaway_script_as_a_fatal() {
     drop(hog);
 }
 
-/// ADR 0020 § 1 lists CPU time beside memory: a request the CPU-time flag has
+/// `rule:errors/on-limit` lists CPU time beside memory: a request the CPU-time flag has
 /// been raised on is stopped at the next poll, stopped as a `FATAL`, and taken
 /// through the same tier-1 ladder on the way out.
 ///
@@ -331,7 +331,7 @@ fn a_cpu_cap_terminates_a_runaway_script_as_a_fatal() {
     );
 }
 
-/// ADR 0020 § 1's `closure(LimitReport)`: the handler is handed a report, and
+/// `rule:errors/on-limit`'s `closure(LimitReport)`: the handler is handed a report, and
 /// the report names the limit that stopped *this* request rather than the one
 /// the ladder happens to be written around.
 ///
@@ -371,7 +371,7 @@ fn a_limit_handler_is_handed_a_report_naming_the_limit() {
     assert_eq!(seen().as_deref(), Some("cpu_time"));
 }
 
-/// ADR 0020 § 1: the registered handler runs, it runs *before* the breach
+/// `rule:errors/on-limit`: the registered handler runs, it runs *before* the breach
 /// becomes the status the request reports, and it runs **once** — a handler
 /// that breaches again is abandoned rather than called a second time.
 ///
@@ -411,7 +411,7 @@ fn a_limit_fatal_reaches_on_limit_and_never_a_catch() {
     drop(hog);
 }
 
-/// ADR 0020 § 1: the handler runs out of a slice of the request's own budget
+/// `rule:errors/on-limit`: the handler runs out of a slice of the request's own budget
 /// reserved for it and unavailable to ordinary execution.
 ///
 /// Asserted from *inside* the handler, because that is the only place the
@@ -457,7 +457,7 @@ fn a_fatal_handler_runs_inside_its_reserved_slice() {
     drop(hog);
 }
 
-/// ADR 0020 § 1's reserved slice has a CPU half, and on that half the ceiling
+/// `rule:errors/on-limit`'s reserved slice has a CPU half, and on that half the ceiling
 /// is only half the mechanism: a handler entered under `CPU_LIMIT` and left
 /// under it is stopped again at its own first back edge, so its slice is zero
 /// wide however many nanoseconds `fatal_reserve_time` names.
@@ -509,7 +509,7 @@ fn a_fatal_handler_runs_inside_its_reserved_time_slice() {
 /// all: a recursive `spawn script` is stopped by that ceiling and **reported as that ceiling**
 /// rather than as an out-of-memory.
 ///
-/// `docs/plan/m8.md`'s *Verify*, ADR 0020 § 3: the tier-3 handler runs charged to the engine's own
+/// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`: the tier-3 handler runs charged to the engine's own
 /// reserve, and still runs when the request reporting itself is at its own ceiling.
 ///
 /// Asserted on the **context**, because that is where the exception to ADR 0006 lives and where a
@@ -658,7 +658,7 @@ impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
     }
 }
 
-/// `docs/plan/m8.md`'s *Verify*, ADR 0020 § 3's second clause: the configured handler **still
+/// `docs/plan/m8.md`'s *Verify*, `rule:errors/handler-script`'s second clause: the configured handler **still
 /// fires** when the request reporting itself is at its own memory ceiling.
 ///
 /// The sibling above asks [`Ctx::handler_isolate`] for the three fields it parts from
@@ -674,7 +674,7 @@ impl nvs_runtime::script::Resolver for ResolvesToTheProbe {
 /// alone. [`reports_from_inside_the_reserve`] owns that reasoning.
 ///
 /// The output is asserted too, because the handler's bytes are `Output::Inherit`'s: a report that
-/// appeared on a stream of its own would be the second channel ADR 0020 § 6 does not have.
+/// appeared on a stream of its own would be the second channel `rule:errors/log-write` does not have.
 #[test]
 fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling() {
     // `Buffer` rather than `breached`'s `Sink`, because the handler's own output joins this
@@ -758,7 +758,7 @@ fn the_handler_still_fires_when_the_reporting_request_is_at_its_memory_ceiling()
 /// failure this replaces. An unbounded recursion of isolates already stopped — it exhausted the
 /// tree's heap — and already stopped as a `FATAL`, so a case asking only whether the spawn was
 /// refused would have passed before any of this was written. What separates the two is the word the
-/// handler is handed, so it is read out of ADR 0020 § 1's report rather than out of the message: a
+/// handler is handed, so it is read out of `rule:errors/on-limit`'s report rather than out of the message: a
 /// program branches on `max_script_depth`, never on a sentence.
 ///
 /// The refusal is asked of `Isolate::start` directly because that is the single point it lives at —
@@ -796,7 +796,7 @@ fn a_recursive_spawn_is_reported_as_max_script_depth_and_not_as_memory() {
     assert!(
         deepest.pending().is_some(),
         "the request is failing from the refusal onwards — `Core\\Script::spawn` reads this and \
-         answers ADR 0020 § 1's `FATAL`, which no `catch` sees",
+         answers `rule:errors/on-limit`'s `FATAL`, which no `catch` sees",
     );
 
     let completion = refused.join(&mut deepest);
@@ -901,7 +901,7 @@ fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
         "and is therefore over an output ceiling none of its isolates individually reached",
     );
 
-    // ADR 0020 § 1's other half of a tree-wide budget: the clock. Both orders, because they fail
+    // `rule:errors/on-limit`'s other half of a tree-wide budget: the clock. Both orders, because they fail
     // differently — a copied flag reaches the second and never the first.
     let early = root.isolate(OutputSink::Sink);
     assert!(!early.deadline_expired(), "nothing has fired yet");
@@ -946,7 +946,7 @@ fn n_concurrent_isolates_cannot_together_exceed_the_trees_budget() {
     assert_eq!(
         status,
         nvs_runtime::FATAL,
-        "a request past `[limits] max_output` is stopped by the poll, as ADR 0020 § 1's other \
+        "a request past `[limits] max_output` is stopped by the poll, as `rule:errors/on-limit`'s other \
          resource limits are",
     );
 }

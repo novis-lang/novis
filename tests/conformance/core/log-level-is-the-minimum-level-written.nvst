@@ -1,8 +1,8 @@
 --TEST--
-`[log] level` is the minimum level written, with the bound named on both sides: the last level a deployment drops and the first one it keeps — ADR 0092 § 2
+`[log] level` is the minimum level written, with the bound named on both sides: the last level a deployment drops and the first one it keeps — `rule:errors/log-level`
 --FILE--
 <?nvs
-// ADR 0092 § 2's last paragraph. The directive names a floor, not a filter for
+// `rule:errors/log-level`'s last paragraph. The directive names a floor, not a filter for
 // one level, so the roster is walked past it in both directions: `Debug` and
 // `Info` are quieter than `Warn` and are written nowhere, `Warn` is the level
 // named and is written, and `Error` is louder and is written too. A floor

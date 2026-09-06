@@ -184,7 +184,7 @@ pub enum Ty {
     /// # Why `mixed` and `?T` are one representation, not two
     ///
     /// Both need the same thing: a discriminant read at runtime. That
-    /// discriminant already existed — the tag byte every ADR 0002 call
+    /// discriminant already existed — the tag byte every `rule:errors/propagation` call
     /// boundary has carried since M3 — so reusing it costs no new invariant,
     /// while two shapes would have meant two widen/narrow protocols, two
     /// refcount paths and two ways for a `?mixed` to be ambiguous. A `?T` is

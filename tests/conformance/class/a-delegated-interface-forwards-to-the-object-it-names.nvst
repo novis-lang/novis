@@ -24,7 +24,7 @@ final class Polite implements Greets {
     }
 }
 
-// The forward carries ADR 0002's error edge like any other call, so a throwing
+// The forward carries `rule:errors/propagation`'s error edge like any other call, so a throwing
 // delegate leaves through it and is caught where the *outer* call is written.
 final class Rude implements Greets {
     public function greet(string $who): string {

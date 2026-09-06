@@ -182,7 +182,7 @@
 //! pointer-in, pointer-out shape every other primitive here has does not have
 //! one.
 //!
-//! It therefore takes [ADR 0002](/docs/adr/0002-error-propagation.md)'s
+//! It therefore takes `rule:errors/propagation`'s
 //! shape instead — `(ctx, array, value, out) -> status`, the array it yields
 //! travelling through a caller-owned pointer-wide slot the way
 //! `nvs_object_slot_set`'s result does — and it is the **only** array
@@ -1262,7 +1262,7 @@ pub(crate) unsafe fn borrowed_values(ptr: *mut ArrayHeader) -> Vec<Value> {
 // ---------------------------------------------------------------------------
 //
 // The same split [`crate::string`]'s own primitives are on, for the same
-// reason: none of these can fail, so none of them wears ADR 0002's
+// reason: none of these can fail, so none of them wears `rule:errors/propagation`'s
 // checked-return shape. Every one is `extern "C"` and never
 // `extern "C-unwind"`.
 //
@@ -1271,7 +1271,7 @@ pub(crate) unsafe fn borrowed_values(ptr: *mut ArrayHeader) -> Vec<Value> {
 // two integer registers on one, a hidden pointer on the other — and
 // `nvs-codegen` would have to encode that difference to call these at all.
 // Every site that needs one therefore passes the address of a 16-byte slot the
-// caller owns, which is exactly what ADR 0002's own `(ctx, args, out)` helper
+// caller owns, which is exactly what `rule:errors/propagation`'s own `(ctx, args, out)` helper
 // shape already does, so codegen reuses `store_value`/`load_value` unchanged.
 //
 // Every mutator consumes one reference to its `array` argument and returns

@@ -85,7 +85,7 @@ The one file set the next four items share: a directive's declaration, and how a
     symlink does not match — item 6 wrote that comparison once.
 11. **Safepoint-driven limit enforcement.** Memory and CPU caps terminate a runaway script as a `FATAL`,
     reported to `Core\Fatal::onLimit` if registered and **never to an ordinary `catch`** —
-    [ADR 0020](../../adr/0020-error-escalation-ladder.md). Safepoints have been emitted since the first
+    `rule:errors/escalation-ladder`. Safepoints have been emitted since the first
     backend commit and goal 2's cancellation is their first consumer; this is the second.
 12. **The isolate's governance, which is goal 2's deferred half.** `script.spawn` with
     canonicalise-then-prefix path resolution, `max_script_depth`, per-tree accounting of every `[limits]`
@@ -165,7 +165,7 @@ there by the switch that left it and folded forward at every switch since.
   it. Writing it three times is how one of them ends up accepting a symlink.
 - **`Core\Config::set` above the hard ceiling returns `false`; it does not throw.** m6.md's *Verify* says
   so and an implementation that throws is a different API.
-- **A limit breach is a `FATAL` and never reaches a `catch`.** ADR 0020 decided it. A fixture that wants
+- **A limit breach is a `FATAL` and never reaches a `catch`.** `rule:errors/escalation-ladder` decided it. A fixture that wants
   to catch one has found the rule, not a bug.
 - **The artifact cache is ADR 0042 as written.** If the implementation forces a different shape, record
   *that* in the crate's module doc with the reason and put the redesign in `## Backlog` — do not start one

@@ -1,4 +1,4 @@
-# ADR 0095 — A name that resolves to something other than what it spells is refused, never repaired
+# `rule:errors/ambiguous-input-refused` — A name that resolves to something other than what it spells is refused, never repaired
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

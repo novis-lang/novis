@@ -25,7 +25,7 @@
 //!
 //! `nvs_runtime`'s `STACK_RESERVE` is already 256 KiB of unwinding room between
 //! the soft recursion limit and the hard floor
-//! ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1). A stack
+//! (`rule:errors/on-limit`). A stack
 //! narrower than several times that would put the soft limit so close to its
 //! own base that a handler would be refused before it had done anything; 1 MiB
 //! leaves 768 KiB of ordinary depth above a reserve that is itself sized for

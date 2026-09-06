@@ -11,7 +11,7 @@
 //! refuses is refused identically in both places. § 3 states that as a rule
 //! and this module is the whole of keeping it: there is no second grammar
 //! here, no tolerant re-lexing, and no arm that repairs input the compiler
-//! would reject ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+//! would reject (`rule:errors/ambiguous-input-refused`).
 //!
 //! That is also why source with an error is a `ParseError` rather than a tree
 //! carrying an `Error` node. The compiler keeps error nodes because it has

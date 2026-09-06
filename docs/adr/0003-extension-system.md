@@ -180,7 +180,7 @@ From spike #4, release build:
 | fresh instance + one call, pooled | 7.57 µs |
 | runaway guest stopped by epoch interruption | traps correctly |
 
-For comparison, a built-in call frame costs 0.85 ns ([ADR 0002](0002-error-propagation.md)). **An
+For comparison, a built-in call frame costs 0.85 ns (`rule:errors/propagation`). **An
 extension call therefore carries roughly 10 ns more overhead than a built-in call.**
 
 The instantiation figure is the most environment-sensitive of these: 7.57 µs was measured in an isolated

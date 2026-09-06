@@ -92,7 +92,7 @@ fn stack_probes_are_enabled() {
     // larger than the guard page can step over it in one move and write past
     // it — a stack clash, and a memory-safety bug rather than the clean crash
     // the guard page exists to produce. `Jit::new`'s own comment carries the
-    // measurement that says it costs nothing, and why it is not ADR 0020 § 1's
+    // measurement that says it costs nothing, and why it is not `rule:errors/on-limit`'s
     // call-stack limit wearing a different name.
     assert!(
         backend().contains(r#"("enable_probestack", "true")"#),

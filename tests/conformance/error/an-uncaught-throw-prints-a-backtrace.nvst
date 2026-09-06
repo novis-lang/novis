@@ -1,5 +1,5 @@
 --TEST--
-an uncaught throw exits non-zero and reaches the floor as one ADR 0020 § 6 record, class and frames included
+an uncaught throw exits non-zero and reaches the floor as one `rule:errors/log-write` record, class and frames included
 --FILE--
 <?nvs
 class Boom {

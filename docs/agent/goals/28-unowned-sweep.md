@@ -83,7 +83,7 @@ both sides, and the widening side wins:
 
 ## Stage 4 — the two small ones
 
-1. **A custom panic hook**, [ADR 0002](../../adr/0002-error-propagation.md) § *Corollary*:
+1. **A custom panic hook**, `rule:errors/helper-abi`:
    the panic message routed to the request log with its request id. `crates/nvs-runtime/src/lib.rs`
    gap 4 says the blocker went away in M5 — the request log exists as `Ctx::write_log_record` under
    `nvs_stdlib::log` — and that `nvs_helper!` already captures the message into `Ctx`, so what is left

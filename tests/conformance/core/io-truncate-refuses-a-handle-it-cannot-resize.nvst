@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::truncate` asks for no capability of its own — the handle is the grant — and the two ways it can still fail land on either side of ADR 0020 § 2's split — spec § 14, ADR 0118 § 2
+`Core\IO\File::truncate` asks for no capability of its own — the handle is the grant — and the two ways it can still fail land on either side of `rule:errors/on-uncaught-throw`'s split — spec § 14, ADR 0118 § 2
 --FILE--
 <?nvs
 // The capability question was settled at `open`: `fs.write` was shown then, and

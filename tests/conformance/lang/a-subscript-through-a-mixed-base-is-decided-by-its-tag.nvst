@@ -25,8 +25,8 @@ echo $declared[2], " ", $erased[2], "\n";
 
 // The two rows that throw. A `catch` binding has no callable members yet, so
 // each arm prints a marker rather than the message; that the throw is
-// *catchable* is the claim — ADR 0002 propagates it by checked return like any
-// other call, never through ADR 0020's fatal ladder.
+// *catchable* is the claim — `rule:errors/propagation` propagates it by checked return like any
+// other call, never through `rule:errors/escalation-ladder`'s fatal ladder.
 try {
     echo $list[9], "\n";
     echo "not reached\n";

@@ -6,7 +6,7 @@
 //! `nvs-codegen` branches to at every function entry and loop back edge.
 //!
 //! The two are one file because they are one decision made twice.
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's stack pair and
+//! `rule:errors/on-limit`'s stack pair and
 //! [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 //! § 5's deadline both put a *load and a compare* on the request path and push
 //! everything else behind it, and reading the accessor beside the helper that
@@ -15,7 +15,7 @@
 use super::*;
 
 impl Ctx {
-    /// Arms [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// Arms `rule:errors/escalation-ladder`
     /// § 1's two stack addresses from a base address and a ceiling: the hard
     /// floor `ceiling` bytes below `base`, and the soft limit
     /// [`STACK_RESERVE`] above the floor.
@@ -157,7 +157,7 @@ impl Ctx {
 ///
 /// Returns [`crate::FATAL`] for a request that must stop, and [`crate::OK`]
 /// otherwise. A resource-limit stop is deliberately not a `THROWN`:
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) makes it not
+/// `rule:errors/escalation-ladder` makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
 /// Two of the four flags act; see the crate docs' known gap 5.
@@ -177,14 +177,14 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         reason = "the caller guarantees `ctx` is valid for this call; nothing \
                   here can panic, so no `catch_unwind` is needed to keep the \
                   unwind out of the JIT frame above — the one thing reached \
-                  from here that is not a load and a compare is ADR 0020 § 1's \
+                  from here that is not a load and a compare is `rule:errors/on-limit`'s \
                   handler, whose own helper calls are each contained by \
                   `run_helper`"
     )]
     let ctx = unsafe { &mut *ctx };
 
     if ctx.safepoint.contains(SafepointFlags::CPU_LIMIT) {
-        // ADR 0020 § 1 lists CPU time beside memory, so the ladder is the same
+        // `rule:errors/on-limit` lists CPU time beside memory, so the ladder is the same
         // two lines the memory branch below carries, in the same order: the
         // handler runs before the breach becomes the pending message, and
         // `Ctx::run_limit_handler` owns the zero-retry rule.
@@ -208,13 +208,13 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
-    // ADR 0020 § 1's memory limit, asked here as well as at every helper
+    // `rule:errors/on-limit`'s memory limit, asked here as well as at every helper
     // boundary ([`crate::run_helper`]): this poll sits between two Novis
     // statements, which is the one place a limit can stop a program that is
     // allocating without calling anything. `crate::budget`'s module doc owns
     // which allocations that reaches today and which it does not.
     if let Some(crate::Fault::Fatal(message)) = ctx.memory_breach() {
-        // ADR 0020 § 1's tier 1, ahead of the status this returns: the handler
+        // `rule:errors/on-limit`'s tier 1, ahead of the status this returns: the handler
         // is the last thing the program gets to run, and it runs before the
         // breach becomes the message the ladder prints — so a throw of its own
         // is overwritten by `set_pending` below rather than reported in place
@@ -224,7 +224,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending(message);
         return crate::FATAL;
     }
-    // ADR 0020 § 1's response ceiling, asked here and nowhere else. A program
+    // `rule:errors/on-limit`'s response ceiling, asked here and nowhere else. A program
     // writes through `Ctx::write_output` and reaches this poll between two
     // statements, so a loop that echoes is stopped at its next back edge.
     // Deliberately *not* asked at `crate::run_helper` the way memory is: that
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
 /// compiled code compared was already below [`Ctx::stack_limit`].
 ///
 /// Compiled code tests the **soft** address alone, so which of
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's two
+/// `rule:errors/on-limit`'s two
 /// tiers this is gets decided here: a catchable [`ThrownClass::Recursion`]
 /// between the soft address and the floor, and a [`crate::FATAL`] no `catch`
 /// sees below it. That is what makes two tiers cost the same as one at the

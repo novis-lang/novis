@@ -1,6 +1,6 @@
 //! The pending failure, the class it names, and the assertions a test records.
 //!
-//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s checked return says a
+//! `rule:errors/propagation`'s checked return says a
 //! helper reports a failure by leaving it *pending* on the context and
 //! answering its error value; every question a caller can then ask about that
 //! failure is here — its message, its class, whether it conforms to a name, a
@@ -10,7 +10,7 @@
 //! [`ErrorClass`] is the descriptor table that makes those questions
 //! answerable at all: without a class table installed a pending failure is a
 //! message and nothing more, and
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s ladder needs it to
+//! `rule:errors/escalation-ladder`'s ladder needs it to
 //! tell a catchable class from a fatal one.
 
 use super::*;
@@ -114,7 +114,7 @@ impl ErrorClass {
 /// * [`Pending::Message`] is what a runtime helper's [`crate::Fault`] and
 ///   every [`crate::FATAL`] produce. It allocates nothing when the message is
 ///   `'static`, which is the property
-///   [ADR 0002](/docs/adr/0002-error-propagation.md) § *Measured cost*
+///   `rule:errors/throw-is-not-slower`
 ///   depends on: `benches/abi-probe` measured a throw at 2.8x a normal return
 ///   with an allocating message and *cheaper* than a return without one, and
 ///   PHP code throws on ordinary control-flow paths.
@@ -132,7 +132,7 @@ impl ErrorClass {
 ///
 /// A [`crate::FATAL`] never becomes a `Thrown`: compiled code only ever pushes
 /// a frame for a `THROWN` status, and no `catch` is ever entered for a
-/// `FATAL` ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)).
+/// `FATAL` (`rule:errors/escalation-ladder`).
 #[derive(Debug)]
 pub(super) enum Pending {
     /// A message alone, with no exception object behind it yet, plus the
@@ -287,7 +287,7 @@ impl Ctx {
     /// ([ADR 0053](/docs/adr/0053-iteration-and-generators.md) § 4) —
     /// and a throw escaping it is where this differs from PHP, which reports
     /// one as uncaught. Surfacing it wants
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s ladder,
+    /// `rule:errors/escalation-ladder`'s ladder,
     /// which does not exist yet; until it does, the safe half is the half that
     /// is kept.
     pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {

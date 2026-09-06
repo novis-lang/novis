@@ -14,7 +14,7 @@
 //! same value written in `nvs.toml` would be a second spelling of every directive it touches. That
 //! is the *text* of the value and not its TOML rendering — a string with no quotes around it, a bool
 //! as `true`/`false`. `[log] level` is `Log\Level`'s own case name, `Info` or `Debug`
-//! ([ADR 0092] § 2).
+//! (`rule:errors/log-level`).
 //!
 //! **The ceiling is a comparison over a two-value order** (§ 5): `production` is the restrictive end
 //! and `development` the permissive one, and a flip is allowed exactly where what is asked for is no
@@ -30,7 +30,6 @@
 //!
 //! [ADR 0064]: ../../../docs/adr/0064-configuration-file-format.md
 //! [ADR 0091]: ../../../docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md
-//! [ADR 0092]: ../../../docs/adr/0092-one-diagnostic-record-three-renderings.md
 
 /// The dotted key a mode is written and flipped at — § 4's own spelling, and the only one.
 pub const KEY: &str = "mode.default";

@@ -1,4 +1,4 @@
-//! A static call end to end — resolution, recursion, declared defaults, ADR 0018's call tracing, and ADR 0002's panic containment.
+//! A static call end to end — resolution, recursion, declared defaults, ADR 0018's call tracing, and `rule:errors/propagation`'s panic containment.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -233,7 +233,7 @@ fn turning_tracing_on_records_an_entry_and_an_exit_per_call() {
 // only stop this slice can provoke is a pending safepoint, which fires at the
 // script frame's own entry poll before any call is reached. `nvs_probe_call_
 // exit`'s own unit test covers that it records the status it is handed; that
-// the probe is emitted *before* ADR 0002's compare-and-branch — so a thrown
+// the probe is emitted *before* `rule:errors/propagation`'s compare-and-branch — so a thrown
 // exit is traced rather than skipped along with the rest of the frame — gets
 // its end-to-end fixture with `throw`, which is the next slice.
 #[test]
@@ -271,7 +271,7 @@ fn a_second_script_runs_after_a_contained_helper_panic() {
 
 #[test]
 fn a_callee_that_stops_the_request_stops_its_caller_too() {
-    // ADR 0002's compare-and-branch doing its job across an Novis-level frame:
+    // `rule:errors/propagation`'s compare-and-branch doing its job across an Novis-level frame:
     // the callee's entry safepoint refuses, and the status travels up through
     // the caller unchanged rather than being swallowed at the call site.
     let mut ctx = Ctx::buffered();

@@ -18,11 +18,11 @@
 //!
 //! **A capture that reaches a candidate is refused rather than skipped.** § 3 bounds a capture to
 //! `[A-Za-z0-9._-]+`, forbids a leading dot and refuses a reserved Windows device name
-//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md) § 5 owns that
+//! (`rule:errors/path-component-refusals` owns that
 //! list, and § 5's own reasoning is why it fires on every platform). Only a directory that actually
 //! holds the scanned entry ever reaches the test, so `.git` beside a module costs nothing — and a
 //! module directory named `CON` that *does* hold one is a boot refusal rather than a mount silently
-//! missing from the table, which is ADR 0095's headline applied to the thing § 2 enumerates.
+//! missing from the table, which is `rule:errors/ambiguous-input-refused`'s headline applied to the thing § 2 enumerates.
 //!
 //! **What is not here yet.** § 3's last paragraph makes a mount whose unit contains a literal
 //! `Core\Router::urlAbsolute` call and resolves no `origin` a boot error; that question needs the
@@ -484,7 +484,7 @@ fn substitute(template: &str, captures: &[String]) -> String {
     out
 }
 
-/// § 3's rule for a captured segment, which is ADR 0095 § 5's on every platform.
+/// § 3's rule for a captured segment, which is `rule:errors/path-component-refusals`'s on every platform.
 fn spells_itself(capture: &str) -> bool {
     !capture.is_empty()
         && !capture.starts_with('.')
@@ -494,7 +494,7 @@ fn spells_itself(capture: &str) -> bool {
         && !is_reserved_device(capture)
 }
 
-/// ADR 0095 § 5's list, with or without an extension and on every platform.
+/// `rule:errors/path-component-refusals`'s list, with or without an extension and on every platform.
 fn is_reserved_device(name: &str) -> bool {
     let stem = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
     if matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL") {

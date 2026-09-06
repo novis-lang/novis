@@ -850,7 +850,7 @@ pub(crate) fn lower_generator_advance(
 /// **Cost:** one integer compare and one branch per `current()` call, on the
 /// arm that is always taken in a well-formed loop. `foreach` drives
 /// `advance()`/`current()` in lockstep and so never reaches the throw, which
-/// makes this the same price ADR 0002's status check pays after every call —
+/// makes this the same price `rule:errors/propagation`'s status check pays after every call —
 /// AGENTS.md's priority 3, bought for its priority 2.
 pub(crate) fn lower_generator_current(
     class: &str,

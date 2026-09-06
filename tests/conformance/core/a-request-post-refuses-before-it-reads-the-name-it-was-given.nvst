@@ -43,7 +43,7 @@ try {
     echo $why->message, "\n";
 }
 
-// And a program reaches the line after five refusals: ADR 0020 § 1's ladder,
+// And a program reaches the line after five refusals: `rule:errors/on-limit`'s ladder,
 // not a fatal.
 echo "still running\n";
 --EXPECT--

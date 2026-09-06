@@ -316,10 +316,10 @@ stage = "1 floor"
 name = "abi-probe (the outer boundary)"
 args = ["test", "-p", "nvs-abi-probe"]
 tests = [
-  # ADR 0106 §§ 1-3. The inner boundary is ADR 0002's and already green; this is the worker task.
+  # ADR 0106 §§ 1-3. The inner boundary is `rule:errors/propagation`'s and already green; this is the worker task.
   "a_panic_in_a_worker_task_is_contained_at_the_task",
   "a_teardown_path_that_panics_does_not_recurse",
-  # § 4 -- the engine-side counterpart to ADR 0020 § 1's call-stack bound, and the single-helper bound.
+  # § 4 -- the engine-side counterpart to `rule:errors/on-limit`'s call-stack bound, and the single-helper bound.
   "engine_recursion_is_bounded_before_the_stack_is",
 ]
 
@@ -795,8 +795,8 @@ file = "examples/trace.nvs"
 stream = "stdout"
 want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 
-# An uncaught throw: non-zero exit plus ADR 0020 § 6's tier-4 floor record on stderr. The floor writes the
-# record `Core\Log::write` writes, and ADR 0092 § 3's log target renders it as JSON Lines by default, so the
+# An uncaught throw: non-zero exit plus `rule:errors/log-write`'s tier-4 floor record on stderr. The floor writes the
+# record `Core\Log::write` writes, and `rule:errors/renderings`'s log target renders it as JSON Lines by default, so the
 # Novis-level backtrace arrives as that record's `backtrace` field rather than as a bare block of text.
 [[check]]
 kind = "ordered"
@@ -1204,7 +1204,7 @@ stage = "1 floor"
 name = "nvs-stdlib (dump)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
-  # Item 33 -- ADR 0092's one record and its renderings. The record's own doc comment says why this
+  # Item 33 -- `rule:errors/diagnostic-record`'s one record and its renderings. The record's own doc comment says why this
   # half cannot be a case: `--EXPECT-ERROR--` is how the runner is told a case should *fail*, so a
   # suite has no way to read standard error off a successful run. ADR 0033's redaction row, which
   # that ADR's Verification section defers to M4 by name, is a case and is listed below.
@@ -1332,7 +1332,7 @@ cases = [
   # `Core\Attributes::get<T>(…)` is both accepted and refused in one program: § 5's two-match
   # ambiguity is E0728 here, decided at compile time rather than by a test run.
   "tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst",
-  # ADR 0092's two halves, which one `.nvst` cannot hold: § 3's plaintext view over every node kind,
+  # `rule:errors/diagnostic-record`'s two halves, which one `.nvst` cannot hold: § 3's plaintext view over every node kind,
   # and § 5's redaction row, whose value never reaches the record at all.
   "tests/conformance/core/a-dump-renders-one-record-through-one-plaintext-view.nvst",
   "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
@@ -2058,7 +2058,7 @@ stage = "1 floor"
 name = "nvs-host (limits at a safepoint)"
 args = ["test", "-p", "nvs-host"]
 tests = [
-  # ADR 0020 -- a FATAL, reported to onLimit if registered and never to an ordinary catch.
+  # `rule:errors/escalation-ladder` -- a FATAL, reported to onLimit if registered and never to an ordinary catch.
   "a_memory_cap_terminates_a_runaway_script_as_a_fatal",
   "a_cpu_cap_terminates_a_runaway_script_as_a_fatal",
   "a_limit_fatal_reaches_on_limit_and_never_a_catch",
@@ -2382,7 +2382,7 @@ tests = [
   # § 4 -- the prompts read the controlling terminal, and none of them blocks forever.
   "a_prompt_reads_the_controlling_terminal_and_not_stdin",
   "no_prompt_blocks_without_a_deadline",
-  # §§ 5, 8 + ADR 0020 § 4 -- part of the slice, not a follow-up.
+  # §§ 5, 8 + `rule:errors/engine-floor` -- part of the slice, not a follow-up.
   "a_live_region_is_scoped_and_restores_the_terminal_on_a_panic",
   # Item 11 -- unlike Core\Router it dispatches, because a CLI has one entry point.
   "command_run_dispatches_through_the_compiled_table",
@@ -2540,7 +2540,7 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "application_code_and_the_engine_floor_produce_schema_identical_records",
   "on_uncaught_throw_receives_the_real_throwable",
-  # ADR 0106's amendment to ADR 0020 § 4 -- the floor cannot fill the disk it writes to.
+  # ADR 0106's amendment to `rule:errors/engine-floor` -- the floor cannot fill the disk it writes to.
   "the_engine_floor_rotates_and_rate_limits_itself",
 ]
 

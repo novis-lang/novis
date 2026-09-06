@@ -98,7 +98,7 @@ pub struct Class {
     /// `secret` qualifier, in [`Self::fields`]' own order — or **empty**,
     /// which means "nothing told this class", never "no slot is `secret`".
     ///
-    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// `rule:errors/diagnostic-record`
     /// § 5's redaction row states one rule about one record, and its property
     /// half cannot be decided anywhere below the checker: `secret` is a
     /// qualifier on a *declared* type, and every representation under it — the
@@ -243,7 +243,7 @@ impl BasicBlock {
     ///
     /// Both kinds of edge, because a consumer walking the CFG needs both:
     /// the terminator's own targets, and every
-    /// [ADR 0002](/docs/adr/0002-error-propagation.md) error edge
+    /// `rule:errors/propagation` error edge
     /// ([`Inst::on_error`]) an instruction in the body carries. Leaving the
     /// second kind out is how a landing block ends up looking unreachable
     /// from a block that plainly branches into it.
@@ -291,7 +291,7 @@ pub struct Inst {
     pub ty: Option<Ty>,
     /// What the instruction does.
     pub kind: InstKind,
-    /// [ADR 0002](/docs/adr/0002-error-propagation.md)'s error edge:
+    /// `rule:errors/propagation`'s error edge:
     /// the landing block a non-`OK` status returned by this instruction
     /// branches to.
     ///
@@ -365,7 +365,7 @@ pub enum InstKind {
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
-    /// block — also carries ADR 0020 § 1's call-stack compare, which is why
+    /// block — also carries `rule:errors/on-limit`'s call-stack compare, which is why
     /// that ADR calls the site "not a new pass and not a new emit site".
     /// Reserving the shape ahead of any of that was the point: inserting it
     /// after the fact would have meant re-walking every already-lowered
@@ -530,7 +530,7 @@ pub enum InstKind {
     /// `lsb`, falling back to `fallback` (the label `nvs_types` statically
     /// resolved, which a class the unit compiled no method table for still
     /// needs), then an indirect call through the ordinary
-    /// [ADR 0002](/docs/adr/0002-error-propagation.md) signature — so
+    /// `rule:errors/propagation` signature — so
     /// every probe, status check and landing block is identical to
     /// [`InstKind::Call`]'s. Ownership is identical too: `receiver` and each
     /// argument are transferred, and the callee releases them.
@@ -721,7 +721,7 @@ pub enum InstKind {
     ///
     /// **Fallible.** A name the concrete class does not carry is a catchable
     /// throw (§ 4), so this is emitted through
-    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge like any call. Unreachable through a receiver whose static shape
     /// lists the field, which is every receiver the checker records one for —
     /// it is the erased half of § 4 that can reach it.
@@ -1160,7 +1160,7 @@ pub enum InstKind {
     /// design-choices section for why a dedicated instruction was chosen
     /// over reusing `Call` with a synthetic target label, and an enum tag
     /// over a string name). Like [`InstKind::Call`]/[`InstKind::New`], this
-    /// does not yet model ADR 0002's checked-return convention — no status,
+    /// does not yet model `rule:errors/propagation`'s checked-return convention — no status,
     /// no error edge — since nothing in this crate models a call that can
     /// fail at all yet (no `try`/`throw` lowered); that is expected to land
     /// once such calls do, for every call-shaped instruction at once rather
@@ -1244,7 +1244,7 @@ pub enum InstKind {
     /// **What an absent `key` answers is [`AbsentKey`]**, and it decides the
     /// rest of this instruction's shape. Under [`AbsentKey::Throws`] — every
     /// read written outside a guard — it is a *fallible* instruction carrying
-    /// ADR 0002's error edge like a call: emitted through
+    /// `rule:errors/propagation`'s error edge like a call: emitted through
     /// `crate::lower::Lowering::emit_fallible`, given the same status check
     /// every helper call gets by `nvs-codegen`, against the runtime entry
     /// point `nvs_array_required_get` — which is why the two representations
@@ -1455,7 +1455,7 @@ pub enum InstKind {
     /// Written like [`InstKind::Call`] in the source and resolved through the
     /// same `nvs_types::expr_table::ResolvedCall`, but lowered separately for
     /// one reason: there is no compiled Novis function to name. A `Core` member
-    /// is native Rust behind an [ADR 0002](/docs/adr/0002-error-propagation.md)
+    /// is native Rust behind an `rule:errors/propagation`
     /// *helper* entry point, so this carries the linker symbol
     /// `nvs_stdlib::registry` registered rather than a `Class::method` label,
     /// and `nvs-codegen` emits it through the same path
@@ -1651,7 +1651,7 @@ pub enum Helper {
     /// `a + b` over [`crate::ty::Ty::Decimal`] —
     /// [ADR 0054](/docs/adr/0054-decimal-scalar-type.md) § 3, which
     /// **throws** on either overflow kind rather than wrapping or promoting,
-    /// so this and the four below carry ADR 0002's error edge like any call.
+    /// so this and the four below carry `rule:errors/propagation`'s error edge like any call.
     ///
     /// Either operand may be an `int` or a `uint` instead: § 3's
     /// `decimal ⊕ int` row promotes exactly in 96 bits, and the helper does it
@@ -1699,7 +1699,7 @@ pub enum Helper {
     /// `$n as uint` — ADR 0007 § 2's `int` ↔ `uint` row. Exact, or **throws**
     /// on a negative value. The first of nine helpers that can fail rather
     /// than convert, so each is emitted through
-    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge like any call.
     IntToUint,
     /// `$n as int` — the same row the other way. Exact, or throws above
@@ -1730,7 +1730,7 @@ pub enum Helper {
     /// § 3's checked row: the buffer is well-formed UTF-8 and becomes the
     /// `string` over the *same* allocation, or this throws. It never replaces,
     /// drops or truncates a bad sequence, so it is fallible and carries
-    /// ADR 0002's error edge like every other checked row.
+    /// `rule:errors/propagation`'s error edge like every other checked row.
     ///
     /// **The pair's other direction is not here, and that is the point.**
     /// `string as bytes` is total and free — the same `nvs_runtime::NvsStr`
@@ -1829,7 +1829,7 @@ pub enum Helper {
     ///
     /// **The one string conversion that can fail**, so unlike the four static
     /// ones it is emitted through `crate::lower::Lowering::emit_fallible` and
-    /// carries ADR 0002's error edge: an array, a closure, a resource and an
+    /// carries `rule:errors/propagation`'s error edge: an array, a closure, a resource and an
     /// object whose class declares no `toString` have no row, and
     /// `nvs_runtime::value_to_string` owns what each throws and why.
     TaggedToString,
@@ -1842,7 +1842,7 @@ pub enum Helper {
     /// `nvs_runtime` and never a second copy of it: § 2's `as T` throws where
     /// ADR 0066's `as ?T` answers `null`, so the pair differs only in what it
     /// does with a miss. Fallible, so it is emitted through
-    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge — a tag with no row at all (an array, an object, a `bool`) throws
     /// here, which is ADR 0007 § 6's answer for `mixed` and a compile error for
     /// anything the checker can name.
@@ -1931,7 +1931,7 @@ pub enum Helper {
     /// [`crate::ty::Ty::Int`] argument names, then end the request.
     ///
     /// **The one helper whose success is a non-`OK` status.** It returns
-    /// `nvs_runtime::EXITED`, so the ADR 0002 status check after it takes this
+    /// `nvs_runtime::EXITED`, so the `rule:errors/propagation` status check after it takes this
     /// instruction's error edge, the frame's live locals are released in that
     /// landing block, and every caller's own check propagates it onward. No
     /// `catch` sees it — [`Terminator::Catch`] admits only `THROWN` — and **no
@@ -1961,7 +1961,7 @@ pub enum Helper {
     /// Defines no value and **never returns normally**: it is the miss arm of
     /// a chain of [`BinOp::Eq`] comparisons, so it is pushed with
     /// `result: None` the way [`Self::EchoStr`] is, and always carries
-    /// ADR 0002's error edge. The membership test itself costs no helper call
+    /// `rule:errors/propagation`'s error edge. The membership test itself costs no helper call
     /// at all — see `crate::lower::Lowering::lower_literal_membership` for why
     /// a comparison chain and not one call over an encoded set.
     ///
@@ -1981,7 +1981,7 @@ pub enum Helper {
     /// [`BinOp::Eq`] machine comparison, and `nvs-codegen` turns a `string`,
     /// `array` or `object` pair into a direct two-pointer call or an inline
     /// pointer compare rather than tagging both sides into stack slots. So
-    /// this is the *only* row that pays ADR 0002's calling convention, and it
+    /// this is the *only* row that pays `rule:errors/propagation`'s calling convention, and it
     /// is the row that has nothing cheaper to pay.
     ///
     /// It cannot fail — § 5 makes a mismatched pair `false` rather than a
@@ -2253,7 +2253,7 @@ pub enum Helper {
     /// only answer the checker has for a call whose target it cannot name.
     ///
     /// Fallible, so it is emitted through
-    /// `crate::lower::Lowering::emit_fallible` and carries ADR 0002's error
+    /// `crate::lower::Lowering::emit_fallible` and carries `rule:errors/propagation`'s error
     /// edge: the closure's own throw or fault travels back as
     /// `Fault::Pending`, unchanged.
     CallClosure,
@@ -2311,7 +2311,7 @@ pub enum Helper {
     /// a receiver that is no object, a class with no such member, a member
     /// that is not `public`, one the row cannot describe, an argument whose
     /// tag is not the one the parameter requires, and too few arguments — all
-    /// catchable, all carrying ADR 0002's error edge, plus the callee's own
+    /// catchable, all carrying `rule:errors/propagation`'s error edge, plus the callee's own
     /// throw travelling back as `Fault::Pending`.
     CallErasedMethod,
 }
@@ -2457,7 +2457,7 @@ pub enum Terminator {
     /// probes; there is no second position table.
     ///
     /// A `FATAL` pushes nothing: it is not a `Throwable` at all
-    /// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)), which
+    /// (`rule:errors/escalation-ladder`), which
     /// is why the status travels to `nvs_trace_push` rather than being decided
     /// here.
     Propagate {
@@ -2478,7 +2478,7 @@ pub enum Terminator {
     /// name them; leaving the frame instead has to drop every one, exactly as
     /// [`Terminator::Propagate`] does at a site with no `catch` above it. A
     /// `FATAL` and an `EXITED` are the statuses that take this edge — no
-    /// `catch` admits either ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md))
+    /// `catch` admits either (`rule:errors/escalation-ladder`)
     /// — so before it existed a `try` region turned every one of them into a
     /// leak of the whole frame.
     Catch {

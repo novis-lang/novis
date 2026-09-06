@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::lock` has no `unlock`, because the lock's lifetime is the handle's — `close` frees it, and a closed handle can no longer ask for one — spec § 14, ADR 0020 § 2
+`Core\IO\File::lock` has no `unlock`, because the lock's lifetime is the handle's — `close` frees it, and a closed handle can no longer ask for one — spec § 14, `rule:errors/on-uncaught-throw`
 --FILE--
 <?nvs
 // `flock`'s third mode, `LOCK_UN`, is not a member of this class. The lock

@@ -1173,7 +1173,7 @@ nvs_runtime::nvs_helper! {
     /// statement. `Stream::Out` is this request's output — so a
     /// `Core\Out::capture` in force takes it, `Ctx::write_output`'s own rule —
     /// and `Stream::Err` is its **diagnostic** channel, which a capture
-    /// deliberately does not take (ADR 0092 § 4). A context has exactly those
+    /// deliberately does not take (`rule:errors/debug-dump`). A context has exactly those
     /// two channels; there is no third for a member to invent.
     ///
     /// `Stream::In` throws rather than being absent from the option's type:
@@ -2814,7 +2814,7 @@ thread_local! {
 /// ADR 0086 § 8 makes restoration an obligation on **every** exit path, and
 /// [`nvs_core_cli_live`] cannot discharge that with a statement after the call:
 /// a throw from `$body` skips it, and an internal panic
-/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 5) skips
+/// (`rule:errors/panics-bypass-user-code`) skips
 /// every statement there is. So the end of a region is a `Drop`, here and in
 /// [`nvs_runtime::terminal::Region`] both — this one ends the *scope*, that one
 /// puts the *terminal* back.
@@ -3117,7 +3117,7 @@ mod tests {
         assert!(nvs_runtime::is_carrier(NAME));
     }
 
-    /// ADR 0086 §§ 5 and 8 with ADR 0020 § 5: a live region has an end, and the
+    /// ADR 0086 §§ 5 and 8 with `rule:errors/panics-bypass-user-code`: a live region has an end, and the
     /// terminal is put back at that end on **every** path — including the one
     /// no user code runs on.
     ///

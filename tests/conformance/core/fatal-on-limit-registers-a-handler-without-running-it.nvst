@@ -1,8 +1,8 @@
 --TEST--
-`Core\Fatal::onLimit` registers a handler, replaces it when called again, and runs neither — ADR 0020 § 1
+`Core\Fatal::onLimit` registers a handler, replaces it when called again, and runs neither — `rule:errors/on-limit`
 --FILE--
 <?nvs
-// ADR 0020 § 1's tier 1 is a *registration*, and the thing worth pinning about
+// `rule:errors/on-limit`'s tier 1 is a *registration*, and the thing worth pinning about
 // a registration is the boundary it does not cross: nothing about handing the
 // closure over is allowed to call it. A ladder that ran the handler eagerly —
 // or one that ran it to "check" it, which is the shape zero retries exists to

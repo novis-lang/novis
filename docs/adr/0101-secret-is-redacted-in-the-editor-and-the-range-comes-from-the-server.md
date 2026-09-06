@@ -41,7 +41,7 @@
 
 - The editor is the one place a `secret` value is displayed in full by design. Every *program* sink
   [ADR 0033](0033-secret-qualifier-for-confidential-values.md) § 4 names is already closed at compile time
-  and [ADR 0092](0092-one-diagnostic-record-three-renderings.md) § 1 already makes the redaction a node kind
+  and `rule:errors/diagnostic-record` already makes the redaction a node kind
   that all three diagnostic renderings inherit — so the remaining exposure is not a program behaviour at
   all. It is a person's screen while they are being watched.
 - **Novis can be exact here where nothing else can.** Every shipping tool that hides secrets in an editor
@@ -159,7 +159,7 @@ override the user's theme.
 Two of the extension's own renderings would otherwise print the plaintext the editor just concealed:
 
 - **The diagnostics channel already inherits it.**
-  [ADR 0092](0092-one-diagnostic-record-three-renderings.md) § 1 makes the redaction a node kind in the
+  `rule:errors/diagnostic-record` makes the redaction a node kind in the
   diagnostic record, so every rendering — the Problems panel included — carries the placeholder from one
   place. Nothing is owed here; it is stated so a reader does not go looking for a second fix.
 - **The AST panel does not, and this ADR gives it the obligation.**

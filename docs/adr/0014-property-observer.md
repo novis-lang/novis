@@ -106,7 +106,7 @@ not that specific property has its own hook:
   passed to `onPropertyGet($name, $value)`. The value the caller receives is the one the first step produced,
   not anything `onPropertyGet` returns — its return type is `void` precisely so there is nothing to return.
   If `onPropertyGet` throws, the read still fails: the exception propagates to the caller as a checked status
-  like any other call ([ADR 0002](0002-error-propagation.md)), even though the value had already been
+  like any other call (`rule:errors/propagation`), even though the value had already been
   resolved internally.
 - **Write:** the property's own `set` hook processes and commits the incoming value if it declares one, or
   plain field storage assigns it otherwise — this step alone decides what is actually stored. The stored
@@ -135,7 +135,7 @@ already treats as free relative to every other method call in the language.
 the access asked for. Every status-returning instruction owns one, so `$obj->n = $obj->n + 1` carries an
 overflow raise and a `Release` of the receiver with it — machine calls sitting on mutually exclusive cold
 edges, exactly one of which is entered and only once something has already thrown. Those belong to
-[ADR 0002](0002-error-propagation.md)'s checked return and to [ADR 0007](0007-explicit-type-system.md) § 4's
+`rule:errors/propagation`'s checked return and to [ADR 0007](0007-explicit-type-system.md) § 4's
 overflow throw; counting them as per-access cost prices this ADR for two others' mechanisms. The access
 itself is a `FieldGet` and a `FieldSet` in the block that runs, with no call between them, which is what the
 guard named under *Verification* measures.
@@ -288,7 +288,7 @@ Verification, in the order it becomes possible:
   `nvs-codegen`'s `a_property_hook_runs_on_every_read_and_write_of_its_property` holds all of it end to end.
 - **M4**: a class implementing `PropertyObserver` runs its property's own hook (or storage) first and
   `onPropertyGet`/`onPropertySet` second, for both hooked and un-hooked properties, including a throwing
-  observer method propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return path;
+  observer method propagating correctly through `rule:errors/propagation`'s checked-return path;
   § 4's zero cost is a measurement rather than an assertion — `benches/abi-probe`'s
   `a_class_without_a_property_observer_costs_nothing_extra`, which holds that three more unhooked accesses
   emit no machine-code call at all on the path a run that throws nothing takes, and cost a fraction of the same accesses behind
@@ -318,7 +318,7 @@ rule above that runs, and it is the fixture [M4's acceptance](../plan/m4.md) nam
 - **Every write is a write** — a constructor's assignments reach it, and so does an inherited observer over
   the property a subclass adds.
 - **A throwing `onPropertySet` fails the write**, propagated as an ordinary catchable `Throwable`
-  ([ADR 0002](0002-error-propagation.md)).
+  (`rule:errors/propagation`).
 - ***4*'s zero cost, from the outside**: a class implementing nothing emits not one observer line. The
   measurement half of that claim — no measurable overhead — is `nvs_types::expr::members::observer_calls`
   answering `None` at compile time, so a non-implementing class's access lowers to the same field load it

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::addCookie` enforces the `__Host-` and `__Secure-` prefixes rather than documenting them, so a non-conforming cookie is refused on write -- ADR 0095 § 3, spec § 15
+`Core\Response::addCookie` enforces the `__Host-` and `__Secure-` prefixes rather than documenting them, so a non-conforming cookie is refused on write -- `rule:errors/cookie-name-bytes`, spec § 15
 --FILE--
 <?nvs
 // Agreement, asked of the two prefixes: what makes each cookie legal is the

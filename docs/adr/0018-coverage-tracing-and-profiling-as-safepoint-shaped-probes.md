@@ -52,7 +52,7 @@
 
 ### One mutable per-request debug-flags word, checked at fixed probe sites
 
-`Ctx` (the same struct carrying the pending-error slot from [ADR 0002](0002-error-propagation.md)) gains a
+`Ctx` (the same struct carrying the pending-error slot from `rule:errors/propagation`) gains a
 small bitset — `COVERAGE | BRANCH | TRACE | PROFILE` — plus the request-owned sinks each flag writes to.
 Codegen emits an unconditional check against this word, load-and-branch, at three fixed points, present in
 every compiled unit from the first backend commit regardless of whether any request ever sets a bit:
@@ -60,7 +60,7 @@ every compiled unit from the first backend commit regardless of whether any requ
 1. **Every statement boundary** (the head of each lowered HIR statement): under `COVERAGE`, bump a per-line
    hit counter. Under `BRANCH`, do the same at every conditional CFG edge, using the edge identity the
    CFG/SSA IR already carries.
-2. **Every call site** — the single `emit_call()` path [ADR 0002](0002-error-propagation.md) already
+2. **Every call site** — the single `emit_call()` path `rule:errors/propagation` already
    requires: under `TRACE`, emit an entry probe (callee name, arguments if requested, a timestamp) before
    the call and an exit probe (the checked-return status, the result, a timestamp) after it — the same
    status value the call site already branches on, so a trace log records a thrown or `FATAL` exit exactly

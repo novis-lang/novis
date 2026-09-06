@@ -2,7 +2,7 @@
 Core\Mail::send refuses an empty recipient list rather than sending nothing quietly — ADR 0082 § 2
 --FILE--
 <?nvs
-// `$to` is `array<string>` rather than a comma-separated string (ADR 0095's
+// `$to` is `array<string>` rather than a comma-separated string (`rule:errors/ambiguous-input-refused`'s
 // reading: a comma inside a display name would be a second recipient), which
 // makes the empty list a shape the type permits and the member has to answer.
 // It throws: a program that computed its recipients and got none has a bug,

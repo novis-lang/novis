@@ -1,4 +1,4 @@
-//! `Core\Fatal` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! `Core\Fatal` — `rule:errors/escalation-ladder`
 //! §§ 1-2's tiers 1 and 2: the two places a program gets to say anything at all
 //! after a resource limit has stopped it, or after a throw reached the root of
 //! the request with nothing left to catch it.
@@ -18,7 +18,7 @@
 //! disturbs the other.
 //!
 //! **Why the closure is held by the context and not by this module.** A handler
-//! is request-local by ADR 0020 § 1 — it dies with the request like every other
+//! is request-local by `rule:errors/on-limit` — it dies with the request like every other
 //! per-request slot ([ADR 0008](/docs/adr/0008-static-and-global.md),
 //! [ADR 0012](/docs/adr/0012-no-superglobals.md)) — so a `static`
 //! here would be the exact thing that section refuses: one request's safety net
@@ -121,7 +121,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Fatal::onLimit(callable $handler): void` — ADR 0020 § 1.
+    /// `Core\Fatal::onLimit(callable $handler): void` — `rule:errors/on-limit`.
     ///
     /// The retain is the whole body's reason for existing: a helper's arguments
     /// are borrowed from the caller's frame, and this one outlives the call by
@@ -155,7 +155,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Fatal::onUncaughtThrow(callable $handler): void` — ADR 0020 § 2.
+    /// `Core\Fatal::onUncaughtThrow(callable $handler): void` — `rule:errors/on-uncaught-throw`.
     ///
     /// Its sibling above, over the second slot: the retain is again the whole
     /// body's reason for existing, because a helper's arguments are borrowed
@@ -209,7 +209,7 @@ mod tests {
         static SEEN: Cell<u64> = const { Cell::new(0) };
     }
 
-    /// ADR 0020 § 2's headline claim, asked as an **identity** rather than as a
+    /// `rule:errors/on-uncaught-throw`'s headline claim, asked as an **identity** rather than as a
     /// resemblance: the tier-2 handler is handed "the **real `Throwable`
     /// object**, not copied data", so the value that arrives is the very
     /// allocation the request threw and not a report rebuilt from it.
@@ -257,7 +257,7 @@ mod tests {
         assert_eq!(
             SEEN.with(Cell::get),
             thrown.as_value().bits(),
-            "ADR 0020 § 2: the handler is handed the object the program threw, \
+            "`rule:errors/on-uncaught-throw`: the handler is handed the object the program threw, \
              not a copy of what it said"
         );
         assert_eq!(

@@ -1,8 +1,8 @@
 --TEST--
-application code and the engine floor produce schema-identical records for the same error — ADR 0020 §§ 5-6
+application code and the engine floor produce schema-identical records for the same error — `rule:errors/panics-bypass-user-code` and `rule:errors/log-write`
 --FILE--
 <?nvs
-// ADR 0020 § 6's load-bearing claim, asserted as *agreement* rather than as
+// `rule:errors/log-write`'s load-bearing claim, asserted as *agreement* rather than as
 // two independent shapes: `Core\Log::write` is a thin binding over the same
 // native record-and-write helper tier 4 calls directly when it has no script
 // left to run, so a Loki dashboard never has to reconcile two log shapes

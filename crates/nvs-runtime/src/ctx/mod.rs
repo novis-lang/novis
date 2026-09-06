@@ -21,7 +21,7 @@
 //!   any request ever sets a bit — that is what makes coverage and tracing
 //!   start/stoppable *mid-request*, which the rejected instrumented-tier
 //!   design could not do.
-//! * [`STACK_LIMIT_OFFSET`] — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! * [`STACK_LIMIT_OFFSET`] — `rule:errors/escalation-ladder`
 //!   § 1's call-stack ceiling, compared against the stack pointer at the same
 //!   emit site the safepoint poll uses. It sits in this line rather than
 //!   anywhere colder precisely so the compare costs a load that is already
@@ -42,8 +42,8 @@
 //!
 //! Novis compiles natively, so a user call is a real machine frame and
 //! exhausting the stack is a `SIGSEGV` rather than something
-//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s checked returns
-//! could carry. [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! `rule:errors/propagation`'s checked returns
+//! could carry. `rule:errors/escalation-ladder`
 //! § 1's answer is a bounds pair, armed per request and compared at every
 //! non-leaf function entry:
 //!
@@ -297,7 +297,7 @@ pub struct Ctx {
     /// `statics` included.
     output_base: usize,
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// first resource limit.
     ///
     /// **Cached, not re-derived.** The value on disk is a string with a suffix
@@ -312,7 +312,7 @@ pub struct Ctx {
     /// [`Self::memory_limit`]'s reason.
     ///
     /// **No reserved slice, unlike its two siblings.**
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 carves
+    /// `rule:errors/on-limit` carves
     /// one out of `memory` and one out of `cpu_time` because a tier-1 handler
     /// cannot run without allocating and cannot run without taking time. It can
     /// run without writing, and nothing refuses a write in the first place —
@@ -323,7 +323,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per request.
     output_limit: usize,
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// tier-1 handler: the closure `Core\Fatal::onLimit` registered, owned, or
     /// `null` for a request that registered none.
     ///
@@ -342,7 +342,7 @@ pub struct Ctx {
     /// closure for a request that registers one — O(in-flight requests), per
     /// [ADR 0004](/docs/adr/0004-memory-for-simplicity.md).
     limit_handler: Value,
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// reserved slice, in bytes: what [`Ctx::memory_limit`] was *reduced by* so
     /// that the tier-1 handler has somewhere to run once ordinary execution has
     /// spent everything it may.
@@ -357,7 +357,7 @@ pub struct Ctx {
     /// of the ceiling to the other, so a request's total is unchanged.
     fatal_reserve: usize,
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap —
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// second resource limit, cached for [`Self::memory_limit`]'s reason.
     ///
     /// **What measures it is the request thread's own CPU clock, and never the
@@ -394,7 +394,7 @@ pub struct Ctx {
     /// the other, so a request's total is unchanged.
     fatal_reserve_time: u64,
     /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
-    /// — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2, and the second handler slot beside [`Self::limit_handler`].
     ///
     /// **Nothing is reserved for it, and that is § 2's own decision**: a throw
@@ -507,7 +507,7 @@ pub struct Ctx {
     pending: Option<Pending>,
     /// Where `echo` writes.
     output: OutputSink,
-    /// Where a **diagnostic** writes — [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// Where a **diagnostic** writes — `rule:errors/diagnostic-record`
     /// § 4's destination for a CLI `Core\Debug::dump`, and later for the log
     /// target's own records.
     ///
@@ -542,7 +542,7 @@ pub struct Ctx {
     /// record beyond the comparison. [`Level::Debug`] is every level, so a
     /// context whose configuration names none writes what it was handed.
     log_minimum: Level,
-    /// Which of ADR 0092 § 3's two renderings the target emits — resolved on
+    /// Which of `rule:errors/renderings`'s two renderings the target emits — resolved on
     /// the same first use as the two above, for the same reason, and read at
     /// every record [`Self::write_log_record`] does not drop.
     ///
@@ -1090,10 +1090,10 @@ impl Drop for Ctx {
         // An isolate's argument is one of its roots and is released with them
         // — `Ctx::set_isolate_argument` owns why it is held here at all.
         self.set_isolate_argument(Value::null());
-        // ADR 0020 § 1's handler is request-local, so the request ending is
+        // `rule:errors/on-limit`'s handler is request-local, so the request ending is
         // what unregisters it — see `Ctx::set_limit_handler`.
         self.set_limit_handler(Value::null());
-        // ADR 0020 § 2's handler is request-local for the same reason and is
+        // `rule:errors/on-uncaught-throw`'s handler is request-local for the same reason and is
         // unregistered the same way — see `Ctx::set_uncaught_handler`.
         self.set_uncaught_handler(Value::null());
         // ADR 0127 § 1's exit hooks are request-local for the same reason. A
@@ -1228,7 +1228,7 @@ pub const HOT_LINE_BYTES: usize = 64;
 /// module docs' *Static properties are request-scoped* section.
 pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+/// `rule:errors/on-limit`'s
 /// call-stack ceiling: **8 MiB of reserved address space per request**, of
 /// which only the touched pages are ever resident.
 ///
@@ -1248,7 +1248,7 @@ pub const STACK_CEILING: usize = 8 << 20;
 /// allocates no further calls cannot cross the floor.
 pub const STACK_RESERVE: usize = 256 << 10;
 
-/// Which of [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+/// Which of `rule:errors/escalation-ladder`
 /// § 1's resource limits stopped the request, as the tier-1 handler is told it.
 ///
 /// § 1 spells that handler's parameter `LimitReport`, and this is what the

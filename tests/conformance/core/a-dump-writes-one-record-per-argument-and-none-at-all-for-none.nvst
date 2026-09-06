@@ -1,5 +1,5 @@
 --TEST--
-`Core\Debug::dump`'s variadic asserted on both sides: no arguments writes nothing at all, and every arity above it writes exactly one record per argument, in argument order and agreeing byte for byte with `render` — spec § 16, ADR 0092 §§ 3 and 4
+`Core\Debug::dump`'s variadic asserted on both sides: no arguments writes nothing at all, and every arity above it writes exactly one record per argument, in argument order and agreeing byte for byte with `render` — spec § 16, `rule:errors/renderings` and `rule:errors/debug-dump`
 --FILE--
 <?nvs
 // `dump` is the one `Core` member whose parameter list is a variadic
@@ -58,7 +58,7 @@ Core\Debug::dump(4, 5, 6);
 // (`nvs_test::Case::expects_failure`), and a dump writes nowhere but the
 // diagnostic channel — so a program that exited zero could not state what it
 // wrote there. The throw buys the section below; the last line of it is the
-// tier-4 floor's own record for that throw (ADR 0020 § 6), which lands on the
+// tier-4 floor's own record for that throw (`rule:errors/log-write`), which lands on the
 // same channel. A property of the harness, not of `Core\Debug`.
 throw new RuntimeError("the case ends here, so its standard error can be asserted");
 --EXPECT--

@@ -93,8 +93,8 @@ a constructor a first-class, reachable operation, so it is the one place *2*'s c
 cannot reach. A property on such an object that has never been written and is then read:
 
 - throws a checked error — an ordinary `Throwable`, propagated exactly like any other checked failure
-  ([ADR 0002](0002-error-propagation.md)) — **not** routed through
-  [ADR 0020](0020-error-escalation-ladder.md)'s fatal ladder, because this is a recoverable, catchable
+  (`rule:errors/propagation`) — **not** routed through
+  `rule:errors/escalation-ladder`'s fatal ladder, because this is a recoverable, catchable
   condition a caller can reasonably handle, not a resource-limit or internal-panic class of failure;
 - never hands back a value standing in for "not yet set" — there is nothing a caller can inspect, compare
   against, or receive from a read that succeeds this way, because the read never succeeds;

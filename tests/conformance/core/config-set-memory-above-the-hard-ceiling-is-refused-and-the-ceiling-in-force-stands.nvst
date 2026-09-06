@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — ADR 0005, ADR 0020 § 1
+`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — ADR 0005, `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The bound asserted on both sides. `config-every-set-refusal-answers-false-and-moves-nothing.nvst`
@@ -18,7 +18,7 @@ echo "value=", Core\Config::get("memory") ?? "unset", "\n";
 // What a `false` and an unmoved `get` still do not prove: that the *runtime*
 // ignored the refused value too. So the case allocates past both — 64 MiB,
 // which 512M would have permitted and 32M does not — and the breach that
-// follows is the assertion. It is ADR 0020 § 1's `FATAL`, so there is no `try`
+// follows is the assertion. It is `rule:errors/on-limit`'s `FATAL`, so there is no `try`
 // here and could not be: the goal's standing decision is that a set above the
 // hard ceiling returns `false` rather than throwing, and the breach it did not
 // license reaches no `catch` either.

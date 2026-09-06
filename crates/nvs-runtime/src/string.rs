@@ -375,7 +375,7 @@ impl NvsStr {
     ///
     /// Aborts the process through [`handle_alloc_error`] if the allocator
     /// fails. A request-attributable out-of-memory is
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s
+    /// `rule:errors/escalation-ladder`'s
     /// resource-limit tier and belongs to the per-request arena that does not
     /// exist yet (known gap 3 in the crate docs); until it does, the global
     /// allocator's own behaviour is the honest one.
@@ -854,7 +854,7 @@ impl Drop for StrWriter<'_> {
     /// Frees the allocation, which only happens when `write` panicked partway
     /// through: [`NvsStr::build`] takes the allocation out of the writer on
     /// the path that finishes. A helper's panic is a contained `FATAL`
-    /// (ADR 0020), so it must not also be a leak.
+    /// (`rule:errors/escalation-ladder`), so it must not also be a leak.
     fn drop(&mut self) {
         #[expect(
             unsafe_code,
@@ -952,7 +952,7 @@ impl std::borrow::Borrow<[u8]> for NvsStr {
 // The primitives compiled code calls
 // ---------------------------------------------------------------------------
 //
-// These are `extern "C"` but deliberately *not* ADR 0002's checked-return
+// These are `extern "C"` but deliberately *not* `rule:errors/propagation`'s checked-return
 // helper shape, and deliberately not written through `nvs_helper!`. That shape
 // exists to carry a failure back to the caller; none of these can fail — they
 // take no Novis value, allocate at most once, and produce no status — so giving

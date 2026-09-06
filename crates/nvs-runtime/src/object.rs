@@ -370,7 +370,7 @@ pub struct ClassDesc {
     /// [`ClassDesc::field_is_secret`] for why that direction is the safe one.
     ///
     /// This is the property half of
-    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// `rule:errors/diagnostic-record`
     /// § 5's redaction row, and it is carried rather than computed for the
     /// reason nothing below the checker could compute it: `secret` is a
     /// qualifier on a declared type, and a `secret string` is byte-identical
@@ -405,7 +405,7 @@ pub struct ClassDesc {
     /// Not a [`Self::methods`] row, and the difference is the calling
     /// convention rather than the lookup: that table holds *compiled* Novis
     /// functions, which release their parameters, while a native `Core` member
-    /// is an ADR 0002 helper and **borrows** its arguments. One table cannot
+    /// is an `rule:errors/propagation` helper and **borrows** its arguments. One table cannot
     /// hold both without a caller having to know which it drew — so the
     /// convention is encoded in which field the address came out of. Filled by
     /// [`ClassTable::set_render`], which only `nvs-stdlib` calls; read by
@@ -431,7 +431,7 @@ pub struct ClassDesc {
 /// values needs in order to fill that callee's slots safely.
 ///
 /// Nothing has to be marshalled between a tagged site and a compiled callee —
-/// ADR 0002 makes one calling convention normative, so `nvs-codegen` already
+/// `rule:errors/propagation` makes one calling convention normative, so `nvs-codegen` already
 /// writes every argument and every return *with* its tag and a typed callee
 /// reads only the payload half. What is missing at a site that knows no class
 /// is the callee's own shape, without which slot *i* is reinterpreted at the
@@ -475,7 +475,7 @@ pub struct MethodRow {
     /// synthesized method (an exception constructor, a generator's state
     /// machine, an ADR 0043 § 4 forward) callable.
     pub public: bool,
-    /// Whether [`Self::code`] is a **native** ADR 0002 helper rather than a
+    /// Whether [`Self::code`] is a **native** `rule:errors/propagation` helper rather than a
     /// compiled Novis function — true for exactly the `Core`-owned members
     /// `nvs_stdlib::instance` puts in this table.
     ///
@@ -757,7 +757,7 @@ impl ClassDesc {
     /// The name of the field at slot `index`, or `None` past the last slot.
     ///
     /// The inverse of [`Self::field_slot`], and it exists for the one reader
-    /// that walks *every* slot rather than resolving one name: ADR 0092 § 1's
+    /// that walks *every* slot rather than resolving one name: `rule:errors/diagnostic-record`'s
     /// Object node carries a class's declared properties in slot order, which
     /// is what `nvs_stdlib::debug` builds. Compiled code still never reaches
     /// here — a `$obj->prop` on a named class is a fixed offset.
@@ -775,7 +775,7 @@ impl ClassDesc {
     }
 
     /// Whether slot `index`'s declared type carries ADR 0033 § 1's `secret`
-    /// qualifier — ADR 0092 § 5's redaction row, asked of an instance because
+    /// qualifier — `rule:errors/record-transformations`'s redaction row, asked of an instance because
     /// that is all a dump has.
     ///
     /// `false` for a slot nothing told this class about, and for every slot of
@@ -1282,7 +1282,7 @@ impl ClassTable {
 
     /// Fills in `id`'s native renderer — see [`ClassDesc::renderer`].
     ///
-    /// `address` is an ADR 0002 helper that takes the instance as its one
+    /// `address` is an `rule:errors/propagation` helper that takes the instance as its one
     /// argument and **borrows** it, which is what separates this from
     /// [`ClassTable::set_methods`]; `nvs_stdlib::instance` is its only caller,
     /// because a class whose renderer is native is a `Core` class by
@@ -2533,7 +2533,7 @@ unsafe fn unwind_abandoned(ptr: *mut ObjHeader, target: *const u8) {
 // ---------------------------------------------------------------------------
 //
 // The same split `crate::string`'s own primitives are on, for the same reason:
-// none of these can fail, so none of them wears ADR 0002's checked-return
+// none of these can fail, so none of them wears `rule:errors/propagation`'s checked-return
 // shape. Every one is `extern "C"` and never `extern "C-unwind"`.
 
 /// Allocates a fresh instance of `class` with a reference count of one, every

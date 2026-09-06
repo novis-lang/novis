@@ -1,4 +1,4 @@
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)'s
+//! `rule:errors/diagnostic-record`'s
 //! one record model, and the renderings of it.
 //!
 //! Every developer-facing output in Novis is a [`Record`]: an [`Envelope`]
@@ -6,7 +6,7 @@
 //! fixed set of kinds and there is no extension point — and it is **content,
 //! not presentation**: it carries no colour, no indentation, no width and no
 //! ordering-for-display. A rendering supplies all four. That separation is the
-//! whole of ADR 0092, and it is why adding a fourth rendering later costs one
+//! whole of `rule:errors/diagnostic-record`, and it is why adding a fourth rendering later costs one
 //! implementation rather than five.
 //!
 //! # What is here, and what is not yet
@@ -19,10 +19,10 @@
 //! the producers that exist, and both live in `nvs-stdlib` for the reason
 //! § *Where this sits* gives.
 //!
-//! **[ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 6's
+//! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
 //! escalation ladder. § 6 asks that ordinary application code and the tier-4
-//! floor write one shape through one implementation, and ADR 0092 § 1 has
+//! floor write one shape through one implementation, and `rule:errors/diagnostic-record` has
 //! already put every rendering in this crate; a JSON writer in `nvs-runtime`
 //! for the floor plus this one for everything else would be two writers that
 //! agree today. The price is the dependency edge below, which § 1 sanctions and
@@ -57,13 +57,13 @@
 //!
 //! # Where this sits
 //!
-//! ADR 0092 § 1 puts the model in one crate that both the runtime and the
+//! `rule:errors/diagnostic-record` puts the model in one crate that both the runtime and the
 //! compiler front end depend on, which is why it is not in `nvs-diagnostics`:
 //! `nvs-runtime` depends on no `nvs-*` crate but this one, so the dependency
 //! has to run the other way.
 //!
 //! **This crate is a leaf, and that is what the second producer cost.** Its
-//! dependents are `nvs-runtime` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! dependents are `nvs-runtime` — `rule:errors/escalation-ladder`
 //! § 6's tier-4 floor, which renders an uncaught `Throwable` through
 //! [`json::line`] — and `nvs-stdlib`, whose `Core\Log::write` is the same
 //! render reached from the other caller. Its only dependency is `serde_json`.
@@ -88,10 +88,10 @@ pub mod json;
 pub mod plain;
 pub mod text;
 
-/// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// `rule:errors/diagnostic-record`
 /// § 2's five levels, with the fixed syslog mapping that section's table gives.
 ///
-/// The mapping is fixed because [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+/// The mapping is fixed because `rule:errors/escalation-ladder`
 /// § 4 names `syslog` as a target and a severity is not optional there.
 ///
 /// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
@@ -100,7 +100,7 @@ pub mod text;
 /// [`Self::syslog_severity`], read from here rather than written again.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub enum Level {
-    /// `Core\Debug::dump`'s destination — ADR 0092 § 4.
+    /// `Core\Debug::dump`'s destination — `rule:errors/debug-dump`.
     #[default]
     Debug,
     /// Ordinary progress.
@@ -110,7 +110,7 @@ pub enum Level {
     Warn,
     /// An uncaught `Throwable`.
     Error,
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s tier-3
+    /// `rule:errors/escalation-ladder`'s tier-3
     /// and tier-4 floor. It exists so the escalation ladder has a level of its
     /// own rather than a parallel channel.
     Critical,
@@ -129,7 +129,7 @@ impl Level {
     ];
 
     /// The level whose [`Self::syslog_severity`] is `severity`, or `None` for a
-    /// number ADR 0092 § 2's roster does not carry — syslog's `Notice` (5) and
+    /// number `rule:errors/log-level`'s roster does not carry — syslog's `Notice` (5) and
     /// `Alert` (1) among them.
     ///
     /// It reads the mapping back by *searching* [`Self::ALL`] rather than by
@@ -145,7 +145,7 @@ impl Level {
             .find(|level| level.syslog_severity() == severity)
     }
 
-    /// The syslog severity ADR 0092 § 2's table pairs with this level.
+    /// The syslog severity `rule:errors/log-level`'s table pairs with this level.
     #[must_use]
     pub const fn syslog_severity(self) -> u8 {
         match self {
@@ -169,7 +169,7 @@ impl Level {
         }
     }
 
-    /// The level's own case name, as ADR 0092 § 2's roster writes it —
+    /// The level's own case name, as `rule:errors/log-level`'s roster writes it —
     /// `Log\Level::Debug` — and as [`Self::of`] reads `[log] level`.
     ///
     /// A third match over the roster rather than a case fold of [`Self::name`],
@@ -186,7 +186,7 @@ impl Level {
         }
     }
 
-    /// The level `written` names, or `None` for a word ADR 0092 § 2's roster
+    /// The level `written` names, or `None` for a word `rule:errors/log-level`'s roster
     /// does not carry.
     ///
     /// **Two spellings, and both of them the documentation's own.** § 2 writes
@@ -211,7 +211,7 @@ impl Level {
     }
 }
 
-/// Text a record carries, with ADR 0092 § 5's control-byte and bidi
+/// Text a record carries, with `rule:errors/record-transformations`'s control-byte and bidi
 /// transformations already applied.
 ///
 /// The only way to build one is [`Rendered::new`], and it is the only text
@@ -278,7 +278,7 @@ pub enum Scalar {
     Bytes(Vec<u8>),
 }
 
-/// What an [`Node::Elided`] node says was cut, and how much of it — ADR 0092
+/// What an [`Node::Elided`] node says was cut, and how much of it — `rule:errors/diagnostic-record`
 /// § 5.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Elision {
@@ -306,7 +306,7 @@ pub enum Elision {
     },
 }
 
-/// One node of a record's tree. The roster is ADR 0092 § 1's, closed.
+/// One node of a record's tree. The roster is `rule:errors/diagnostic-record`'s, closed.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Node {
     /// A scalar, tagged with its Novis type.
@@ -349,7 +349,7 @@ pub enum Node {
         /// How many parameters it declares.
         parameters: usize,
     },
-    /// Stands where a `secret`-typed value would have been — ADR 0092 § 5,
+    /// Stands where a `secret`-typed value would have been — `rule:errors/record-transformations`,
     /// [ADR 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md) § 4.
     Redacted,
     /// Stands where content was cut, naming what and how much.
@@ -374,7 +374,7 @@ pub enum Node {
     },
 }
 
-/// The depth and length bounds ADR 0092 § 5 owes the model, past which content
+/// The depth and length bounds `rule:errors/record-transformations` owes the model, past which content
 /// becomes an [`Elision`].
 ///
 /// The numbers are this crate's, taken under AGENTS.md's priority ordering
@@ -416,7 +416,7 @@ impl Default for Caps {
     }
 }
 
-/// Where a record was produced — ADR 0092 § 1's `source` field.
+/// Where a record was produced — `rule:errors/diagnostic-record`'s `source` field.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Source {
     /// The file's path as the program named it.
@@ -427,7 +427,7 @@ pub struct Source {
     pub member: Option<String>,
 }
 
-/// What is true of a whole record and nothing about how it looks — ADR 0092
+/// What is true of a whole record and nothing about how it looks — `rule:errors/diagnostic-record`
 /// § 1's table.
 ///
 /// Every field but [`Self::level`] is optional, and an absent one is **omitted**
@@ -436,7 +436,7 @@ pub struct Source {
 /// producer that has no request to name should not have to invent one.
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Envelope {
-    /// RFC 3339, as [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// RFC 3339, as `rule:errors/escalation-ladder`
     /// § 6 already fixes.
     pub ts: Option<String>,
     /// § 2's level.
@@ -464,12 +464,12 @@ pub struct Envelope {
     /// only writer today.
     pub count: Option<u64>,
     /// Named fields, each carrying a node — **not** a stringly bag, which is
-    /// what lets the compile-time field schema ADR 0092 § 8 keeps possible
+    /// what lets the compile-time field schema `rule:errors/log-fields` keeps possible
     /// arrive without changing the model.
     pub fields: Vec<(String, Node)>,
 }
 
-/// One developer-facing output: ADR 0092 § 1's envelope plus a tree of nodes.
+/// One developer-facing output: `rule:errors/diagnostic-record`'s envelope plus a tree of nodes.
 ///
 /// [`Self::nodes`] is what the producer had to say beyond the envelope —
 /// `Core\Debug::dump`'s one node per argument, a `Throwable`'s frames, a
@@ -501,7 +501,7 @@ impl Record {
 mod tests {
     use super::*;
 
-    /// ADR 0092 § 2's table, which is fixed because ADR 0020 § 4 names
+    /// `rule:errors/log-level`'s table, which is fixed because `rule:errors/engine-floor` names
     /// `syslog` as a target and a severity is not optional there.
     #[test]
     fn every_level_carries_its_syslog_severity() {

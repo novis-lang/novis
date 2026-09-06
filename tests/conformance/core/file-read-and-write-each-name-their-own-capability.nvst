@@ -23,7 +23,7 @@ try {
     echo "write: ", $refused->message, "\n";
 }
 
-// ADR 0118 § 5: a denial is the world refusing a call, not ADR 0020's `FATAL`.
+// ADR 0118 § 5: a denial is the world refusing a call, not `rule:errors/escalation-ladder`'s `FATAL`.
 // Both clauses above caught, so this line prints -- which is the whole of what
 // separates a capability refusal from a limit breach, and it is asserted here
 // rather than in a comment because a `FATAL` would take the line with it.

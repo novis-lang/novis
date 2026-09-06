@@ -165,7 +165,7 @@ needs; they are not the definition, and a new sink does not need an ADR to becom
   (reject path separators and `..`, or resolve-and-verify against a base directory) is stdlib design due at
   the milestone that builds it, per the same deferral as § 3's roster.
 
-**`Core\Log` is deliberately not in this list.** [ADR 0020](0020-error-escalation-ladder.md) already fixed
+**`Core\Log` is deliberately not in this list.** `rule:errors/escalation-ladder` already fixed
 `Core\Log`'s writer as a JSON-Lines serializer — a structured field is escaped by the serializer, never by
 string concatenation into a line — which already closes log-forging/injection independently of this ADR.
 Logging tainted content is *desired*, not a risk: recording exactly what an attacker sent is the point of a
@@ -233,7 +233,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   discovered after `Core\Db` ships.
 - Building a SQL query or an HTML fragment directly from live input becomes a compile error, not a
   code-review habit or a linter suggestion that can be silenced.
-- Log injection is confirmed already closed by [ADR 0020](0020-error-escalation-ladder.md) rather than given
+- Log injection is confirmed already closed by `rule:errors/escalation-ladder` rather than given
   a second, possibly-inconsistent fix here.
 
 **Negative**

@@ -2211,7 +2211,7 @@ fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
 ///
 /// A `RuntimeError` and not an `IOError` because nothing about the file went
 /// wrong: the program asked a question of something it had already given up,
-/// which is a mistake in the program (ADR 0020 § 2's split).
+/// which is a mistake in the program (`rule:errors/on-uncaught-throw`'s split).
 fn already_closed(member: &str, path: &Value) -> Fault {
     Fault::thrown(format!(
         "{FILE_NAME}::{member}: this handle is closed — {}",
@@ -2551,7 +2551,7 @@ nvs_runtime::nvs_helper! {
     /// there is no waiting form of it anywhere.
     ///
     /// Contention is therefore an `IOError` and never a `false`: ADR 0063
-    /// leaves no room for a falsy return, and ADR 0020 § 2's split puts this
+    /// leaves no room for a falsy return, and `rule:errors/on-uncaught-throw`'s split puts this
     /// on the file's side of the line — nothing about the program is wrong,
     /// the file is held. A caller that wants to wait writes the wait it
     /// actually means, out of a task that sleeps between attempts and hands

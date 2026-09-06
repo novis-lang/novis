@@ -1,8 +1,8 @@
 --TEST--
-A memory-limit breach inside `try { … } finally { … }` is ADR 0020 § 1's clean `FATAL`, and the `finally` does not run — ADR 0020 § 1, ADR 0002
+A memory-limit breach inside `try { … } finally { … }` is `rule:errors/on-limit`'s clean `FATAL`, and the `finally` does not run — `rule:errors/on-limit`, `rule:errors/propagation`
 --FILE--
 <?nvs
-// ADR 0020 § 1's breach is a `FATAL`, so it reaches no `catch` and no
+// `rule:errors/on-limit`'s breach is a `FATAL`, so it reaches no `catch` and no
 // `finally`: every copy of a `finally` body lives behind a landing block's
 // catchable exit, and `nvs_ir::ir::Terminator::Catch` admits a `THROWN` alone.
 // What this case is really written around is the *other* exit — the one that
@@ -20,7 +20,7 @@ A memory-limit breach inside `try { … } finally { … }` is ADR 0020 § 1's cl
 echo "start\n";
 
 // Under the 16M grant on its own, and past it by the third slab: the file's
-// ceiling is 16777216 with 1048576 of it reserved for ADR 0020 § 1's tier-1
+// ceiling is 16777216 with 1048576 of it reserved for `rule:errors/on-limit`'s tier-1
 // handler, so two 8 MiB slabs are already over what ordinary execution may
 // hold and the third `Core\Str::repeat` is the member that reports it.
 array<string> $tags = ["a", "b", "c", "d"];
@@ -35,7 +35,7 @@ try {
     // name at all.
     echo "held=", Core\Arr::count($ballast), "\n";
 } finally {
-    // ADR 0020 § 1: a resource limit is not an exception, so this never runs.
+    // `rule:errors/on-limit`: a resource limit is not an exception, so this never runs.
     echo "finally\n";
 }
 echo "after\n";

@@ -387,7 +387,7 @@ stopped does not exist here, so stopping would be cargo-culting its shape rather
   those contexts get, because a run whose output is read out of a CI log later is exactly the case § 1's
   *uniform, not tty-dependent* rule was written for. What throws is claiming the *terminal*; writing text
   never does.
-- **Restoration is an [ADR 0020](0020-error-escalation-ladder.md) obligation, not a `finally`.** Raw mode, a
+- **Restoration is an `rule:errors/escalation-ladder` obligation, not a `finally`.** Raw mode, a
   hidden cursor and a live region must be undone on a throw, on a fatal, on an internal panic (§ 5 of that
   ADR) and on a signal (`Core\Signal`). A ladder that protects the process while leaving the operator's
   shell in raw mode has failed at the thing it exists for. This is the most-forgotten defect in

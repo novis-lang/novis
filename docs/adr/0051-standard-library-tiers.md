@@ -102,7 +102,7 @@ server compresses nothing itself, per [ADR 0097](0097-development-server-and-pro
 and `Core\Command` (`readline`, and the argument parser every other ecosystem leaves to a package —
 [ADR 0086](0086-core-cli-terminal-is-a-sink.md), admitted by test 2 as an output sink and by test 1 for
 raw-mode input, which no sandboxed tier can reach). `Core\Uuid`. `Core\Cache` ([ADR 0059](0059-cross-request-state-is-explicit.md)). `Core\Csv`.
-`Core\Test`. Plus `Core\Fatal`/`Core\Log` ([ADR 0020](0020-error-escalation-ladder.md)) and
+`Core\Test`. Plus `Core\Fatal`/`Core\Log` (`rule:errors/escalation-ladder`) and
 `Core\Attributes` ([ADR 0046](0046-attributes-shape-literal-metadata.md)), already scheduled for M8.
 Four more, each admitted by a test above and each with its own ADR: `Core\Task`
 ([ADR 0072](0072-core-task-structured-concurrency.md), test 1 — it *is* the request lifecycle),
@@ -204,7 +204,7 @@ ImageMagick surface would be imported wholesale for a long tail the first-party 
 `memcached`, against `Core\Cache`'s Redis backend, which is a
 superset in practice; `dba`, against the SQLite that § 4 already admits to the default binary, and which
 has eaten every embedded key-value use case dba was built for; `tidy`, against `Core\Html`'s sanitizer —
-and repair is in any case the wrong direction, since [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)
+and repair is in any case the wrong direction, since `rule:errors/ambiguous-input-refused`
 says ambiguous input is refused rather than fixed up; and `amqp` and `kafka`, against `Core\Queue`
 ([ADR 0084](0084-durable-background-jobs.md)), whose transactional enqueue is a **stronger** guarantee than
 either broker offers, not a weaker substitute for one. By **test 1** plus a thin audience: `soap`, whose

@@ -182,7 +182,7 @@ to close a hazard whose second call is already visible in the source.
 ## Alternatives rejected
 
 - **Have the HTML sink detect already-escaped text and skip it** — PHP's `htmlspecialchars($s, …, $double)`
-  parameter. Rejected: [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md) refuses exactly this
+  parameter. Rejected: `rule:errors/ambiguous-input-refused` refuses exactly this
   repair, and `Core\Html`'s own module doc already argues it out of existence — `&amp;` in the input is
   text that said `&amp;`, and it must come back as `&amp;amp;`. A sink that guesses is a sink an attacker
   can aim.

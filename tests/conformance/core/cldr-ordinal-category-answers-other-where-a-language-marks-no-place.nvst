@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::ordinalCategory` answers `Other` for a language that marks no ordinal form, and still refuses one it carries no rules for at all — ADR 0082 § 2, ADR 0095
+`Core\Cldr::ordinalCategory` answers `Other` for a language that marks no ordinal form, and still refuses one it carries no rules for at all — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // Most languages mark no ordinal form: German writes `1.` for every place and

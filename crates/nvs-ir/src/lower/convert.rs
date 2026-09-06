@@ -38,7 +38,7 @@ impl<'a> Lowering<'a> {
     /// * **Checked.** `int` ↔ `uint`, `float` → an integer, `string` → a
     ///   number and ADR 0009 § 3's `bytes as string` each go through a
     ///   [`Helper`] that either produces the value or throws, emitted through
-    ///   [`Self::emit_fallible`] so it carries ADR 0002's error edge like any
+    ///   [`Self::emit_fallible`] so it carries `rule:errors/propagation`'s error edge like any
     ///   other call.
     /// * **Into an enum.** ADR 0010 § 5's other direction is row 1 run
     ///   backwards: the operand is converted to the enum's *backing* scalar
@@ -250,7 +250,7 @@ impl<'a> Lowering<'a> {
                 out
             }
             // ADR 0007 § 2's checked rows. Each either produces the value or
-            // throws, so each is a fallible helper carrying ADR 0002's error
+            // throws, so each is a fallible helper carrying `rule:errors/propagation`'s error
             // edge — the same call shape a method call already has. The
             // operand is a scalar in every one of these except the `string`
             // rows, whose operand is released once the helper has read it if
@@ -310,7 +310,7 @@ impl<'a> Lowering<'a> {
             // anything: the buffer is validated as well-formed UTF-8 and
             // becomes the `string` over the same allocation, or it throws.
             // Never a replacement character and never a truncation, so it is
-            // fallible like every other checked row and carries ADR 0002's
+            // fallible like every other checked row and carries `rule:errors/propagation`'s
             // error edge.
             //
             // Its own operand is refcounted, so it follows the string rows'
@@ -1747,7 +1747,7 @@ impl<'a> Lowering<'a> {
     /// is small, closed and compile-time-known: each arm is a `BinOp::Eq`,
     /// which `nvs-codegen` turns into a machine comparison for an integer and
     /// a direct two-pointer `nvs_str_eq` for a string. One helper call over an
-    /// encoded set would instead pay ADR 0002's calling convention *and* parse
+    /// encoded set would instead pay `rule:errors/propagation`'s calling convention *and* parse
     /// that encoding on every conversion. Only a [`Ty::Tagged`] operand pays a
     /// call, and it pays exactly the one ADR 0090 § 5 already charges a
     /// `mixed` `==`: [`Helper::Identical`], which answers `false` for a
@@ -1760,7 +1760,7 @@ impl<'a> Lowering<'a> {
     ///
     /// `miss` is what happens where every comparison missed, and it is the
     /// whole difference between the two spellings ADR 0066 § 3 row 2 calls
-    /// twins. `None` is `expr as T`: the throw above, on ADR 0002's error
+    /// twins. `None` is `expr as T`: the throw above, on `rule:errors/propagation`'s error
     /// edge. `Some(block)` is `expr as ?T`, which jumps there instead and
     /// answers `null` — [`Self::lower_nullable_membership`] owns that block,
     /// because only it knows what the result value and its ownership are.

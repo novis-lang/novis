@@ -1,4 +1,4 @@
-//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s calling
+//! `rule:errors/propagation`'s calling
 //! convention, and the macro that makes it impossible to write a helper
 //! without it.
 //!
@@ -43,7 +43,7 @@ pub const THROWN: i32 = 1;
 
 /// Unrecoverable: a resource limit, or an internal error caught at a helper
 /// boundary. Propagates to the request boundary, and Novis code cannot catch it
-/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)).
+/// (`rule:errors/escalation-ladder`).
 pub const FATAL: i32 = 2;
 
 /// The program stopped itself: `exit` or `exit(...)` ran, and the status it
@@ -375,7 +375,7 @@ where
     // return, a task standing on this stack is one a host may not force-unwind.
     // See [`HelperFrame`].
     let _frame = HelperFrame::enter();
-    // ADR 0020 § 1's memory limit, asked *before* the body rather than after
+    // `rule:errors/on-limit`'s memory limit, asked *before* the body rather than after
     // it: a member that has already run holds a `Value` this frame would then
     // have to release on a path nothing else takes, and refusing in front of
     // the allocation is what [`affordable`]'s own doc comment says this seam is
@@ -394,7 +394,7 @@ where
     if let Some(fault) = breach {
         #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
         let ctx = unsafe { &mut *ctx };
-        // ADR 0020 § 1's tier 1, ahead of the record: the handler is what the
+        // `rule:errors/on-limit`'s tier 1, ahead of the record: the handler is what the
         // program gets instead of the member this call was for, and it runs
         // before the breach becomes the status the caller sees, so a fault of
         // its own is overwritten by `record_fault` below rather than reported
@@ -555,7 +555,7 @@ macro_rules! nvs_helper {
         /// [`call`](crate::call).
         #[allow(
             unsafe_code,
-            reason = "a runtime helper's signature is fixed by ADR 0002; the \
+            reason = "a runtime helper's signature is fixed by `rule:errors/propagation`; the \
                       pointer contract cannot be expressed in the type, so the \
                       function is honestly marked unsafe"
         )]
@@ -624,7 +624,7 @@ pub fn call(function: NvsFn, ctx: &mut Ctx, args: &[Value]) -> Result<Value, i32
 pub enum TaskRoot {
     /// A request. Everything the fault touched belongs to that request and is
     /// released wholesale with its arena, so the request fails through
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s ladder
+    /// `rule:errors/escalation-ladder`'s ladder
     /// as an internal panic and the worker's other in-flight requests are
     /// untouched.
     Request,
@@ -796,7 +796,7 @@ thread_local! {
 /// unwind through the compiled Novis frames underneath it, which carry no
 /// unwind tables. A host that cancels a task standing on such a stack therefore
 /// may not unwind it; it has to resume the task and let it die by
-/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status at
+/// `rule:errors/propagation`'s return status at
 /// its next safepoint, which is
 /// [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 5's
 /// rule reached the only way this stack allows. `nvs-host`'s scheduler module

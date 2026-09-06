@@ -43,7 +43,7 @@ there is no way to ask for backtracking, only to write a pattern that requires i
 
 The backtracking tier runs under a bounded step count. Exhausting it throws an ordinary catchable
 `Throwable` naming the pattern and the budget. It never returns "no match", never returns a falsy value,
-and never truncates the search. Per [ADR 0020](0020-error-escalation-ladder.md) this is an ordinary throw,
+and never truncates the search. Per `rule:errors/escalation-ladder` this is an ordinary throw,
 not a resource-limit fatal — the request may catch it and answer 400.
 
 The budget's default is set in `nvs.toml` under [ADR 0005](0005-config-changeability.md)'s ordinary rules.

@@ -120,7 +120,7 @@ request boundary, so it gets a `valgrind` run of its own rather than riding the 
   re-decode per call, which is exactly `post()`'s shape and costs latency rather than an invariant.
   Decided-and-recorded in `nvs-runtime`'s `Inbound` doc comment, never `BLOCKED`.
 - **No `Content-Type` gate**, on `post()`'s stated reasoning. A mislabelled but valid document is read; a
-  malformed one throws `ParseError`. [ADR 0095](../../adr/0095-ambiguous-input-is-refused-never-repaired.md)
+  malformed one throws `ParseError`. `rule:errors/ambiguous-input-refused`
   refuses ambiguity, not mislabelling.
 - **An absent or empty body is a `ParseError`, never `null` and never `LogicError`.** `?mixed` cannot
   distinguish "no body" from a body holding the document `null`, and a peer must never be able to make a

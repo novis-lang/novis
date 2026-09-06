@@ -2,7 +2,7 @@
 //! counter the runtime keeps in every build, and the `[limits] memory` and
 //! `[limits] max_output` ceilings a request is measured against.
 //!
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 names
+//! `rule:errors/on-limit` names
 //! memory as the first of the five resource limits whose breach is a `FATAL`,
 //! and [`crate::affordable`]'s own doc comment already says why the count lives
 //! here rather than at the members that allocate: a guard written per call site

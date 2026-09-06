@@ -18,7 +18,7 @@ class Box {
     public function constructor(public string $label, public array<int> $rows) {}
 }
 
-// ADR 0092 § 5's redaction row, asked of a failure message rather than of a
+// `rule:errors/record-transformations`'s redaction row, asked of a failure message rather than of a
 // dump: whether two secrets differ is reportable, what they hold is not.
 class Vault {
     public function constructor(public secret string $token, public int $id) {}

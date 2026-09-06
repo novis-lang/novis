@@ -461,7 +461,7 @@ const MESSAGE_VALUE: usize = 3;
 /// `bytes` is not in § 3's example and is here because the seam underneath
 /// already carries binary frames: leaving it out would make a binary payload
 /// unreachable from Novis while the peer is free to send one, which is the
-/// silent wrong answer [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// silent wrong answer `rule:errors/ambiguous-input-refused`
 /// refuses. A reader answering `null` is the honest report that this message is
 /// the other kind, and it costs a caller the `?` it was already writing around
 /// `receive`.
@@ -1323,7 +1323,7 @@ mod tests {
     }
 
     /// A socket that failed under a wait is a throw as well, and for the same
-    /// reason: § 3 tears a connection down through ADR 0020's ladder, so the
+    /// reason: § 3 tears a connection down through `rule:errors/escalation-ladder`'s ladder, so the
     /// script gets to see what happened before the isolate ends.
     #[test]
     fn receive_reports_a_failed_socket_as_a_throw() {

@@ -145,7 +145,7 @@ rather than a sweeper's.
 
 `Core\Cli::args()` and `::argc()` mirror `$argv`/`$argc` and are valid only when the process is running as
 the CLI entry point (`nvs run`). Calling either while serving HTTP (`nvs serve`) **throws**, per
-[ADR 0002](0002-error-propagation.md)'s checked-status propagation, rather than PHP's silent absence
+`rule:errors/propagation`'s checked-status propagation, rather than PHP's silent absence
 (`$argv` under `php-fpm` is simply unset, which is its own class of "works until it doesn't" bug). Within a
 request tree, `Core\Cli::args()` returns the same value at every depth — it reflects how the *process* was
 invoked, a process-wide fact rather than a per-isolate one, so `spawn script` does not need to fake or

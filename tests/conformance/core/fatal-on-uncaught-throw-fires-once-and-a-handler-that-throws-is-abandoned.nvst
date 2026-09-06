@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Fatal::onUncaughtThrow` handler that throws is abandoned where it stands, is not entered a second time, and does not become the failure the engine reports — ADR 0020 §§ 2-3
+A `Core\Fatal::onUncaughtThrow` handler that throws is abandoned where it stands, is not entered a second time, and does not become the failure the engine reports — `rule:errors/on-uncaught-throw` and `rule:errors/handler-script`
 --FILE--
 <?nvs
 // § 2's "same zero-retry rule", asked at the boundary that makes it observable:

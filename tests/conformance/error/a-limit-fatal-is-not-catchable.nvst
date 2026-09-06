@@ -1,8 +1,8 @@
 --TEST--
-A resource-limit breach is ADR 0020 § 1's `FATAL` rather than an exception: `catch (Throwable)` — the clause that names every class a program can throw — does not see it, nothing after the guarded region runs, and the one thing that observes it is the tier-1 handler `Core\Fatal::onLimit` registered, which is handed the limit's own name — ADR 0020 § 1, M6's *Verify*
+A resource-limit breach is `rule:errors/on-limit`'s `FATAL` rather than an exception: `catch (Throwable)` — the clause that names every class a program can throw — does not see it, nothing after the guarded region runs, and the one thing that observes it is the tier-1 handler `Core\Fatal::onLimit` registered, which is handed the limit's own name — `rule:errors/on-limit`, M6's *Verify*
 --FILE--
 <?nvs
-// ADR 0020 § 1's ladder, at its top and its bottom in one program.
+// `rule:errors/on-limit`'s ladder, at its top and its bottom in one program.
 // `a-limit-breach-inside-finally-is-a-clean-fatal.nvst` pins the `finally`
 // half; what this case is written around is the `catch` below and the tier
 // above it. A breach is not a `Throwable`, so no clause can name a class that
@@ -29,7 +29,7 @@ try {
     // neither this line nor anything below it prints.
     echo "held=", Core\Str::length($ballast), "\n";
 } catch (Throwable $never) {
-    // ADR 0020 § 1: a resource limit is not an exception. A ladder that raised
+    // `rule:errors/on-limit`: a resource limit is not an exception. A ladder that raised
     // one instead would print this line, and that is the failure worth being
     // loud about — the program would carry on believing it had handled
     // something.

@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage's key grammar is bounded on both sides — every refusal is named beside the nearest spelling that is accepted, including the byte at the length bound — ADR 0082 § 2, ADR 0095
+Core\Storage's key grammar is bounded on both sides — every refusal is named beside the nearest spelling that is accepted, including the byte at the length bound — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // The case beside this one asks whether a path-shaped key is refused, and

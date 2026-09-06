@@ -213,7 +213,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
 /// every class not on [`DISPATCH_ROSTER`], which is most of them.
 ///
 /// Every row here is `native`, which is the whole of what
-/// `nvs_runtime::MethodRow` can say about one: these addresses are ADR 0002
+/// `nvs_runtime::MethodRow` can say about one: these addresses are `rule:errors/propagation`
 /// helpers that **borrow** argument 0, and this crate holds no signature for
 /// them, so the arity and the parameter tags a compiled method's row carries
 /// are left at zero rather than guessed. That field is what a caller with no

@@ -18,7 +18,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     }
 });
 
-// The hooks run after ADR 0020's ladder has already reported the failure —
+// The hooks run after `rule:errors/escalation-ladder`'s ladder has already reported the failure —
 // the failure hooks come first so that a misbehaving queue cannot starve the
 // failure report — and the `finally` below runs before either, because an
 // unwind is what carries the throw to the root in the first place.

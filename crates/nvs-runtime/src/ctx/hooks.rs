@@ -1,7 +1,7 @@
 //! The user code a limit, an uncaught throw or the request's end runs.
 //!
 //! Four callables, each held by the context for the length of one request:
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's limit handler,
+//! `rule:errors/handler-script`'s limit handler,
 //! its uncaught handler, the exit hooks a program registers, and
 //! [ADR 0072](/docs/adr/0072-core-task-structured-concurrency.md) § 6's
 //! deferred work.
@@ -16,7 +16,7 @@ use super::*;
 
 impl Ctx {
     /// Takes ownership of the closure `Core\Fatal::onLimit` registered —
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// tier 1.
     ///
     /// **Last registration wins, and there is no unregister but the request
@@ -67,7 +67,7 @@ impl Ctx {
     }
 
     /// Takes ownership of the closure `Core\Fatal::onUncaughtThrow` registered
-    /// — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// — `rule:errors/on-uncaught-throw`'s
     /// tier 2.
     ///
     /// [`Self::set_limit_handler`]'s contract exactly, and deliberately: last
@@ -99,7 +99,7 @@ impl Ctx {
         self.uncaught_handler.tag() != Some(crate::Tag::Null)
     }
 
-    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// Runs `rule:errors/on-uncaught-throw`'s
     /// tier 2 over `thrown`, if this request registered one.
     ///
     /// **The handler is handed the real exception object**, not a report built
@@ -435,7 +435,7 @@ impl Ctx {
         }
     }
 
-    /// Runs [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// Runs `rule:errors/escalation-ladder`
     /// § 1's tier-1 handler, if this request registered one — the last thing a
     /// program gets to do about a resource limit, and it happens *before* the
     /// breach is recorded as the `FATAL` the ladder goes on to print.

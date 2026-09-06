@@ -358,7 +358,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                         default: Const::Null,
                     },
                     // The two § 3 does not configure, and they are here for
-                    // separate reasons. `domain` exists because ADR 0095 § 3
+                    // separate reasons. `domain` exists because `rule:errors/cookie-name-bytes`
                     // *forbids* it under a `__Host-` prefix, and a rule the
                     // runtime enforces about a spelling the language does not
                     // have is not a rule. `maxAge` exists because a cookie
@@ -1036,10 +1036,10 @@ impl Cookie<'_> {
     }
 }
 
-/// ADR 0095 § 3's stricter prefix: `Secure`, `Path=/`, and no `Domain`.
+/// `rule:errors/cookie-name-bytes`'s stricter prefix: `Secure`, `Path=/`, and no `Domain`.
 const HOST_PREFIX: &str = "__Host-";
 
-/// ADR 0095 § 3's other prefix: `Secure` alone.
+/// `rule:errors/cookie-name-bytes`'s other prefix: `Secure` alone.
 const SECURE_PREFIX: &str = "__Secure-";
 
 /// The stem every one of this member's refusals opens with — one literal, which
@@ -1186,7 +1186,7 @@ nvs_runtime::nvs_helper! {
     /// defaults; this member owns none of them, so a deployment changes its
     /// cookie policy in one block rather than at every call site.
     ///
-    /// **ADR 0095 § 3's prefixes are enforced here rather than documented.**
+    /// **`rule:errors/cookie-name-bytes`'s prefixes are enforced here rather than documented.**
     /// `__Host-` requires `Secure` and `Path=/` and forbids `Domain`;
     /// `__Secure-` requires `Secure`. Both are refused on write, which is the
     /// half of that rule this class owns — the read half is `Core\Request`'s.
@@ -1276,7 +1276,7 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         }
-        // ADR 0095 § 3, on write. The three conditions are named together
+        // `rule:errors/cookie-name-bytes`, on write. The three conditions are named together
         // because a cookie failing any of them is invisible on read, and a
         // write that succeeded into an invisible cookie is the failure mode
         // that rule exists to remove.

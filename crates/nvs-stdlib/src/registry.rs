@@ -1332,7 +1332,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::serialize::CLASS,
     crate::validate::CLASS,
     crate::out::CLASS,
-    // § 16. [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    // § 16. `rule:errors/diagnostic-record`
     // § 4's `dump` and `render` only — the coverage, trace and profile members
     // that section also lists are ADR 0018's and land at M10.
     crate::debug::CLASS,
@@ -1490,12 +1490,12 @@ pub const CLASSES: &[CoreClass] = &[
     // use of the first, and why this member is offered to every request a
     // server answers where its sibling is offered only to an upgradable one.
     crate::sse::CLASS,
-    // ADR 0020 § 1, and no spec § of its own: the escalation ladder's ADR is
+    // `rule:errors/on-limit`, and no spec § of its own: the escalation ladder's ADR is
     // where this member is specified, because what it registers is a rung of
     // that ladder rather than a library facility. [`crate::fatal`] owns why the
     // closure is held by the request's context and not by the module.
     crate::fatal::CLASS,
-    // ADR 0020 § 6, and beside `Core\Fatal` because the two are one ladder:
+    // `rule:errors/log-write`, and beside `Core\Fatal` because the two are one ladder:
     // the rung above every `catch` and the reporting half every rung of it
     // ends at. [`crate::log`] owns why the level enum's integers are syslog
     // severities and why a record reaches the output stream rather than the
@@ -1948,14 +1948,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // because an approximate one is a map in this thread. It is bounded by the
     // same cap for the same reason, since it is the same store.
     (crate::ratelimit::NAME, "shed", None),
-    // ADR 0020 § 6's writer, and the third `None` here — declared rather than
+    // `rule:errors/log-write`'s writer, and the third `None` here — declared rather than
     // left off because "writing a log" is exactly the kind of effect a reader
     // expects a door on, and the answer has to be somewhere they will look.
     // What it reaches is the running program's own output stream, which every
     // `echo` already reaches and no capability governs: the record goes where
     // the operator pointed the process, not to a name the program chose, which
     // is `crate::env`'s reasoning one class over. The moment `[log] target`
-    // grows ADR 0020 § 4's `file:<path>` this row is where the question is
+    // grows `rule:errors/engine-floor`'s `file:<path>` this row is where the question is
     // asked again, because a path the operator names is still a file the
     // engine opens rather than one the program picked.
     (crate::log::NAME, "write", None),

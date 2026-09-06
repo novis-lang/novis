@@ -65,7 +65,7 @@ class Savings extends Account {
 }
 
 // § 3: "a throwing `onPropertySet` still fails the overall write" — the
-// exception propagates to the caller like any other call (ADR 0002).
+// exception propagates to the caller like any other call (`rule:errors/propagation`).
 final class Fussy implements PropertyObserver {
     public int $n;
 

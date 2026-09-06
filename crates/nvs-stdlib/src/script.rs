@@ -439,7 +439,7 @@ fn report_of(reason: i64, status: i64, error: Option<&nvs_runtime::Thrown>) -> V
 ///   live `Throwable`.
 /// - **anything else** — a `FATAL`, which runs no hook at all. § 3 is the
 ///   argument: a resource-limit breach stopped the script *for exceeding its
-///   budget*, and `Core\Fatal::onLimit` on ADR 0020 § 1's reserved slice stays
+///   budget*, and `Core\Fatal::onLimit` on `rule:errors/on-limit`'s reserved slice stays
 ///   its one observer. A cancellation never reaches here at all, because a
 ///   cancelled task runs no user code and so never returns an ending.
 ///
@@ -583,7 +583,7 @@ nvs_runtime::nvs_helper! {
             // `Isolate::start` before it builds anything, and the refusal is
             // recorded on *this* context rather than answered as an error:
             // the ceiling is the tree's and the error below is the argument's,
-            // and ADR 0020 § 1 makes a limit breach a `FATAL` no `catch` sees
+            // and `rule:errors/on-limit` makes a limit breach a `FATAL` no `catch` sees
             // while that error is a throw. `Fault::Pending` is how a helper
             // says the status is already on the context; the handle is dropped
             // unjoined, which `host::Running`'s own doc allows.
@@ -1085,7 +1085,7 @@ mod tests {
         release(hook);
     }
 
-    /// ADR 0127 § 2's third row, asked as an **identity** exactly as ADR 0020
+    /// ADR 0127 § 2's third row, asked as an **identity** exactly as `rule:errors/escalation-ladder`
     /// § 2's tier-2 handler is: the report carries the very allocation the
     /// program threw, so a hook can read its class, message and backtrace back
     /// through the ordinary members rather than a copy of what it said.
@@ -1128,7 +1128,7 @@ mod tests {
     }
 
     /// ADR 0127 § 3's first termination: a resource-limit breach runs **no**
-    /// hook, and `Core\Fatal::onLimit` on ADR 0020 § 1's reserved slice stays
+    /// hook, and `Core\Fatal::onLimit` on `rule:errors/on-limit`'s reserved slice stays
     /// its one observer.
     ///
     /// Asserted at [`super::run_exit_hooks`] because that is the one door

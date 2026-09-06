@@ -114,7 +114,7 @@ pub struct Isolate {
     peer: Option<Box<dyn PeerSocket>>,
 }
 
-/// Whose budget an isolate spends: ADR 0006's answer, and ADR 0020 § 3's one
+/// Whose budget an isolate spends: ADR 0006's answer, and `rule:errors/handler-script`'s one
 /// named exception to it.
 ///
 /// Private, and a builder rather than a parameter of [`Isolate::new`], because
@@ -275,7 +275,7 @@ impl Isolate {
         self
     }
 
-    /// Charges it to ADR 0020 § 3's engine-owned reserve instead of to the tree
+    /// Charges it to `rule:errors/handler-script`'s engine-owned reserve instead of to the tree
     /// that spawned it.
     ///
     /// [`Ctx::handler_isolate`] is the one home of what that changes and why
@@ -334,7 +334,7 @@ impl Isolate {
             inbound,
             peer,
         } = self;
-        // ADR 0020 § 1's ceiling on the tree, ahead of everything else in this
+        // `rule:errors/on-limit`'s ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
         // parent and why it is asked once here rather than polled at a
         // safepoint. Nothing has been built yet at this point, which is the
@@ -342,7 +342,7 @@ impl Isolate {
         // costs one comparison and leaves no half-made isolate behind.
         let depth_breach = match charge {
             Charge::Tree => ctx.script_depth_breach(),
-            // ADR 0020 § 3's handler is not part of the tree this ceiling
+            // `rule:errors/handler-script`'s handler is not part of the tree this ceiling
             // bounds, and a chain that reached the ceiling is one of the
             // failures it exists to report — so asking here would refuse the
             // report on the grounds of the thing being reported.
@@ -644,7 +644,7 @@ fn start_as_task(
         // over: the guard holds no context to reach a peer through, and a close
         // is a *write*, which parks — where a stack being unwound may not
         // (`crate::scheduler`'s module doc, `nvs_runtime::HelperFrame`). Nor is
-        // it the case § 1 is about: a panic is ADR 0020's engine floor rather
+        // it the case § 1 is about: a panic is `rule:errors/escalation-ladder`'s engine floor rather
         // than one of the `[limits]` a connection has a budget of, and every
         // one of *those* arrives here as a fault because
         // `nvs_runtime::run_helper` caught it a frame earlier.
@@ -747,7 +747,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     let failed = !cancelled && isolate_ctx.pending().is_some();
     let thrown = failed.then(|| isolate_ctx.take_thrown());
     if let Some(thrown) = &thrown {
-        // ADR 0020 § 3's tier 3, climbed here for the same reason `nvs run`
+        // `rule:errors/handler-script`'s tier 3, climbed here for the same reason `nvs run`
         // climbs it at the end of a program: an isolate *is* a program, and
         // this throw reached the top of it with nothing left to catch it. It
         // runs **before** the buffer is taken below, so the handler's own
@@ -761,7 +761,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
         // than the floor beneath a missing one. What the operator asked for is
         // the handler; what the parent asked for is the value; neither is the
         // floor.
-        // ADR 0020 § 2's tier 2, at the *isolate* root that section names
+        // `rule:errors/on-uncaught-throw`'s tier 2, at the *isolate* root that section names
         // beside the request one: this child's own registration, fired before
         // the tier below it and before the buffer is taken, so its output
         // crosses at the await with everything else the child wrote. A parent's
@@ -866,7 +866,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
 /// learns to refuse without starting anything.
 ///
 /// `Error` for the class rather than a named one, as [`Failure`]'s own field doc
-/// asks: this failure is not a throw, and ADR 0020's rule that a `FATAL` never
+/// asks: this failure is not a throw, and `rule:errors/escalation-ladder`'s rule that a `FATAL` never
 /// reaches a `catch` is the reason there is no class here that a program could
 /// name.
 fn refused_completion(message: &str) -> Completion {
@@ -901,11 +901,11 @@ fn cancelled_completion() -> Completion {
     }
 }
 
-/// The rendered class name behind a [`nvs_runtime::Thrown`], or ADR 0020's
+/// The rendered class name behind a [`nvs_runtime::Thrown`], or `rule:errors/escalation-ladder`'s
 /// generic one where there is no descriptor to read.
 ///
 /// The answer is `nvs_runtime::Thrown`'s own, read from below rather than
-/// derefed a second time here: ADR 0020 § 6's tier-4 floor asks the same
+/// derefed a second time here: `rule:errors/log-write`'s tier-4 floor asks the same
 /// question of the same value, and the `unsafe` behind it belongs to the crate
 /// that publishes the descriptor.
 fn class_name(thrown: &nvs_runtime::Thrown) -> String {
@@ -1602,7 +1602,7 @@ mod tests {
                 // A `Core` member's stack is one no forced unwind may cross, so
                 // a cancellation reaches this child as the notice its next
                 // suspension answers rather than as a teardown — and answering
-                // it is `Ctx::cancel`, ADR 0002's return status, with no
+                // it is `Ctx::cancel`, `rule:errors/propagation`'s return status, with no
                 // cleanup of the child's own running on the way out.
                 let _frame = nvs_runtime::HelperFrame::enter();
                 loop {

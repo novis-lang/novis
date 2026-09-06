@@ -486,7 +486,7 @@ pub(crate) fn reject_secret_throwable_message(
 }
 
 /// ADR 0033 § 4's debug-dump sink at its *call-site* half, which is how
-/// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// `rule:errors/diagnostic-record`
 /// § 5's redaction row states it: a property whose declared type carries
 /// `secret` becomes a Redacted node, and a `secret` value handed straight to
 /// the dump is refused by `nvs check`. The two halves are one rule about one
@@ -499,7 +499,7 @@ pub(crate) fn reject_secret_throwable_message(
 /// *Context* is that argument's one home.
 ///
 /// **`render` is refused on the same terms as `dump`, and not as an
-/// extension of the item that added this.** ADR 0092 § 5's closing paragraph
+/// extension of the item that added this.** `rule:errors/record-transformations`'s closing paragraph
 /// makes the renderings non-bypassable — there is no `dumpRaw` and no
 /// rendering selected by an argument — so a member that answers the record's
 /// text as a `Core\Cli\Text` carrier is the same disclosure one `echo` later,

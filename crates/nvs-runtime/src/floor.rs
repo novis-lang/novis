@@ -1,4 +1,4 @@
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) §§ 5-6's
+//! `rule:errors/panics-bypass-user-code` and `rule:errors/log-write`'s
 //! **tier 4** — the engine floor: what reports a failure when there is no
 //! script left to run and no second attempt to make.
 //!
@@ -12,7 +12,7 @@
 //! [`nvs_render::json::line`] — the same call `Core\Log::write` makes in
 //! `nvs_stdlib::log`. Neither side owns a serialiser of its own, because two
 //! writers that agree today is the failure
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `rule:errors/diagnostic-record`
 //! exists to prevent, and the floor is the worst possible place to discover a
 //! disagreement.
 //!
@@ -56,7 +56,7 @@
 //! layer that still has a [`Record`] to add a count field to rather than bytes
 //! to guess at, and a `Ctx` is per request while a fault loop need not be.
 //!
-//! `[log] format` is not read here. ADR 0092 § 3's plaintext rendering of the
+//! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
 //! same record is what [ADR 0091](/docs/adr/0091-run-mode-is-two-values-a-ceiling-and-a-list-of-defaults.md)
 //! § 3's `development` default selects, and nothing reads that directive at run
 //! time yet; JSON Lines is § 6's default and the honest single answer until the
@@ -75,7 +75,7 @@ use crate::string::NvsStr;
 use crate::throwable::Thrown;
 use crate::value::Value;
 
-/// One uncaught `Throwable` as [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+/// One uncaught `Throwable` as `rule:errors/escalation-ladder`
 /// § 6's record, at [`Level::Error`].
 ///
 /// The frames are carried as one `backtrace` field in the `#0`-first form
@@ -100,7 +100,7 @@ pub fn uncaught(thrown: &Thrown) -> Record {
     record
 }
 
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 3's one
+/// `rule:errors/handler-script`'s one
 /// explicit argument to the tier-3 handler, built from the record tier 4 would
 /// otherwise have reported.
 ///
@@ -151,7 +151,7 @@ pub fn note(level: Level, message: &str) -> Record {
     record
 }
 
-/// One string as a field's node, with ADR 0092 § 5's substitution applied.
+/// One string as a field's node, with `rule:errors/record-transformations`'s substitution applied.
 ///
 /// Public because a caller's own context — which queue the failure came out of,
 /// which limit was reached — is a field it adds to a record this module built,
@@ -165,20 +165,20 @@ pub fn text(value: &str) -> Node {
     })
 }
 
-/// Renders `record` as ADR 0092 § 3's JSON Lines line and writes it where
+/// Renders `record` as `rule:errors/renderings`'s JSON Lines line and writes it where
 /// `[log] target` says — `ctx`'s diagnostic channel where it says nothing —
 /// unless [ADR 0106](/docs/adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md)
 /// § 10's window has already written it.
 ///
 /// [`Ctx::write_log_record`] is the routing and the only reader of that
 /// directive; this is one of its two callers and `Core\Log::write` is the
-/// other, which is ADR 0020 § 6's sameness on the destination as well as on
+/// other, which is `rule:errors/log-write`'s sameness on the destination as well as on
 /// the record. It reads `[log] level` in the same place, so a floor record
 /// quieter than the configured minimum is dropped there and not here — the
 /// coalescing above still counts it, because what that window bounds is how
 /// often *this* module builds a record at all.
 ///
-/// It does not render, either: `[log] format` picks between ADR 0092 § 3's two
+/// It does not render, either: `[log] format` picks between `rule:errors/renderings`'s two
 /// renderings at that same call, so this module hands over the *record* and a
 /// floor line and an application's are the same shape in whichever of the two
 /// the deployment configured.
@@ -310,7 +310,7 @@ pub fn expire_coalescing_window() {
 /// of the tree written here, for this module's standing reason: a second walk
 /// over the record model is a second serialiser, and one that drifts from the
 /// first would silently coalesce two records that render differently — the
-/// exact failure ADR 0092 exists to prevent, arriving as a *missing* line.
+/// exact failure `rule:errors/diagnostic-record` exists to prevent, arriving as a *missing* line.
 ///
 /// `ts`, `request_id`, `trace_id`, `span_id` and any `count` already on the
 /// record are cleared first: they are what distinguishes two occurrences of one

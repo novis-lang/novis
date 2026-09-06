@@ -93,7 +93,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // is keyed on the whole dotted path and not on the last segment.
     Directive { key: "limits", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "limits.hard", class: Class::System, apply: Apply::Reload },
-    // The two keys in `[limits]` that are not `Runtime`: ADR 0020 § 1 makes the tier-1 handler's
+    // The two keys in `[limits]` that are not `Runtime`: `rule:errors/on-limit` makes the tier-1 handler's
     // reserved slice `System` on the grounds that a script choosing the size of its own safety net
     // is the case where the choice most needs to be made by someone else. Both halves of the slice
     // are the same net, so they are the same class.
@@ -116,20 +116,20 @@ pub const DIRECTIVES: &[Directive] = &[
     // `System`-class.
     Directive { key: "log", class: Class::Runtime, apply: Apply::Reload },
     // Its one sibling that is, and a more specific row for the reason the two `[cache]` rows below
-    // are: ADR 0020 § 3 makes the tier-3 handler a `System` directive on exactly the grounds
+    // are: `rule:errors/handler-script` makes the tier-3 handler a `System` directive on exactly the grounds
     // `limits.fatal_reserve_memory` above is one — a script naming the script that reports its own
     // failure is the case where the choice most needs to be made by someone else, and this one
     // names a file to *run*. `Reload` and not `Boot`: the path is resolved when a failure reaches
     // the ladder, so a new value is in force at the next one and nothing is re-created.
     Directive { key: "log.handler", class: Class::System, apply: Apply::Reload },
     // Its two ceilings, `System` for a reason of their own rather than by inheritance from the row
-    // above: ADR 0020 § 3's reserve exists so that the tier reporting a request's failure is not
+    // above: `rule:errors/handler-script`'s reserve exists so that the tier reporting a request's failure is not
     // stopped by that request, and a script that could widen or narrow it would be deciding how
     // loudly its own failure is reported. `Reload` for the handler's reason — both are read when a
     // failure reaches the ladder, so a new value is in force at the next one.
     Directive { key: "log.handler_reserve_memory", class: Class::System, apply: Apply::Reload },
     Directive { key: "log.handler_reserve_time", class: Class::System, apply: Apply::Reload },
-    // The floor's destination, `System` because ADR 0020 § 4 says so in as many words: tier 4
+    // The floor's destination, `System` because `rule:errors/engine-floor` says so in as many words: tier 4
     // "writes to an operator-owned, `System`-class sink". A request that could move it could send
     // the record of its own failure somewhere nobody reads, which is the same authority
     // `log.handler` withholds one rung up. `Reload` for that row's reason as well — the target is

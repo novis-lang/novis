@@ -22,7 +22,7 @@ return "answered";
 <?nvs
 // ADR 0006 § *Failure is a value, not an exception*: there is no `try` around
 // either call below and none is needed. Nothing unwinds across the boundary,
-// for the reason nothing unwinds across a JIT frame (ADR 0002) — the status
+// for the reason nothing unwinds across a JIT frame (`rule:errors/propagation`) — the status
 // is checked, so a child that fails cannot end the parent that spawned it.
 var $bad = spawn script "thrower.nvs" with(output: "capture");
 var $failed = await $bad;

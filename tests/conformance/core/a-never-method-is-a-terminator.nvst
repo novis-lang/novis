@@ -1,5 +1,5 @@
 --TEST--
-A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — ADR 0007 § 3, ADR 0002
+A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — ADR 0007 § 3, `rule:errors/propagation`
 --FILE--
 <?nvs
 // ADR 0007 § 3 makes `never` a return-only atom, and it is the one atom whose
@@ -23,7 +23,7 @@ class Work {
         echo "entered\n";
         if (!$ok) {
             // The terminator is the callee's own, not a mark on this site: the
-            // `throw` inside `with` leaves the frame, and ADR 0002's unwind
+            // `throw` inside `with` leaves the frame, and `rule:errors/propagation`'s unwind
             // edge carries it past `run` to the `catch` below. So the `echo`
             // after this call is lowered like any other statement and is
             // reached by nothing.

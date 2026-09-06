@@ -587,7 +587,7 @@ fn dechunk(mut rest: &[u8], malformed: &dyn Fn(&str) -> Fault) -> Result<Vec<u8>
 /// Bytes that are not text are **refused** rather than repaired: replacing them
 /// would hand a program a body that is not what the origin sent and give it no
 /// way to tell, which is
-/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+/// `rule:errors/ambiguous-input-refused`'s
 /// whole rule. The member that answers `bytes` instead is the one this class
 /// does not have yet, and it is where a binary body belongs.
 fn decode(body: Vec<u8>, member: &str) -> Result<String, Fault> {
@@ -822,7 +822,7 @@ mod tests {
         assert_eq!(reply.body, "ok ay");
     }
 
-    /// A body that is not UTF-8 is refused rather than repaired — ADR 0095,
+    /// A body that is not UTF-8 is refused rather than repaired — `rule:errors/ambiguous-input-refused`,
     /// and the reason `text()` can promise a `string` at all.
     #[test]
     fn a_body_that_is_not_text_is_refused_rather_than_repaired() {

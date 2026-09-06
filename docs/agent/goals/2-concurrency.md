@@ -33,7 +33,7 @@ that spike into `nvs-host` and gives it a reactor; it does not re-litigate wheth
 ## Stage 0 — the catch-up, and it is the containment rule
 
 [ADR 0106](../../adr/0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) was accepted after M4
-was reported done and it **amends ADR 0002**: containment moves outward from the helper to the worker
+was reported done and it **amends `rule:errors/propagation`**: containment moves outward from the helper to the worker
 task. Every mechanism this goal builds sits inside that boundary, so it goes first — a scheduler written
 against the old boundary is a scheduler whose panic path is wrong, and it is wrong in the place that is
 hardest to find later.
@@ -43,7 +43,7 @@ hardest to find later.
    existing `catch_unwind` at the ABI is the inner boundary and stays — this is the outer one.
    `crates/nvs-runtime/src/abi.rs:336` is the helper-body macro that owns the inner rule.
 2. **Every depth and duration a request can drive is bounded on the engine's own stack.** § 4. The
-   call-stack bound in ADR 0020 § 1 gains an engine-side counterpart, and a single helper gains one too.
+   call-stack bound in `rule:errors/on-limit` gains an engine-side counterpart, and a single helper gains one too.
    This is the item that makes a memory cap mean anything later, and it is cheap now and expensive after
    there are twenty helpers that can recurse.
 

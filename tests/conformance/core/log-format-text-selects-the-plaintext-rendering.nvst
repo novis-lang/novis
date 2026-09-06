@@ -1,8 +1,8 @@
 --TEST--
-`[log] format = "text"` selects ADR 0092 § 3's second rendering for the target, and the producer that built the record still names no rendering at all — ADR 0092 §§ 3, 6
+`[log] format = "text"` selects `rule:errors/renderings`'s second rendering for the target, and the producer that built the record still names no rendering at all — `rule:errors/renderings` and `rule:errors/record-producers`
 --FILE--
 <?nvs
-// ADR 0092 § 3's table gives a log target two of the three renderings, and § 3
+// `rule:errors/renderings`'s table gives a log target two of the three renderings, and § 3
 // says outright that no producer takes a format argument. So this program is
 // the JSON Lines cases beside it, character for character in its source: what
 // differs is one line of `nvs.toml`, which is the whole claim.

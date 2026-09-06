@@ -1,4 +1,4 @@
-# ADR 0092 — One diagnostic record, three renderings, and the sink in force picks
+# `rule:errors/diagnostic-record` — One diagnostic record, three renderings, and the sink in force picks
 
 - **Status:** Accepted
 - **Date:** 2026-08-25

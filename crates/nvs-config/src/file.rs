@@ -7,7 +7,7 @@
 //! failure that costs nothing to refuse. Neither refusal is machinery of ours — the `toml` crate
 //! refuses the duplicate and `deny_unknown_fields` refuses the unknown key — so what this module
 //! owns is the *reporting*: the file is registered in the caller's [`SourceMap`] before it is
-//! parsed, so a failure renders through ADR 0092's one diagnostic record with the offending line
+//! parsed, so a failure renders through `rule:errors/diagnostic-record`'s one diagnostic record with the offending line
 //! under it, exactly as a compiler error does — plus the one thing `serde` cannot say, which is
 //! which **block** the key was found in ([`block_at`]).
 //!

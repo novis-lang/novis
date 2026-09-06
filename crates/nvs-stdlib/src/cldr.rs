@@ -100,7 +100,7 @@
 //! **A language whose rules are not carried throws rather than falling back.**
 //! There is an obvious cheaper design — answer English's `one`/`other` for
 //! anything unrecognized — and it is the wrong one twice over: it is
-//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! `rule:errors/ambiguous-input-refused`'s
 //! repair-instead-of-refuse, and it is silently wrong in the direction that
 //! matters, since a Russian catalog written against `one`/`other` reads
 //! correctly for 1 and wrongly for 2, 5 and 11 alike. The refusal names the

@@ -83,7 +83,7 @@
 //! ([`crate::HelperFrame`]), so the host resumes the caller and this call
 //! returns [`Outcome::Cancelled`] like anything else. The member's answer is
 //! [`Ctx::cancel`], which is § 5's teardown by
-//! [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status: no
+//! `rule:errors/propagation`'s return status: no
 //! `catch` sees it and no script code runs on the way out.
 //!
 //! # What it spends
@@ -453,7 +453,7 @@ pub trait Host: std::fmt::Debug {
     /// the whole reason this answers anything at all. A task parked here is
     /// standing on an `extern "C"` helper frame, so its host may not unwind it
     /// ([`crate::HelperFrame`]); it resumes the task instead, and the member
-    /// turns that into [`ADR 0002`](/docs/adr/0002-error-propagation.md)'s
+    /// turns that into [``rule:errors/propagation``](/docs/adr/0002-error-propagation.md)'s
     /// return status at the next safepoint. A host with no task beneath the
     /// call still owes the wait, blocking is the right answer there, and it
     /// answers [`Woken::Elapsed`] because nothing could have cancelled it.

@@ -365,7 +365,7 @@ in that goal. An item's owner is the row it sits in.
       that has no response. Only the request's own task may register — a child's queue would be
       drained by nobody — and that module's known gaps are § 7's `max_concurrent` and an isolate's
       own drain, both of which need a host that holds more than one tree.
-- [ ] **M2** `Core\Fatal::onUncaughtThrow` (ADR 0020 § 2) — only `onLimit` exists.
+- [ ] **M2** `Core\Fatal::onUncaughtThrow` (`rule:errors/on-uncaught-throw`) — only `onLimit` exists.
 - [ ] **M3** ADR 0079's wider assertion roster (`assertStartsWith`, …) — `Core\Test` holds ten members.
       Triaged, and it is one member wide rather than a roster: the roster's one home is
       [docs/spec/01-core-library.md](../spec/01-core-library.md)'s Part II class table, and

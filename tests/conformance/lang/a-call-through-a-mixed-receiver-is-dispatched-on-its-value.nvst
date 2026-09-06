@@ -46,7 +46,7 @@ echo $m->sum(...$pair) as string, "\n";
 // takes: `check_param_tags` is one implementation, shared with `callable`.
 echo $m->widen(3), "\n";
 
-// The callee's own throw travels back on ADR 0002's error edge, unchanged.
+// The callee's own throw travels back on `rule:errors/propagation`'s error edge, unchanged.
 try {
     echo $m->boom("here"), "\n";
 } catch (Throwable $e) {

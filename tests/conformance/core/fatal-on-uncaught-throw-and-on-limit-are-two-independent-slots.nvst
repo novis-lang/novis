@@ -1,5 +1,5 @@
 --TEST--
-`Core\Fatal`'s two tiers are two slots: registering one leaves the other alone, a caught throw fires neither, and a second `onUncaughtThrow` replaces the first rather than queueing behind it — ADR 0020 §§ 1-2
+`Core\Fatal`'s two tiers are two slots: registering one leaves the other alone, a caught throw fires neither, and a second `onUncaughtThrow` replaces the first rather than queueing behind it — `rule:errors/on-limit` and `rule:errors/on-uncaught-throw`
 --FILE--
 <?nvs
 // The two members are the same shape of registration over different slots

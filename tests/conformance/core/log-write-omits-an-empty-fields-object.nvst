@@ -1,5 +1,5 @@
 --TEST--
-`Core\Log::write` writes structured context as a `fields` object and omits the key entirely when the bag is empty -- ADR 0020 § 6
+`Core\Log::write` writes structured context as a `fields` object and omits the key entirely when the bag is empty -- `rule:errors/log-write`
 --FILE--
 <?nvs
 // The bound on both sides: the call that carries no key, and the smallest one
@@ -11,7 +11,7 @@ array<mixed> $one = ["user" => 7];
 Core\Log::write(Core\Log\Level::Info, "given", $one);
 
 // The bag is `array<string, mixed>`, so a field is whatever the call site had
-// -- and it is walked into ADR 0092 § 1's node model by the same walk
+// -- and it is walked into `rule:errors/diagnostic-record`'s node model by the same walk
 // `Core\Debug::dump` uses and rendered by the same JSON rendering the engine
 // floor will, so a `float`, a `bool` and a nested array cannot be spelled one
 // way by the program and another way by the runtime reporting on it.

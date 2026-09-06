@@ -1,4 +1,4 @@
-//! `Core\Debug` — [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `Core\Debug` — `rule:errors/diagnostic-record`
 //! § 4's `dump` and `render`, and the walk that turns a runtime value into
 //! § 1's record.
 //!
@@ -42,7 +42,7 @@
 //!
 //! # What the walk decides, and what it does not
 //!
-//! Every one of ADR 0092 § 5's four transformations is the *model*'s, not
+//! Every one of `rule:errors/record-transformations`'s four transformations is the *model*'s, not
 //! this module's: control bytes and bidi are `nvs_render::Rendered`'s
 //! constructor, elision is a `nvs_render::Elision` node, and a cycle is a
 //! `nvs_render::Node::Cycle`. What this walk decides is the two things only a
@@ -53,7 +53,7 @@
 //! # Known gaps
 //!
 //! 1. **A `secret` value reaches this walk without a property to be declared
-//!    on.** ADR 0092 § 5's redaction row is closed at both of its own ends —
+//!    on.** `rule:errors/record-transformations`'s redaction row is closed at both of its own ends —
 //!    a `secret` argument is refused where the call is written
 //!    (`nvs_types::expr::quals::reject_secret_debug_argument`) and a
 //!    `secret`-typed *property* is a [`Node::Redacted`](nvs_render::Node::Redacted),
@@ -73,7 +73,7 @@
 //!    type would build; reaching it from a dump wants the tag roster to
 //!    distinguish an enum, which is a representation change ADR 0010 § 5
 //!    deliberately declined.
-//! 3. **The `Throwable` producer is not here.** ADR 0092 § 6 makes an uncaught
+//! 3. **The `Throwable` producer is not here.** `rule:errors/record-producers` makes an uncaught
 //!    `Throwable` a record at `Error` with its frames as Sequence-of-Object
 //!    nodes, and that walk belongs to `nvs-runtime`'s fatal path rather than
 //!    to a `Core` member — see `nvs_render`'s own § *Where this sits* for the
@@ -87,7 +87,7 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Debug";
 
-/// Spec § 16's `Core\Debug`, as much of it as ADR 0092 § 4 declares.
+/// Spec § 16's `Core\Debug`, as much of it as `rule:errors/debug-dump` declares.
 ///
 /// The coverage, trace and profile members that section also lists are
 /// [ADR 0018](/docs/adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)'s
@@ -216,7 +216,7 @@ pub(crate) fn node(value: Value) -> Node {
     node_of(value, &Caps::default(), 0, &mut Seen::default())
 }
 
-/// ADR 0092 § 6's *"a record at `Debug`, one node per argument"* — the whole
+/// `rule:errors/record-producers`'s *"a record at `Debug`, one node per argument"* — the whole
 /// of what `dump` produces, and the shape M8's log record is built from too.
 fn record_of(tail: &Value) -> Result<Record, Fault> {
     let mut record = Record::at(Level::Debug);
@@ -374,7 +374,7 @@ fn bytes_node(bytes: &[u8], caps: &Caps) -> Node {
     })
 }
 
-/// An `array`, as ADR 0092 § 1's Sequence or Map.
+/// An `array`, as `rule:errors/diagnostic-record`'s Sequence or Map.
 ///
 /// The two shapes are one runtime type, so which one this is is decided from
 /// the keys: an array whose keys are `"0"`, `"1"`, … in order is the list
@@ -448,7 +448,7 @@ fn append_cut(node: Node, total: usize, cut: usize) -> Node {
     }
 }
 
-/// A class instance, as ADR 0092 § 1's Object node — the class name and its
+/// A class instance, as `rule:errors/diagnostic-record`'s Object node — the class name and its
 /// **declared** properties, per ADR 0028 § 4.
 ///
 /// Never a `toString` result and never a customization hook (§ 7): a dump
@@ -509,7 +509,7 @@ fn object_body(
         let name = desc
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
-        // ADR 0092 § 5's redaction row: the *declared* type decides, so the
+        // `rule:errors/record-transformations`'s redaction row: the *declared* type decides, so the
         // value is never walked at all rather than walked and then discarded
         // — a `secret` object's own properties are not read, and a `secret`
         // string contributes no elision node saying how long it was.
@@ -531,7 +531,7 @@ fn object_body(
 mod tests {
     use super::*;
 
-    /// The two rows ADR 0092 § 4 declares, as the registry states them — what
+    /// The two rows `rule:errors/debug-dump` declares, as the registry states them — what
     /// `nvs-types` seeds and what `nvs_ir::lower_call_args` flattens against.
     #[test]
     fn dump_is_variadic_and_render_answers_the_carrier() {
@@ -590,7 +590,7 @@ mod tests {
         assert_eq!(bytes, 3);
     }
 
-    /// ADR 0092's own M4 verification bullet: `Core\Debug::dump` writes to
+    /// `rule:errors/diagnostic-record`'s own M4 verification bullet: `Core\Debug::dump` writes to
     /// **stderr** in a CLI program, and standard output stays byte-empty.
     ///
     /// The assertion is made here rather than in a `.nvst` case because

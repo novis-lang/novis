@@ -38,10 +38,10 @@
 ## Context
 
 Four decisions already stand between a request and its neighbours, and each closes a real path.
-[ADR 0002](0002-error-propagation.md) contains a runtime panic to one request at the ABI.
-[ADR 0020](0020-error-escalation-ladder.md) gives every `FATAL` a path that ends in a log line, including
+`rule:errors/propagation` contains a runtime panic to one request at the ABI.
+`rule:errors/escalation-ladder` gives every `FATAL` a path that ends in a log line, including
 the call-stack limit that would otherwise be a `SIGSEGV`.
-[ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md) refuses text whose spelling and meaning come
+`rule:errors/ambiguous-input-refused` refuses text whose spelling and meaning come
 apart instead of repairing it. [ADR 0097](0097-development-server-and-proxied-origin.md) caps in-flight
 work and waits for nothing forever.
 
@@ -53,7 +53,7 @@ three:
   while a panic is already unwinding aborts unconditionally, as does Rust's default allocation-failure
   handler. Both are reachable from request-sized data — the first through any `Drop` on a teardown path,
   the second through any engine-side buffer that grows with input.
-- **A signal.** [ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through *Novis* frames,
+- **A signal.** `rule:errors/on-limit` bounds recursion through *Novis* frames,
   which is the case it was written for. Request data also drives recursion through *Rust* frames — a
   nested document handed to a decoder, a nested expression handed to the parser, and a nested value graph
   handed to `Drop` at request end, which runs after the request is over and therefore cannot be refused by
@@ -88,7 +88,7 @@ one that is not named is the one that gets discovered by an operator.
 
 ### 2. Containment does not end at the helper
 
-[ADR 0002](0002-error-propagation.md)'s `nvs_helper!` wrapper contains a panic raised beneath a JIT frame.
+`rule:errors/propagation`'s `nvs_helper!` wrapper contains a panic raised beneath a JIT frame.
 Code that runs on a worker with no request beneath it — the accept loop, the HTTP reader, the compiled-unit
 cache index — is outside it. **The worker task's root is wrapped in `catch_unwind` as well**, and the
 wrapper is applied by the task-spawning helper rather than written per call site, for the same reason
@@ -133,7 +133,7 @@ remain, and both are reachable from request-sized data:
 
 ### 4. Depth is bounded on the engine's stack, not only on the script's
 
-[ADR 0020](0020-error-escalation-ladder.md) § 1 bounds recursion through Novis frames, where every user call
+`rule:errors/on-limit` bounds recursion through Novis frames, where every user call
 is a real machine frame. The same request data recurses through *engine* frames in the decoders and in the
 parser, where the § 1 mechanism does not reach: its check is emitted at Novis function entry, and a decoder's
 recursion has no Novis frames in it at all.
@@ -256,7 +256,7 @@ the failure it prevents is silent: the deadline does not fire late, it does not 
 
 ### 10. The floor cannot fill the disk it writes to
 
-[ADR 0020](0020-error-escalation-ladder.md) § 4's floor writes unconditionally, which is correct, and a
+`rule:errors/engine-floor`'s floor writes unconditionally, which is correct, and a
 request that faults in a loop therefore writes in a loop. Two bounds, both on the sink rather than on the
 callers, so that no caller has to be trusted to be rare:
 

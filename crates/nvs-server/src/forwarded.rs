@@ -33,7 +33,7 @@
 //! address may, its own colons being the separator otherwise — which Azure's
 //! front ends and IIS emit by default. Stripping it is § 6's `Host` rule
 //! applied to the same kind of value: a port names no different address, so
-//! this is [ADR 0095]'s *accept verbatim* branch. A port that is not a number
+//! this is `rule:errors/ambiguous-input-refused`'s *accept verbatim* branch. A port that is not a number
 //! is **not** accepted, because then the token means nothing definite and
 //! reading past it would be inventing the answer.
 //!
@@ -63,7 +63,6 @@
 //! allocation at all. A request from an unproxied deployment reads no header
 //! and touches neither.
 //!
-//! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use std::net::IpAddr;
@@ -181,9 +180,8 @@ impl Net {
     /// a proxy reaching a dual-stack listener as `::ffff:10.0.0.7` matches the
     /// `10.0.0.0/8` the operator wrote — the two spellings are one address and
     /// making the operator write both would be the repair
-    /// [ADR 0095] forbids in the other direction.
+    /// `rule:errors/ambiguous-input-refused` forbids in the other direction.
     ///
-    /// [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
     fn holds(self, ip: IpAddr) -> bool {
         match (self.base, canonical(ip)) {
             (IpAddr::V4(base), IpAddr::V4(ip)) => {

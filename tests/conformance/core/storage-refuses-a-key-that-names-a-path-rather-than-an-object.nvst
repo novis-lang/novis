@@ -1,12 +1,12 @@
 --TEST--
-Core\Storage refuses a key that is not one segment rather than resolving it, so no key reaches past the disk's root — ADR 0082 § 2, ADR 0095
+Core\Storage refuses a key that is not one segment rather than resolving it, so no key reaches past the disk's root — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // The rule `crates/nvs-stdlib/src/storage.rs`'s module doc argues: a key names
 // an object and never a path through the disk. Every spelling that could have
 // made it something else — a `..`, a separator either way round, an absolute
 // path, a leading dot, an empty name — is refused rather than stripped, which
-// is ADR 0095's direction and is what keeps the `fs.*` grant over `root`
+// is `rule:errors/ambiguous-input-refused`'s direction and is what keeps the `fs.*` grant over `root`
 // exactly the set of objects.
 //
 // The refusal happens before any door is asked, so this case needs neither a

@@ -201,7 +201,7 @@
 //!    table: `<`/`<=`/`>`/`>=`/`<=>` with a tagged operand take
 //!    [`ir::Helper::ValueLt`] and its two siblings, which answer the rows the
 //!    tags name and *throw* where that closed table names none — the one
-//!    comparison helper family carrying ADR 0002's error edge, and its own doc
+//!    comparison helper family carrying `rule:errors/propagation`'s error edge, and its own doc
 //!    comment is that decision's home. A subscript through a tagged base is no
 //!    longer here either: `nvs_types` refuses it where it is written
 //!    (`E0482`), an `array<T>` binding being what has an element type to check
@@ -375,7 +375,7 @@
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
 //!     `CANCEL` stop the request, and the function-entry site also carries
-//!     ADR 0020 § 1's call-stack compare. `COLLECT` and `DEBUG_BREAK` are
+//!     `rule:errors/on-limit`'s call-stack compare. `COLLECT` and `DEBUG_BREAK` are
 //!     cleared and otherwise ignored — there is no collector and no debugger
 //!     to hand the frame to. Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
@@ -481,7 +481,7 @@
 //!
 //!     Nothing of this reached [`lower::Lowering::coerce`], whose rows
 //!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
-//!     conversion carrying ADR 0002's error edge does not belong in one.
+//!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
 //!
 //! 20. **ADR 0047 § 5, ADR 0010 § 5 and ADR 0007 § 2's scalar rows all run
 //!     whole, a `mixed` source included; what is left is § 2's two

@@ -68,7 +68,7 @@ fn the_release_profile_checks_integer_overflow() {
             .any(|line| line.trim() == "overflow-checks = true"),
         "`[profile.release]` no longer sets `overflow-checks = true`. Cargo's default for a \
          release profile is off, so a size or index computation that wraps becomes a wrong \
-         length nothing reports rather than a panic ADR 0002 contains to one request. If this \
+         length nothing reports rather than a panic `rule:errors/propagation` contains to one request. If this \
          is deliberate, the reasoning belongs beside the setting in the workspace manifest."
     );
 }

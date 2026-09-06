@@ -318,7 +318,7 @@ fn an_entry_that_resolves_outside_server_root_is_refused() {
     }
 }
 
-/// § 3's capture charset, which is ADR 0095 § 5 on every platform. The three refusals are named
+/// § 3's capture charset, which is `rule:errors/path-component-refusals` on every platform. The three refusals are named
 /// together because each is a different half of that rule, and a reading that held only the
 /// charset would mount a directory called `CON`.
 #[test]
@@ -336,7 +336,7 @@ fn a_captured_segment_that_does_not_spell_itself_is_refused() {
         assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {directory:?}");
     }
     // A name that only *contains* a reserved word is a name, not a device: refusing it would be
-    // ADR 0095's repair rather than its refusal, applied to the wrong string.
+    // `rule:errors/ambiguous-input-refused`'s repair rather than its refusal, applied to the wrong string.
     let fs = Fake::with(&["/www/console/public/index.nvs"]);
     assert_eq!(
         table(
@@ -376,7 +376,7 @@ fn a_block_that_names_no_mount_is_refused_without_asking_the_disk() {
         assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {text:?}");
     }
     // A brace that is not a reference is left alone rather than refused: `{` appears in a URL
-    // template that means itself, and repairing it would be ADR 0095's other direction.
+    // template that means itself, and repairing it would be `rule:errors/ambiguous-input-refused`'s other direction.
     nvs_config::server::validate(
         &tree("[server]\n\n[[server.mount]]\nprefix = \"/{name}\"\nentry = \"a.nvs\"\n"),
         &BTreeMap::new(),

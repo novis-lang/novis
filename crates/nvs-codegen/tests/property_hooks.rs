@@ -69,7 +69,7 @@ echo (new Box(2))->doubled;
 }
 
 /// A hook that throws propagates through
-/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s checked-return
+/// `rule:errors/propagation`'s checked-return
 /// path like any other call, because it *is* one — the read carries the same
 /// error edge a method call does, so the throw reaches an ordinary `catch`
 /// rather than escaping the expression that triggered it.

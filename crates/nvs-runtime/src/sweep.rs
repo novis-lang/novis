@@ -77,7 +77,7 @@ use crate::ctx::Ctx;
 /// is the routine reason and it is not a fault of the program's, which is why
 /// this reads as a note rather than as a failure. The path is a field rather
 /// than part of the message so that a log pipeline can count refusals per root
-/// (ADR 0092 § 5).
+/// (`rule:errors/record-transformations`).
 ///
 /// [ADR 0131]: ../../docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
 pub fn at_script_end(ctx: &mut Ctx) {

@@ -20,7 +20,7 @@ try {
             try {
                 Core\Time::sleep(2s);
             } catch (Throwable $e) {
-                // Cancellation is not a `Throwable` (§ 5, and ADR 0020 § 0 for
+                // Cancellation is not a `Throwable` (§ 5, and `rule:errors/throwable-hierarchy` for
                 // the same reason a limit report is not one), so this arm is
                 // unreachable — a runtime that cancelled by throwing would
                 // count here.

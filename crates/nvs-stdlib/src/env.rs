@@ -59,7 +59,7 @@
 //!   "what is `X`" is not `null` — that would report an unreadable value as an
 //!   absent one, and [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s
 //!   `?T` means absence and nothing else. Repairing it lossily is
-//!   [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//!   `rule:errors/ambiguous-input-refused`'s
 //!   refusal.
 //! * `all` **omits** it. That member enumerates, and one variable set by
 //!   something else on the machine must not be able to make a program's own

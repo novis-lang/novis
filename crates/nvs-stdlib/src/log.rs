@@ -1,12 +1,12 @@
-//! `Core\Log` — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! `Core\Log` — `rule:errors/escalation-ladder`
 //! § 6's reporting half: one member a program writes a record with, and
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `rule:errors/diagnostic-record`
 //! § 2's `Core\Log\Level` beside it because that member is the only thing that
 //! takes one.
 //!
 //! **The level enum's integers are the syslog severities, not ordinals.** ADR
 //! 0092 § 2 fixes the mapping — `Debug` 7, `Info` 6, `Warn` 4, `Error` 3,
-//! `Critical` 2 — because ADR 0020 § 4 names `syslog` as a target and a
+//! `Critical` 2 — because `rule:errors/engine-floor` names `syslog` as a target and a
 //! severity is not optional there. Writing the severity as each case's own
 //! constant makes the enum *be* the mapping rather than the first of two
 //! tables that would then have to agree; [`crate::router::METHOD`] writes its
@@ -19,11 +19,11 @@
 //!
 //! # What a record is, and what this module does *not* own
 //!
-//! ADR 0020 § 6's claim is about **sameness**: the tier-4 engine floor and
+//! `rule:errors/log-write`'s claim is about **sameness**: the tier-4 engine floor and
 //! ordinary application code write the same record through the same native
 //! helper, so a log pipeline never has to reconcile two shapes. The record
 //! itself — its envelope, its node model and its three renderings — is
-//! ADR 0092's and belongs to `nvs-render`, and **this module owns none of it**.
+//! `rule:errors/diagnostic-record`'s and belongs to `nvs-render`, and **this module owns none of it**.
 //! [`record`] builds an [`nvs_render::Record`] and [`nvs_render::json::line`]
 //! renders it; which keys a line carries, that an absent one is omitted rather
 //! than written empty, and how a value JSON has no spelling for is written are
@@ -40,7 +40,7 @@
 //! `application_code_and_the_engine_floor_produce_schema_identical_records`
 //! puts one error through both callers and compares the two lines byte for
 //! byte. What that caller cost is the `nvs-runtime` → `nvs-render` dependency
-//! edge, which ADR 0092 § 1 sanctions and `nvs-render`'s own § *Where this
+//! edge, which `rule:errors/diagnostic-record` sanctions and `nvs-render`'s own § *Where this
 //! sits* prices.
 //!
 //! **The envelope is `level` and `msg` for a CLI run, and six keys inside a
@@ -60,7 +60,7 @@
 //!
 //! [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record), which is the
 //! one reader of `[log] target`, `level` and `format`, and takes the channel to
-//! use when the first of those names nothing. **Both of ADR 0092 § 6's writers call it**, so a
+//! use when the first of those names nothing. **Both of `rule:errors/record-producers`'s writers call it**, so a
 //! deployment naming a destination gets one destination and not two —
 //! § 6's sameness is about the record, and a per-caller destination is the
 //! other half of the same claim. That method's doc comment owns the routing,
@@ -71,7 +71,7 @@
 //! program chose to say, so it is output —
 //! [`Ctx::write_output`](nvs_runtime::Ctx::write_output), where ADR 0088 § 5's
 //! sink rules apply and `Core\Out::capture` around one captures it, which is
-//! exactly what ADR 0092 § 3 asks of every rendering. A record the engine
+//! exactly what `rule:errors/renderings` asks of every rendering. A record the engine
 //! writes about a program that has already stopped is not the program's output
 //! and lands on [`Ctx::write_diagnostic`](nvs_runtime::Ctx::write_diagnostic)
 //! instead, beside where [`crate::debug`] sends a dump.
@@ -90,7 +90,7 @@ pub(crate) const NAME: &str = r"Core\Log";
 /// [`LEVEL`]'s fully-qualified name, written once for the same reason.
 pub(crate) const LEVEL_NAME: &str = r"Core\Log\Level";
 
-/// ADR 0092 § 2's five cases, valued by the syslog severity that section fixes
+/// `rule:errors/log-level`'s five cases, valued by the syslog severity that section fixes
 /// for each — this module's own doc comment owns why the value is the severity
 /// rather than an ordinal.
 pub(crate) const LEVEL: CoreEnum = CoreEnum {
@@ -204,7 +204,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Log::write(Core\Log\Level $level, string $message, array<string, mixed> $fields = []): void`
-    /// — ADR 0020 § 6.
+    /// — `rule:errors/log-write`.
     ///
     /// One write call per record rather than one per field: JSON Lines' whole
     /// contract is that a record is a line, and a partial write interleaved
@@ -233,7 +233,7 @@ nvs_runtime::nvs_helper! {
 /// The `Core\Log\Level` case in slot 0, as the record model's own level.
 ///
 /// [`LEVEL`]'s cases are valued by their syslog severities, so what arrives
-/// here is one of ADR 0092 § 2's five integers and
+/// here is one of `rule:errors/log-level`'s five integers and
 /// [`Level::from_syslog_severity`] reads it back — this module holds no second
 /// enum and no second table, which is what keeps a case added to one from being
 /// either surface with no rendering or a rendering nothing can reach.
@@ -272,14 +272,14 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
     })
 }
 
-/// This call as ADR 0092 § 1's record — the envelope fields this crate has a
+/// This call as `rule:errors/diagnostic-record`'s record — the envelope fields this crate has a
 /// source for, and the bag as named nodes.
 ///
 /// Everything past building it belongs elsewhere: which keys a rendering
 /// writes and that an absent one is omitted rather than empty are
 /// `nvs-render`'s, and *which* rendering is
 /// [`Ctx::write_log_record`](nvs_runtime::Ctx::write_log_record)'s, under
-/// `[log] format`. That is ADR 0020 § 6's *one implementation, two callers* —
+/// `[log] format`. That is `rule:errors/log-write`'s *one implementation, two callers* —
 /// the engine floor builds the same `Record` and hands it to the same method,
 /// so neither this member nor the floor has a rendering to choose.
 fn record(ctx: &Ctx, level: Level, message: &str, fields: Value) -> Record {
@@ -297,7 +297,7 @@ fn record(ctx: &Ctx, level: Level, message: &str, fields: Value) -> Record {
 ///
 /// Walked by [`crate::debug::node`] — the *one* walk — rather than by a second
 /// traversal written here, so a value carried as a log field and the same value
-/// dumped are the same node, and ADR 0092 § 5's substitution, redaction and
+/// dumped are the same node, and `rule:errors/record-transformations`'s substitution, redaction and
 /// elision reach a log record without this module applying any of them itself.
 ///
 /// A bag walks to whichever of the two array shapes its keys make it: a map
@@ -344,10 +344,10 @@ mod tests {
             .iter()
             .find(|(case, _)| *case == "Error")
             .map(|(_, severity)| *severity)
-            .expect("ADR 0092 § 2's roster has an `Error`")
+            .expect("`rule:errors/log-level`'s roster has an `Error`")
     }
 
-    /// ADR 0020 § 6's headline claim, asked as an **agreement** rather than as
+    /// `rule:errors/log-write`'s headline claim, asked as an **agreement** rather than as
     /// a sentence: the tier-4 engine floor and ordinary application code
     /// produce the *same* record for the same error, so a log pipeline never
     /// has to reconcile two shapes depending on which tier happened to write a
@@ -373,7 +373,7 @@ mod tests {
     /// absence of the application half on its own.
     #[test]
     fn application_code_and_the_engine_floor_produce_schema_identical_records() {
-        // ADR 0020 § 6's error, thrown the way a helper's failure is and
+        // `rule:errors/log-write`'s error, thrown the way a helper's failure is and
         // unwound through one compiled frame so that it carries a backtrace.
         // The class table is spec § 10's root shape and arrives the one way a
         // context takes one (`Ctx::set_runtime_error_class`).
@@ -421,7 +421,7 @@ mod tests {
 
         assert_eq!(
             written, floored,
-            "ADR 0020 § 6: one record, two callers — every key, in one order, \
+            "`rule:errors/log-write`: one record, two callers — every key, in one order, \
              from one serialiser"
         );
         assert!(
@@ -444,7 +444,7 @@ mod tests {
     const SPAN: &str = "00f067aa0ba902b7";
 
     /// A buffered context **answering a request**, which is the source
-    /// [`Ctx::stamp_envelope`] reads ADR 0020 § 6's four request keys from.
+    /// [`Ctx::stamp_envelope`] reads `rule:errors/log-write`'s four request keys from.
     ///
     /// `traceparent` is the only way a trace becomes *active* today: ADR 0076
     /// § 2's head-based `[trace] sample` is unbuilt, so a root's flag is always
@@ -485,7 +485,7 @@ mod tests {
     /// assertion is about a key and not about where a comma fell.
     fn parsed(line: &str) -> serde_json::Value {
         serde_json::from_str(line.trim_end())
-            .expect("ADR 0092 § 3 renders one JSON object per line")
+            .expect("`rule:errors/renderings` renders one JSON object per line")
     }
 
     /// The envelope keys that object carries, sorted.
@@ -500,12 +500,12 @@ mod tests {
         found
     }
 
-    /// ADR 0020 § 6's `ts` and `request_id`, which a record written inside a
+    /// `rule:errors/log-write`'s `ts` and `request_id`, which a record written inside a
     /// request carries.
     ///
     /// Neither is *frozen*: a fixture pinning a timestamp or an id is a fixture
     /// that has to be rewritten every run. What is asserted is that the keys
-    /// are there, that `ts` leads the line — ADR 0092 § 3's reading order — and
+    /// are there, that `ts` leads the line — `rule:errors/renderings`'s reading order — and
     /// that `request_id` is the context's **own** trace id rather than a second
     /// identifier this member drew for itself, which ADR 0076 § 2 forbids in as
     /// many words.
@@ -742,7 +742,7 @@ mod tests {
         );
     }
 
-    /// ADR 0020 § 4's directive, asked of both of ADR 0092 § 6's writers at
+    /// `rule:errors/engine-floor`'s directive, asked of both of `rule:errors/record-producers`'s writers at
     /// once: a deployment that names a destination gets **one** destination,
     /// and neither caller keeps a channel of its own beside it.
     ///
@@ -811,13 +811,13 @@ mod tests {
         );
     }
 
-    /// ADR 0092 § 2's last paragraph, asked of both writers at once: `[log]
+    /// `rule:errors/log-level`'s last paragraph, asked of both writers at once: `[log]
     /// level` is the minimum level **written**, so a record quieter than it is
     /// written by neither caller and one at or above it by both.
     ///
     /// A sweep over the whole roster, asserted by *counting* rather than by
     /// reading one pair off: the failure this is written around is the floor
-    /// implemented with ADR 0092 § 2's syslog severities the wrong way round,
+    /// implemented with `rule:errors/log-level`'s syslog severities the wrong way round,
     /// which inverts the entire table while still answering plausibly for the
     /// configured level itself — `Warn` under a `Warn` minimum is written
     /// either way. One row of this table cannot tell those apart and the table
@@ -875,7 +875,7 @@ mod tests {
         );
     }
 
-    /// ADR 0092 § 3's second rendering, asked of both writers at once: under
+    /// `rule:errors/renderings`'s second rendering, asked of both writers at once: under
     /// `[log] format = "text"` the target carries plaintext records and no JSON
     /// Lines at all, from the application's writer and from the floor alike.
     ///
@@ -971,7 +971,11 @@ mod tests {
     /// reach.
     #[test]
     fn the_levels_and_their_tags_agree() {
-        assert_eq!(LEVEL.cases.len(), 5, "ADR 0092 § 2's roster is five cases");
+        assert_eq!(
+            LEVEL.cases.len(),
+            5,
+            "`rule:errors/log-level`'s roster is five cases"
+        );
         for (case, severity) in LEVEL.cases {
             let severity = u8::try_from(*severity)
                 .unwrap_or_else(|_| panic!("`Core\\Log\\Level::{case}` is not a syslog severity"));
@@ -987,14 +991,14 @@ mod tests {
 
     /// A severity no row declares has no case, which is what makes
     /// [`super::level_of`]'s refusal a real check rather than a formality —
-    /// syslog's `Notice` (5) and `Alert` (1) are the two ADR 0092 § 2 names as
+    /// syslog's `Notice` (5) and `Alert` (1) are the two `rule:errors/log-level` names as
     /// rejected, so they are the ones asked for here.
     #[test]
     fn an_undeclared_severity_is_not_a_case() {
         for absent in [0, 1, 5, 8, 255] {
             assert!(
                 Level::from_syslog_severity(absent).is_none(),
-                "{absent} is not one of ADR 0092 § 2's five severities"
+                "{absent} is not one of `rule:errors/log-level`'s five severities"
             );
         }
     }

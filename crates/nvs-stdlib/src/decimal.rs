@@ -293,7 +293,7 @@ mod tests {
         Value::decimal(Decimal::parse(text).expect("a decimal literal"))
     }
 
-    /// A member end to end through the ADR 0002 boundary compiled code will
+    /// A member end to end through the `rule:errors/propagation` boundary compiled code will
     /// reach it at, as `crate::math`'s own tests do.
     fn exact(ctx: &mut Ctx, value: &str, divisor: &str) -> Result<String, String> {
         answer(

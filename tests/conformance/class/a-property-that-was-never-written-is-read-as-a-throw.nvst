@@ -25,7 +25,7 @@ class Panel extends Widget {
 int $throws = 0;
 
 // The throw is an ordinary `Throwable`, propagated by checked return like any
-// other failure — not ADR 0020's fatal ladder, which § 3 is explicit about.
+// other failure — not `rule:errors/escalation-ladder`'s fatal ladder, which § 3 is explicit about.
 Widget $w = new Widget();
 try {
   echo $w->logger->name(), "\n";

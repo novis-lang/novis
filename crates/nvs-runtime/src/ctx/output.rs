@@ -63,7 +63,7 @@ pub enum OutputSink {
     /// The process's standard error — the *diagnostic* channel's destination,
     /// and never a request's `echo`.
     ///
-    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// `rule:errors/diagnostic-record`
     /// § 4 sends a CLI `Core\Debug::dump` here rather than to stdout, so
     /// `prog | jq` and `prog > out.txt` keep working while a program is being
     /// debugged. `var_dump` writing to stdout is a small thing that makes PHP
@@ -100,7 +100,7 @@ pub enum OutputSink {
 }
 
 /// Where a record goes when `[log] target` names no destination — which is a
-/// different channel for each of [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// different channel for each of `rule:errors/diagnostic-record`
 /// § 6's two writers, and the same one for both as soon as it does name one.
 ///
 /// [`Ctx::write_log_record`] is the whole of the routing and its doc comment is
@@ -161,7 +161,7 @@ impl Ctx {
         write_to(&mut self.output, bytes)
     }
 
-    /// Writes raw bytes to this request's **diagnostic** channel — ADR 0092
+    /// Writes raw bytes to this request's **diagnostic** channel — `rule:errors/diagnostic-record`
     /// § 4's destination for a CLI `Core\Debug::dump`.
     ///
     /// Deliberately **not** routed through [`Self::captures`]: a
@@ -181,7 +181,7 @@ impl Ctx {
     /// `unconfigured` says when the directive names nothing.
     ///
     /// **This is the only reader of that directive**, and both of
-    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// `rule:errors/diagnostic-record`
     /// § 6's writers reach it: `Core\Log::write` with [`LogChannel::Output`]
     /// and [`crate::floor::report`] with [`LogChannel::Diagnostic`]. § 6's
     /// claim is about *sameness* — one serialiser, two callers — and a
@@ -198,7 +198,7 @@ impl Ctx {
     /// rules apply to it exactly as before.
     ///
     /// **`[log] level` is the floor, and it is read here for the same reason.**
-    /// ADR 0092 § 2's last paragraph makes the directive the minimum level
+    /// `rule:errors/log-level`'s last paragraph makes the directive the minimum level
     /// written, so a record quieter than it is dropped and answers `Ok`: it was
     /// not written, and nothing failed. Asked at this one call rather than at
     /// each writer, so the two of them cannot come to disagree about which
@@ -212,7 +212,7 @@ impl Ctx {
     /// one of the two spellings a reader cannot get backwards.
     ///
     /// **`[log] format` picks the rendering, which is why this takes a
-    /// [`Record`] and not bytes.** ADR 0092 § 3 gives a log target two of its
+    /// [`Record`] and not bytes.** `rule:errors/renderings` gives a log target two of its
     /// three renderings — JSON Lines and plaintext — and § 6's producers name
     /// none of them, so the choice belongs at the sink and nowhere else. A
     /// caller that rendered first would be a caller that had chosen, and the
@@ -229,7 +229,7 @@ impl Ctx {
     /// # Errors
     ///
     /// Whatever the sink returns; a file target's failure is the caller's to
-    /// swallow, which is ADR 0020 § 4's answer at the floor.
+    /// swallow, which is `rule:errors/engine-floor`'s answer at the floor.
     pub fn write_log_record(
         &mut self,
         record: &Record,
@@ -257,7 +257,7 @@ impl Ctx {
         }
     }
 
-    /// Fills the envelope keys [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// Fills the envelope keys `rule:errors/escalation-ladder`
     /// § 6 asks for beyond `level` and `msg` — `ts`, `request_id`, and
     /// `trace_id`/`span_id` when a trace is active.
     ///
@@ -306,7 +306,7 @@ impl Ctx {
         }
     }
 
-    /// `[log] target` as the sink it names, through ADR 0020 § 4's grammar and
+    /// `[log] target` as the sink it names, through `rule:errors/engine-floor`'s grammar and
     /// not through a second reading of it.
     ///
     /// [`nvs_config::log::Target`] is that grammar and it has two readers:
@@ -315,7 +315,7 @@ impl Ctx {
     /// [`LogTarget::Unnamed`] covers two facts rather than one:
     ///
     /// - **`syslog` is spelled and not yet transported.** A syslog sink is a
-    ///   datagram to a platform endpoint carrying ADR 0092 § 2's severity in a
+    ///   datagram to a platform endpoint carrying `rule:errors/log-level`'s severity in a
     ///   priority field — a transport, a framing and an argument the
     ///   byte-oriented sinks here do not take. Routing it to `stderr` instead
     ///   would be this module claiming a destination it does not reach, so it

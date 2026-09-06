@@ -206,7 +206,7 @@ pub(crate) enum ArgOwnership {
     /// The caller therefore retains an aliasing refcounted argument first, so
     /// the pair balances.
     Transferred,
-    /// The callee borrows it — every ADR 0002 helper, including a `Core`
+    /// The callee borrows it — every `rule:errors/propagation` helper, including a `Core`
     /// member, which receives a `&[Value]` and releases nothing. No retain,
     /// and the caller keeps owning what it passed; `nvs_stdlib`'s own docs own
     /// why ADR 0063's purity rule is what makes that safe.
@@ -395,7 +395,7 @@ fn static_props(
 /// declaration won a slot.
 ///
 /// The representation is the whole of what ADR 0036 § 4's erased **write**
-/// check has to go on; the `secret` bit is the whole of what ADR 0092 § 5's
+/// check has to go on; the `secret` bit is the whole of what `rule:errors/record-transformations`'s
 /// redaction row has, `nvs_types::expr::type_is_secret` deciding it at the one
 /// end where the qualifier still exists.
 ///
@@ -1908,7 +1908,7 @@ impl<'a> Lowering<'a> {
         (v, ty)
     }
     /// [`Self::emit`] for a call-shaped instruction: the same append, plus
-    /// [ADR 0002](/docs/adr/0002-error-propagation.md)'s error edge to
+    /// `rule:errors/propagation`'s error edge to
     /// a landing block built for this exact program point.
     ///
     /// Every instruction that returns a status goes through here, and nothing
@@ -2106,7 +2106,7 @@ impl<'a> Lowering<'a> {
             // not a `fcvt_from_sint` this function could emit on its own.
             //
             // That is why this one takes `env`, and why every caller passes
-            // it: a conversion carrying ADR 0002's error edge needs the
+            // it: a conversion carrying `rule:errors/propagation`'s error edge needs the
             // frame's landing block, which only the environment names.
             (Ty::Int | Ty::Uint, Ty::Float) => {
                 let helper = if from == Ty::Int {
@@ -3148,7 +3148,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Opti
         //
         // **The difference between the two is control flow, and it is not
         // encoded here.** A `never` callee leaves its frame by throwing or by
-        // exiting, and *that* is the terminator: the call site takes ADR 0002's
+        // exiting, and *that* is the terminator: the call site takes `rule:errors/propagation`'s
         // unwind edge to its landing pad, which the lowering already emits for
         // every call. The alternative — sealing the call site's fall-through
         // with an unreachable on the strength of the annotation — was rejected

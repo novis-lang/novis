@@ -209,7 +209,7 @@ check. A symbol this process cannot resolve is a miss on the same terms as a wro
 is *not* deleted for it: an unresolvable name says the artifact was written against a runtime this one no
 longer matches, which is "not this process's file" rather than "broken". **No failure mode here reaches a panic, a `FATAL`, or a `Throwable` — a
 bad cache entry is invisible to the script being run, exactly as invisible as a cold cache would be**
-([ADR 0002](0002-error-propagation.md)'s checked-return discipline, extended to a compile-pipeline internal
+(`rule:errors/propagation`'s checked-return discipline, extended to a compile-pipeline internal
 that never had a caller to report to in the first place).
 
 ### 4. Writing: one atomic rename, no lock file, ever

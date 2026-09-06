@@ -177,7 +177,7 @@ not restate them.**
 
 Those spikes forced one design change, and it is normative for everything below: **exceptions propagate by
 checked return, not by unwinding**, and every runtime helper is `extern "C"` wrapping `catch_unwind`. The
-signature, the measured cost and the reasoning are in [ADR 0002](../adr/0002-error-propagation.md).
+signature, the measured cost and the reasoning are in `rule:errors/propagation`.
 
 ## Extension system
 
@@ -386,7 +386,7 @@ starts rather than sitting empty.
 `unsafe_code = "forbid"` workspace-wide. Crates that genuinely need it opt down to `deny` and allow
 individual blocks with a stated reason: `nvs-runtime` and `nvs-codegen` (planned — the coroutine stack
 switcher, the request arena, JIT page mapping), `nvs-stdlib`, whose every `Core` member is an
-[ADR 0002](../adr/0002-error-propagation.md) helper entry point and therefore an `extern "C"` function
+`rule:errors/propagation` helper entry point and therefore an `extern "C"` function
 decoding raw pointers, plus `benches/abi-probe`, which must call JIT-compiled code
 to measure it and is `publish = false`, so it does not widen the runtime's unsafe surface. Those modules
 carry `deny(unsafe_op_in_unsafe_fn)`, a safety-invariant doc comment per block, dedicated Miri/ASAN

@@ -1,4 +1,4 @@
-//! What a `[limits]` directive is by the time a request reads it — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! What a `[limits]` directive is by the time a request reads it — `rule:errors/escalation-ladder`
 //! § 1's ceilings, resolved once by `Ctx::set_config` and read as bare integers
 //! everywhere after it.
 //!
@@ -38,7 +38,7 @@ fn ctx_reading(written: &str) -> Ctx {
     ctx
 }
 
-/// ADR 0020 § 1 lists CPU time beside memory: `[limits] cpu_time` is a duration, and what the
+/// `rule:errors/on-limit` lists CPU time beside memory: `[limits] cpu_time` is a duration, and what the
 /// request holds is nanoseconds — `Ctx::cpu_limit`'s field doc owns why it is cached rather than
 /// re-derived, and what measures the time against it.
 /// The reading is asserted as the two parts it is split into rather than as `cpu_limit` alone,
@@ -60,7 +60,7 @@ fn cpu_time_is_read_as_nanoseconds() {
     );
 }
 
-/// ADR 0020 § 1 names `fatal_reserve_time` beside `fatal_reserve_memory`, and `Ctx`'s
+/// `rule:errors/on-limit` names `fatal_reserve_time` beside `fatal_reserve_memory`, and `Ctx`'s
 /// `reserve_time_within` owns the two numbers this asserts: a 50 ms default, and a quarter of the
 /// ceiling wherever a quarter is less.
 ///
@@ -260,7 +260,7 @@ fn a_spawn_past_max_script_depth_is_a_breach_naming_the_depth_and_the_ceiling() 
         "the number the operator wrote: {message}"
     );
 
-    // What makes the report branchable rather than only readable: the handler ADR 0020 § 1 hands a
+    // What makes the report branchable rather than only readable: the handler `rule:errors/on-limit` hands a
     // report to sees the directive's own spelling, not a sentence it would have to match against.
     assert_eq!(Limit::ScriptDepth.name(), "max_script_depth");
 

@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — ADR 0082 § 2, ADR 0095
+Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — ADR 0082 § 2, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
 // `prefix` is the row's one option — optional, so ADR 0063 R3 puts it in the
@@ -22,7 +22,7 @@ echo "zz: ", Core\Arr::count(Core\Storage::list("uploads", {prefix: "zz"})), "\n
 
 // The refused side. Every non-empty prefix of a key is itself a key, so a
 // spelling the key grammar turns down is one no key on this disk can begin
-// with — and ADR 0095 refuses it rather than repairing it into an empty
+// with — and `rule:errors/ambiguous-input-refused` refuses it rather than repairing it into an empty
 // answer. The message is the key grammar's own, because that is exactly what
 // is wrong with it.
 try {

@@ -1,4 +1,4 @@
-//! ADR 0002's throw/catch lowering: the landing pads, the `finally` ladder, and the synthesized `Throwable` constructor.
+//! `rule:errors/propagation`'s throw/catch lowering: the landing pads, the `finally` ladder, and the synthesized `Throwable` constructor.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -45,7 +45,7 @@ impl<'a> Lowering<'a> {
     /// **The throw site, not the construction site**, and deliberately so: the
     /// backtrace beside it holds the frames the exception *unwound out of*
     /// rather than a snapshot taken at `new` (see `nvs_runtime::throwable`'s
-    /// own docs for why ADR 0002's checked-return convention makes that the
+    /// own docs for why `rule:errors/propagation`'s checked-return convention makes that the
     /// cheap shape), so a `location` naming the construction site would be the
     /// one field disagreeing with everything around it.
     ///

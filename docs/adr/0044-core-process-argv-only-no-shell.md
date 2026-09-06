@@ -121,7 +121,7 @@ class ProcessOptions
 - `$timeout` reuses the existing safepoint-driven cancellation mechanism
   ([ADR 0005](0005-config-changeability.md)'s `[limits] wall_time`, the same poll that already cancels a
   request) rather than a bespoke process-only timer: on expiry, the child is killed and the suspended
-  coroutine resumes into a thrown `Throwable` naming the timeout, per [ADR 0002](0002-error-propagation.md).
+  coroutine resumes into a thrown `Throwable` naming the timeout, per `rule:errors/propagation`.
 
 ### 4. Windows: no shell string, and no implicit interpreter either
 
@@ -158,7 +158,7 @@ Process execution is deny-by-default, the same as every other syscall-touching s
 it further but never widen it. The exact grant shape (a bare boolean vs. an allowlist of executable
 paths/directories, mirroring `script.spawn`'s canonicalise-then-prefix resolution) is stdlib design due at
 M8, illustrative only here — see *Revisiting*. Calling `run()`/`spawn()` without the grant throws, per
-[ADR 0002](0002-error-propagation.md), the same shape a denied `spawn script` already throws.
+`rule:errors/propagation`, the same shape a denied `spawn script` already throws.
 
 ### 7. `nvs convert` mapping (M11)
 

@@ -40,7 +40,7 @@ Goal 16's whole acceptance list, never traded.
 2. **The four body spellings are one field.** `body` is raw; `form` encodes urlencoded and sets its
    `Content-Type`; `json` encodes a value and sets its own; `files` builds a `multipart/form-data` body
    with a boundary. Two of them together is a refusal naming both, never a merge
-   ([ADR 0095](../../adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+   (`rule:errors/ambiguous-input-refused`).
 3. **The encoder is the builder's, and `crates/nvs-stdlib/src/multipart.rs` stays a parser.** One
    direction each: they are not twins under [ADR 0063](../../adr/0063-core-api-conventions.md) R17,
    because neither can be reached through the other.

@@ -1,8 +1,8 @@
 --TEST--
-`Core\Debug::render` renders ADR 0092 § 1's record model through § 3's plaintext view, and § 4's `dump` writes to the diagnostic channel rather than to standard output
+`Core\Debug::render` renders `rule:errors/diagnostic-record`'s record model through § 3's plaintext view, and § 4's `dump` writes to the diagnostic channel rather than to standard output
 --FILE--
 <?nvs
-// ADR 0092 § 1: a node is tagged with the Novis type it *is*, so `int(1)` and
+// `rule:errors/diagnostic-record`: a node is tagged with the Novis type it *is*, so `int(1)` and
 // `string(1) "1"` are two different lines -- the one thing `print_r` cannot do.
 echo Core\Debug::render(42), "\n";
 echo Core\Debug::render("42"), "\n";

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config::set('memory', …)` above the `[limits]` default moves the ceiling the runtime enforces, and `::restore` puts it back — ADR 0005, ADR 0020 § 1
+`Core\Config::set('memory', …)` above the `[limits]` default moves the ceiling the runtime enforces, and `::restore` puts it back — ADR 0005, `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The half of ADR 0005 a `false`-counting case cannot reach: an accepted set

@@ -586,7 +586,7 @@ impl<'a> Lowering<'a> {
     /// which is the point of evaluating a default at signature collection
     /// rather than in the callee (`nvs_types::defaults` owns why): every
     /// compiled function keeps exactly one arity, so nothing below this line —
-    /// not the ADR 0002 call ABI, not `nvs-codegen`, not the helper
+    /// not the `rule:errors/propagation` call ABI, not `nvs-codegen`, not the helper
     /// convention a `Core` member is reached through — learns that defaults
     /// exist at all.
     ///

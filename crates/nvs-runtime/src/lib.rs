@@ -17,7 +17,7 @@
 //! # The three normative shapes
 //!
 //! 1. **The calling convention** is
-//!    [ADR 0002](/docs/adr/0002-error-propagation.md)'s
+//!    `rule:errors/propagation`'s
 //!    `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`. Nothing
 //!    unwinds through a JIT frame; a failure travels in the return value as
 //!    [`OK`]/[`THROWN`]/[`FATAL`]. Every helper is written through
@@ -209,7 +209,7 @@
 //!    0002 § *Consequences* commits to. The arena is not missing but decided
 //!    against: ADR 0116 § 1 rejected a region per isolate, and [`object`]'s
 //!    per-context live list plus [`object::sweep`] are what took its place.
-//! 4. **No custom panic hook is installed.** ADR 0002 § *Corollary* wants the
+//! 4. **No custom panic hook is installed.** `rule:errors/helper-abi` wants the
 //!    panic message routed to the request log with its request id. The request
 //!    log exists now — `Ctx::write_log_record` under `nvs_stdlib::log` — so
 //!    what is left is the hook itself, and the request id that module's own

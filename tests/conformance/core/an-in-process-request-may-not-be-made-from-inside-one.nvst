@@ -5,7 +5,7 @@ an in-process request made from inside one is refused at the door, naming why โ€
 // The edge of the sibling cases: what answers a synthetic request is the
 // program's own entry, so a top level that asks for one is also the code that
 // runs to answer it. Without this refusal a program would answer its own
-// request forever, and ADR 0020 ยง 1's script-depth ceiling would report an
+// request forever, and `rule:errors/on-limit`'s script-depth ceiling would report an
 // engine limit rather than the mistake.
 //
 // The message crosses the boundary the long way round, which is the point: the

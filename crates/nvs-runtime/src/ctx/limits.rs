@@ -1,6 +1,6 @@
 //! The ceilings a request runs inside, and how it reports crossing one.
 //!
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s resource limits:
+//! `rule:errors/escalation-ladder`'s resource limits:
 //! memory, output, CPU time and script depth, each with the accessor pair that
 //! arms it and the `*_breach` that turns a crossing into a [`crate::Fault`].
 //! [`Ctx::refresh_limits`] is where a configuration snapshot becomes armed
@@ -28,7 +28,7 @@ impl Ctx {
 
     /// The ceiling **ordinary execution** is held to, in bytes, `0` for no cap.
     ///
-    /// `[limits] memory` less [`Self::fatal_reserve`], because ADR 0020 § 1's
+    /// `[limits] memory` less [`Self::fatal_reserve`], because `rule:errors/on-limit`'s
     /// slice is carved out of the request's own budget rather than added to it
     /// — so this is the number that moves, once, while the tier-1 handler runs
     /// ([`Self::run_limit_handler`]).
@@ -119,7 +119,7 @@ impl Ctx {
     /// while it is inside it.
     ///
     /// [`crate::Fault::fatal`] and never a throw:
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 makes
+    /// `rule:errors/on-limit` makes
     /// every resource-limit breach a `FATAL`, so no `catch` sees this and a
     /// fixture that wraps the loop in one has found the rule rather than a bug.
     /// The message names the ceiling as well as the reading, because the two
@@ -133,7 +133,7 @@ impl Ctx {
         // The ceiling named is the request's **whole** budget, not the reduced
         // one it was measured against: `[limits] memory` is the number the
         // operator wrote and the only one they can recognise. Where a slice of
-        // it is ADR 0020 § 1's reserve, saying so is what keeps the sentence
+        // it is `rule:errors/on-limit`'s reserve, saying so is what keeps the sentence
         // from reading as a reading below its own ceiling.
         let reserved = match self.fatal_reserve {
             0 => String::new(),
@@ -215,7 +215,7 @@ impl Ctx {
     pub fn refresh_limits(&mut self) {
         let ceiling = self.configured_memory_limit();
         self.fatal_reserve = Self::reserve_within(ceiling, self.configured_fatal_reserve());
-        // ADR 0020 § 1: the slice is *carved out of* the request's own budget
+        // `rule:errors/on-limit`: the slice is *carved out of* the request's own budget
         // and unavailable to ordinary execution, so the ceiling everything but
         // the handler is measured against is what is left after it. An
         // uncapped request has nothing to carve and reserves nothing: there is
@@ -266,7 +266,7 @@ impl Ctx {
     }
 
     /// The CPU time this request may burn, in nanoseconds, or `0` for one under
-    /// no cap — [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// no cap — `rule:errors/escalation-ladder`
     /// § 1.
     ///
     /// This is the ceiling a timer compares the request thread's CPU clock
@@ -462,7 +462,7 @@ impl Ctx {
     /// less** — the same shape as [`Self::reserve_within`] and for the same two
     /// reasons: enough for a handler to format a message and write it, and the
     /// clamp is what keeps a short ceiling from being mostly reserve rather than
-    /// mostly program. ADR 0020 § 1 names `fatal_reserve_time` and states no
+    /// mostly program. `rule:errors/on-limit` names `fatal_reserve_time` and states no
     /// number; this is the number.
     ///
     /// 50 ms rather than the memory half's proportion of a typical ceiling,
@@ -489,7 +489,7 @@ impl Ctx {
     /// **The default is 1 MiB, and a quarter of the ceiling where a quarter is
     /// less** — enough for a handler to format a message and write it, and the
     /// clamp is what keeps a small ceiling from being mostly reserve rather
-    /// than mostly program. ADR 0020 § 1 states that the slice exists and that
+    /// than mostly program. `rule:errors/on-limit` states that the slice exists and that
     /// it is `System`-class, and states no number; this is the number, and an
     /// operator who wants another writes it.
     ///
@@ -549,7 +549,7 @@ impl Ctx {
 mod tests {
     use super::*;
 
-    /// ADR 0020 § 1's first resource limit, as far as this slice goes: the
+    /// `rule:errors/on-limit`'s first resource limit, as far as this slice goes: the
     /// counter follows what the request holds *now*, so a breach that is
     /// released stops being one. What a breach then becomes is
     /// [`nvs_safepoint`]'s, not this test's.

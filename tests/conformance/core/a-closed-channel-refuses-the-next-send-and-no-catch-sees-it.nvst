@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task\Channel::close` is the boundary `send` is asserted on from both sides: the send that fills the bound before it returns and is delivered, and the first send after it is a fatal no `catch` sees — ADR 0072 § 4 over `nvs_stdlib::channel`, ADR 0020 § 0's uncatchable tier
+`Core\Task\Channel::close` is the boundary `send` is asserted on from both sides: the send that fills the bound before it returns and is delivered, and the first send after it is a fatal no `catch` sees — ADR 0072 § 4 over `nvs_stdlib::channel`, `rule:errors/throwable-hierarchy`'s uncatchable tier
 --FILE--
 <?nvs
 // The neighbouring cases pin what `close` does to values already queued and
@@ -30,7 +30,7 @@ foreach ($chan as int $queued) {
 // so a closed channel cannot answer "no" — and it must not answer "yes"
 // either, because the value would be queued behind a stream that has already
 // ended and no consumer will ever take it. That leaves the tier
-// ADR 0020 § 0 reserves for a state with nothing true to report: a fatal,
+// `rule:errors/throwable-hierarchy` reserves for a state with nothing true to report: a fatal,
 // which is not a `Throwable` and which this `catch` therefore never sees.
 try {
     $chan->send(3);

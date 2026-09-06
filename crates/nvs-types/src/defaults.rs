@@ -11,7 +11,7 @@
 //! of that, all of them the reason to do it this way:
 //!
 //! * **The callee needs no second entry point.** Every compiled function keeps
-//!   exactly one arity, so nothing in `nvs-ir`, `nvs-codegen` or the ADR 0002
+//!   exactly one arity, so nothing in `nvs-ir`, `nvs-codegen` or the `rule:errors/propagation`
 //!   call ABI learns about defaults at all — `nvs_ir::lower::lower_call_args`
 //!   pushes one more `ConstInt`/`ConstStr` and stops.
 //! * **A default cannot observe anything.** It is a constant, so it cannot

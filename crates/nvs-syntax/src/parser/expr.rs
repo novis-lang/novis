@@ -601,7 +601,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Tilde => prefix!(BitNot),
             // `@expr` is refused where it is written, exactly as the legacy
             // cast above is, so `UnaryOp::Suppress` is a variant the parser
-            // never produces. ADR 0020's ladder makes a runtime failure a
+            // never produces. `rule:errors/escalation-ladder`'s ladder makes a runtime failure a
             // `Throwable`, not a diagnostic printed next to a value, so there
             // is nothing an operand-shaped marker could suppress; ADR 0063 § 3
             // already lists `@` among what that decision closes. The operand is

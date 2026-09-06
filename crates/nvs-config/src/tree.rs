@@ -92,7 +92,7 @@ pub struct Config {
     pub debug: Option<Debug>,
     /// `[io]` — the root the runtime creates temporary directories under (ADR 0131 § 2).
     pub io: Option<Io>,
-    /// `[log]` — the handler ladder's rungs (ADR 0020) and the record's shape (ADR 0092).
+    /// `[log]` — the handler ladder's rungs (`rule:errors/escalation-ladder`) and the record's shape (`rule:errors/diagnostic-record`).
     pub log: Option<Log>,
     /// `[http.*]` — the five sub-blocks ADRs 0020 § 7 and 0074 own.
     pub http: Option<Http>,
@@ -159,7 +159,7 @@ pub struct App {
     pub limits: Option<Limits>,
     /// `[app.capabilities]` — grants for this application only.
     pub capabilities: Option<Capabilities>,
-    /// `[app.log]` — ADR 0020 § 3's escalation handler for this application, and the rungs beside
+    /// `[app.log]` — `rule:errors/handler-script`'s escalation handler for this application, and the rungs beside
     /// it. Per application rather than per file because that is the unit an operator reports a
     /// failure *of*: one handler answers for every entry ADR 0104 § 1's block covers, and a
     /// deployment running two applications out of one tree gets two, which a root-only key could
@@ -182,13 +182,13 @@ pub struct Limits {
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,
-    /// `System` — ADR 0020 § 1's reserved slice: the bytes carved out of [`memory`](Self::memory)
+    /// `System` — `rule:errors/on-limit`'s reserved slice: the bytes carved out of [`memory`](Self::memory)
     /// at request start and left for the tier-1 handler, which is the one thing that may still
     /// allocate once the rest of the ceiling is gone. `System` rather than `Runtime` because it is
     /// the request's own safety net, and it is not under `[limits.hard]` for the same reason —
     /// there is no request-set value for a ceiling to bound.
     pub fatal_reserve_memory: Option<Setting>,
-    /// `System` — the other half of ADR 0020 § 1's reserved slice: the CPU time carved out of
+    /// `System` — the other half of `rule:errors/on-limit`'s reserved slice: the CPU time carved out of
     /// [`cpu_time`](Self::cpu_time) and left for the same handler, for the same reason and under the
     /// same class. A duration where its sibling is a size; neither is under `[limits.hard]`.
     pub fatal_reserve_time: Option<Setting>,
@@ -369,8 +369,8 @@ pub struct Io {
     pub temp_root: Option<String>,
 }
 
-/// `[log]` — the escalation ladder's two configured rungs (ADR 0020 §§ 3, 5) and the record's own
-/// two keys (ADR 0092 § 2).
+/// `[log]` — the escalation ladder's two configured rungs (`rule:errors/handler-script` and `rule:errors/panics-bypass-user-code`) and the record's own
+/// two keys (`rule:errors/log-level`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Log {
@@ -384,14 +384,14 @@ pub struct Log {
     /// Tier 4, the floor: `stderr`, `file:<path>` or `syslog`, hardcoded in Rust and bounded
     /// against the disk it writes to.
     pub target: Option<String>,
-    /// Which rendering the target emits — ADR 0092 § 3 gives this one **two** of its three, since
+    /// Which rendering the target emits — `rule:errors/renderings` gives this one **two** of its three, since
     /// the HTML one is a response's and never a destination's.
     pub format: Option<String>,
     /// The minimum level written; its per-mode default is ADR 0091 § 3's.
     pub level: Option<String>,
 }
 
-/// The `[http.*]` blocks: one refusal policy (ADR 0020 § 7) and ADR 0074's four defaults blocks.
+/// The `[http.*]` blocks: one refusal policy (`rule:errors/compile-failure`) and ADR 0074's four defaults blocks.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Http {
@@ -407,7 +407,7 @@ pub struct Http {
     pub client: Option<HttpClient>,
 }
 
-/// `[http.errors]` — ADR 0020 § 7, the block that decides what a request which never got a frame
+/// `[http.errors]` — `rule:errors/compile-failure`, the block that decides what a request which never got a frame
 /// shows.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]

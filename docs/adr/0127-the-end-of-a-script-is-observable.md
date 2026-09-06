@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-01
 - **Scope:** the end-of-script hook queue — what registers a hook, the three endings that fire it, the
-  two terminations that never do, its ordering against [ADR 0020](0020-error-escalation-ladder.md)'s
+  two terminations that never do, its ordering against `rule:errors/escalation-ladder`'s
   ladder and native teardown, and the report each hook receives. Not in scope: what runs after a `FATAL`
   ([0020](0020-error-escalation-ladder.md) §§ 1–2 own the two `Core\Fatal` hooks), post-response work
   ([0072](0072-core-task-structured-concurrency.md) § 6 owns `afterResponse`), and graceful drain
@@ -15,7 +15,7 @@
 > **In short:** `Core\Script::onExit(callable $hook)` registers hooks that run FIFO, once, as the **last
 > user code of the script** — at a normal end, at `exit`, and at an uncaught throw — each receiving a
 > readonly `Script\ExitReport` saying which ending it was. A `FATAL` and a cancellation run **none of
-> them**: the first stays [ADR 0020](0020-error-escalation-ladder.md)'s reserved-budget ladder, the
+> them**: the first stays `rule:errors/escalation-ladder`'s reserved-budget ladder, the
 > second stays [ADR 0072](0072-core-task-structured-concurrency.md) § 5's no-user-code rule. Hooks
 > observe an ending and never steer one: reason and status are fixed before the first hook runs, and
 > nothing a hook does changes them. This is PHP's `register_shutdown_function` for every ending that is

@@ -200,7 +200,7 @@ decides only what the crossing may do once it is.
   and is built the same way, so M7's server path inherits § 4's fresh statics base and § 2's teardown
   without a second setup.
 - **A limit breach is reported at a call, not at a fault**, per § 3 — which is the shape
-  [ADR 0020](0020-error-escalation-ladder.md)'s ladder already wants, since a page fault has no directive
+  `rule:errors/escalation-ladder`'s ladder already wants, since a page fault has no directive
   to name.
 - **A cycle inside an isolate outlives the drain, and § 2's sweep is what reclaims it.** The drain frees
   only what the refcounts say is dead, so without the sweep a cyclic object graph is retained for the life

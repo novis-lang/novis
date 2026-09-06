@@ -307,7 +307,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// admits no child, so the group could never reach § 4's "every child
 /// returned" and the call would wait for a completion nothing can produce.
 /// Refusing it where it is written is the only answer that is not a wedge
-/// (`AGENTS.md`'s priority 1), and a program can write it, so ADR 0002 makes it
+/// (`AGENTS.md`'s priority 1), and a program can write it, so `rule:errors/propagation` makes it
 /// a throw rather than a fault.
 fn bounds(args: &[Value], at: usize, member: &str) -> Result<Bounds, Fault> {
     let limit = match args[at].as_uint() {
@@ -416,7 +416,7 @@ fn run_group(
         // row. Not a throw and not a value: the request is over, so the answer
         // is the flag `nvs_safepoint` already reports as a `FATAL` no `catch`
         // sees, and the member returns ordinarily to let the frames between
-        // here and that poll unwind by ADR 0002's status. `Host::sleep`'s
+        // here and that poll unwind by `rule:errors/propagation`'s status. `Host::sleep`'s
         // `Woken::Cancelled` takes the identical route.
         Some(Outcome::Cancelled) => Err(ctx.cancel()),
         None => Err(Fault::fatal(format!(

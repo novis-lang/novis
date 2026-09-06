@@ -14,7 +14,7 @@
 //!
 //! A domain module ([`arr`], [`json`], [`math`], [`regex`], [`mod@str`], [`time`])
 //! holds everything about its class: the
-//! implementations, each an ADR 0002 helper entry point; a `pub const CLASS`
+//! implementations, each an `rule:errors/propagation` helper entry point; a `pub const CLASS`
 //! carrying that class's registry rows; and a `pub(crate) fn address` answering
 //! for its own symbols and nothing else. A domain with more than one class —
 //! [`regex`], [`time`] — names each `CLASS` after it and keeps one `address`
@@ -50,7 +50,7 @@
 //! # A `Core` call is a helper call
 //!
 //! Every member has the one signature
-//! [ADR 0002](/docs/adr/0002-error-propagation.md) makes normative for
+//! `rule:errors/propagation` makes normative for
 //! a runtime helper — `extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32`
 //! — reached through [`nvs_runtime::nvs_helper!`], so `nvs-codegen` emits a
 //! `Core` call through the *same* path it already emits
@@ -65,7 +65,7 @@
 //!   makes safe: no `Core` member stores its argument.
 //! * **A returned heap value carries one fresh reference**, which the caller
 //!   owns, exactly like `nvs_str_concat`'s result.
-//! * **Failure is a `Fault`**, which becomes ADR 0002's `THROWN` or `FATAL`
+//! * **Failure is a `Fault`**, which becomes `rule:errors/propagation`'s `THROWN` or `FATAL`
 //!   status; nothing unwinds. A `Fault::thrown_as` names which of
 //!   [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //!   § 10's classes a `catch` will see — `Core\Json::decode` answers with

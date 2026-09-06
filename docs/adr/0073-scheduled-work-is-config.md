@@ -139,7 +139,7 @@ shape: *"an inbound HTTP request becomes the root isolate of a request tree."* A
 root, built by the same `Isolate` code path, and everything downstream follows with nothing added:
 
 - Its budget is `[limits]`, capped by `[limits.hard]`, narrowed per entry by the optional `limits` table.
-  A run that exceeds it is a `FATAL` handled by [ADR 0020](0020-error-escalation-ladder.md)'s ladder, which
+  A run that exceeds it is a `FATAL` handled by `rule:errors/escalation-ladder`'s ladder, which
   is why a runaway nightly job cannot take the serving cores with it.
 - Its grants are the deployment's `[capabilities]`, narrowed per entry by the optional `grants` table.
   Narrowing only, as everywhere ([ADR 0005](0005-config-changeability.md)).
@@ -148,7 +148,7 @@ root, built by the same `Isolate` code path, and everything downstream follows w
 - `Core\Request`/`Core\Server`/`Core\Session` throw inside it, per
   [ADR 0012](0012-no-superglobals.md) — there is no request.
 - Its result is logged, not delivered: a top-level `return` value is recorded in the run's log line, an
-  uncaught throw or a limit breach goes through [ADR 0020](0020-error-escalation-ladder.md)'s ladder with
+  uncaught throw or a limit breach goes through `rule:errors/escalation-ladder`'s ladder with
   the entry's `name` in the record. Nothing is waiting for it.
 
 **Only `nvs serve` runs schedules.** `nvs run`, `nvs check` and a bundled
@@ -276,7 +276,7 @@ the operator wrote down.
   and drops the second; `"kill"` cancels the running isolate and starts the new run only after teardown
   completes.
 - **M7:** a run's limit breach is a `FATAL` reported through
-  [ADR 0020](0020-error-escalation-ladder.md)'s ladder with the entry's `name`, and the serving cores keep
+  `rule:errors/escalation-ladder`'s ladder with the entry's `name`, and the serving cores keep
   serving; a `Core\Request` call inside a scheduled script throws
   ([ADR 0012](0012-no-superglobals.md)); a scheduled run cannot widen a capability the deployment narrowed.
 - **M7:** `nvs run` on a scheduled entry's script produces the identical observable behaviour to a fire —

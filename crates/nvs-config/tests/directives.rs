@@ -121,7 +121,7 @@ fn every_row_names_a_distinct_key() {
     }
 }
 
-/// ADR 0020 § 1: the tier-1 handler's reserved slice is `System`, "not `Runtime`" — and it is
+/// `rule:errors/on-limit`: the tier-1 handler's reserved slice is `System`, "not `Runtime`" — and it is
 /// written inside a block whose own row is `Runtime`, so the longest-prefix rule is the only thing
 /// holding it there. Losing the row would not fail to compile, would not fail any census above, and
 /// would quietly let a script set the size of the safety net it is about to need.
@@ -131,7 +131,7 @@ fn the_fatal_reserve_is_system_class_inside_a_runtime_block() {
     assert_eq!(
         governing("limits.fatal_reserve_memory").class,
         Class::System,
-        "a request may not set its own reserved slice (ADR 0020 § 1)",
+        "a request may not set its own reserved slice (`rule:errors/on-limit`)",
     );
     assert!(
         !governing("limits.fatal_reserve_memory")
@@ -187,7 +187,7 @@ fn keys_in(block: &str) -> Vec<String> {
 #[test]
 fn every_http_response_directive_is_runtime_class() {
     // ADR 0074 §§ 1-3, the three blocks a *response* reads. `[http.client]` (§ 5) is the outbound
-    // half and `[http.errors]` is ADR 0020 § 7's, so neither is this case's question.
+    // half and `[http.errors]` is `rule:errors/compile-failure`'s, so neither is this case's question.
     for block in ["http.headers", "http.cors", "http.cookies"] {
         for key in keys_in(block) {
             let dotted = format!("{block}.{key}");

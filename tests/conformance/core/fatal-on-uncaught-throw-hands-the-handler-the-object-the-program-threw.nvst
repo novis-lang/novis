@@ -1,8 +1,8 @@
 --TEST--
-`Core\Fatal::onUncaughtThrow`'s handler is handed the very `Throwable` that went uncaught — the same object, not a report built from it — and nothing after the throw runs — ADR 0020 § 2
+`Core\Fatal::onUncaughtThrow`'s handler is handed the very `Throwable` that went uncaught — the same object, not a report built from it — and nothing after the throw runs — `rule:errors/on-uncaught-throw`
 --FILE--
 <?nvs
-// ADR 0020 § 2's load-bearing sentence is that tier 2 gets "the **real
+// `rule:errors/on-uncaught-throw`'s load-bearing sentence is that tier 2 gets "the **real
 // `Throwable` object**, not copied data": this is the request's own root, not
 // an ADR 0006 isolate boundary that has to copy across. A ladder that rebuilt
 // the exception — or that handed over a keyed array the way § 1's `LimitReport`

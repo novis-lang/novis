@@ -169,7 +169,7 @@ allocator over pre-mapped chunks and charges a small fraction of that.
 ## Two things ruled out, so they are not re-investigated
 
 - **`catch_unwind` per helper is free.** Measured 0.89 ns inside against 0.91 ns outside on this
-  MSVC target. [ADR 0002](../adr/0002-error-propagation.md)'s containment costs nothing on the
+  MSVC target. `rule:errors/propagation`'s containment costs nothing on the
   path that does not throw.
 - **The uniform calling convention is not the problem.** A static call at 2.7 ns and a `foreach`
   step at 3.4 ns are both faster than the interpreter's. The 16-byte `Value` argument slots are

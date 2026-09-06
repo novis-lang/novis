@@ -28,7 +28,7 @@
 //! `$key` names an object; it does not name a file. It is one flat segment of ASCII letters,
 //! digits, `.`, `-` and `_`, at most [`MAX_KEY`] bytes, not beginning with a `.` — and every
 //! other spelling is **refused** rather than escaped or trimmed
-//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)). A `/`,
+//! (`rule:errors/ambiguous-input-refused`). A `/`,
 //! a `\`, a `..` and a NUL are each that refusal.
 //!
 //! The flatness is the load-bearing half. Every path this class can construct is
@@ -58,7 +58,7 @@
 //! subdirectory no key of this class could have made, a symlink to somewhere else entirely. None
 //! of those is an object, so none of them is listed: an entry is a key here only when it is a
 //! **regular file** whose name [`is_key`] accepts. That is an *omission* rather than a refusal,
-//! and the difference is who wrote the bytes — ADR 0095 refuses ambiguous **input**, and a disk's
+//! and the difference is who wrote the bytes — `rule:errors/ambiguous-input-refused` refuses ambiguous **input**, and a disk's
 //! own contents are not the caller's input. The alternative is a disk that one stray file makes
 //! permanently unlistable.
 //!
@@ -77,7 +77,7 @@
 //! prefix of a key *is* a key — the grammar bounds length from above only, and no byte it admits
 //! is one a longer name may not carry — so any other spelling names nothing this disk can hold,
 //! and it is refused with the key grammar's own sentence rather than answered with an empty array
-//! (ADR 0095 again). Filtering here rather than at the call site is what keeps a large disk's
+//! (`rule:errors/ambiguous-input-refused` again). Filtering here rather than at the call site is what keeps a large disk's
 //! answer proportional to what was asked about.
 //!
 //! # Known gaps, recorded rather than worked around
@@ -402,7 +402,7 @@ fn is_key(key: &str) -> bool {
 ///
 /// # Errors
 ///
-/// A catchable `RuntimeError` naming the key and the rule. ADR 0095 is why none
+/// A catchable `RuntimeError` naming the key and the rule. `rule:errors/ambiguous-input-refused` is why none
 /// of it is stripped instead: a key a program did not mean is an object stored
 /// where it did not mean, and only the caller can say which was intended.
 fn key_of<'a>(key: &'a str, member: &str) -> Result<&'a str, Fault> {

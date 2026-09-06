@@ -3,7 +3,7 @@
 //! [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 10
 //! is authoritative for the tree's shape and its members; this module is the
 //! one place that shape becomes data the rest of the compiler can read.
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 points
+//! `rule:errors/on-limit` points
 //! at § 10 rather than restating it, so nothing else here needs to.
 //!
 //! # Why a table rather than a written declaration
@@ -130,7 +130,7 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// root is allocated by every `throw` in every program, and a fifth slot there
 /// would cost sixteen bytes plus one empty-array allocation on a path that
 /// PHP-shaped code takes for ordinary control flow
-/// ([ADR 0002](/docs/adr/0002-error-propagation.md)'s measured cost).
+/// (`rule:errors/propagation`'s measured cost).
 /// The third is `Core\Db\DbError`, which
 /// [ADR 0067](/docs/adr/0067-core-db.md) § 8 gives a normalised `kind`
 /// so that an application branches on the condition rather than on a vendor

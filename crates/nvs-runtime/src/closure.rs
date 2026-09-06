@@ -7,7 +7,7 @@
 //! reuses the object machinery rather than adding a second heap shape. So
 //! everything here is already available: [`crate::nvs_class_method`] finds
 //! the compiled address, and [`crate::call`] reaches it under exactly the
-//! [ADR 0002](/docs/adr/0002-error-propagation.md) signature every
+//! `rule:errors/propagation` signature every
 //! other compiled function has.
 //!
 //! # Why this exists at all
@@ -225,7 +225,7 @@ pub fn call_closure(ctx: &mut Ctx, closure: Value, args: &[Value]) -> Result<Val
 /// parameter list for the checker to count against
 /// ([ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md)
 /// § 1), so a program can reach it, and a program-reachable failure is a
-/// throw ([ADR 0002](/docs/adr/0002-error-propagation.md)).
+/// throw (`rule:errors/propagation`).
 ///
 /// # Safety
 ///
@@ -316,7 +316,7 @@ crate::nvs_helper! {
 /// [ADR 0031](/docs/adr/0031-callable-is-the-only-closure-type.md) § 1
 /// gives the checker no parameter list to count it against, so too few is
 /// program-reachable and therefore a throw
-/// ([ADR 0002](/docs/adr/0002-error-propagation.md)).
+/// (`rule:errors/propagation`).
 ///
 /// # Errors
 ///
@@ -532,7 +532,7 @@ pub fn closure_param_names(closure: Value) -> Result<Option<Vec<String>>, Fault>
 /// argument, and for a closure declaring more parameters than
 /// [`CLOSURE_PARAM_TAGS_CAPACITY`] can record — a program can reach both and a
 /// program-reachable failure is a throw
-/// ([ADR 0002](/docs/adr/0002-error-propagation.md)). Refusing the
+/// (`rule:errors/propagation`). Refusing the
 /// call in the second case is deliberate: passing an argument whose declared
 /// tag was never written down is exactly the read this function exists to
 /// prevent, and no spec callback comes close to sixteen parameters.

@@ -187,7 +187,7 @@ Verification, in the order it becomes possible:
   operators between two objects that do satisfy it type-check as *Decision § 6*'s table gives, joining the
   diagnostic corpus [ADR 0007](0007-explicit-type-system.md)'s own M2 entry already builds.
 - **M4**: a `Comparable` implementation's `compareTo` actually runs at all five operators, including a
-  throwing `compareTo` propagating correctly through [ADR 0002](0002-error-propagation.md)'s checked-return
+  throwing `compareTo` propagating correctly through `rule:errors/propagation`'s checked-return
   path; two unrelated classes each implementing `Comparable` still refused when compared against each other.
 - **M11**: the converter flags PHP source ordering two same-class objects via the implicit property walk as
   a `TODO` naming `Comparable`, per *Consequences*' negative list — no attempted mechanical rewrite.

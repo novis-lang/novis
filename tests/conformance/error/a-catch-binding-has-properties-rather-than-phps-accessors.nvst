@@ -1,5 +1,5 @@
 --TEST--
-A `catch` binding answers through properties, so every PHP accessor is refused where it is written — spec § 10, ADR 0002
+A `catch` binding answers through properties, so every PHP accessor is refused where it is written — spec § 10, `rule:errors/propagation`
 --FILE--
 <?nvs
 // Spec § 10 gives the exception tree `message`, `previous`, `backtrace` and
@@ -17,7 +17,7 @@ try {
     // `getFile` and `getLine` are one property here: a throw site is one
     // string.
     echo $e->getFile(), "\n";
-    // `getCode` is the accessor with no counterpart at all — ADR 0002
+    // `getCode` is the accessor with no counterpart at all — `rule:errors/propagation`
     // propagates a class, never a number — so it names the whole roster
     // instead of one property.
     echo $e->getCode(), "\n";

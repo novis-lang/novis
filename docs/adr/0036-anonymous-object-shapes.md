@@ -168,8 +168,8 @@ all three triggers:
   "no dynamic creation" rule exactly.
 
 Both throws are ordinary `Throwable`s, propagated by checked return like any other call
-([ADR 0002](0002-error-propagation.md)), never routed through the fatal escalation ladder
-([ADR 0020](0020-error-escalation-ladder.md)) — the same classification [ADR 0022](0022-definite-property-initialization.md) §3
+(`rule:errors/propagation`), never routed through the fatal escalation ladder
+(`rule:errors/escalation-ladder`) — the same classification [ADR 0022](0022-definite-property-initialization.md) §3
 already gives its own residual runtime case.
 
 ### 5. What this deliberately does not add

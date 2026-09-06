@@ -1,5 +1,5 @@
 //! Novis's baseline Cranelift backend: [`nvs_ir`]'s CFG/SSA form in, native
-//! code behind [ADR 0002](/docs/adr/0002-error-propagation.md)'s
+//! code behind `rule:errors/propagation`'s
 //! calling convention out.
 //!
 //! This crate is the one place that knows *both* [`nvs_ir`] and
@@ -10,7 +10,7 @@
 //!
 //! # The shape it emits
 //!
-//! Every compiled function has the one signature ADR 0002 makes normative:
+//! Every compiled function has the one signature `rule:errors/propagation` makes normative:
 //!
 //! ```text
 //! extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32
@@ -38,7 +38,7 @@
 //! frame's landing block passes a static label from the unit's own data
 //! section to [`nvs_runtime::nvs_trace_push`]. The alternative — a push/pop
 //! frame record around every call — would move that cost onto the path that
-//! actually runs, which is precisely what ADR 0002 exists to avoid. See
+//! actually runs, which is precisely what `rule:errors/propagation` exists to avoid. See
 //! `nvs_runtime::throwable`'s own docs for the one observable consequence.
 //!
 //! ## An object is a pointer; its fields are tagged
@@ -74,7 +74,7 @@
 //! * the **safepoint poll** at every [`nvs_ir::ir::InstKind::Safepoint`] —
 //!   function entry and loop back edges, the project-start decision's two
 //!   fixed sites;
-//! * [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+//! * `rule:errors/on-limit`'s
 //!   **call-stack compare**, riding the *first* of those polls so that it
 //!   lands at function entry and nowhere else — one load, one compare against
 //!   Cranelift's `get_stack_pointer`, branching to
@@ -120,7 +120,7 @@
 //!    [`nvs_ir::ir::InstKind::CallVirtual`]/`NewDynamic`, look the method up
 //!    on the receiver's or the late-static-binding class through
 //!    [`nvs_runtime::nvs_class_method`], and call the address it returns
-//!    indirectly under the same ADR 0002 signature. Everything else binds
+//!    indirectly under the same `rule:errors/propagation` signature. Everything else binds
 //!    straight to a label, because `nvs_types` answers "does anything
 //!    override this" for the whole program once
 //!    (`nvs_types::expr_table::ResolvedCall::overridden`). What is left is a
@@ -1189,7 +1189,7 @@ impl Classes {
                 .collect();
             self.table.set_field_tags(id, tags);
         }
-        // ADR 0092 § 5's redaction row, at the one granularity a dump can ask:
+        // `rule:errors/record-transformations`'s redaction row, at the one granularity a dump can ask:
         // the bit rides down untouched, `nvs_types` having decided it where
         // the qualifier still exists. Guarded on the same length agreement,
         // for the same synthesized classes.
@@ -1285,7 +1285,7 @@ impl Classes {
 /// its own signature here rather than being forced through
 /// [`Signatures::helper`].
 struct Signatures {
-    /// ADR 0002's calling convention — `(ctx, args, out) -> status`.
+    /// `rule:errors/propagation`'s calling convention — `(ctx, args, out) -> status`.
     helper: Signature,
     /// `(ctx, args, argc, out) -> status` — [`Self::helper`] with the
     /// argument **count** passed beside the slot, for the one helper whose
@@ -1297,7 +1297,7 @@ struct Signatures {
     /// `nvs_safepoint(ctx) -> status`.
     safepoint: Signature,
     /// `nvs_stack_check(ctx, sp) -> status` —
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// slow path. `sp` is `I64` for the reason every other pointer-shaped
     /// parameter here is: this JIT compiles for 64-bit targets only.
     stack_check: Signature,
@@ -1397,7 +1397,7 @@ struct Signatures {
     /// it* is the decision.
     array_set_index: Signature,
     /// `nvs_array_append(ctx, array, value, out) -> status` — the one array
-    /// write that can fail, and so the one carrying ADR 0002's status shape
+    /// write that can fail, and so the one carrying `rule:errors/propagation`'s status shape
     /// rather than handing the array straight back. The array it yields
     /// travels through `out`, a caller-owned pointer-wide slot, the way
     /// [`Self::slot_set`]'s result travels through a 16-byte one;
@@ -1468,7 +1468,7 @@ fn host_isa(is_pic: bool) -> Result<codegen::isa::OwnedTargetIsa, CodegenError> 
         // recursion). It is therefore insurance bought for nothing, and
         // the frame that would need it is exactly the one nobody predicts.
         //
-        // **Not the same mechanism as ADR 0020 § 1's call-stack limit**,
+        // **Not the same mechanism as `rule:errors/on-limit`'s call-stack limit**,
         // which counts *depth* against a `Ctx` field at the safepoint's
         // emit site. That catches a runaway recursion of ordinary frames;
         // this catches one oversized frame skipping the guard. Neither
@@ -1504,7 +1504,7 @@ impl UnitBuilder<JITModule> {
         let isa = host_isa(false)?;
         let mut builder = JITBuilder::with_isa(isa, cranelift_module::default_libcall_names());
         // Two symbol tables, one namespace: `nvs_runtime`'s primitives and
-        // helpers, and every Tier 0 `Core` member. Both have ADR 0002's one
+        // helpers, and every Tier 0 `Core` member. Both have `rule:errors/propagation`'s one
         // helper signature, and `nvs_stdlib`'s own docs own why a `Core` call
         // is emitted through the same path a helper call is.
         for (name, address) in nvs_runtime::symbols()

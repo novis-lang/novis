@@ -35,14 +35,14 @@
 //! # The status check
 //!
 //! Every call this file emits — a runtime helper, `nvs_safepoint` — is
-//! followed by the compare-and-branch [ADR 0002](/docs/adr/0002-error-propagation.md)
+//! followed by the compare-and-branch `rule:errors/propagation`
 //! puts in place of a landing pad, and a non-`OK` status returns onward
 //! unchanged. `nvs_probe_stmt` and the refcount primitives are the exceptions,
 //! and only because they return no status at all: neither can fail.
 //!
 //! # A runtime call that is not a helper
 //!
-//! Four symbols this file calls take neither ADR 0002's helper convention nor
+//! Four symbols this file calls take neither `rule:errors/propagation`'s helper convention nor
 //! the status check above: `nvs_str_eq`, `nvs_array_eq`, `nvs_float_pow` and
 //! the refcount primitives. The rule they share is that the operand
 //! *representation* is already statically known at the emit site and the
@@ -247,7 +247,7 @@ fn leading_phis(block: &BasicBlock) -> Result<usize, CodegenError> {
 
 /// Whether `f` can be entered without growing the machine stack by more than
 /// [`nvs_runtime::STACK_RESERVE`] — in which case
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1 elides
+/// `rule:errors/on-limit` elides
 /// its call-stack check, because whoever called it passed the compare with
 /// that much stack still underneath.
 ///
@@ -314,7 +314,7 @@ pub(crate) fn internal(what: &str) -> CodegenError {
 /// through a block parameter rather than the map. `nvs-ir` numbers a block
 /// when it *creates* one, which coincides with this order for straight-line
 /// and loop code but not for
-/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s landing blocks:
+/// `rule:errors/propagation`'s landing blocks:
 /// a nested `try`'s inner cleanup block is created *after* the outer one it
 /// flows into, so the outer one reads a value the inner one defines.
 ///
@@ -568,7 +568,7 @@ impl Emitter<'_, '_> {
                 };
                 return self.emit_helper(cur, inst, symbol, args, sig);
             }
-            // A `Core` member is native Rust behind the same ADR 0002 helper
+            // A `Core` member is native Rust behind the same `rule:errors/propagation` helper
             // entry point every runtime helper uses, so it needs no path of
             // its own here beyond naming a symbol `nvs-stdlib` registered
             // instead of one this crate's own `Helper` table does. See
@@ -937,7 +937,7 @@ impl Emitter<'_, '_> {
         Ok(cur)
     }
 
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// call-stack limit: one load of [`nvs_runtime::Ctx`]'s third word, one
     /// compare against this frame's stack pointer, one predicted-not-taken
     /// branch, and an out-of-line call to
@@ -1336,7 +1336,7 @@ impl Emitter<'_, '_> {
             // instruction on any target Cranelift supports and no
             // `LibCall::Pow` to defer to, so ADR 0007 § 4's float `**` row has
             // to leave the compiled function. It goes direct rather than
-            // through ADR 0002's helper convention for the reason this
+            // through `rule:errors/propagation`'s helper convention for the reason this
             // module's docs give — the row's representation is already known
             // here and `f64::powf` raises nothing — which is the same trade
             // the `nvs_str_eq` arm above makes.
@@ -1453,7 +1453,7 @@ impl Emitter<'_, '_> {
     ///   branch to a block that raises and takes this instruction's error edge
     ///   ([`nvs_ir::ir::Inst::on_error`]), carry on in a fresh one. The
     ///   not-taken side costs a compare and a predicted branch, which is the
-    ///   same shape and the same cost as ADR 0002's status check.
+    ///   same shape and the same cost as `rule:errors/propagation`'s status check.
     /// * **`i64::MIN % -1`** does not throw, because it is not an overflow:
     ///   `x % -1` is exactly `0` for every `x`, which is representable. PHP 8
     ///   answers `0` here and AGENTS.md's priority 2 keeps that. So the
@@ -1998,7 +1998,7 @@ impl Emitter<'_, '_> {
         Ok((value, cur))
     }
 
-    /// One runtime helper call, in ADR 0002's shape: the arguments
+    /// One runtime helper call, in `rule:errors/propagation`'s shape: the arguments
     /// materialized into a stack slot of 16-byte [`nvs_runtime::Value`]s, a
     /// second slot for the result, and the status check after.
     ///
@@ -2070,12 +2070,12 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// One Novis-level call, in ADR 0002's shape.
+    /// One Novis-level call, in `rule:errors/propagation`'s shape.
     ///
     /// Structurally identical to [`Self::emit_helper`] — arguments
     /// materialized into a stack slot of 16-byte [`nvs_runtime::Value`]s, a
     /// second slot for the result, the compare-and-branch on the returned
-    /// status — and deliberately so: ADR 0002 makes one calling convention
+    /// status — and deliberately so: `rule:errors/propagation` makes one calling convention
     /// normative for *every* call, so a runtime helper and a compiled Novis
     /// method differ here only in which `FuncRef` is called.
     ///
@@ -2111,7 +2111,7 @@ impl Emitter<'_, '_> {
     }
 
     /// `static::method(...)`: look the method up on the late-static-binding
-    /// class, then call whatever came back through the ordinary ADR 0002
+    /// class, then call whatever came back through the ordinary `rule:errors/propagation`
     /// signature.
     ///
     /// The lookup is one call to `nvs_runtime::nvs_class_method` with the
@@ -2286,7 +2286,7 @@ impl Emitter<'_, '_> {
 
         let call = match callee {
             Callee::Direct(func) => self.b.ins().call(func, &[self.ctx_p, args_p, out_p]),
-            // An indirect call through ADR 0002's one signature — every
+            // An indirect call through `rule:errors/propagation`'s one signature — every
             // caller-side obligation above and below it is identical.
             Callee::Indirect(address) => {
                 let sig = self.b.import_signature(self.sigs.helper.clone());
@@ -2895,7 +2895,7 @@ impl Emitter<'_, '_> {
     ///
     /// No status check and no `Value` materialization: like `nvs_str_new`,
     /// these are memory primitives over bare `StrHeader` pointers rather than
-    /// ADR 0002 helpers, because they cannot fail — see `nvs-runtime`'s
+    /// `rule:errors/propagation` helpers, because they cannot fail — see `nvs-runtime`'s
     /// "primitives compiled code calls" section for that split. No piece is
     /// retained or released here; `nvs_ir::ir::InstKind::Concat`'s own doc
     /// comment owns that rule and `nvs-ir` emits the releases.
@@ -3209,7 +3209,7 @@ impl Emitter<'_, '_> {
         Ok(())
     }
 
-    /// ADR 0002's compare-and-branch: on a non-`OK` status, take the
+    /// `rule:errors/propagation`'s compare-and-branch: on a non-`OK` status, take the
     /// instruction's error edge; otherwise carry on in a fresh block.
     ///
     /// `on_error` is [`nvs_ir::ir::Inst::on_error`] — the landing block the IR
@@ -3333,7 +3333,7 @@ impl Emitter<'_, '_> {
             }
             Terminator::Catch { handler, onward } => {
                 let status = self.landing_status()?;
-                // Only a `THROWN` is catchable: ADR 0020 keeps a `FATAL` out
+                // Only a `THROWN` is catchable: `rule:errors/escalation-ladder` keeps a `FATAL` out
                 // of every `catch`, at the type level in the language and by
                 // this comparison in the generated code. The other edge is a
                 // landing block of `nvs-ir`'s own — it ends in `Propagate`, so
@@ -3616,7 +3616,7 @@ impl Emitter<'_, '_> {
 /// Which form a call's target takes: a `FuncRef` Cranelift relocates, or a
 /// code address computed at run time.
 ///
-/// The two differ in exactly one instruction. Everything ADR 0002 asks of a
+/// The two differ in exactly one instruction. Everything `rule:errors/propagation` asks of a
 /// call site — the argument slots, both probes, the status check, the landing
 /// block — is identical, which is why `Self::emit_invoke_at` takes this rather
 /// than there being a second call path.

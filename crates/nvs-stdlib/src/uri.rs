@@ -2447,7 +2447,7 @@ mod tests {
 
     use super::{Form, encode};
 
-    /// Runs one member through the ADR 0002 boundary compiled code reaches it
+    /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at — [`crate::random`]'s own test helper, for its reasons.
     fn run(
         member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,

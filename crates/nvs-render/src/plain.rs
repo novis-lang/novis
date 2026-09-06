@@ -1,4 +1,4 @@
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `rule:errors/diagnostic-record`
 //! § 3's plaintext rendering — the one the terminal sink selects, and the
 //! first of the three to exist.
 //!
@@ -16,7 +16,7 @@
 //!
 //! # No colour yet
 //!
-//! ADR 0092 § 3 makes the plaintext rendering coloured *iff*
+//! `rule:errors/renderings` makes the plaintext rendering coloured *iff*
 //! `Cli::colorDepth() != None`, and reads that one answer from
 //! [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md) § 3 rather
 //! than resolving `NO_COLOR`/`CLICOLOR_FORCE`/`TERM` again here. `Core\Cli`
@@ -62,7 +62,7 @@ pub fn render(record: &Record) -> String {
 /// Just the nodes, at the left margin and one per line — what
 /// `Core\Debug::dump` writes to stderr.
 ///
-/// A dump renders no envelope because ADR 0092 § 4 sends the CLI form straight
+/// A dump renders no envelope because `rule:errors/debug-dump` sends the CLI form straight
 /// to stderr rather than through the log target: there is no `ts`, no
 /// `request_id` and no level for a reader to want, and printing an empty
 /// header above every dumped value would be noise on the one output a
@@ -79,7 +79,7 @@ pub fn render_nodes(nodes: &[Node]) -> String {
 }
 
 /// The envelope's one line: the level, then each present field in the order
-/// ADR 0092 § 1's table writes them.
+/// `rule:errors/diagnostic-record`'s table writes them.
 ///
 /// ADR 0106 § 10's `count` closes the line as `x37` rather than as a
 /// `name=value` like its neighbours: it is a multiplier on the line it trails,

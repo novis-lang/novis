@@ -27,7 +27,7 @@
 //!   anything else — two ranges, a unit that is not `bytes`, a spec that does
 //!   not parse, a range the file cannot satisfy — is a `416` carrying
 //!   `Content-Range: bytes */len`, never a silent `200` with the whole body.
-//!   That is [ADR 0095]'s direction: serving something other than what was asked
+//!   That is `rule:errors/ambiguous-input-refused`'s direction: serving something other than what was asked
 //!   for is repairing the request, and a client that meant to resume would write
 //!   the wrong bytes to disk on the strength of it.
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown
@@ -59,7 +59,6 @@
 //! [`OnDisk`] implementation is the only thing that would change.
 //!
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
-//! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [`What::Static`]: crate::mount::What::Static
 
 use std::ffi::OsStr;

@@ -212,7 +212,7 @@ on in the server distribution, so a CLI binary or an
 and its transitive dependencies. `Core\Metrics` is Tier 0 either way — the same split 0051 § 3 already uses
 for `Core\Cache`'s Redis backend, where the class is always there and the driver is a feature.
 
-`Core\Log`'s JSON-Lines record ([ADR 0020](0020-error-escalation-ladder.md) § 6) gains `trace_id` and
+`Core\Log`'s JSON-Lines record (`rule:errors/log-write`) gains `trace_id` and
 `span_id` fields whenever a trace is active. That is a two-field addition to a shape that already exists,
 and it is what lets an operator jump from a log line to the trace that produced it, which is the single
 highest-value thing an observability stack does.
@@ -256,7 +256,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **The cardinality bomb is a compile error.** Every other language documents this failure; Novis had already
   built the type that prevents it, and § 4 is the whole of the work.
 - **Logs and traces correlate**, because both go through one record shape
-  ([ADR 0020](0020-error-escalation-ladder.md) § 6) and it now carries the ids.
+  (`rule:errors/log-write`) and it now carries the ids.
 - **A wrong dashboard number is preferred against.** § 7's refuse-don't-evict choice keeps every reported
   series exactly correct, which is the property a dashboard is for.
 - **No unsandboxed C agent in the request path**, which is what the PHP alternative looks like.
@@ -354,7 +354,7 @@ registry, both of which are about Novis's own runtime and could not be a crate.
 - **M8:** `Core\Http\Client` sends `traceparent` when `[trace] propagate` is on and omits it when off; a
   `query`, an outbound call and a `spawn` each produce exactly one span, and a `call` event produces none.
 - **M8:** a `Core\Log::write` inside a sampled request carries `trace_id`/`span_id` in the same JSON-Lines
-  record [ADR 0020](0020-error-escalation-ladder.md) § 6 defines, and outside one omits both fields rather
+  record `rule:errors/log-write` defines, and outside one omits both fields rather
   than emitting empty strings.
 - **M8:** a build with the exporter feature off still accumulates into the registry and still compiles every
   `Core\Metrics` call — the assertion that keeps the two builds' behaviour identical.

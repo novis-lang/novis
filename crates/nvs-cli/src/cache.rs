@@ -807,7 +807,7 @@ impl Loaded {
         unsafe_code,
         reason = "an address in relocated, executable pages becomes the ABI's own function type; \
                   every claim that makes it callable — the pages are executable, the symbol is \
-                  the entry frame, the frame has ADR 0002's one signature — was established by \
+                  the entry frame, the frame has `rule:errors/propagation`'s one signature — was established by \
                   `relocate` before this type existed, and the returned `Entry` borrows the pages \
                   so the mapping outlives the pointer"
     )]

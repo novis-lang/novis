@@ -1,5 +1,5 @@
 --TEST--
-A throw unwinds three checked-return frames at once, and the output produced before it survives — ADR 0002
+A throw unwinds three checked-return frames at once, and the output produced before it survives — `rule:errors/propagation`
 --FILE--
 <?nvs
 class Chain {

@@ -1,8 +1,8 @@
 --TEST--
-`[log] target` is one destination and both of ADR 0092 § 6's writers land in it, so a deployment that names a file collects the program's records and the engine floor's in the same place and neither keeps a channel of its own beside it — ADR 0020 § 4 and ADR 0092 § 6
+`[log] target` is one destination and both of `rule:errors/record-producers`'s writers land in it, so a deployment that names a file collects the program's records and the engine floor's in the same place and neither keeps a channel of its own beside it — `rule:errors/engine-floor` and `rule:errors/record-producers`
 --FILE--
 <?nvs
-// ADR 0092 § 6's sameness, one step past the record's shape: the two writers
+// `rule:errors/record-producers`'s sameness, one step past the record's shape: the two writers
 // agree about the *destination* as well as about the envelope. With
 // `[log] target` naming a file, `Core\Log::write` no longer writes the
 // program's own output and the floor no longer writes the diagnostic channel —

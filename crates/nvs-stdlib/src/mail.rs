@@ -137,7 +137,7 @@ const HTML: usize = 7;
 /// are not required to have a message at all.
 ///
 /// `cc` and `bcc` are `array<string>` and `to` is one as well, because a
-/// comma-separated recipient list is the parse ADR 0095 refuses: `mail()` splits
+/// comma-separated recipient list is the parse `rule:errors/ambiguous-input-refused` refuses: `mail()` splits
 /// its `$to` on commas, which makes a comma inside a display name a second
 /// recipient. A list has no such reading. A single recipient writes `["a@b.c"]`
 /// and pays two characters for it.
@@ -303,7 +303,7 @@ fn configured(ctx: &Ctx, endpoint: &str, key: &str) -> Option<String> {
 /// is kept rather than trimmed, and the boot already says `W1007` about it. This
 /// function trimmed the value it returned, so the one endpoint that could have
 /// used that password submitted a different one — an authentication failure at
-/// the far end, from a file that plainly held the right bytes. ADR 0095 is the
+/// the far end, from a file that plainly held the right bytes. `rule:errors/ambiguous-input-refused` is the
 /// general form: input is read or refused, never repaired.
 fn present(text: String) -> Option<String> {
     if text.trim().is_empty() {
@@ -430,7 +430,7 @@ fn resolve(endpoint: &Endpoint, member: &str) -> Result<SocketAddr, Fault> {
 /// relies on — that the value can be written inside `<...>` on a command line
 /// and inside a header without changing either one's structure — so a byte that
 /// would end a line, a byte that would end the address, and the absence of an
-/// `@` are each a refusal. ADR 0095 is why none of them is silently stripped:
+/// `@` are each a refusal. `rule:errors/ambiguous-input-refused` is why none of them is silently stripped:
 /// an address a program did not mean is a message going somewhere it did not
 /// mean, and the caller is the only one who can say which.
 ///
@@ -1187,7 +1187,7 @@ mod tests {
         );
     }
 
-    /// ADR 0095 on the reader every directive comes through: a blank value is a
+    /// `rule:errors/ambiguous-input-refused` on the reader every directive comes through: a blank value is a
     /// cleared setting and reads as absent, and a value that is not blank is
     /// answered byte for byte.
     ///
@@ -1211,7 +1211,7 @@ mod tests {
         }
     }
 
-    /// ADR 0095, on the parameter where repair is most tempting: an address
+    /// `rule:errors/ambiguous-input-refused`, on the parameter where repair is most tempting: an address
     /// with a line break in it is refused rather than trimmed.
     #[test]
     fn an_address_is_refused_rather_than_repaired() {

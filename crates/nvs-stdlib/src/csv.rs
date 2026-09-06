@@ -646,7 +646,7 @@ mod tests {
 
     use super::{NvsStr, Value, dialect_byte, distinct, write_field};
 
-    /// Runs one member through the ADR 0002 boundary compiled code reaches it
+    /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at, releasing every value this test built afterwards — the helper
     /// convention borrows, so the caller still owns them.
     fn run(

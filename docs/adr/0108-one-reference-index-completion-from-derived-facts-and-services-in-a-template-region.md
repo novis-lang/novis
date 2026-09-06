@@ -231,7 +231,7 @@ extension:
   `supportsHitConditionalBreakpoints`, `supportsLogPoints`. A logpoint that does not stop the program is
   the debugging most users actually do.
 - **Exception filters** — `exceptionBreakpointFilters`, so "break on uncaught" and "break on thrown" are
-  separate switches. [ADR 0020](0020-error-escalation-ladder.md)'s single `Throwable` channel is what makes
+  separate switches. `rule:errors/escalation-ladder`'s single `Throwable` channel is what makes
   this two filters rather than the five categories PHP needs.
 - **Stepping exclusions** — a `launch.json` glob list so stepping does not descend into package code, and
   a handled throw inside it does not stop the session.

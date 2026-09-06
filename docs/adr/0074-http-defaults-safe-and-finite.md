@@ -146,7 +146,7 @@ above ([ADR 0063](0063-core-api-conventions.md) R11) — and each defaults to th
 that genuinely needs to be readable by script says so at the call site, in one field, visibly.
 
 A cookie's **name** is not this section's business:
-[ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md) § 3 owns it, and its two rules are that a
+`rule:errors/cookie-name-bytes` owns it, and its two rules are that a
 name matches byte for byte with no substitution anywhere, and that the runtime enforces `__Host-` and
 `__Secure-` semantics on read and on write rather than leaving them to each call site. These defaults and
 that rule meet at the same header and are otherwise independent.
@@ -303,7 +303,7 @@ regardless, and refusing it would buy nothing.
   the cap is `[limits] request_body` rather than a directive of its own). **That line covers size and rate,
   and explicitly not two other things.** It does not cover **parsing** — request smuggling *is* a
   proxy/origin parser differential, so delegating leniency to the proxy is the mechanism rather than a
-  mitigation; how a message is read is [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s,
+  mitigation; how a message is read is `rule:errors/ambiguous-input-refused`'s,
   which also caps a multipart **part count**, a cost in bookkeeping that no body-size cap bounds. And it
   does not cover **waiting**: this ADR's own rule that an unbounded default is a defect applies to a
   connection too, so the four idle timeouts in

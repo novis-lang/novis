@@ -46,7 +46,7 @@
 //! - **No response policy beyond a status.** A request that ran answers `200`
 //!   carrying what it echoed, and one that did not answers `500` carrying
 //!   nothing; `answer`'s own docs are the home of that second call.
-//!   [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//!   `rule:errors/diagnostic-record`
 //!   § 3's rendering of a failure into a development response is the
 //!   configuration slice's, because a mode is what decides it and this loop has
 //!   not been given one.
@@ -1065,7 +1065,7 @@ where
 /// whatever it echoed before it failed. That is a decision rather than an
 /// omission: a page rendered half-way is worse than none, and the failure
 /// itself reaches a response only where a mode says it may
-/// ([ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+/// (`rule:errors/diagnostic-record`
 /// § 3's HTML rendering of a `Throwable`, in development), which is the
 /// configuration slice's. Until there is a mode to ask, the fail-closed answer
 /// is the status and nothing else.
@@ -1153,7 +1153,7 @@ fn answer(mut done: Completion) -> Response<Answer> {
 }
 
 /// `400`, carrying nothing — ADR 0097 § 6's one refusal, joining
-/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// `rule:errors/ambiguous-input-refused`
 /// § 2's closed list.
 ///
 /// No body for [`failed`]'s reason and one more of its own: the peer that would
@@ -2702,7 +2702,7 @@ mod tests {
             let Some(nvs_runtime::Fault::Fatal(message)) = breach else {
                 return "stayed inside its ceiling".to_owned();
             };
-            // ADR 0020 § 1's tier-1 handler is the other line the poll makes,
+            // `rule:errors/on-limit`'s tier-1 handler is the other line the poll makes,
             // and there is none registered here — a connection that registered
             // one is that section's case rather than this one's.
             conn.set_pending(message);
@@ -2790,7 +2790,7 @@ mod tests {
     }
 
     /// The other end of the case above: a connection isolate that fails in a
-    /// way [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) has no ladder
+    /// way `rule:errors/escalation-ladder` has no ladder
     /// for — a panic in the engine itself — costs its own connection and
     /// **nothing else**. `nvs_runtime::run_task` is the boundary that contains
     /// it, and what this case reads back is the state on the far side: the core
@@ -3685,7 +3685,7 @@ mod tests {
                         }
                     }
                 }
-                // A breach is a `FATAL` and never a throw — ADR 0020 § 1, which
+                // A breach is a `FATAL` and never a throw — `rule:errors/on-limit`, which
                 // `Ctx::memory_breach`'s own doc names — so the other arm is
                 // here to be exhaustive rather than because it can happen.
                 let breach = match (failed, child.memory_breach()) {
@@ -4454,7 +4454,7 @@ mod tests {
     /// the one place that ADR does *not* delegate to the proxy: smuggling is a
     /// proxy/origin parser differential, so the deployment that always has a
     /// proxy in front is exactly the one where a lenient origin is dangerous,
-    /// and [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+    /// and `rule:errors/ambiguous-input-refused`
     /// stands whole here.
     ///
     /// **Every row is one payload down one connection, and the property is the

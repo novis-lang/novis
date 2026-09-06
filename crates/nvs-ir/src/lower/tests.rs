@@ -275,7 +275,7 @@ fn straight_line_arithmetic_and_return() {
 /// mismatch refusal stays a genuine internal error.
 ///
 /// The conversion is the checked one `$n as float` writes
-/// (`Helper::IntToFloat`/`UintToFloat`), so it carries ADR 0002's error
+/// (`Helper::IntToFloat`/`UintToFloat`), so it carries `rule:errors/propagation`'s error
 /// edge — ADR 0007 § 2 names this as the language's one implicit
 /// conversion and says it throws above 2^53 rather than rounding.
 ///
@@ -357,7 +357,7 @@ fn every_bitwise_operator_lowers() {
         assert!(text.contains(name), "{name} did not lower: {text}");
     }
     // A shift's *count* is the only thing PHP refuses here — a negative
-    // one throws `ArithmeticError` — so `<<` and `>>` take ADR 0002's edge
+    // one throws `ArithmeticError` — so `<<` and `>>` take `rule:errors/propagation`'s edge
     // while the three total operators and `~` do not.
     for line in text.lines() {
         let fallible = line.contains(" ! bb");
@@ -452,7 +452,7 @@ fn a_compound_assignment_evaluates_its_target_once() {
 ///
 /// Counted rather than snapshotted, and for the reason
 /// [`every_bitwise_operator_lowers`] gives: what is pinned is *which* rows
-/// carry ADR 0002's edge, and a snapshot would go red for a renumbering
+/// carry `rule:errors/propagation`'s edge, and a snapshot would go red for a renumbering
 /// while saying nothing about that. `**=` is in the same body because it
 /// has no lowering of its own — `lower_compound_assignment`'s rewrite is
 /// what gives it one — so the count is what says it arrived.
@@ -1464,7 +1464,7 @@ fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
 /// (`ExprTypeTable::to_string_call`) is what carries the target across.
 ///
 /// It dispatches through `InstKind::ClassDescOf`/`CallVirtual` so an
-/// override wins, carries ADR 0002's error edge because a `toString` body
+/// override wins, carries `rule:errors/propagation`'s error edge because a `toString` body
 /// may throw, and retains `$n` first — the parameter's slot still owns it,
 /// and the callee releases every refcounted parameter at its own exit.
 #[test]
@@ -2414,7 +2414,7 @@ fn a_hook_body_reaching_its_own_property_touches_the_slot_directly() {
         assert!(text.contains(expected), "{name}: {text}");
         // Read for a `call` naming it rather than for the name anywhere:
         // the signature line names the function, and so does the frame
-        // label in an ADR 0002 landing block's `propagate` — which the
+        // label in an `rule:errors/propagation` landing block's `propagate` — which the
         // getter's `+ 1` now has, since ADR 0007 § 4 gives integer
         // arithmetic an overflow edge.
         let recursed = text
@@ -2721,7 +2721,7 @@ fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
 /// below emit a `core.call` with **three** arguments — the written
 /// `{step: 3}` in the first, the materialized default `1` in the second.
 /// The bag itself never appears in the IR at all, which is the property
-/// that keeps `nvs-codegen` and the ADR 0002 helper convention from
+/// that keeps `nvs-codegen` and the `rule:errors/propagation` helper convention from
 /// learning that options exist.
 #[test]
 fn an_options_bag_flattens_into_one_argument_per_option() {
@@ -3333,7 +3333,7 @@ unset($a[\"outer\"][1]);
 #[test]
 fn a_transferred_argument_is_released_when_a_later_one_throws() {
     // `T::boom` is the later argument in each body below. Its body cannot
-    // throw, and does not need to: every compiled call takes ADR 0002's fault
+    // throw, and does not need to: every compiled call takes `rule:errors/propagation`'s fault
     // edge whatever its body does, and that edge is the whole question here.
     // `Pair` is what the `new` builds.
     const PRELUDE: &str = "<?nvs
@@ -3906,7 +3906,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     let spawn = spawns[0];
     assert!(
         spawn.on_error.is_some(),
-        "a spawn can throw and carries ADR 0002's error edge: {}",
+        "a spawn can throw and carries `rule:errors/propagation`'s error edge: {}",
         print_function(&f, map.file(file))
     );
     let InstKind::CoreCall { args, .. } = &spawn.kind else {

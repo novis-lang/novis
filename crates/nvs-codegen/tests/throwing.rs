@@ -1,4 +1,4 @@
-//! ADR 0002's checked-return propagation: what crosses a frame, what a `catch` stops, the backtrace, and what a throwing frame releases.
+//! `rule:errors/propagation`'s checked-return propagation: what crosses a frame, what a `catch` stops, the backtrace, and what a throwing frame releases.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -126,7 +126,7 @@ class MyError extends IOError {
 
 #[test]
 fn a_throw_crosses_several_frames_and_is_caught() {
-    // ADR 0002's whole claim, end to end: no unwinder is involved, each frame
+    // `rule:errors/propagation`'s whole claim, end to end: no unwinder is involved, each frame
     // returns `THROWN` and its caller branches on it, and the `catch` three
     // frames up sees the message the `throw` built.
     let source = format!(
@@ -147,7 +147,7 @@ fn an_uncaught_throw_leaves_the_status_and_the_message_on_the_context() {
 #[test]
 fn the_backtrace_names_every_frame_the_throw_left_in_order() {
     // Resolved from Novis's own frame chain — each frame's error path pushes its
-    // own label — never from the platform unwinder, which ADR 0002 makes
+    // own label — never from the platform unwinder, which `rule:errors/propagation` makes
     // unavailable through a JIT frame in the first place.
     let mut ctx = Ctx::buffered();
     let source = format!("{THROWS}\nDeep::level1();\n");
@@ -257,7 +257,7 @@ fn a_frame_that_throws_releases_the_strings_it_still_held() {
 #[cfg(debug_assertions)]
 use nvs_runtime::budget::{allocated_bytes, live_bytes};
 
-/// The other half of the neighbour above, over the exit ADR 0020 keeps out of
+/// The other half of the neighbour above, over the exit `rule:errors/escalation-ladder` keeps out of
 /// every `catch`: a `FATAL` leaves the frame too, so its locals are released on
 /// the way out or they are lost for good.
 ///

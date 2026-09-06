@@ -1,8 +1,8 @@
-# ADR 0020 — Fatal errors reach user code through a reserved-budget ladder, never through `catch`
+# `rule:errors/escalation-ladder` — Fatal errors reach user code through a reserved-budget ladder, never through `catch`
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
-- **Scope:** what happens after a `FATAL` status ([ADR 0002](0002-error-propagation.md)) or an uncaught
+- **Scope:** what happens after a `FATAL` status (`rule:errors/propagation`) or an uncaught
   `THROWN` reaches an isolate/request root; what happens when a script or the entry file itself fails to
   compile; the guarantee that every one of those is logged somewhere, in one shared format, no matter how
   many of the handlers in between also fail
@@ -10,7 +10,7 @@
 
 > **In short:** nothing Novis runs is ever silently dropped, but not everything is *caught* — those are
 > different guarantees, and conflating them is what this ADR avoids. `FATAL` stays exactly what
-> [ADR 0002](0002-error-propagation.md) already fixed: uncatchable by an ordinary `catch`, because a
+> `rule:errors/propagation` already fixed: uncatchable by an ordinary `catch`, because a
 > resource-limit report is not a `Throwable` at all — the type checker refuses `catch (Throwable $e)` from
 > ever seeing one. What changes is what happens *after* it reaches the boundary: a four-tier escalation
 > ladder, each tier getting a bounded, non-repeating chance to handle the failure before falling to the next.
@@ -24,7 +24,7 @@
 
 ## Context
 
-- [ADR 0002](0002-error-propagation.md) fixed `OK`/`THROWN`/`FATAL` and that `FATAL` unwinds to the request
+- `rule:errors/propagation` fixed `OK`/`THROWN`/`FATAL` and that `FATAL` unwinds to the request
   boundary — tested and not reopened here — but never said what consumes it *at* that boundary, beyond
   [ADR 0006](0006-isolated-script-execution.md)'s narrow answer for a spawned child (`ScriptResult->error`).
 - Left open: the **root** isolate has no parent to read a `ScriptResult`; an uncaught `THROWN` has no
@@ -61,13 +61,13 @@ check that could be forgotten at one call site and not another — it is a type-
 ([ADR 0007](0007-explicit-type-system.md)): `catch (Throwable $e)` around code that hits a memory or CPU
 limit provably cannot catch the report, the same way `int + uint` provably cannot compile. Enforcing "FATAL
 is not catchable" in the type system, rather than in runtime discipline, is what keeps the ABI-level
-guarantee ADR 0002 already tested from depending on every future `catch` site getting a special case right.
+guarantee `rule:errors/propagation` already tested from depending on every future `catch` site getting a special case right.
 
 ### 1. `Core\Fatal::onLimit(closure(LimitReport): void $handler): void`
 
 Fires **only** for a resource-limit `FATAL` — memory, CPU time, `max_output`, wall time,
 `max_script_depth`, and **call-stack depth**. Request-local
-registration, living next to the pending-error slot already in `Ctx` per [ADR 0002](0002-error-propagation.md) —
+registration, living next to the pending-error slot already in `Ctx` per `rule:errors/propagation` —
 not global, not ambient, dies with the request like every other per-request slot
 ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
 
@@ -99,7 +99,7 @@ Internal-runtime-panic `FATAL`s **never reach this tier**, per the split below.
 all.** Novis compiles natively, so every user call is a real machine frame — unlike PHP, whose VM does not
 recurse the C stack for userland calls and whose recursion is therefore bounded by `memory_limit` and
 routinely runs 100k+ deep. Exhausting a native stack is a `SIGSEGV`, not a panic, so
-[ADR 0002](0002-error-propagation.md)'s `catch_unwind` does not contain it and nothing below is ever
+`rule:errors/propagation`'s `catch_unwind` does not contain it and nothing below is ever
 entered: one request takes the worker down, and every other request on it. PHP reached the same conclusion
 in 8.3 and shipped `zend.max_allowed_stack_size`; the reserved-slice idea that ADR's
 `zend.reserved_stack_size` embodies is the one this section already had.
@@ -115,7 +115,7 @@ and stays.
 
 There are **two tiers, and they cost the same as one**. A catchable `RecursionError` throws at a soft
 depth, so a recursive-descent parser or a tree walk over untrusted-depth data can degrade instead of
-killing the request — safe here in a way it is not in PHP, because ADR 0002's checked-return propagation
+killing the request — safe here in a way it is not in PHP, because `rule:errors/propagation`'s checked-return propagation
 pops frames as it unwinds, so a handler runs with a shallow stack again. The non-catchable `FATAL` at the
 true limit is the floor beneath it, reaching this tier like every other resource limit. The fast path
 compares against the **soft** limit only; the slow path decides which of the two it is.
@@ -261,7 +261,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   resource-limit report is not a `Throwable` at the type level, so "catch a FATAL, handler throws, catch
   that too" cannot even be written for tier 1's case, let alone loop.
 - Reuses two already-decided mechanisms wholesale — the checked-return `FATAL` status
-  ([ADR 0002](0002-error-propagation.md)) and `spawn script` isolation
+  (`rule:errors/propagation`) and `spawn script` isolation
   ([ADR 0006](0006-isolated-script-execution.md)) — rather than inventing new ones. One new, narrow rule (the
   engine-owned budget for tier 3) is the only genuinely new mechanism.
 - Operators get one place, in the language the application already runs, to format and route every error
@@ -287,14 +287,14 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   ambient state, which is [ADR 0012](0012-no-superglobals.md)'s existing rule applying somewhere it matters
   more than usual, not a new kind of restriction.
 - Four tiers plus a non-`Throwable` report type is more surface than "just let people catch everything" would
-  have been. Accepted per the answers this ADR was built from: reopening ADR 0002 to make `FATAL` catchable
+  have been. Accepted per the answers this ADR was built from: reopening `rule:errors/propagation` to make `FATAL` catchable
   everywhere was considered and declined precisely because it reintroduces the loop risk at every stack
   depth instead of containing it to one boundary.
 
 ## Alternatives rejected
 
 - **Let an ordinary `catch (Throwable)` intercept a `FATAL` anywhere in the call stack.** Reopens
-  [ADR 0002](0002-error-propagation.md)'s status model and spreads catch-loop risk to every stack depth.
+  `rule:errors/propagation`'s status model and spreads catch-loop risk to every stack depth.
 - **Bounded-N retries** on a failing handler. Just adds a knob to size, for a case that should already be
   rare by tier 3.
 - **One handler API for both resource-limit and internal-panic `FATAL`s.** Would rerun user code atop

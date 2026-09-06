@@ -1569,7 +1569,7 @@ fn parse_path(path: &str) -> Result<Vec<Capture<'_>>, Refusal> {
 /// There is no escape and no partial form, which is the half of § 2 that keeps
 /// `{` an ordinary byte in a literal segment impossible rather than ambiguous:
 /// a path meaning one of two things is refused rather than repaired
-/// ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)).
+/// (`rule:errors/ambiguous-input-refused`).
 fn capture_of(segment: &str) -> Result<Option<Capture<'_>>, Refusal> {
     if !segment.contains('{') && !segment.contains('}') {
         return Ok(None);

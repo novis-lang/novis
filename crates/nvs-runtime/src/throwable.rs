@@ -34,7 +34,7 @@
 //! A frame label is pushed by [`nvs_trace_push`] from the *error* path of each
 //! compiled frame the throw travels out of — never from a push/pop record kept
 //! on the way in. That is the whole reason
-//! [ADR 0002](/docs/adr/0002-error-propagation.md) can claim a call
+//! `rule:errors/propagation` can claim a call
 //! costs a compare-and-branch: a frame-record scheme would move the cost onto
 //! the success path, which is the path that runs. The consequence is visible
 //! and deliberate: the trace holds exactly the frames the exception *unwound
@@ -188,7 +188,7 @@ pub enum ThrownClass {
     /// `TimeoutError` — a deadline passed.
     Timeout,
     /// `RecursionError` — the call stack passed
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+    /// `rule:errors/on-limit`'s
     /// *soft* depth. The hard limit beneath it is a `FATAL` and is not in
     /// this roster at all, because no `catch` ever sees one.
     Recursion,
@@ -463,7 +463,7 @@ impl Thrown {
     /// hands none over: what keeps the object alive across the borrower's use
     /// of it is the reference this `Thrown` is still holding. Its one caller is
     /// [`crate::Ctx::run_uncaught_handler`], which is
-    /// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 2's
+    /// `rule:errors/on-uncaught-throw`'s
     /// "the **real `Throwable` object**, not copied data" — so this is
     /// deliberately not a constructor that copies anything.
     #[must_use]
@@ -500,7 +500,7 @@ impl Thrown {
         self.borrow().map_or(std::ptr::null(), |obj| obj.class())
     }
 
-    /// The rendered name of that class, or [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)'s
+    /// The rendered name of that class, or `rule:errors/escalation-ladder`'s
     /// generic `Error` where there is no descriptor to read.
     ///
     /// Here rather than beside either caller: `nvs_host::isolate` names the
@@ -670,7 +670,7 @@ impl Drop for Thrown {
 // ---------------------------------------------------------------------------
 //
 // Same split `crate::string`'s own primitives are on, for the same reason:
-// none of these can fail, so none of them wears ADR 0002's checked-return
+// none of these can fail, so none of them wears `rule:errors/propagation`'s checked-return
 // shape. Every one is `extern "C"` and never `extern "C-unwind"`.
 
 /// Makes `thrown` this request's pending exception — what Novis's `throw`
@@ -769,7 +769,7 @@ pub unsafe extern "C" fn nvs_raise_new(
 ///
 /// A non-`THROWN` `status` is ignored: a resource-limit or internal failure is
 /// not a `Throwable` at all
-/// ([ADR 0020](/docs/adr/0020-error-escalation-ladder.md)), so it has
+/// (`rule:errors/escalation-ladder`), so it has
 /// no backtrace to grow.
 ///
 /// # Safety

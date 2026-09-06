@@ -22,7 +22,7 @@ foreach ($words as string $w) {
 echo "kept ", Core\Arr::count($kept) as string, " agree ", $agree as string, "\n";
 
 // The mismatched side, the same closure and the same two callers. The throw is
-// an ordinary catchable `LogicError` (ADR 0002's checked return), not an engine
+// an ordinary catchable `LogicError` (`rule:errors/propagation`'s checked return), not an engine
 // fault, and it names the position, what it required and what arrived.
 array<int> $ints = [1, 2, 3];
 try {

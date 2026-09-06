@@ -1,5 +1,5 @@
 --TEST--
-`Core\Fatal::onLimit` registered a thousand times holds one handler, and the thousand it replaced are released — ADR 0020 § 1
+`Core\Fatal::onLimit` registered a thousand times holds one handler, and the thousand it replaced are released — `rule:errors/on-limit`
 --FILE--
 <?nvs
 // § 1 gives the tier *one* handler, and the consequence that is measurable
@@ -11,7 +11,7 @@
 // Asserted by counting rather than read off a line: the loop registers a fresh
 // capturing closure each turn under a ceiling far below what a thousand leaked
 // ones would hold, so a tree that leaks them does not print a wrong number, it
-// dies at ADR 0020 § 1's `FATAL` partway through.
+// dies at `rule:errors/on-limit`'s `FATAL` partway through.
 int $registered = 0;
 while ($registered < 1000) {
     var $slab = Core\Str::repeat("x", 16384);

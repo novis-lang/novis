@@ -80,7 +80,7 @@
 //! laundered. So every claim comes back as text: a JSON string as itself, a
 //! number in its own spelling, `true`/`false` as those words. **A claim whose
 //! value is `null`, an object or an array is refused**, per
-//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! `rule:errors/ambiguous-input-refused`
 //! — rendering a nested object as its JSON text would invent a spelling
 //! nothing else in this crate reads back, and `null` and `""` have no honest
 //! distinction once both are text.

@@ -91,7 +91,7 @@ pub(crate) use self::{
 /// § 1's `secret` qualifier — the one thing outside this crate a *declared*
 /// type is asked, and asked at the one end that knows.
 ///
-/// ADR 0092 § 5's redaction row is two halves of one rule about one record,
+/// `rule:errors/record-transformations`'s redaction row is two halves of one rule about one record,
 /// and neither half can be decided from a value: `secret` is a qualifier on a
 /// declared type, erased everywhere below the checker. The call-site half is
 /// [`quals::reject_secret_debug_argument`], made here; the property half is a

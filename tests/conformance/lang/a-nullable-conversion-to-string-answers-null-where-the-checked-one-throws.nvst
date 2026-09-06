@@ -49,7 +49,7 @@ echo $agree, "\n";
 // The line `null` does not cross: ADR 0066 § 1's `null` stands for "this
 // conversion had no answer", never for an exception the operand's own body
 // raised on the way. So a throwing `toString` propagates through both
-// spellings alike (ADR 0002).
+// spellings alike (`rule:errors/propagation`).
 mixed $angry = new Angry();
 try {
     echo $angry as ?string ?? "<null>", "\n";

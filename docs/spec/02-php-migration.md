@@ -568,10 +568,10 @@ how this runtime is built.
 | `get_cfg_var` | member | `Core\Config::get`. PHP's split between the file's value and the active one does not exist — the snapshot is the value ([ADR 0078](../adr/0078-config-reload-and-control-socket.md) § 1) |
 | `php_ini_loaded_file` | dropped | there is no INI file. The configuration is a tree of TOML files, and which one set a directive is what `nvs config dump --origin` reports ([ADR 0103](../adr/0103-configuration-is-a-tree-of-files.md) § 9) rather than something a request reads |
 | `php_ini_scanned_files` | dropped | same — the tree's shape is the operator's to audit, not a request's to introspect |
-| `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` ([ADR 0020](../adr/0020-error-escalation-ladder.md)) |
+| `set_time_limit` | member | `Core\Config::set` on the wall-time directive, bounded by `[limits.hard]` like every other; a breach is a `FATAL` and never reaches a `catch` (`rule:errors/escalation-ladder`) |
 | `memory_get_usage` | member | `Core\Os::memoryUsage` |
-| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which ADR 0020's limit report already carries when one is breached |
-| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it ([ADR 0020](../adr/0020-error-escalation-ladder.md) § 1) |
+| `memory_get_peak_usage` | dropped | `Core\Os::memoryUsage` is the current figure; a peak is only meaningful against the request's budget, which `rule:errors/escalation-ladder`'s limit report already carries when one is breached |
+| `memory_reset_peak_usage` | dropped | nothing tracks a resettable peak — a budget is per request and dies with it (`rule:errors/on-limit`) |
 | `gc_enable` | dropped | memory is refcounted and released deterministically ([ADR 0116](../adr/0116-an-isolates-arena-is-an-ownership-root.md)); there is no collector to turn on |
 | `gc_disable` | dropped | same, in the other direction |
 | `gc_enabled` | dropped | same — the answer would be a constant |
@@ -880,7 +880,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `getopt` | member | `Core\Command`, whose option table is built while compiling from `#[Command]`, `#[Option]` and `#[Argument]` ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)). `Core\Cli::arguments` is the raw vector where a program insists on reading it itself |
 | `exit` | language | `exit` is a statement, not a function. `Core\Script::onExit` hooks still run, because the end of a script is observable ([ADR 0127](../adr/0127-the-end-of-a-script-is-observable.md)) |
 | `die` | language | the same statement; `die` is PHP's second spelling of it |
-| `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is [ADR 0020](../adr/0020-error-escalation-ladder.md)'s handler ladder, which is a different mechanism on a reserved budget |
+| `register_shutdown_function` | member | `Core\Script::onExit`, FIFO, run as the last user code at every non-fatal ending. What PHP used it for on a *fatal* is `rule:errors/escalation-ladder`'s handler ladder, which is a different mechanism on a reserved budget |
 | `ignore_user_abort` | dropped | work that must outlive the response is `Core\Task::afterResponse` ([01 § 19](01-core-library.md)), which the runtime owns and bounds — not a flag asking the engine not to notice that the client has gone |
 | `connection_aborted` | dropped | a client that disappears cancels the request and the runtime unwinds it. There is no state to poll, because polling only ever told a program what had already been decided |
 | `connection_status` | dropped | same |
@@ -911,7 +911,7 @@ The rest divides in two. The **dynamic-call** family is the language: a `callabl
 ([ADR 0027](../adr/0027-callable-is-closures-only.md)) and a closure is called by writing the call, a
 variadic parameter is the list `func_get_args` reconstructed, and no static call takes a target assembled
 at run time. The **dumping** family is one diagnostic record with three renderings
-([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)), which is `Core\Debug`.
+(`rule:errors/diagnostic-record`), which is `Core\Debug`.
 
 Two domains are gone rather than moved, and every row that names them says so once. There is no `trait`
 ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) — shared behaviour is
@@ -962,9 +962,9 @@ identify.
 | `function_exists` | dropped | there are no free functions to look up ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)): a member either resolves while compiling or the call is not compiled. Its feature-detection use asks which components a unit was built against, which cannot differ between two requests of one process |
 | `serialize` | member | `Core\Serialize::encode` — the user-facing half of the one graph copy the `spawn` boundary already runs ([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)), in a versioned format of Novis's own rather than PHP's |
 | `unserialize` | member | `Core\Serialize::decode`, which is a **`tainted` sink** with no launderer ([01 § 13](01-core-library.md)): bytes that arrived from outside are refused structurally, which is what closes PHP's most productive remote-code-execution class. Its `$options` allowed-class list is the workaround that rule replaces |
-| `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record ([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record (`rule:errors/diagnostic-record`) |
 | `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
-| `var_export` | member | `Core\Debug::render`, whose rendering is one of ADR 0092 § 3's three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](../adr/0052-closed-doors.md)) |
+| `var_export` | member | `Core\Debug::render`, whose rendering is one of `rule:errors/renderings`'s three over that same record. The promise that the output is valid source is not kept and is not wanted: there is no `eval` to feed it to ([ADR 0052](../adr/0052-closed-doors.md)) |
 | `debug_zval_dump` | dropped | it prints a refcount, which is the runtime's own accounting and not a fact a program is entitled to branch on. The dumping half is `Core\Debug::dump` |
 | `debug_backtrace` | member | `$e->backtrace`, a readonly property every `Throwable` carries ([01 § 10](01-core-library.md)). A stack read where nothing failed is profiling, and that is `Core\Debug`'s probe half ([ADR 0018](../adr/0018-coverage-tracing-and-profiling-as-safepoint-shaped-probes.md)) |
 | `debug_print_backtrace` | member | the same property, handed to `Core\Debug::dump` |
@@ -1094,7 +1094,7 @@ different jobs, not twins, and no operation is available through both. The tree 
 `Core\Html`'s parser produces ([ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md)).
 
 Three rules collapse the table. A parse **throws** on a malformed document
-([ADR 0095](../adr/0095-ambiguous-input-is-refused-never-repaired.md), and
+(`rule:errors/ambiguous-input-refused`, and
 [ADR 0122](../adr/0122-html-parsing-is-a-whatwg-entry-on-core-html-over-core-xmls-tree.md) § 1 for why
 HTML's parser is the opposite), so there is no error bucket to enable and read back. Anything with a
 lifetime is an object rather than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), which
@@ -1133,7 +1133,7 @@ being a switch.
 | `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
 | `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have ([ADR 0031](../adr/0031-callable-is-the-only-closure-type.md)) |
 | `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](../adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
-| `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces ([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)) |
+| `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces (`rule:errors/diagnostic-record`) |
 | `xml_get_current_line_number` | member | position belongs to the event and to the failure, not to an implicit *current* state: the reader reports where the event it just yielded came from, and a parse failure carries the same on the throw |
 | `xml_get_current_column_number` | member | the same position, other axis |
 | `xml_get_current_byte_index` | member | the same position, in bytes — one member answering all three rather than three functions over a parser's cursor |
@@ -1244,14 +1244,14 @@ one row here that grows a member rather than losing one.
 
 PHP's error model is four mechanisms that do not compose: a global error handler, a severity **bitmask**, a
 second and separate exception handler, and `assert()`, whose calls a configuration directive can remove
-from the program. Novis has one ladder instead — [ADR 0020](../adr/0020-error-escalation-ladder.md): a
+from the program. Novis has one ladder instead — `rule:errors/escalation-ladder`(../adr/0020-error-escalation-ladder.md): a
 failure throws ([ADR 0063](../adr/0063-core-api-conventions.md)), an uncaught throw reaches `Core\Fatal`'s
 tier-2 hook on the engine's own reserved budget, and a fatal never reaches an ordinary `catch`. There are no
 warnings and no notices to convert into exceptions, which is what most `set_error_handler` calls in the wild
 are for, so the whole handler roster goes.
 
 Reporting is the other half. `Core\Log::write` is one writer with one record shape
-([ADR 0092](../adr/0092-one-diagnostic-record-three-renderings.md)), reached by application code and by the
+(`rule:errors/diagnostic-record`), reached by application code and by the
 engine floor alike; where it goes, at what minimum level and in which rendering are `[log]` keys an operator
 sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a request chooses.
 
@@ -1260,7 +1260,7 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 | `set_error_handler` | dropped | it installs a callback for warnings and notices, overwhelmingly in order to turn them into exceptions. Here a failure already throws, so there is nothing to convert and no severity to inspect |
 | `restore_error_handler` | dropped | it pops a stack of handlers that is never pushed |
 | `get_error_handler` | dropped | PHP 8.5's reader for the top of that stack |
-| `set_exception_handler` | member | `Core\Fatal`'s uncaught-throw hook — tier 2 of [ADR 0020](../adr/0020-error-escalation-ladder.md), which receives the real `Throwable` and runs on a reserved budget, rather than a callback that runs in the exhausted request that failed |
+| `set_exception_handler` | member | `Core\Fatal`'s uncaught-throw hook — tier 2 of `rule:errors/escalation-ladder`, which receives the real `Throwable` and runs on a reserved budget, rather than a callback that runs in the exhausted request that failed |
 | `restore_exception_handler` | dropped | the same stack, for something that is registered once rather than pushed and popped |
 | `get_exception_handler` | dropped | reads it back |
 | `error_reporting` | dropped | a severity bitmask over a warning system there is none of. What is *written* is `[log] level`, a minimum an operator sets ([ADR 0064](../adr/0064-configuration-file-format.md)), and what is *raised* is not a level at all |

@@ -49,7 +49,7 @@
 ## Investigation
 
 - Spiked before being written down as policy, per [README.md](README.md)'s "architecture assumptions are
-  tested, not remembered" rule (the same discipline ADR 0002's unwind-table premise followed) — nothing in
+  tested, not remembered" rule (the same discipline `rule:errors/propagation`'s unwind-table premise followed) — nothing in
   the stack had run under Valgrind before.
 - `benches/abi-probe/examples/callgrind_spike.rs` (an 8-frame Cranelift-JIT call chain, 10,000 iterations)
   run three times under `valgrind --tool=callgrind` in WSL produced the bit-identical count `5417505` each

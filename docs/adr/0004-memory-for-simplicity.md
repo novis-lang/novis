@@ -74,7 +74,7 @@ thousands of in-flight tasks Novis targets (`benches/abi-probe/benches/coroutine
 on a hot path is a *latency* cost and is governed by priority 3, not priority 5, however much it looks like
 a memory question. The worked example is already in the tree: the pending-error slot is a
 `Cow<'static, str>` rather than a `String` because one allocation per throw cost more than the entire
-propagation path it was meant to measure ([ADR 0002](0002-error-propagation.md)). That decision reads as
+propagation path it was meant to measure (`rule:errors/propagation`). That decision reads as
 frugality and is not — it is priority 3 beating priority 5, which is the ordering working, not an exception
 to it.
 

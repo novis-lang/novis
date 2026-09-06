@@ -1,5 +1,5 @@
 --TEST--
-`%` by zero throws a catchable error instead of trapping the process — request isolation, ADR 0002
+`%` by zero throws a catchable error instead of trapping the process — request isolation, `rule:errors/propagation`
 --FILE--
 <?nvs
 class Mod {

@@ -1,17 +1,17 @@
 --TEST--
-`Core\Log::write` renders a `fields` value JSON has no value for rather than refusing it, and nothing a bag can hold makes a write fail -- ADR 0020 § 6 and ADR 0092 §§ 1 and 3
+`Core\Log::write` renders a `fields` value JSON has no value for rather than refusing it, and nothing a bag can hold makes a write fail -- `rule:errors/log-write` and `rule:errors/diagnostic-record` and `rule:errors/renderings`
 --FILE--
 <?nvs
 // `fields` is `array<string, mixed>`, so a value with no JSON value of its own
 // reaches the rendering. ADR 0009 § 1's `bytes` is the reachable one: it is not
-// a string that happens to be binary, it is its own type, and ADR 0092 § 1's
+// a string that happens to be binary, it is its own type, and `rule:errors/diagnostic-record`'s
 // model carries it as a scalar. The rendering spells what JSON cannot carry as
 // a one-key `$`-tagged object -- `nvs_render::json`'s module doc is the home of
 // that rule and of why the bytes are hex.
 array<mixed> $binary = ["payload" => "text" as bytes];
 Core\Log::write(Core\Log\Level::Error, "captured", $binary);
 
-// Rendering rather than refusing is ADR 0020 § 6's requirement, not a
+// Rendering rather than refusing is `rule:errors/log-write`'s requirement, not a
 // convenience: the same helper is what the tier-4 floor calls with its one
 // shot, and a reporting path that throws while reporting has nothing left to
 // report with. So the record after this one is the next record, never the tail

@@ -45,7 +45,7 @@ foreach ($cases as Core\Response\SameSite $case) {
 }
 echo "Lax and Strict without Secure were admitted ", $insecure, " of 2\n";
 
-// The second rule that reads a default is ADR 0095 § 3's `__Host-`, which
+// The second rule that reads a default is `rule:errors/cookie-name-bytes`'s `__Host-`, which
 // requires `Path=/`. A bare call conforms, so the unwritten `path` was `/`;
 // writing any other path breaks it. This is the `path` default asserted
 // through a rule rather than read off a line.

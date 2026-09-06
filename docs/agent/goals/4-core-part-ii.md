@@ -78,7 +78,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    controlling terminal rather than stdin and never block forever, and in-place output is a **scoped** live
    region. Two dependencies arrive with it — `crossterm`, `unicode-width` — both pure Rust, both owing a
    notice regeneration.
-10. **§ 8's terminal restoration is part of this slice and not a follow-up.** ADR 0020 § 4's obligation: a
+10. **§ 8's terminal restoration is part of this slice and not a follow-up.** `rule:errors/engine-floor`'s obligation: a
     live region that survives a panic is the defect the whole scoped shape exists to prevent.
 11. **`Core\Command::run`, its generated `--help`, and its shell completions**, over the table goal 1
     built. Unlike `Core\Router` it *dispatches*, because a CLI has one entry point and no middleware
@@ -143,10 +143,10 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 ## Stage 7 — the escalation ladder's remaining half
 
 21. **`Core\Fatal` and `Core\Log`**, plus the operator-configured `.nvs` error-handler script and the
-    engine-native logging floor beneath it — [ADR 0020](../../adr/0020-error-escalation-ladder.md).
+    engine-native logging floor beneath it — `rule:errors/escalation-ladder`.
     `Core\Log`'s JSON-Lines writer **is the same native serialiser the engine floor calls directly**, so
     the two never disagree on log shape; two writers that agree today is the failure this item prevents.
-22. **The floor is rotated and rate-limited**, per ADR 0106's amendment to ADR 0020 § 4 — the floor cannot
+22. **The floor is rotated and rate-limited**, per ADR 0106's amendment to `rule:errors/engine-floor` — the floor cannot
     fill the disk it writes to.
 23. **`nvs check` refuses a `secret` operand at `Core\Log::write()`'s `fields` argument**, despite that
     parameter's open `array<string, mixed>` type. A qualifier check that an open type defeats is a

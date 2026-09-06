@@ -114,7 +114,7 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         return None;
     }
     match leaf {
-        // ADR 0020 § 1's reserved slice is a quantity of the same heap `memory`
+        // `rule:errors/on-limit`'s reserved slice is a quantity of the same heap `memory`
         // bounds, so it is read in the same units and by the same parser.
         "memory" | "max_output" | "fatal_reserve_memory" => Some(Unit::Bytes),
         // The other half of that slice is a quantity of the same CPU time `cpu_time` bounds, and

@@ -148,7 +148,7 @@ def rel(path):
 
 
 def strip_links(text):
-    """`[ADR 0002](adr/0002-error-propagation.md)` -> `ADR 0002`. A link target is ~50 bytes
+    """``rule:errors/propagation`` -> ``rule:errors/propagation``. A link target is ~50 bytes
     of no value in a digest whose reader has the routing table one call away."""
     return re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)
 

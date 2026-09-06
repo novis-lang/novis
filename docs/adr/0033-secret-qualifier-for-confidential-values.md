@@ -74,7 +74,7 @@
   classes enumerate every place untrusted data ambiently enters, which is what lets `tainted` attach
   automatically. There is no equivalent enumeration for secrecy, so `secret` has no ambient source at all —
   which `Core` accessors should return it by convention is deferred stdlib design (*Revisiting*).
-- `Core\Log`'s open `fields: array<string, mixed>` bag ([ADR 0020](0020-error-escalation-ladder.md) § 6) lets
+- `Core\Log`'s open `fields: array<string, mixed>` bag (`rule:errors/log-write`) lets
   `tainted` values through freely, since logging attacker input is the log's purpose. `secret` needs the
   opposite default, which a parameter-type refusal can't express on an already-`mixed` parameter — forcing
   `nvs check` to inspect `Core\Log::write`'s call-site argument expressions instead, a mechanism `tainted`

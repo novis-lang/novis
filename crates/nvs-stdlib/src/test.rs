@@ -1404,7 +1404,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Debug::render`'s own text, and `$expected` is the literal the
     /// author wrote. Reusing that renderer rather than growing one is what
     /// makes a snapshot something a developer can produce by dumping the value
-    /// — and it is also what carries ADR 0092 § 5's redaction into a snapshot,
+    /// — and it is also what carries `rule:errors/record-transformations`'s redaction into a snapshot,
     /// so a `secret` property renders as its placeholder and a snapshot cannot
     /// become the place a secret is committed (§ 14's own last sentence).
     ///
@@ -1557,7 +1557,7 @@ nvs_runtime::nvs_helper! {
     ///   quoted into the detail, which is the whole of what the reader needs.
     /// * The body ended the **request** — a [`nvs_runtime::FATAL`] or an
     ///   [`nvs_runtime::EXITED`], and an internal [`Fault`] with them. None of
-    ///   those is a throw a `catch` could see either (ADR 0020), so none is
+    ///   those is a throw a `catch` could see either (`rule:errors/escalation-ladder`), so none is
     ///   this member's to judge: it propagates unchanged.
     ///
     /// A **failed assertion** inside the body throws like anything else, so it
@@ -1885,7 +1885,7 @@ fn object_difference(
         let Some(diff) = difference(left.field(slot), right.field(slot), depth + 1, &at)? else {
             continue;
         };
-        // ADR 0092 § 5's redaction row, at the one place this module renders a
+        // `rule:errors/record-transformations`'s redaction row, at the one place this module renders a
         // value a program declared `secret`: the comparison still descends —
         // whether two secrets agree is not itself a secret — but neither side is
         // quoted back into a message a build log keeps.

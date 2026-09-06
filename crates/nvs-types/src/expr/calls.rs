@@ -1315,7 +1315,7 @@ fn report_exception_accessor(span: Span, qname: &QName, name: &str, env: &mut En
     // PHP's accessors, mapped to the property that answers the same question.
     // `getFile`/`getLine` are one property here because a throw site is one
     // string (`crate::error_lib`'s own docs own that shape), and `getCode` has
-    // no counterpart at all — ADR 0002 propagates a class, never a number.
+    // no counterpart at all — `rule:errors/propagation` propagates a class, never a number.
     let property = match name {
         "getMessage" => Some("message"),
         "getPrevious" => Some("previous"),

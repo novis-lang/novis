@@ -30,7 +30,7 @@
   instead of kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a superglobal has
   no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable` is a diagnostic
   ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other Novis
-  failure path ([ADR 0002](0002-error-propagation.md)).
+  failure path (`rule:errors/propagation`).
 - **The `_once` axis doesn't need to survive**: declarations resolve by namespace
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and by the per-path compiled-unit cache
   ([ADR 0017](0017-hot-reload-without-restart.md)), not by splice count — the redeclaration problem `_once`
@@ -113,7 +113,7 @@ of naming the replacement directly:
 - One AST shape, one keyword, one diagnostic to teach, where PHP has four of each split across two
   independent axes.
 - The kept behaviour is the one already consistent with every other failure path in the language
-  ([ADR 0002](0002-error-propagation.md)); no new "warn and continue" exit from the checked-return
+  (`rule:errors/propagation`); no new "warn and continue" exit from the checked-return
   discipline gets added back in through this one construct.
 - No redeclaration-guard mechanism needs designing at the file-inclusion layer at all — the problem it
   solved in PHP is a namespace-resolution question ([ADR 0011](0011-functions-and-constants-are-class-members.md)),
@@ -158,4 +158,4 @@ Verification, in the order it becomes possible:
 - **M2**: a `require`d file resolves through the same per-path compiled-unit cache
   [ADR 0017](0017-hot-reload-without-restart.md) already defines, statically when the path is a literal and
   by a dynamic fallback otherwise; a missing or unparseable target throws per
-  [ADR 0002](0002-error-propagation.md) rather than degrading to a diagnosable-but-continuing state.
+  `rule:errors/propagation` rather than degrading to a diagnosable-but-continuing state.

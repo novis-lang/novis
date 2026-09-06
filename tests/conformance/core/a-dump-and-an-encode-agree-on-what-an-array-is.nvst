@@ -1,8 +1,8 @@
 --TEST--
-Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys the same way, so a dump and an encode never disagree about which of ADR 0092 § 1's two array shapes a value is — spec §§ 16 and 4, ADR 0092 §§ 1 and 3
+Core\Debug::render, Core\Json::encode and Core\Arr::isList read one array's keys the same way, so a dump and an encode never disagree about which of `rule:errors/diagnostic-record`'s two array shapes a value is — spec §§ 16 and 4, `rule:errors/diagnostic-record` and `rule:errors/renderings`
 --FILE--
 <?nvs
-// One rule, three members. ADR 0092 § 1 gives an array two node kinds and
+// One rule, three members. `rule:errors/diagnostic-record` gives an array two node kinds and
 // `nvs_stdlib::debug`'s `array_node` decides between them from the keys —
 // "0", "1", … in order is the Sequence and anything else is the Map. Its doc
 // comment names the reason for that exact spelling out loud: it is the reading

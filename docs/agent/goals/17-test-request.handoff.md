@@ -24,7 +24,7 @@ since the module was written: `nvs_server::forwarded` already answers both facts
 - [ ] **`InboundSpec` beside `Inbound`** — `crates/nvs-runtime/src/ctx/inbound.rs:113`. Fields are
       `Core\Test::request`'s bag exactly: `query`, `headers`, `cookies`, `body`, `form`, `json`, `files`,
       `clientIp`, `scheme`, `host`. `form`/`json`/`files` encode and set their own `Content-Type`; two
-      body spellings in one spec is a refusal naming both, never a merge (ADR 0095). The multipart
+      body spellings in one spec is a refusal naming both, never a merge (`rule:errors/ambiguous-input-refused`). The multipart
       encoder is this module's — `crates/nvs-stdlib/src/multipart.rs` stays a parser, one direction each.
 - [ ] **The sections build a spec, not an `Inbound`** — goal 16's `--GET--`/`--POST--`/`--POST_RAW--`/
       `--COOKIE--`/`--HEADERS--` parse (`crates/nvs-test/src/case.rs`) and `nvs run --request`

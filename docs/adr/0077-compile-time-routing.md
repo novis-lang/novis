@@ -118,7 +118,7 @@ A path is a literal `string`, and it is validated during checking:
   what makes the absent case well-typed rather than nullable by accident; a `{name?}` bound to a parameter
   without one is a compile error naming both. `/posts/` does **not** match `/posts/{page?}` — an empty final
   segment is not an absent one, which is
-  [ADR 0095](0095-ambiguous-input-is-refused-never-repaired.md)'s never-repair rule and the same reading
+  `rule:errors/ambiguous-input-refused`'s never-repair rule and the same reading
   [0097](0097-development-server-and-proxied-origin.md) § 7 gives the trailing slash
   ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 4).
 - **`{name...}`** captures every remaining segment as one `tainted string`, is permitted **only in the last

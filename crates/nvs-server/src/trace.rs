@@ -206,7 +206,7 @@ mod tests {
     /// record written on a context serving that request produced.
     ///
     /// The record goes out through [`nvs_runtime::floor::report`] — one of
-    /// ADR 0020 § 6's two writers, and the one this crate can reach — so the
+    /// `rule:errors/log-write`'s two writers, and the one this crate can reach — so the
     /// line read back here is rendered by the same serialiser, stamped by the
     /// same [`nvs_runtime::Ctx::stamp_envelope`] and floored by the same
     /// directive as a record `Core\Log::write` produces. Nothing about the ids

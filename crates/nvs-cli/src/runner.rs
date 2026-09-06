@@ -693,7 +693,7 @@ fn run_suite(
 /// passed produced nothing to report.
 ///
 /// Only a failure is retried. A skip never ran, and an `exit(n)` ended the
-/// whole program rather than the test (ADR 0020), so neither is an outcome a
+/// whole program rather than the test (`rule:errors/escalation-ladder`), so neither is an outcome a
 /// second attempt could improve on. Each attempt is a fresh instance with the
 /// ledger and any pending exception taken between them ([`run_case`] takes
 /// both on every path), which is what keeps one attempt's failures from being

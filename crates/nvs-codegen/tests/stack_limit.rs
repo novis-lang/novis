@@ -1,4 +1,4 @@
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's call-stack limit, riding the safepoint's emit site.
+//! `rule:errors/on-limit`'s call-stack limit, riding the safepoint's emit site.
 //!
 //! The bounds are *armed* rather than discovered here — `Ctx::arm_stack_limit`
 //! with a base this frame measures — for the reason `nvs_runtime::ctx`'s own

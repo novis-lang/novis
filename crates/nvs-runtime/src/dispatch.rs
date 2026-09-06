@@ -227,7 +227,7 @@ pub fn call_static_bound(
 /// `docs/adr/README.md` § *Decisions taken at project start* owns the
 /// convention and why it is a descriptor row rather than a per-method thunk.
 ///
-/// Nothing is marshalled in either direction: ADR 0002 makes one calling
+/// Nothing is marshalled in either direction: `rule:errors/propagation` makes one calling
 /// convention normative, so the tagged values this site holds are already the
 /// slots a compiled callee reads, and its return arrives tagged for the
 /// `mixed` the call's own type is.
@@ -241,7 +241,7 @@ pub fn call_static_bound(
 ///
 /// Every refusal below is a **catchable** throw, a `mixed` receiver being a
 /// mistake a program can write rather than one a compiler can make
-/// ([ADR 0002](/docs/adr/0002-error-propagation.md)):
+/// (`rule:errors/propagation`):
 ///
 /// - a receiver whose tag is not an object at all, worded as ADR 0036 § 4 says
 ///   the erased property fetch words its own;

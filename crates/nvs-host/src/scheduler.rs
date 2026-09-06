@@ -88,12 +88,12 @@
 //! Novis stack is not one it may cross: a `Core` member's entry point is
 //! `extern "C"`, which aborts the process rather than letting one out, and the
 //! compiled frames beneath it carry no unwind tables at all
-//! ([ADR 0002](/docs/adr/0002-error-propagation.md)). So a task is only
+//! (`rule:errors/propagation`). So a task is only
 //! ever force-unwound when [`nvs_runtime::HelperFrame`] says its stack is
 //! clear of both, which [`yield_on`] reads at each suspension and [`Task`]
 //! remembers. A task standing on a helper frame is **resumed** with
 //! [`Resume::Cancelled`] in place of what it was waiting for; the member it is
-//! inside stops the request with `Ctx::cancel`, and it dies by ADR 0002's
+//! inside stops the request with `Ctx::cancel`, and it dies by `rule:errors/propagation`'s
 //! return status at the safepoint compiled code was going to poll anyway. § 5
 //! is untouched by the difference — the status is a `FATAL` no `catch` sees,
 //! and what runs between the notice and the death is native `Drop` and a
@@ -216,7 +216,7 @@ struct Suspended {
 /// The scheduler's half of the answer [`nvs_runtime::HelperFrame`] asks for: a
 /// cancelled task whose stack carries script frames is resumed with
 /// [`Resume::Cancelled`] instead of being unwound, and dies by
-/// [ADR 0002](/docs/adr/0002-error-propagation.md)'s return status at
+/// `rule:errors/propagation`'s return status at
 /// its next safepoint. The module doc's *task tree* section is the whole
 /// decision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1238,7 +1238,7 @@ pub fn detach_current() -> bool {
 ///
 /// Never by itself. The coroutine machinery underneath aborts only on a stack
 /// overflow of the task's own stack, which is
-/// [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 1's
+/// `rule:errors/on-limit`'s
 /// territory and is guarded by `Ctx`'s stack limit long before it is reached.
 pub fn suspend(ctx: &Ctx, waiting: Waiting) -> Resumed {
     let raw = ctx.yielder();
@@ -2212,7 +2212,7 @@ mod tests {
     fn a_cancelled_task_standing_on_a_helper_frame_is_resumed_and_not_unwound() {
         // The abort this closes, and the reason `Core\Time::sleep` can park at
         // all: a forced unwind may not cross an `extern "C"` frame, so a task
-        // parked under one is *told* it is cancelled and dies by ADR 0002's
+        // parked under one is *told* it is cancelled and dies by `rule:errors/propagation`'s
         // return status instead. `HelperFrame` is what the park reads, and it
         // is the same guard `nvs_runtime::run_helper` holds around every
         // `Core` member.

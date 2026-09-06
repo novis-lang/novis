@@ -345,7 +345,7 @@ preflight = "docker"
 # are the same gap wearing different clothes -- a member that needs an options bag the registry
 # could not spell, which is precisely the spelling goal 18 lands -- and the other two are the
 # decisions the user took when the unowned list was drawn up: `array<T>` widening to a covariant
-# read, and ADR 0002's panic hook. It is last because every item waits on something an earlier
+# read, and `rule:errors/propagation`'s panic hook. It is last because every item waits on something an earlier
 # entry delivers: goal 18's optional shape field for four of them, and goal 27's attribution pass
 # for the confidence that these five are the whole list rather than the five somebody remembered.
 [[goal]]

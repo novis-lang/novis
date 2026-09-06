@@ -2398,7 +2398,7 @@ mod tests {
     use super::*;
     use nvs_runtime::{Ctx, call};
 
-    /// A member end to end through the ADR 0002 boundary compiled code will
+    /// A member end to end through the `rule:errors/propagation` boundary compiled code will
     /// reach it at, as `crate::arr`'s own tests do.
     fn float_result(function: nvs_runtime::NvsFn, args: &[Value]) -> f64 {
         let mut ctx = Ctx::buffered();

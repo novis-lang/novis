@@ -20,7 +20,7 @@
 //! helper from that type — so the check is not defending against user code. It
 //! is defending against a *miscompile*: reading a `Value`'s payload under the
 //! wrong tag would be a memory-safety bug (an `int` payload read as a string
-//! pointer), and ADR 0002 § *Consequences* already names a silently wrong call
+//! pointer), and `rule:errors/propagation` already names a silently wrong call
 //! site as the nastier failure mode of the checked-return design. A predicted
 //! branch on a tag byte is a cheap price for making that class of bug a
 //! `FATAL` with a message instead.
@@ -280,7 +280,7 @@ crate::nvs_helper! {
     /// The one runtime entry point that is not a `nvs_ir::Helper` variant, for
     /// the reason that instruction's own doc comment gives: a subscript read
     /// is an instruction rather than a conversion, and it needs this module's
-    /// ADR 0002 signature only because it can now fail.
+    /// `rule:errors/propagation` signature only because it can now fail.
     ///
     /// PHP warns and yields `null` here. Novis has no `null` to put in an
     /// `array<string>`, and the null-shaped value this used to answer with was
@@ -338,7 +338,7 @@ crate::nvs_helper! {
     /// operand for both, so collapsing them is what PHP does rather than a
     /// simplification of it.
     ///
-    /// Infallible — it carries the ADR 0002 signature every helper does, but
+    /// Infallible — it carries the `rule:errors/propagation` signature every helper does, but
     /// the only status it ever returns is `OK`, so `nvs-ir` emits it with no
     /// error edge.
     fn nvs_array_optional_get(_ctx, args: [2]) {
@@ -1820,7 +1820,7 @@ const TO_STRING: &str = "toString";
 /// **Ownership is the callee's convention, and the two differ.** A compiled
 /// method owns its parameters, so [`crate::call_method`] retains the receiver
 /// on the way in and the callee's own exit sweep releases it; a native
-/// renderer is an ADR 0002 helper and borrows argument 0, so
+/// renderer is an `rule:errors/propagation` helper and borrows argument 0, so
 /// [`crate::dispatch::call_render`] does neither. Either way the result is the
 /// `string` that member returned, carrying the one reference every other row
 /// here hands back.
@@ -2573,7 +2573,7 @@ crate::nvs_helper! {
     /// named, then ends the request.
     ///
     /// **The one helper whose success is a non-`OK` status.** It answers
-    /// [`Fault::Pending`] carrying [`crate::EXITED`], so the ordinary ADR 0002
+    /// [`Fault::Pending`] carrying [`crate::EXITED`], so the ordinary `rule:errors/propagation`
     /// status check `nvs-codegen` emits after the call takes the site's error
     /// edge: the frame's live locals are released in its landing block, and
     /// every caller's own check propagates the status the same way. Nothing

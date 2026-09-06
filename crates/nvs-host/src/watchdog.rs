@@ -24,7 +24,7 @@
 //!
 //! # Report and shed, never kill
 //!
-//! Firing writes one record to [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! Firing writes one record to `rule:errors/escalation-ladder`
 //! § 4's floor — [`Watchdog::new`]'s sink is `stderr`, which is that ADR's
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and ADR 0106 § 14 declines the process boundary
@@ -108,7 +108,7 @@ pub struct Stall {
     pub overdue_by: Duration,
 }
 
-/// Where a report goes: ADR 0020 § 4's floor, or a caller's own sink.
+/// Where a report goes: `rule:errors/engine-floor`'s floor, or a caller's own sink.
 type Sink = Box<dyn Fn(&Stall) + Send + Sync + 'static>;
 
 /// One registered core, and what has already been said about it.
@@ -186,13 +186,13 @@ impl Default for Watchdog {
 }
 
 impl Watchdog {
-    /// A watchdog reporting to ADR 0020 § 4's floor, on this module's defaults.
+    /// A watchdog reporting to `rule:errors/engine-floor`'s floor, on this module's defaults.
     #[must_use]
     pub fn new() -> Self {
         Self::with(DEFAULT_MARGIN, DEFAULT_INTERVAL, |stall| {
             // Written through the handle rather than with `eprintln!`, which
             // this workspace's clippy denies and which would panic on a broken
-            // pipe — the one thing ADR 0020 § 4's floor may not do. A failed
+            // pipe — the one thing `rule:errors/engine-floor`'s floor may not do. A failed
             // write here is swallowed, per that section's last paragraph:
             // there is nothing further to escalate to.
             let _ = writeln!(

@@ -769,7 +769,7 @@ const HEX_DIGITS: [char; 16] = [
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, OutputSink, Value, call};
 
-    /// Runs one member through the ADR 0002 boundary compiled code reaches it
+    /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at.
     ///
     /// It releases nothing: a helper *borrows* its arguments, so a test that

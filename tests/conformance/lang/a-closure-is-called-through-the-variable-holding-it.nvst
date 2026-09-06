@@ -44,7 +44,7 @@ echo $seven() as string, "\n";
 
 // The other side: fewer arguments than the closure declares is a catchable
 // throw, not an engine fault. Nothing checked it earlier — a `callable` has
-// no parameter list for the checker to count against — so ADR 0002's checked
+// no parameter list for the checker to count against — so `rule:errors/propagation`'s checked
 // return is where it lands.
 callable $add = fn (int $a, int $b): int => $a + $b;
 try {

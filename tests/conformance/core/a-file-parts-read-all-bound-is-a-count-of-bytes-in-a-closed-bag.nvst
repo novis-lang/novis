@@ -5,7 +5,7 @@
 // The bag, asked at both of its edges. ADR 0105 § 3 writes the deliberate
 // large buffer as `max: "200M"` in prose; the argument is a count of bytes,
 // because a size in text would be a second parser in front of a number and
-// ADR 0095 refuses to guess what one means. `[limits] memory` is written that
+// `rule:errors/ambiguous-input-refused` refuses to guess what one means. `[limits] memory` is written that
 // way in `nvs.toml` and is the configuration's spelling, not the program's.
 //
 // Beside it the closed half: an option the bag does not declare is refused

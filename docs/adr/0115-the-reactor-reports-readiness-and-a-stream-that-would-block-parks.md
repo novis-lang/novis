@@ -119,7 +119,7 @@ stack. The decision, in the terms [ADR 0004](0004-memory-for-simplicity.md) asks
   task never touches are never resident, on all three platforms, so a task that runs a shallow handler
   costs the handful of pages it actually uses. 100k concurrent tasks is therefore 100 GiB of *address
   space* — unremarkable in a 64-bit process — against a resident cost measured in the pages the handlers
-  touched. The width is set by [ADR 0020](0020-error-escalation-ladder.md) § 1's existing bounds pair
+  touched. The width is set by `rule:errors/on-limit`'s existing bounds pair
   and not chosen freely: `STACK_RESERVE` is already 256 KiB of unwinding room between the soft limit and
   the hard floor, so a stack has to be several times that before the two are coherent.
 - **Charged to the request that owns the task**, and it is the *reservation* that enters ADR 0106 § 7's
@@ -178,7 +178,7 @@ configurable is goal 3's `[limits]` work, and nothing below depends on which way
   reads a socket would need a spelling that ordinary code cannot call. That is priority 4 (simplicity of
   the language surface first) against priority 5, and the ordering in `AGENTS.md` decides it.
 - **A per-task stack sized to fit more tasks — 64 KiB, say.** Rejected on arithmetic rather than taste:
-  ADR 0020 § 1 already reserves 256 KiB between the soft recursion limit and the hard floor, so a stack
+  `rule:errors/on-limit` already reserves 256 KiB between the soft recursion limit and the hard floor, so a stack
   that small has no room for the mechanism that is meant to make recursion survivable.
 
 ## Verification

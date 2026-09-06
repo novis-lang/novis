@@ -1,5 +1,5 @@
 --TEST--
-`Core\Debug::render` makes a repeated object a `[cycle -> #n]` exactly when the repeat is an *ancestor* of itself, renders a sibling repeat whole both times, and every marker names an id printed above it — spec § 16, ADR 0092 §§ 1 and 5
+`Core\Debug::render` makes a repeated object a `[cycle -> #n]` exactly when the repeat is an *ancestor* of itself, renders a sibling repeat whole both times, and every marker names an id printed above it — spec § 16, `rule:errors/diagnostic-record` and `rule:errors/record-transformations`
 --FILE--
 <?nvs
 // `nvs_stdlib::debug`'s `Seen::leave` states the rule this pins: the walk

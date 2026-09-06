@@ -50,7 +50,7 @@
 //! A URL path segment is percent-decoded first and then has to *spell a name*:
 //! empty, `.`, `..` and anything holding a separator, a NUL or a `:` are refused
 //! outright rather than repaired, which is
-//! [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! `rule:errors/ambiguous-input-refused`'s
 //! direction applied to the one string in this crate that comes from the peer.
 //! Refused means the *step* does not apply, so the request falls through to step
 //! 5 and the mount's entry answers it — a traversal attempt reaches the
@@ -466,7 +466,7 @@ fn default_document(mount: &Mounted, remainder: &str, disk: &dyn Existing) -> Op
 ///
 /// A `%` that is not followed by two hex digits is a refusal rather than a
 /// literal `%`, and bytes that do not spell UTF-8 are one too: both are
-/// ADR 0095's direction, and the alternative in each case is a filename the
+/// `rule:errors/ambiguous-input-refused`'s direction, and the alternative in each case is a filename the
 /// operator did not write.
 fn decode(segment: &str) -> Option<String> {
     if !segment.contains('%') {

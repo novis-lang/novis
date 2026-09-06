@@ -21,7 +21,7 @@
 //!
 //! The wrong *tag* is still reported, as a contained `FATAL` rather than a
 //! `panic!`: it means the checker let a call through it should have refused,
-//! and ADR 0020's ladder wants such a bug reported, not left to take the
+//! and `rule:errors/escalation-ladder`'s ladder wants such a bug reported, not left to take the
 //! process down.
 //!
 //! # A result is written once
@@ -3600,7 +3600,7 @@ fn map_first(subject: &str, upper: bool) -> String {
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Value, call};
 
-    /// Runs one member through the ADR 0002 boundary compiled code reaches it
+    /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at, releasing every string this test built afterwards — the helper
     /// convention borrows, so the caller still owns them.
     fn run(

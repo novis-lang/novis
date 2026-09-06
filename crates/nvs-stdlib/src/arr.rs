@@ -5839,7 +5839,7 @@ fn extremum(subject: &NvsArray, wanted: std::cmp::Ordering, member: &str) -> Res
 mod tests {
     use nvs_runtime::{Ctx, NvsArray, NvsStr, OutputSink, Value, call};
 
-    /// The member end to end through the ADR 0002 boundary compiled code will
+    /// The member end to end through the `rule:errors/propagation` boundary compiled code will
     /// reach it at — `call` builds the same three pointers a JIT frame does.
     #[test]
     fn count_reports_the_number_of_live_entries() {

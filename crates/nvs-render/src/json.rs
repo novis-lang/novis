@@ -1,24 +1,24 @@
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `rule:errors/diagnostic-record`
 //! § 3's JSON rendering — what a log target emits under `[log] format = "json"`,
 //! and the second of the three renderings to exist.
 //!
 //! # Why it is here rather than in `nvs-runtime`
 //!
-//! [ADR 0020](/docs/adr/0020-error-escalation-ladder.md) § 6's claim is
+//! `rule:errors/log-write`'s claim is
 //! that ordinary application code and the engine floor write the **same record
 //! through the same native helper**, so a log pipeline never has to reconcile
 //! two shapes depending on which tier produced a line. [`line()`] is that
 //! helper's rendering half. It sits beside [`crate::plain::render`] because
-//! ADR 0092 § 1 puts the model *and all three renderings* in one crate that
+//! `rule:errors/diagnostic-record` puts the model *and all three renderings* in one crate that
 //! both the runtime and the compiler front end depend on — the floor reaching
 //! it is exactly the edge § 1 sanctions and the crate docs' § *Where this sits*
 //! prices. The alternative, a JSON writer in `nvs-runtime` for the floor and
 //! this one for everything else, is two writers that agree today, which is the
-//! failure ADR 0092 exists to prevent.
+//! failure `rule:errors/diagnostic-record` exists to prevent.
 //!
 //! # The envelope's keys
 //!
-//! ADR 0020 § 6's list, in reading order: `ts`, `level`, `msg`, `request_id`,
+//! `rule:errors/log-write`'s list, in reading order: `ts`, `level`, `msg`, `request_id`,
 //! `trace_id`, `span_id`, `source`, `count`, `fields`, then the record's own
 //! `nodes`. Only `level` is unconditional; every other key is **omitted rather
 //! than written empty**, which is [`Envelope`]'s own rule and § 6's for
@@ -72,7 +72,7 @@ use crate::{Elision, Envelope, Node, Record, Rendered, Scalar, Source};
 /// One record as a JSON Lines line — the terminating newline included, because
 /// a JSON Lines record without it is not one.
 ///
-/// Infallible on purpose: this is what [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+/// Infallible on purpose: this is what `rule:errors/escalation-ladder`
 /// § 6's tier-4 floor calls with its one shot, so a record always renders to a
 /// line rather than to a `Result` the floor has nowhere to send.
 #[must_use]
@@ -146,7 +146,7 @@ impl Serialize for AsRecord<'_> {
     }
 }
 
-/// ADR 0092 § 1's `source` — file, line, and the enclosing member when there is
+/// `rule:errors/diagnostic-record`'s `source` — file, line, and the enclosing member when there is
 /// one.
 struct AsSource<'a>(&'a Source);
 
@@ -270,7 +270,7 @@ impl Serialize for AsSpan<'_> {
     }
 }
 
-/// What was cut and how much of it — ADR 0092 § 5's three shapes, each naming
+/// What was cut and how much of it — `rule:errors/record-transformations`'s three shapes, each naming
 /// its own kind so a reader never has to infer it from which keys are present.
 struct AsElision<'a>(&'a Elision);
 

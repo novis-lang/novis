@@ -82,8 +82,8 @@ after it, an ordinarily-constructed object can too, for any property its class m
 
 - Reading a `lateinit` property that has never been written throws the identical checked `Throwable` ADR
   0022 § 3 defines — an ordinary, catchable error, not routed through
-  [ADR 0020](0020-error-escalation-ladder.md)'s fatal ladder, propagated exactly like any other checked
-  failure ([ADR 0002](0002-error-propagation.md)).
+  `rule:errors/escalation-ladder`'s fatal ladder, propagated exactly like any other checked
+  failure (`rule:errors/propagation`).
 - Writing a `lateinit` property — the first time or any later time — behaves exactly like writing any other
   mutable property. There is no write-once tracking: once assigned, it stays an ordinary property for the
   rest of the object's life, indistinguishable from one that was assigned in the constructor.

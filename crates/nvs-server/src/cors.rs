@@ -35,7 +35,7 @@
 //! **An origin is matched exactly, byte for byte, against what the operator wrote.** No case
 //! folding, no default-port equivalence, no trailing slash forgiven: `https://a.example` and
 //! `https://a.example:443` denote the same server and are *not* the same origin, and treating
-//! them as one would be [ADR 0095]'s repair — inventing an equivalence the operator did not
+//! them as one would be `rule:errors/ambiguous-input-refused`'s repair — inventing an equivalence the operator did not
 //! write, in the one place where being generous hands a cross-origin read to somebody who was
 //! not named. A browser sends the serialization RFC 6454 § 6.1 specifies, so an exact match is
 //! also the one that works.
@@ -109,7 +109,6 @@
 //! a question about a written configuration rather than about a request.
 //!
 //! [ADR 0074]: ../../../docs/adr/0074-http-defaults-safe-and-finite.md
-//! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [ADR 0097]: ../../../docs/adr/0097-development-server-and-proxied-origin.md
 
 use hyper::header::{

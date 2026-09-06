@@ -123,7 +123,7 @@ impl<'a> Lowering<'a> {
     /// `<=>` is the call's own result with no second step: `compareTo` already
     /// returns exactly what the spaceship operator means.
     ///
-    /// The call is ordinary in every respect — ADR 0002's error edge (a
+    /// The call is ordinary in every respect — `rule:errors/propagation`'s error edge (a
     /// `compareTo` body may throw like any other), and the same ownership
     /// convention [`Self::lower_call_args`] applies, with the receiver as
     /// parameter 0: an aliasing operand is retained here because the callee
@@ -400,7 +400,7 @@ impl<'a> Lowering<'a> {
         // instruction at all, whatever the operand's representation.
         //
         // The operand is staged and released exactly as the binary arms stage
-        // theirs, and for the same reason: both helpers carry ADR 0002's error
+        // theirs, and for the same reason: both helpers carry `rule:errors/propagation`'s error
         // edge — the closed table and the negation overflow are two ways one
         // throws — so an operand released inline would be abandoned on the edge
         // a throw leaves by.
@@ -448,7 +448,7 @@ impl<'a> Lowering<'a> {
             // called at all (ADR 0035's truthy table answers `Ty::Bool`
             // whatever the operand's own type is); and `@` never reaches the
             // IR, the parser refusing error suppression outright as `E0236`
-            // since ADR 0020's ladder leaves it nothing to suppress. That
+            // since `rule:errors/escalation-ladder`'s ladder leaves it nothing to suppress. That
             // subtraction is the proof — the message below is not.
             other => panic!(
                 "nvs-ir: unreachable — `UnaryOp::{other:?}` reached the lowering dispatch; \
@@ -464,7 +464,7 @@ impl<'a> Lowering<'a> {
         // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
         // wrapped value rather than with the `ArithmeticError` the ADR names.
         // `nvs-codegen`'s `emit_checked_int_arith` raises it inline, so this
-        // needs ADR 0002's error edge exactly as `%` and `/` do. `!` over a
+        // needs `rule:errors/propagation`'s error edge exactly as `%` and `/` do. `!` over a
         // `bool` and `-` over a `float`/`decimal` cannot fail and do not take
         // one — see `Inst::on_error`.
         if matches!(uop, UnOp::Neg) && matches!(ty, Ty::Int | Ty::Uint) {
@@ -580,7 +580,7 @@ impl<'a> Lowering<'a> {
     ///
     /// **The operands are staged rather than released inline**, exactly as the
     /// `Ty::Tagged` arithmetic arm below stages its own and for the same
-    /// reason: the call carries ADR 0002's error edge, so an operand released
+    /// reason: the call carries `rule:errors/propagation`'s error edge, so an operand released
     /// after it would be abandoned on the edge a throw leaves by.
     /// The two operands arrive paired rather than as four parameters because
     /// this body only ever uses them paired — the expression answers whether
@@ -714,7 +714,7 @@ impl<'a> Lowering<'a> {
         // the `NumericLt` pair above both use, which is what gives a `NaN`
         // operand PHP's `false` for all four at once.
         //
-        // The one comparison in this function emitted with ADR 0002's error
+        // The one comparison in this function emitted with `rule:errors/propagation`'s error
         // edge, and `Helper::ValueLt`'s own doc comment is that decision's
         // home: § 4's ordering table is closed, so a tag pair it names no row
         // for is `E0715`'s refusal made at the first moment it is answerable.
@@ -1002,7 +1002,7 @@ impl<'a> Lowering<'a> {
         // A silent `fcvt_from_sint` would answer an exact-in-the-integers
         // question with a rounded one, which is the same reason `==` next
         // door is a helper and not a widening. Being fallible, it carries
-        // ADR 0002's error edge exactly as the written conversion does.
+        // `rule:errors/propagation`'s error edge exactly as the written conversion does.
         //
         // Only the arithmetic rows reach this: every comparison over a mixed
         // numeric pair has already returned above, exactly so that none of

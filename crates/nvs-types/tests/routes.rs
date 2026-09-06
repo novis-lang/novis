@@ -712,7 +712,7 @@ fn a_capture_or_query_parameter_outside_the_type_list_is_a_diagnostic() {
     // ADR 0102 § 3 is a closed list, so the refusal is written from the first
     // type *outside* it rather than from an implausible one: a `float`
     // converts from a segment in every language that guesses, and § 3 does not
-    // guess (ADR 0095). A nullable is the other near miss — `?uint` is not
+    // guess (`rule:errors/ambiguous-input-refused`). A nullable is the other near miss — `?uint` is not
     // `uint`, and an absent segment is § 4's question rather than this one.
     //
     for ty in ["float", "?uint", "array<int>"] {

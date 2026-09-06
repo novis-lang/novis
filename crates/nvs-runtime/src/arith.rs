@@ -8,7 +8,7 @@
 //! `LibCall::Pow` to defer to either, so the row has to be a call to something,
 //! and the something is here.
 //!
-//! It is **not** an `nvs_ir::Helper`. ADR 0002's helper convention is
+//! It is **not** an `nvs_ir::Helper`. `rule:errors/propagation`'s helper convention is
 //! `(ctx, args, out) -> status` over a stack slot of tagged [`crate::Value`]s,
 //! which would spend two tagged stores, a slot read-back and a status branch on
 //! an operation that cannot fail and whose operand representation is already

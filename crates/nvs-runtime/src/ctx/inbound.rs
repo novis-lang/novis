@@ -211,7 +211,7 @@ pub struct Inbound {
     /// `None` for a peer that has no address at all: a Unix-domain socket that
     /// forwarded nothing. That is a value `Core\Request::clientIp()` has to be
     /// able to answer, and inventing `"0.0.0.0"` for it would be the repair
-    /// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+    /// `rule:errors/ambiguous-input-refused`
     /// forbids.
     ///
     /// An [`IpAddr`] and not the text of one, so that a request nobody asks

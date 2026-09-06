@@ -1,4 +1,4 @@
-# ADR 0002 — Exceptions propagate by checked return, not by unwinding
+# `rule:errors/propagation` — Exceptions propagate by checked return, not by unwinding
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

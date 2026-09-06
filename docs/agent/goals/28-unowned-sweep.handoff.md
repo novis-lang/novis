@@ -12,7 +12,7 @@ registry could not spell — which is exactly the spelling [goal 18](18-input-sh
 follow-through.
 
 The other two are the decisions the user took when the unowned list was drawn up: **`array<T>` widens
-to accept a covariant read**, and the panic hook ADR 0002 § *Corollary* has wanted since M5 removed its
+to accept a covariant read**, and the panic hook `rule:errors/helper-abi` has wanted since M5 removed its
 blocker.
 
 ## Next group

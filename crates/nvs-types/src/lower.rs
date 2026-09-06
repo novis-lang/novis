@@ -833,7 +833,7 @@ mod tests {
 
     #[test]
     fn a_reserved_global_exception_class_resolves_with_no_declaration() {
-        // ADR 0020 § 0: `Exception` never needs a source declaration —
+        // `rule:errors/throwable-hierarchy`: `Exception` never needs a source declaration —
         // trusted the same way a `Core\*` name is.
         let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<LogicError>;\n");
         assert!(!diags.has_errors(), "{diags:?}");

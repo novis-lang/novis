@@ -793,7 +793,7 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         Ty::Class(name, _) => *name == QName::parse(r"Core\Uuid"),
         // § 3 admits a union of `string` or `int` literal types and a subset of
         // an enum's cases, and nothing wider: a `string|int` would make the
-        // conversion itself ambiguous, which is the question ADR 0095 refuses
+        // conversion itself ambiguous, which is the question `rule:errors/ambiguous-input-refused` refuses
         // to answer by guessing.
         Ty::Union(members) => members.iter().all(|member| {
             matches!(

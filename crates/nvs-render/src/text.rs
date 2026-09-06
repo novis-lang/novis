@@ -1,10 +1,10 @@
-//! [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+//! `rule:errors/diagnostic-record`
 //! § 5's control-byte and bidi transformations, over one implementation.
 //!
 //! The table is [ADR 0086](/docs/adr/0086-core-cli-terminal-is-a-sink.md)
 //! § 1's, unchanged, and the bidi rule is
 //! [ADR 0087](/docs/adr/0087-unbalanced-bidi-is-rejected-at-every-boundary.md)'s
-//! predicate called rather than restated. What ADR 0092 adds is *where* they
+//! predicate called rather than restated. What `rule:errors/diagnostic-record` adds is *where* they
 //! run: on the way into the record, not on the way out of a rendering, so all
 //! three renderings inherit one answer and none may weaken it.
 //!
@@ -13,14 +13,14 @@
 //! Framing already makes substitution unnecessary for safety in JSON. It is
 //! applied anyway because a value must not read differently depending on which
 //! rendering someone is looking at, or the renderings stop being views of one
-//! record — ADR 0092 § 5's own paragraph.
+//! record — `rule:errors/record-transformations`'s own paragraph.
 //!
 //! # What this closes
 //!
 //! CWE-117 for the plaintext rendering. A human-readable log line is not
 //! `"$k=$v"` concatenation here: it renders nodes whose control bytes are
 //! already substituted, so a newline inside a tainted value cannot forge an
-//! entry. That is the property [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+//! entry. That is the property `rule:errors/escalation-ladder`
 //! § 6 chose JSON Lines to guarantee, preserved as the condition on adding a
 //! human-readable target at all.
 

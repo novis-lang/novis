@@ -1380,7 +1380,7 @@ fn run_run(
                 nvs_stdlib::script::run_exit_hooks(ctx, outcome, None);
                 nvs_runtime::deferred::run_deferred(ctx);
             } else if outcome == Err(nvs_runtime::THROWN) {
-                // ADR 0020 §§ 3 and 6: nothing below caught this, so the ladder
+                // `rule:errors/handler-script` and `rule:errors/log-write`: nothing below caught this, so the ladder
                 // is climbed from tier 3 — the operator's own `.nvs`, run as an
                 // isolate — and only when there is no handler, or it failed,
                 // does the floor report the record itself. Zero retries, and
@@ -1393,7 +1393,7 @@ fn run_run(
                 // run installed — all three of which are taken down with the
                 // run itself, a dozen lines before the exit code is decided.
                 let thrown = ctx.take_thrown();
-                // ADR 0020 § 2's tier 2, and this is the "request root" that
+                // `rule:errors/on-uncaught-throw`'s tier 2, and this is the "request root" that
                 // section names for a CLI run: every frame below returned
                 // without catching, so the program's own last word comes before
                 // the operator's. It is handed the real object rather than the
@@ -1531,7 +1531,7 @@ fn run_run(
         // here is the status a shell reads.
         Err(status) if status == nvs_runtime::THROWN => ExitCode::FAILURE,
         Err(_) => {
-            // A `FATAL`, which never reaches tiers 1 and 2 (ADR 0020 § 5) and
+            // A `FATAL`, which never reaches tiers 1 and 2 (`rule:errors/panics-bypass-user-code`) and
             // does not yet reach tier 3 either. The honest report is still the
             // message the runtime recorded; a `FATAL` has no backtrace by
             // design, so there is nothing else to say about one.

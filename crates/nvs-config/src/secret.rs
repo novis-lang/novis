@@ -5,7 +5,7 @@
 //! than the second spelling [ADR 0015] refuses. The file's *whole* content is the value, with one
 //! trailing `\n` — and a `\r` immediately before it — stripped and nothing else trimmed. Not a
 //! general trim: a password may legitimately begin or end with a space, and removing it is
-//! [ADR 0095]'s failure of repairing input instead of reading it. One newline goes because
+//! `rule:errors/ambiguous-input-refused`'s failure of repairing input instead of reading it. One newline goes because
 //! `echo secret > f` produces one and every injection system does; a value that genuinely ends in a
 //! newline is written with two.
 //!
@@ -37,7 +37,7 @@
 //! with whitespace is to name it: [`padding`] finds it and `W1007` reports it, for the inline half
 //! as well as the file half, and the boot goes on with the value. Refusing it instead would wall
 //! off a credential some other system issued, with no remedy in the file that names it; trimming it
-//! is what [ADR 0095] calls repairing input in place of reading it, and it is what
+//! is what `rule:errors/ambiguous-input-refused` calls repairing input in place of reading it, and it is what
 //! `nvs_stdlib::mail` used to do — a working credential turned into an authentication failure at
 //! the far end, which no message anywhere would have explained.
 //!
@@ -67,7 +67,6 @@
 //! [ADR 0033]: ../../../docs/adr/0033-secret-qualifier-for-confidential-values.md
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0082]: ../../../docs/adr/0082-core-and-framework-boundary.md
-//! [ADR 0095]: ../../../docs/adr/0095-ambiguous-input-is-refused-never-repaired.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
 use std::collections::BTreeMap;
@@ -444,7 +443,7 @@ fn padded(key: &str, edge: &str, from: Option<&Path>, written_in: Option<&Origin
     )
     .with_note(format!(
         "ADR 0103 § 7 keeps a credential exactly as it was written — a password may legitimately \
-         carry an edge space, and removing it would be ADR 0095's repair of input in place of a \
+         carry an edge space, and removing it would be `rule:errors/ambiguous-input-refused`'s repair of input in place of a \
          reading of it — so the value is in force as-is and this is an advisory{}",
         origin_note(written_in)
     ))

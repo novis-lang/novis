@@ -671,7 +671,7 @@ impl<'a> Lowering<'a> {
         let (one, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(1));
         (one, Ty::Int)
     }
-    /// `exit;` and `exit(...)` — ADR 0002's status vocabulary, plus one.
+    /// `exit;` and `exit(...)` — `rule:errors/propagation`'s status vocabulary, plus one.
     ///
     /// The whole construct is a single [`Helper::Exit`] call whose *success*
     /// is `nvs_runtime::EXITED`: the ordinary status check `nvs-codegen`
@@ -925,7 +925,7 @@ impl<'a> Lowering<'a> {
     /// hands back as they are.
     ///
     /// The *user-declared* call is ordinary in every respect, exactly as
-    /// [`Self::lower_object_comparison`]'s `compareTo` is: ADR 0002's error
+    /// [`Self::lower_object_comparison`]'s `compareTo` is: `rule:errors/propagation`'s error
     /// edge, since a `toString` body may throw like any other, and the same
     /// ownership convention [`Self::lower_call_args`] applies to a receiver —
     /// an aliasing operand is retained here because the callee releases every
@@ -3733,7 +3733,7 @@ impl<'a> Lowering<'a> {
     /// resolved label `nvs_types` recorded, `None` when that resolution is
     /// bodiless.
     ///
-    /// It carries ADR 0002's error edge because § 3 says so outright — an
+    /// It carries `rule:errors/propagation`'s error edge because § 3 says so outright — an
     /// observer that throws still fails the access it was reporting, even
     /// though the value had already been resolved.
     ///
@@ -3988,7 +3988,7 @@ impl<'a> Lowering<'a> {
     ///
     /// The class is `LogicError` — spec § 10's entry for "a bug in the
     /// program", the same one [`Self::lower_match`]'s unmatched subject
-    /// raises — and not ADR 0020's fatal ladder, § 3 being explicit that this
+    /// raises — and not `rule:errors/escalation-ladder`'s fatal ladder, § 3 being explicit that this
     /// is a catchable, recoverable condition. The wording is
     /// `nvs_runtime::nvs_object_slot_get`'s, so the erased read and this one
     /// report one failure one way.
@@ -4651,7 +4651,7 @@ impl<'a> Lowering<'a> {
             }
         };
         // Both shapes take an error edge, and for different reasons: the
-        // throwing one because an absent key is ADR 0002's own failure, the
+        // throwing one because an absent key is `rule:errors/propagation`'s own failure, the
         // `null`-answering one because the primitive still returns a status
         // and an uncatchable one has to leave the frame swept — see
         // `Inst::on_error`.

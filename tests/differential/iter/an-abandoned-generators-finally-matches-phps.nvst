@@ -6,7 +6,7 @@ Every `finally` an abandoned generator is suspended inside runs where PHP runs i
 // of an abandoned generator. PHP reports that one as uncaught; Novis drops it,
 // a release having no error edge to propagate on, and
 // `nvs_runtime::Ctx::with_pending_set_aside` is where that difference is
-// written down. It is a divergence to fix behind ADR 0020's ladder, not one to
+// written down. It is a divergence to fix behind `rule:errors/escalation-ladder`'s ladder, not one to
 // freeze here.
 class G {
     public static function guarded(int $n): Iterator<int> {

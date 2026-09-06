@@ -16,8 +16,8 @@
 //!   what is and isn't covered.
 //! - ADR 0087's unterminated-directional-scope predicate is
 //!   [`nvs_render::bidi`], not this crate's: the lexer makes it a hard error
-//!   and reads it from below. It moved there when ADR 0020 § 6's tier-4 floor
-//!   became a dependent of `nvs-render`, which ADR 0092 § 1 requires be the
+//!   and reads it from below. It moved there when `rule:errors/log-write`'s tier-4 floor
+//!   became a dependent of `nvs-render`, which `rule:errors/diagnostic-record` requires be the
 //!   leaf — that crate's own § *Where this sits* is the home of why.
 //! - [`duration`] — ADR 0070's duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `nvs-stdlib`'s

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, ADR 0095, ADR 0133 § 2
+`Core\Html::escape` carries text holding none of the five characters through unchanged, and escapes an input that already reads as a character reference rather than leaving it alone — ADR 0024 § 3, `rule:errors/ambiguous-input-refused`, ADR 0133 § 2
 --FILE--
 <?nvs
 // The other side of the boundary the sibling case pins. A launderer that

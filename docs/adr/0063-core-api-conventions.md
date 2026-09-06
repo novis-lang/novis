@@ -194,7 +194,7 @@ Each was a live design question; each is now a rule the spec file applies.
   differ only in *when* the index is known), and half of the parallel `Error` tree — `TypeError`,
   `ArgumentCountError`, most of `ValueError` — is unreachable here because those programs do not compile.
   Domain errors are user-defined classes. Resource-limit reports remain outside `Throwable` entirely
-  ([ADR 0020](0020-error-escalation-ladder.md)).
+  (`rule:errors/escalation-ladder`).
 - **JSON uses one explicit interface, both directions.** `Core\Json\Codec` declares `toJson(): mixed` and a
   static `fromJson(mixed): static`. No magic hook survives ([ADR 0028](0028-closing-the-remaining-magic-methods.md)),
   and the decode half — which `JsonSerializable` lacks, forcing every PHP project to hand-write hydration —

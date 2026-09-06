@@ -253,7 +253,7 @@ pub enum UnaryOp {
     BitNot,
     /// `@expr` — error suppression, and the one variant here **nothing
     /// constructs**: the parser refuses `@` where it is written (`E0236`,
-    /// ADR 0020 leaving it nothing to suppress) and yields [`ExprKind::Error`]
+    /// `rule:errors/escalation-ladder` leaving it nothing to suppress) and yields [`ExprKind::Error`]
     /// instead. It is kept so the operator has a name to be refused under
     /// rather than becoming an unrecognized token.
     Suppress,

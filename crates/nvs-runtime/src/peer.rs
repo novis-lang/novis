@@ -401,7 +401,7 @@ pub enum Closing {
     /// and be refused again.
     AtCapacity,
     /// ADR 0083 § 1: this connection's isolate ended in a failure — a throw
-    /// that reached ADR 0020's floor, or one of the `[limits]` values § 1 gives
+    /// that reached `rule:errors/escalation-ladder`'s floor, or one of the `[limits]` values § 1 gives
     /// a connection its own budget of. RFC 6455's 1011, *internal error*.
     ///
     /// **One code for both**, and that is § 1's own wording rather than a

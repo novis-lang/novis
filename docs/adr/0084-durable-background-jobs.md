@@ -185,7 +185,7 @@ claimable again. That is what makes delivery at-least-once and it is why § 6 is
   the classic way a queue silently loses work.
 - **A job exceeding its memory, CPU or time budget is a failed attempt**, reported as that rather than as an
   out-of-memory, and retried like any other failure. A fatal error follows
-  [ADR 0020](0020-error-escalation-ladder.md)'s ladder with the job as the unit torn down.
+  `rule:errors/escalation-ladder`'s ladder with the job as the unit torn down.
 
 ### 7. Queued work and scheduled work are different, and here is the difference
 

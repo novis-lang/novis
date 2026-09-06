@@ -18,7 +18,7 @@
 //!
 //! # Three bounds, and the one that is not here
 //!
-//! - [`MAX_PARTS`] — [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! - [`MAX_PARTS`] — `rule:errors/ambiguous-input-refused`
 //!   § 4's part count, which bounds *bookkeeping*: a body far inside every byte
 //!   cap can still hold a million parts.
 //! - [`PART_HEADERS`] — one part's header block, so a part that never ends its
@@ -51,7 +51,7 @@ use nvs_runtime::RequestBody;
 
 use crate::request::REQUEST_BODY;
 
-/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// `rule:errors/ambiguous-input-refused`
 /// § 4's `[limits] max_multipart_parts` default, as a constant until that row
 /// exists.
 ///
@@ -62,7 +62,7 @@ const MAX_PARTS: usize = 1000;
 
 /// The most one part's header block may hold before it is refused.
 ///
-/// Not a directive of its own: it is the shape of ADR 0095 § 4's per-part
+/// Not a directive of its own: it is the shape of `rule:errors/multipart-part-count`'s per-part
 /// accounting applied to the one thing in a part that is read into memory
 /// whatever the part turns out to be. Without it a peer that opens a part and
 /// then never writes the blank line grows this buffer for as long as it cares
@@ -551,7 +551,7 @@ impl Multipart {
 /// request sent no files" is exactly true of a `GET`, and a throw there would
 /// make every handler write the content-type check the runtime has already
 /// done. A request that *says* it is multipart and then does not say how is
-/// ADR 0095's ambiguity and is refused. One `Err` covering both would have
+/// `rule:errors/ambiguous-input-refused`'s ambiguity and is refused. One `Err` covering both would have
 /// forced `files()` to choose between refusing every `GET` and swallowing a
 /// body whose boundary it could not find.
 pub(crate) fn is_multipart(content_type: &[u8]) -> bool {
@@ -952,7 +952,7 @@ mod tests {
         );
     }
 
-    /// ADR 0095 § 4's part count, asserted on both sides: the cap is a cap only
+    /// `rule:errors/multipart-part-count`'s part count, asserted on both sides: the cap is a cap only
     /// if the last accepted body and the first refused one are one part apart.
     #[test]
     fn the_part_count_cap_is_asserted_at_the_last_accepted_and_the_first_refused() {
@@ -988,7 +988,7 @@ mod tests {
     }
 
     /// A body that stops anywhere but after its closing delimiter is refused
-    /// rather than reported as a short read, which is the whole of ADR 0095
+    /// rather than reported as a short read, which is the whole of `rule:errors/ambiguous-input-refused`
     /// applied to a transfer that did not finish.
     ///
     /// Both sides, because the cut that is *not* a truncation is one byte from

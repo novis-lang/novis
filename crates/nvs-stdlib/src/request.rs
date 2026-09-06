@@ -79,7 +79,7 @@
 //! it never reaches a route table, so the parse here is exact and
 //! case-sensitive (RFC 9110 § 9.1 makes a method a case-sensitive token) and an
 //! unrecognized one is refused rather than mapped to something near it, which
-//! is [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! is `rule:errors/ambiguous-input-refused`'s
 //! rule. **A peer never sees that refusal**: the server answers `501` at the
 //! door, before an isolate exists, so what this throw covers is an embedder
 //! that wrote a verb of its own onto a context.
@@ -112,7 +112,7 @@
 //! `headers`**, and that is the whole reason both exist. RFC 9110 § 5.3 defines
 //! two field lines of one name as equivalent to one value with the lines joined
 //! by a comma in the order received, so joining is that section's own equivalence
-//! and not [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)'s
+//! and not `rule:errors/ambiguous-input-refused`'s
 //! repair — nothing is dropped and nothing is invented. What joining *does* lose
 //! is the line boundary, which matters for a value that may itself contain a
 //! comma (`Date` is the standard example), so the exact answer is `headers()`'s
@@ -137,7 +137,7 @@
 //! and for the same reason.
 //!
 //! The name is matched **byte for byte**
-//! ([ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! (`rule:errors/ambiguous-input-refused`
 //! § 3): no dot, space or bracket is substituted in either direction. That
 //! mangling is PHP's `register_globals`-era name repair, it is what
 //! CVE-2024-2756 was, and the superglobals it served are what
@@ -847,7 +847,7 @@ const PART_ORDINAL: usize = 3;
 ///
 /// § 2 refuses a `size`: there is no honest value before the part has been
 /// consumed, and inventing one is the repair
-/// [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+/// `rule:errors/ambiguous-input-refused`
 /// exists to forbid. `filename` is the client's *claim* and is never treated as
 /// a path — as a `tainted string` it reaches no path sink without
 /// `Core\IO::within` laundering it, which is the same refusal every other
@@ -1509,7 +1509,7 @@ fn grouped_fields<'a>(inbound: &'a Inbound) -> Vec<(String, Vec<&'a [u8]>)> {
 /// The field a request's cookies arrive under, matched as every field name is.
 const COOKIE_FIELD: &[u8] = b"cookie";
 
-/// ADR 0095 § 3's stricter prefix, on the read side — the write side's spelling
+/// `rule:errors/cookie-name-bytes`'s stricter prefix, on the read side — the write side's spelling
 /// of it is `crate::response`'s `HOST_PREFIX`, and the two are one rule read
 /// from its two ends.
 const HOST_PREFIX: &[u8] = b"__Host-";
@@ -1531,7 +1531,7 @@ fn without_leading_padding(bytes: &[u8]) -> &[u8] {
 /// Every value the request's `Cookie` field lines carry under exactly `name`, in
 /// arrival order.
 ///
-/// **The comparison is byte for byte**, which is ADR 0095 § 3 and the whole of
+/// **The comparison is byte for byte**, which is `rule:errors/cookie-name-bytes` and the whole of
 /// what CVE-2024-2756 was: PHP substituted a dot and a space in a cookie name
 /// for an underscore, so a name a browser refused to give the `__Host-` meaning
 /// could be mangled into one that had it. Nothing is substituted here in either
@@ -1562,7 +1562,7 @@ fn cookie_lines<'a>(inbound: &'a Inbound, name: &[u8]) -> Vec<&'a [u8]> {
 /// The cookie the program asked for, or `None` where the request carries none it
 /// is allowed to see.
 ///
-/// **A `__Host-` name that arrived twice is not visible**, which is ADR 0095
+/// **A `__Host-` name that arrived twice is not visible**, which is `rule:errors/ambiguous-input-refused`
 /// § 3's "a non-conforming cookie carrying the prefix is not visible on read"
 /// stated over the one non-conformance a `Cookie` field can actually show. The
 /// prefix means host-locked and `Path=/`, so a conforming browser holds at most
@@ -1602,7 +1602,7 @@ nvs_runtime::nvs_helper! {
             // for a verb outside the roster. So no case can reach this, and it
             // is kept for the embedder that writes an `Inbound` of its own and
             // is bound by no door — where answering `Get` for a verb nobody
-            // recognised is exactly ADR 0095's repair.
+            // recognised is exactly `rule:errors/ambiguous-input-refused`'s repair.
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
@@ -1908,7 +1908,7 @@ nvs_runtime::nvs_helper! {
     /// cookie reader, replacing `$_COOKIE` and `filter_input(INPUT_COOKIE, …)`.
     ///
     /// The parse is [`cookie_lines`]'s and the visibility rule is
-    /// [`cookie_of`]'s; both are ADR 0095 § 3, whose other end is
+    /// [`cookie_of`]'s; both are `rule:errors/cookie-name-bytes`, whose other end is
     /// `Core\Response::addCookie`'s refusal to write what would not be visible
     /// here. There is no second field on the carrier for cookies: they are the
     /// `Cookie` header, read as such, so nothing can hold a set of cookies that
@@ -1917,7 +1917,7 @@ nvs_runtime::nvs_helper! {
     /// A value is handed back **undecoded**, which is what makes it the same
     /// bytes `addCookie` wrote: that member percent-encodes nothing and refuses
     /// a value it could not write verbatim, so a decode here would be a
-    /// substitution in the direction ADR 0095 § 3 closes.
+    /// substitution in the direction `rule:errors/cookie-name-bytes` closes.
     fn nvs_core_request_cookie(ctx, args: [1]) {
         // Unreachable from source: the row's parameter is `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
@@ -3414,7 +3414,7 @@ mod tests {
     /// A repeated name reads as the first line — the user agent's own order,
     /// most specific first — unless it carries `__Host-`, which a conforming
     /// browser holds at most one of per host, so two of them are not a browser's
-    /// and neither is visible. ADR 0095 § 3, and the read end of the refusal
+    /// and neither is visible. `rule:errors/cookie-name-bytes`, and the read end of the refusal
     /// `Core\Response::addCookie` makes on write.
     #[test]
     fn a_repeated_host_prefixed_cookie_is_not_visible_and_an_ordinary_one_is_the_first() {
@@ -4076,7 +4076,7 @@ mod tests {
 
     /// A request that says it is multipart and then does not say how to read one
     /// is refused where it was named, not walked as far as the ambiguity —
-    /// ADR 0095, and the split `crate::multipart::is_multipart` exists to make.
+    /// `rule:errors/ambiguous-input-refused`, and the split `crate::multipart::is_multipart` exists to make.
     /// The `boundary` is the one token the parse trusts to appear inside a body,
     /// so guessing at a missing one would be a truncation rule chosen by the
     /// peer.
@@ -4893,7 +4893,7 @@ mod tests {
         );
         assert!(
             posted(&mut binary, "title").is_err(),
-            "a body that is not text holds no urlencoded form, and ADR 0095 refuses it rather \
+            "a body that is not text holds no urlencoded form, and `rule:errors/ambiguous-input-refused` refuses it rather \
              than replacing the octets it cannot read"
         );
     }

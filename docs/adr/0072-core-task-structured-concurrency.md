@@ -165,7 +165,7 @@ A cancelled task is torn down by the runtime at its next safepoint. **No `catch`
 arena is dropped, refcounts are released, an open `Core\Db\Transaction` is rolled back by its own native
 drop, an open file is closed — because none of that is script code.
 
-This is deliberate and it is the same reasoning [ADR 0020](0020-error-escalation-ladder.md) applies at every
+This is deliberate and it is the same reasoning `rule:errors/escalation-ladder` applies at every
 tier of its ladder. There are exactly three ways to be cancelled — a sibling threw, the deadline expired, or
 the parent died, which for the root task includes its client disconnecting: the connection is the root's
 parent, and [ADR 0106](0106-nothing-a-request-sends-terminates-or-wedges-a-worker.md) § 7a cancels the
@@ -174,7 +174,7 @@ user cleanup at that point means running unbudgeted code inside a failure, which
 a hang.
 
 Cancellation is therefore **not a `Throwable`** and cannot be caught, exactly as a resource-limit report is
-not one ([ADR 0020](0020-error-escalation-ladder.md) § 0). The consequence a developer has to learn: work
+not one (`rule:errors/throwable-hierarchy`). The consequence a developer has to learn: work
 that *must* happen does not go in a cancellable task's cleanup. It goes inside the database transaction, or
 in § 6's deferred work, or in a durable queue the application owns.
 
@@ -197,7 +197,7 @@ O(in-flight)" holds with nothing relaxed — the tree simply stays in flight a l
 connection does. `[limits] wall_time` is what the client waited for and no longer applies; the deferred
 `deadline` replaces it, and every other `[limits]` value continues to bound the tree.
 
-- **An uncaught throw inside it goes through [ADR 0020](0020-error-escalation-ladder.md)'s ladder** to
+- **An uncaught throw inside it goes through `rule:errors/escalation-ladder`'s ladder** to
   `Core\Log`, carrying the scheduling request's trace id. There is no response left for it to affect, and
   tier 2's `onUncaughtThrow` handler — registered by the request that is now finished — does **not** fire,
   because it was request-local and the request's own execution is over.
@@ -295,7 +295,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
   the orphan class [ADR 0006](0006-isolated-script-execution.md)'s tree accounting exists to make
   impossible, and it can leave a transaction's row locks held past the `catch`.
 - **Making cancellation a catchable `Throwable`.** Familiar, and lets `finally` clean up. Rejected on
-  [ADR 0020](0020-error-escalation-ladder.md)'s reasoning: it runs unbudgeted user code inside a failure,
+  `rule:errors/escalation-ladder`'s reasoning: it runs unbudgeted user code inside a failure,
   and a `catch (Throwable)` that swallows a cancellation turns a deadline into a hang.
 - **Queueing past `[deferred] max_concurrent` instead of throwing.** Smoother under a burst. Rejected: an
   unbounded queue in front of a non-durable executor hides the overload and then drops the work, and a
@@ -314,7 +314,7 @@ is bounded, and it is O(in-flight deferred trees) rather than O(requests served)
 - **`Task::first`** (§ 3) the first time hedged requests across replicas are actually wanted.
 - **Cancellation running a narrow, budgeted cleanup hook** if the no-user-code rule proves to be what people
   hit rather than what protects them. Any such hook needs its own reserved budget and its own zero-retry
-  rule, exactly as [ADR 0020](0020-error-escalation-ladder.md)'s tiers do; it is not a relaxation of § 5, it
+  rule, exactly as `rule:errors/escalation-ladder`'s tiers do; it is not a relaxation of § 5, it
   is a new mechanism, and it needs its own argument.
 - **Typed `callable` signatures** ([ADR 0007](0007-explicit-type-system.md) § 3) remove § 1's `fn`-literal
   restriction and are now blocking three separate features.

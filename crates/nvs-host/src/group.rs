@@ -257,7 +257,7 @@ impl Child {
     fn run(&self, job: Job, ctx: &mut Ctx) {
         let answer = job(ctx);
         // A cancelled child did not fail. It ran until a member told it it was
-        // cancelled and then stopped by ADR 0002's return status, so its
+        // cancelled and then stopped by `rule:errors/propagation`'s return status, so its
         // context carries a pending message the way every stopped request does
         // — and § 5 means that message is neither a `Throwable` the group may
         // propagate nor a second throw to write down. Its slot stays empty,

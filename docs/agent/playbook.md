@@ -1254,7 +1254,7 @@ is why" — is this file.
   it back is queueing a silent revert. Measured on 2026-08-31 the two had diverged in three places
   no session had copied: `nvs-host`'s module paths in `[context] modules` (`stream.rs`/`pool.rs`,
   renamed to `net.rs`/`blocking.rs`), a `mailpit` service in `[docker]` that stage 9 no longer
-  needs, and `examples/uncaught.nvs`'s expectations, which had been rewritten for ADR 0092 § 3's
+  needs, and `examples/uncaught.nvs`'s expectations, which had been rewritten for `rule:errors/renderings`'s
   JSON Lines rendering. `git diff docs/agent/goals/` right after the `cp` is the whole check, and
   what it prints is other sessions' work about to be lost rather than your own.
 - **A `loop-goal.toml` acceptance test can name *two* bounds, and splitting it across two
@@ -2074,7 +2074,7 @@ is why" — is this file.
   the name settles it, and it is worth doing before treating any gap note as a decision: a reason
   that names a goal file is true for one goal, unlike one that names an ADR.
 - **A `loop-goal.toml` `cargo-named` check's *other* test names are the specification for the
-  design question the ADR left open.** Stage 6 named four tests over ADR 0020 § 6's log envelope,
+  design question the ADR left open.** Stage 6 named four tests over `rule:errors/log-write`'s log envelope,
   and the one that decides the design is `a_cli_runs_record_is_still_level_and_msg_alone`: § 6
   lists `ts` beside `request_id` and says nothing about a run with no request, so the obvious
   reading — a clock is always available, stamp it unconditionally — is the wrong one, and it would
@@ -2168,6 +2168,33 @@ is why" — is this file.
   first and cannot catch the second, so prefer a `cargo-named` check against a test that exists today
   over a `command` against a tool that does not — goal 28's `tools/owners.py` is the standing example
   of the latter, and the test behind it (`every_outstanding_key_names_an_owner`) is the former.
+- **An ADR citation has four spellings in this tree, and anything that rewrites one has to know all
+  four.** The obvious two are an inline link (`[ADR 0092](/docs/adr/0092-….md)`) and a bare
+  `ADR 0092`. The two that break a naive rewriter are a *reference-style* `[ADR 0095]` carrying a
+  separate `[ADR 0095]: ../path.md` definition line — rewrite the use and the definition is an
+  orphan; rewrite the definition and it stops being a definition — and a **named** section,
+  `ADR 0002 § *Measured cost*`, which is how a record with no numbered sections gets cited at all.
+  On top of those, a section reference is a *list*: `§§ 2-3`, `§§ 3, 5`, `§§ 1, 3 and 4`. The docs
+  migration's rewriter matched one section number and stranded the rest as prose in 33 of 804
+  sites, and none of it failed a gate, because the token it emitted resolved fine and only a reader
+  would ever notice. `grep -nE '§§|\[ADR [0-9]{4}\][^(]'` finds the awkward ones before you start.
+- **A bulk edit that shortens Rust lines makes `cargo fmt` dirty, so format before you verify.**
+  Replacing a 48-character ADR link with a 23-character `rule:` token unwraps doc comments and
+  `panic!` arguments that rustfmt had wrapped correctly, so a transaction right in every other way
+  fails on fmt alone. `cargo fmt --all -- --check` names the files first, which is what you need if
+  you are recording originals for a rollback; then `cargo fmt --all`.
+- **Writing a tree file through Python's text mode rewrites every line ending on this checkout.**
+  `Path.read_text` maps `\r\n` to `\n` and `write_text` writes back what it was handed, so a script
+  that changed one word in 250 files reports 250 modified files with an empty `git diff`. Harmless
+  in a commit — git normalizes to LF in the index, so the blobs match and the files drop out — but
+  it buries the real change in `git status`, and it makes any "restore the original bytes" rollback
+  a lie. Open with `newline=""` in both directions.
+- **A generated index that reads prose line by line truncates every hard-wrapped sentence.**
+  `rules.py`'s ground-rules index took the first line of a fragment and cut it at 220 characters,
+  so a sentence whose period was on the next line came out mid-clause with no terminator — "and
+  errors travel in its". Join the paragraph before you take a sentence out of it, and skip a fenced
+  block rather than reading its first line as prose. The same function has to reduce a `rule:`
+  citation to its id, or the index shows a raw token where the reader expects a name.
 
 ## Running things
 
@@ -4351,7 +4378,7 @@ is why" — is this file.
   outside the compiler pipeline cannot assert on a thrown message. `nvs_runtime::Ctx::buffered()`
   has no runtime error class installed, `Thrown::message()` returns `String::new()` when its
   object is null, and the failure looks like the member said nothing rather than like the harness
-  is missing a class. Assert the ADR 0002 *status* — `THROWN` against `FATAL` — which is the half
+  is missing a class. Assert the `rule:errors/propagation` *status* — `THROWN` against `FATAL` — which is the half
   a bare harness can see and is usually the claim anyway;
   `benches/abi-probe/tests/invariants.rs`'s `decode_on_this_stack` is the worked shape.
 - **A concurrency test that is the *first* one to run wide is worth writing even where the behaviour
@@ -4664,7 +4691,7 @@ is why" — is this file.
   along three different shapes (agreement, the boundary it refuses, the row that parts it from its
   neighbour), or `verify.py` spends a full run telling you the member is "asked by 1 case(s)".
   `BELOW_THE_FLOOR` in that file only shrinks and is never where a new member goes.
-- A `Core\Fatal::onLimit` handler only runs when the breach lands *inside* ADR 0020 § 1's reserve, so a
+- A `Core\Fatal::onLimit` handler only runs when the breach lands *inside* `rule:errors/on-limit`'s reserve, so a
   case that overshoots by more than `[limits] fatal_reserve_memory` sees no handler output at all and
   looks like a tier that never fires. `Ctx::run_limit_handler` adds the reserve back to the *reduced*
   ceiling, so a request holding more than `[limits] memory` itself reaches the ladder again at the
@@ -6340,7 +6367,7 @@ sibling in the same namespace unqualified.
 - **One `RuntimeSig` may name the signature two different runtime symbols are declared under, and
   changing one symbol's Rust declaration then miscompiles the other in silence.** `nvs_array_unset`
   was emitted through `RuntimeSig::ArrayAppend` because both happened to be two pointers in and one
-  pointer back; the moment `nvs_array_append` grew ADR 0002's `(ctx, …, out) -> status` shape, that
+  pointer back; the moment `nvs_array_append` grew `rule:errors/propagation`'s `(ctx, …, out) -> status` shape, that
   reuse would have declared `nvs_array_unset` to Cranelift with four parameters and an `i32` return
   and nothing — not the Rust compiler, not `clippy`, not a codegen test — would have said so, because
   `Linkage::Import` never checks a declaration against the definition. So before editing an
@@ -7030,9 +7057,9 @@ sibling in the same namespace unqualified.
   is not the fix — the frame *below* the helper is JIT code with no landing
   pads, so an unwind through it would leak every temporary it owns. The fix is
   the other route Novis already has for exactly this: a cancelled task with
-  script frames dies by ADR 0002's return status at its next safepoint, which is
+  script frames dies by `rule:errors/propagation`'s return status at its next safepoint, which is
   what `nvs_safepoint` gives `SafepointFlags::CANCEL`.
-- **A task that dies by ADR 0002's return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
+- **A task that dies by `rule:errors/propagation`'s return status leaves a *pending* message on its context, and whatever collects that context must not read it as a throw.** The symptom is a program whose deadline works perfectly printing `uncaught in a cancelled sibling: the request was cancelled` and then an uncaught exception at the `Core\Task::map` call site — a cancelled child, collected by `nvs_host::group::Child::run`, whose `ctx.pending()` was the safepoint's own record of the teardown rather than anything the script threw. `Ctx::cancelled()` is the discriminator and it is asked *before* `pending()`; a cancelled child's slot stays empty, exactly as it does for one a forced unwind tore down. The same trap is waiting for every future collector of a child context — the request boundary under `nvs serve`, and whatever reports a `spawn script`.
 - **A `CoreTy::Uint` parameter arrives tagged `Tag::Uint` (3), not `Tag::Int` (2), so `Value::as_int()`
   on one answers `None`.** `uint` is a tag of its own by ADR 0007 § 4, and the two are not interchangeable
   at the ABI however interchangeable they look in a signature. The failure is not a compile error and not
@@ -7082,7 +7109,7 @@ sibling in the same namespace unqualified.
   the number was wrong. The comment above `unit_of`'s `Duration` arm already says exactly this — it is
   worth reading before adding a key rather than after. The full roster is: the `Limits` field, the
   `DIRECTIVES` row, the `unit_of` arm, and the reader. Nothing fails to compile without the third.
-- **ADR 0020 § 1's roster of resource limits is restated in four places, and three of them are
+- **`rule:errors/on-limit`'s roster of resource limits is restated in four places, and three of them are
   prose no test reads.** Adding `max_output` as a limit whose breach reaches the tier-1 handler
   meant editing the ADR's own list (`docs/adr/0020-error-escalation-ladder.md` § 1, which also
   carried "call-stack depth is the *fifth* limit" — a running count of the kind
@@ -8077,7 +8104,7 @@ sibling in the same namespace unqualified.
 - **An ADR citation is right in every doc comment in `registry.rs` except the one place a card is,
   and the whole-suite test that says so is the last thing to run.** A `MethodDoc`/`EnumDoc` field
   is shipped verbatim by `nvs meta --json` to a reader with no ADR tree, so
-  `no_registry_card_cites_an_adr` fails a `desc` carrying "(ADR 0095 § 3)" — while the `///` two
+  `no_registry_card_cites_an_adr` fails a `desc` carrying "(`rule:errors/cookie-name-bytes`)" — while the `///` two
   lines above it, and the row comment two lines below, are *expected* to cite one. The habit the
   rest of the file trains is exactly the thing the card refuses, which is why this costs a build
   cycle rather than being caught while typing: `-p nvs-stdlib --lib` is where it surfaces, after

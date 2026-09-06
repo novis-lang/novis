@@ -69,7 +69,7 @@
 //! `$encoding` has no analogue because a `string` is UTF-8 by
 //! [ADR 0009](/docs/adr/0009-string-and-bytes.md), and `$double`
 //! has none because "do not escape what already looks escaped" is exactly the
-//! repair [ADR 0095](/docs/adr/0095-ambiguous-input-is-refused-never-repaired.md)
+//! repair `rule:errors/ambiguous-input-refused`
 //! refuses: `&amp;` in the input is text that said `&amp;`, and it comes back
 //! as `&amp;amp;`.
 //!

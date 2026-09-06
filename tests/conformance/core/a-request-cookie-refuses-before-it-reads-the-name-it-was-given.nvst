@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::cookie` answers the same way for every name it is given when no request arrived, so neither a prefix nor a spelling reaches the decision -- ADR 0012 § 7, ADR 0095 § 3, spec § 15
+`Core\Request::cookie` answers the same way for every name it is given when no request arrived, so neither a prefix nor a spelling reaches the decision -- ADR 0012 § 7, `rule:errors/cookie-name-bytes`, spec § 15
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line. A cookie name

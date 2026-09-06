@@ -363,9 +363,9 @@ pub mod code {
     /// since the operand's type is what decides and a parser sees none.
     pub const E_DYNAMIC_MEMBER_NAME: Code = Code::new("E0235");
     /// `@expr` — PHP's error-suppression prefix. There is nothing for it to
-    /// suppress: [ADR 0020](/docs/adr/0020-error-escalation-ladder.md)
+    /// suppress: `rule:errors/escalation-ladder`
     /// makes every runtime failure a `Throwable` propagated by checked return
-    /// ([ADR 0002](/docs/adr/0002-error-propagation.md)), not a
+    /// (`rule:errors/propagation`), not a
     /// diagnostic printed alongside a value, and ADR 0063 § 3 already lists
     /// `@` among the constructs that decision closes. `try`/`catch` is the
     /// replacement, and it is the only one.
@@ -1350,7 +1350,7 @@ pub mod code {
     /// there is no refusal here for a single key.
     pub const E_MEANINGLESS_HTTP_PAIR: Code = Code::new("E0612");
 
-    /// A `[log] target` that is none of ADR 0020 § 4's three destinations —
+    /// A `[log] target` that is none of `rule:errors/engine-floor`'s three destinations —
     /// `stderr`, `file:<path>` or `syslog` — including a `file:` with no path
     /// behind it. Refused at the boot that reads the tree rather than at the
     /// first record written through it, because the one moment the engine
@@ -1362,7 +1362,7 @@ pub mod code {
     /// spelling accepted here is a destination that opens.
     pub const E_UNSPELLED_LOG_TARGET: Code = Code::new("E0613");
 
-    /// A `[log] level` that is none of ADR 0092 § 2's five — refused at the
+    /// A `[log] level` that is none of `rule:errors/log-level`'s five — refused at the
     /// same boot and for the same reason as `E0613` beside it, but against the
     /// opposite failure: an unspelled destination would route records nowhere,
     /// while an unspelled level leaves the floor at `Debug` and writes
@@ -1372,7 +1372,7 @@ pub mod code {
     /// `nvs_runtime::Ctx::write_log_record` resolves the floor through.
     pub const E_UNSPELLED_LOG_LEVEL: Code = Code::new("E0614");
 
-    /// A `[log] format` that is neither of ADR 0092 § 3's two — the third
+    /// A `[log] format` that is neither of `rule:errors/renderings`'s two — the third
     /// refusal of the same block and for the third reason. An unspelled
     /// destination routes records nowhere and an unspelled level widens what is
     /// collected; an unspelled *rendering* leaves them as JSON Lines, so the
@@ -1463,7 +1463,7 @@ pub mod code {
     /// It covers the shape — naming both `scan` and `entry` or neither,
     /// matching on neither `prefix` nor `host`, a `{2}` whose glob has one `*`
     /// — and what only the disk answers: an entry that is not there, one that
-    /// resolves outside `[server] root`, a captured segment ADR 0095 § 5
+    /// resolves outside `[server] root`, a captured segment `rule:errors/path-component-refusals`
     /// refuses, and two mounts answering at one key. The first set is checked
     /// wherever the tree is, so `nvs config check` reports it on a machine that
     /// holds none of the files; the second needs the tree it mounts.
@@ -2081,7 +2081,7 @@ pub mod code {
     pub const E_FOREACH_KEY_TY: Code = Code::new("E0723");
 
     /// ADR 0033 § 4's debug-dump sink, as
-    /// [ADR 0092](/docs/adr/0092-one-diagnostic-record-three-renderings.md)
+    /// `rule:errors/diagnostic-record`
     /// § 5's redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
@@ -3183,7 +3183,7 @@ pub mod code {
     /// A credential the configuration puts in force begins or ends with
     /// whitespace. ADR 0103 § 7 keeps such a value exactly as it was written —
     /// a password may legitimately carry an edge space, and removing it would
-    /// be ADR 0095's repair of input in place of a reading of it — so the value
+    /// be `rule:errors/ambiguous-input-refused`'s repair of input in place of a reading of it — so the value
     /// is used as-is and this is an advisory, never a refusal: refusing it
     /// would wall off a credential issued somewhere else, with no remedy in
     /// the file that names it.
