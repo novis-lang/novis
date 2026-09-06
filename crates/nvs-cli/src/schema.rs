@@ -132,7 +132,23 @@ pub(crate) fn apply(
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let plan = match planned(&mut conn, &want, connection) {
+    converge(&mut conn, &want, connection, including_risky)
+}
+
+/// The plan, run — which is `apply` above once the schema has been obtained, and
+/// what `nvs queue migrate` runs too.
+///
+/// The schema is the caller's because the two commands answer for a different
+/// one: this command's is a file an operator wrote, and the queue's is the value
+/// `nvs_stdlib::queue::schema` owns. Everything after that is the same
+/// convergence, so it is written once.
+pub(crate) fn converge(
+    conn: &mut Connection,
+    want: &Schema,
+    connection: &str,
+    including_risky: bool,
+) -> ExitCode {
+    let plan = match planned(conn, want, connection) {
         Ok(plan) => plan,
         Err(code) => return code,
     };
@@ -159,7 +175,7 @@ pub(crate) fn apply(
     let mut ran = 0;
     for step in plan.runnable() {
         for sql in step.sql() {
-            if let Err(err) = nvs_db::direct::run(&mut conn, sql) {
+            if let Err(err) = nvs_db::direct::run(conn, sql) {
                 eprintln!(
                     "error: `{}` was refused by the server: {err}",
                     step.change()
@@ -279,7 +295,11 @@ fn declared(path: &Path) -> Result<Schema, ExitCode> {
 /// `./nvs.toml` here too. The name is proven against the tree before a socket is
 /// touched, because refusing a database nobody configured is worth more than a
 /// connection error against a host nobody meant.
-fn opened(config: &[PathBuf], paths: &[PathBuf], name: &str) -> Result<Connection, ExitCode> {
+pub(crate) fn opened(
+    config: &[PathBuf],
+    paths: &[PathBuf],
+    name: &str,
+) -> Result<Connection, ExitCode> {
     let files = LocalFiles;
     let mut sources = SourceMap::new();
     let named = named_roots(config, paths);

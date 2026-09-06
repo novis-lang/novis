@@ -77,7 +77,7 @@
 //! into `nvs_dead_jobs` where the job has used its last attempt — but § 2's jobs table has nowhere
 //! to keep what an earlier attempt threw, so the `errors` array § 6 asks for is one entry deep and
 //! every attempt before the last is visible only on this worker's standard error.
-//! [`nvs_stdlib::queue::MIGRATION_POSTGRES`]'s own doc owns that decision and what a deeper array would cost.
+//! [`nvs_stdlib::queue::schema`]'s own doc owns that decision and what a deeper array would cost.
 //!
 
 use std::cell::Cell;

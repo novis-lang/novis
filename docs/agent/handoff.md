@@ -2,76 +2,55 @@
 
 ## State
 
-**Goal 9 stage 7 — the retirement — is started, not whole.** `nvs_stdlib::queue::schema()` is on
-disk (`crates/nvs-stdlib/src/queue.rs:429`): `rule:core-classes/queue-storage-is-a-table`'s two
-tables as one `nvs_db::Schema`, which `nvs_db::ddl` emits in all four dialects, so SQL Server and
-SQLite have a schema for the first time. One of the check's three tests,
-`every_driver_has_a_queue_schema_and_none_answers_none`, is green on it.
+**Goal 9 stage 7 — the retirement — is whole, and stage 7 was the last stage.** All three of the
+stage's `nvs-stdlib` tests pass, `nvs queue migrate --connection mssql --dry-run` prints both
+tables for a backend that never had a dialect, and stage 1's two frozen `nvs queue migrate` checks
+still hold. `python tools/verify.py` is 7 of 7 green.
 
-**The retirement's own open question is decided and recorded** in the rule: `dedupe_pending` is a
-plain nullable column the statements maintain — the key while pending, `null` once not — under a
-plain unique key. A partial index and a stored generated column are two dialects' answers to one
-requirement and neither is in the vocabulary. A `not null` column with a generated token was refused
-for a reason that outlives SQL Server's null-equality: it cannot be added to a table that already
-holds rows, so no existing deployment could converge to it.
+**`nvs_stdlib::queue::schema()` is the one home for the queue's tables**
+(`crates/nvs-stdlib/src/queue.rs:260`). `MIGRATION_POSTGRES`, `MIGRATION_MYSQL` and `migration`'s
+`Option` are gone; `migration(driver) -> Vec<Migration>` (`:181`) emits the value through
+`nvs_db::ddl` in whichever dialect a driver speaks, labelling each statement `jobs` or
+`dead_letter`. Every statement that moves a job in or out of `Pending` maintains `dedupe_pending`,
+which is `rule:core-classes/queue-storage-is-a-table`'s guarantee as a plain column under a plain
+unique key.
 
-**Nothing's behaviour changed yet.** `MIGRATION_POSTGRES` (`:201`), `MIGRATION_MYSQL` (`:339`) and
-`migration()`'s `Option` (`:272`) are all still there, and the statements still reach the guarantee
-the old way.
+**`nvs queue migrate` converges** (`crates/nvs-cli/src/queue.rs`): `--dry-run` opens nothing and
+prints the create-from-nothing statements, and the applying half runs
+`crate::schema::converge` — `nvs schema apply`'s own body, now shared. It refuses a step that is
+not `Safe` and takes `--including-risky`, which is new surface on this command.
 
-**The three remaining slices cannot be split**, which is the session's main finding. `nvs_db::ddl`
-writes no `IF NOT EXISTS` (`crates/nvs-db/src/ddl.rs:1210` pins the absence), so the moment the
-lists go, `nvs queue migrate` must converge instead of running statements; and the moment the value
-is what it runs, PostgreSQL's dedupe is a unique key over `dedupe_pending` rather than a partial
-index, so the statements must be maintaining that column by then or the guarantee is gone.
+**The upgrade edge is real and is not code.** A deployment whose queue tables an older Novis built
+needs one risky converge: `queue` and `dedupe_key` narrow to `varchar(255)`, and the old *partial*
+index `nvs_jobs_dedupe` is invisible to introspection, so it collides by name and has to be dropped
+first. This machine's `[db.main]` PostgreSQL was converged by hand that way, which is why stage 1's
+applying check is green; the MySQL and MariaDB containers still carry the old generated-column
+table, and `crates/nvs-stdlib/tests/queue.rs`'s fixture now drops and rebuilds both tables, so a
+matrix leg fixes itself.
 
 ## Next group
 
-**Stage 7's retirement, the rest of it** — one file set: `crates/nvs-stdlib/src/queue.rs`,
-`crates/nvs-cli/src/queue.rs` and `crates/nvs-cli/src/schema.rs`. Take all three together; the first
-two are unsafe to land apart.
+**The queue's own gap 5 — the two backends that have a schema and no statements** — one file set:
+`crates/nvs-stdlib/src/queue.rs` and `crates/nvs-stdlib/tests/queue.rs`. Nothing in goal 9 asks for
+it; it is what the retirement made visible, and it is the next honest slice in this module.
 
-- [ ] **The statements maintain `dedupe_pending`** — `rule:core-classes/queue-storage-is-a-table`,
-      whose new paragraph is the specification. PostgreSQL's probe becomes
-      `where dedupe_pending = $1::text` (no `state = 0`; `$1` repeats, so no new bind), the insert
-      names the column, and `set dedupe_pending = null` joins the three transitions out of pending
-      while `RETRY_*` restores it from `dedupe_key`. MySQL's probe already reads the column; its
-      insert needs a tenth bound slot, because a `?` cannot repeat — the array is
-      `crates/nvs-stdlib/src/queue.rs:1962` (`[Option<&[u8]>; 9]`, the `Queued::Framed` arm).
-      Anchors: `crates/nvs-stdlib/src/queue.rs:512` (`INSERT_POSTGRES`), `:565` (`CLAIM_POSTGRES`),
-      `:622` (`SUCCEEDED_POSTGRES`), `:636` (`RETRY_POSTGRES`), `:964` (`CANCEL_POSTGRES`), `:724`
-      (`INSERT_MYSQL`), `:752` (`CLAIM_MYSQL`), `:810` (`SUCCEEDED_MYSQL`), `:827` (`RETRY_MYSQL`),
-      `:976` (`CANCEL_MYSQL`). `DEAD_LETTER_*` needs nothing — the row leaves the table.
-- [ ] **`migration()` becomes total and the two lists go** —
-      `rule:core-classes/queue-storage-is-a-table`; `the_queues_schema_is_one_value_and_no_dialect_list`
-      is the check (`docs/agent/loop-goal.toml:4639`). `Migration`'s fields become owned `String`s
-      (`crates/nvs-stdlib/src/queue.rs:153`) and `migration(driver) -> Vec<Migration>` walks
-      `schema().tables()` through `nvs_db::ddl::create_table`, labelling the create-table statement
-      `jobs` / `dead_letter` — the labels are what stage 1's frozen `want` lists read, not the table
-      names. **~35 doc links name `MIGRATION_POSTGRES` or `MIGRATION_MYSQL`** across
-      `crates/nvs-stdlib/src/{queue,lib}.rs`, `crates/nvs-cli/src/{queue,worker}.rs` and
-      `crates/nvs-stdlib/tests/queue.rs`; they are broken intra-doc links, not prose to leave.
-      `the_schema_value_declares_every_column_the_lists_declare` (`:3414`) retires with them.
-- [ ] **`nvs queue migrate` converges instead of running a list** — the check is
-      `docs/agent/loop-goal.toml:4644`, and stage 1's two frozen ones
-      (`:3136`, `:3148`) are what it must not break. Make `crates/nvs-cli/src/schema.rs:282`
-      (`opened`) and `:202` (`planned`) `pub(crate)` and call them: `--dry-run` prints
-      `-- <label>` plus `ddl::create_table` per table and opens nothing, and the applying half runs
-      `plan.runnable()` and then prints `-- jobs: applied` / `-- dead_letter: applied` per table so
-      a second run is still green with an empty plan. `rule:core-classes/schema-absence-never-destroys`
-      is why diffing the queue's two tables against a whole database is safe: every other table is a
-      report and reports are never runnable. Anchors: `crates/nvs-cli/src/queue.rs:74`
-      (`dialect_of`, whose `None` arm goes), `:118` (`migrate`), `:258` (`apply`), `:310`
-      (`run_all`).
+- [ ] **SQL Server's dedupe needs the vocabulary before it needs a statement** —
+      `rule:core-classes/queue-storage-is-a-table` says so: two nulls are equal there, so a plain
+      unique key over `dedupe_pending` admits one released row rather than any number of them, and
+      the spelling it wants is the filtered index `rule:core-classes/schema-plan` keeps out of v1.
+      Decide whether the vocabulary grows before `Core\Queue` gains a fourth dialect, at
+      `crates/nvs-stdlib/src/queue.rs:260` (`schema`) and `:1722` (`no_dialect`, the refusal an
+      operator reads today).
+- [ ] **`queue_connection` is the roster three places now spell by hand** —
+      `rule:core-classes/db-drivers-are-an-enum`. `crates/nvs-stdlib/src/queue.rs:1661` is the
+      `match`, and both `the_queues_refusal_is_only_ever_about_a_driver_that_cannot_send` and
+      `crates/nvs-stdlib/tests/queue.rs:88` now `matches!` the same three drivers beside it. One
+      predicate on that seam would make a fourth backend one edit.
 
 ## Backlog
 
-- SQL Server reads two nulls as equal, so its `nvs_jobs_dedupe` admits one released row — recorded
-  in `rule:core-classes/queue-storage-is-a-table`, and it needs a filtered index the vocabulary
-  does not hold. Reopen with the queue's SQL Server statements, not before.
-- The two non-portable constructs the vocabulary holds — an index over unbounded text, a reserved
-  identifier — still refuse nothing; `crates/nvs-db/src/schema.rs`'s gap 1 owns them.
-- `Core\Queue` still throws `no_dialect` for SQL Server and SQLite: a schema for them is not
-  statements for them. `crates/nvs-stdlib/src/queue.rs`'s gap 5.
-- `docs/decisions/0145.md` § Consequences' first bullet claims the drift-guard test disappears with
-  the second list; check that reading when the lists go.
+- `nvs queue migrate --including-risky` is new CLI surface no `docs/` page names — `docs/spec/`.
+- A partial index a deployment already has is invisible to introspection and collides by name;
+  whether that is a diagnostic is `rule:core-classes/schema-introspection`'s question.
+- `examples/queue.nvs` leaves `scripts/receipt.nvs` rows behind from the stdlib fixture's pushes,
+  so its stderr carries warnings about a script that does not exist — `tests/db/`.

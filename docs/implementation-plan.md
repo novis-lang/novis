@@ -42,8 +42,8 @@
 > the ADR that owns a topic, and `python tools/records.py --stats` shapes the whole set. What a crate
 > still owes is its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **Goal 9 stages 5-6 are whole: `nvs schema plan|apply|dump` converges a database
-> from the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
+> **Open now:** **Goal 9 stages 5-7 are whole: `nvs schema` and `nvs queue migrate` converge from
+> the command line.**  **`nvs-db`'s PostgreSQL is whole**, §§ 3-13. **`Core\Db` is open**:
 > `queryAs<T>`, § 6's convert, §§ 4, 13's timeout and pool, `[queue]`, `stream` walks 10k rows;
 > `Core\Uri` answers `bytes`; `nvs check` reads grants. **`nvs-server` runs h1 as goal 2's
 > `Isolate`**: `nvs serve` boots the mounts, § 4's statics send a file; `E0621`/`E0622` refuse a

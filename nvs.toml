@@ -302,6 +302,24 @@ acquire = "500ms"
 driver = "sqlite"
 path = ":memory:"
 
+# The backend `rule:core-classes/queue-storage-is-a-table`'s schema had no hand-written list for, and
+# the reason this block is here at all: the queue's schema is one value `nvs_db::ddl` emits in every
+# dialect, so `nvs queue migrate --connection mssql --dry-run` prints two tables for a driver nobody
+# ever wrote a `create table` for. The dry run touches no port, which is why this block being a
+# server only `tests/db/compose.yaml` starts costs the acceptance sweep nothing.
+#
+# The `mssql` service there is what it names. The image's only account is `sa` and the database is
+# created by that service's own healthcheck rather than by its entrypoint, which is why this writes
+# no other user and why `database` is the name that healthcheck creates.
+[db.mssql]
+driver = "mssql"
+host = "127.0.0.1"
+port = 11433
+user = "sa"
+password = "Novis-Test-Pw1"
+database = "novis_test"
+tls_ca_file = "tests/db/ca.crt"
+
 # ADR 0084 § 2's queue, and `examples/queue.nvs` is the fixture it exists for. `connection = "main"`
 # is the recommended configuration rather than a convenience: § 3's property — an enqueue commits
 # with the write that caused it, or with neither — is only available to a queue whose rows live in

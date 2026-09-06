@@ -475,10 +475,11 @@ enum QueueCommand {
     /// Create `rule:core-classes/queue-storage-is-a-table`'s jobs and dead-letter tables in the queue's
     /// database.
     ///
-    /// The statements are the runtime's own — `nvs_stdlib::queue`'s own lists,
-    /// beside the members that read the columns — and this command is what
-    /// makes issuing them an operator's act rather than a request's. What it
-    /// can and cannot do today is [`queue`]'s module doc.
+    /// The schema is the runtime's own — `nvs_stdlib::queue::schema`, beside the
+    /// members that read the columns — and this command is what makes issuing
+    /// DDL for it an operator's act rather than a request's. It converges: what
+    /// runs is the difference between that value and the database. What it can
+    /// and cannot do today is [`queue`]'s module doc.
     Migrate {
         /// The root files to read, in order — `config check`'s list, read the
         /// same way.
@@ -490,6 +491,11 @@ enum QueueCommand {
         /// Print the statements without running them, and succeed.
         #[arg(long)]
         dry_run: bool,
+        /// Run a step that is not `Safe` — a queue table an older Novis built
+        /// can need one, and `schema apply` takes the same flag for the same
+        /// reason.
+        #[arg(long)]
+        including_risky: bool,
     },
 }
 
@@ -727,8 +733,15 @@ fn main() -> ExitCode {
                     files,
                     connection,
                     dry_run,
+                    including_risky,
                 },
-        } => queue::migrate(&cli.config, &files, connection.as_deref(), dry_run),
+        } => queue::migrate(
+            &cli.config,
+            &files,
+            connection.as_deref(),
+            dry_run,
+            including_risky,
+        ),
         Command::Schema {
             command:
                 SchemaCommand::Plan {
