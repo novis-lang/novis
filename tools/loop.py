@@ -3079,7 +3079,7 @@ class Chain:
     def refresh(self):
         """Re-read the file, so a chain edited under the run is walked as it now stands.
 
-        `dossier.py --emit-goals --append-chain` is the reason this exists: a goal whose whole job
+        `dossier.py --emit-goals` is the reason this exists: a goal whose whole job
         is to write the next hundred cannot hand them to a driver that read the chain once at
         start-up, and stopping the run for a human to restart is the thing the chain exists to
         avoid. A hand-written entry *inserted* in front of a later one is the same need arriving

@@ -36,9 +36,9 @@ owed, with nobody editing a list.
     python tools/dossier.py --findings [--clear]     what the workers hit, collated for one batch fix
 
     python tools/dossier.py --no-perf …              drop the perf proof entirely, for any command above
-    python tools/dossier.py --emit-goals             write the whole loop chain under docs/agent/goals/dossier/
-    python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml
-                                                     ... onto the end of the chain a run is already walking
+    python tools/dossier.py --emit-goals             append the roster to docs/agent/goals/chain.toml,
+                                                     with the goal files under docs/agent/goals/dossier/
+    python tools/dossier.py --emit-goals --dry-run   ... and say what that would change, writing nothing
 
 ## Turning the perf proof off
 
@@ -193,6 +193,9 @@ LANG = ROOT / "docs" / "reference" / "lang"
 TOOLCHAPTERS = ROOT / "docs" / "reference" / "tools"
 POLICY_FILE = TOOLS / "data" / "dossier-policy.toml"
 GOALS_OUT = ROOT / "docs" / "agent" / "goals" / "dossier"
+#: The chain, and the only one there is -- `tools/loop.py` reads this file always, not behind a
+#: flag, so an emission anywhere else is a chain nothing walks. `--emit-goals` appends here.
+CHAIN = ROOT / "docs" / "agent" / "goals" / "chain.toml"
 CALIBRATION = BENCHES / "_calibration"
 #: Green verdicts from `--run`, keyed on the bytes that produced them. Under `.loop/` with every
 #: other run-time artefact, and gitignored with it.
@@ -1730,26 +1733,29 @@ def goal_batches(entries: list[Entry], size: int) -> list[tuple[str, list[Entry]
 
 def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dict,
                out_dir: Path, size: int, skip_complete: bool, no_perf: bool,
-               append_chain: Path | None = None, dry_run: bool = False) -> int:
-    """Write one goal triple per batch, plus the `chain.toml` that walks them.
+               dry_run: bool = False) -> int:
+    """Write one goal triple per batch, and append them to `docs/agent/goals/chain.toml`.
+
+    **Onto the one chain, always.** This used to be a flag, and without it the emitter wrote a
+    standalone `chain.toml` under `--out` -- a chain `tools/loop.py` never walks, since it reads
+    `CHAIN` and nothing else. The whole point of this program is that a goal *on* the chain queues
+    its workset behind itself and `Chain.refresh()` walks into it without a restart, and a second
+    chain in a directory could only ever be a proposal somebody had to copy by hand.
 
     Regenerating is safe and is how the roster grows: a batch whose features are all complete is
-    left out entirely (`--all-groups` keeps them), so a second run after a hundred sessions writes
-    the chain that is *left*, not the one that was.
+    left out entirely (`--all-groups` keeps them), so a second run after a hundred sessions emits
+    the goals that are *left*, not the ones that were. Two properties make that safe, and both are
+    about a reference that has to stay good for the hundreds of sessions between emission and
+    arrival:
 
-    `--append-chain` writes the entries onto the end of a chain that already exists instead of a
-    standalone one, which is what lets a goal *on* that chain queue this program's whole workset
-    behind itself. Two things change when it is given, and both are about a reference that has to
-    stay good for the hundreds of sessions between emission and arrival:
-
-    * **The file names lose their ordinal.** `001-core-str.md` is the batch's position in *this*
-      emission, and a later one -- with complete groups dropped -- gives the same group a different
-      number and leaves the appended entry pointing at a file that is now some other group's. The
-      slug alone is stable, so re-emitting rewrites a goal's own three files in place and the chain
-      keeps pointing at them.
-    * **An entry already on the chain is never written twice**, and the ones that are appended are
-      numbered on from that chain's own last goal, because a chain is walked by position but a goal
-      is *named* by its number and `plan.py --check` reads that number off the name.
+    * **A file name is its slug, never its ordinal.** `001-core-str.md` would be the batch's
+      position in *this* emission, and a later one -- with complete groups dropped -- gives the
+      same group a different number and leaves the chain entry pointing at a file that is now some
+      other group's. The slug alone is stable, so re-emitting rewrites a goal's own three files in
+      place and the chain keeps pointing at them.
+    * **An entry already on the chain is never written twice**, and the ones appended are numbered
+      on from the chain's own last goal, because a chain is walked by position but a goal is
+      *named* by its number and `plan.py --check` reads that number off the name.
 
     `--dry-run` writes nothing at all and says what the emission would change, which is the form the
     emitting goal's own acceptance check takes: a check that appended the hundred entries itself
@@ -1767,10 +1773,10 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         out_dir.mkdir(parents=True, exist_ok=True)
     written: list[tuple[int, str, str]] = []
     where = rel(out_dir)                      # posix, and relative to the repository if it is inside
-    env = inherited_env(append_chain.resolve()) if append_chain else DEFAULT_ENV
+    env = inherited_env(CHAIN)
 
     for n, (label, members) in enumerate(batches, 1):
-        slug = (slugify(label)[:60] if append_chain else f"{n:03d}-{slugify(label)}"[:60])
+        slug = slugify(label)[:60]
         anchors = sorted({e.impl_file for e in members if e.impl_file})
         groups = sorted({e.group for e in members})
         # A group split across several goals gates on its own features and not on the class, or
@@ -1791,38 +1797,7 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         written.append((n, label, slug))
 
     owed_count = sum(len(m) for _, m in batches)
-    if append_chain:
-        return append_to_chain(append_chain, written, where, owed_count, size, dry_run,
-                               "[docker]" in env)
-    if dry_run:
-        print(f"dossier: --dry-run -- would write {len(written)} goals into {where}/ "
-              f"({owed_count} features owed, up to {size} per goal)")
-        return 0
-
-    chain = [
-        "# The dossier program's goal order, read by",
-        f"# Staged under {where}/. The loop walks one chain and one only -- append these to it",
-        "# with `--append-chain docs/agent/goals/chain.toml` to put them in front of a run.",
-        "#",
-        "# GENERATED by `python tools/dossier.py --emit-goals` -- do not hand-edit; re-run it.",
-        "# `docs/adr/0134-every-shipped-feature-owes-four-proofs.md` is why this program exists and",
-        "# `tools/dossier.py --help` is how it is driven. One entry per goal, in roster order:",
-        "# a goal is one group of features sharing an implementing file set, which is what keeps",
-        "# each `[context]` manifest small.",
-        "",
-    ]
-    for n, label, slug in written:
-        chain += chain_entry(n, label, where, slug)
-    (out_dir / "chain.toml").write_text("\n".join(chain), encoding="utf-8", newline="\n")
-
-    print(f"dossier: wrote {len(written)} goals into {where}/ "
-          f"({owed_count} features owed, up to {size} per goal)")
-    print()
-    # Staged, not live: the loop walks `docs/agent/goals/chain.toml` and nothing else, so an
-    # emission somewhere else is a proposal until it is appended to that one.
-    print("These are staged, not live. Put them in front of the run with:")
-    print("    python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml")
-    return 0
+    return append_to_chain(written, where, owed_count, size, dry_run, "[docker]" in env)
 
 
 #: `1 core-depth` -> 1. `plan.py` reads a goal's number off its name for the same reason -- the
@@ -1899,7 +1874,8 @@ ENV_TABLES = ("valgrind", "wsl", "docker")
 #: `goal-switch.py`'s own marker, restated here because a generated goal that lacks it stops the run.
 GOAL_SWITCH_MARKER = "# <<< goal-switch: floor checks are inserted below this line >>>"
 
-#: What a standalone chain gets: the key `goal-switch.py` insists on, and nothing invented.
+#: What a goal gets when the chain's last entry declares no environment of its own: the key
+#: `goal-switch.py` insists on, and nothing invented.
 DEFAULT_ENV = "[valgrind]\nskip = []\n"
 
 
@@ -1970,22 +1946,22 @@ def chain_entry(num: int, label: str, where: str, slug: str, docker: bool = Fals
     ]
 
 
-def append_to_chain(chain_path: Path, written: list[tuple[int, str, str]], where: str,
+def append_to_chain(written: list[tuple[int, str, str]], where: str,
                     owed_count: int, size: int, dry_run: bool, docker: bool) -> int:
-    """Put the emitted goals on the end of an existing chain, and say what changed.
+    """Put the emitted goals on the end of the chain, and say what changed.
 
     Idempotent by `md` path, which is what makes this safe to re-run: the goal that calls it has an
     acceptance check that runs it again, and a second call that appended the same hundred entries
     would leave a chain the driver walks twice.
     """
-    chain_path = chain_path.resolve()      # or `rel` cannot make it relative, and prints a \ path
+    chain_path = CHAIN
     if not chain_path.is_file():
-        print(f"dossier: --append-chain {rel(chain_path)} does not exist.")
+        print(f"dossier: {rel(chain_path)} does not exist -- there is no chain to append to.")
         return 1
     try:
         spec = tomllib.loads(chain_path.read_text(encoding="utf-8"))
     except tomllib.TOMLDecodeError as e:
-        print(f"dossier: --append-chain {rel(chain_path)} did not parse: {e}")
+        print(f"dossier: {rel(chain_path)} did not parse: {e}")
         return 1
 
     existing = spec.get("goal", [])
@@ -2017,8 +1993,7 @@ def append_to_chain(chain_path: Path, written: list[tuple[int, str, str]], where
     text = chain_path.read_text(encoding="utf-8")
     head = [
         "",
-        f"# The {added} goals below are GENERATED by `python tools/dossier.py --emit-goals "
-        f"--append-chain`",
+        f"# The {added} goals below are GENERATED by `python tools/dossier.py --emit-goals`",
         "# -- do not hand-edit them; re-run it. One goal is one group of features sharing an",
         "# implementing file set, which is what keeps each `[context]` manifest small, and each",
         "# owes ADR 0134's four proofs. The prose is the sibling `.md` under",
@@ -2413,12 +2388,12 @@ def main() -> int:
                     help="what the workers hit, collated for one batch fix")
     ap.add_argument("--clear", action="store_true",
                     help="with --findings: archive them under applied/ once the fix has landed")
-    ap.add_argument("--emit-goals", action="store_true", help="write the loop chain")
-    ap.add_argument("--out", default=str(GOALS_OUT), help="where --emit-goals writes")
-    ap.add_argument("--append-chain", metavar="CHAIN",
-                    help="with --emit-goals: append the goals to this existing chain instead of "
-                         "writing a standalone one, so a run already walking it continues into "
-                         "them. Idempotent -- an entry already on the chain is left alone")
+    ap.add_argument("--emit-goals", action="store_true",
+                    help="write one goal per group and append them to docs/agent/goals/chain.toml, "
+                         "so a run already walking it continues into them. Idempotent -- an entry "
+                         "the chain already names is left alone")
+    ap.add_argument("--out", default=str(GOALS_OUT),
+                    help="where --emit-goals writes the goal files the chain then points at")
     ap.add_argument("--dry-run", action="store_true",
                     help="with --emit-goals: write nothing, and say what the emission would change")
     ap.add_argument("--check-goals", action="store_true",
@@ -2503,8 +2478,7 @@ def main() -> int:
 
     if args.emit_goals:
         return emit_goals(entries, proofs, policy, skips, Path(args.out), args.per_goal,
-                          not args.all_groups, args.no_perf,
-                          Path(args.append_chain) if args.append_chain else None, args.dry_run)
+                          not args.all_groups, args.no_perf, args.dry_run)
 
     if args.gate:
         return gate(scope, proofs, policy, skips, scope_label(args))

@@ -104,8 +104,8 @@ gone wrong. It sits after goal 28 because it adds surface and 28 is the last ent
 and because `{keys, until}` needs the options bag goal 28 stage 2 lands.
 
 **Then the chain turns around.** [50 dossier](50-dossier.md) is the last hand-written entry and it writes
-no proof of its own: one session runs `python tools/dossier.py --emit-goals --append-chain
-docs/agent/goals/chain.toml`, which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
+no proof of its own: one session runs `python tools/dossier.py --emit-goals`,
+which puts [ADR 0134](../../adr/0134-every-shipped-feature-owes-four-proofs.md)'s
 whole roster — one goal per group of shipped features owing their four proofs — onto the end of *this*
 chain, and then spends the rest of the session on an **optimization pass aimed forward** rather than
 back: it is the only moment anyone holds all 93 generated goals at once and none of them has been walked,

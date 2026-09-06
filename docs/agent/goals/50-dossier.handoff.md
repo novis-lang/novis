@@ -6,7 +6,7 @@
 this goal's floor. There is no design to settle: ADR 0134 decided the four proofs (the goal prose links
 it; a handoff is copied to `docs/agent/` and its relative links would break),
 `tools/dossier.py` derives the roster from `nvs meta --json`, and
-`--append-chain` puts the goals it writes onto the end of the chain the driver is walking. The last sweep
+`--emit-goals` puts the goals it writes onto the end of the chain the driver is walking. The last sweep
 before this goal was written said **795 features, one of them complete, 93 goals over 794 owed** — read
 the numbers off your own run rather than trusting those.
 
@@ -17,8 +17,7 @@ the emission and takes minutes; **stage 3 is the goal** — an optimization pass
 has leverage, with the 93 generated files in front of you and none of them walked yet. Do not stop after
 stage 2 with headroom left.
 
-- [ ] **`cargo build --release -p nvs-cli`**, then
-      `python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml`. It prints what
+- [ ] **`cargo build --release -p nvs-cli`**, then `python tools/dossier.py --emit-goals`. It prints what
       it wrote and the goal range it appended.
 - [ ] **Read three or four of the generated `.toml`s** — one `Core` class, one `lang:` chapter, one
       `tools:` chapter. The three things to check are in `50-dossier.md`'s item list: the `[context]`

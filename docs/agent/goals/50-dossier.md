@@ -14,7 +14,7 @@ times.** Emission is stage 2 and takes minutes; stage 3 is the goal.
 
 ## The target
 
-    python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml
+    python tools/dossier.py --emit-goals
 
 One goal per group of features sharing an implementing file set, each with its own `[context]` manifest,
 each gated by `dossier.py --verify --group <G>`. As of the emission that motivated this goal that is
@@ -120,8 +120,8 @@ Nine costs eleven hours and buys nothing.
 
 **No ADR slot.** ADR 0134 is the decision and it is already written. The one thing this goal *did* decide
 is recorded in `docs/agent/commands.md` § the dossier: the emitter may now be fired by a session, because
-`--append-chain` and `Chain.refresh()` are what turn "then somebody restarts the driver" into "the run
-continues". Nothing else here is new design.
+appending to the live chain and `Chain.refresh()` are what turn "then somebody restarts the driver" into
+"the run continues". Nothing else here is new design.
 
 **Do not start the proofs.** The first `Core` class is goal 51's, with goal 51's manifest and goal 51's
 floor. A session that writes a few examples here spends the session's fixed cost twice for them. Stage 3

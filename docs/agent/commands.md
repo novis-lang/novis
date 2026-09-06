@@ -428,8 +428,8 @@ python tools/dossier.py --run hostile            # run every attack; the runtime
 python tools/dossier.py --bless <file.nvs>       # create an example's `.out` from what it prints
 python tools/dossier.py --record-perf --group G  # measure, append to docs/perf/members.ndjson
 python tools/dossier.py --no-perf …              # any of the above, with the perf proof switched off
-python tools/dossier.py --emit-goals             # write the unattended loop that produces what is owed
-python tools/dossier.py --emit-goals --append-chain docs/agent/goals/chain.toml   # ... onto a live chain
+python tools/dossier.py --emit-goals             # append the loop that produces what is owed to the chain
+python tools/dossier.py --emit-goals --dry-run   # ... and say what that would change, writing nothing
 python tools/dossier.py --partition --group G    # cut a group into worker briefs, or refuse
 python tools/dossier.py --brief 'Core\Str::at'   # one feature's brief, as a worker is handed it
 python tools/dossier.py --findings [--clear]     # what the workers hit, collated for one batch fix
@@ -441,19 +441,20 @@ number; each tree's README owns what a file in it is ([examples](../examples/REA
 rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
 adding to a list when a feature lands.
 
-`--emit-goals` stages a whole chain under `docs/agent/goals/dossier/` and prints the command
-that starts it. **Deciding to run it is the user's**, like `doc-cleanup.md` and `dependency-update.md`,
-for the same reason: it decides what several hundred sessions will do next. The user made that decision
-on 2026-09-04, and `--append-chain` is what it turned into — [goal 50](goals/50-dossier.md) is one
-session whose whole job is to fire the emitter at `docs/agent/goals/chain.toml`, so the roster's own
-goals land on the end of the chain the driver is already walking and the run continues into them without
-a restart. `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by
-`md` path, so goal 50's check re-runs it under `--dry-run` and passes only on *nothing appended*.
+`--emit-goals` writes one goal per group under `docs/agent/goals/dossier/` and **appends them to
+`docs/agent/goals/chain.toml`** — the one chain, always, because that is the only file `loop.py` walks
+and an emission anywhere else would be a chain nothing reads. **Deciding to run it is the user's**, like
+`doc-cleanup.md` and `dependency-update.md`, for the same reason: it decides what several hundred
+sessions will do next. The user made that decision on 2026-09-04, and [goal 50](goals/50-dossier.md) is
+what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
+on the end of the chain the driver is already walking and the run continues into them without a restart.
+`Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by `md` path,
+so goal 50's check re-runs it under `--dry-run` and passes only on *nothing appended*.
 
 Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
-writes the chain that is left rather than the one that was. With `--append-chain` the generated files
-drop their ordinal prefix — `core-str.md`, not `001-core-str.md` — because a later emission renumbers,
-and an entry already on a chain must keep pointing at its own group's files.
+appends the goals that are left rather than the ones that were. The generated files carry no ordinal
+prefix — `core-str.md`, not `001-core-str.md` — because a later emission renumbers, and an entry already
+on the chain must keep pointing at its own group's files.
 
 `--partition` is the one place in this repository where a session hands **writing** to subagents. The rule
 in [session-prompt.md](session-prompt.md) — a subagent searches and never writes — holds everywhere else,

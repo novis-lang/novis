@@ -68,8 +68,7 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 kind = "command"
 stage = "2 the emission"
 name = "dossier: the chain already names every emitted goal"
-argv = ["python", "tools/dossier.py", "--emit-goals",
-        "--append-chain", "docs/agent/goals/chain.toml", "--dry-run"]
+argv = ["python", "tools/dossier.py", "--emit-goals", "--dry-run"]
 want = ["already names every one of them -- nothing appended"]
 
 # The chain is the schedule and the plan's `Carried by` cells are derived from it, so a hundred new

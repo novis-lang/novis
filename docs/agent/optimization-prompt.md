@@ -97,7 +97,7 @@ nothing to do and says so is a successful pass, and by far the cheapest one.
    that wrote `docs/agent/loop-goal.toml`, and one of the findings above lands in a file that command
    produced. *Action:* fix the emitter, re-run its command, commit the regenerated tree. *Gate:* the
    emitter's own check passes — `python tools/dossier.py --check-goals` is the dossier's — and re-running
-   the emission changes nothing (`--emit-goals --append-chain … --dry-run` appends nothing).
+   the emission changes nothing (`--emit-goals --dry-run` appends nothing).
    **Never hand-edit a generated goal.** The next emission discards the edit, and the defect is in every
    goal that command wrote rather than the one the warning fired on, so a hand-edit is both lost and
    incomplete. This is the one item where the fix is further away than the file the signal named, and it is
