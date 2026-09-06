@@ -114,6 +114,11 @@ pub(crate) fn run(
         crate::render_diagnostics(&mut diags, &sources);
     }
 
+    // ADR 0131 § 4's orphan sweep, the moment the root is knowable and long
+    // before a socket exists. [`sweep_orphans`] owns why it is here, why no
+    // other subcommand does it, and why nothing it finds can refuse this start.
+    sweep_orphans(&snapshot.config);
+
     // Both halves of § 5 this loop can keep today. Neither can refuse here in
     // practice — `nvs_config::server::validate` is the boot pass and it ran
     // above — but a resolution reported twice is better than one swallowed,
@@ -649,6 +654,41 @@ impl nvs_server::Fires for Scheduled {
     }
 }
 
+/// [ADR 0131] § 4's orphan sweep — one of the two places in the product that
+/// runs it, and the reason a hard-killed script's leftovers ever go away.
+///
+/// **Boot, and no other invocation.** A `nvs run` does not sweep and neither
+/// does any other subcommand: taxing every CLI start with a walk of the root to
+/// insure against a rare hard kill prices the common case for the exceptional
+/// one. The deliberate consequence, which § 4 states rather than regrets, is
+/// that a machine where no server ever boots keeps a killed script's directory
+/// until an operator runs `nvs tmp clean`.
+///
+/// **Before traffic, and as early as the root is knowable.** It sits with the
+/// configuration rather than with the mounts because the owned root is the
+/// host's and not the application's — nothing it deletes belongs to a program
+/// this boot is about to compile, and a boot that goes on to fail has still done
+/// no harm, since the predicate is liveness and a live owner's entry is never
+/// touched ([`nvs_runtime::sweep::orphans`]).
+///
+/// **It cannot refuse the start.** Every failure here is a log line: a root that
+/// cannot be listed is nothing to sweep, and a deletion the platform refuses —
+/// on Windows, routinely a handle an indexer is holding — leaves the entry
+/// standing for the next boot to try again. A server that would not start
+/// because a stale directory could not be removed is the outage this sweep
+/// exists to avoid, not one it may cause.
+///
+/// [ADR 0131]: /docs/adr/0131-a-temporary-directory-dies-with-its-script-and-the-sweep-never-throws.md
+fn sweep_orphans(config: &nvs_config::Config) {
+    let root = nvs_runtime::capability::temp_root(Some(config));
+    for (path, error) in nvs_runtime::sweep::refusals(nvs_runtime::sweep::orphans(&root)) {
+        eprintln!(
+            "note: a leftover temporary directory could not be removed: {} ({error})",
+            path.display()
+        );
+    }
+}
+
 /// ADR 0097 § 4's one row for a tree that mounts nothing: the file named on the
 /// command line, mounted at `/`, with the directory it sits in as the mount
 /// root.
@@ -743,11 +783,70 @@ fn report(diagnostic: nvs_diagnostics::Diagnostic, sources: &SourceMap) -> ExitC
 
 #[cfg(test)]
 mod tests {
-    use super::{Listen, SocketAddr, address};
+    use super::{Listen, SocketAddr, address, sweep_orphans};
     use std::path::PathBuf;
 
     fn tcp(written: &str) -> Listen {
         Listen::Tcp(written.parse::<SocketAddr>().expect("a literal address"))
+    }
+
+    /// The typed tree one written block deserializes into — the boot reads a
+    /// `Config` and this command's own resolution needs a file on disk, which a
+    /// case about one key should not have to lay out.
+    fn config_of(written: &str) -> nvs_config::Config {
+        written
+            .parse::<toml::Table>()
+            .expect("the case writes valid TOML")
+            .try_into()
+            .expect("the case writes a block this tree has")
+    }
+
+    /// ADR 0131 § 4's boot sweep, asserted from both directions in one case
+    /// because the sweep has exactly one way to be wrong in each.
+    ///
+    /// The dead owner's entry going is the feature. The live owner's entry
+    /// **and its contents** staying is the invariant — an age rule, a looser
+    /// name parse or a liveness question answered the wrong way round all
+    /// delete a running process's directory out from under it, and § 4 allows
+    /// under-deleting and never the reverse. The operator's own directory is
+    /// the third: this walk is over a root Novis owns, but it still does not
+    /// touch a name it did not write.
+    #[test]
+    fn serve_boot_removes_a_dead_owners_entry_and_skips_a_live_one() {
+        let root = std::env::temp_dir().join(format!("nvs-serve-sweep-{}", std::process::id()));
+        // Above every platform's pid ceiling, so no process can be holding it
+        // and the answer is not a race with anything this machine is running.
+        let dead = root.join(format!("nvs-{}-0123456789abcdef", i32::MAX - 1));
+        let live = root.join(format!("nvs-{}-0123456789abcdef", std::process::id()));
+        let theirs = root.join("notes");
+        for path in [&root, &dead, &live, &theirs] {
+            std::fs::create_dir_all(path).expect("the platform root is writable");
+        }
+        let held = live.join("still-in-use");
+        std::fs::write(&held, b"a live owner's file").expect("the case writes into its own entry");
+
+        sweep_orphans(&config_of(&format!(
+            "[io]\ntemp_root = '{}'\n",
+            root.display()
+        )));
+
+        assert!(
+            !dead.exists(),
+            "the owner of {} is gone, so the boot reclaims it",
+            dead.display()
+        );
+        assert!(
+            held.is_file(),
+            "this process is alive, so {} is untouchable — contents and all",
+            live.display()
+        );
+        assert!(
+            theirs.is_dir(),
+            "a name this runtime never wrote is not the sweep's to delete: {}",
+            theirs.display()
+        );
+
+        std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
     /// ADR 0097 § 5's own sentence: the flag overrides the file. Asserted
