@@ -126,10 +126,12 @@ and the manifest is not an optimisation you redo, it is the goal's own definitio
 read. Write it once, let the sessions correct it, and the rest applies itself.
 
 **One thing does drift on its own**: the pack's fixed floor. `playbook.md` is append-mostly by decision, so
-every trap a session writes down is charged to every session after it. Over one 39-session run it grew 61%
-and pulled `ctx_start` up by 5.3k tokens — which, re-billed on ~98 turns, is about half a million tokens a
-session. The fix is not to trim the playbook; it is to name **bullets** rather than sections in `[context]
-playbook` when a new goal only needs a few. `python tools/orient.py --audit` prices both.
+every trap a session writes down is charged to every session after it. Three things hold that down — a
+bullet's shape and weight ([conventions.md](conventions.md) § *A playbook bullet*; the wrap refuses a new
+one past 700 bytes), the `[until:]` trailer the wrap retires bullets by, and `orient.py`'s cap on how many
+print whole — but the manifest is still the lever a goal author holds: name **bullets** rather than
+sections in `[context] playbook` when a new goal only needs a few. `python tools/orient.py --audit`
+prices both.
 
 ## 3. A goal is a stop condition, or it is not a goal
 

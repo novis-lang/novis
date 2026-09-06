@@ -2,15 +2,16 @@
 """Pick the playbook bullets a goal actually needs, and report the ones that have gone stale.
 
 `docs/agent/playbook.md` is append-mostly by decision -- every trap a session writes down is
-charged to every session after it -- and it has grown accordingly: **501 KB in 670 bullets** across
-six sections, from 47 KB in 86 when this script was written. It is the single largest thing
-`orient.py` ships. Run `--check` for the live figures; a number quoted in prose is stale the week
-after it is written, which is why the two above are dated by that contrast rather than trusted.
+charged to every session after it -- and three things bound what that costs. A bullet has a shape
+(docs/agent/conventions.md § *A playbook bullet*: three sentences, about 400 B) and a weight
+`session.py --wrap` refuses past its `PLAYBOOK_BULLET_MAX`; every bullet declares what retires it,
+and the wrap deletes it the day that holds; and `orient.py` slices the file twice -- by the goal's
+`[context] playbook`, then again by the paths the session's own item names -- so an entry there
+may name **one bullet** rather than a section: `"Tooling > a whole decision record"`. Run `--check`
+for the live figures; a number quoted in prose is stale the week after it is written.
 
-The fix is not to split the file and not to trim it. `orient.py` slices it twice -- by the goal's
-`[context] playbook`, then again by the paths the session's own item names -- and an entry there
-may name **one bullet** rather than a section: `"Tooling > a whole decision record"`. What was missing is any
-cheap way to decide *which* bullets a given file set implies. That is this script.
+What was missing is any cheap way to decide *which* bullets a given file set implies. That is this
+script.
 
     python tools/playbook.py                       # every section and bullet, one line, with sizes
     python tools/playbook.py --show <selector>     # one bullet or section, as orient.py prints it
@@ -170,12 +171,10 @@ PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 #:
 #: Add an entry only after reading the bullet and recording the finding in `.loop/optimization/`.
 #: An entry naming a bullet that no longer exists is reported rather than ignored.
-DELIBERATE_STALE = {
-    ("Tooling > instaforceupdate=1 rewrites", "crates/nvs-ir/src/lower.rs"):
-        "the `source:` header the snapshots still carry from before the split -- the stale header "
-        "IS the trap",
-    ("Writing a test case > a live-server", "crates/nvs-db/tests/queue.rs"):
-        "the wrong home a stage 8 item named; the case belongs at crates/nvs-stdlib/tests/queue.rs",
+DELIBERATE_STALE: dict[tuple[str, str], str] = {
+    # Empty since the 2026-09-06 condensation: the two bullets that quoted a gone path on purpose
+    # now state their trap without spelling the path. Add a pair here only when a bullet's whole
+    # subject IS a path that is gone, so `--check`'s stale-path signal can still reach `none`.
 }
 
 
