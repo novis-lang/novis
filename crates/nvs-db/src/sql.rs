@@ -115,7 +115,13 @@ impl Dialect {
     /// Whether `\` escapes the next byte inside a quoted run. MySQL's default,
     /// and nobody else's: PostgreSQL has `standard_conforming_strings` on, and
     /// SQLite and SQL Server never had it.
-    const fn backslash_escapes(self) -> bool {
+    ///
+    /// Read twice: by the rewriter below, which must not mistake an escaped
+    /// quote for the end of a string, and by [`crate::ddl`], which writes a
+    /// text default into DDL where there is no parameter to bind it through.
+    /// One judgement rather than two, because a value ending in `\` is exactly
+    /// where the two would disagree.
+    pub(crate) const fn backslash_escapes(self) -> bool {
         matches!(self, Dialect::MySql)
     }
 

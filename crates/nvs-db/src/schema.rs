@@ -43,8 +43,10 @@
 //!
 //! # Known gaps
 //!
-//! 1. **No emitters and no introspectors.** §§ 4 and 8 are the next two, and
-//!    both are `Dialect`-keyed and sans-io like everything else here.
+//! 1. **No introspectors.** § 4's five catalog readers are the next thing, and
+//!    they are sans-io like everything else here. § 8's four emitters have
+//!    landed beside this module, in [`crate::ddl`], keyed on `Dialect` rather
+//!    than on a driver.
 //! 2. **§ 11's exclusions are not represented and must not be added casually.**
 //!    Foreign keys, partial and expression indexes, index types, collations,
 //!    check constraints and the rest are out of v1 because they have no portable

@@ -161,6 +161,7 @@
 //! failing usefully when the servers are down.
 
 pub mod conn;
+pub mod ddl;
 pub mod maria;
 pub mod matrix;
 pub mod mysql;
