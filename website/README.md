@@ -113,9 +113,11 @@ a grey that merely leans cool: tint it toward the accent instead and it stops re
 neutral carrying an accent and starts reading as a colored page. The ramp's six steps land
 on Starlight's own lightnesses, which is what keeps the stock contrast ratios.
 
-The two themes lighten and darken the same four: the raw accent reads on the light ground
-(6.8:1) but not on the dark one (2.5:1), so the dark theme lifts it toward white and the
-light theme uses it as drawn. Caution and danger (`--nv-warn`, `--nv-danger`) are the two
+The two themes lighten and darken the same four. The light theme uses the accent as drawn;
+the dark theme has to lift it (`#b20038` is 2.4:1 on that ground), but lifts **lightness
+alone** — `oklch(from var(--nv-accent) 0.68 c h)`, keeping the crimson's own chroma and hue,
+because mixing toward white takes the chroma with it and gives back the rose instead of the
+accent. Caution and danger (`--nv-warn`, `--nv-danger`) are the two
 semantics the palette cannot carry and are the only colors outside it — a taint sink drawn
 in the accent's crimson is indistinguishable from a link. Every text token clears WCAG AA
 against the surface it is painted on, in both themes; keep it that way when adding one.

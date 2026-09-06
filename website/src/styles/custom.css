@@ -58,7 +58,15 @@
 
   /* --------------------------------- dark theme (Starlight's :root default) */
 
-  /* -low stays dark: Starlight uses it as the ink *on* an accent background. */
+  /* The accent has to gain lightness to be read here — #b20038 is 2.4:1 on the
+     ground — but mixing it toward white takes its chroma with it, and what
+     comes back is the rose rather than the accent. So the dark theme lifts
+     lightness alone and keeps the crimson's own chroma and hue: same color,
+     turned up. Below is the mix-toward-white fallback for a browser without
+     relative color syntax, overridden a few lines down by the real thing;
+     a custom property cannot fall back on its own, hence the @supports.
+     -low stays dark either way — Starlight uses it as the ink *on* an accent
+     background, and as the sidebar's current-page fill. */
   --sl-color-accent-low: color-mix(in oklab, var(--nv-accent) 55%, black);
   --sl-color-accent: color-mix(in oklab, var(--nv-accent) 85%, white);
   --sl-color-accent-high: color-mix(in oklab, var(--nv-accent) 48%, white);
@@ -100,6 +108,18 @@
   /* Selected text: the accent's own dark end, which nothing else uses as a
      background in this theme. */
   --nv-selection: var(--sl-color-accent-low);
+}
+
+/* The dark theme's accent, properly. 0.68 is the lowest lightness that carries
+   accent-colored text at 4.5:1 on a panel (5.5:1 on the page); -accent only
+   draws borders, outlines and fills, which need 3:1, so it stays nearer the
+   crimson as drawn. The light theme is untouched — it needs no lift, and its
+   `[data-theme]` selector outranks this one anyway. */
+@supports (color: oklch(from white l c h)) {
+  :root {
+    --sl-color-accent: oklch(from var(--nv-accent) 0.58 c h);
+    --sl-color-accent-high: oklch(from var(--nv-accent) 0.68 c h);
+  }
 }
 
 :root[data-theme='light'] {
