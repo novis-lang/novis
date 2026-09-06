@@ -845,7 +845,7 @@ def plan_citation_rewrites(remap: dict[str, str]) -> dict[Path, tuple[str, int]]
                 continue
             if rulebook.EXAMPLES_ONLY in text:
                 continue
-            new, hits = rewrite_citations(text, by_record, path.suffix == ".nvst")
+            new, hits = rewrite_citations(text, by_record, keep_line_breaks=True)
             if hits:
                 debris = find_rewrite_debris(new)
                 if debris:
@@ -889,12 +889,23 @@ def rewrite_citations(
 ) -> tuple[str, int]:
     """One file's worth of the rewrite above. Split out so it is testable without a tree.
 
-    `keep_line_breaks` is for `.nvst` only. Collapsing a citation's two lines into one is free
-    everywhere else, but a case file's expected output pins line numbers in `case.nvs` -- a
-    citation in a `//` comment inside a `--FILE--` block sits *above* the code the diagnostic
-    points at, so joining it shifts every `--> case.nvs:NN:CC` below it and the case fails for a
-    reason that has nothing to do with what it tests. B6 rolled back on exactly that. Here the
-    record becomes the rule token and the break is left standing, so the line count never moves.
+    `keep_line_breaks` is now always on, and the parameter survives only so the joining behaviour
+    stays testable. It arrived for `.nvst`, where a case's expected output pins line numbers in
+    `case.nvs`: a citation in a `//` comment inside a `--FILE--` block sits *above* the code the
+    diagnostic points at, so joining it shifts every `--> case.nvs:NN:CC` below it and the case
+    fails for a reason that has nothing to do with what it tests. B6 rolled back on exactly that.
+
+    "Collapsing two lines into one is free everywhere else" is what that fix assumed, and B13
+    falsified it. **A goal manifest pins `file.rs:NN` anchors too**, and `orient.py` excerpts a
+    window around each one. Join a citation twenty lines above the anchor and every line below it
+    slides up, so the window shows neighbouring code instead -- the goal quietly loses the lines it
+    was pointed at, with nothing wrong in the file itself. That is gate check 3's `lost adr:0058`
+    and `lost adr:0078`: both were bare mentions in excerpts that had drifted out of frame, in
+    files this topic never even remapped those records in.
+
+    So the rule is simply that a rewrite never changes a line count, anywhere. The cost is a
+    citation that keeps its break and reads a little oddly across two lines; the alternative is
+    every `file:NN` anchor in the repository silently decaying as the migration proceeds.
     """
     hits = 0
     for record, sections in by_record.items():
@@ -915,13 +926,21 @@ def rewrite_citations(
             # whose § 7 belongs to another topic, is meant to be left whole; instead it lost its
             # link. Refusing to give the URL back means the whole citation matches or none of it.
             rf"(?:\([^)]*\))?+"
-            rf"(?:(?P<gap>{SECTION_GAP})§+[ \t]*(?P<sections>{SECTION_LIST}))?"
+            # A record with no numbered sections is cited by section *name*, and prose introduces
+            # that with a comma rather than a `§`: `[ADR 0006](…), *Alternatives rejected*`. Seeing
+            # only the `§` spelling, the rewriter took the link as a bare-record citation, replaced
+            # it, and stranded `, *Alternatives rejected*` behind the rule token -- pointing a
+            # reader at a section of a chapter that has none. `DEBRIS` caught it and refused B13.
+            # The comma form is restricted to a *named* section on purpose: allowing a bare number
+            # after a comma would read `see ADR 0006, 12 sites later` as a citation of § 12.
+            rf"(?:(?P<gap>{SECTION_GAP})(?:§+[ \t]*(?P<sections>{SECTION_LIST})"
+            rf"|,[ \t]*(?P<named>\*[^*\n]+\*)))?"
             rf"(?!{SECTION_GAP}§)"
         )
 
         def substitute(match: re.Match[str]) -> str:
             nonlocal hits
-            ids = resolve_sections(match.group("sections"), sections)
+            ids = resolve_sections(match.group("sections") or match.group("named"), sections)
             if ids is None:
                 return match.group(0)
             hits += 1
@@ -929,11 +948,21 @@ def rewrite_citations(
             out = tokens[0] if len(tokens) == 1 else ", ".join(tokens[:-1]) + " and " + tokens[-1]
             gap = match.group("gap") or ""
             if keep_line_breaks and "\n" in gap:
-                # Put the break and its comment marker back. Its trailing indent goes only when
-                # the prose that followed the `§` brings its own space, so `§ 2 says` does not
-                # come back as `//  says` and `§ 2's` does not come back as `//'s`.
+                # Put the break and its comment marker back with the indent *exact*, because a
+                # doc comment's indent is load-bearing and clippy checks it both ways. Stripping
+                # the indent whenever the following prose brought its own space un-indented a
+                # numbered list's continuation line -- `doc list item without indentation`. Keeping
+                # the whole gap then over-indented the same line by one, because the tail's own
+                # space is still there -- `doc list item overindented`. Both refused the build at
+                # `crates/nvs-host/src/tls.rs:70`. So the tail's separator counts toward the indent
+                # and the gap gives back exactly one space, which reproduces the original column.
                 tail = match.string[match.end() :]
-                out += gap.rstrip(" \t") if tail[:1] in (" ", "\t") else gap
+                if tail[:1] in ("", "\n", "\r"):
+                    out += gap.rstrip(" \t")  # nothing follows: kept space would be trailing space
+                elif tail[:1] in (" ", "\t") and gap[-1:] in (" ", "\t"):
+                    out += gap[:-1]  # the tail brings the separator; give back one, indent is exact
+                else:
+                    out += gap
             return out
 
         text = cite.sub(substitute, text)
