@@ -2728,8 +2728,9 @@ class Goal:
         this leg exists to catch is a calling-convention divergence in the JIT or a leak in the
         refcount protocol, and both of those show up through the CLI.
 
-        This was `tools/wsl-acceptance.sh`, and it is a method rather than a shell script because
-        that script carried its own frozen copy of every fixture's expected output. A second copy
+        This was `tools/wsl-acceptance.sh` (check-links:retired), and it is a method rather than
+        a shell script because that script carried its own frozen copy of every fixture's expected
+        output. A second copy
         of a frozen list drifts, and that one had: by the time the two were run side by side it was
         seven fixtures and seven valgrind targets behind `loop-goal.toml`, while its own header
         still said it ran "the same commands". `WslLeg` also already solves the quoting the script
@@ -4821,8 +4822,9 @@ def drive(opts, goal, chain):
 # `docs/agent/optimization-prompt.md` is the pass that reverses it; `checkpoint` decides when to
 # spend a session on one, and `settle` decides whether what it committed may stay.
 #
-# This was `tools/loop-supervisor.py` until it was merged in here. It was never run without the
-# driver and the driver was never run without it, and the split cost three things that are now
+# This was `tools/loop-supervisor.py` (check-links:retired) until it was merged in here. It was
+# never run without the driver and the driver was never run without it, and the split cost three
+# things that are now
 # gone: a second argparse whose defaults had to be kept equal to this one's by hand, a console
 # that went dead between legs -- `s`, `p` and `r` did nothing through a checkpoint or a whole
 # optimization session, because nothing up there ever called `CONTROL.enable()` -- and a

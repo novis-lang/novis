@@ -752,16 +752,24 @@ def scanned_files() -> list[Path]:
     files = checklinks.tracked_files([])
     done = git("ls-files", "--others", "--exclude-standard", check=False)
     if done.returncode == 0:
-        exts = checklinks.DOC_EXTS + checklinks.SOURCE_EXTS
+        exts = checklinks.DOC_EXTS + checklinks.SOURCE_EXTS + checklinks.MENTION_EXTS
         files += [ROOT / ln for ln in done.stdout.split("\n") if ln and Path(ln).suffix in exts]
     return files
 
 
 def inherited_links(rel: str, paths: set[str]) -> set[str]:
-    """The link targets already dead in `rel` at HEAD, which are not this session's to answer."""
+    """The link targets already dead in `rel` at HEAD, which are not this session's to answer.
+
+    The branch mirrors `checklinks.check`, and has to: a `.py` file is scanned for bare path
+    mentions and never for link syntax, so reading its HEAD text as markdown would find none of
+    them, hand back an empty baseline, and charge this session for every stale mention it
+    inherited -- the exact over-refusal `link_findings` is written to avoid.
+    """
     done = git("show", f"HEAD:{rel}", check=False)
     if done.returncode != 0:
         return set()  # the file is new in this session, so every finding in it is new too
+    if Path(rel).suffix in checklinks.MENTION_EXTS:
+        return {t for _line, t, _kind in checklinks.dead_mentions(done.stdout)}
     source = Path(rel).suffix in checklinks.SOURCE_EXTS
     return {target for _line, target, _kind in checklinks.findings_in(
         done.stdout, source, (ROOT / rel).parent, in_tree(paths))}

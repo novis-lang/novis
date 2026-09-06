@@ -2,10 +2,10 @@
 """Report links in this repository that do not resolve, that name a file whose case does not match
 the one on disk, or that are written in the wrong form for the file they sit in.
 
-    python tools/check-links.py            # every tracked .md, .rs, .nvs and .nvst file
+    python tools/check-links.py            # every tracked .md, .rs, .nvs, .nvst and .py file
     python tools/check-links.py docs/decisions   # only under these paths
 
-**A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `adr.py --check`.**
+**A gate: it exits non-zero on any finding, and CI's `docs` job runs it beside `records.py --check`.**
 `tools/session.py --wrap` runs the same checker in-process, against the tree and against the bodies it
 is about to write, so a session is refused at the moment it would commit a link it broke rather than
 told about it by CI after the push. It
@@ -33,10 +33,14 @@ rule -- the one home for it is `docs/agent/conventions.md` § *Citing a document
     an ADR no longer had -- none of them reported by anything, because a `../` prefix encodes the
     *citing* file's depth and a moved module silently invalidates every one it carries.
 
-`.py` is deliberately outside this gate: `tools/` emits markdown, so a link in a string literal there
-is relative to the *generated* file and resolves from nowhere on disk.
+`.py` is scanned for one thing only, and it is not link syntax: a **bare path mention**. `tools/`
+emits markdown, so a link in a string literal there is relative to the *generated* file and resolves
+from nowhere on disk -- checking those would be wrong in both directions. But a tool's prose names
+repository paths constantly, and nothing looked at them until this check existed, which is how
+`rules.py` went on citing a `docs/agent/docs-migration.md` (check-links:retired) that had
+deleted itself. See `dead_mentions`.
 
-Four kinds of finding:
+Five kinds of finding:
 
 *missing*  the target does not exist.
 
@@ -49,6 +53,10 @@ Four kinds of finding:
 *relative* a source file wrote `../docs/…` where the root-absolute form belongs.
 
 *absolute* a markdown file wrote `/docs/…`, which resolves to the site root on GitHub and 404s.
+
+*retired*  a `.py` file's prose names a repository path that is not on disk. A line that names a
+           deleted file on purpose carries `check-links:retired` and is passed over — the marker
+           goes on the line the path is on, since the check reads one line at a time.
 
 Two link shapes in a source file are not paths and are skipped: a rustdoc intra-doc link naming an
 item (`[the store](Cache::store)`, `[CLASS]`) has no `/` in it, and a link to a rustdoc page
@@ -91,6 +99,28 @@ SKIP_SCHEMES = ("http://", "https://", "mailto:", "ftp://", "data:", "#")
 DOC_EXTS = (".md",)
 # Rendered by nothing: links are absolute from the repository root. See the docstring.
 SOURCE_EXTS = (".rs", ".nvs", ".nvst")
+# Scanned for *bare path mentions* only, never for link syntax. See `dead_mentions`.
+MENTION_EXTS = (".py",)
+
+#: The top-level directories a mention is anchored to. Anchoring is what makes this cheap and
+#: exact: a bare `docs/agent/handoff.md` in a tool's prose is unambiguous, while an unanchored
+#: `mod.rs` or `README.md` would match a hundred files and mean none of them.
+MENTION_TOPS = ("docs", "crates", "tools", "tests", "benches", "examples", "editors", "fuzz",
+                "website")
+MENTION_RE = re.compile(
+    r"\b(?:" + "|".join(MENTION_TOPS) + r")/[A-Za-z0-9_./-]*"
+    r"\.(?:md|rs|py|toml|json|nvs|nvst|sh|yml|yaml|mjs)\b"
+)
+#: A mention that is a *shape* rather than a path: `docs/decisions/NNNN.md`, `docs/plan/mN.md`,
+#: `docs/rules/<topic>.md`, an f-string's `{topic}`. None of these is on disk and none is meant
+#: to be, so matching them would make the check unusable rather than strict.
+MENTION_PLACEHOLDER = re.compile(r"NNNN|\bmN\b|<|\{|\*|\?")
+#: A line that names a file this repository deliberately no longer has -- "this was
+#: `tools/loop-supervisor.py` until it was merged in here" (check-links:retired) -- carries this
+#: marker, and the check passes over it. The spelling matches `tools/rules.py`'s
+#: `rules-py:examples`, which is the same idea for the same reason: a document that *talks about*
+#: a token is not citing it.
+MENTION_RETIRED = "check-links:retired"
 
 
 def tracked_files(paths):
@@ -107,7 +137,7 @@ def tracked_files(paths):
     except (subprocess.CalledProcessError, OSError):
         # No git, or not a checkout: fall back to walking the tree, minus the build output.
         files = [p for p in ROOT.rglob("*") if p.is_file() and "target" not in p.parts]
-    files = [f for f in files if f.suffix in DOC_EXTS + SOURCE_EXTS]
+    files = [f for f in files if f.suffix in DOC_EXTS + SOURCE_EXTS + MENTION_EXTS]
 
     if not paths:
         return files
@@ -177,6 +207,33 @@ def resolve_on_disk(base, target):
     return None
 
 
+def dead_mentions(text):
+    """Yields (line number, path, "retired") for each bare path mention that is not on disk.
+
+    A tool's prose is dense with repository paths and none of them is a markdown link, so the link
+    machinery above never saw them -- which is how `tools/rules.py` went on naming
+    `docs/agent/docs-migration.md` (check-links:retired) for a week after that file deleted itself,
+    and how its `decision_link` kept describing a `docs/adr/NNNN-slug.md` layout that was gone.
+    Nothing reported either one, because a `.py` file is outside every gate this repository has.
+
+    This is deliberately *not* the link check applied to Python. A link in a tool is usually being
+    **emitted** -- `../decisions/0067.md`, written into a generated page -- so it resolves from the
+    page rather than from `tools/`, and checking it there would be wrong in both directions. A bare
+    mention has no such ambiguity: it is prose, it is anchored at a top-level directory, and either
+    the file is there or the sentence is stale. Two lines in the tree legitimately name a file that
+    is gone, both in the past tense, and both carry `MENTION_RETIRED`.
+    """
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        if MENTION_RETIRED in line:
+            continue
+        for m in MENTION_RE.finditer(line):
+            target = m.group(0)
+            if MENTION_PLACEHOLDER.search(target):
+                continue
+            if not (ROOT / target).exists():
+                yield lineno, target, "retired"
+
+
 def check(path):
     """Yields (line number, target, kind) for each finding in one file.
 
@@ -185,6 +242,9 @@ def check(path):
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
+        return
+    if path.suffix in MENTION_EXTS:
+        yield from dead_mentions(text)
         return
     yield from findings_in(text, path.suffix in SOURCE_EXTS, path.parent)
 
