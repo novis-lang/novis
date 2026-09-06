@@ -1,6 +1,6 @@
 //! The declaration checks that need only the AST: identifier casing
 //! ([ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md),
-//! tightened by [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md))
+//! tightened by `rule:classes/no-leading-underscore-identifiers`)
 //! and the visibility
 //! [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
 //! requires at every member declaration. Each is checked directly off the
@@ -91,7 +91,7 @@ fn span_text(src: &SourceFile, span: Span) -> &str {
 }
 
 // ============================================================================
-// Pattern checks — ADR 0029's table, ADR 0030's zero-exception tightening
+// Pattern checks — ADR 0029's table, `rule:classes/no-leading-underscore-identifiers`'s zero-exception tightening
 // ============================================================================
 
 /// Exactly [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md)

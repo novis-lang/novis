@@ -10,7 +10,7 @@
 //! # What lowers today
 //!
 //! Whole-program: [`lower::lower_file`] walks a file, [`lower::lower_method`]
-//! one method, [`lower::lower_property_hook`] one ADR 0014 accessor, and
+//! one method, [`lower::lower_property_hook`] one `rule:classes/property-observer` accessor, and
 //! [`lower::lower_script`] a file's own top-level statements as one synthesized
 //! frame of ordinary locals with no receiver (`rule:statements/storage-that-outlives-a-call`), returning
 //! [`ty::Ty::Tagged`] because that is what `rule:statements/require-is-the-only-inclusion-construct` types a `require`'s result.
@@ -80,7 +80,7 @@
 //!   value out of storage another binding still owns — [`lower::is_aliasing_read`]
 //!   names the three shapes, and `Lowering::aliasing_read` is the judgment
 //!   every decision actually goes through, because two of them are not
-//!   syntactic: an ADR 0014 `get` hook is a call, and a field or element read
+//!   syntactic: an `rule:classes/property-observer` `get` hook is a call, and a field or element read
 //!   whose *base* is a temporary owns its own result — and copying it into a second
 //!   durable slot needs a retain; a freshly constructed value needs none,
 //!   since it already has one natural owner. A slot's previous value is released when overwritten,
@@ -387,7 +387,7 @@
 //!     truthiness, and both directions of every conversion. What is left is the
 //!     spaceship operator, which has no `decimal` row here and no `int` one
 //!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
-//!     scalar operand, and only ADR 0013's *object* form lowers. `**` is not a
+//!     scalar operand, and only `rule:classes/comparable`'s *object* form lowers. `**` is not a
 //!     gap: `rule:types/arithmetic` makes a `decimal` base a compile error, and
 //!     `nvs_types` reports it.
 //! 16. **A compound assignment inherits whatever its binary form is missing,
@@ -437,8 +437,7 @@
 //!     `finally`-owning region takes the unwind arm and runs exactly what
 //!     `return;` runs at that point. [`lower::generator::lower_generator`]
 //!     § *An abandoned generator runs its `finally`* owns the mechanism, and
-//!     [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-//!     § 2 records why it is not the destructor Novis does not have. What is
+//!     `rule:classes/no-destructors` records why it is not the destructor Novis does not have. What is
 //!     left is one divergence, and it is the runtime's: a release has no error
 //!     edge, so an exception a `finally` raises on that path is discarded
 //!     where PHP reports it uncaught —

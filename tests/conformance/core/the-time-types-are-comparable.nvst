@@ -1,8 +1,8 @@
 --TEST--
-`<`, `>`, `<=`, `>=` and `<=>` order two durations, instants, dates or clock readings, and agree with `compareTo` — ADR 0013 §§ 2-4, spec § 4
+`<`, `>`, `<=`, `>=` and `<=>` order two durations, instants, dates or clock readings, and agree with `compareTo` — `rule:classes/ordering-lowers-to-compare-to`, `rule:classes/comparable` and `rule:classes/comparable-is-same-class-only`, spec § 4
 --FILE--
 <?nvs
-// ADR 0013 § 2's rule reaches `Core` through the *member*: a `Core` class
+// `rule:classes/ordering-lowers-to-compare-to`'s rule reaches `Core` through the *member*: a `Core` class
 // writes no `implements` clause, so `nvs_stdlib::registry::implements_comparable`
 // reads the `compareTo` row instead and `nvs_types::core_lib` seeds the
 // conformance the operator asks for. Spec § 4 gives all four of these types

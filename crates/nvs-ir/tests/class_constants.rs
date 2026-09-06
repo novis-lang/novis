@@ -1,4 +1,4 @@
-//! ADR 0011's class constant on a **user-declared** class, lowered: a read of
+//! `rule:classes/no-free-functions-or-constants`'s class constant on a **user-declared** class, lowered: a read of
 //! one is the constant instruction its value folded to, with no storage, no
 //! descriptor and no call.
 //!

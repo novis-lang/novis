@@ -107,7 +107,7 @@ else is admitted as `T`: a scalar or an `array<mixed>` is what `decode` already 
 
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when its
 `Name` **resolves** — through the ordinary namespace and `use` rules, case-sensitively per
-[ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) — to one of a **closed, `Core`-owned list**.
+`rule:classes/names-resolve-case-sensitively` — to one of a **closed, `Core`-owned list**.
 So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute, reached two ways. An import binds the
 whole short name and is never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` is not
 one of those two ways: a qualified name is absolute
@@ -159,7 +159,7 @@ beside it is redundant but accepted, exactly as any other route to the same inte
   Declaration order fixes encode order, so output is byte-deterministic across runs and machines, which
   matters for ETags, caching and test fixtures.
 - **Every non-skipped field must also be a constructor parameter of the same name and the same type.**
-  [ADR 0022](0022-definite-property-initialization.md) guarantees every class has exactly one nameable
+  `rule:classes/definite-property-initialization` guarantees every class has exactly one nameable
   constructor, and for a class written with promoted parameters — the normal case, and the one above — the
   two lists are literally the same declaration, so this costs nothing. Where they differ, the derive is a
   **compile error at the attribute**, naming the property and which half is missing.
@@ -167,9 +167,9 @@ beside it is redundant but accepted, exactly as any other route to the same inte
   then calls the constructor. Nothing bypasses it, so a decoded object is indistinguishable from a
   hand-built one and every invariant the constructor establishes still holds. This is the whole reason the
   constructor-parameter requirement above is worth its cost: the alternative is
-  [ADR 0022](0022-definite-property-initialization.md) § 3's constructor-bypassing instantiation on every
+  `rule:classes/an-unwritten-property-read-throws`'s constructor-bypassing instantiation on every
   decode, which is a `Core\Reflect` operation for a reason.
-- **`lateinit` ([ADR 0038](0038-lateinit-property-modifier.md)) cannot be a field** — it is by definition
+- **`lateinit` (`rule:classes/lateinit`) cannot be a field** — it is by definition
   not constructor-assigned. It must be skipped in writing, or the derive is an error naming that ADR.
   `readonly` is unaffected: the constructor assigns it like any other.
 - **A field's type must be codec-reachable**: a scalar, `Duration`/`Instant`/`Date`/`TimeOfDay`/`Uuid`/
@@ -263,7 +263,7 @@ standing preference for a hard error over a suppressed one).
 - **`#[Db\Derive]` is one-directional.** `Core\Db\Codec` declares `fromRow` only; there is no `toRow`,
   because a write is [ADR 0067](0067-core-db.md)'s explicit statement plus bound parameters, and generating
   an `INSERT` is the ORM that ADR settled against.
-- **`Core\Serialize` gets nothing** ([ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)). It is the
+- **`Core\Serialize` gets nothing** (`rule:classes/two-copy-depths`). It is the
   user-facing half of the one graph-copy operation the `spawn` boundary already runs: it handles every
   object with no per-class opt-in, preserves identity and cycles, and is not a declared wire contract at
   all. A derive for it would be a second, weaker path to an operation that already works —
@@ -350,7 +350,7 @@ derive attribute pays nothing at all, including no pass.
 - **Generate by constructing the object directly, bypassing the constructor** (what serde does, because Rust
   structs have no constructors). Rejected: it makes every decoded object one that never ran its class's
   invariants, and it would promote
-  [ADR 0022](0022-definite-property-initialization.md) § 3's deliberately narrow `Core\Reflect` bypass into
+  `rule:classes/an-unwritten-property-read-throws`'s deliberately narrow `Core\Reflect` bypass into
   a hot path.
 - **Derive from the constructor's parameter list alone**, without requiring matching properties. Rejected:
   the encoder then has nothing to read for a non-promoted parameter, and the two halves would be derived
@@ -391,7 +391,7 @@ be generic over the format rather than one interface per format.
 - **M4** (checker, alongside the `#[...]` grammar): the nominal-match rule — a userland `type Derive = {};`
   attached to a class generates nothing, `#[Core\Json\Derive]` and a `use Core\Json\Derive;`-ed
   `#[Derive]` are the same attribute, `#[JSON\Derive]` is a casing diagnostic naming
-  [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md), and a bare `#[{}]` triggers no derive.
+  `rule:classes/names-resolve-case-sensitively`, and a bare `#[{}]` triggers no derive.
 - **M4S:** the derive's compile errors, one fixture each — a property that is not a constructor parameter, a
   parameter whose type differs from its property's, a `lateinit` field, a `secret` field, a field of a type
   with no codec, a skipped parameter with no default, and a class that hand-writes both halves.

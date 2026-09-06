@@ -40,7 +40,7 @@
 ## Context
 
 `Foo::class` arrived as a pure compile-time fold, and the reasoning behind that was sound for the
-sides it was written against. [ADR 0011](0011-functions-and-constants-are-class-members.md) removed
+sides it was written against. `rule:classes/no-free-functions-or-constants` removed
 `new $name` and `$name::m()`, so a class name has no dynamic destination to travel to; a name that
 resolves to nothing is therefore a typo with nowhere later to be caught, which is why `Bogus::class`
 is `E0303` here where PHP folds it to `"Bogus"` without complaint.

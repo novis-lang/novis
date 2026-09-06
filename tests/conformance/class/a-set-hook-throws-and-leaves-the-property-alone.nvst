@@ -1,5 +1,5 @@
 --TEST--
-a `set` hook that throws is an ordinary throw from the assignment, and the property keeps the value it had — ADR 0014 § 1
+a `set` hook that throws is an ordinary throw from the assignment, and the property keeps the value it had — `rule:classes/property-hooks`
 --FILE--
 <?nvs
 class Temp {

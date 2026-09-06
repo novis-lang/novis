@@ -1,5 +1,5 @@
 --TEST--
-A promoted constructor parameter is an ordinary property — declared, visible, inherited, and namable by an `implements … by $field` clause — ADR 0043 § 4, ADR 0022 § 2
+A promoted constructor parameter is an ordinary property — declared, visible, inherited, and namable by an `implements … by $field` clause — `rule:classes/delegation-by-field`, `rule:classes/definite-property-initialization`
 --FILE--
 <?nvs
 // `constructor(public int $n)` is exactly `constructor(int $n) { $this->n =
@@ -43,7 +43,7 @@ Tagged $a = new Tagged();
 Tagged $b = new Tagged("x", 9);
 echo $a->tag, $a->n, " ", $b->tag, $b->n, "\n";
 
-// ADR 0022 § 2 is discharged by construction: the class writes no assignment
+// `rule:classes/definite-property-initialization` is discharged by construction: the class writes no assignment
 // and needs none, and a subclass reaches the slot its parent promoted.
 class Base {
     public function constructor(public string $name) {}
@@ -61,7 +61,7 @@ class Kid extends Base {
 Kid $k = new Kid("ann", 4);
 echo $k->own(), "/", $k->name, "/", $k->age, "\n";
 
-// ADR 0043 § 4 bullet 1: "`$field` must be an ordinary declared property of
+// `rule:classes/delegation-by-field` bullet 1: "`$field` must be an ordinary declared property of
 // the class (or a promoted constructor parameter)". The delegate field below
 // is one, so `check_delegate_field` finds its type and the synthesized forward
 // finds its slot — through the class and through the interface alike.

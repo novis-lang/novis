@@ -802,7 +802,7 @@ impl Emitter<'_, '_> {
                 let (value, from) = self.value(*operand)?;
                 // An object-typed operand is a bare pointer, and a null one
                 // *is* Novis's `null` (`nvs_runtime::object`'s own decision).
-                // The one producer is `nvs_ir::lower`'s ADR 0022 § 3 guard,
+                // The one producer is `nvs_ir::lower`'s `rule:classes/an-unwritten-property-read-throws` guard,
                 // whose doc comment owns why a never-written `lateinit` slot
                 // is exactly this compare.
                 if from == Ty::Object {
@@ -2337,7 +2337,7 @@ impl Emitter<'_, '_> {
         let Some(ctor) = ctor else {
             // No constructor anywhere in the chain — `nvs_ir::lower` already
             // asserted the call site passed no arguments, so allocation is the
-            // whole of `new`. Every slot is `null`, which ADR 0022 makes
+            // whole of `new`. Every slot is `null`, which `rule:classes/definite-property-initialization` makes
             // unobservable.
             return Ok(cur);
         };

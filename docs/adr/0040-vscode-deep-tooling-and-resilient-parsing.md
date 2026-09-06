@@ -176,7 +176,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md));
   a legacy `(int)$x` cast offers "replace with `$x as int`" (`rule:types/no-legacy-cast`);
   a missing constructor property assignment offers to add it
-  ([ADR 0022](0022-definite-property-initialization.md)); `include`/`require_once` offer "replace with
+  (`rule:classes/definite-property-initialization`); `include`/`require_once` offer "replace with
   `require`" (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted`/`secret` value reaching a
   refusing sink offers the specific laundering call the diagnostic already names
   ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md)),

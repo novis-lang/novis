@@ -2,7 +2,7 @@
 An array survives a Core\Serialize round-trip with its keys, its gaps and its insertion order intact, exactly as PHP's serialize/unserialize pair leaves them
 --FILE--
 <?nvs
-// ADR 0023 § 2's copy over the array carrier. An array's identity in both
+// `rule:classes/graph-copy`'s copy over the array carrier. An array's identity in both
 // languages is its key set *and* the order those keys were inserted in, so a
 // round-trip that renumbered a gap or sorted anything is caught by the
 // rendering rather than by a count.

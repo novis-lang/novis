@@ -1,8 +1,8 @@
 --TEST--
-`clone` writes the copy's storage through the privileged path, so a `readonly` property survives it, no `PropertyObserver` fires, and an object reached through a cloned array property is still shared — ADR 0023 § 1
+`clone` writes the copy's storage through the privileged path, so a `readonly` property survives it, no `PropertyObserver` fires, and an object reached through a cloned array property is still shared — `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
-// ADR 0023 § 1: `clone` copies declared storage one level deep, by the same
+// `rule:classes/clone-is-shallow`: `clone` copies declared storage one level deep, by the same
 // privileged path property initialization already uses — never by ordinary
 // property assignment. Three rules fall out of that one sentence, and this
 // case is each of them. The fourth, "no `__clone()` runs", has no program:
@@ -14,7 +14,7 @@ final class Tally {
     public static int $gets = 0;
 }
 
-// ADR 0023 § 1: "`readonly` properties are written by the copy the same
+// `rule:classes/clone-is-shallow`: "`readonly` properties are written by the copy the same
 // privileged path an ordinary constructor and `Core\Reflect` already use" —
 // so the copy is not a second write and does not throw.
 // And § 1 again: "`PropertyObserver` does not fire during a clone."
@@ -44,7 +44,7 @@ class Leaf {
     }
 }
 
-// ADR 0023 § 1: an object "reachable through a cloned array/collection
+// `rule:classes/clone-is-shallow`: an object "reachable through a cloned array/collection
 // property" is shared, not duplicated — the array is copied by `rule:programs/memory-priority`'s
 // copy-on-write and the handles inside it are copied as handles.
 class Bag {

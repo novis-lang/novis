@@ -1,5 +1,5 @@
 --TEST--
-there is no `trait`; the diagnostic names both replacements — an interface default method, or `by` delegation, ADR 0043
+there is no `trait`; the diagnostic names both replacements — an interface default method, or `by` delegation, `rule:classes/no-traits`
 --FILE--
 <?nvs
 trait Greets {

@@ -1,5 +1,5 @@
 --TEST--
-a `...` call argument supplies a `...$rest` tail and nothing else: every fixed parameter is still written out, and the tail's element type is what the subject's `array<T>` is checked against (`rule:types/arrays`, ADR 0011 § 1)
+a `...` call argument supplies a `...$rest` tail and nothing else: every fixed parameter is still written out, and the tail's element type is what the subject's `array<T>` is checked against (`rule:types/arrays`, `rule:classes/no-free-functions-or-constants`)
 --FILE--
 <?nvs
 final class Join {

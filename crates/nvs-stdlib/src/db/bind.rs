@@ -67,7 +67,7 @@ pub(super) fn transaction_of(value: Value, member: &str) -> Result<(u64, Value),
 /// The connection a `Core\Db\Queryable` member runs on, off **either** receiver
 /// the interface has.
 ///
-/// This is the whole of ADR 0043's delegation at runtime. `Transaction
+/// This is the whole of `rule:classes/no-traits`'s delegation at runtime. `Transaction
 /// implements Queryable by $connection` gives the two classes one set of rows
 /// under one set of symbols ([`TRANSACTION`] says why), so the helper behind a
 /// row is handed whichever receiver the call site wrote and asks here which one

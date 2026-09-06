@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Heap<T>` drained by `pop` and the same table given to `Core\Arr::sort` answer the same sequence under every ordering both of them accept — natural, reversed, keyed and bytewise — docs/spec/01-core-library.md §§ 2 and 9, ADR 0013
+A `Core\Heap<T>` drained by `pop` and the same table given to `Core\Arr::sort` answer the same sequence under every ordering both of them accept — natural, reversed, keyed and bytewise — docs/spec/01-core-library.md §§ 2 and 9, `rule:classes/comparable`
 --FILE--
 <?nvs
 // Two members implement one rule: `nvs_stdlib::ordering::compare_values` is

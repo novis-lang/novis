@@ -1,4 +1,4 @@
-//! `rule:types/object-top`'s `object` top type and inline shape types, plus ADR 0028's `unset()` refusal.
+//! `rule:types/object-top`'s `object` top type and inline shape types, plus `rule:classes/no-magic-methods`'s `unset()` refusal.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -23,7 +23,7 @@ fn unset_on_a_declared_property_is_diagnosed() {
 
 #[test]
 fn unset_on_a_local_variable_is_diagnosed() {
-    // ADR 0028 § 3 leaves `unset()` one job, and `rule:types/declaration`'s declare-once,
+    // `rule:classes/unset-is-refused-on-a-property` leaves `unset()` one job, and `rule:types/declaration`'s declare-once,
     // definitely-assigned binding has no "undefined again" state for a local
     // to be put back into.
     let diags = check_in_method("mixed $x = 1;\nunset($x);");
@@ -142,7 +142,7 @@ fn reading_a_field_a_shape_names_recovers_its_type_with_no_diagnostic() {
 
 #[test]
 fn reading_a_field_a_shape_does_not_name_is_erased_with_no_diagnostic() {
-    // Deferred to ADR 0014 § 5's runtime-checked fallback (M4) — this
+    // Deferred to `rule:classes/no-dynamic-properties`'s runtime-checked fallback (M4) — this
     // compile-time checker cannot know either way, so it reports
     // nothing rather than guessing.
     let diags = check_in_method("({x: int}) $p = {x: 1};\nmixed $n = $p->y;");

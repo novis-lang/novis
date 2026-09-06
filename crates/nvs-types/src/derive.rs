@@ -1098,7 +1098,7 @@ fn codec_field(
             )
             .with_primary(p.name, "assigned after the constructor, not by it")
             .with_help(format!(
-                "ADR 0071 § 2: a decode is an ordinary `new`, and ADR 0038 makes a `lateinit` \
+                "ADR 0071 § 2: a decode is an ordinary `new`, and `rule:classes/lateinit` makes a `lateinit` \
                  property one the constructor does not assign — write `{skip}` on it"
             )),
         );
@@ -1178,7 +1178,7 @@ fn check_constructor_parameter(
 ) -> Option<usize> {
     // A class with no written constructor has no parameter list to disagree
     // with, and `nvs_types::ctor_init` has already reported that its properties
-    // are not definitely assigned (ADR 0022) — a second diagnostic here would
+    // are not definitely assigned (`rule:classes/definite-property-initialization`) — a second diagnostic here would
     // only bury that one.
     let params = params?;
     let Some((index, param)) = params
@@ -1231,7 +1231,7 @@ fn is_secret(ty: TypeId, env: &Env<'_>) -> bool {
 }
 
 /// The written `constructor`'s parameter list, or `None` when the class
-/// declares none. Found by name — ADR 0030 fixes the spelling.
+/// declares none. Found by name — `rule:classes/no-leading-underscore-identifiers` fixes the spelling.
 fn constructor_params<'a>(decl: &'a ClassDecl, env: &Env<'_>) -> Option<&'a [Param]> {
     decl.members.iter().find_map(|member| match &member.kind {
         ClassMemberKind::Method(m) if span_text(env.src, m.name) == CONSTRUCTOR => {
@@ -1241,7 +1241,7 @@ fn constructor_params<'a>(decl: &'a ClassDecl, env: &Env<'_>) -> Option<&'a [Par
     })
 }
 
-/// ADR 0030's one spelling of a constructor.
+/// `rule:classes/no-leading-underscore-identifiers`'s one spelling of a constructor.
 const CONSTRUCTOR: &str = "constructor";
 
 /// ADR 0071 § 3's two per-field options, as written on one property.

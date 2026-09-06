@@ -1,5 +1,5 @@
 --TEST--
-A parameter typed `Stringable` stringifies and one typed `Comparable` orders — an interface satisfies itself in zero steps — ADR 0028 § 1, ADR 0013 § 2
+A parameter typed `Stringable` stringifies and one typed `Comparable` orders — an interface satisfies itself in zero steps — `rule:classes/stringable`, `rule:classes/ordering-lowers-to-compare-to`
 --FILE--
 <?nvs
 // `nvs_hir::implements_interface` is reflexive, so `Stringable` reaches

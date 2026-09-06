@@ -1,5 +1,5 @@
 --TEST--
-an interface may declare a `static` member beside its default method, and the default reaches it by name — ADR 0043 § 1
+an interface may declare a `static` member beside its default method, and the default reaches it by name — `rule:classes/no-traits`
 --FILE--
 <?nvs
 interface Shape {

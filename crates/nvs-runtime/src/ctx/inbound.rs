@@ -754,7 +754,7 @@ pub struct Upgrade {
     /// arrive here as one thing, which is what makes them one isolate.
     program: crate::script::Program,
     /// The argument, on this side of the boundary already — the copy the request
-    /// made so that ADR 0023 § 2's refusal could still be a throw the program
+    /// made so that `rule:classes/graph-copy`'s refusal could still be a throw the program
     /// catches.
     args: Value,
 }

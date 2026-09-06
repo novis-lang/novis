@@ -1,8 +1,8 @@
 --TEST--
-A `readonly` property is written by its class's constructor and by nothing else, declared or promoted (ADR 0038 § 1)
+A `readonly` property is written by its class's constructor and by nothing else, declared or promoted (`rule:classes/lateinit-restrictions`)
 --FILE--
 <?nvs
-// ADR 0038 § 1 states `readonly`'s contract while refusing to combine it with
+// `rule:classes/lateinit-restrictions` states `readonly`'s contract while refusing to combine it with
 // `lateinit`: "assigned exactly once, and that assignment happens during
 // construction". The constructor's own write below is the assignment that
 // contract allows; every other write is refused where it is written, so the

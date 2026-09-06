@@ -1,4 +1,4 @@
-# ADR 0011 — Functions and constants are class members; `Core` is the reserved namespace for built-ins
+# `rule:classes/no-free-functions-or-constants` — Functions and constants are class members; `Core` is the reserved namespace for built-ins
 
 - **Status:** Accepted
 - **Date:** 2026-08-20

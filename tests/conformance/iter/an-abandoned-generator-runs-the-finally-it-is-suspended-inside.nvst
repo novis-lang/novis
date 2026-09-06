@@ -1,5 +1,5 @@
 --TEST--
-A generator abandoned mid-sequence runs every `finally` it is suspended inside, innermost first, at the moment it is dropped — `rule:iteration/generators`, and ADR 0028 § 2 for why that is not a destructor
+A generator abandoned mid-sequence runs every `finally` it is suspended inside, innermost first, at the moment it is dropped — `rule:iteration/generators`, and `rule:classes/no-destructors` for why that is not a destructor
 --FILE--
 <?nvs
 class G {

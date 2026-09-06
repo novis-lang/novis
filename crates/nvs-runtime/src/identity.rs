@@ -68,7 +68,7 @@
 //!   circuit to `true` before anything is walked.
 //! * **An object is identical only to itself.** Pointer identity, PHP's
 //!   answer, and the one that stays coherent under
-//!   [ADR 0013](/docs/adr/0013-comparable-interface.md): comparing
+//!   `rule:classes/comparable`: comparing
 //!   two instances *by their contents* is a `Comparable::compareTo` call the
 //!   class opts into, so a member that walked properties here would be the
 //!   property-walk fallback that ADR removed. A closure is an object
@@ -201,7 +201,7 @@ fn shallow_identical(left: Value, right: Value, worklist: &mut Vec<(Value, Value
         }
         // Every remaining representation is an opaque handle: identical to
         // itself and to nothing else. That covers an object (this module's
-        // docs say why pointer identity is the answer ADR 0013 leaves room
+        // docs say why pointer identity is the answer `rule:classes/comparable` leaves room
         // for), the two tags nothing constructs yet, and the tag byte only a
         // miscompile can produce.
         _ => left.tag_byte() == right.tag_byte() && left.bits() == right.bits(),
@@ -968,7 +968,7 @@ mod tests {
 
         // Two instances of one class, alike in everything a property walk
         // could look at, are still two values — comparing contents is a
-        // `Comparable::compareTo` call a class opts into (ADR 0013), never
+        // `Comparable::compareTo` call a class opts into (`rule:classes/comparable`), never
         // what the operator does.
         let first = Value::object(one.clone());
         let copy = Value::object(one.clone());

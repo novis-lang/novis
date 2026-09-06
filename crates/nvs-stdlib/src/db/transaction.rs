@@ -712,7 +712,7 @@ mod tests {
     /// **`Transaction implements Queryable by $connection`** is asserted over
     /// [`CONNECTION`]'s whole roster rather than member by member, so a member
     /// added there fails here until [`TRANSACTION`] carries it: the rows must
-    /// be *identical*, symbol included, since ADR 0043's delegation is one
+    /// be *identical*, symbol included, since `rule:classes/no-traits`'s delegation is one
     /// body reached through either handle and a second body would agree on
     /// name and arity on the day it was written and on nothing afterwards.
     /// `stream` and `streamAs` are owed on both and so are outside the sweep

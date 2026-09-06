@@ -37,7 +37,7 @@
   `else if`, matching PER.
 - **Allman brace placement** for every declaration with a body — `class`/`interface`/`enum`, and a
   named function or method (including a `public`/`private` interface method body, per
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)): the opening brace starts its
+  `rule:classes/no-traits`): the opening brace starts its
   own line at the declaration's own indentation.
 - Exactly one blank line after a `namespace` declaration, one after the `use`-import block (§ 6), and one
   between two class members that each have a body (methods, and enum cases that carry one); no blank line
@@ -163,10 +163,10 @@ diagnostic that names the fix:
 
 - **Duration literal units** (`rule:types/duration-literal`): `5Min` → `5min`
   (`nvs_syntax::duration`'s `MisCasedUnit`).
-- **The `<?nvs` open tag** ([ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) § 2):
+- **The `<?nvs` open tag** (`rule:classes/reserved-spellings-are-lower-case`):
   `<?NVS` → `<?nvs` (`E_RESERVED_SPELLING_CASE`).
 
-The criterion is what generalizes, not the list. A keyword never qualifies: ADR 0062 § 2 refuses to
+The criterion is what generalizes, not the list. A keyword never qualifies: `rule:classes/reserved-spellings-are-lower-case` refuses to
 normalize `IF` or `ECHO` because [ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes both legal
 `PascalCase` class names, so nothing lexical separates a mis-typed keyword from a deliberate class
 reference, and guessing would be the only place in the toolchain that guesses. An identifier never
@@ -239,7 +239,7 @@ diff-visible code action; it is not something a formatter does on save.
   bytes. [ADR 0094](0094-visibility-is-written-at-every-member-declaration.md) § 5 already settled the
   general form of this — "a formatter that changes meaning is not a formatter" — when it refused to let
   `nvs fmt` insert a missing `public`, and member reordering breaks it at more sites than that would have.
-  [ADR 0013](0013-comparable-interface.md) takes the same line for `nvs convert`: property declaration
+  `rule:classes/comparable` takes the same line for `nvs convert`: property declaration
   order "is not something a converter should silently canonicalize."
 - **Folding the quick fixes into `nvs fmt`** — casing renames, a missing visibility, a legacy cast, a
   mis-ordered `secret tainted`. Rejected in § 9, and the reason is `--check`: a single command that both
@@ -250,7 +250,7 @@ diff-visible code action; it is not something a formatter does on save.
   table beside `nvs fmt`'s and [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s, and no user
   has asked for one yet.
 - **Normalizing mis-cased keywords** (`IF` → `if`, `ECHO` → `echo`). Rejected by
-  [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md) § 2 before this ADR
+  `rule:classes/reserved-spellings-are-lower-case` before this ADR
   reached it, and § 10 keeps the refusal: ADR 0029 makes those legal class names, so the rewrite is a
   guess. Normalizing PHP's case-insensitive reserved words is
   [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s job, where the input is known to be PHP.
@@ -304,7 +304,7 @@ to test against)
   collapsed or re-wrapped (§ 2).
 - A `tainted`/`secret`-qualified property and a `lateinit` property both format consistently (§ 7) —
   `nvs fmt` never needs to check whether either is used *legally*, only that it is laid out consistently;
-  legality stays covered by ADR 0033's and ADR 0038's own checker fixtures.
+  legality stays covered by ADR 0033's and `rule:classes/lateinit`'s own checker fixtures.
 - § 10's two normalizations, one fixture each: `5Min` → `5min` and `<?NVS` → `<?nvs`. Alongside each, a
   negative case proving the criterion holds — a class named `IF`, and a method named `Min`, both formatted
   with their spelling untouched.

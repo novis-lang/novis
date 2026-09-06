@@ -39,7 +39,7 @@
 //! call site is the last place the qualifier is visible:
 //! [`reject_secret_debug_argument`], [`reject_secret_attribute_constant`],
 //! [`reject_secret_boundary_argument`] — ADR 0033 § 4's `serialize()`-and-
-//! `spawn` bullet, which is one check for both of ADR 0023 § 2's carriers —
+//! `spawn` bullet, which is one check for both of `rule:classes/graph-copy`'s carriers —
 //! [`reject_secret_published_argument`], which is ADR 0083 § 4's bus reaching
 //! that same graph copy through a third carrier,
 //! [`reject_secret_encoded_argument`], and
@@ -784,8 +784,7 @@ pub(crate) fn reject_secret_output(ty: TypeId, span: Span, form: &str, env: &mut
 }
 
 /// ADR 0033 § 4's cross-boundary sink: a `secret`-qualified value handed to
-/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-/// § 2's graph copy.
+/// `rule:classes/graph-copy`'s graph copy.
 ///
 /// **One check for both carriers**, which is how § 4 states the rule: the
 /// bullet refuses the value "at the one recursive graph-copy operation ADR
@@ -870,7 +869,7 @@ pub(crate) fn reject_secret_crossing(at: &Expr, ty: TypeId, carrier: &str, env: 
 
 /// ADR 0083 § 4's bus, which is [`reject_secret_crossing`]'s third carrier:
 /// `Core\Topic::publish` copies its value into every subscriber's own arena
-/// through ADR 0023 § 2's graph copy, so "a `secret` may never be published" is
+/// through `rule:classes/graph-copy`'s graph copy, so "a `secret` may never be published" is
 /// the disclosure `Core\Serialize::encode` and `spawn script`'s `args:` are
 /// already refused for, and it reports the same code rather than one of its
 /// own.

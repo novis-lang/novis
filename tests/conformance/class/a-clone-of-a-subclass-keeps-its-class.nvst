@@ -1,5 +1,5 @@
 --TEST--
-`clone` copies the object's own class along with its properties, so the copy answers `instanceof` exactly as the original did — ADR 0023 § 1
+`clone` copies the object's own class along with its properties, so the copy answers `instanceof` exactly as the original did — `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
 class Shape {

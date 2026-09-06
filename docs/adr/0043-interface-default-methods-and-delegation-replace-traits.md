@@ -1,4 +1,4 @@
-# ADR 0043 — There is no `trait`; interface default/private methods plus explicit `by` delegation replace it
+# `rule:classes/no-traits` — There is no `trait`; interface default/private methods plus explicit `by` delegation replace it
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -42,13 +42,13 @@
   duplicated *per class* in a way many PHP developers find genuinely surprising). `insteadof` exists only to
   arbitrate (a); it says nothing about (b).
 - Novis already answers "how does unrelated code share behavior" once, and answers it with a type: an
-  `interface`. [ADR 0013](0013-comparable-interface.md)'s `Comparable`, [ADR 0014](0014-property-observer.md)'s
-  `PropertyObserver`, and [ADR 0028](0028-closing-the-remaining-magic-methods.md)'s `Stringable` are all
+  `interface`. `rule:classes/comparable`'s `Comparable`, `rule:classes/property-observer`'s
+  `PropertyObserver`, and `rule:classes/no-magic-methods`'s `Stringable` are all
   proof this project already prefers "declare a capability as an interface" over "declare an ambient
   mechanism." A trait, by contrast, gives the reused code no type identity at all — a class using `Greets`
   is not `instanceof Greets`, cannot be checked for it, and does not show up as a capability in
   [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s reflection surface.
-- [ADR 0015](0015-no-name-aliasing.md) § 3 already narrowed trait composition once — dropping the `as`
+- `rule:classes/no-traits` already narrowed trait composition once — dropping the `as`
   rename/visibility clause, keeping `insteadof` — but that was a narrowing of PHP's mechanism, not a
   replacement of it. `crates/nvs-hir`'s `hierarchy.rs` and `members.rs` already implement that narrowed
   version: a `TraitDecl` AST node, `SymbolKind::Trait`, trait-use flattening into a class's member table, and
@@ -124,7 +124,7 @@ both enforce. Only members declared on that interface, or on an interface it `ex
 object) compose without ambiguity: a default method body can call another method the interface itself
 requires, but it cannot reach into whatever the *concrete* class happens to also declare — that would make a
 default method's correctness depend on which class happens to use it, exactly the ambient-coupling shape
-[ADR 0014](0014-property-observer.md) and `rule:statements/no-host-populated-variables` already close elsewhere.
+`rule:classes/property-observer` and `rule:statements/no-host-populated-variables` already close elsewhere.
 
 ### 3. Private interface methods are internal-only helpers
 
@@ -188,8 +188,8 @@ $this->timestamps->touch(); }`. Rules:
   and a method may be called any number of times or none. `nvs_syntax::ast::Param::is_promoted` is the one
   home of *which* parameters promote and deliberately does not ask which method encloses it; that is
   `nvs_types::signatures`' question, asked in both directions there.
-- `$field` is subject to [ADR 0022](0022-definite-property-initialization.md)'s ordinary definite-assignment
-  rule (or may be `lateinit` per [ADR 0038](0038-lateinit-property-modifier.md)) — no new initialization
+- `$field` is subject to `rule:classes/definite-property-initialization`'s ordinary definite-assignment
+  rule (or may be `lateinit` per `rule:classes/lateinit`) — no new initialization
   mechanism. Calling a delegated method before `$field` is written throws exactly the checked error those
   ADRs already define for an unwritten non-nullable property; there is no third throw invented here. The
   synthesized forward's own read carries that check rather than inheriting it, because the forward reads the
@@ -224,7 +224,7 @@ fix is always the same ordinary override a reader already knows how to write, an
 specific source explicitly:
 
 - To call a specific interface's default from inside the overriding method: `InterfaceName::method()`,
-  bound to `$this` — the same qualified-call *shape* [ADR 0015](0015-no-name-aliasing.md) § 3 already used
+  bound to `$this` — the same qualified-call *shape* `rule:classes/no-traits` already used
   for a trait's method (`Greets::hello()`), now meaningful for an interface because § 2 gives interfaces
   method bodies at all. This is the one grammar extension this ADR makes to an existing call form, not a new
   one.
@@ -295,7 +295,7 @@ human decision, named honestly rather than silently attempted:
   a trait gave none of that.
 - One conflict rule instead of two: `insteadof` disappears as a keyword entirely, since "the class overrides
   it explicitly" already handles every collision shape, for both defaults and delegates alike.
-- Simplifies [ADR 0022](0022-definite-property-initialization.md): the "trait-contributed property" special
+- Simplifies `rule:classes/definite-property-initialization`: the "trait-contributed property" special
   case in its § 2 is gone — a `by`-target field is an ordinary declared property, covered by the rule that
   already exists for every other property.
 - The private-interface-method addition is small (Java 9 precedent) and closes the one trait shape default
@@ -305,20 +305,19 @@ human decision, named honestly rather than silently attempted:
 
 **Negative**
 
-- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source using `trait` does not convert unconverted, unlike the narrower change ADR
-  0015 § 3 made (which kept traits, only dropping `as`).
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers: PHP source using `trait` does not convert unconverted, unlike the narrower change `rule:classes/no-traits` made (which kept traits, only dropping `as`).
 - **`by` delegation spends memory `rule:programs/memory-priority` requires naming**: one extra property (a pointer-sized reference)
   per delegated interface, per class instance — the cost of the delegate object itself, plus that one
   pointer, replaces PHP's per-class-*copied* trait property, which is not free either; this is not a net-new
   cost class, just an explicit and inspectable one instead of an implicit one.
-- **Existing `nvs-hir`/`nvs-syntax` code implementing ADR 0015 § 3's narrower design is now superseded, not
+- **Existing `nvs-hir`/`nvs-syntax` code implementing `rule:classes/no-traits`'s narrower design is now superseded, not
   merely re-cited.** `crates/nvs-syntax/src/ast.rs`'s `TraitDecl`/`UseTraitMember`/`TraitAdaptation*`/
   `TraitMethodRef`, its parser production and casing rules in `parser.rs`/`casing.rs`/`token.rs`;
   `crates/nvs-hir`'s `SymbolKind::Trait` (`symbol.rs`), the `TraitDecl` arms and trait-use flattening in
   `resolve.rs`/`members.rs`/`requires.rs`, and `hierarchy.rs`'s entire trait-use/`insteadof` resolution
   (`trait_refs`, `trait_methods`, `check_trait_conflicts`, `E_TRAIT_METHOD_CONFLICT`) — all of that has now
   been removed (a follow-up session; see the M1 *Verification* bullet below), along with the matching
-  trait-ancestor flattening `crates/nvs-types/src/signatures.rs` had grown for ADR 0022 §2's constructor
+  trait-ancestor flattening `crates/nvs-types/src/signatures.rs` had grown for `rule:classes/definite-property-initialization`'s constructor
   check. The new default-method/private-method/`by`-delegation *resolution* (§§ 2–5) — as opposed to the
   grammar that merely parses it — still needs building; that is M2's follow-up below, not yet started.
 - One more grammar extension to an existing call form (§ 5's `InterfaceName::method()`), a small addition to
@@ -329,7 +328,7 @@ human decision, named honestly rather than silently attempted:
 
 ## Alternatives rejected
 
-- **Keep ADR 0015 § 3's narrower trait design** (traits minus `as`, `insteadof` kept). Rejected: it still
+- **Keep `rule:classes/no-traits`'s narrower trait design** (traits minus `as`, `insteadof` kept). Rejected: it still
   gives reused behavior no type identity, still duplicates properties per consuming class with no clearer
   story than PHP's, and keeps `insteadof` as a second, trait-only conflict mechanism alongside the ordinary
   override every other collision in this project already resolves with.
@@ -342,12 +341,12 @@ human decision, named honestly rather than silently attempted:
   case, and gives up the "is this reused code checkable as a type" win for no reason once a class doesn't
   need to hold a separate object just to answer `hello()`.
 - **A `mixin` keyword performing PHP-style flattening but with `implements`-shaped type identity** (a third,
-  new construct). Rejected: this is exactly the pattern [ADR 0011](0011-functions-and-constants-are-class-members.md)
+  new construct). Rejected: this is exactly the pattern `rule:classes/no-free-functions-or-constants`
   and `rule:statements/nothing-gets-a-second-name` already warn against — a bespoke mechanism where an existing one
   (interfaces) already does the job with less new surface to teach.
 - **PHP's `Interface.super.method()`-equivalent spelled as a new dedicated keyword** rather than reusing
   `InterfaceName::method()`. Rejected: the qualified-call shape already exists and is already documented in
-  ADR 0015 § 3 for the same purpose; giving it a second spelling for interfaces would be exactly the kind of
+  `rule:classes/no-traits` for the same purpose; giving it a second spelling for interfaces would be exactly the kind of
   duplicate-spelling surface `rule:statements/nothing-gets-a-second-name` itself exists to prevent.
 
 ## Revisiting
@@ -399,7 +398,7 @@ Verification, in the order it becomes possible:
   with no class override (today `resolve_method`'s ancestor walk silently returns whichever `implements`
   entry it reaches first, with no collision check at all) — `E_DELEGATE_TYPE_MISMATCH` is unreachable until
   the former lands. A `by`-target field's definite-assignment obligation is expected to be ordinary
-  [ADR 0022](0022-definite-property-initialization.md)/[ADR 0038](0038-lateinit-property-modifier.md), no
+  `rule:classes/definite-property-initialization`/`rule:classes/lateinit`, no
   special case, once delegation itself exists.
 - **M11:** `nvs convert` performs § 6.1's and § 6.2's mechanical rewrites (the latter flagged for review),
   § 6.3's `insteadof`-equivalent override synthesis, and emits the `TODO` diagnostics § 6.4/§ 6.5 describe for

@@ -1,5 +1,5 @@
 --TEST--
-every constant is a class constant, so a top-level `const` is refused — ADR 0011 § 1
+every constant is a class constant, so a top-level `const` is refused — `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
 const int MAX = 10;

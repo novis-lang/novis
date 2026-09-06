@@ -67,7 +67,7 @@ keeps the two from becoming two spellings of one thing:
 | read an element | `$a[$k]` | throws on a missing key ([ADR 0063](../adr/0063-core-api-conventions.md) R4) |
 | read a possibly-absent element | `$a[$k] ?? $default` | the absence-tolerant spelling; there is **no** `Arr::get` |
 | write an element | `$a[$k] = $v` | |
-| remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md) § 3) |
+| remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused (`rule:classes/unset-is-refused-on-a-property`) |
 | ask whether a key exists | `Arr::hasKey($a, $k)` | `isset()`/`array_key_exists` both collapse here |
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile (`rule:types/array-combination`) |
 
@@ -423,7 +423,7 @@ the same reason. Overflow throws rather than becoming a `float`
 
 Constants: `PI`, `TAU`, `E`, `EPSILON`, `INT_MAX`, `INT_MIN`, `UINT_MAX`, `FLOAT_MAX`, `FLOAT_MIN`, `NAN`,
 `INFINITY` — replacing `M_PI`, `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
-constants ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)).
+constants (`rule:classes/no-free-functions-or-constants`).
 
 `Math::format` takes explicit separators because Novis has no ambient locale; locale-correct number
 formatting is intl's `NumberFormatter` equivalent, at Tier 1.
@@ -500,7 +500,7 @@ what `Duration::parse` takes. "Next monday" is not a value a config file supplie
 | `toEpochMillis` | `$i->toEpochMillis(): int` | plus `toEpochMicros`, replacing `microtime(true)`'s two halves |
 | `plus` / `minus` | `$i->plus(Duration $d): Instant` | replaces `date_add`, `date_sub`, `modify` |
 | `since` | `$i->since(Instant $earlier): Duration` | replaces `date_diff`, `DateInterval` arithmetic |
-| `compareTo` | `$i->compareTo(Instant $other): int` | `Instant` implements `Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)), so `<`/`>` work directly |
+| `compareTo` | `$i->compareTo(Instant $other): int` | `Instant` implements `Comparable` (`rule:classes/comparable`), so `<`/`>` work directly |
 | `toIso` | `$i->toIso(): string` | replaces `date(DATE_ATOM)` |
 
 ### `Core\Time\DateTime` — a civil date and time in a zone
@@ -714,7 +714,7 @@ because an insertion-ordered `int|string`-keyed hash cannot express them
 `$a[$k]` / `$a[$k] ?? $d` pair that `array<T>` does, and R5 bans a `getOrNull` twin. `diff` is spelled as
 it is on `Core\Arr` rather than `difference`, because one operation gets one name.
 
-`ObjectMap`/`ObjectSet` key on identity. `Heap` orders by [ADR 0013](../adr/0013-comparable-interface.md)'s
+`ObjectMap`/`ObjectSet` key on identity. `Heap` orders by `rule:classes/comparable`'s
 `Comparable`, or by a comparator given at construction. These are the only mutable `Core` types, because a
 persistent structure would give up the O(log n) that justifies their existence at all; they are objects,
 so `rule:types/declaration`'s reference semantics apply and nothing about R3 is in
@@ -883,7 +883,7 @@ was written, still percent-encoded and still in its own case, and dot segments a
 comparing `$uri->host()` against an allowlist would be comparing against text no client sent.
 
 **Asking whether two references are the same URI is `$a->compareTo($b) == 0`**, and `Uri` implements
-`Comparable` ([ADR 0013](../adr/0013-comparable-interface.md)) to say so. That is where the normalizing
+`Comparable` (`rule:classes/comparable`) to say so. That is where the normalizing
 `parse` refuses to do happens, and it is the whole of RFC 3986 § 6.2.2 and no more: the scheme and host
 fold to lower case, every `%XX` escape's digits fold to upper case, an escape spelling an *unreserved*
 character becomes that character, and dot segments are removed from an **absolute** path. It stops short
@@ -1011,7 +1011,7 @@ including which milestone each piece lands in; this file fixes only the roster's
 **`Core\Serialize::decode` is a `tainted` sink**, which is the whole reason the class is worth having
 rather than deferring to `Core\Json`. `unserialize()` on attacker-controlled bytes is PHP's most
 productive remote-code-execution class; Novis has already removed its gadget machinery — no `__wakeup`, no
-`__destruct`, no `__toString` hook ([ADR 0028](../adr/0028-closing-the-remaining-magic-methods.md)) — and
+`__destruct`, no `__toString` hook (`rule:classes/no-magic-methods`) — and
 refusing the qualifier closes the input side structurally rather than by advice. What remains without the
 sink is not code execution but **type confusion** — a payload that reconstructs a `User` with
 `isAdmin: true`, bypassing the constructor — which is why contagion would be the wrong classification: the
@@ -1019,7 +1019,7 @@ danger is the object graph itself, not a string that later reaches an output sin
 serialized and stored are not `tainted` and decode normally; bytes that arrived from outside are refused,
 and no launderer exists for them today. The format is versioned, self-describing and Novis's own; it is not
 compatible with PHP's, and there is no hook to customise it
-([ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md)).
+(`rule:classes/two-copy-depths`).
 
 ---
 
@@ -1208,7 +1208,7 @@ mechanism ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4).
 | `transaction` | `$q->transaction(callable $fn, {isolation?: Isolation, readOnly?: bool, retries?: uint}): T` | `beginTransaction`/`commit`/`rollBack`, `SAVEPOINT` | |
 
 `Core\Db\Connection` implements it; `Core\Db\Transaction implements Queryable by $connection`
-([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so the surface is
+(`rule:classes/no-traits`), so the surface is
 declared once. A nested `transaction` is a savepoint. Params are one `array<mixed>`: list-keyed for `?`,
 string-keyed for `:name`, mixing throws.
 

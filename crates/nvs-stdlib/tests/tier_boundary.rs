@@ -220,7 +220,7 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
         conditional.is_empty(),
         "{} `Core` class registration(s) are conditional: {}\n\
          ADR 0051 § 5: a `Core\\` name whose presence depends on a build flag makes \
-         ADR 0011's reserved namespace conditional, which is the failure that section \
+         `rule:classes/no-free-functions-or-constants`'s reserved namespace conditional, which is the failure that section \
          exists to refuse. The feature gate belongs on the backend behind the class, \
          the way ADR 0051 § 3 splits `Core\\Metrics`.",
         conditional.len(),

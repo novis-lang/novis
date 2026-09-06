@@ -15,7 +15,7 @@
 // Each `catch` takes its own binding name: a binding is function-scoped, so two
 // clauses reusing one is `E0406` once a loop below has declared it.
 
-// The accepted side. `Zone::UTC` is `Zone::of("UTC")` inlined (ADR 0011), and
+// The accepted side. `Zone::UTC` is `Zone::of("UTC")` inlined (`rule:classes/no-free-functions-or-constants`), and
 // an IANA identifier is the only spelling `of` takes at all.
 var $winter = Core\Time::fromIso("2024-01-15T12:00:00Z");
 var $utc = Core\Time\Zone::UTC;

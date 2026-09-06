@@ -7,7 +7,7 @@
 //! § 4's three members, and the copy each subscriber is handed. This module is
 //! the transport underneath it and knows nothing about either. What crosses a
 //! core boundary here is a topic's **name** and the **bytes**
-//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md) § 2's
+//! `rule:classes/graph-copy`'s
 //! [`nvs_runtime::encode`] made of the published value — never a
 //! [`nvs_runtime::Value`], which is refcounted on the core that made it, so a
 //! second core touching that count is exactly the data race the thread-per-core
@@ -86,7 +86,7 @@ const MAILBOX_CAP: usize = 1024;
 pub(crate) struct Envelope {
     /// The topic's name, as the publishing core wrote it.
     topic: Box<str>,
-    /// ADR 0023 § 2's encoding of the published value.
+    /// `rule:classes/graph-copy`'s encoding of the published value.
     payload: Arc<[u8]>,
 }
 

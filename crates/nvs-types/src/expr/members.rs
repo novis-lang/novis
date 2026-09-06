@@ -25,7 +25,7 @@
 //! ([`crate::expr_table::ExprInfo::ShapeProperty`]); a name it doesn't list,
 //! a plain `object` receiver, and a `mixed` one are silently `mixed` rather
 //! than `E_UNKNOWN_MEMBER`, and record the same entry carrying the written
-//! name alone — which is what ADR 0014 § 5's runtime-checked fallback is
+//! name alone — which is what `rule:classes/no-dynamic-properties`'s runtime-checked fallback is
 //! keyed on, and it throws now rather than being deferred. A `mixed` is there
 //! for `rule:types/conversion`'s reason rather than § 4's: it is the one unchecked
 //! position, so even "is this an object at all" is deferred to that throw.
@@ -34,7 +34,7 @@
 //! § 7 row 13). `unset()`'s operand is narrowed to one shape by
 //! [`check_unset_target`], which is that rule's only home: a declared
 //! property, static or instance, is refused regardless of nullability
-//! (ADR 0028 § 3), and so is every operand that is not an array element of a
+//! (`rule:classes/unset-is-refused-on-a-property`), and so is every operand that is not an array element of a
 //! named holder.
 //!
 //! [`infer_instanceof`] draws the same line one type earlier, and both sides
@@ -69,7 +69,7 @@ use crate::expr_table::ObserverCalls;
 /// — or, where the position names that one case, as `rule:types/enum-case-type`'s narrower
 /// `Ty::EnumCase`, the same take-your-type-from-the-position rule
 /// `crate::expr::literals` states in full;
-/// `Core\Math::PI` is ADR 0011's class constant, recovered as the declared type
+/// `Core\Math::PI` is `rule:classes/no-free-functions-or-constants`'s class constant, recovered as the declared type
 /// of the `nvs_stdlib::registry::CoreConst` row; and `Limits::MAX` on a
 /// user-declared class is the same ADR's constant, recovered as the declared
 /// type `crate::signatures::ConstSig` recorded for it.
@@ -144,7 +144,7 @@ pub(crate) fn infer_class_const(
             );
             placed.unwrap_or_else(|| env.interner.enum_(qname, backing))
         }
-        // ADR 0011's class constant, on a `Core` class the registry states. The
+        // `rule:classes/no-free-functions-or-constants`'s class constant, on a `Core` class the registry states. The
         // *value* is recorded, not just the type, for exactly `rule:enums/no-class-machinery`'s
         // reason one line above: a constant is inlined at every use site, so
         // `nvs-ir` needs the constant itself and there is no storage to read it
@@ -168,7 +168,7 @@ pub(crate) fn infer_class_const(
                 }
             }
         }
-        // ADR 0011's class constant on a **user-declared** class, which
+        // `rule:classes/no-free-functions-or-constants`'s class constant on a **user-declared** class, which
         // `crate::signatures` records the declared type and the placed value
         // of — see `signatures::ConstSig`. The value is recorded for the two
         // arms above's reason a third time: a constant is inlined at every use
@@ -188,7 +188,7 @@ pub(crate) fn infer_class_const(
                         // Refused *here* rather than at the declaration
                         // because a constant nobody names costs nothing and
                         // has no wrong behaviour to report — and refused at
-                        // all because ADR 0011 leaves `nvs-ir` nothing to
+                        // all because `rule:classes/no-free-functions-or-constants` leaves `nvs-ir` nothing to
                         // lower a read to, which was a panic before this.
                         None => {
                             report_unfoldable_const(expr, &qname, &constant, sig.ty, env);
@@ -246,7 +246,7 @@ fn report_unfoldable_const(
         )
         .with_primary(expr.span, "this constant's declaration folds to no value")
         .with_help(
-            "ADR 0011 inlines a class constant at every use site, so its value has to have a \
+            "`rule:classes/no-free-functions-or-constants` inlines a class constant at every use site, so its value has to have a \
              constant form — a literal, or an array literal of them. Another class's \
              constant, an enum case and `Foo::class` are the three this compiler cannot yet \
              fold into one, written on their own or nested inside a container: write the value \
@@ -419,7 +419,7 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
-/// ADR 0023 § 1's operand rule: `clone $x` is "a new instance of `$x`'s
+/// `rule:classes/clone-is-shallow`'s operand rule: `clone $x` is "a new instance of `$x`'s
 /// class", so a value that can hold no object names nothing to instantiate
 /// and `nvs_ir::lower::expr` panics rather than lowering one.
 ///
@@ -439,7 +439,7 @@ pub(crate) fn reject_non_object_clone(ty: TypeId, span: Span, env: &mut Env<'_>)
         .with_primary(span, "this value's type names no class to instantiate")
         .with_help(
             "an `array<T>` and a scalar are already copied when they are assigned (`rule:programs/memory-priority`'s \
-             copy-on-write), so there is nothing for `clone` to do — drop it (ADR 0023 § 1)",
+             copy-on-write), so there is nothing for `clone` to do — drop it (`rule:classes/clone-is-shallow`)",
         ),
     );
 }
@@ -627,7 +627,7 @@ fn check_keyed_property(
             )
             .with_primary(name_span, "unset here")
             .with_help(
-                "ADR 0022 already guarantees every one of those properties is definitely \
+                "`rule:classes/definite-property-initialization` already guarantees every one of those properties is definitely \
                  initialized; assign `null` through the key instead where the property is \
                  nullable",
             ),
@@ -664,7 +664,7 @@ fn check_keyed_property(
 
 /// `E0235`, `rule:types/property-key-access`'s refusal, reported where the operand is written.
 ///
-/// The code and the headline are ADR 0014 § 5's — what a computed name cannot
+/// The code and the headline are `rule:classes/no-dynamic-properties`'s — what a computed name cannot
 /// do is unchanged — and only the *place* moved, from `nvs_syntax`'s parser to
 /// here, because § 4 made the operand's type the question and a parser sees no
 /// types. The help differs by site, which is why it is the caller's: only a
@@ -687,7 +687,7 @@ pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`rule:types/property-key-access
      `array<string, T>`";
 
 /// [`report_computed_member_name`]'s help at a call, where it does not.
-pub(crate) const COMPUTED_METHOD_HELP: &str = "ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \
+pub(crate) const COMPUTED_METHOD_HELP: &str = "`rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \
      `property<T>` names a property rather than a method — write the call out, or `match` on the \
      name and call each arm";
 
@@ -778,7 +778,7 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
 /// spell (`nvs-hir` is a dev-dependency there).
 ///
 /// Recording it as [`ExprInfo::CoreConst`] is deliberate reuse rather than a
-/// near-miss: that variant means "an ADR 0011 constant, inlined at its use
+/// near-miss: that variant means "an `rule:classes/no-free-functions-or-constants` constant, inlined at its use
 /// site, whose value is here because there is no storage to read it back
 /// from," which is exactly what this is. `nvs-ir` materializes it through the
 /// same `emit_const_arg` a parameter default already goes through.
@@ -833,7 +833,7 @@ pub(crate) fn check_class_name_const(
             // parts company with PHP: PHP folds `Bogus::class` to `"Bogus"`
             // with no complaint at all, because the string is on its way to
             // `new $name` or `$name::m()` and the question is answered there.
-            // Novis has neither spelling (ADR 0011), so a name that resolves to
+            // Novis has neither spelling (`rule:classes/no-free-functions-or-constants`), so a name that resolves to
             // nothing is a typo with nowhere left to be caught — the same
             // mistake and the same code `new Undeclared()` already takes.
             // `self`/`static`/`parent` resolve through the enclosing
@@ -899,7 +899,7 @@ pub(crate) fn check_class_name_const(
 ///   would put a tag test and a throw behind a spelling that reads like a
 ///   field read, so it is refused in favour of narrowing it first — or of
 ///   `Core\Reflect::forObject`, which is the member whose whole job is the
-///   erased receiver (ADR 0011).
+///   erased receiver (`rule:classes/no-free-functions-or-constants`).
 /// * anything else never holds an object at all.
 fn check_dynamic_class_name_const(
     class: &Expr,
@@ -958,7 +958,7 @@ fn check_dynamic_class_name_const(
 /// expression (`$obj->prop`, `is_unset` false) or as `unset()`'s operand
 /// (`is_unset` true) — the receiver/member resolution is identical either
 /// way; only what happens once a *declared* property is found differs (ADR
-/// 0028 § 3: `unset()` on one is refused outright, per ADR 0022's guarantee
+/// 0028 § 3: `unset()` on one is refused outright, per `rule:classes/definite-property-initialization`'s guarantee
 /// that a declared property can never become uninitialized again).
 #[expect(
     clippy::too_many_arguments,
@@ -1060,7 +1060,7 @@ pub(crate) fn strip_nullsafe_receiver(
     object_ty
 }
 
-/// ADR 0014 § 3's second step for a property access on `qname`, or `None` when
+/// `rule:classes/property-observer-pipeline`'s second step for a property access on `qname`, or `None` when
 /// that class implements no `PropertyObserver`.
 ///
 /// § 4 is what makes this a compile-time question at all: whether a class
@@ -1109,7 +1109,7 @@ fn observer_calls(qname: &QName, env: &Env<'_>) -> Option<ObserverCalls> {
 ///   recorded even where `T` declares no public property at all — no value of
 ///   such a key can exist, since § 2's every conversion into one throws, but
 ///   "unreachable at run time" is not "never lowered" and this proof is about
-///   the second. ADR 0014 § 5 owns why every other operand is refused at all.
+///   the second. `rule:classes/no-dynamic-properties` owns why every other operand is refused at all.
 /// - **The receiver's type.** A [`Ty::Shape`] records [`ExprInfo::ShapeProperty`]
 ///   with the field's slot; [`Ty::Object`] and [`Ty::Mixed`] record the same
 ///   variant erased, `rule:types/erased-member-access`'s name-keyed half. A type naming a class
@@ -1151,7 +1151,7 @@ pub(crate) fn check_property_member(
     };
     let name = span_text(env.src, *name_span).to_owned();
 
-    // `rule:types/erased-member-access`, extending ADR 0014 § 5's "a dynamically computed property
+    // `rule:types/erased-member-access`, extending `rule:classes/no-dynamic-properties`'s "a dynamically computed property
     // name is a checked runtime throw, never a fallback" rule to a second
     // trigger: an *erased receiver type*. A field a shape type names is
     // proven present at compile time — reading it never throws, so this just
@@ -1240,7 +1240,7 @@ pub(crate) fn check_property_member(
                     ctx,
                     env,
                 );
-                // ADR 0014 § 1: a hooked property's access is a call to its
+                // `rule:classes/property-hooks`: a hooked property's access is a call to its
                 // accessor, not a field touch — except inside that property's
                 // own hooks, where `$this->p` is the backing slot (see
                 // `Ctx::current_hook`). `is_unset` never reaches here with a
@@ -1250,7 +1250,7 @@ pub(crate) fn check_property_member(
                 let inside_own_hook =
                     ctx.current_hook == Some(name.as_str()) && is_this_receiver(object, env.src);
                 // An access inside the property's own hooks is the *backing
-                // slot* — which is ADR 0014 § 3's first step, the one the
+                // slot* — which is `rule:classes/property-observer-pipeline`'s first step, the one the
                 // access that called this hook is already running the second
                 // step for. Observing it here would report one write twice,
                 // so this is the one property access on an observing class
@@ -1365,13 +1365,13 @@ pub(crate) fn check_property_member(
     }
 }
 
-/// `unset()`'s operand, which ADR 0028 § 3 narrows to exactly one shape:
+/// `unset()`'s operand, which `rule:classes/unset-is-refused-on-a-property` narrows to exactly one shape:
 /// **an array element of a named holder**, `$holder[key]`, where the holder is
 /// a local, a property or a static property. This function is that rule's only
 /// home, and it splits three ways:
 ///
 /// - A **declared property**, instance or static, is refused as
-///   `E0413` ([`report_unset_on_property`]) — ADR 0022 guarantees such a
+///   `E0413` ([`report_unset_on_property`]) — `rule:classes/definite-property-initialization` guarantees such a
 ///   property is definitely initialized for good, and there is no honouring
 ///   both ADRs at once. The nullsafe spelling is passed through to
 ///   [`check_property_access`] so the refusal fires on `unset($a?->b)` too,
@@ -1504,7 +1504,7 @@ pub(crate) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
         )
         .with_primary(span, "unset here")
         .with_help(
-            "ADR 0022 already guarantees this property is always definitely initialized; \
+            "`rule:classes/definite-property-initialization` already guarantees this property is always definitely initialized; \
              assign `null` instead if it is nullable",
         ),
     );
@@ -1650,7 +1650,7 @@ pub(crate) fn report_instance_method_called_statically(
 }
 
 /// Both visibility rules a resolved method call answers to, in the order a
-/// reader wants them: ADR 0043 § 3's private-interface-method rule first,
+/// reader wants them: `rule:classes/interface-private-methods`'s private-interface-method rule first,
 /// because it is the more specific refusal, and ADR 0094's three levels only
 /// where that one did not already fire.
 ///
@@ -1658,7 +1658,7 @@ pub(crate) fn report_instance_method_called_statically(
 /// *and* [`MethodSig::interface_private`], and
 /// `signatures::is_visible_from` asks the same question of it that
 /// [`check_interface_private_visibility`] does. Reporting both would name one
-/// mistake twice, and the ADR 0043 wording is the one that explains it — so
+/// mistake twice, and the `rule:classes/no-traits` wording is the one that explains it — so
 /// that arm returns here rather than falling through.
 ///
 /// `name` is written bare; the `()` that marks it as a method in the message
@@ -1678,7 +1678,7 @@ pub(crate) fn check_method_visibility(
     check_member_visibility(span, owner, &format!("{name}()"), sig.visibility, ctx, env);
 }
 
-/// ADR 0043 § 3: a `private` interface method is an internal helper, never
+/// `rule:classes/interface-private-methods`: a `private` interface method is an internal helper, never
 /// part of that interface's contract — visible only from inside its own
 /// declaring interface's method bodies (a default or another private
 /// method), never through an implementing class, a subinterface, or any

@@ -1,5 +1,5 @@
 --TEST--
-`new` over a `class<T>` is refused when an implementor of `T` declares a constructor that cannot take the arguments written (ADR 0125 § 5)
+`new` over a `class<T>` is refused when an implementor of `T` declares a constructor that cannot take the arguments written (`rule:classes/constructor-compatibility`)
 --FILE--
 <?nvs
 // A class reference may hold any implementor of its bound, so a `new` through

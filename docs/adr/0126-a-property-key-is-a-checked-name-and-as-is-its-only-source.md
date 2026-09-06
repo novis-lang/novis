@@ -5,7 +5,7 @@
 - **Scope:** the `property<T>` type — its grammar, the set its values range over, its one source, which way
   it widens, the one site that accepts it, how a read and a write through it are typed, and what a
   qualifier does across the conversion. It does **not** reopen
-  [ADR 0014](0014-property-observer.md) § 5's rule that every property is a declared name, which is what
+  `rule:classes/no-dynamic-properties`'s rule that every property is a declared name, which is what
   makes the set finite in the first place; it does not give `$obj->$m()` a spelling, which § 6 there
   rejects as a concept; and it adds nothing to `ClassDesc`, because the access it admits is the erased one
   `rule:types/erased-member-access` already lowers.
@@ -42,7 +42,7 @@ over string literals that the compiler cannot check covers the class; an `array<
 object, which gives up the declared types the class already has; or `Core\Reflect\ClassInfo::get`, which
 answers `mixed` and moves every check to run time. Each of them re-derives, badly, a fact the compiler
 already holds — **the class's property roster is finite, declared and known**, which is exactly what
-[ADR 0014](0014-property-observer.md) § 5 bought by making an undeclared property a hard error.
+`rule:classes/no-dynamic-properties` bought by making an undeclared property a hard error.
 
 What is missing is not a permission but a **type**. `rule:types/conversion` already
 owns the operator that turns an unchecked value into a checked one, and
@@ -116,7 +116,7 @@ the shape a hand-written key takes, so it pays nothing at run time and misspells
 for a reason narrower than that row's: the conversion's whole output range is the set of properties
 `User` declares `public` in this program's own source. A tainted string cannot widen that set, cannot
 name a field the author did not write down, and cannot reach a `private` one. What survives is a choice
-among the fields the class already exposes — which is the bound that keeps ADR 0014 § 5's priority-1
+among the fields the class already exposes — which is the bound that keeps `rule:classes/no-dynamic-properties`'s priority-1
 reason intact, and is why this is a type rather than a permission.
 
 ### 3. The argument bounds the receiver, so widening runs the other way
@@ -145,7 +145,7 @@ Three neighbours stay exactly as they are, and each for its own reason:
 
 | spelling | verdict |
 |---|---|
-| `$obj->$m(...)` | `E0235` forever. [ADR 0014](0014-property-observer.md) § 6 rejects computed *dispatch* as a concept, not as a spelling, and a key is not a method name |
+| `$obj->$m(...)` | `E0235` forever. `rule:classes/no-call-magic` rejects computed *dispatch* as a concept, not as a spelling, and a key is not a method name |
 | `$obj->$key` on a `mixed` or shape-typed receiver | `E0235`. There is no `T` to check the key's bound against, so the one thing the key promises cannot be verified |
 | `unset($obj->$key)` | `E0234`, as `unset` of any property already is |
 
@@ -181,7 +181,7 @@ closing for every caller at once rather than for this one caller early.
 
 **A write through a key is refused, at the write, where `T`'s public set holds a `readonly` property**,
 naming it, as `E0782` — the code an ordinary write to that property after construction already gets,
-because it is the same rule of [ADR 0038](0038-lateinit-property-modifier.md) § 1 being broken:
+because it is the same rule of `rule:classes/lateinit-restrictions` being broken:
 
 ```console
 E0782: `User::$id` is `readonly`, so only `User`'s constructor writes it

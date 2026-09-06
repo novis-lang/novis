@@ -1,5 +1,5 @@
 --TEST--
-`Core\Serialize::encode`/`decode` round-trip a graph, keep its shared substructure shared, run no constructor and refuse foreign bytes — ADR 0023 §§ 2 and 3
+`Core\Serialize::encode`/`decode` round-trip a graph, keep its shared substructure shared, run no constructor and refuse foreign bytes — `rule:classes/graph-copy` and `rule:classes/serialize-is-a-closed-format`
 --FILE--
 <?nvs
 class Counter {

@@ -88,11 +88,11 @@
 //!    writes no `implements` clause anywhere. `Duration`, `Instant`, `Date` and
 //!    `TimeOfDay` each register `compareTo`, which is what
 //!    `nvs_stdlib::registry::implements_comparable` reads and
-//!    `nvs_types::core_lib` seeds ADR 0013 § 2's conformance from, so `$a < $b`
+//!    `nvs_types::core_lib` seeds `rule:classes/ordering-lowers-to-compare-to`'s conformance from, so `$a < $b`
 //!    orders two of them and lowers to that same member —
 //!    `nvs_ir::lower::operator::lower_object_comparison` takes the `Core`
 //!    branch, since a helper symbol has no entry in any compiled method table.
-//!    `"took " . $d` is the same story one interface along: ADR 0028 § 1's
+//!    `"took " . $d` is the same story one interface along: `rule:classes/stringable`'s
 //!    rendering is decided by the registered `toString` rather than by a
 //!    declaration, through `nvs_types::expr::operators::require_stringable`
 //!    where the operand's type names this class and `nvs_stdlib::instance`'s
@@ -930,7 +930,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$d->compareTo(Duration $other): int` — `Comparable`'s member
-    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)),
+    /// (`rule:classes/comparable`),
     /// answering the sign of `$d - $other` without the subtraction's overflow.
     fn nvs_core_time_duration_compare_to(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "compareTo")?;
@@ -945,7 +945,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$d->toString(): string` — `Stringable`'s member
-    /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)),
+    /// (`rule:classes/no-magic-methods`),
     /// emitting `rule:types/duration-literal`'s grammar so that a value round-trips through
     /// `parse` — over the durations that grammar can spell, which is the
     /// non-negative ones. This member is total and a negative duration is
@@ -3650,7 +3650,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$i->compareTo(Instant $other): int` — `Comparable`'s member
-    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)).
+    /// (`rule:classes/comparable`).
     fn nvs_core_time_instant_compare_to(_ctx, args: [2]) {
         let left = instant_of(args, 0, "compareTo")?;
         let right = instant_of(args, 1, "compareTo")?;

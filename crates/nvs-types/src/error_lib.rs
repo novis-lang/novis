@@ -424,7 +424,7 @@ mod tests {
     #[test]
     fn the_root_owes_its_constructor_no_definite_initialization() {
         // The constructor is synthesized by `nvs_ir::lower`, not written in
-        // Novis, so ADR 0022's obligation has nothing to check it against.
+        // Novis, so `rule:classes/definite-property-initialization`'s obligation has nothing to check it against.
         let mut interner = TypeInterner::new();
         let mut table = SignatureTable::new();
         seed(&mut table, &mut interner);

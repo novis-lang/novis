@@ -68,7 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         // The same two marks the sibling row carries, and for the same reasons:
         // [`CoreTy::Entry`] is ADR 0083 § 2's operand rule — a path or a static
         // method written `Feed::run(...)`, never a `callable` in a variable —
-        // and `args` takes no expected type because ADR 0023 § 2's walk decides
+        // and `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
         // what may cross at run time. `crate::socket`'s row is where those two
         // are argued; § 5 gives this member "the identical clause", so a
         // difference between the two signatures would be one this ADR does not

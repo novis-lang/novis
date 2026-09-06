@@ -209,7 +209,7 @@ named a language to imitate rather than one to stay compatible with.
   mechanically. `nvs convert` ([M11](../implementation-plan.md)) can rewrite case declarations and
   `->value` reads, but a method on an enum must become a `static` method on some other class, taking the
   enum as a parameter — there is no standalone-function destination to begin with
-  ([ADR 0011](0011-functions-and-constants-are-class-members.md)) — and an implemented interface has no
+  (`rule:classes/no-free-functions-or-constants`) — and an implemented interface has no
   destination at all; both are `TODO`s for a human, not a rewrite.
 - **No `::cases()` in the language.** Code that iterates "every case of this enum" — validation, generating
   a dropdown, a switch statement's exhaustiveness check written by hand — loses a one-line PHP idiom until
@@ -255,7 +255,7 @@ Deferred deliberately, each needing its own argument:
   an enum *is*, and belongs with `match`'s own design rather than this ADR.
 - **User-defined behaviour on an enum, as `static` methods on some class that the checker treats as if
   namespaced to the enum type** — the only shape available at all once
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) forecloses a free-function version of this
+  `rule:classes/no-free-functions-or-constants` forecloses a free-function version of this
   idea. Only worth reopening if the `TODO` rate from *Consequences* proves high enough in real converted
   code to justify dedicated syntax for it.
 

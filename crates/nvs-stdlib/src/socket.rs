@@ -77,7 +77,7 @@
 //!   under it, are asked against the request's own configuration overlay, so a
 //!   request that narrowed its grants cannot upgrade into a connection holding
 //!   the ones it gave up — § 1's "narrowed from the request's, never widened".
-//! - **The argument.** ADR 0023 § 2's refusal is the *parent's* fault, and
+//! - **The argument.** `rule:classes/graph-copy`'s refusal is the *parent's* fault, and
 //!   `nvs_host`'s `isolate` module doc owns that asymmetry; here is the one
 //!   point at which a `secret` passed to a socket is still a throw the program
 //!   can catch rather than a connection that closes after its `101`.
@@ -234,7 +234,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // [ADR 0097](/docs/adr/0097-development-server-and-proxied-origin.md)
             // § 2 is the same rule written for the server, a filesystem path never
             // derived from a URL at request time. `args` takes no expected type at
-            // all, for the reason the sibling site takes none: ADR 0023 § 2's walk
+            // all, for the reason the sibling site takes none: `rule:classes/graph-copy`'s walk
             // decides what may cross, and that is a run-time question for
             // everything a declared type does not already settle.
             params: &[CoreTy::Entry, CoreTy::Mixed],
@@ -469,7 +469,7 @@ const MESSAGE_VALUE: usize = 3;
 /// **`text` and `bytes` are `tainted` and `value` is not.** § 3 marks a
 /// received frame's payload as untrusted input, which is what those two carry;
 /// a delivery's value came from another isolate on this side of the wire and
-/// crossed by ADR 0023 § 2's copy, so it arrives with whatever qualifiers it
+/// crossed by `rule:classes/graph-copy`'s copy, so it arrives with whatever qualifiers it
 /// already had and this row may not add one.
 pub(crate) const MESSAGE: CoreClass = CoreClass {
     name: MESSAGE_NAME,
@@ -807,7 +807,7 @@ nvs_runtime::nvs_helper! {
     /// `spawn script` child and an ordinary HTTP request alike — the module doc
     /// owns why that question is asked of `nvs_runtime::Inbound` rather than of
     /// a header. **The entry** is the code, and [`entry_program`] is where its
-    /// two forms become one. **The argument** is ADR 0023 § 2's crossing, and
+    /// two forms become one. **The argument** is `rule:classes/graph-copy`'s crossing, and
     /// it is made on this side of the boundary so that a `secret` handed to a
     /// connection is still a throw the program catches.
     ///
@@ -1553,7 +1553,7 @@ mod tests {
     /// the resolver's program for the path that was *written*, and the argument
     /// beside it is a **copy** rather than the request's own graph.
     ///
-    /// The copy is the half that could go wrong silently. ADR 0023 § 2's
+    /// The copy is the half that could go wrong silently. `rule:classes/graph-copy`'s
     /// crossing is what makes an isolate share nothing, and a member that left
     /// the caller's array in the slot would pass every test that only looked at
     /// the values in it — so the assertion is on the allocation, which is the
@@ -1661,7 +1661,7 @@ mod tests {
         release_crossed(path);
     }
 
-    /// ADR 0023 § 2's refusal is the **parent's**, and this is where the module
+    /// `rule:classes/graph-copy`'s refusal is the **parent's**, and this is where the module
     /// doc's "copied twice per upgrade" earns its cost: the crossing is made
     /// inside the request so a value with no meaning on the other side is a
     /// throw a `catch` sees, rather than a connection that closes after its

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Serialize` names what it refused: a closure has no meaning across a copy boundary, and a payload that is not Novis's own format is refused whole — ADR 0023 §§ 2 and 3
+`Core\Serialize` names what it refused: a closure has no meaning across a copy boundary, and a payload that is not Novis's own format is refused whole — `rule:classes/graph-copy` and `rule:classes/serialize-is-a-closed-format`
 --FILE--
 <?nvs
 // § 2: "refuses what has no meaning on the other side" — a closure captures a

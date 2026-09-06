@@ -13,7 +13,7 @@
 //! now and is not tracked: every corpus file opens with `<?php`, which
 //! `rule:statements/nvs-is-the-only-open-tag`
 //! rejects in favour of `<?nvs`, so every one of them trips `E0229`;
-//! [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
+//! `rule:classes/names-resolve-case-sensitively`
 //! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`
 //! now lex as ordinary identifiers; and
 //! `rule:expressions/one-equality-operator` makes every `===`/`!==` in the corpus an `E0232`. All three widenings

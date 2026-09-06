@@ -127,7 +127,7 @@ Arguments in and the result out are **deep-copied, or moved when the refcount is
 mechanism and identical restrictions as `spawn worker` ([the ADR index](README.md)). This is not a new
 marshalling design, and that is the main reason to state it: two boundaries with different value rules
 would be two sets of rules for developers to learn and two implementations to keep correct.
-[ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) now gives this operation its one formal
+`rule:classes/two-copy-depths` now gives this operation its one formal
 definition — a recursive, cycle-safe graph copy — and gives it a second caller: `serialize()`/`unserialize()`
 run the identical walk, externalized to bytes instead of moved directly between two live arenas. The three
 bullets below are that ADR's rules, restated here because this is the boundary a reader lands on first:

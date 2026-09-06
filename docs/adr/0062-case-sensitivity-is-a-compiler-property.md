@@ -1,4 +1,4 @@
-# ADR 0062 — Case sensitivity is a compiler property, never an OS property
+# `rule:classes/names-resolve-case-sensitively` — Case sensitivity is a compiler property, never an OS property
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

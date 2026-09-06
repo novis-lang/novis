@@ -28,7 +28,7 @@ array<string> $rows = [
 ];
 
 // A `.nvst` case's own helper is a `public static function` in a class
-// (ADR 0011 § 1); this one is the whole of what "agrees with the sign of"
+// (`rule:classes/no-free-functions-or-constants`); this one is the whole of what "agrees with the sign of"
 // means below.
 final class Sign {
     public static function of(int $n): int {

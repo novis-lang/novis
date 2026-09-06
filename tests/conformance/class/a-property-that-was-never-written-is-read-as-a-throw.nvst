@@ -1,11 +1,11 @@
 --TEST--
-A slot that was never written reads as a catchable throw, never as a value standing in for one — ADR 0022 § 3, ADR 0038 § 1
+A slot that was never written reads as a catchable throw, never as a value standing in for one — `rule:classes/an-unwritten-property-read-throws`, `rule:classes/lateinit-restrictions`
 --FILE--
 <?nvs
-// ADR 0022 § 3: the residual runtime case. ADR 0022 § 2 discharges every
+// `rule:classes/an-unwritten-property-read-throws`: the residual runtime case. `rule:classes/definite-property-initialization` discharges every
 // other non-nullable property at its constructor, so a `lateinit` property
-// (ADR 0038) is the one declaration that can reach the state at all — and
-// ADR 0038 § 3's intraprocedural check already refuses the reads it can see,
+// (`rule:classes/lateinit`) is the one declaration that can reach the state at all — and
+// `rule:classes/lateinit-read-before-write`'s intraprocedural check already refuses the reads it can see,
 // which is why every read below is written from outside the class.
 class Logger {
   public function name(): string { return "log"; }

@@ -3,7 +3,7 @@
 //! `Class::class`, or a static property — must name something actually
 //! declared on that class or reached transitively through the
 //! [`ClassGraph`] built in [`crate::hierarchy`] (`extends`/`implements`).
-//! [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
+//! `rule:classes/no-free-functions-or-constants`
 //! gives a callable/constant no bare-name fallback to fall into instead, so
 //! there is nothing else a `Class::member` reference could mean.
 //!
@@ -22,7 +22,7 @@
 //! Also carries M2 item 5, the property-access counterpart: `$this->name`
 //! must name an instance property actually declared on the enclosing class
 //! or reached the same way through [`ClassGraph`], per
-//! [ADR 0014](/docs/adr/0014-property-observer.md) § 5's "no
+//! `rule:classes/no-dynamic-properties`'s "no
 //! `__get`/`__set` fallback." `$this` is the only property-access receiver
 //! whose class is knowable without a type checker — see the known gaps
 //! below for every other receiver shape.
@@ -66,7 +66,7 @@
 //!   reports `E_UNDEFINED_PROPERTY` for on `$this` — split across crates by
 //!   which one has the type to check against, not skipped by either.
 //! - A property access whose name is not a literal identifier
-//!   (`$obj->$name`, `$obj->{expr}`) is a runtime concern per ADR 0014 § 5,
+//!   (`$obj->$name`, `$obj->{expr}`) is a runtime concern per `rule:classes/no-dynamic-properties`,
 //!   not a compile-time one, and is silently skipped here regardless of
 //!   receiver.
 
@@ -675,7 +675,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             e!(expr);
             walk_class_side(class, src, ctx, env);
         }
-        // A bare `strlen($s)` is ADR 0011 § 1's removed row, not a call on a
+        // A bare `strlen($s)` is `rule:classes/no-free-functions-or-constants`'s removed row, not a call on a
         // value: the callee is reported here rather than recursed into, so
         // that it names the *function* replacement instead of the constant
         // one `ExprKind::ConstFetch`'s own arm below would give it.
@@ -700,7 +700,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                             )
                             .with_primary(callee.span, "no free function has this name")
                             .with_help(
-                                "ADR 0011 § 1: every callable is a method, and the built-ins \
+                                "`rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins \
                                  live under the reserved `Core` namespace — \
                                  `Core\\Str::length($s)`, or `use Core\\Str;` and then \
                                  `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's \
@@ -735,7 +735,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             if let MemberName::Ident(name_span) = method {
                 let name = src.span_text(*name_span).unwrap_or_default();
                 // `rule:attributes/structural-retrieval`'s class target — `Foo::constructor(...)` — rests
-                // on ADR 0022 § 2's "every class has one, definitely", so a
+                // on `rule:classes/definite-property-initialization`'s "every class has one, definitely", so a
                 // *reference* to a constructor no class body writes names the
                 // synthesized one and is not an undefined member.
                 //
@@ -894,7 +894,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 .with_primary(expr.span, "used where a value is expected")
                 .with_help(format!(
                     "write `{written}::` and the member wanted — a method call, a constant or a \
-                     static property. There is no class handle to pass around: ADR 0011 puts \
+                     static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts \
                      every reflective question on `Core\\Reflect` instead"
                 )),
             );

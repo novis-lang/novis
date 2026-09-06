@@ -2,7 +2,7 @@
 A round-trip through Core\Serialize keeps a cycle a cycle and keeps shared substructure shared, exactly as PHP's serialize/unserialize pair does
 --FILE--
 <?nvs
-// ADR 0023 § 2's graph copy, against the one implementation PHP already has of
+// `rule:classes/graph-copy`'s graph copy, against the one implementation PHP already has of
 // the same operation. The wire formats are unrelated and neither side can read
 // the other's bytes, so what is compared here is the *shape of the value that
 // comes back* — which is the whole of what a caller can observe.

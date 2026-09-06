@@ -8,7 +8,7 @@
 //! inherent impl inside a single crate. Each module's methods are
 //! `pub(crate)`, reaching exactly as far as `lower/` and no further — the
 //! visibility they had when this was one 9,000-line file. The split is for
-//! collision surface: `for`, `switch`, `match`, `$fn(...)` and ADR 0043's
+//! collision surface: `for`, `switch`, `match`, `$fn(...)` and `rule:classes/no-traits`'s
 //! `by`-delegation all land here, and two sessions adding two of them should
 //! not conflict.
 //!
@@ -267,9 +267,8 @@ struct TryFrame<'a> {
 /// flattened slot order — [`crate::ir::Class::defaults`].
 ///
 /// Two kinds of entry, which [`nvs_types::FieldDefault::Unset`] owns the
-/// sharing of: a declared `= expr` default, and ADR 0022 § 3's never-written
-/// marker on a `lateinit` slot (ADR 0038). The two cannot collide — ADR 0038
-/// § 1's `lateinit` is what a property with no initializer declares — but the
+/// sharing of: a declared `= expr` default, and `rule:classes/an-unwritten-property-read-throws`'s never-written
+/// marker on a `lateinit` slot (`rule:classes/lateinit`). The two cannot collide — `rule:classes/lateinit-restrictions`'s `lateinit` is what a property with no initializer declares — but the
 /// join below is written so that a default wins anyway, since a slot may only
 /// be armed once and a written initializer is the one the author can see.
 ///
@@ -546,8 +545,7 @@ pub fn file_script_label(id: SourceId) -> String {
 ///
 /// Enums are not walked; interfaces are, because an `interface` method may
 /// carry a body
-/// ([ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
-/// § 2) and a default is an ordinary compiled method under the interface's own
+/// (`rule:classes/interface-default-methods`) and a default is an ordinary compiled method under the interface's own
 /// label. § 4's `implements I by $field;` forwards have no declaration to walk
 /// at all — one is synthesized per `nvs_types::Delegation` at the end of this
 /// function, beside the method-table row that makes it reachable.
@@ -630,7 +628,7 @@ pub fn lower_program(
                                 out.extend(lowered.closures);
                                 synthesized.extend(lowered.classes);
                             }
-                            // ADR 0014 § 1's property hooks are compiled the
+                            // `rule:classes/property-hooks`'s property hooks are compiled the
                             // same way, under the label `nvs_types` recorded
                             // for the hook itself — see
                             // `lower_property_hook`. A bodiless hook (an
@@ -779,14 +777,14 @@ pub fn lower_program(
     // each record one. Nothing else here can repeat a label: `layouts` is a
     // map, and a closure's and a generator's class are named for the site.
     classes.dedup_by(|a, b| a.label == b.label);
-    // ADR 0043 § 4's `implements I by $field;` forwards: one synthesized
+    // `rule:classes/delegation-by-field`'s `implements I by $field;` forwards: one synthesized
     // method each, and one row each in the delegating class's method table,
     // which is what a receiver typed as the *interface* dispatches through.
     // `nvs_types::Delegation` is where every one of these was decided; this
     // adds the two things only a lowered program has, the function and the
     // row. A name the table already answers is left alone — § 4's "a class may
     // still write its own method with the same name as a delegated one", and
-    // an inherited body or an ADR 0043 § 2 interface default on the same
+    // an inherited body or an `rule:classes/interface-default-methods` interface default on the same
     // terms.
     for delegation in exprs.delegations() {
         let Some(class) = classes
@@ -802,8 +800,8 @@ pub fn lower_program(
         {
             continue;
         }
-        // ADR 0022 § 3 on the forward's own read: a `lateinit` delegate
-        // field (ADR 0038) is the one E0720 admits that no constructor is
+        // `rule:classes/an-unwritten-property-read-throws` on the forward's own read: a `lateinit` delegate
+        // field (`rule:classes/lateinit`) is the one E0720 admits that no constructor is
         // obliged to fill, and dispatching on what it then holds is what
         // `delegation_forward`'s guard exists to stop.
         let never_written = exprs.is_lateinit_property(&delegation.class, &delegation.field);
@@ -901,7 +899,7 @@ pub fn lower_method(
     // modifier (see that function's own comment for why: a static method's
     // body referencing `$this` is a distinct, unrelated diagnostic, not this
     // crate's concern). `nvs-ir` never lowers a free function — every
-    // `MethodMember` it reaches belongs to a class per ADR 0011 — so there is
+    // `MethodMember` it reaches belongs to a class per `rule:classes/no-free-functions-or-constants` — so there is
     // no case where a receiver truly doesn't exist. This is the "implicit
     // first parameter" shape from the crate docs' design-choices section,
     // chosen over a receiver-only special case so `ExprKind::MethodCall`'s
@@ -1046,8 +1044,7 @@ fn promoted_stores(
     }
 }
 
-/// Lowers one of `p`'s [ADR 0014](/docs/adr/0014-property-observer.md)
-/// § 1 property hooks to a [`Function`] named `name` — which must be the
+/// Lowers one of `p`'s `rule:classes/property-hooks` property hooks to a [`Function`] named `name` — which must be the
 /// label `nvs_types::signatures::hook_label` spelled for it, since a `set`
 /// hook's short form recovers the declaring class's own label back out of it.
 ///
@@ -2361,7 +2358,7 @@ impl<'a> Lowering<'a> {
     /// The property arm's own `else` is unreachable, and its message carries
     /// the proof: a `PropertyAccess` span carries a `HookedProperty`, a
     /// `ShapeProperty`, a `Property` or nothing, and only the third survives
-    /// to here. A *hooked* property (ADR 0014 § 1) is a pair of accessors
+    /// to here. A *hooked* property (`rule:classes/property-hooks`) is a pair of accessors
     /// rather than a slot and an *erased* one (`rule:types/erased-member-access`) is resolved by
     /// name at run time, so neither could be written back to at all;
     /// `nvs_types::expr::assign`'s `check_write_target` refuses both where the
@@ -2418,7 +2415,7 @@ impl<'a> Lowering<'a> {
                          returns a resolved type from, and reports a diagnostic on every \
                          path it records nothing on, so a body reaching here at all had an \
                          entry. `nvs_types::expr::assign::check_write_target` then refuses \
-                         the first two where the write is written — `E0478` for ADR 0014 \
+                         the first two where the write is written — `E0478` for `rule:classes/property-observer` \
                          § 1's pair of accessors, `E0480` for `rule:types/erased-member-access`'s erased \
                          receiver — for all four write spellings alike, leaving `Property` \
                          as the only entry an element write's holder can still carry",
@@ -2566,7 +2563,7 @@ impl<'a> Lowering<'a> {
     /// judgment cannot make from syntax alone.
     ///
     /// `$obj->prop` *looks* like a slot read at every hooked and unhooked
-    /// property alike, but a property with an ADR 0014 § 1 `get` hook is a
+    /// property alike, but a property with an `rule:classes/property-hooks` `get` hook is a
     /// **call**: its result is a fresh, already-owned value, exactly like any
     /// other call's, and retaining it would leak one reference per read. Only
     /// `nvs_types`' resolution can tell the two apart, which is why this is a
@@ -3334,7 +3331,7 @@ pub(crate) const FN_PARAM_NAMES: &str = "fn#names";
 ///
 /// Deliberately not a `nvs_runtime::Tag` discriminant, and parked at the
 /// **top** of the nibble rather than one past the roster's end so that it
-/// stays that way: it was twelve until ADR 0022 § 3's never-written storage
+/// stays that way: it was twelve until `rule:classes/an-unwritten-property-read-throws`'s never-written storage
 /// state took that discriminant, and a nibble chosen as "one past the last
 /// tag" is a nibble that collides the next time the roster grows.
 /// `nvs-codegen`'s `the_any_nibble_denotes_no_tag_at_all` is what caught it

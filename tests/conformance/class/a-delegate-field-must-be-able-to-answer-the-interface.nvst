@@ -1,8 +1,8 @@
 --TEST--
-`implements I by $field;` refuses a `$field` that cannot answer `I`, and every member the delegation does not supply is owed as usual — ADR 0043 § 4
+`implements I by $field;` refuses a `$field` that cannot answer `I`, and every member the delegation does not supply is owed as usual — `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
-// ADR 0043 § 4 bullet 1: the delegate has to be a declared property whose
+// `rule:classes/delegation-by-field` bullet 1: the delegate has to be a declared property whose
 // type is a non-nullable class or interface that satisfies the delegated
 // interface. Each half below is a failure the synthesized forward has no
 // answer for — no slot to read, no class to dispatch on, or no member to land

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Serialize` round-trips every shape its walk reaches, asserted by counting the whole table rather than reading one row off a line — ADR 0023 § 2
+`Core\Serialize` round-trips every shape its walk reaches, asserted by counting the whole table rather than reading one row off a line — `rule:classes/graph-copy`
 --FILE--
 <?nvs
 class Leaf {

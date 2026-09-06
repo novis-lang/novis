@@ -276,8 +276,8 @@ PHP and a borrowed PHP grammar therefore gets wrong:
 - Novis's own keywords, which no PHP grammar has: `spawn` and `spawn script`
   ([ADR 0006](0006-isolated-script-execution.md)), `autoload` (`rule:programs/no-runtime-autoload`),
   `type` (`rule:types/declaration`), `by`-delegation
-  ([ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)), property hooks and their
-  `get`/`set` bodies ([ADR 0014](0014-property-observer.md)).
+  (`rule:classes/no-traits`), property hooks and their
+  `get`/`set` bodies (`rule:classes/property-observer`).
 - **Duration literals** (`30s`, `1h30m`) as numeric literals, per `rule:types/duration-literal`.
 - `#[...]` **attributes**, distinguished from a `#` comment — the lexer already makes that distinction at
   `#[`, and a grammar that does not will colour every attribute in the file as a comment.

@@ -1130,7 +1130,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
     }
 }
 
-/// One `Core` class constant — [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// One `Core` class constant — `rule:classes/no-free-functions-or-constants`'s
 /// "every constant is a class constant", which is what `Core\Math::PI`
 /// replaces PHP's global `M_PI` with.
 ///
@@ -1167,7 +1167,7 @@ pub struct CoreConst {
     pub desc: &'static str,
 }
 
-/// One `Core` domain class — ADR 0011's "every callable is a class member,"
+/// One `Core` domain class — `rule:classes/no-free-functions-or-constants`'s "every callable is a class member,"
 /// with `Core` as the reserved namespace.
 ///
 /// Most are pure **namespaces**: a roster of static members, no state, and
@@ -1323,7 +1323,7 @@ pub const CLASSES: &[CoreClass] = &[
     // anything on the class above, because § 1 puts the match on the *request*.
     crate::router::MATCH,
     crate::csv::CLASS,
-    // ADR 0023 § 2's externalizing carrier, and no spec § of its own: the walk
+    // `rule:classes/graph-copy`'s externalizing carrier, and no spec § of its own: the walk
     // it reaches is `nvs_runtime::graph`'s, shared with the `spawn` boundary.
     crate::serialize::CLASS,
     crate::validate::CLASS,
@@ -1643,7 +1643,7 @@ pub const CLASSES: &[CoreClass] = &[
     // point still missing, and [`crate::db`]'s known gaps own why: what it
     // needs is a `CoreTy` for a shape parameter, not a body.
     crate::db::CLASS,
-    // What `connect` answers with, and `Core\Db\Queryable`'s own home: ADR 0043
+    // What `connect` answers with, and `Core\Db\Queryable`'s own home: `rule:classes/no-traits`
     // has `Transaction` delegate the interface to its connection, so the seven
     // members are declared here once. `query`, `execute`, `executeMany` and
     // `transaction` are the four that have landed.
@@ -2139,7 +2139,7 @@ pub struct CaseDoc {
 /// Every enum `Core` owns.
 ///
 /// A second roster beside [`CLASSES`] rather than a member of it, because an
-/// enum is not a class: [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
+/// enum is not a class: `rule:classes/no-free-functions-or-constants`
 /// puts every *callable* on a class, and an enum has none. `nvs_types::enums`
 /// seeds its own table from this, so `Core\Order::Desc` resolves to an integer
 /// constant through exactly the machinery a user-declared `enum` already goes
@@ -2210,14 +2210,13 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
 }
 
 /// Whether a `Core`-owned class renders as text —
-/// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-/// § 1's question, asked here because a `Core` class has no other place to
+/// `rule:classes/stringable`'s question, asked here because a `Core` class has no other place to
 /// answer it: it declares no interfaces, so there is no `Stringable` for
 /// `nvs_types` to prove against, and its members are the rows above rather
 /// than entries in a class graph.
 ///
 /// **Two rows answer yes, and they are two different rules.** A class the spec
-/// gives a `toString` renders through that member, which is ADR 0028 § 1
+/// gives a `toString` renders through that member, which is `rule:classes/stringable`
 /// exactly. A **sink carrier** renders through
 /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) § 5
 /// instead and has no such member: it is the sink's own value type, holding
@@ -2283,7 +2282,7 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// checker has already given the call site the type `array<User>` or `User`,
 /// and a helper guessing from the JSON would hand back the other one.
 ///
-/// **`Core\Db\Queryable`'s `queryAs` is on it twice**, because ADR 0043's
+/// **`Core\Db\Queryable`'s `queryAs` is on it twice**, because `rule:classes/no-traits`'s
 /// delegation is two registry rows and this roster is keyed by the *declaring*
 /// class — the one `nvs_types::expr::calls` resolves a call to. A member
 /// forwarded from `Core\Db\Transaction` to its connection is still written on
@@ -2434,7 +2433,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
         .map(|(_, elem)| *elem)
 }
 
-/// Whether `class` satisfies [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
+/// Whether `class` satisfies `rule:classes/comparable`'s
 /// `Comparable`, so `<`/`<=`/`>`/`>=`/`<=>` order two of its instances.
 ///
 /// **Asked of the member roster, never of a list.** A `Core` class writes no
@@ -2446,8 +2445,7 @@ pub fn iterable_element(class: &str) -> Option<&'static CoreTy> {
 /// domain module adds the member without it — which is how the time types
 /// spent this whole gap (`docs/reference/findings.md` D1).
 ///
-/// The `self`-typed parameter is load-bearing rather than decoration: ADR 0013
-/// § 2 refuses a comparison across classes, so a `compareTo` taking anything
+/// The `self`-typed parameter is load-bearing rather than decoration: `rule:classes/ordering-lowers-to-compare-to` refuses a comparison across classes, so a `compareTo` taking anything
 /// else answers a different question and is not this interface's member.
 #[must_use]
 pub fn implements_comparable(class: &str) -> bool {
@@ -2619,7 +2617,7 @@ mod tests {
 
     /// Every registered name is one the spec's own naming rules allow: a
     /// class under `Core`, a `camelCase` member (ADR 0029), and no leading
-    /// underscore anywhere (ADR 0030). Cheap, and it catches a paste error in
+    /// underscore anywhere (`rule:classes/no-leading-underscore-identifiers`). Cheap, and it catches a paste error in
     /// a table that will grow to several hundred rows.
     #[test]
     fn every_registered_name_follows_the_casing_rules() {

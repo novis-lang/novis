@@ -1,5 +1,5 @@
 --TEST--
-A visibility keyword on a parameter promotes it to a property only in the `constructor`, and is refused on every other method — ADR 0043 § 4
+A visibility keyword on a parameter promotes it to a property only in the `constructor`, and is refused on every other method — `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
 // `nvs_syntax::ast::Param::is_promoted` is the one home of which parameters

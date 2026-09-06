@@ -9,7 +9,7 @@
   inheritance, or any nominal contract to these values — they stay pure data.
 - **Amends:** `rule:types/declaration` — `object` moves from a reserved-but-unused atom to
   a real member of the type lattice: every class type, named or anonymous-literal, is now a subtype of it,
-  and it is in turn a subtype of `mixed`. [ADR 0014](0014-property-observer.md) § 5 — its "a computed
+  and it is in turn a subtype of `mixed`. `rule:classes/no-dynamic-properties` — its "a computed
   property name is a checked runtime throw, never a fallback" rule gains a second trigger: an *erased
   receiver type* (plain `object`, or a shape missing the named field), not only a *dynamic name*; and gains
   a case § 5 never needed before — a write whose target's real field type isn't statically visible through
@@ -21,21 +21,21 @@
   shape's structural check.
 
 > **In short:** PHP's `stdClass` needs dynamic, undeclared properties — closed for good reason in
-> [ADR 0014](0014-property-observer.md) — so Novis cannot offer it directly. Instead: **`object` becomes the
+> `rule:classes/property-observer` — so Novis cannot offer it directly. Instead: **`object` becomes the
 > real, opaque supertype of every class type** (named or anonymous), reusing a keyword and atom that were
 > already reserved but never wired up. **`{a: 1, b: 2}` is sugar that instantiates a compiler-synthesized,
 > methodless class** with exactly those fields, types inferred from the initializers — no constructor, no
 > `implements`, ordinary object (shared-by-reference) semantics, because it *is* an ordinary object. Passing
 > one across a function boundary typed plainly as `object` needs no shape declared anywhere; the receiving
 > function can still read and write it, at the price of a runtime-checked name/type lookup instead of a
-> compile-time-verified field access — the same checked-throw shape [ADR 0014](0014-property-observer.md) §5
+> compile-time-verified field access — the same checked-throw shape `rule:classes/no-dynamic-properties`
 > already committed to for a dynamically computed property name, now also triggered by an erased *receiver*
 > type. For the case where compile-time field safety *is* wanted without declaring a class, **an inline
 > shape type — `{name: T, ...}` — is usable directly in a signature**: a structural, width-subtyped,
 > compile-time-only constraint checked at each call/assignment site against the source's real, already-known
 > type. This is the **one deliberate exception** to Novis's otherwise fully nominal type system, and it is
 > scoped tightly to this one type family — `Comparable`, `PropertyObserver` and ordinary `interface`
-> satisfaction stay exactly as nominal as [ADR 0013](0013-comparable-interface.md)/[ADR 0014](0014-property-observer.md)/`rule:statements/nothing-gets-a-second-name`
+> satisfaction stay exactly as nominal as `rule:classes/comparable`/`rule:classes/property-observer`/`rule:statements/nothing-gets-a-second-name`
 > already left them.
 
 ## Context
@@ -43,7 +43,7 @@
 - The user asked for PHP's `stdClass` — a way to pass a shared, named bag of values across a function
   boundary without declaring a class. Novis cannot offer it as-is: every property must be declared and typed
   (`rule:types/declaration`), and accessing/creating an undeclared one is a hard error with
-  no fallback ([ADR 0014](0014-property-observer.md) § 5) — exactly the mechanism `stdClass` needs closed.
+  no fallback (`rule:classes/no-dynamic-properties`) — exactly the mechanism `stdClass` needs closed.
 - `rule:types/closure-literal` already named the gap this fills: two closures
   sharing mutable state need "an ordinary object in user code," with no ceremony-reduced way to write one.
 - A fully general, first-class structural record type (interned/canonicalized everywhere a type can appear)
@@ -86,14 +86,14 @@ each field's type inferred from its initializer expression — the same inferenc
 - has **no methods**, no `implements`, no user-reachable name — it exists only for the checker and codegen,
   never appears in a diagnostic as anything other than "an anonymous object with fields `x: int, y: int`";
 - needs **no constructor**: the literal itself assigns every field it declares, satisfying
-  [ADR 0022](0022-definite-property-initialization.md) § 2's definite-assignment obligation by construction,
+  `rule:classes/definite-property-initialization`'s definite-assignment obligation by construction,
   the identical shape a promoted constructor parameter already gets;
 - is an **ordinary object** in every other respect — reference (shared, not copy-on-write) semantics
   identical to any class instance, because it is one; `clone` and `serialize`/`unserialize` work on it with
-  no special case, via [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s existing, uniform
+  no special case, via `rule:classes/two-copy-depths`'s existing, uniform
   mechanism, since it has real (if compiler-named) declared properties;
 - field names are ordinary property names, so [ADR 0029](0029-identifier-casing-is-checked.md)'s
-  `camelCase` rule and [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)'s no-leading-`_` rule
+  `camelCase` rule and `rule:classes/no-leading-underscore-identifiers`'s no-leading-`_` rule
   both apply unchanged.
 
 **Deliberately not supported**, to keep "no dynamic properties, ever" intact: no shorthand `{x, y}` (every
@@ -134,11 +134,11 @@ used for every other parameter — no new comparison logic invented for this.
   Two unrelated named classes that happen to share field names/types become interchangeable wherever a shape
   type is used. This is intentional and is exactly what delivers "no shape needs to be declared anywhere for
   two sides to agree" — but it applies only to this type family. `Comparable`
-  ([ADR 0013](0013-comparable-interface.md)), `PropertyObserver` ([ADR 0014](0014-property-observer.md)), and
+  (`rule:classes/comparable`), `PropertyObserver` (`rule:classes/property-observer`), and
   ordinary `interface` satisfaction all stay exactly as nominal as their own ADRs already decided; nothing
   here reopens any of them.
 
-### 4. Property access through an erased view — extends ADR 0014 § 5
+### 4. Property access through an erased view — extends `rule:classes/no-dynamic-properties`
 
 A field named by a shape type, accessed through that shape, is proven present at compile time — reading it
 never throws. Until or unless a future optimization specializes per call site (see *Revisiting*), the actual
@@ -147,7 +147,7 @@ satisfying the same shape may lay fields out differently; the compile-time proof
 "as cheap as a plain field load."
 
 A field accessed through plain `object`, or a name a shape does not list, cannot be checked at compile time
-at all. This is [ADR 0014](0014-property-observer.md) § 5's already-decided fallback for a *dynamically
+at all. This is `rule:classes/no-dynamic-properties`'s already-decided fallback for a *dynamically
 computed* property name, now also triggered by an *erased receiver type*.
 
 **A `mixed` receiver is the third trigger, and the widest**: `rule:types/conversion`
@@ -169,7 +169,7 @@ all three triggers:
 
 Both throws are ordinary `Throwable`s, propagated by checked return like any other call
 (`rule:errors/propagation`), never routed through the fatal escalation ladder
-(`rule:errors/escalation-ladder`) — the same classification [ADR 0022](0022-definite-property-initialization.md) §3
+(`rule:errors/escalation-ladder`) — the same classification `rule:classes/an-unwritten-property-read-throws`
 already gives its own residual runtime case.
 
 ### 5. What this deliberately does not add
@@ -186,9 +186,9 @@ the answer: declare an ordinary class.
 - Closes the exact gap `rule:types/closure-literal` already named — "an ordinary
   object in user code" for sharing mutable state between closures — with a genuinely lightweight way to
   write that object, instead of a full structural-record subsystem.
-- Reuses four already-decided mechanisms end to end rather than inventing new ones: ADR 0014 § 5's
-  runtime-checked fallback, ADR 0022's promoted-parameter-style trivial definite assignment, `rule:statements/nothing-gets-a-second-name`'s
-  `type`-alias reuse, and ADR 0023's uniform clone/serialize/isolate-crossing.
+- Reuses four already-decided mechanisms end to end rather than inventing new ones: `rule:classes/no-dynamic-properties`'s
+  runtime-checked fallback, `rule:classes/definite-property-initialization`'s promoted-parameter-style trivial definite assignment, `rule:statements/nothing-gets-a-second-name`'s
+  `type`-alias reuse, and `rule:classes/two-copy-depths`'s uniform clone/serialize/isolate-crossing.
 - Zero new runtime representation: a literal instance is an ordinary object allocation, exactly
   `rule:programs/memory-priority`'s existing accounting for any object — no tagged-value
   discriminant, no boxing scheme unique to this feature.
@@ -210,7 +210,7 @@ the answer: declare an ordinary class.
 - PHP's `stdClass`/dynamic-property idiom still has no mechanical translation — a PHP object built by
   assigning arbitrary properties after construction has no Novis literal equivalent, since every field must be
   fixed at the point of construction. `nvs convert` (M11) must flag this as a `TODO`, joining the TODO
-  classes [ADR 0007](0007-explicit-type-system.md) § 7 and [ADR 0014](0014-property-observer.md) already
+  classes [ADR 0007](0007-explicit-type-system.md) § 7 and `rule:classes/property-observer` already
   carry.
 
 ## Alternatives rejected
@@ -224,7 +224,7 @@ the answer: declare an ordinary class.
   structural and property-only is the same "two meanings, one name" problem
   `rule:statements/nothing-gets-a-second-name` already refuses elsewhere.
 - **PHP's `stdClass` directly.** Rejected outright: it requires dynamic, undeclared properties, which
-  [ADR 0014](0014-property-observer.md) closes for exactly this reason.
+  `rule:classes/property-observer` closes for exactly this reason.
 - **Exact-match shape types (no width subtyping).** Rejected: strictly narrower for no safety benefit, and
   would force re-wrapping an already-compatible value just to add one more field elsewhere in the program.
 
@@ -249,10 +249,10 @@ Verification, in the order it becomes possible:
 - **M2**: `object` carries real subtyping — every named or literal-synthesized class type is provably `<:
   object`; a shape type is checked structurally (width subtyping plus ordinary field assignability) at every
   assignment, call argument and return; a `type` alias naming a shape type resolves exactly like any other
-  `type` alias; [ADR 0014](0014-property-observer.md) § 5's diagnostic path is extended to fire for a read or
+  `type` alias; `rule:classes/no-dynamic-properties`'s diagnostic path is extended to fire for a read or
   write through plain `object` or a shape missing the named field, joining that ADR's own corpus.
 - **M4**: reading a field proven by a shape never throws; reading through plain `object`, or a field a shape
   doesn't list, throws a checked `Throwable` if genuinely missing and never creates one; writing through
   either erased view type-checks the incoming value against the concrete field's real declared type and
   throws on mismatch; a literal instance clones, serializes and crosses the isolate boundary exactly like any
-  other object, per [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md).
+  other object, per `rule:classes/two-copy-depths`.

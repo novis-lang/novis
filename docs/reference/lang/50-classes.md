@@ -108,7 +108,7 @@ echo $c->n, "\n";
 A property with no default must be assigned on every path out of the constructor. A path that
 leaves one unassigned is a compile error, and so is declaring a property with no default in a
 class that has no constructor.
-<!-- src: ADR 0022 -->
+<!-- src: `rule:classes/definite-property-initialization` -->
 
 A `return` inside a constructor carries no value: a bare `return;` may leave early once every
 property is assigned on that path, and `return $value;` does not compile — the object under
@@ -172,7 +172,7 @@ a property default must be a
 `lateinit` on a class- or interface-typed property exempts it from the constructor rule. A read
 before any write throws; a read the compiler can see is unreachable-before-write is a compile
 error. `lateinit` is refused on a scalar or array property — give those a default.
-<!-- src: ADR 0038 -->
+<!-- src: `rule:classes/lateinit` -->
 
 ```nvs
 <?nvs
@@ -677,7 +677,7 @@ An `interface` declares methods a class must provide. It may also carry:
 A class implements any number of interfaces, comma-separated, and an interface may `extends`
 another. A class missing a required method is a compile error naming the method and the
 interface.
-<!-- src: ADR 0043 -->
+<!-- src: `rule:classes/no-traits` -->
 
 ```nvs
 <?nvs
@@ -860,7 +860,7 @@ A property may declare a `get` and/or a `set` hook. Every read runs `get`, every
 `set` — including reads and writes made by the constructor, by an interpolation, and by a
 subclass, which inherits the hooks. Inside its own hooks `$this->name` is the backing slot. A
 `set` hook that throws is an ordinary throw from the assignment, and the slot keeps its value.
-<!-- src: ADR 0014 -->
+<!-- src: `rule:classes/property-observer` -->
 
 ```nvs
 <?nvs
@@ -970,7 +970,7 @@ An object becomes a string only through the global interface `Stringable`, whose
 `toString(): string`. It is called by `echo`, by `.`, by interpolation and by `as string`,
 dispatching on the object's runtime class. An object of a class that does not implement it is
 refused at every one of those sites. `__toString` is refused as a method name.
-<!-- src: ADR 0028 -->
+<!-- src: `rule:classes/no-magic-methods` -->
 
 ```nvs
 <?nvs
@@ -1008,7 +1008,7 @@ does not implement `Stringable`
 whose one method is `compareTo(self $other): int`; the sign of its answer drives every operator,
 and `<=>` answers it unchanged. Without the interface, ordering two objects is a compile error —
 there is no property-by-property comparison. `==` is unaffected: it stays identity.
-<!-- src: ADR 0013 -->
+<!-- src: `rule:classes/comparable` -->
 
 ```nvs
 <?nvs
@@ -1055,7 +1055,7 @@ handle is seen through every other. `==` on two objects is identity — true onl
 object. `clone` makes a new object of the same class (a subclass clone keeps its class) with a
 copy of every property: an array property is copied, an object property is shared, and no
 method runs. `__clone` does not exist.
-<!-- src: ADR 0023 -->
+<!-- src: `rule:classes/two-copy-depths` -->
 
 ```nvs
 <?nvs

@@ -1,9 +1,9 @@
-//! ADR 0028 § 3's `isset(...)` and its neighbour `empty(...)`: what their
+//! `rule:classes/unset-is-refused-on-a-property`'s `isset(...)` and its neighbour `empty(...)`: what their
 //! operands may be, and why an absent array key answers `false` in one and
 //! `true` in the other rather than throwing in either.
 //!
 //! `isset($x)` is `$x != null` and `isset($a, $b)` is the conjunction — the
-//! whole semantics, with no magic method to consult ([ADR 0028] § 3 removed
+//! whole semantics, with no magic method to consult (`rule:classes/unset-is-refused-on-a-property` removed
 //! `__isset` along with the ambient fallback it existed to intercept).
 //! `empty($x)` is `!$x`, `rule:expressions/truthy-table`'s truthy table negated, and it takes
 //! exactly one operand. So the only rules this module carries are about the
@@ -32,7 +32,6 @@
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context.
 //!
-//! [ADR 0028]: ../../../../docs/adr/0028-closing-the-remaining-magic-methods.md
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_syntax::ast::{Expr, ExprKind};
@@ -129,7 +128,7 @@ fn report_not_a_variable(operand: &Expr, env: &mut Env<'_>) {
         )
         .with_primary(operand.span, "not a variable, element or property")
         .with_help(
-            "`isset($x)` is `$x != null` (ADR 0028 § 3), so write the test that way when \
+            "`isset($x)` is `$x != null` (`rule:classes/unset-is-refused-on-a-property`), so write the test that way when \
              the thing being tested is an expression — `Foo::bar() != null`",
         ),
     );

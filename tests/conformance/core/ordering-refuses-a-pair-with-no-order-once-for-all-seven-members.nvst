@@ -1,5 +1,5 @@
 --TEST--
-Every member that orders through `nvs_stdlib::ordering`'s one helper refuses the same orderless pair and raises the same catchable throw, differing only in the member name it puts in front — docs/spec/01-core-library.md §§ 2, 3 and 9, ADR 0013 for the object case
+Every member that orders through `nvs_stdlib::ordering`'s one helper refuses the same orderless pair and raises the same catchable throw, differing only in the member name it puts in front — docs/spec/01-core-library.md §§ 2, 3 and 9, `rule:classes/comparable` for the object case
 --FILE--
 <?nvs
 // The companion to the agreement case: seven members share one order, so they
@@ -20,7 +20,7 @@ final class Refusals {
     // that every backslash and brace is literal.
     private static function sharedTail(): string {
         return 'two numbers, two strings, two bools or two nulls have one and no other pair does. '
-             . '`Core\Arr::sort` takes `{comparator: ...}`; for an object ADR 0013 makes '
+             . '`Core\Arr::sort` takes `{comparator: ...}`; for an object `rule:classes/comparable` makes '
              . '`Comparable` the answer';
     }
 

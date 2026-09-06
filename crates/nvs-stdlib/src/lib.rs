@@ -481,7 +481,7 @@ mod tests {
     /// sharing one would silently call the same code — which is what this
     /// still refuses, and the whole of what it refused when it was written.
     /// What it now admits is
-    /// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+    /// `rule:classes/no-traits`'s
     /// `by` delegation, whose entire content is that the two rows *are* one
     /// member: `Core\Db\Transaction implements Queryable by $connection`
     /// ([ADR 0067](/docs/adr/0067-core-db.md) § 7, and the first

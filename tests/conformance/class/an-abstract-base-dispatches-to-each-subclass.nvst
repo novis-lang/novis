@@ -1,5 +1,5 @@
 --TEST--
-An `abstract` method is answered by each subclass, a concrete base method calls it through `$this`, and a base that declares no constructor demands no `parent::constructor(...)` — ADR 0022 § 2
+An `abstract` method is answered by each subclass, a concrete base method calls it through `$this`, and a base that declares no constructor demands no `parent::constructor(...)` — `rule:classes/definite-property-initialization`
 --FILE--
 <?nvs
 abstract class Shape {

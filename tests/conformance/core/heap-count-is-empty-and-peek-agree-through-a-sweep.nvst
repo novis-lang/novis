@@ -1,5 +1,5 @@
 --TEST--
-`Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, ADR 0013, `rule:iteration/foreach-subjects`
+`Core\Heap<T>`'s `count`, `isEmpty`, `peek` and its `foreach` cursor agree at every step of a push/pop sweep, counted rather than read off a line — docs/spec/01-core-library.md § 9, `rule:classes/comparable`, `rule:iteration/foreach-subjects`
 --FILE--
 <?nvs
 // § 9 gives the class five members and an iteration, and four of them are
@@ -74,7 +74,7 @@ final class Sweep {
 array<int> $ops = [5, 3, 0, 8, 1, 0, 0, 9, 0, 0, 0, 4, 0];
 
 // The ordering in force is not one of the four readers' business: the same
-// sweep over ADR 0013's natural order and over a comparator has to produce the
+// sweep over `rule:classes/comparable`'s natural order and over a comparator has to produce the
 // same agreement count, 5 readers x 13 steps.
 var $rising = new Core\Heap<int>();
 var $falling = new Core\Heap<int>(fn (int $a, int $b): int => $b - $a);

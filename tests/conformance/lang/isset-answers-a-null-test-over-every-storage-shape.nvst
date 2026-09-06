@@ -1,5 +1,5 @@
 --TEST--
-`isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — ADR 0028 § 3, ADR 0007 § 7 row 11
+`isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — `rule:classes/unset-is-refused-on-a-property`, ADR 0007 § 7 row 11
 --FILE--
 <?nvs
 final class Counter {
@@ -15,7 +15,7 @@ final class Counter {
     }
 }
 
-// ADR 0028 § 3: the whole semantics is `$x != null`. A binding whose declared
+// `rule:classes/unset-is-refused-on-a-property`: the whole semantics is `$x != null`. A binding whose declared
 // type holds no `null` is always `true` and costs no test at all.
 ?string $a = null;
 ?string $b = "x";
@@ -25,7 +25,7 @@ echo isset($a) ? "y" : "n", isset($b) ? "y" : "n",
     isset($s) ? "y" : "n", isset($m) ? "y" : "n", "\n";
 
 // A property is storage like any other: a nullable one reflects what was last
-// assigned, and a non-nullable one is always `true` because ADR 0022 makes it
+// assigned, and a non-nullable one is always `true` because `rule:classes/definite-property-initialization` makes it
 // definitely initialised. A static property is in the accepted set too, and
 // is left out here only because `nvs-ir` lowers no read of one yet.
 Counter $c = new Counter();

@@ -1,4 +1,4 @@
-//! ADR 0043's interface default bodies and PHP's late static binding — `static::`, `new static`, `self::`.
+//! `rule:classes/no-traits`'s interface default bodies and PHP's late static binding — `static::`, `new static`, `self::`.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -10,7 +10,7 @@ use common::*;
 
 #[test]
 fn an_interface_default_body_calls_back_through_the_receivers_own_class() {
-    // ADR 0043 § 2's default method, compiled: `greet()` has a body declared
+    // `rule:classes/interface-default-methods`'s default method, compiled: `greet()` has a body declared
     // on the *interface*, and its body calls `name()`, which the interface
     // only declares. There is no `Greets::name` function to call, so the call
     // dispatches on the receiver's runtime class — the one shape a bodiless

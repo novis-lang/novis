@@ -23,7 +23,7 @@ var $known = $erased as Plain;
 $known->rows["0"] = "z";
 echo Core\Json::encode($known->rows), "\n";
 
-// `as` converted a handle, not a value: ADR 0023 makes an object identity, so
+// `as` converted a handle, not a value: `rule:classes/two-copy-depths` makes an object identity, so
 // the write is visible through the original binding's own class-typed read.
 var $again = $erased as Plain;
 echo Core\Json::encode($again->rows), "\n";

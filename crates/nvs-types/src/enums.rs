@@ -147,7 +147,7 @@ pub(crate) fn build_enum_table(
 ///
 /// Seeded first so a *declared* `Core\Order` would overwrite it rather than
 /// the other way round. That cannot happen today: `Core` is the reserved
-/// namespace ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)),
+/// namespace (`rule:classes/no-free-functions-or-constants`),
 /// and a program declaring into it is a question for `nvs-hir`'s resolver,
 /// not something this table should answer by silently winning.
 fn seed_core(table: &mut EnumTable) {

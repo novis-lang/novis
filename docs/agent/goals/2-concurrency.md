@@ -149,8 +149,7 @@ is a consumer of it.
 
 ## Stage 5 — the graph copy, and both things carried by it
 
-16. **One graph copy, two carriers.** [ADR 0023](../../adr/0023-clone-serialize-and-cross-boundary-copy.md)
-    § 2: the deep-copy-or-move walk is written once and reached twice — as the value-crossing operation at
+16. **One graph copy, two carriers.** `rule:classes/graph-copy`: the deep-copy-or-move walk is written once and reached twice — as the value-crossing operation at
     a `spawn worker`/`spawn script` boundary, and as `Core\Serialize`. Moving when the refcount is 1 is
     not an optimisation here, it is the semantics.
 17. **`Core\Serialize::encode`/`decode`** — § 3, Novis's own closed byte format, versioned and

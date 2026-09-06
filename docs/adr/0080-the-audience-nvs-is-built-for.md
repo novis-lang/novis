@@ -51,7 +51,7 @@
   engineering quality. It failed because its dialect diverged far enough that the package ecosystem stopped
   working, and **once the packages stop working, a type system does not cover its own cost.**
 - **Novis diverges further than Hack did, deliberately and correctly.** Hack kept traits, `__call`, free
-  functions and `ArrayAccess`. [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md),
+  functions and `ArrayAccess`. `rule:classes/no-traits`,
   [0014](0014-property-observer.md), [0011](0011-functions-and-constants-are-class-members.md) and
   [0053](0053-iteration-and-generators.md) remove all four. Every one of those decisions is right on its
   own terms and none should be revisited — but together they mean **the existing PHP ecosystem is not

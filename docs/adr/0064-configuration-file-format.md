@@ -185,7 +185,7 @@ on is untouched by any of it.
 
 ### 5. `ini_set` is `Core\Config::set`
 
-[ADR 0011](0011-functions-and-constants-are-class-members.md) forces this independently of the format —
+`rule:classes/no-free-functions-or-constants` forces this independently of the format —
 `ini_set`, `ini_get`, `ini_restore` and `ini_get_all` are free functions, and Novis has none. The names go
 with the file:
 

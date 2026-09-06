@@ -2,7 +2,7 @@
 Decoding an object builds it by assignment rather than by construction, so the constructor runs once per new and never on the way back — the same count PHP's unserialize reports
 --FILE--
 <?nvs
-// ADR 0023 § 2's "never runs a constructor". The copy is built by direct
+// `rule:classes/graph-copy`'s "never runs a constructor". The copy is built by direct
 // assignment into the new instance's storage, which is why the operation does
 // not reopen definite-property-initialization: the properties arrive already
 // populated. PHP's unserialize builds an instance the same way, so the two

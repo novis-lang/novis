@@ -1052,7 +1052,7 @@ pub(crate) fn check_inout_arg(
     expected: Option<TypeId>,
     env: &mut Env<'_>,
 ) {
-    // ADR 0014 § 1 makes a hooked property's read a call and its write a
+    // `rule:classes/property-hooks` makes a hooked property's read a call and its write a
     // second one, so it has no address to hand out — and no rule for what a
     // callee writing through one would even mean. Checked before the shape
     // match so `$obj->hooked` is refused for the right reason.
@@ -1068,7 +1068,7 @@ pub(crate) fn check_inout_arg(
             )
             .with_primary(arg.value.span, "passed by reference here")
             .with_help(
-                "reading it runs its `get` hook and writing it runs its `set` hook (ADR 0014 \
+                "reading it runs its `get` hook and writing it runs its `set` hook (`rule:classes/property-observer` \
                  § 1) — read it into a local, pass that, and assign the result back",
             ),
         );

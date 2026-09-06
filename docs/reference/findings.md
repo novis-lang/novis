@@ -70,7 +70,7 @@ in that goal. An item's owner is the row it sits in.
       § 10 tree, pinned by `tests/conformance/reject/throw-takes-a-throwable.nvst`.
 - [x] **P8** `clone` of an array — `array<int> $b = clone $a;` — panics ("lowers `clone` only for an
       object"). *ref30* — `E0781`, whose help says an `array<T>` is already copied on assignment
-      (ADR 0023 § 1); pinned by `tests/conformance/reject/clone-takes-an-object.nvst`.
+      (`rule:classes/clone-is-shallow`); pinned by `tests/conformance/reject/clone-takes-an-object.nvst`.
 - [x] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
       likewise `$className::f()`. *ref30; php-diff probes* — both are `E0496` where they are written,
       the code the third spelling `$x instanceof $className` already had: one mistake under one report
@@ -108,7 +108,7 @@ in that goal. An item's owner is the row it sits in.
 
 - [x] **U1** `readonly` is inert: a property (declared or promoted) is written after construction
       and reads back the new value. *probes2 `readonly_write`, `readonly_write_method`; r08* — a write
-      from anywhere but the declaring class's own constructor is `E0782` (ADR 0038 § 1's contract),
+      from anywhere but the declaring class's own constructor is `E0782` (`rule:classes/lateinit-restrictions`'s contract),
       at all four write spellings; PHP's second half, which admits an initializing write from any
       method of that class, is the divergence the differences page carries.
 - [x] **U2** `final` is inert: `final class A {} class B extends A {}` and an override of a `final`
@@ -401,7 +401,7 @@ in that goal. An item's owner is the row it sits in.
       and E0319 names `Core\Math::PI`, which ships.
 - [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("ADR 0056's two engines",
       "`rule:types/bytes`'s default unit") — meaningless to the reference's readers. `tools/reference.py`
-      strips the parenthesised form `(ADR 0013)`; the inline ones need rewording in the cards.
+      strips the parenthesised form `(`rule:classes/comparable`)`; the inline ones need rewording in the cards.
 
 ## Facts worth keeping (not bugs, but not written anywhere a user reads until now)
 

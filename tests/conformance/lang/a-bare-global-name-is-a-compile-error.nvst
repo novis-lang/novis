@@ -5,7 +5,7 @@ A bare name in value position is `E0319` and a bare call is `E0320`, never a pan
 // `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so a bare name in
 // value position has nothing to resolve against.
 echo PHP_EOL;
-// ADR 0011 § 1: the same for a free function. The callee is the identical
+// `rule:classes/no-free-functions-or-constants`: the same for a free function. The callee is the identical
 // AST node as the line above, and it is reported as a *function* rather
 // than as a constant because only one of the two replacements is right.
 echo strlen("abc");
@@ -31,6 +31,6 @@ error[E0320]: `strlen` is not a function that exists
   |
 8 | echo strlen("abc");
   |      ^^^^^^ no free function has this name
-  = help: ADR 0011 § 1: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's own name to its `Core` member
+  = help: `rule:classes/no-free-functions-or-constants`: every callable is a method, and the built-ins live under the reserved `Core` namespace — `Core\Str::length($s)`, or `use Core\Str;` and then `Str::length($s)`. `docs/spec/02-php-migration.md` maps PHP's own name to its `Core` member
 
 error: aborting due to 2 errors

@@ -83,8 +83,7 @@ pub enum Tag {
     /// heap shape* is the one home for that decision and for what it spends.
     Bytes = 11,
     /// **Not a value**: the "never written" storage state
-    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
-    /// § 3 requires of a property slot, distinct from every legal value
+    /// `rule:classes/an-unwritten-property-read-throws` requires of a property slot, distinct from every legal value
     /// including [`Self::Null`]. The payload is zero.
     ///
     /// It is a tag rather than a flag beside the slot for that section's own
@@ -97,8 +96,8 @@ pub enum Tag {
     /// compiled read). It is not refcounted, so a slot still holding one
     /// sweeps like a `null` when the object is freed.
     ///
-    /// Only a `lateinit` property (ADR 0038) can currently reach the state:
-    /// ADR 0022 § 2 discharges every other non-nullable property at its
+    /// Only a `lateinit` property (`rule:classes/lateinit`) can currently reach the state:
+    /// `rule:classes/definite-property-initialization` discharges every other non-nullable property at its
     /// constructor. `Core\Reflect`'s constructor-bypassing instantiation
     /// (ADR 0019, M6) is the other one § 3 names, and it will need no new
     /// state — only the same stamp on every slot it does not fill.
@@ -225,7 +224,7 @@ impl Value {
     ///
     /// The payload is zero deliberately, and that is what the *compiled* read
     /// tests. A slot in this state belongs to a `lateinit` property, whose
-    /// declared type ADR 0038 § 1 restricts to a non-nullable class or
+    /// declared type `rule:classes/lateinit-restrictions` restricts to a non-nullable class or
     /// interface — one pointer, which is null in this state and in no other —
     /// so `nvs_ir::lower`'s guard is one compare against the payload it had
     /// already loaded rather than a second load of the tag byte. The tag is

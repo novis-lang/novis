@@ -175,7 +175,7 @@ security log. Stated here so a future reader does not go looking for a redundant
 
 This is a deliberate exception to this project's otherwise-consistent stance that nothing happens by
 position, only by declaration (`rule:statements/static-is-a-member-modifier`, `rule:statements/no-host-populated-variables`,
-[ADR 0013](0013-comparable-interface.md), [ADR 0014](0014-property-observer.md)). AGENTS.md's priority
+`rule:classes/comparable`, `rule:classes/property-observer`). AGENTS.md's priority
 ordering ranks security above simplicity for exactly this kind of conflict, and an omitted escape call is
 the single most common real-world XSS root cause — so this ADR spends that priority explicitly rather than
 holding the "no magic" line for its own sake.
@@ -250,7 +250,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   persisted store this ADR treats conservatively; `Core\Taint::assertTrusted` exists for exactly this, at
   the cost of one written reason per call site.
 - **`nvs convert` gains a real, non-mechanical gap**, in the family `rule:types/bytes` and
-  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already carry: a ported PHP page that
+  `rule:classes/two-copy-depths` already carry: a ported PHP page that
   deliberately echoed raw HTML built from a variable (a common templating pattern) now gets an implicit
   escape it did not have before — a behavior change, not a syntax rewrite, and it needs a human to add
   `as Markup` or a `Markup`-returning helper rather than a mechanical conversion.
@@ -284,7 +284,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
 - **The exact laundering-function roster** (`Core\Html::escape`, a matching attribute-context escaper,
   `Core\Db::quoteIdentifier`, `Core\Taint::assertTrusted`, and whatever `Core\Process`/`Core\Fs` need) is
   stdlib design due at M8, illustrative only here, the same status
-  [ADR 0011](0011-functions-and-constants-are-class-members.md)'s *Revisiting* already gives every `Core`
+  `rule:classes/no-free-functions-or-constants`'s *Revisiting* already gives every `Core`
   class roster.
 - **Raw/unparsed request-body access** (a JSON payload, a webhook body, an arbitrary content-type) is not
   yet named among `Core\Request`'s planned methods — [the plan](../implementation-plan.md)'s M7 paragraph

@@ -72,7 +72,7 @@
 //!
 //! # Decision: the copy is made before the walk, and whether or not anyone joined
 //!
-//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md) § 2's
+//! `rule:classes/graph-copy`'s
 //! graph copy does two jobs here and only one of them scales with the
 //! audience. It gives each subscriber a value that shares nothing with the
 //! publisher or with any other subscriber, which is § 4's rule and is one copy
@@ -94,7 +94,7 @@
 //!
 //! A [`Value`] is refcounted on the core that made it, so the copy a
 //! subscriber on another core is handed cannot be made by the publisher. What
-//! crosses is ADR 0023 § 2's *encoding* rather than its copy —
+//! crosses is `rule:classes/graph-copy`'s *encoding* rather than its copy —
 //! [`nvs_runtime::encode`] on the publishing core and `decode` on the
 //! receiving one, the same carrier [`crate::cache`]'s shared tier crosses a
 //! process with — and the receiving core makes one value per subscriber as it
@@ -443,7 +443,7 @@ fn subscribers_of(topic: &str) -> Vec<Rc<Inbox>> {
     live
 }
 
-/// ADR 0023 § 2's copy of the value being published, which is also the one
+/// `rule:classes/graph-copy`'s copy of the value being published, which is also the one
 /// refusal `publish` makes about it.
 ///
 /// **Answers one owned reference**, which the delivery it is put in takes over.
@@ -464,7 +464,7 @@ fn cross(value: Value) -> Result<Value, Fault> {
     })
 }
 
-/// ADR 0023 § 2's *encoding* of the value being published, which is what
+/// `rule:classes/graph-copy`'s *encoding* of the value being published, which is what
 /// crosses to another core in place of a copy.
 ///
 /// **Borrows the argument**, on [`retained`]'s convention, and answers bytes

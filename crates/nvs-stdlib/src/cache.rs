@@ -11,7 +11,7 @@
 //! # Decision: an entry is § 3's byte payload, not a live graph
 //!
 //! § 2 fixes the *operation* — the recursive graph copy
-//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
+//! `rule:classes/two-copy-depths`
 //! already defines, not a third mechanism — and leaves which of its two
 //! carriers open. This tier uses the **byte** carrier
 //! ([`nvs_runtime::encode`]/[`nvs_runtime::decode`]), which is the same walk
@@ -366,7 +366,7 @@ const ENTRY_OVERHEAD: usize = 64;
 /// number beside the map would be two writers of one fact.
 #[derive(Default)]
 struct Local {
-    /// The entries themselves, each an ADR 0023 § 3 payload. Keys are `Rc` so
+    /// The entries themselves, each an `rule:classes/serialize-is-a-closed-format` payload. Keys are `Rc` so
     /// that `order` below names one without a second copy of the bytes.
     entries: HashMap<Rc<[u8]>, Box<[u8]>>,
     /// Every live key, in the order it was **first** written, which is the
@@ -870,7 +870,7 @@ mod tests {
         SHARED_DOC, Value, local_cap, store_get, store_put,
     };
 
-    /// ADR 0059 § 2: the copy across this boundary is the graph copy ADR 0023
+    /// ADR 0059 § 2: the copy across this boundary is the graph copy `rule:classes/two-copy-depths`
     /// already defines and the isolate boundary already shares — not a third
     /// mechanism, and still not a second one now that there are two tiers.
     ///

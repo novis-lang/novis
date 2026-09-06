@@ -25,7 +25,7 @@ var $refused = $db->stream($outside, []);
 // data to.
 var $bound = $db->stream("select id from accounts where owner = ?", [$outside]);
 
-// The classification is on the row and not on the receiver, and ADR 0043's
+// The classification is on the row and not on the receiver, and `rule:classes/no-traits`'s
 // delegation means the row is declared twice — so the refusal is asked of the
 // other declaring class as well. A `Core\Db\Transaction` that accepted a
 // `tainted` statement would be an injection surface reachable from inside every

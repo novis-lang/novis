@@ -1,4 +1,4 @@
-//! The two global interfaces an operator demands: ADR 0013's `Comparable` and ADR 0028's `Stringable`.
+//! The two global interfaces an operator demands: `rule:classes/comparable`'s `Comparable` and `rule:classes/no-magic-methods`'s `Stringable`.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0013: `<`/`<=`/`>`/`>=`/`<=>` between two objects.
+// `rule:classes/comparable`: `<`/`<=`/`>`/`>=`/`<=>` between two objects.
 
 #[test]
 fn comparable_objects_of_the_same_class_type_check_as_bool_or_int() {
@@ -99,7 +99,7 @@ fn every_operator_refuses_every_operand_with_no_ordering_row() {
             "Rank $a = Rank::Bronze; Rank $b = Rank::Silver;",
             code::E_ORDERING_HAS_NO_ROW,
         ),
-        // The object family keeps ADR 0013's own code however the receiver
+        // The object family keeps `rule:classes/comparable`'s own code however the receiver
         // was spelled — an erased `object` names no class to ask about.
         (
             "object $a = new Plain(); object $b = new Plain();",
@@ -232,7 +232,7 @@ fn a_class_implementing_stringable_converts_at_every_site_with_no_diagnostic() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// ADR 0028 § 1 over the classes `Core` owns: the registry saying a class has
+/// `rule:classes/stringable` over the classes `Core` owns: the registry saying a class has
 /// a `toString` is the whole of what makes it stringifiable, so the checker
 /// accepts exactly the classes `nvs_stdlib::registry::class_renders` accepts
 /// and refuses the rest where they are written rather than leaving a panic

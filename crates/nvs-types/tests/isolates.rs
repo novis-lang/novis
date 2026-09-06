@@ -229,7 +229,7 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
 ///
 /// ADR 0083 § 4's bus is asserted here rather than beside § 4's other qualifier
 /// rules (`sockets.rs`) because it is the same copy: "a published value is
-/// copied by ADR 0023 § 2's graph copy", so `Core\Topic::publish` is a third
+/// copied by `rule:classes/graph-copy`'s graph copy", so `Core\Topic::publish` is a third
 /// carrier of the rule this test's first half asks about, and the two are
 /// asserted together so a carrier that grew a refusal of its own would fail
 /// here rather than look right on its own line. `nvs_types::expr::quals`'s

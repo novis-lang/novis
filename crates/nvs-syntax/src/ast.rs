@@ -17,7 +17,7 @@
 //! attributes ([`AttributeGroup`]), and the file-scope declarations that sit
 //! alongside them ([`NamespaceDecl`]/[`UseDecl`]/[`TypeAliasDecl`]) round out
 //! M1's last chunk. There is no `trait` declaration and no class-body
-//! `use Trait, ...;` — ADR 0043 replaces both with an `interface` method that
+//! `use Trait, ...;` — `rule:classes/no-traits` replaces both with an `interface` method that
 //! carries a body (§§ 2-3) and `by $field` delegation on an
 //! [`ImplementsClause`] (§ 4); `trait`/class-body `use`/`insteadof` are all
 //! parse-time-rejected instead (`E_TRAIT_NOT_SUPPORTED`), with no AST node
@@ -490,7 +490,7 @@ pub enum Modifier {
     /// visibility: a separate, always-at-least-as-strict visibility for
     /// writes.
     SetVisibility(Visibility),
-    /// `lateinit` — ADR 0038: defers a non-nullable, class/interface-typed
+    /// `lateinit` — `rule:classes/lateinit`: defers a non-nullable, class/interface-typed
     /// property's first assignment past the constructor. Which
     /// types/positions actually accept it (a scalar, `?T`, a promoted
     /// parameter, `readonly`) is `nvs-types`' job, same discipline as every
@@ -541,8 +541,7 @@ pub struct Param {
 impl Param {
     /// Whether this parameter declares a property rather than only a binding
     /// — PHP 8's constructor promotion, which
-    /// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
-    /// § 4's own worked example spells `constructor(private Clock $clock)`.
+    /// `rule:classes/delegation-by-field`'s own worked example spells `constructor(private Clock $clock)`.
     ///
     /// A **visibility** keyword is what promotes, exactly as in PHP: it is
     /// the only modifier that says where the property may be read from, and
@@ -1345,12 +1344,11 @@ pub enum StmtKind {
     /// `type Name = TypeExpr;` (`rule:types/grammar`.5 / `rule:types/type-alias`), at
     /// file/namespace scope.
     TypeAliasDecl(TypeAliasDecl),
-    /// `function foo() { ... }` outside any class body — rejected, ADR 0011
-    /// § 1. Still parses to a full [`MethodMember`] shape, for a precise
+    /// `function foo() { ... }` outside any class body — rejected, `rule:classes/no-free-functions-or-constants`. Still parses to a full [`MethodMember`] shape, for a precise
     /// diagnostic; nothing downstream ever acts on it.
     TopLevelFunction(MethodMember),
     /// `const FOO = 1 (, BAR = 2)*;` outside any class body — rejected,
-    /// ADR 0011 § 1. Still parses to full [`ConstMember`] shapes (one per
+    /// `rule:classes/no-free-functions-or-constants`. Still parses to full [`ConstMember`] shapes (one per
     /// comma-separated declarator), for a precise diagnostic; nothing
     /// downstream ever acts on it.
     TopLevelConst(Vec<ConstMember>),
@@ -1360,7 +1358,7 @@ pub enum StmtKind {
 
 // ============================================================================
 // Declarations: classes, interfaces, traits, enums, and their members
-// (`rule:enums/closed-integer-type`, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
+// (`rule:enums/closed-integer-type`, `rule:classes/no-free-functions-or-constants`, `rule:classes/property-observer`); `namespace`, `use` and `type`-alias
 // declarations (`rule:types/grammar`.5, `rule:statements/nothing-gets-a-second-name`)
 // ============================================================================
 
@@ -1380,13 +1378,13 @@ pub struct ClassDecl {
     /// The single superclass, if any.
     pub extends: Option<Name>,
     /// The implemented interfaces, in source order, each with its optional
-    /// `by $field` delegation suffix (ADR 0043 § 4).
+    /// `by $field` delegation suffix (`rule:classes/delegation-by-field`).
     pub implements: Vec<ImplementsClause>,
     /// The class body's members, in source order.
     pub members: Vec<ClassMember>,
 }
 
-/// One entry of a class's `implements` list (ADR 0043 § 4): the interface
+/// One entry of a class's `implements` list (`rule:classes/delegation-by-field`): the interface
 /// named, its `<...>` type arguments if any, plus its optional `by $field`
 /// delegation suffix. `by_field` is recorded as a span and nothing more —
 /// checking that `$field` is a declared property whose type actually
@@ -1489,14 +1487,14 @@ pub enum ClassMemberKind {
     /// A method declaration, abstract (`body: None`) or concrete.
     Method(MethodMember),
     /// A placeholder produced during error recovery — also what a rejected
-    /// class-body `use TraitName, ...;` becomes, since ADR 0043 § 1 leaves no
+    /// class-body `use TraitName, ...;` becomes, since `rule:classes/no-traits` leaves no
     /// AST node to carry it.
     Error,
 }
 
 /// `modifiers type $name (= expr)?;`, or the hooked form
 /// `modifiers type $name { hooks... }` (PHP 8.4 property hooks, feeding
-/// `PropertyObserver` — ADR 0014). A declaration naming several properties
+/// `PropertyObserver` — `rule:classes/property-observer`). A declaration naming several properties
 /// at once (`public int $a, $b;`) is flattened into one [`ClassMember`] per
 /// name at parse time — hooks apply to exactly one property, so this loses
 /// nothing.

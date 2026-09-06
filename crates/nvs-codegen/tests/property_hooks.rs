@@ -1,4 +1,4 @@
-//! ADR 0014's property hooks: when each runs, how each is compiled, and a throwing one reaching a `catch`.
+//! `rule:classes/property-observer`'s property hooks: when each runs, how each is compiled, and a throwing one reaching a `catch`.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -8,7 +8,7 @@ mod common;
 
 use common::*;
 
-/// The whole of [ADR 0014](/docs/adr/0014-property-observer.md) § 1,
+/// The whole of `rule:classes/property-hooks`,
 /// end to end: a `get` hook produces the value a read yields, a `set` hook
 /// commits what a write hands it, the short `=> expr;` form means "return
 /// this" for `get` and "store this" for `set`, and inside a hook the property

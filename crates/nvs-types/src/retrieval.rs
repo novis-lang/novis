@@ -37,7 +37,7 @@
 //!
 //! The last two overlap, and deliberately: `constructor` plus a `$member` is
 //! both "the property named `$member`" and "the constructor parameter named
-//! `$member`", which are the *same declaration* for an ADR 0043 § 4 promoted
+//! `$member`", which are the *same declaration* for an `rule:classes/delegation-by-field` promoted
 //! parameter. So both rosters are consulted and their attributes joined, which
 //! is the one arrangement that reads a promoted parameter's attribute once and
 //! an unpromoted one's at all.
@@ -475,7 +475,7 @@ fn sites_for<'a>(
     let Some(member) = member.filter(|name| !name.is_empty()) else {
         return if method == "constructor" {
             // A class with no written `constructor` still names itself this
-            // way — ADR 0022 synthesizes one, so § 4 uses the spelling for
+            // way — `rule:classes/definite-property-initialization` synthesizes one, so § 4 uses the spelling for
             // every class rather than only for the ones that declare it, and
             // a class that *does* write one may carry attributes on both.
             let mut sites = entry.own.clone();

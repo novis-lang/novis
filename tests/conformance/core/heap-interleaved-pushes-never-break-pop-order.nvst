@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Heap<T>` interleaving pushes with pops still answers each `pop` with the element that sorts first among everything it then holds, and a sweep that never pushes below its last `pop` drains in non-decreasing order — docs/spec/01-core-library.md § 9, ADR 0013
+A `Core\Heap<T>` interleaving pushes with pops still answers each `pop` with the element that sorts first among everything it then holds, and a sweep that never pushes below its last `pop` drains in non-decreasing order — docs/spec/01-core-library.md § 9, `rule:classes/comparable`
 --FILE--
 <?nvs
 // § 9's heap is a priority queue, so its promise is not "the table sorted" —

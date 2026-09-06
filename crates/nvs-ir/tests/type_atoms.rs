@@ -160,7 +160,7 @@ class T {
         let body = match self {
             Self::Param => format!("    public static function m({atom} $p): void {{}}\n"),
             // `LogicError` rather than `Core\Error`: the exception tree's
-            // members are global names (ADR 0011 § 1), and `new Core\Error(…)`
+            // members are global names (`rule:classes/no-free-functions-or-constants`), and `new Core\Error(…)`
             // is `nvs-types`' own known zero-arity gap rather than anything
             // this table is asking about.
             Self::Return => format!(
@@ -497,7 +497,7 @@ const LOWERS_AT_FILE_SCOPE: &[&str] = &[
 
 /// The declarations a file may spell and the front end refuses.
 const REFUSED_AT_FILE_SCOPE: &[&str] = &[
-    // ADR 0011 § 1: a function and a constant are class members, and there is
+    // `rule:classes/no-free-functions-or-constants`: a function and a constant are class members, and there is
     // no file-scope spelling of either.
     "function f(): int { return 1; }",
     "const int X = 1;",

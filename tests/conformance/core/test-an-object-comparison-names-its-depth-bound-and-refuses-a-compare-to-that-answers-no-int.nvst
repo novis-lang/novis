@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — `rule:testing/assertions-are-typed`, ADR 0013
+`Core\Test`'s two object-comparison error paths: the containment bound `assertEqualsDeep` stops at, named on both sides, and the uncatchable refusal of a `compareTo` that answers something other than an `int` — `rule:testing/assertions-are-typed`, `rule:classes/comparable`
 --FILE--
 <?nvs
 // An Novis array cannot contain itself (`rule:expressions/equality-semantics`), so an object graph is
@@ -53,7 +53,7 @@ try {
     echo $differs->message, "\n";
 }
 
-// ADR 0013's `compareTo` answers an ordering, and `assertEquals` reads it as
+// `rule:classes/comparable`'s `compareTo` answers an ordering, and `assertEquals` reads it as
 // one. A class whose own `compareTo` answers something else is a program the
 // ADR refuses where it is written — this module's known gap 1 — so what is
 // left at run time is the uncatchable backstop below, and the ordinary row

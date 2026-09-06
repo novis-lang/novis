@@ -48,7 +48,7 @@
 //!   just `g(f($x))`), so it adds no expressiveness a nested call or a local variable doesn't already
 //!   give, while costing a new operator with its own precedence tier and a special-cased RHS shape
 //!   (reusing the `...` first-class-callable placeholder from `rule:types/callable-is-a-closure`). It also undercuts its own
-//!   usual justification here: ADR 0011 makes every function a method, so idiomatic Novis code already
+//!   usual justification here: `rule:classes/no-free-functions-or-constants` makes every function a method, so idiomatic Novis code already
 //!   reaches for `->` chaining instead of PHP's global-function nesting, which is the pain `|>` exists
 //!   to solve in vanilla PHP. Do not add a `Pipe`/`|>` token or an `ExprKind::Pipe` node.
 //!

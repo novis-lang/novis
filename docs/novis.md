@@ -21754,7 +21754,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
 | `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader (`rule:programs/no-runtime-autoload`) |
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
-| `trait_exists` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)), so no name could answer `true` |
+| `trait_exists` | dropped | there is no `trait` (`rule:classes/no-traits`), so no name could answer `true` |
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling (`rule:enums/closed-integer-type`), so its existence is the only thing left to ask at run time |
 | `get_class` | language | `$object::class`, one load off the receiver's own class descriptor (`rule:types/class-constant`). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
 | `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
@@ -21768,9 +21768,9 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
 | `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](spec/01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first (`rule:programs/no-runtime-autoload`) |
 | `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
-| `class_uses` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `class_uses` | dropped | there is no `trait` (`rule:classes/no-traits`) |
 | `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
-| `get_declared_traits` | dropped | there is no `trait` ([ADR 0043](adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| `get_declared_traits` | dropped | there is no `trait` (`rule:classes/no-traits`) |
 | `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
 | `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
@@ -21786,8 +21786,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `func_get_args` | language | a variadic parameter (`...$args`), which is that list with a declared element type and a name |
 | `func_get_arg` | language | the same parameter, indexed |
 | `func_num_args` | language | that parameter's own length. There is no second arity to discover, because a call passing arguments the signature does not declare fails to compile |
-| `function_exists` | dropped | there are no free functions to look up ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)): a member either resolves while compiling or the call is not compiled. Its feature-detection use asks which components a unit was built against, which cannot differ between two requests of one process |
-| `serialize` | member | `Core\Serialize::encode` — the user-facing half of the one graph copy the `spawn` boundary already runs ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)), in a versioned format of Novis's own rather than PHP's |
+| `function_exists` | dropped | there are no free functions to look up (`rule:classes/no-free-functions-or-constants`): a member either resolves while compiling or the call is not compiled. Its feature-detection use asks which components a unit was built against, which cannot differ between two requests of one process |
+| `serialize` | member | `Core\Serialize::encode` — the user-facing half of the one graph copy the `spawn` boundary already runs (`rule:classes/two-copy-depths`), in a versioned format of Novis's own rather than PHP's |
 | `unserialize` | member | `Core\Serialize::decode`, which is a **`tainted` sink** with no launderer ([01 § 13](spec/01-core-library.md)): bytes that arrived from outside are refused structurally, which is what closes PHP's most productive remote-code-execution class. Its `$options` allowed-class list is the workaround that rule replaces |
 | `var_dump` | member | `Core\Debug::dump`, over the one diagnostic record (`rule:errors/diagnostic-record`) |
 | `print_r` | member | `Core\Debug::render` for the string and `Core\Debug::dump` for the write. PHP's `$return` flag chose between those two, which is one member each rather than a boolean that changes a return type |
@@ -21956,11 +21956,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
 | `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order (`rule:types/bytes`) and ordering is the renderer's |
-| `define` | dropped | a runtime constant table. A constant is a class member ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
+| `define` | dropped | a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
 | `defined` | dropped | asks whether that table has a key |
 | `constant` | dropped | reads it by a string name — the dynamic lookup that makes the other three necessary |
 | `get_defined_constants` | dropped | enumerates it |
-| `get_defined_functions` | dropped | there are no free functions ([ADR 0011](adr/0011-functions-and-constants-are-class-members.md)). `Core\Reflect` describes a class it is handed |
+| `get_defined_functions` | dropped | there are no free functions (`rule:classes/no-free-functions-or-constants`). `Core\Reflect` describes a class it is handed |
 | `get_defined_vars` | dropped | the current scope as an array. `Core\Debug::dump` shows the values a program named; a scope is not a value |
 | `get_included_files` | dropped | the include graph is resolved while compiling (`rule:programs/no-runtime-autoload`), so there is no runtime list that could differ from it |
 | `get_required_files` | dropped | `get_included_files`' alias, from when the two keywords meant different things |
@@ -21975,7 +21975,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `highlight_string` | dropped | the same over a string. Highlighting is the editor's ([ADR 0016](adr/0016-ide-integration.md)); a program that renders code renders text, through `Core\Html::escape` |
 | `show_source` | dropped | `highlight_file`'s alias |
 | `version_compare` | dropped | its ordering is PHP's own — `pl` above everything, `RC` below release, `beta` folded in by a string scan — and it is a resolver's rule rather than a string operation. Versions are resolved while building ([ADR 0081](adr/0081-packages-are-digests-resolution-is-a-maximum.md)), where a pin is a digest and a range is a maximum |
-| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy ([ADR 0023](adr/0023-clone-serialize-and-cross-boundary-copy.md)). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
+| `clone` | language | the `clone` keyword, unchanged — PHP's shallow, single-level copy (`rule:classes/two-copy-depths`). The function spelling exists so that cloning can be passed as a callable, and a callable here is a closure (`rule:types/closure-literal`) |
 | `pack` | member | `Core\Bytes::pack` ([01 § 7](spec/01-core-library.md)), whose format string is a template rather than a mode string, so R11 does not reach it |
 | `unpack` | member | `Core\Bytes::unpack`, which names its fields the same way |
 | `parse_ini_file` | dropped | Novis's own configuration is TOML, read by the runtime rather than by the program ([ADR 0064](adr/0064-configuration-file-format.md)); `Core\Config` is the request-local view of it. Parsing somebody else's `.ini` is an ordinary parse, and a package's |

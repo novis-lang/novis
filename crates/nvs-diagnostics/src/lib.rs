@@ -127,8 +127,7 @@ pub mod code {
     pub const E_BAD_METHOD_CASING: Code = Code::new("E0111");
     /// A property, parameter, local variable or closure self-name is not
     /// `camelCase` — ADR 0029's casing table, tightened by
-    /// [ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)
-    /// § 1 to allow no leading underscore at all (ADR 0029's original
+    /// `rule:classes/no-leading-underscore-identifiers` to allow no leading underscore at all (ADR 0029's original
     /// one-underscore allowance for these three categories is revoked).
     pub const E_BAD_MEMBER_CASING: Code = Code::new("E0112");
     /// A class constant name is not `SCREAMING_SNAKE_CASE` — ADR 0029's
@@ -242,10 +241,10 @@ pub mod code {
     /// `rule:statements/nothing-gets-a-second-name`.
     pub const E_IMPORT_ALIAS_UNSUPPORTED: Code = Code::new("E0212");
     /// `function foo() { ... }` outside any class: a function must be a
-    /// method — see ADR 0011 § 1.
+    /// method — see `rule:classes/no-free-functions-or-constants`.
     pub const E_TOPLEVEL_FUNCTION_UNSUPPORTED: Code = Code::new("E0215");
     /// `const FOO = 1;` outside any class: a constant must belong to a
-    /// class — see ADR 0011 § 1.
+    /// class — see `rule:classes/no-free-functions-or-constants`.
     pub const E_TOPLEVEL_CONST_UNSUPPORTED: Code = Code::new("E0216");
     /// `namespace Core;` (or anything nested under it) in user source:
     /// `Core` is reserved for built-ins — see ADR 0011 § 2.
@@ -282,13 +281,13 @@ pub mod code {
     /// `insteadof` anywhere: traits do not exist — an interface
     /// default/private method replaces shared behavior, and
     /// `implements Interface by $field;` replaces shared state. See
-    /// ADR 0043 §§ 1, 7. Replaces the narrower
+    /// `rule:classes/no-traits`. Replaces the narrower
     /// `E_TRAIT_METHOD_RENAME_UNSUPPORTED`/`E_TRAIT_METHOD_VISIBILITY_UNSUPPORTED`
-    /// (both ADR 0015 § 3), now retired: there is no trait `use { ... }`
+    /// (both `rule:classes/no-traits`), now retired: there is no trait `use { ... }`
     /// adaptation grammar left to diagnose that finely, since traits do not
-    /// exist at all. `E_TRAIT_METHOD_CONFLICT` (also ADR 0015 § 3) is
+    /// exist at all. `E_TRAIT_METHOD_CONFLICT` (also `rule:classes/no-traits`) is
     /// retired for the same reason; the new default-method/delegation
-    /// conflict diagnostic (`E_INTERFACE_MEMBER_CONFLICT`, ADR 0043 § 7)
+    /// conflict diagnostic (`E_INTERFACE_MEMBER_CONFLICT`, `rule:classes/no-traits`)
     /// arrives with `nvs-hir`'s follow-up resolution work, not with this
     /// diagnostic.
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
@@ -305,8 +304,7 @@ pub mod code {
     /// `<?NVS` rather than `<?nvs`. PHP matches its reserved spellings
     /// case-insensitively; Novis accepts exactly one spelling of each, so a
     /// program's meaning never depends on the case a reserved word was typed
-    /// in. See [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-    /// § 2. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
+    /// in. See `rule:classes/reserved-spellings-are-lower-case`. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
     /// own — it is simply an ordinary identifier, since ADR 0029 makes
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.
@@ -328,7 +326,7 @@ pub mod code {
     pub const E_NESTED_TYPE_DECLARATION_UNSUPPORTED: Code = Code::new("E0233");
     /// An `unset()` operand that is not an array element of a named holder —
     /// `unset($x)` on a bare local, or a subscript of a temporary such as
-    /// `unset(rows()["k"])`. ADR 0028 § 3 keeps `unset()` for exactly one job,
+    /// `unset(rows()["k"])`. `rule:classes/unset-is-refused-on-a-property` keeps `unset()` for exactly one job,
     /// removing an array entry: a binding is declared with a type and
     /// definitely assigned (`rule:types/declaration`), so there is no "undefined again"
     /// state for a local to return to, and a temporary has nothing for ADR
@@ -344,7 +342,7 @@ pub mod code {
     /// spelling that would let a request-controlled string pick which field
     /// to read or write.
     ///
-    /// ADR 0014 § 5 keeps its runtime-throw half for the two ways a name
+    /// `rule:classes/no-dynamic-properties` keeps its runtime-throw half for the two ways a name
     /// genuinely arrives late — a reflection-based get/set, and `rule:types/erased-member-access`'s
     /// erased receiver, where the name *is* written out and only the class
     /// behind the handle is unknown. Neither needs this spelling, and `rule:types/object-literal` already refuses its literal-side twin, the computed shape key
@@ -468,7 +466,7 @@ pub mod code {
     pub const E_TYPE_ALIAS_ALIASES_CLASS: Code = Code::new("E0307");
     /// A `Class::member` reference (a static call, a class constant, an
     /// enum case, or a static property) names nothing declared on that class
-    /// or any of its `extends`/`implements` ancestors — ADR 0011's "every
+    /// or any of its `extends`/`implements` ancestors — `rule:classes/no-free-functions-or-constants`'s "every
     /// callable and constant is a class member" has no bare-name fallback to
     /// fall into instead.
     pub const E_UNDEFINED_MEMBER: Code = Code::new("E0309");
@@ -487,7 +485,7 @@ pub mod code {
     /// cycle and `crate::aliases`'s `type` alias cycle are both handled.
     pub const E_CIRCULAR_REQUIRE: Code = Code::new("E0312");
     /// `$this->name` where `name` is not declared on the enclosing class or
-    /// any `extends`/`implements`/trait-use ancestor — ADR 0014 § 5's "no
+    /// any `extends`/`implements`/trait-use ancestor — `rule:classes/no-dynamic-properties`'s "no
     /// `__get`/`__set` fallback" for the one receiver shape resolvable
     /// without a type checker.
     pub const E_UNDEFINED_PROPERTY: Code = Code::new("E0313");
@@ -530,7 +528,7 @@ pub mod code {
     /// below the resolver to lower it to.
     pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319");
     /// A bare name called as a function — `strlen($s)` — which in PHP would
-    /// be a global function call. ADR 0011 § 1: every callable is a method,
+    /// be a global function call. `rule:classes/no-free-functions-or-constants`: every callable is a method,
     /// with no exception for built-ins, which live under the reserved `Core`
     /// namespace. Split from [`E_NO_GLOBAL_CONSTANT`] because the two carry
     /// different replacements even though the callee is the same node.
@@ -538,7 +536,7 @@ pub mod code {
     /// `self`, `static` or `parent` written where a value is expected, rather
     /// than on the left of a `::`. Each of the three names a *class*, and a
     /// class is not a value in Novis — there is no class-object reflection
-    /// handle ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
+    /// handle (`rule:classes/no-free-functions-or-constants`
     /// puts every reflective question on `Core\Reflect` instead).
     pub const E_CLASS_NAME_NOT_A_VALUE: Code = Code::new("E0321");
     /// A qualified name that does not resolve, but which PHP's rule would have
@@ -578,26 +576,25 @@ pub mod code {
     /// A non-nullable, no-default property a class declares (itself, or
     /// through a used trait) is not definitely assigned on some path out of
     /// its constructor — or the class has no constructor at all to assign
-    /// it; see ADR 0022 § 2.
+    /// it; see `rule:classes/definite-property-initialization`.
     pub const E_UNINITIALIZED_PROPERTY: Code = Code::new("E0409");
     /// A subclass constructor has a path that never calls
     /// `parent::constructor(...)`, so the properties it inherits are never
-    /// discharged on that path; see ADR 0022 § 2.
+    /// discharged on that path; see `rule:classes/definite-property-initialization`.
     pub const E_MISSING_PARENT_CONSTRUCTOR_CALL: Code = Code::new("E0410");
     /// `<`/`>`/`<=`/`>=`/`<=>` between two objects whose static types are not
     /// both provably the same class implementing the reserved global
     /// `Comparable` interface — either one side doesn't implement it, or the
-    /// two sides are different classes even though both do; see ADR 0013
-    /// §§ 3-4. PHP's implicit property-walk fallback has no Novis equivalent.
+    /// two sides are different classes even though both do; see `rule:classes/comparable` and `rule:classes/comparable-is-same-class-only`. PHP's implicit property-walk fallback has no Novis equivalent.
     pub const E_COMPARISON_REQUIRES_COMPARABLE: Code = Code::new("E0411");
     /// An object used at an implicit string-conversion site (interpolation,
     /// concatenation, `echo`/`print`, `as string`/`(string)`) whose static
     /// type does not provably implement the reserved global `Stringable`
-    /// interface; see ADR 0028 § 1. PHP's own fallback here is already a
+    /// interface; see `rule:classes/stringable`. PHP's own fallback here is already a
     /// fatal error, so nothing permissive is being removed.
     pub const E_STRINGABLE_REQUIRED: Code = Code::new("E0412");
     /// `unset()` on a declared property, static or instance, regardless of
-    /// nullability — refused outright because ADR 0022 already guarantees no
+    /// nullability — refused outright because `rule:classes/definite-property-initialization` already guarantees no
     /// declared property is ever anything but definitely initialized; see ADR
     /// 0028 § 3. A static property is the same slot and the same guarantee, so
     /// it takes the same code, named for the class that *declares* it. Every
@@ -649,24 +646,22 @@ pub mod code {
     pub const E_NO_PARENT_CLASS: Code = Code::new("E0423");
     /// `lateinit` on a scalar-, enum-, or shape-typed property — only a
     /// class/interface (`object`-subtyped) property has no free real default
-    /// for `lateinit` to defer past. See ADR 0038 § 1.
+    /// for `lateinit` to defer past. See `rule:classes/lateinit-restrictions`.
     pub const E_LATEINIT_NOT_OBJECT_TYPE: Code = Code::new("E0424");
     /// `lateinit` on a `?T` property — nullability already spells "may
     /// legitimately hold no value," so there is no second "not yet written"
-    /// state left for `lateinit` to add. See ADR 0038 § 1.
+    /// state left for `lateinit` to add. See `rule:classes/lateinit-restrictions`.
     pub const E_LATEINIT_NULLABLE: Code = Code::new("E0425");
     /// `lateinit` on a promoted constructor parameter — binding the
-    /// parameter is already the assignment ADR 0022 § 2 requires, so there is
-    /// nothing left to defer. See ADR 0038 § 1.
+    /// parameter is already the assignment `rule:classes/definite-property-initialization` requires, so there is
+    /// nothing left to defer. See `rule:classes/lateinit-restrictions`.
     pub const E_LATEINIT_PROMOTED_PARAM: Code = Code::new("E0426");
     /// `lateinit` combined with `readonly` on the same property — opposite
-    /// promises about when the one allowed assignment happens. See ADR 0038
-    /// § 1.
+    /// promises about when the one allowed assignment happens. See `rule:classes/lateinit-restrictions`.
     pub const E_LATEINIT_READONLY_CONFLICT: Code = Code::new("E0427");
     /// A `lateinit` property read inside a method body with no intervening
     /// write to it and no intervening call on that path since the method's
-    /// entry — the one intraprocedural, false-positive-free case ADR 0038
-    /// § 3 proves at compile time; every other case relies entirely on the
+    /// entry — the one intraprocedural, false-positive-free case `rule:classes/lateinit-read-before-write` proves at compile time; every other case relies entirely on the
     /// § 2 runtime throw.
     pub const E_LATEINIT_READ_BEFORE_WRITE_LOCAL: Code = Code::new("E0428");
     /// An integer literal whose magnitude doesn't fit the width it's being
@@ -714,7 +709,7 @@ pub mod code {
     /// fine — an `int`/`uint` key normalizes to its own decimal string, which
     /// needs no `as` and is not a value conversion.
     pub const E_ARRAY_KEY_INVALID_TYPE: Code = Code::new("E0434");
-    /// A `private` interface method (ADR 0043 § 3) called from anywhere other
+    /// A `private` interface method (`rule:classes/interface-private-methods`) called from anywhere other
     /// than its own declaring interface's method bodies — it is an internal
     /// helper, never part of the interface's contract, so an implementing
     /// class (or any other interface) cannot see it at all, not even via
@@ -880,7 +875,7 @@ pub mod code {
     /// the declaration that put it on the wire contract.
     pub const E_DERIVE_SECRET_FIELD: Code = Code::new("E0462");
     /// A `lateinit` property on a class carrying `#[Json\Derive]`. ADR 0071
-    /// § 2: `lateinit` (ADR 0038) is by definition not constructor-assigned,
+    /// § 2: `lateinit` (`rule:classes/lateinit`) is by definition not constructor-assigned,
     /// so it can never be a field.
     pub const E_DERIVE_LATEINIT_FIELD: Code = Code::new("E0463");
     /// A `#[Json\Field(...)]` argument that is not one of ADR 0071 § 3's two
@@ -993,14 +988,14 @@ pub mod code {
     /// one does not. A call needs an argument list checked against a
     /// signature and a return type to bind the position it sits in, and no
     /// receiver here supplies either, with no `__call` to fall back on
-    /// (ADR 0014). `mixed` is the one receiver deliberately *not* refused:
+    /// (`rule:classes/property-observer`). `mixed` is the one receiver deliberately *not* refused:
     /// `rule:types/conversion` makes it the one unchecked position, so it defers.
     ///
     /// The help follows the receiver: narrow one that can hold an object
     /// (`instanceof` proves the class, `as ClassName` converts to it), and
     /// convert or declare `mixed` for one that cannot.
     pub const E_METHOD_ON_ERASED_RECEIVER: Code = Code::new("E0477");
-    /// An array element written through an ADR 0014 § 1 hooked property:
+    /// An array element written through an `rule:classes/property-hooks` hooked property:
     /// `$obj->hooked[0] = v`, or any deeper subscript over the same base.
     ///
     /// A hooked property is a pair of accessors, not a slot, so the element
@@ -1069,7 +1064,7 @@ pub mod code {
     ///
     /// PHP's `[&$x]` stores a reference, so writing the element writes
     /// `$x` too. Novis has nowhere to put one: `rule:types/implicit-capture` removed
-    /// by-reference capture, so no binding aliases another, and ADR 0023
+    /// by-reference capture, so no binding aliases another, and `rule:classes/two-copy-depths`
     /// fixes what a copy means, so an element is a copy at the point the
     /// literal is evaluated. An aliasing element would therefore have no
     /// owner in either rule — it is not a lowering that is missing, it is
@@ -1212,7 +1207,7 @@ pub mod code {
     ///
     /// PHP refuses the identical shape at compile time, and its own message
     /// names the replacement: *"Cannot use isset() on the result of an
-    /// expression (you can use `null !== expression` instead)"*. ADR 0028 § 3
+    /// expression (you can use `null !== expression` instead)"*. `rule:classes/unset-is-refused-on-a-property`
     /// fixes `isset($x)` as `$x != null`, so an operand that is already a
     /// value rather than a place has nothing `isset` can ask that `!= null`
     /// does not ask more plainly.
@@ -1688,7 +1683,7 @@ pub mod code {
     /// PHP binds the two names to one slot, so a later write through either
     /// is seen through the other. Novis has nowhere to put that: `rule:types/implicit-capture`
     /// removed by-reference capture, so no binding aliases another, and
-    /// ADR 0023 fixes what a copy means, so the right-hand side is a copy at
+    /// `rule:classes/two-copy-depths` fixes what a copy means, so the right-hand side is a copy at
     /// the point the assignment runs. The same reasoning already refuses
     /// `[&$x]` as [`E_ARRAY_ELEMENT_BY_REFERENCE`] — it is not a lowering
     /// that is missing, it is a thing the language does not have. `inout $x` at a
@@ -1833,7 +1828,7 @@ pub mod code {
     /// `toString` — an `echo`, an interpolation, a `.` operand or an
     /// `as string`.
     ///
-    /// ADR 0028 § 1 makes `Stringable` the one way an object renders, and a
+    /// `rule:classes/stringable` makes `Stringable` the one way an object renders, and a
     /// `Core` class does not reach that rule the way a user class does: it
     /// declares no interfaces, its members being `nvs_stdlib::registry`'s
     /// rows, so that registry is the one home for which `Core` classes render
@@ -1897,7 +1892,7 @@ pub mod code {
     /// ordering row for.
     ///
     /// That table orders the numeric types against each other and, through
-    /// ADR 0013, two objects of one class that implements `Comparable`. It
+    /// `rule:classes/comparable`, two objects of one class that implements `Comparable`. It
     /// is a *closed* list, and everything else PHP orders it orders by
     /// converting first — which Novis never does by itself. A `string`, a
     /// `bytes`, an `array<T>`, a `callable`, an enum case and `null` therefore
@@ -1993,7 +1988,7 @@ pub mod code {
     /// for what is a mistake in the program.
     pub const E_VOID_IS_NOT_A_CONDITION: Code = Code::new("E0719");
     /// An `implements I by $field;` clause whose `$field` cannot answer `I` —
-    /// ADR 0043 § 4 bullet 1.
+    /// `rule:classes/delegation-by-field` bullet 1.
     ///
     /// The delegate has to be a **declared property** of the class, whose
     /// type is a **non-nullable** class or interface that itself satisfies
@@ -2010,7 +2005,7 @@ pub mod code {
     /// [`E_INTERFACE_METHOD_MISSING`] entirely; with it, the field is judged
     /// here and every member the delegation does not supply is judged there.
     pub const E_DELEGATE_TYPE_MISMATCH: Code = Code::new("E0720");
-    /// A member of a delegated interface whose shape ADR 0043 § 4's
+    /// A member of a delegated interface whose shape `rule:classes/delegation-by-field`'s
     /// synthesized forward cannot express: a `static` member, a variadic
     /// parameter list, or an `inout` parameter.
     ///
@@ -2030,7 +2025,7 @@ pub mod code {
     /// § 4 already allows and which the forward would have lost to.
     pub const E_DELEGATE_MEMBER_NOT_FORWARDABLE: Code = Code::new("E0721");
     /// A visibility keyword on a parameter of a method that is not the
-    /// `constructor` — ADR 0043 § 4's own backlog line.
+    /// `constructor` — `rule:classes/delegation-by-field`'s own backlog line.
     ///
     /// `public`/`protected`/`private` on a parameter is PHP 8's constructor
     /// promotion and nothing else: it says where a **property** may be read
@@ -2712,8 +2707,7 @@ pub mod code {
     pub const E_CALLABLE_SHAPE_FIELD_NOT_A_LITERAL: Code = Code::new("E0774");
 
     /// A `secret`-qualified value reaches
-    /// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-    /// § 2's graph copy — [ADR
+    /// `rule:classes/graph-copy`'s graph copy — [ADR
     /// 0033](/docs/adr/0033-secret-qualifier-for-confidential-values.md)
     /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
     /// states once for *both* carriers rather than distinguishing "crossing to
@@ -2792,7 +2786,7 @@ pub mod code {
     /// one at all.
     pub const E_THROW_OPERAND_NOT_THROWABLE: Code = Code::new("E0780");
 
-    /// `clone` of a value that can hold no object — ADR 0023 § 1 makes it "a
+    /// `clone` of a value that can hold no object — `rule:classes/clone-is-shallow` makes it "a
     /// new instance of `$x`'s class", and a scalar, an `array<T>` or an enum
     /// names no class to instantiate.
     ///
@@ -2803,7 +2797,7 @@ pub mod code {
     pub const E_CLONE_OPERAND_NOT_AN_OBJECT: Code = Code::new("E0781");
 
     /// A write to a `readonly` property from anywhere but the declaring
-    /// class's own `constructor` — ADR 0038 § 1's contract for the modifier,
+    /// class's own `constructor` — `rule:classes/lateinit-restrictions`'s contract for the modifier,
     /// "assigned exactly once, and that assignment happens during
     /// construction".
     ///
@@ -2904,7 +2898,7 @@ pub mod code {
     /// A read of a class constant whose declared value has no compile-time
     /// form.
     ///
-    /// ADR 0011 inlines a class constant at every use site — there is no
+    /// `rule:classes/no-free-functions-or-constants` inlines a class constant at every use site — there is no
     /// storage a read could load it from — so a declaration the constant
     /// folder cannot reduce to a value has nothing to lower. Reported at the
     /// **read**, not at the declaration, because the declaration alone is
@@ -2935,7 +2929,7 @@ pub mod code {
     /// *declares* it, this one refuses naming a member that already has one.
     pub const E_FIRST_CLASS_CALLABLE_UNFORWARDABLE: Code = Code::new("E0793");
 
-    /// ADR 0125 § 5: a `new` through a `class<T>` whose `T` has an implementor
+    /// `rule:classes/constructor-compatibility`: a `new` through a `class<T>` whose `T` has an implementor
     /// declaring a constructor incompatible with `T`'s.
     ///
     /// The site cannot see which implementor the value holds, so `T`'s own

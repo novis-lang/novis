@@ -1322,7 +1322,7 @@ cases = [
   # Stage 5
   "tests/conformance/class/a-property-observer-sees-every-write-its-class-makes.nvst",
   "tests/conformance/class/a-delegated-interface-forwards-to-the-object-it-names.nvst",
-  # ADR 0043 § 4's other half: the forward exists for every member, so a field that cannot answer one
+  # `rule:classes/delegation-by-field`'s other half: the forward exists for every member, so a field that cannot answer one
   # of them is refused where the `by` is written rather than at the call.
   "tests/conformance/class/a-delegate-field-must-be-able-to-answer-the-interface.nvst",
   # `rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking` match a payload *structurally* rather than by the attribute's name, so the case
@@ -1449,7 +1449,7 @@ tests = [
   # share one cargo run only by having word-for-word identical `args`, and one list cannot diverge.
   "an_allocation_round_trip_stays_in_the_pooled_cost_class",
   # Item 30 lands `PropertyObserver`; this is the guard that says a class WITHOUT one still pays
-  # nothing for its existence, which is the whole shape of ADR 0014's decision.
+  # nothing for its existence, which is the whole shape of `rule:classes/property-observer`'s decision.
   "a_class_without_a_property_observer_costs_nothing_extra",
   "a_grapheme_index_costs_more_than_a_code_point_index",
 ]
@@ -1831,7 +1831,7 @@ file = "examples/channel.nvs"
 want = ["produced=8", "consumed=8", "sender suspended"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- ADR 0023's one graph copy, reached twice. Written once and reached twice is the item; two
+# Stage 5 -- `rule:classes/two-copy-depths`'s one graph copy, reached twice. Written once and reached twice is the item; two
 # implementations that agree today is the failure this stage exists to prevent.
 # ---------------------------------------------------------------------------------------------------
 [[check]]

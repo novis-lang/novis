@@ -1,5 +1,4 @@
-//! `Core\Serialize` — [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-//! § 2's externalizing carrier, and nothing else.
+//! `Core\Serialize` — `rule:classes/graph-copy`'s externalizing carrier, and nothing else.
 //!
 //! There is no walk in this file. The graph copy is
 //! [`nvs_runtime::graph`]'s, written once and reached by both of § 2's
@@ -9,7 +8,7 @@
 //!
 //! # `decode` is a `tainted` sink, and `encode` is not a launderer
 //!
-//! ADR 0023 § 3's last bullet: the closed format and the no-hook rule shut the
+//! `rule:classes/serialize-is-a-closed-format`'s last bullet: the closed format and the no-hook rule shut the
 //! code-execution class, but not type confusion — a payload that reconstructs a
 //! `User` with `isAdmin: true` satisfies every check the format makes. So the
 //! parameter is [`Qual::Sink`] and bytes that arrived from outside the process
@@ -39,7 +38,7 @@ use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
-/// ADR 0023 § 2's `encode`/`decode` pair, taking
+/// `rule:classes/graph-copy`'s `encode`/`decode` pair, taking
 /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R6's naming.
 /// PHP's bare `serialize`/`unserialize` spellings do not exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -121,7 +120,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Serialize::encode(mixed $value): bytes` — ADR 0023 § 2's graph
+    /// `Core\Serialize::encode(mixed $value): bytes` — `rule:classes/graph-copy`'s graph
     /// copy, externalized.
     fn nvs_core_serialize_encode(_ctx, args: [1]) {
         // The walk consumes one reference and the argument slot keeps its own,
@@ -156,7 +155,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?.to_vec();
-        // The resolver is the program's own class table — ADR 0023 § 3's "a
+        // The resolver is the program's own class table — `rule:classes/serialize-is-a-closed-format`'s "a
         // payload naming a class the receiving side cannot resolve is refused,
         // naming the class". `nvs_runtime::graph`'s known gap 2 owns what that
         // leaves out.

@@ -38,7 +38,7 @@
 - [docs/implementation-plan.md](../implementation-plan.md)'s M5 has named `spawn` / `await` / `all` /
   `race` / `timeout` / `Channel` / `parallel_map` since the plan was written, as a list of verbs with no
   home, no signatures and no owning ADR. Under
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) none of them can be a free function, and
+  `rule:classes/no-free-functions-or-constants` none of them can be a free function, and
   under [ADR 0063](0063-core-api-conventions.md) `parallel_map` is subject-last and abbreviated. Left as
   they are, they become the library's first four members that do not obey the library's rules.
 - The shape that matters is narrow and very common: a request handler fetching a user, their orders and a

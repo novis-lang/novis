@@ -86,7 +86,7 @@
 //! A request shares nothing with any other request but compiled code
 //! (`docs/adr/README.md`'s project-start decisions), and a value crossing a
 //! `spawn`/`spawn worker`/`spawn script` boundary is deep-copied rather than
-//! shared ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)).
+//! shared (`rule:classes/two-copy-depths`).
 //! No `NvsStr` a request *allocates* is ever reachable from two threads, so
 //! an atomic increment would buy nothing and cost a locked instruction on the
 //! hottest operation in the runtime. [`NvsStr`] is correspondingly neither

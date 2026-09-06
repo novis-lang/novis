@@ -1,5 +1,5 @@
 --TEST--
-a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and reaches a `Core` member by the spec's own name (ADR 0063 R2, ADR 0011 § 1)
+a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and reaches a `Core` member by the spec's own name (ADR 0063 R2, `rule:classes/no-free-functions-or-constants`)
 --FILE--
 <?nvs
 final class Label {

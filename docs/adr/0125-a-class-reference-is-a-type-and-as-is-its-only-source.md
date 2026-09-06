@@ -8,7 +8,7 @@
   keeps `eval`, `$$var` and `settype()` refused; it does not touch `E0235`, the dynamic *member* name,
   whose reasoning lives on `E_DYNAMIC_MEMBER_NAME` in
   [`crates/nvs-diagnostics/src/lib.rs`](../../crates/nvs-diagnostics/src/lib.rs); and it says nothing
-  about which *members* a class has, which is [ADR 0014](0014-property-observer.md) § 5's exhaustive
+  about which *members* a class has, which is `rule:classes/no-dynamic-properties`'s exhaustive
   declared list.
 - **Depends on:** [0007](0007-explicit-type-system.md)
 - **Amends:** [0007](0007-explicit-type-system.md) — § 3's `atom` production gains `'class' '<' Name '>'`,

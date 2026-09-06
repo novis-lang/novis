@@ -15,8 +15,8 @@
 > `advance(): bool` then `current(): T` — and `Iterable<T>` is a thing that can produce a fresh one via
 > `iterate(): Iterator<T>`. `foreach` accepts an `array<T>`, an `Iterable<T>`, or an `Iterator<T>`, and
 > nothing else. **`ArrayAccess` and `Countable` do not exist**: the first is the implicit dispatch
-> [ADR 0014](0014-property-observer.md) already rejected for properties, and the second has no global
-> `count()` left to hook since [ADR 0011](0011-functions-and-constants-are-class-members.md) removed free
+> `rule:classes/property-observer` already rejected for properties, and the second has no global
+> `count()` left to hook since `rule:classes/no-free-functions-or-constants` removed free
 > functions. **Generators exist**, spelled `yield`, and are **lowered to an explicit state machine** rather
 > than run on the coroutine substrate — so they work identically on every compile target, including any
 > that has no stack-switching to suspend on. The price is that `yield` may appear only in the generator's
@@ -24,7 +24,7 @@
 
 ## Context
 
-- [ADR 0028](0028-closing-the-remaining-magic-methods.md) closed every remaining magic *method*, but SPL's
+- `rule:classes/no-magic-methods` closed every remaining magic *method*, but SPL's
   interfaces — `Iterator`, `IteratorAggregate`, `ArrayAccess`, `Countable` — are a separate mechanism and
   were left open. They are magic in the same sense: each makes a syntactic form dispatch to a method.
 - The three are not equivalent, and the difference is what decides them. `ArrayAccess` and `Countable` buy
@@ -32,7 +32,7 @@
   does not look like one. `Iterator` buys a *capability*: streaming a database cursor or a multi-gigabyte
   file without materializing it. Nothing else in the language provides that.
 - `Countable` is close to incoherent here. It exists to make the global `count($x)` dispatch to a method;
-  ADR 0011 removed global functions, so the equivalent would be `Core\Arr::count($obj)` — an *array*
+  `rule:classes/no-free-functions-or-constants` removed global functions, so the equivalent would be `Core\Arr::count($obj)` — an *array*
   function dispatching on an object argument, which is worse than what it replaces.
 - Generators interact with two decisions that pull in opposite directions. The runtime already has stackful
   coroutines, so implementing `yield` on them is nearly free and permits `yield` from arbitrary call depth.
@@ -77,7 +77,7 @@ called once, then the loop drives the returned cursor. An `Iterator<T>` is drive
 operand is a compile error naming this ADR.
 
 `ArrayAccess` is rejected. `$obj[$k]` becoming a method call is the same implicit dispatch
-[ADR 0014](0014-property-observer.md) rejected for `$obj->prop`, one syntactic level over, and it reads as
+`rule:classes/property-observer` rejected for `$obj->prop`, one syntactic level over, and it reads as
 an array while none of `Core\Arr` applies to it. A collection exposes `->get($k)` and `->set($k, $v)`.
 
 `Countable` is rejected, per *Context*. A collection exposes `->count()`.
@@ -119,7 +119,7 @@ wearing the same syntax; Novis already has coroutines, and they are not spelled 
 
 A generator object is not serializable and does not cross a `spawn`/`spawn worker`/`spawn script`
 boundary — attempting either is the same refusal
-[ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already applies to a value it cannot copy
+`rule:classes/two-copy-depths` already applies to a value it cannot copy
 soundly. Although the state-machine lowering makes a generator an ordinary object with ordinary fields,
 those fields are a compiler-chosen encoding of a suspended program point, and there is no version of
 resuming one in another isolate that is meaningful. `clone` on a generator is likewise refused.
@@ -129,7 +129,7 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
 - **M2's IR must model a suspension point inside a loop body**, and lowering must be able to split a
   function into resumption states. This is the reason the ADR lands now rather than at M8. The transform
   itself may arrive later, but the IR must not foreclose it.
-- **Definite assignment ([ADR 0022](0022-definite-property-initialization.md)) is unaffected in principle
+- **Definite assignment (`rule:classes/definite-property-initialization`) is unaffected in principle
   and more work in practice**: a local live across a `yield` is definitely assigned along every path
   reaching that `yield`, exactly as before, but the checker must reason about resumption edges rather than
   a single linear body.
@@ -137,8 +137,8 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
   implemented natively in Rust rather than as Novis generators. Most application code therefore consumes
   lazy sequences without ever writing one.
 - **Two identifiers become reserved interface names**, `Iterable` and `Iterator`, joining `Comparable`
-  ([ADR 0013](0013-comparable-interface.md)), `PropertyObserver` ([ADR 0014](0014-property-observer.md))
-  and `Stringable` ([ADR 0028](0028-closing-the-remaining-magic-methods.md)).
+  (`rule:classes/comparable`), `PropertyObserver` (`rule:classes/property-observer`)
+  and `Stringable` (`rule:classes/no-magic-methods`).
 - **`nvs convert` (M11) has a mechanical path for PHP's `Iterator`** — a 5-method interface collapsing to
   2, with `rewind()` and `key()` dropped — and no path at all for `ArrayAccess`, `Countable`, `send()` or
   `yield from`, each of which becomes a diagnostic naming its replacement.
@@ -167,7 +167,7 @@ resuming one in another isolate that is meaningful. `clone` on a generator is li
 - **M2:** fixtures for `foreach` over each of the three accepted operand kinds and a rejection for a fourth;
   a fixture asserting `$obj[$k]` on a non-array is a diagnostic naming this ADR; a generator whose declared
   return type is not `Iterator<T>` is a diagnostic; a `yield` outside a generator body is a diagnostic; a
-  local live across a `yield` but not assigned on one incoming path is still an ADR 0022 error.
+  local live across a `yield` but not assigned on one incoming path is still an `rule:classes/definite-property-initialization` error.
   **§§ 1–3's checker slice has landed.** `nvs_hir::interfaces::RESERVED` declares both interfaces and
   `nvs_types::iter_lib` gives them § 1's member set; § 2's `implements Iterable<int>` parses, resolves and
   records its argument on `nvs_types::signatures::ClassSignature::implements`; § 3's three-shapes rule is

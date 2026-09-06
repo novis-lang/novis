@@ -1,4 +1,4 @@
-# ADR 0022 — Properties are definitely initialized at compile time; no observable uninitialized state
+# `rule:classes/definite-property-initialization` — Properties are definitely initialized at compile time; no observable uninitialized state
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -35,7 +35,7 @@
   Novis's typed properties are exactly the guarantee `rule:types/declaration` built to prevent
   a declared type silently holding something else; a universal `undefined` would reintroduce that failure one
   binding kind later — the same ambient-magic shape already closed for undeclared properties/`__get`/`__set`
-  ([ADR 0014](0014-property-observer.md)) and superglobals (`rule:statements/no-host-populated-variables`).
+  (`rule:classes/property-observer`) and superglobals (`rule:statements/no-host-populated-variables`).
 - Other statically-typed languages split between compile-time-only (Rust/Swift), an opt-in throw-on-early-
   read modifier (Kotlin's `lateinit`), and a silent per-type default (C#/Java) — the last rejected here for
   the same reason `rule:types/declaration` rejects silent coercion.
@@ -65,7 +65,7 @@ For every constructor a class declares (including the implicit default construct
 given):
 
 - Every property declared **by that class itself** — a plain field or a promoted constructor parameter,
-  including one used as a [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)
+  including one used as a `rule:classes/no-traits`
   `by`-delegation target, which is an ordinary property with no special case of its own — must be assigned on
   every path from the constructor's entry to every one of its returns, before this ADR's check passes. A
   promoted parameter (`public int $x` in the parameter list) satisfies its own obligation by construction —
@@ -78,7 +78,7 @@ given):
 - A class that declares **no constructor of its own** and has a non-nullable property with no inline
   default is refused at the property's declaration — there is no constructor body to attach the diagnostic
   to, so it names the property directly and suggests either fix: a default, or a constructor that sets it.
-- A property backed by a `set` hook ([ADR 0014](0014-property-observer.md)) discharges its obligation the
+- A property backed by a `set` hook (`rule:classes/property-observer`) discharges its obligation the
   moment the hook itself commits a value during construction — the hook's storage is the property's
   storage for this purpose. A **virtual** property with a `get` hook and no backing field has nothing to
   initialize and is outside this rule entirely, the same way it is outside plain field access.
@@ -113,11 +113,11 @@ additional bytes per property**.
 That state is `nvs_runtime::Tag::Unset`, whose own doc comment is its home, and a slot is stamped with it at
 construction by the same one-store-per-slot pass that arms a declared `= expr` default. Until `Core\Reflect`
 exists (ADR 0019, M6) the one *property* declaration that can reach the state is a **`lateinit` property**
-([ADR 0038](0038-lateinit-property-modifier.md)) — *2* discharges every other non-nullable property at its
-constructor — and ADR 0038 § 3's intraprocedural check already refuses the reads it can see, so what the
+(`rule:classes/lateinit`) — *2* discharges every other non-nullable property at its
+constructor — and `rule:classes/lateinit-read-before-write`'s intraprocedural check already refuses the reads it can see, so what the
 runtime answers is the read from outside the class. The two readers ask the question differently and get one
 answer: a reader holding the whole slot goes by the tag (`nvs_runtime::nvs_object_slot_get`), while the
-compiled read goes by the payload, which is null in this state and in no other because ADR 0038 § 1 restricts
+compiled read goes by the payload, which is null in this state and in no other because `rule:classes/lateinit-restrictions` restricts
 `lateinit` to a non-nullable class or interface type — one compare on the pointer it had already loaded,
 rather than a second load of the tag byte.
 
@@ -147,7 +147,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
 - One definite-assignment analysis covers two binding kinds (locals, properties) instead of two separate
   mechanisms that would have to be kept in agreement.
 - Consistent with every other "hard error, never a silent default" precedent already in this project:
-  undeclared property access and no `__get`/`__set` fallback ([ADR 0014](0014-property-observer.md)),
+  undeclared property access and no `__get`/`__set` fallback (`rule:classes/property-observer`),
   undeclared locals and rejected `settype` (`rule:types/declaration`).
 
 **Negative**
@@ -162,7 +162,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
 - Stricter than PHP at compile time: PHP happily compiles a constructor that leaves a typed property unset
   on some path, and only fails when that path is actually read. Porting PHP source with such a gap needs a
   fix, not just a recompile — `nvs convert` (M11) must flag it, joining the TODO classes ADR 0007 §7 and
-  ADR 0014 already grow.
+  `rule:classes/property-observer` already grow.
 - One more internal discriminant on the tagged-value representation, though at zero additional bytes per
   `rule:programs/memory-priority`'s accounting — see *3*.
 
@@ -180,7 +180,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
 - **An opt-in `lateinit`-style modifier** (Kotlin), reachable from ordinary code rather than only reflection.
   Not rejected outright — deferred at the time this ADR was written, since the compile-time-only, no-opt-out
   decision made here was the smaller commitment while no implementation existed yet to make backward-
-  incompatible. Added by [ADR 0038](0038-lateinit-property-modifier.md).
+  incompatible. Added by `rule:classes/lateinit`.
 
 ## Revisiting
 
@@ -193,7 +193,7 @@ Deferred deliberately, each needing its own argument once there is real code to 
 - **The exact propagation of *2* through abstract classes with no constructor of their own, multi-level
   inheritance, and interfaces** (which declare no storage at all) belongs to `docs/spec/`, unwritten as of
   this ADR — this document fixes the top-level rule only, the same deferral
-  [ADR 0014](0014-property-observer.md) already uses for per-property hook internals.
+  `rule:classes/property-observer` already uses for per-property hook internals.
 
 Verification, in the order it becomes possible:
 
@@ -204,7 +204,7 @@ Verification, in the order it becomes possible:
   promoted parameter and an inline default both compile with no diagnostic.
 - **M4**: reading a property that was never written throws the checked error described in *3* — a
   `lateinit` one, `Core\Reflect` being M6; writing first and then reading succeeds normally; a class implementing
-  `PropertyObserver` ([ADR 0014](0014-property-observer.md)) still runs its pipeline correctly once a value
+  `PropertyObserver` (`rule:classes/property-observer`) still runs its pipeline correctly once a value
   has actually been committed, hooked or not.
 - **M11**: the converter flags PHP source whose constructor leaves a typed property unset on some path as
   needing a fix (not merely a recompile), per this ADR's negative consequence above.

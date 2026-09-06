@@ -1,15 +1,15 @@
 --TEST--
-A delegated call whose `by $field` slot was never written throws where the call is written — ADR 0043 § 4 bullet 2, ADR 0022 § 3
+A delegated call whose `by $field` slot was never written throws where the call is written — `rule:classes/delegation-by-field` bullet 2, `rule:classes/an-unwritten-property-read-throws`
 --FILE--
 <?nvs
-// ADR 0043 § 4 bullet 2: "calling a delegated method before `$field` is
+// `rule:classes/delegation-by-field` bullet 2: "calling a delegated method before `$field` is
 // written throws". The forward reads the field and dispatches on whatever
 // class the value's own header names, so an unwritten slot is not a
-// null-receiver bug one call down — it is ADR 0022 § 3's storage state
+// null-receiver bug one call down — it is `rule:classes/an-unwritten-property-read-throws`'s storage state
 // reaching a read, and the forward guards it exactly as a written
 // `$outer->inner` is guarded. E0720 admits only a non-nullable class- or
-// interface-typed field, and ADR 0022 § 2 discharges every one of those at
-// its constructor, so `lateinit` (ADR 0038) is the one declaration that can
+// interface-typed field, and `rule:classes/definite-property-initialization` discharges every one of those at
+// its constructor, so `lateinit` (`rule:classes/lateinit`) is the one declaration that can
 // reach here at all.
 interface Greeter {
   public function greet(): string;
@@ -57,7 +57,7 @@ try {
 }
 
 // Writing the field first works exactly like any other write, and every
-// later forward sees it — ADR 0022 § 3's third bullet, through the forward.
+// later forward sees it — `rule:classes/an-unwritten-property-read-throws`'s third bullet, through the forward.
 $o->attach(new Polite());
 echo $o->greet(), "\n";
 echo $g->greet(), "\n";

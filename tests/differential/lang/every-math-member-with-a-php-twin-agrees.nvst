@@ -1,5 +1,5 @@
 --TEST--
-every Core\Math member the spec gives a PHP twin answers what that twin answers over one shared numeric corpus, and the ten identities the members hold jointly hold in PHP too (spec § 3, ADR 0063 R4 and R17, ADR 0011)
+every Core\Math member the spec gives a PHP twin answers what that twin answers over one shared numeric corpus, and the ten identities the members hold jointly hold in PHP too (spec § 3, ADR 0063 R4 and R17, `rule:classes/no-free-functions-or-constants`)
 --FILE--
 <?nvs
 // The roster case for `Core\Math`. Every other file under
@@ -480,7 +480,7 @@ foreach ($whole as int $i) {
 echo "\n";
 
 // ---------------------------------------------------------------------------
-// The constants, which ADR 0011 moved off PHP's global namespace onto the
+// The constants, which `rule:classes/no-free-functions-or-constants` moved off PHP's global namespace onto the
 // class. `NAN` renders through the predicate rather than as text, for the
 // reason `Show::real` states.
 // ---------------------------------------------------------------------------

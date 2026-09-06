@@ -1,8 +1,8 @@
 --TEST--
-A `static`, variadic or `inout` member of a delegated interface is refused where the clause is written, and an own method answers it instead — ADR 0043 § 4
+A `static`, variadic or `inout` member of a delegated interface is refused where the clause is written, and an own method answers it instead — `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
-// ADR 0043 § 4's forward is a whole synthesized method whose body passes its
+// `rule:classes/delegation-by-field`'s forward is a whole synthesized method whose body passes its
 // parameters straight on, so three member shapes have no forward: a `static`
 // member has no receiver to read the field off, and a variadic or `inout`
 // parameter list is packed and written back at the *call site*, so passing it

@@ -1,9 +1,9 @@
 --TEST--
-a `?T` property and a `?T` parameter each take a written `null` default — `null` is a constant of a type that admits one, and the decoder is the same for both positions — `rule:types/conversion`, ADR 0022 § 1
+a `?T` property and a `?T` parameter each take a written `null` default — `null` is a constant of a type that admits one, and the decoder is the same for both positions — `rule:types/conversion`, `rule:classes/no-undefined-value`
 --FILE--
 <?nvs
 class Row {
-    // ADR 0022 § 1 exempts a nullable property from definite assignment,
+    // `rule:classes/no-undefined-value` exempts a nullable property from definite assignment,
     // because nullability already promises "may legitimately hold no value".
     // A written `= null` states that at the declaration rather than leaving it
     // to the exemption, and it is the one default such a property obviously

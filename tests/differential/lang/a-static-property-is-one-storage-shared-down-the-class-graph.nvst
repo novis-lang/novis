@@ -1,5 +1,5 @@
 --TEST--
-A `static` property has one storage, reached identically through the declaring class, a subclass, `self::` and `parent::`, and a `string` one survives being assigned from itself — ADR 0022 § 2 and `docs/adr/README.md` § *Decisions taken at project start*
+A `static` property has one storage, reached identically through the declaring class, a subclass, `self::` and `parent::`, and a `string` one survives being assigned from itself — `rule:classes/definite-property-initialization` and `docs/adr/README.md` § *Decisions taken at project start*
 --FILE--
 <?nvs
 class Base {

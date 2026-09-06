@@ -1009,7 +1009,7 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
 /// parameter is written back there, and the site here is a runner supplying
 /// one value per parameter from a roster keyed by type: neither the packing
 /// nor the write-back has anywhere to happen. It is the same limit
-/// [`code::E_DELEGATE_MEMBER_NOT_FORWARDABLE`] already names for ADR 0043 § 4's
+/// [`code::E_DELEGATE_MEMBER_NOT_FORWARDABLE`] already names for `rule:classes/delegation-by-field`'s
 /// synthesized forward, arrived at from the other side, and it is a shape
 /// refusal rather than a resolution one because no roster would make either
 /// spelling injectable.

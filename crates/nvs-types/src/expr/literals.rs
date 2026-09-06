@@ -414,7 +414,7 @@ pub(crate) fn infer_str_literal(span: Span, expected: Option<TypeId>, env: &mut 
 /// `Interpolated` at all: a nowdoc has no interpolation syntax by
 /// construction, so it always collapses to `ExprKind::Str`, which
 /// [`infer_str_literal`] handles). Each interpolated expression must be
-/// `Stringable` (ADR 0028 § 1) and poisons the result on the `tainted` and
+/// `Stringable` (`rule:classes/stringable`) and poisons the result on the `tainted` and
 /// `secret` axes independently — see [`super::quals`].
 pub(crate) fn infer_interpolated(
     expr: &Expr,
@@ -883,7 +883,7 @@ fn check_spread_element(
 ///
 /// PHP's `[&$x]` makes the element and `$x` the same storage, and Novis has no
 /// rule that can own one: `rule:types/implicit-capture` removed by-reference capture, so no
-/// binding aliases another, and ADR 0023 fixes an element as a copy taken
+/// binding aliases another, and `rule:classes/two-copy-depths` fixes an element as a copy taken
 /// where the literal is evaluated. So this is not a gap in `nvs-ir` — the
 /// panic it used to reach was reporting the absence of a feature the language
 /// decided against — and the refusal names the decision rather than the
@@ -898,7 +898,7 @@ fn report_by_reference_element(item: &ArrayItem, env: &mut Env<'_>) {
         )
         .with_primary(item.span, "this element is `&value`")
         .with_help(
-            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 \
+            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` \
              makes an element a copy, so drop the `&` — to share one mutable cell, hold it in \
              an object and store that",
         ),

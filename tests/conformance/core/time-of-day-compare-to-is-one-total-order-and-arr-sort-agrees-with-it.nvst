@@ -1,8 +1,8 @@
 --TEST--
-Spec § 4, ADR 0013: `Core\Time\TimeOfDay::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — and the order it answers is the one `Core\Arr::sort` produces over the same table from a comparator that never asks it
+Spec § 4, `rule:classes/comparable`: `Core\Time\TimeOfDay::compareTo` is a total order, asserted by counting the laws over a table rather than reading a row — trichotomy, antisymmetry over 144 pairs and transitivity over 1,728 triples — and the order it answers is the one `Core\Arr::sort` produces over the same table from a comparator that never asks it
 --FILE--
 <?nvs
-// ADR 0013 makes `compareTo` the one order a value has, and § 4 gives a clock
+// `rule:classes/comparable` makes `compareTo` the one order a value has, and § 4 gives a clock
 // reading exactly one. A row-by-row case cannot tell a total order from a
 // member that answers plausibly: the laws are statements about *triples* and
 // about the whole table at once, so every count below is over a sweep and the
@@ -129,7 +129,7 @@ echo "transitive=", $transitive as string,
     " weak-chains=", $weak as string,
     " strict-chains=", $strictChains as string, "|\n";
 
-// `Core\Arr::sort` has no natural order for an object (ADR 0013 leaves that to
+// `Core\Arr::sort` has no natural order for an object (`rule:classes/comparable` leaves that to
 // `Comparable`), so it takes the comparator — and the one it is given here
 // reads `Clock::key`, never `compareTo`. The sequence it lands on is therefore
 // an ordering of this table derived from the rendering alone.

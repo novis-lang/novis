@@ -1364,7 +1364,7 @@ pub(crate) fn check_stmt(
         StmtKind::AutoloadDecl(decl) => nested_declaration("autoload", decl.span, false, env),
         StmtKind::TopLevelFunction(_) | StmtKind::TopLevelConst(_) => {
             // `E0215`/`E0216` from `nvs_hir::members` already refuse these at
-            // every scope, by the rule they actually break (ADR 0011 § 1: a
+            // every scope, by the rule they actually break (`rule:classes/no-free-functions-or-constants`: a
             // function is a method, a constant belongs to a class), so a
             // second diagnostic here would only say it worse.
         }
@@ -1432,7 +1432,7 @@ pub(crate) fn nested_declaration(kind: &str, at: Span, introduces_a_name: bool, 
 ///   ([`code::E_TYPE_MISMATCH`]), the same direction and the same covariance a
 ///   `foreach` value binding gets from [`crate::expr::check_foreach_value`];
 /// * a leaf may not bind by reference ([`code::E_ARRAY_ELEMENT_BY_REFERENCE`]) —
-///   an aliasing element has no owner under `rule:types/implicit-capture` and ADR 0023, which
+///   an aliasing element has no owner under `rule:types/implicit-capture` and `rule:classes/two-copy-depths`, which
 ///   is that code's rule for an array *literal*'s element and is unchanged
 ///   here, the leaf being the same element from the other side.
 ///

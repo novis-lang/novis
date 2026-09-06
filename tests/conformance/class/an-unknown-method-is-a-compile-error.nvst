@@ -1,5 +1,5 @@
 --TEST--
-there is no `__call` fallback, so a method the class does not declare is refused before anything runs — ADR 0014 § 4
+there is no `__call` fallback, so a method the class does not declare is refused before anything runs — `rule:classes/property-observer-costs-nothing-when-unused`
 --FILE--
 <?nvs
 class Box {

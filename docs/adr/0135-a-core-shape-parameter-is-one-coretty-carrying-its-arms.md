@@ -125,7 +125,7 @@ For this to be readable as "filled", the constant standing for *omitted* must be
 also be, so **a field's nullability and its omission constant are paired**
 ([0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 1): a field that admits no
 `null` omits as `Const::Null`, and a field that admits one — a nullable, a union with a null arm, or a
-`Mixed` — omits as ADR 0022 § 3's never-written marker instead, so `{a: null}` and a missing `a` stay two
+`Mixed` — omits as `rule:classes/an-unwritten-property-read-throws`'s never-written marker instead, so `{a: null}` and a missing `a` stay two
 arguments. `a_shape_field_is_never_nullable` holds that pairing over every registered row. A nullable
 field is admitted only where the member has a removal to offer and a written `null` performs it, which is
 0147 § 4's rule rather than this one's.

@@ -41,7 +41,7 @@ fn class_with_extends_implements_and_members() {
 
 #[test]
 fn lateinit_property_modifier_parses() {
-    // ADR 0038 § 1: `lateinit` is a property modifier like `readonly` —
+    // `rule:classes/lateinit-restrictions`: `lateinit` is a property modifier like `readonly` —
     // which non-nullable/scalar/promoted-parameter combinations it's
     // actually legal on is `nvs-types`' job, not the parser's.
     let s = parse_stmt_ok("class Container { public lateinit Logger $logger; }");
@@ -89,7 +89,7 @@ fn interface_with_multiple_extends() {
 
 #[test]
 fn trait_declaration_is_rejected() {
-    // ADR 0043 § 1: `trait` does not exist — this still consumes the
+    // `rule:classes/no-traits`: `trait` does not exist — this still consumes the
     // whole declaration (so the parser doesn't desynchronize) and
     // produces a plain `Error` statement, with no `TraitDecl` AST node.
     let (s, diags) = parse_stmt_with_diags("trait Greets { function hello(): void {} }");
@@ -103,7 +103,7 @@ fn trait_declaration_is_rejected() {
 
 #[test]
 fn class_body_use_trait_is_rejected() {
-    // ADR 0043 § 1: a class-body `use Trait, ...;` — adaptation block,
+    // `rule:classes/no-traits`: a class-body `use Trait, ...;` — adaptation block,
     // `insteadof`, and all — is rejected the same way, down to a plain
     // `Error` member with no `UseTraitMember` node.
     let (s, diags) = parse_stmt_with_diags(
@@ -122,7 +122,7 @@ fn class_body_use_trait_is_rejected() {
 
 #[test]
 fn implements_by_field_delegation_parses() {
-    // ADR 0043 § 4: `by $field` is an optional suffix on one
+    // `rule:classes/delegation-by-field`: `by $field` is an optional suffix on one
     // `implements` entry, recorded but not yet resolved (that's
     // `nvs-hir`'s follow-up job).
     let s = parse_stmt_ok(
@@ -149,7 +149,7 @@ fn implements_without_by_field_has_no_delegation() {
 
 #[test]
 fn interface_default_and_private_methods_parse() {
-    // ADR 0043 §§ 2-3: an interface method may carry a body — `public`
+    // `rule:classes/interface-default-methods` and `rule:classes/interface-private-methods`: an interface method may carry a body — `public`
     // makes it a default method, `private` an internal-only helper. Both
     // already fall out of the existing shared class-body grammar with no
     // parser change needed; this test locks that in.
@@ -203,7 +203,7 @@ fn enum_cases_and_explicit_backing_type() {
 }
 
 /// An enum case is a `PascalCase` name (ADR 0029), and every keyword is
-/// matched at its exact lower-case spelling (ADR 0062 § 2), so a case whose
+/// matched at its exact lower-case spelling (`rule:classes/reserved-spellings-are-lower-case`), so a case whose
 /// spelling *reads* as a keyword never collides with one. Swept rather than
 /// spot-checked: `parse_enum_body` admits only [`TokenKind::Ident`], so a
 /// single keyword that lexed at any other casing would send that row down the
@@ -278,7 +278,7 @@ fn a_php_shaped_enum_case_is_refused_naming_the_spelling_that_works() {
     assert_eq!(e.cases.len(), 2);
     assert!(e.cases.iter().all(|c| c.value.is_some()));
 
-    // ADR 0062 § 2: a keyword matches at its exact lower-case spelling, so
+    // `rule:classes/reserved-spellings-are-lower-case`: a keyword matches at its exact lower-case spelling, so
     // `Case` is an ordinary `PascalCase` case name and stays one. The bound
     // is asserted on both sides so that widening the keyword arm to an
     // ASCII-caseless match would fail here rather than silently refuse a

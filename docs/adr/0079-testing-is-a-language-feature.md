@@ -361,7 +361,7 @@ one question asked of one roster; a fixture that requires itself, directly or th
 naming the whole chain (*9*'s data rows will fill a parameter by *name* and are the second answer the
 first of those will consult). Two parameter *shapes* are refused by the declaration-shape codes above
 instead: a variadic tail is packed and an `inout` parameter written back at the **call site**, and a
-runner supplying one value per declared parameter is neither — the limit ADR 0043 § 4's synthesized
+runner supplying one value per declared parameter is neither — the limit `rule:classes/delegation-by-field`'s synthesized
 forward already names, reached from the other side.
 
 The runner's half is `nvs_cli::runner::build_fixtures`: one `nvs_runtime::Fixtures` per class, built

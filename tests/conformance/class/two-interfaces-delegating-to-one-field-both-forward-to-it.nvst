@@ -1,8 +1,8 @@
 --TEST--
-`implements A by $x, B by $x` synthesizes both member sets onto the one field, and an own method still beats either forward — ADR 0043 § 4
+`implements A by $x, B by $x` synthesizes both member sets onto the one field, and an own method still beats either forward — `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
-// ADR 0043 § 4 bullet 3: "two different interfaces may delegate to the same
+// `rule:classes/delegation-by-field` bullet 3: "two different interfaces may delegate to the same
 // field if `$x`'s type implements both." Nothing about a clause is per-class —
 // `nvs_types::conformance::resolve_delegations` walks the `implements` list
 // clause by clause, so one field named twice is two obligation sets resolved

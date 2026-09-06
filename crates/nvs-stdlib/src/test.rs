@@ -31,7 +31,7 @@
 //! * `assertSame` is [`nvs_runtime::identity`] — `rule:expressions/equality-semantics`'s table exactly,
 //!   so two objects are the same object and nothing else is.
 //! * `assertEquals` is that comparison with the object row replaced by
-//!   [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
+//!   `rule:classes/comparable`'s
 //!   `compareTo`.
 //! * `assertEqualsDeep` replaces it with the structural walk below.
 //!
@@ -1189,7 +1189,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertEquals(T $actual, T $expected, {message?: string}): void`
     /// — § 4's value row: [`identity::value_identical`] everywhere except two
-    /// objects, which are compared through ADR 0013's `Comparable::compareTo`.
+    /// objects, which are compared through `rule:classes/comparable`'s `Comparable::compareTo`.
     fn nvs_core_test_assert_equals(ctx, args: [3]) {
         if equals(ctx, args[0], args[1])? {
             return Ok(held(ctx, "assertEquals"));
@@ -1351,7 +1351,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::contains($xs, $x)` is `true` and the library asks membership
     /// once. What "is the needle" means is therefore
     /// [`identity::value_identical`] — `rule:expressions/equality-semantics`'s numeric row included, so
-    /// `[1.0]` contains `1` — and not ADR 0013's `compareTo`: `assertEquals` is
+    /// `[1.0]` contains `1` — and not `rule:classes/comparable`'s `compareTo`: `assertEquals` is
     /// the member that names an object comparison, and a membership test whose
     /// comparison changed with the element type is the silent fallback 0013
     /// refused.
@@ -1693,7 +1693,7 @@ fn held(ctx: &mut Ctx, member: &'static str) -> Value {
 // ============================================================================
 
 /// § 4's value comparison: `rule:expressions/equality-semantics`'s table, with the object row answered
-/// by [ADR 0013](/docs/adr/0013-comparable-interface.md)'s
+/// by `rule:classes/comparable`'s
 /// `compareTo` instead of by pointer identity.
 ///
 /// # Errors

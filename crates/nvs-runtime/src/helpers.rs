@@ -595,7 +595,7 @@ fn no_ordering(left: Value, right: Value) -> Fault {
         }
         (Some(Tag::Object | Tag::Closure), Some(Tag::Object | Tag::Closure)) => {
             " — ordering two objects needs the `Comparable` class named where the comparison is \
-             written (ADR 0013)"
+             written (`rule:classes/comparable`)"
         }
         _ => "",
     };
@@ -1654,7 +1654,7 @@ crate::nvs_helper! {
 /// PHP's `"Array"`-plus-warning: [ADR 0063](/docs/adr/0063-core-api-conventions.md)
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer `rule:types/conversion` removed from the language. An **object** is among them
-/// here, but this is the *tag* table and not the whole rule: ADR 0028 § 1 makes
+/// here, but this is the *tag* table and not the whole rule: `rule:classes/stringable` makes
 /// `Stringable` the one way an object renders, and [`fn@stringify`] is where that
 /// dispatch happens — every helper reaches this function through that one, so an
 /// object only falls to the row below once its runtime class has been asked for
@@ -1719,7 +1719,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         // ADR 0088 § 5's carrier is the one object that renders, and it renders
         // as exactly the bytes it carries: they have *already* been through the
         // sink, so anything else here would put them through it twice. This is
-        // not ADR 0028's `Stringable` and does not re-open it — a carrier is
+        // not `rule:classes/no-magic-methods`'s `Stringable` and does not re-open it — a carrier is
         // the sink's own value type, `crate::ctx::is_carrier` is the whole
         // roster, and every other object still fails below.
         Some(Tag::Object) => {
@@ -1768,7 +1768,7 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
         }
         Some(Tag::Closure) => Err(refused("a closure")),
         Some(Tag::Resource) => Err(refused("a resource")),
-        // Not a row: `Tag::Unset` is ADR 0022 § 3's storage state and never a
+        // Not a row: `Tag::Unset` is `rule:classes/an-unwritten-property-read-throws`'s storage state and never a
         // value, every read that could hand one out turning it into a throw
         // first (`crate::nvs_object_slot_get`, and `nvs_ir::lower`'s guard on
         // the compiled read). So an arrival is one of those readers having
@@ -1780,13 +1780,12 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
     }
 }
 
-/// The method [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-/// § 1 fixes as the one way an object renders. The spelling is the interface's,
+/// The method `rule:classes/stringable` fixes as the one way an object renders. The spelling is the interface's,
 /// and `nvs_types::expr::operators::require_stringable` resolves the *static*
 /// half of the same name.
 const TO_STRING: &str = "toString";
 
-/// [`value_to_string`] with ADR 0028 § 1's dispatch in front of it: an object
+/// [`value_to_string`] with `rule:classes/stringable`'s dispatch in front of it: an object
 /// whose **runtime** class declares a `toString` renders through that method,
 /// and everything else takes the tag row.
 ///
@@ -2545,7 +2544,7 @@ crate::nvs_helper! {
     /// mechanism § 2 needed rather than a fix.
     ///
     /// The render itself is [`fn@stringify`], unchanged and shared with `.`
-    /// concatenation: ADR 0028 § 1's `toString` dispatch still runs for an
+    /// concatenation: `rule:classes/stringable`'s `toString` dispatch still runs for an
     /// object that declares one, and a class that renders as nothing still
     /// throws with the same sentence. What that answers is a fresh reference
     /// this helper owns and releases, exactly as `nvs-ir` would have.
@@ -2706,7 +2705,7 @@ pub fn value_truthy(value: Value) -> bool {
             count != 0
         }),
         Some(Tag::Object | Tag::Closure | Tag::Resource) => true,
-        // ADR 0022 § 3's storage state, which is not a value and cannot be
+        // `rule:classes/an-unwritten-property-read-throws`'s storage state, which is not a value and cannot be
         // tested for truth — see `value_to_string`'s own arm for why an
         // arrival is a compiler bug. This function has no error channel, so
         // it takes the same floor a tag byte denoting nothing at all takes.

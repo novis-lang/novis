@@ -271,7 +271,7 @@ pub(crate) fn resolve(
 /// rule is what makes that turn safe to make at all.
 ///
 /// The comparison is exact and case-sensitive
-/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// (`rule:classes/names-resolve-case-sensitively`),
 /// as the capture-to-parameter one in [`crate::routes`] is.
 fn declared(
     pieces: &[UrlPiece],

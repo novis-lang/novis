@@ -1,4 +1,4 @@
-# ADR 0023 — Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary
+# `rule:classes/two-copy-depths` — Two copy depths, neither customizable: `clone`, `serialize`, and the isolate boundary
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -23,7 +23,7 @@
 > `spawn script` boundary, externalized to bytes instead of moved directly between two live arenas. Neither
 > depth is customizable per class: there is no `__clone`, and no `__serialize`/`__unserialize`/`__sleep`/
 > `__wakeup`. A copy always means what the language says it means, never what a class redefines it to —
-> the same closed-mechanism choice [ADR 0014](0014-property-observer.md) already made for property access.
+> the same closed-mechanism choice `rule:classes/property-observer` already made for property access.
 > `unserialize()` accepts only bytes Novis's own `serialize()` produced, refusing anything else outright.
 
 ## Context
@@ -41,7 +41,7 @@
   shouldn't deep-copy what it references), and forcing it deep would silently break ported PHP classes
   relying on shallow-copy-by-default.
 - **No `__clone`/`__serialize`/`__unserialize`/`__sleep`/`__wakeup`**: the same shape
-  [ADR 0014](0014-property-observer.md) already closed for `__get`/`__set`/`__call`/`__callStatic`. PHP's own
+  `rule:classes/property-observer` already closed for `__get`/`__set`/`__call`/`__callStatic`. PHP's own
   `unserialize()` object-injection/gadget-chain history is the cautionary tale — a hook firing during
   reconstruction is what makes that exploitation class possible at all.
 
@@ -68,7 +68,7 @@ exactly PHP's existing rule for what "one level" means:
 - **No `__clone()` runs.** A class that needs a *duplicated*, not shared, nested collection or owned
   resource after a copy has no hook to reach for; it exposes an explicit method (`$x->duplicate()`, a
   project's own name) and calls it instead of overloading `clone`'s meaning. This is a real capability loss
-  relative to PHP, accepted for the same reason [ADR 0014](0014-property-observer.md) accepted it for
+  relative to PHP, accepted for the same reason `rule:classes/property-observer` accepted it for
   `__get`/`__set`: explicit beats implicit, and a hookable `clone` is a hookable `clone` whether or not any
   class currently uses the hook for something sane.
 - `PropertyObserver` does **not** fire during a clone. The copy writes storage directly, the same
@@ -99,7 +99,7 @@ sharing no mutable heap state with its source.
   naming the class, never a stub.
 - **Never runs a constructor.** The copy is built by direct assignment into the new instance's storage —
   the same privileged path `Core\Reflect` and ordinary construction already use — which is why this
-  operation does not reopen [ADR 0022](0022-definite-property-initialization.md)'s residual runtime case:
+  operation does not reopen `rule:classes/definite-property-initialization`'s residual runtime case:
   see § 4 below.
 - **No hook fires.** No `__serialize`, no `__unserialize`, no `__sleep`, no `__wakeup`. The shape that
   crosses is exactly the class's own declared properties, every time.
@@ -113,7 +113,7 @@ sharing no mutable heap state with its source.
 - **Externalized, to bytes and back** — spelled `Core\Serialize::encode($x): bytes`, which runs the same
   graph copy and encodes the result into Novis's own binary format, and `Core\Serialize::decode($b): mixed`,
   which decodes it back into a live value by running the identical operation in reverse. They are class
-  members like everything else ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and take
+  members like everything else (`rule:classes/no-free-functions-or-constants`) and take
   [ADR 0063](0063-core-api-conventions.md) R6's `encode`/`decode` pairing; PHP's bare `serialize`/
   `unserialize` spellings do not exist. The wire format is private to Novis (see § 3) — this is a round-trip
   pair, not a PHP-wire-format encoder.
@@ -153,22 +153,22 @@ for external storage (a cache, a queue payload, a session row) gets the same rou
 PHP; a script that depends on reading *another system's* PHP-format bytes needs a human decision, the same
 class of `nvs convert` gap `rule:types/bytes` and others already carry.
 
-### 4. Why neither depth reopens ADR 0022's residual case
+### 4. Why neither depth reopens `rule:classes/definite-property-initialization`'s residual case
 
-[ADR 0022](0022-definite-property-initialization.md) reserves exactly one runtime-only "was this property
+`rule:classes/definite-property-initialization` reserves exactly one runtime-only "was this property
 ever written" check, scoped to an object built through `Core\Reflect` with no constructor run. Neither copy
 depth needs a second one:
 
 - **`clone`** always starts from a live, already-fully-initialized source object — every ordinary object
-  satisfies ADR 0022's compile-time guarantee before it can be cloned at all, and a `Core\Reflect`-built
-  object already carries ADR 0022's existing residual check independently of cloning. `clone` cannot produce
+  satisfies `rule:classes/definite-property-initialization`'s compile-time guarantee before it can be cloned at all, and a `Core\Reflect`-built
+  object already carries `rule:classes/definite-property-initialization`'s existing residual check independently of cloning. `clone` cannot produce
   a *less* initialized object than its source.
 - **The graph copy**, live or via `serialize`/`unserialize`, either copies a live already-initialized source
   (same argument as `clone`) or — for `unserialize` specifically — refuses any payload that does not supply
   every declared property (§ 3). There is no path through either operation that produces an object with a
   declared property nobody ever wrote.
 
-No amendment to ADR 0022 is needed; this section exists so a future reader does not go looking for one.
+No amendment to `rule:classes/definite-property-initialization` is needed; this section exists so a future reader does not go looking for one.
 
 ## Consequences
 
@@ -191,7 +191,7 @@ No amendment to ADR 0022 is needed; this section exists so a future reader does 
 - **A class cannot customize `clone`, `serialize`, or `unserialize` at all.** A class that owns a resource
   and wants `clone` to duplicate it, or wants custom versioning logic in its serialized form, has no hook —
   it needs an explicit method instead. This is a real capability PHP has and Novis does not, accepted for the
-  same reason [ADR 0014](0014-property-observer.md) accepted it for `__get`/`__set`.
+  same reason `rule:classes/property-observer` accepted it for `__get`/`__set`.
 - **`unserialize()` cannot read another system's PHP-format bytes**, or bytes from a differently-versioned
   Novis build whose class shape has since changed. `nvs convert` gains a real gap here: a script reading
   externally-produced serialized PHP data needs a human rewrite, not a mechanical one.

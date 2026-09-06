@@ -1,5 +1,5 @@
 --TEST--
-`->$name` and `->{expr}` over an operand that is no property key are `E0235` in every position a member is named — read, write, call and `?->` — reported by the checker, per ADR 0014 § 5 and `rule:types/property-key-access`
+`->$name` and `->{expr}` over an operand that is no property key are `E0235` in every position a member is named — read, write, call and `?->` — reported by the checker, per `rule:classes/no-dynamic-properties` and `rule:types/property-key-access`
 --FILE--
 <?nvs
 class Box {
@@ -15,7 +15,7 @@ echo $b->$n, "\n";
 // `->{expr}` is the same construct written the other way, and the caret sits
 // on the operand rather than on the braces because the type is the question.
 $b->{$n} = "z";
-// A computed *method* name is refused for ADR 0014 § 6's older reason —
+// A computed *method* name is refused for `rule:classes/no-call-magic`'s older reason —
 // dispatch is not computed at all — so no operand type would admit it.
 echo $b->{"lab" . "el"}(), "\n";
 // `?->` changes only whether the receiver is tested, never how the
@@ -41,7 +41,7 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    |
 17 | echo $b->{"lab" . "el"}(), "\n";
    |           ^^^^^^^^^^^^ this names a member only when the statement runs
-   = help: ADR 0014 § 6 refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s `property<T>` names a property rather than a method — write the call out, or `match` on the name and call each arm
+   = help: `rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s `property<T>` names a property rather than a method — write the call out, or `match` on the name and call each arm
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:20:11

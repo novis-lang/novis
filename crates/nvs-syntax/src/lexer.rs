@@ -288,7 +288,7 @@ impl<'a> Lexer<'a> {
                 let tag_start = self.pos;
                 self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
                 let tag_span = self.mk_span(tag_start, self.pos);
-                // ADR 0062 § 2: `<?nvs` has exactly one spelling. `<?PHP` is
+                // `rule:classes/reserved-spellings-are-lower-case`: `<?nvs` has exactly one spelling. `<?PHP` is
                 // left alone — it is rejected outright by
                 // `E_PHP_OPEN_TAG_UNSUPPORTED` (`rule:statements/nvs-is-the-only-open-tag`) whatever case
                 // it was typed in, and two diagnostics for one tag would
@@ -529,8 +529,7 @@ impl<'a> Lexer<'a> {
     }
 
     /// A reserved word is matched **exactly**, in lower case only
-    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-    /// § 2). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
+    /// (`rule:classes/reserved-spellings-are-lower-case`). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
     /// mis-cased `if`, and gets no diagnostic here: ADR 0029 makes `IF` a
     /// perfectly legal class name, so nothing lexical distinguishes the two.
     /// It also means `Core\Bytes` needs no special handling — `Bytes` is an
@@ -1479,7 +1478,7 @@ mod tests {
 
     #[test]
     fn keywords_are_lower_case_only() {
-        // ADR 0062 § 2. `ECHO` is an ordinary identifier, with no diagnostic
+        // `rule:classes/reserved-spellings-are-lower-case`. `ECHO` is an ordinary identifier, with no diagnostic
         // of its own: ADR 0029 makes it a legal class name, so nothing
         // here can tell a mis-typed `echo` from a deliberate `ECHO`.
         assert_eq!(
@@ -1505,7 +1504,7 @@ mod tests {
 
     #[test]
     fn mis_cased_open_tag_is_reported_but_still_opens_code_mode() {
-        // ADR 0062 § 2: recognised so the rest of the file keeps lexing as
+        // `rule:classes/reserved-spellings-are-lower-case`: recognised so the rest of the file keeps lexing as
         // code and the diagnostic can name the fix — `rule:statements/nvs-is-the-only-open-tag`'s treatment
         // of `<?php`, applied to casing.
         let (kinds, diags) = kinds("<?NVS echo 1;");
@@ -1600,7 +1599,7 @@ mod tests {
 
     #[test]
     fn lateinit_is_a_keyword() {
-        // ADR 0038 § 1: `lateinit` is a new reserved property modifier,
+        // `rule:classes/lateinit-restrictions`: `lateinit` is a new reserved property modifier,
         // alongside `readonly`'s own keyword.
         assert_eq!(
             kinds_ok("<?nvs lateinit"),

@@ -19,8 +19,8 @@
 //! body to [`crate::locals::check_block`]. Right after a `ClassDecl`'s
 //! members are checked this way, [`crate::ctor_init::check_class_init`] runs
 //! its own, separate constructor-only pass over the same declaration for
-//! ADR 0022 § 2, and [`crate::lateinit::check_class_lateinit_reads`] runs
-//! ADR 0038 § 3's sibling pass over every one of that declaration's *other*
+//! `rule:classes/definite-property-initialization`, and [`crate::lateinit::check_class_lateinit_reads`] runs
+//! `rule:classes/lateinit-read-before-write`'s sibling pass over every one of that declaration's *other*
 //! methods too — interfaces/enums never get either call, since only a class
 //! is ever instantiated through a constructor.
 //!
@@ -405,8 +405,8 @@ fn record_property_defaults(qname: &QName, env: &mut Env<'_>) {
         .record_property_defaults(qname.to_string(), defaults);
 }
 
-/// The same move for the class's `lateinit` properties (ADR 0038 § 1), which
-/// `nvs-ir` needs for ADR 0022 § 3's never-written storage state — see
+/// The same move for the class's `lateinit` properties (`rule:classes/lateinit-restrictions`), which
+/// `nvs-ir` needs for `rule:classes/an-unwritten-property-read-throws`'s never-written storage state — see
 /// [`crate::expr_table::ExprTypeTable::record_lateinit_properties`].
 ///
 /// **Flattened, unlike [`record_property_defaults`]'s own-only entry**, and
@@ -468,7 +468,7 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
 }
 
-/// Type-checks each of `p`'s ADR 0014 § 1 hook bodies as its own frame, and
+/// Type-checks each of `p`'s `rule:classes/property-hooks` hook bodies as its own frame, and
 /// records the label the compiled accessor is emitted under.
 ///
 /// A hook is an ordinary function in every respect that matters here: it has
@@ -560,7 +560,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         return; // abstract method or interface signature — nothing to check
     };
 
-    // ADR 0038 § 1: `readonly` means "assigned exactly once, and that
+    // `rule:classes/lateinit-restrictions`: `readonly` means "assigned exactly once, and that
     // assignment happens during construction", so the constructor's own body
     // is the one place `crate::expr::assign::check_write_target` lets a write
     // to such a property through. Decided once here, from the name this

@@ -367,7 +367,7 @@ pub(crate) fn check_return(
 /// `E0701` — `$a = &$b;`, refused rather than lowered.
 ///
 /// Novis has no references: `rule:types/implicit-capture` removed by-reference capture, so no
-/// binding aliases another, and ADR 0023 fixes what a copy means, so the
+/// binding aliases another, and `rule:classes/two-copy-depths` fixes what a copy means, so the
 /// right-hand side is a copy at the point the assignment runs. The `&` has no
 /// owner in either rule — the same reasoning `literals`' `[&$x]` refusal
 /// (`E0483`) already states, and the reason both are refusals rather than
@@ -383,7 +383,7 @@ pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
         )
         .with_primary(span, format!("this would share `{value_text}`'s own slot"))
         .with_help(
-            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes \
+            "Novis has no references: `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes \
              this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
              not a way to make two names one place, and to share one mutable cell you hold it in \
              an object and assign that",
@@ -487,7 +487,7 @@ pub(crate) fn mark_write_target_levels(target: &Expr, plain: bool, env: &mut Env
 /// a place. PHP says "can't use nullsafe operator in write context"; the
 /// alternative is an assignment that silently does nothing on one path.
 ///
-/// An **element write through an ADR 0014 § 1 hooked property**
+/// An **element write through an `rule:classes/property-hooks` hooked property**
 /// (`$obj->hooked[0] = v`) is refused because a hooked property is a pair of
 /// accessors and not a slot. `rule:types/arrays` separates the array the `get` hook
 /// answered with, and no rule pushes the separated copy back through `set` —
@@ -591,7 +591,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
                 )
                 .with_primary(root.span, "reading this runs its `get` hook")
                 .with_help(
-                    "ADR 0014 § 1 makes a hooked property a pair of accessors, not a slot, so the \
+                    "`rule:classes/property-hooks` makes a hooked property a pair of accessors, not a slot, so the \
                      separated array would have nowhere to go — read it into a local, write the \
                      element there, and assign the local back through the property",
                 ),
@@ -619,7 +619,7 @@ pub(crate) fn check_write_target(target: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>
     }
 }
 
-/// ADR 0038 § 1's contract for `readonly`, at the one place it can be broken:
+/// `rule:classes/lateinit-restrictions`'s contract for `readonly`, at the one place it can be broken:
 /// a write to such a property from anywhere but the declaring class's own
 /// `constructor` is `E0782`. Answers whether it reported, so its caller stops
 /// rather than adding a second diagnostic about the same target.
@@ -671,7 +671,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
         .with_primary(root.span, "this write happens after construction")
         .with_help(
             "`readonly` promises the value is assigned exactly once, while the object is being \
-             built (ADR 0038 § 1) — assign it in the constructor, take it as a constructor \
+             built (`rule:classes/lateinit-restrictions`) — assign it in the constructor, take it as a constructor \
              parameter (`public readonly T $x`), or drop the modifier if the property is meant \
              to change",
         ),
@@ -682,7 +682,7 @@ fn reject_readonly_write(root: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) -> bool 
 /// `rule:types/property-key-access`'s last paragraph: a write *through a property key* is refused
 /// where `T`'s public set holds a `readonly` property, naming it. The code and
 /// the headline are [`reject_readonly_write`]'s, because it is the same rule of
-/// ADR 0038 § 1 being broken — only the question is asked one step less
+/// `rule:classes/lateinit-restrictions` being broken — only the question is asked one step less
 /// specifically.
 ///
 /// The question is asked of the **set** rather than of one resolved property

@@ -1,4 +1,4 @@
-# ADR 0013 — Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected
+# `rule:classes/comparable` — Ordering two objects requires `Comparable`; PHP's property-walk fallback is rejected
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -49,9 +49,9 @@ interface Comparable {
 ```
 
 `Comparable` lives in the global namespace, the same place PHP's built-in `Stringable` does — **not** under
-`Core`. [ADR 0011](0011-functions-and-constants-are-class-members.md) reserves `Core` for domain classes
+`Core`. `rule:classes/no-free-functions-or-constants` reserves `Core` for domain classes
 that hold `static` methods and constants; `Comparable` holds neither — it is a contract an ordinary class
-implements, exactly the shape `Stringable` already has in PHP. Nothing about this ADR asks ADR 0011 to
+implements, exactly the shape `Stringable` already has in PHP. Nothing about this ADR asks `rule:classes/no-free-functions-or-constants` to
 widen its scope.
 
 `compareTo` returns an `int`: negative if `$this` orders before `$other`, zero if neither orders before the
@@ -155,7 +155,7 @@ the content question explicitly, which is `rule:expressions/object-identity-equa
   into up to five methods a class could implement inconsistently (`$a < $b` true but `$b > $a` false),
   the "one operator, one API" principle `rule:types/declaration`,
   `rule:enums/closed-integer-type` and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already lean on.
+  `rule:classes/no-free-functions-or-constants` already lean on.
 - **Keep PHP's property-walk fallback for classes that do not implement `Comparable`.** Rejected per
   *Context*: ambient, undeclared behaviour, and not even a safe default — unbounded cost in the object
   graph's size.

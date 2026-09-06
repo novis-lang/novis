@@ -1,5 +1,5 @@
 --TEST--
-`<`, `>` and their siblings over two objects go through `Comparable::compareTo` — ADR 0013
+`<`, `>` and their siblings over two objects go through `Comparable::compareTo` — `rule:classes/comparable`
 --FILE--
 <?nvs
 class Weight implements Comparable {

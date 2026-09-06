@@ -11,7 +11,7 @@ array<string> $refused = [
     "ms",                    // a unit with nothing in front of it
     "1h30",                  // a count that runs out before its unit
     "30x",                   // a spelling the eight units do not have
-    "30S",                   // the right unit in the wrong case (ADR 0062 § 2)
+    "30S",                   // the right unit in the wrong case (`rule:classes/reserved-spellings-are-lower-case`)
     "1H30M",                 // named by the first mis-cased unit, not the last
     "30m1h",                 // units strictly descend
     "1h1h",                  // and may not repeat, which is the same rule
@@ -53,8 +53,8 @@ Core\Time\Duration::parse(): a duration is empty|
 Core\Time\Duration::parse(): a duration unit needs a count before it|
 Core\Time\Duration::parse(): a duration count needs a unit after it|
 Core\Time\Duration::parse(): `x` is not a duration unit — the units are `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`|
-Core\Time\Duration::parse(): a duration unit is lower case only, so `S` is `s` (ADR 0062)|
-Core\Time\Duration::parse(): a duration unit is lower case only, so `H` is `h` (ADR 0062)|
+Core\Time\Duration::parse(): a duration unit is lower case only, so `S` is `s` (`rule:classes/names-resolve-case-sensitively`)|
+Core\Time\Duration::parse(): a duration unit is lower case only, so `H` is `h` (`rule:classes/names-resolve-case-sensitively`)|
 Core\Time\Duration::parse(): duration units strictly descend and may not repeat, so `h` may not follow `m`|
 Core\Time\Duration::parse(): duration units strictly descend and may not repeat, so `h` may not follow `h`|
 Core\Time\Duration::parse(): `-` has no meaning in a duration|

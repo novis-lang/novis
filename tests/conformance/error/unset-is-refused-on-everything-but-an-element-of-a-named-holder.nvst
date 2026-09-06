@@ -1,5 +1,5 @@
 --TEST--
-`unset()` takes an array element of a named holder and nothing else — a bare local and a static property are `E0234`/`E0413`, ADR 0028 § 3 and `rule:types/declaration`
+`unset()` takes an array element of a named holder and nothing else — a bare local and a static property are `E0234`/`E0413`, `rule:classes/unset-is-refused-on-a-property` and `rule:types/declaration`
 --FILE--
 <?nvs
 class Holder {
@@ -20,8 +20,8 @@ unset($x);
 // none, which is the same thing PHP means by "temporary expression in write
 // context".
 unset(Holder::rows()["a"]);
-// ADR 0028 § 3's property refusal reads the same on a static: it is one
-// slot, and ADR 0022 guarantees it is definitely initialized for good.
+// `rule:classes/unset-is-refused-on-a-property`'s property refusal reads the same on a static: it is one
+// slot, and `rule:classes/definite-property-initialization` guarantees it is definitely initialized for good.
 unset(Holder::$rows);
 echo "unreachable\n";
 --EXPECT--

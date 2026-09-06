@@ -43,7 +43,7 @@ if ($a != null) {
     echo "narrowed ", $made->speak(), "\n";
 }
 
-// ADR 0028 § 3 and `rule:expressions/truthy-table` over the same representation, plus a written
+// `rule:classes/unset-is-refused-on-a-property` and `rule:expressions/truthy-table` over the same representation, plus a written
 // `null` reaching the binding.
 ?class<Animal> $written = null;
 echo "isset ", isset($a) ? "y" : "n", isset($b) ? "y" : "n", isset($written) ? "y" : "n", "\n";

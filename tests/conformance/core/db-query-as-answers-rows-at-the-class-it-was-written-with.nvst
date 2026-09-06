@@ -21,7 +21,7 @@ class Person {
     }
 }
 
-// ADR 0043 declares the member once, on `Core\Db\Queryable`, so a transaction
+// `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so a transaction
 // answers exactly what its connection does — this function type-checks, and is
 // the agreement half of the refusal below.
 class People {

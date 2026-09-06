@@ -507,7 +507,7 @@ observe whether the handshake happened.
 - **`ErrorKind` removes vendor-string matching** from every application that handles a duplicate key.
 - **`decimal`, `Instant` and `uint` columns arrive as themselves.** Money stops being a string that
   `+ 0.1` silently corrupts — the single largest correctness win over PDO for business applications.
-- **`Transaction` proves out ADR 0043's delegation** on a real `Core` type: a second query surface would
+- **`Transaction` proves out `rule:classes/no-traits`'s delegation** on a real `Core` type: a second query surface would
   have been the obvious shape and would have been a twin to maintain forever.
 
 **Negative**

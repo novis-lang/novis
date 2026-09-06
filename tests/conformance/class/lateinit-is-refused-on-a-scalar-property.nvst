@@ -1,5 +1,5 @@
 --TEST--
-`lateinit` only defers a class- or interface-typed property; a `string` one has a real default to give instead — ADR 0038 § 2
+`lateinit` only defers a class- or interface-typed property; a `string` one has a real default to give instead — `rule:classes/lateinit`
 --FILE--
 <?nvs
 class Holder {

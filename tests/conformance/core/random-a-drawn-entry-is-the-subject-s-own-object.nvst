@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::pick, sample and shuffle hand back the subject's own entries rather than copies of them — every answer is identical to an entry, never equal to a field-identical twin, and a write through a drawn handle is a write to the subject — spec § 11, `rule:expressions/one-equality-operator`, ADR 0023 § 1
+Core\Random::pick, sample and shuffle hand back the subject's own entries rather than copies of them — every answer is identical to an entry, never equal to a field-identical twin, and a write through a drawn handle is a write to the subject — spec § 11, `rule:expressions/one-equality-operator`, `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
 // The invariant `nvs_stdlib::random::owned_value_at` is written around: a draw
@@ -8,7 +8,7 @@ Core\Random::pick, sample and shuffle hand back the subject's own entries rather
 // Every other case in this class draws over scalars, where copying and sharing
 // are indistinguishable by construction — an object is the smallest subject
 // that can tell them apart, because `rule:expressions/one-equality-operator` makes `==` over two objects
-// identity and ADR 0023 § 1 makes an object shared rather than copy-on-write.
+// identity and `rule:classes/clone-is-shallow` makes an object shared rather than copy-on-write.
 class Cell {
     public int $n;
 

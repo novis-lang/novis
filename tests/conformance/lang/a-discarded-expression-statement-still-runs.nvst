@@ -5,8 +5,8 @@ An expression used as its own statement is evaluated for its effects and its val
 // PHP evaluates an expression statement for what it does and throws the value
 // away. So does Novis: there is no "expression result unused" refusal, because
 // "has no effect" is not a question the compiler can answer — a call is buried
-// inside half of the shapes below, and a property read runs the hook ADR 0014
-// § 1 gives it. The agreement this pins is that every shape runs its call
+// inside half of the shapes below, and a property read runs the hook `rule:classes/property-hooks`
+// gives it. The agreement this pins is that every shape runs its call
 // exactly once and in source order, which a slice that lowered only some of
 // them would fail on while each line still looked plausible on its own.
 class Note {

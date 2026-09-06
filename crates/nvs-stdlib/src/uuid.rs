@@ -485,8 +485,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// Named `toString` rather than `format` or `toText` so that it is already
     /// the member `Stringable` declares
-    /// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-    /// § 1), which is what makes `echo $uuid` render: that name is the whole
+    /// (`rule:classes/stringable`), which is what makes `echo $uuid` render: that name is the whole
     /// of what says a `Core`-owned class is stringifiable, read by
     /// `nvs_types::expr::operators::require_stringable` where the operand's
     /// type names this class and by [`crate::instance`]'s descriptor renderer

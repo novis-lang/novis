@@ -158,7 +158,7 @@ fn converting_a_tainted_string_to_markup_is_diagnosed() {
 
 #[test]
 fn serialize_decode_refuses_a_tainted_operand() {
-    // ADR 0023 § 3's last bullet and ADR 0088 § 1: `Core\Serialize::decode`'s
+    // `rule:classes/serialize-is-a-closed-format`'s last bullet and ADR 0088 § 1: `Core\Serialize::decode`'s
     // parameter is `CoreTy::Blob(Qual::Sink)`, so a payload that came in off
     // the wire is refused where `Core\Json::decode`'s `Text(Qual::Sink)` is —
     // and the danger is not the same one. A JSON decode produces `mixed` a

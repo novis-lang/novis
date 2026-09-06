@@ -123,7 +123,7 @@ A path is a literal `string`, and it is validated during checking:
 - **`{name...}`** captures every remaining segment as one `tainted string`, is permitted **only in the last
   position**, and at most once.
 - Everything else is a literal segment, compared byte for byte and case-sensitively
-  ([ADR 0062](0062-case-sensitivity-is-a-compiler-property.md)).
+  (`rule:classes/names-resolve-case-sensitively`).
 
 `{name}` rather than `:name`, for three reasons and not one: `:` is a legal character inside a URL path
 segment (`/a:b` is a valid path), so `:name` needs an escape rule the braced form does not; the braced form

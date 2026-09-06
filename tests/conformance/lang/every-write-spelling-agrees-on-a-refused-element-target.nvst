@@ -1,10 +1,10 @@
 --TEST--
-`=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — `rule:types/arrays`, ADR 0014 § 1, `rule:types/erased-member-access`
+`=`, `⊕=`, an increment and `unset()` agree on an element target whose holder is no slot, and each takes exactly one diagnostic — `rule:types/arrays`, `rule:classes/property-hooks`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 // `rule:types/arrays` separates an array before an element of it is written, and the
 // separated copy has to land back in whatever held it. Three holders have no
-// slot for it to land in — `?->`, whose `null` is not a place, ADR 0014 § 1's
+// slot for it to land in — `?->`, whose `null` is not a place, `rule:classes/property-hooks`'s
 // hooked property, which is a pair of accessors rather than storage, and ADR
 // 0036 § 4's erased property, resolved by name at run time. Four spellings
 // write through a holder: a plain `=`, a compound `⊕=`, an increment, and

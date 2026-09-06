@@ -173,10 +173,10 @@ pub struct MethodSig {
     /// consumer that got this wrong would pass `null` where the callee expects
     /// a receiver.
     pub is_static: bool,
-    /// Whether this is a `private` interface method (ADR 0043 § 3) —
+    /// Whether this is a `private` interface method (`rule:classes/interface-private-methods`) —
     /// declared with the `private` modifier inside an `interface`, not a
     /// `class`. Kept alongside [`Self::visibility`], which records the same
-    /// keyword, because ADR 0043 § 3 is a *different* rule than ADR 0094's
+    /// keyword, because `rule:classes/interface-private-methods` is a *different* rule than ADR 0094's
     /// level with the same name: a private interface method is not part of
     /// that interface's contract, so it is never reachable outside that
     /// interface's own method bodies, not even from an implementing class —
@@ -345,7 +345,7 @@ impl MethodSig {
     }
 }
 
-/// Which of a property's two ADR 0014 § 1 hooks a declaration actually
+/// Which of a property's two `rule:classes/property-hooks` hooks a declaration actually
 /// writes with a body. A property with neither has no entry in
 /// [`ClassSignature::hooked_properties`] at all.
 ///
@@ -369,7 +369,7 @@ impl MethodSig {
 /// have called the property virtual. From *outside* the declaring class a
 /// `get`-only property is read-only — `expr::assign`'s
 /// `reject_get_only_hook_write` owns that rule and why it is scope-shaped
-/// rather than backedness-shaped, which is the one place ADR 0014 § 1's
+/// rather than backedness-shaped, which is the one place `rule:classes/property-hooks`'s
 /// "same as PHP 8.4" is narrower than PHP.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PropertyHooks {
@@ -427,7 +427,7 @@ pub struct ClassSignature {
     /// installed through [`SignatureTable::seed_class`] and every synthesized
     /// declaration is, since only user source can write a level at all.
     pub property_visibility: FxHashMap<String, Visibility>,
-    /// This declaration's own properties that carry an ADR 0014 § 1 hook
+    /// This declaration's own properties that carry an `rule:classes/property-hooks` hook
     /// block, by name — see [`PropertyHooks`]. A property with no hooks, or
     /// whose hooks are all bodiless (an abstract hook in an interface), is
     /// absent.
@@ -458,27 +458,27 @@ pub struct ClassSignature {
     ///
     /// Every static appears, initializer or not: this is what `nvs_ir::lower`
     /// enumerates the program's slots from, so a static missing here has no
-    /// storage at all. A `None` initializer is one ADR 0022 § 2 required no
+    /// storage at all. A `None` initializer is one `rule:classes/definite-property-initialization` required no
     /// default of — a nullable or `lateinit` static — and its slot starts each
     /// request at `null`, the same "an absent default is the zeroed slot"
     /// convention an instance property already has.
     pub static_properties: Vec<(String, Option<crate::defaults::ConstArg>)>,
     /// Method signatures, keyed by method name.
     pub methods: FxHashMap<String, MethodSig>,
-    /// This declaration's own properties that ADR 0022 § 2 requires a
+    /// This declaration's own properties that `rule:classes/definite-property-initialization` requires a
     /// constructor to definitely assign: non-nullable (`TypeInterner::is_nullable`
     /// is false), no inline default, and no hook block. A hooked property is
     /// exempted here entirely rather than modeled — see
     /// `crate::ctor_init`'s module docs for why. A `lateinit` property is
-    /// also excluded (ADR 0038 § 1: it is exempt from this obligation by
+    /// also excluded (`rule:classes/lateinit-restrictions`: it is exempt from this obligation by
     /// design, not merely by accident of shape). Name, declaration span, in
     /// declaration order.
     pub required_properties: Vec<(String, Span)>,
-    /// This declaration's own properties declared `lateinit` (ADR 0038 § 1),
+    /// This declaration's own properties declared `lateinit` (`rule:classes/lateinit-restrictions`),
     /// by name. Never includes one pulled in from an `extends`/`implements`
     /// ancestor — [`own_lateinit_properties`] flattens those in.
     pub lateinit_properties: FxHashSet<String>,
-    /// This declaration's own properties declared `readonly` (ADR 0038 § 1),
+    /// This declaration's own properties declared `readonly` (`rule:classes/lateinit-restrictions`),
     /// by name, a promoted constructor parameter's included. Own properties
     /// only, like every other map here: the modifier is written where the
     /// property is declared, so [`property_is_readonly`] asks this of the
@@ -521,7 +521,7 @@ pub struct ClassSignature {
     /// instance call only pays for a name lookup where the language
     /// actually admits two answers (`nvs_ir::ir::InstKind::CallVirtual`).
     pub overridden_methods: FxHashSet<String>,
-    /// This declaration's own class constants ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)),
+    /// This declaration's own class constants (`rule:classes/no-free-functions-or-constants`),
     /// by name — the type a *read* of one answers with, and the value that
     /// read is emitted as. Own declarations only, exactly like every other map
     /// here; [`resolve_const`] walks the ancestors.
@@ -618,7 +618,7 @@ impl SignatureTable {
     /// a general insertion point: everything else goes through
     /// [`build_signatures`]'s own walk.
     ///
-    /// `required_properties` stays empty on purpose. ADR 0022's obligation is
+    /// `required_properties` stays empty on purpose. `rule:classes/definite-property-initialization`'s obligation is
     /// a check on a *written* constructor, and neither caller has one — a
     /// `Core` class has no state at all, and `Throwable`'s constructor is
     /// synthesized by `nvs_ir::lower`.
@@ -900,7 +900,7 @@ fn collect_members(
     env: &mut Env<'_>,
 ) {
     // Needed only to decide `MethodSig::interface_private` below — a
-    // `private` method modifier means something (ADR 0043 § 3) exactly when
+    // `private` method modifier means something (`rule:classes/interface-private-methods`) exactly when
     // the enclosing declaration is an `interface`, not a `class`/`enum`.
     let is_interface = env
         .symbols
@@ -949,7 +949,7 @@ fn collect_members(
                 } else if let Some(default) = default {
                     sig.property_defaults.push((name.clone(), default));
                 }
-                // A static property is deliberately **not** an ADR 0022 § 2
+                // A static property is deliberately **not** an `rule:classes/definite-property-initialization`
                 // obligation: its storage is the request's rather than any
                 // instance's, so no constructor can discharge one and the
                 // declaration is the only place it can be initialized. Same
@@ -1052,7 +1052,7 @@ fn collect_members(
                     },
                 );
             }
-            // ADR 0011's class constant. Evaluated here for the reason a
+            // `rule:classes/no-free-functions-or-constants`'s class constant. Evaluated here for the reason a
             // property default is evaluated here — this is the one pass that
             // holds the declared type and the written value together — and
             // typed here because the alternative, `crate::consts`, runs before
@@ -1082,12 +1082,12 @@ fn collect_members(
 ///
 /// This is the whole of what "a promoted parameter *is* a property" means on
 /// this side: [`resolve_property`] answers it, so a `$this->n` read, an
-/// `$obj->n` access, an ADR 0094 visibility check and ADR 0043 § 4's
+/// `$obj->n` access, an ADR 0094 visibility check and `rule:classes/delegation-by-field`'s
 /// `check_delegate_field` all see it with no case of their own.
 /// [`crate::layout`] gives it the slot, and `nvs_ir::lower` emits the store.
 ///
 /// Three of the maps beside `properties` are deliberately left alone.
-/// **`required_properties`** is ADR 0022 § 2's obligation, and a promoted
+/// **`required_properties`** is `rule:classes/definite-property-initialization`'s obligation, and a promoted
 /// parameter discharges it by construction — the store is emitted from the
 /// binding rather than written in the body, so there is nothing for a
 /// constructor to be checked against. **`property_defaults`** holds what a
@@ -1120,7 +1120,7 @@ fn record_promoted_properties(
 }
 
 /// Refuses a visibility keyword on the parameter of a method that is not the
-/// `constructor` (`E0722`), which is ADR 0043 § 4's own backlog line.
+/// `constructor` (`E0722`), which is `rule:classes/delegation-by-field`'s own backlog line.
 ///
 /// [`record_promoted_properties`] above is only ever reached from a
 /// constructor, so the keyword written anywhere else declared nothing, took no
@@ -1267,7 +1267,7 @@ fn declared_hooks(p: &PropertyMember) -> PropertyHooks {
     out
 }
 
-/// Validates a `lateinit` property against ADR 0038 § 1's three rejected
+/// Validates a `lateinit` property against `rule:classes/lateinit-restrictions`'s three rejected
 /// shapes — nullability, a non-object type, and `readonly` — reporting each
 /// diagnostic that applies. `ty` is `p`'s already-lowered type.
 fn check_lateinit_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) {
@@ -1500,7 +1500,7 @@ pub fn is_visible_from(
     }
 }
 
-/// Which ADR 0014 § 1 hooks the property `owner::$name` declares — `owner`
+/// Which `rule:classes/property-hooks` hooks the property `owner::$name` declares — `owner`
 /// being the *declaring* class [`resolve_property_owned`] returned, not the
 /// class the access was written on. [`PropertyHooks::default`] (neither hook)
 /// for an ordinary stored property.
@@ -1529,7 +1529,7 @@ pub(crate) fn writes_static_return(ty: Option<&Type>) -> bool {
 /// Looks `name` up as a method on `qname`, falling back to walking ancestors
 /// the same way [`resolve_property`] does. Returns the [`QName`] that actually
 /// declares it alongside a clone of its signature — the owner is needed by
-/// [`crate::expr`] to enforce ADR 0043 § 3's private-interface-method
+/// [`crate::expr`] to enforce `rule:classes/interface-private-methods`'s private-interface-method
 /// visibility rule (private is only visible from inside its own declaring
 /// interface, never through whatever class or subinterface the lookup
 /// started from), not just to type-check the call.
@@ -1682,18 +1682,18 @@ fn resolve_iteration_rec(
 }
 
 /// Every property `qname`'s own constructor must definitely assign per
-/// ADR 0022 § 2: exactly `qname`'s own [`ClassSignature::required_properties`].
+/// `rule:classes/definite-property-initialization`: exactly `qname`'s own [`ClassSignature::required_properties`].
 /// Deliberately excludes `extends`/`implements`: an inherited property is
 /// discharged by calling `parent::constructor(...)`, not by assigning it a
 /// second time — see `crate::ctor_init`.
 ///
-/// Before [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md),
+/// Before `rule:classes/no-traits`,
 /// this also flattened in every used trait's own required properties
 /// (recursively, through nested trait-use); that ancestor walk is gone along
 /// with traits themselves — a `by`-target field used for delegation is an
 /// ordinary declared property of `qname` itself, already covered by
-/// `required_properties` with no special case needed (ADR 0043's own
-/// amendment to ADR 0022 § 2).
+/// `required_properties` with no special case needed (`rule:classes/no-traits`'s own
+/// amendment to `rule:classes/definite-property-initialization`).
 #[must_use]
 pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(String, Span)> {
     table
@@ -1703,7 +1703,7 @@ pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(St
 }
 
 /// Every `lateinit` property `$this` can read anywhere in `qname`'s own
-/// methods per ADR 0038 § 3: exactly `qname`'s own
+/// methods per `rule:classes/lateinit-read-before-write`: exactly `qname`'s own
 /// [`ClassSignature::lateinit_properties`] — an inherited (`extends`)
 /// `lateinit` property is checked when *its own* declaring class's methods
 /// are checked, not re-checked here. See `crate::lateinit`'s module docs for
@@ -1711,7 +1711,7 @@ pub fn own_required_properties(qname: &QName, table: &SignatureTable) -> Vec<(St
 /// `lateinit` property through `$this` is not covered by this
 /// intraprocedural pass).
 ///
-/// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+/// `rule:classes/no-traits`
 /// retired this function's former trait-flattening role the same way it did
 /// [`own_required_properties`]'s.
 #[must_use]
@@ -1944,7 +1944,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // ADR 0038 § 1 -- `lateinit`'s four rejected shapes.
+    // `rule:classes/lateinit-restrictions` -- `lateinit`'s four rejected shapes.
     // ------------------------------------------------------------------
 
     #[test]

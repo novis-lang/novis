@@ -1,8 +1,8 @@
 --TEST--
-`Core\Test::assertEquals` compares an object only through `Comparable`, and its refusal names the class and the two members that do work on it -- `rule:testing/assertions-are-typed`, ADR 0013 § 2
+`Core\Test::assertEquals` compares an object only through `Comparable`, and its refusal names the class and the two members that do work on it -- `rule:testing/assertions-are-typed`, `rule:classes/ordering-lowers-to-compare-to`
 --FILE--
 <?nvs
-// ADR 0013 gives an object no ordering but the one its class declares, so the
+// `rule:classes/comparable` gives an object no ordering but the one its class declares, so the
 // equality member built on `compareTo` has an edge exactly where the class has
 // none. What is asserted here is not that the edge exists -- that much a bare
 // refusal would show -- but that the message is *specific*: it quotes the

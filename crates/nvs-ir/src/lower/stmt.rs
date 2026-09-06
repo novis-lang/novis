@@ -218,7 +218,7 @@ impl<'a> Lowering<'a> {
                 body,
             } => self.lower_foreach(subject, key.as_ref(), value, *value_inout, body, cur, env),
             StmtKind::Switch { subject, cases } => self.lower_switch(subject, cases, cur, env),
-            // ADR 0028 § 3 leaves exactly one `unset` target standing — an
+            // `rule:classes/unset-is-refused-on-a-property` leaves exactly one `unset` target standing — an
             // array element — and `nvs_types::expr::check_unset_target`
             // already rejected a declared property, so anything else reaching
             // here is a shape this slice does not lower.
@@ -252,7 +252,7 @@ impl<'a> Lowering<'a> {
             // * `var $x;` with no initializer is `E0101` at the missing `=`;
             //   `var` has nothing else to infer a type from.
             // * a top-level `function` or `const` is `E0215`/`E0216` from
-            //   `nvs_hir::members` at every scope (ADR 0011 § 1).
+            //   `nvs_hir::members` at every scope (`rule:classes/no-free-functions-or-constants`).
             // * the remaining seven are declarations — `class`, `interface`,
             //   `enum`, `type`, `namespace`, `use` and `autoload`. At file
             //   scope `lower_script_stmts` above skips all seven; anywhere
@@ -438,7 +438,7 @@ impl<'a> Lowering<'a> {
             // Refusing an effect-free one instead — the "expression result
             // unused" a stricter language reports — is not taken, and the
             // reason is that "has no effect" is not a property this slice can
-            // decide: a property read runs the hook ADR 0014 § 1 gives it, a
+            // decide: a property read runs the hook `rule:classes/property-hooks` gives it, a
             // subscript key runs whatever the key expression does, and a call
             // is buried inside half of these. A statement PHP evaluates has
             // to evaluate here (priority 2 over priority 4), and the residue
@@ -881,7 +881,7 @@ impl<'a> Lowering<'a> {
     /// `extra_owner` asks for that value to arrive owning one reference of
     /// the caller's own, and is a parameter rather than a retain the caller
     /// emits afterwards because one arm has no "afterwards" to emit it in: an
-    /// ADR 0014 § 1 `set` hook is a **call**, the argument convention
+    /// `rule:classes/property-hooks` `set` hook is a **call**, the argument convention
     /// transfers the reference to it, and what the hook then does with the
     /// value is the hook's business — so a retain emitted after that call can
     /// be reading a value the hook already released. Every other arm leaves
@@ -982,7 +982,7 @@ impl<'a> Lowering<'a> {
                      `nvs_types::expr::assign`'s `check_write_target` refuses that as `E0479`",
                     target.span
                 );
-                // A `set` hook (ADR 0014 § 1) makes the write a call, exactly
+                // A `set` hook (`rule:classes/property-hooks`) makes the write a call, exactly
                 // the way a `get` hook makes the read one — same receiver
                 // slot, same ownership convention, and the assigned value as
                 // the accessor's one ordinary argument. A property with only
@@ -1091,7 +1091,7 @@ impl<'a> Lowering<'a> {
                         },
                         env,
                     );
-                    // ADR 0014 § 3: the observer is told "the value the hook
+                    // `rule:classes/property-observer-pipeline`: the observer is told "the value the hook
                     // actually committed, not necessarily the caller's
                     // original argument", so this reads the backing slot back
                     // rather than reusing `v`. A hooked property is always
@@ -1146,7 +1146,7 @@ impl<'a> Lowering<'a> {
                         self.emit_release(*cur, old_v);
                     }
                     self.emit_field_set(*cur, object_v, class_label, field_name, v);
-                    // ADR 0014 § 3's second step. With no `set` hook the slot
+                    // `rule:classes/property-observer-pipeline`'s second step. With no `set` hook the slot
                     // store *is* the commit, so `v` is exactly the committed
                     // value and no read-back is owed.
                     if let Some(calls) = observer {
@@ -1443,7 +1443,7 @@ impl<'a> Lowering<'a> {
         );
         row_ty
     }
-    /// `unset($a[$k]);` — the one `unset` target ADR 0028 § 3 leaves
+    /// `unset($a[$k]);` — the one `unset` target `rule:classes/unset-is-refused-on-a-property` leaves
     /// standing, lowered to [`InstKind::ArrayUnset`] and written back through
     /// the same [`Self::write_back_array`] an element *write* uses, since
     /// removing an entry separates a shared array exactly the way writing one
@@ -1471,7 +1471,7 @@ impl<'a> Lowering<'a> {
     /// checker bug rather than a gap: `nvs_types::expr::check_unset_target` is
     /// the one home of what an operand may be, and it refuses every other
     /// spelling where it is written — a declared property as `E0413`
-    /// (ADR 0028 § 3), and everything from a bare local to a subscript of a
+    /// (`rule:classes/unset-is-refused-on-a-property`), and everything from a bare local to a subscript of a
     /// temporary as `E0234`.
     pub(crate) fn lower_unset(&mut self, target: &Expr, env: &mut Env, cur: &mut BlockId) {
         let ExprKind::Index {
@@ -1758,7 +1758,7 @@ impl<'a> Lowering<'a> {
     /// that, a local read (`$this` is one, spelled as an ordinary variable), a
     /// `Class::$prop` static and a property or element path built over those
     /// are the shapes that
-    /// qualify: each is a load, and a `get` hook (ADR 0014 § 1) still runs
+    /// qualify: each is a load, and a `get` hook (`rule:classes/property-hooks`) still runs
     /// exactly once because the write side of a property assignment never
     /// reads its own target back through the hook. A nullsafe path, or
     /// anything else that can run user code where staging did not reach it, is

@@ -4208,7 +4208,7 @@ nvs_runtime::nvs_helper! {
     /// strings writes `{by: ...}` and says so.
     ///
     /// **Known gap:** an `array<T>` of objects has no natural order, and
-    /// [ADR 0013](/docs/adr/0013-comparable-interface.md) says what it
+    /// `rule:classes/comparable` says what it
     /// should be — `Comparable::compareTo`. Calling an *instance* method from
     /// a helper is not reachable yet, so an object without a `comparator` is a
     /// throw naming the interface rather than a wrong answer.
@@ -6429,7 +6429,7 @@ mod tests {
 
     /// Two values with no natural order between them are `THROWN`, not a
     /// silent `Equal` — an array is the case that reaches this today, and an
-    /// object is the one ADR 0013's `Comparable` is the eventual answer for.
+    /// object is the one `rule:classes/comparable`'s `Comparable` is the eventual answer for.
     #[test]
     fn a_pair_with_no_natural_order_throws() {
         let mut array = NvsArray::new();

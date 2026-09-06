@@ -16,14 +16,14 @@
 //! One walk of every `extends`/`implements` ancestor. Each ancestor's own
 //! bodiless, non-`interface_private` methods are the obligation; the class
 //! discharges one by having [`resolve_method`] land on a declaration that
-//! *does* have a body — its own, an inherited one, or an ADR 0043 § 2
+//! *does* have a body — its own, an inherited one, or an `rule:classes/interface-default-methods`
 //! interface default.
 //!
 //! Two things are outside it, each for its own reason:
 //!
 //! - **An `abstract` class is exempt.** Leaving a member to a subclass is
 //!   what the modifier means.
-//! - **A member ADR 0043 § 4's `by $field` delegation supplies is exempt, one
+//! - **A member `rule:classes/delegation-by-field`'s `by $field` delegation supplies is exempt, one
 //!   member at a time.** Delegation answers a member from a property's own
 //!   type, so a synthesized forward discharges the obligation exactly as a
 //!   written body does — but only for the members that actually get one.
@@ -95,7 +95,7 @@ pub(crate) fn check_class_conformance(decl: &ClassDecl, qname: &QName, env: &mut
             )
             .with_help(format!(
                 "declare `{method}` here, or give `{interface}` a default body for it \
-                 (ADR 0043 § 2)"
+                 (`rule:classes/interface-default-methods`)"
             )),
         );
     }
@@ -143,7 +143,7 @@ pub(crate) fn check_class_finality(decl: &ClassDecl, qname: &QName, env: &mut En
             .with_help(format!(
                 "drop the `final` from `{parent}`'s own declaration if it was meant to be a base \
                  class, or hold a `{parent}` in a property of `{qname}` and forward to it — \
-                 `implements … by $field` (ADR 0043 § 4) writes the forwards for you"
+                 `implements … by $field` (`rule:classes/delegation-by-field`) writes the forwards for you"
             )),
         );
     }
@@ -255,14 +255,14 @@ fn collect_obligations(
 }
 
 /// Records one [`Delegation`] per member an `implements I by $field;` clause
-/// makes the compiler synthesize a forward for — ADR 0043 § 4.
+/// makes the compiler synthesize a forward for — `rule:classes/delegation-by-field`.
 ///
 /// The obligation set is [`collect_obligations`]', asked of the *interface*
 /// rather than of the class: every bodiless, non-`interface_private` member it
 /// and its own ancestors declare. A member the class already answers with a
 /// body is skipped, which is § 4's "a class may still write its own method
 /// with the same name as a delegated one — that is an ordinary override" — and
-/// the same subtraction covers an inherited body and an ADR 0043 § 2 interface
+/// the same subtraction covers an inherited body and an `rule:classes/interface-default-methods` interface
 /// default, both of which `resolve_method` finds and neither of which a
 /// forward should displace.
 ///
@@ -352,7 +352,7 @@ fn resolve_delegations(
                     )
                     .with_primary(field_span, why.to_owned())
                     .with_help(format!(
-                        "write `{method}` on `{qname}` by hand — ADR 0043 § 4 already lets an own \
+                        "write `{method}` on `{qname}` by hand — `rule:classes/delegation-by-field` already lets an own \
                          method stand in for a delegated one"
                     )),
                 );
@@ -374,7 +374,7 @@ fn resolve_delegations(
     Some(covered)
 }
 
-/// ADR 0043 § 4 bullet 1: whether `field` can carry `interface`'s members at
+/// `rule:classes/delegation-by-field` bullet 1: whether `field` can carry `interface`'s members at
 /// all — a declared property of `qname` (its own or an inherited one) whose
 /// type is a **non-nullable** class or interface that satisfies `interface`.
 /// Reports one `E0720` and answers `false` where it cannot.
@@ -406,7 +406,7 @@ fn check_delegate_field(
                 "no property of this name is declared".to_owned(),
             )
             .with_help(format!(
-                "declare a property `${field}` typed `{interface}` (ADR 0043 § 4)"
+                "declare a property `${field}` typed `{interface}` (`rule:classes/delegation-by-field`)"
             )),
         );
         return false;
@@ -433,7 +433,7 @@ fn check_delegate_field(
         .with_primary(field_span, why.to_owned())
         .with_help(format!(
             "declare `${field}` as `{interface}`, or as a non-nullable class that implements it \
-             (ADR 0043 § 4)"
+             (`rule:classes/delegation-by-field`)"
         )),
     );
     false
@@ -533,7 +533,7 @@ mod tests {
         assert!(missing(&diags), "{diags:?}");
     }
 
-    /// ADR 0043 § 2: a default body discharges the obligation.
+    /// `rule:classes/interface-default-methods`: a default body discharges the obligation.
     #[test]
     fn an_interface_default_body_discharges_the_obligation() {
         let diags = check_src(

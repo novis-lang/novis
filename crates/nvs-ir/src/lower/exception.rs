@@ -694,12 +694,12 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 ///
 /// Parameter 2 is `Ty::Tagged` because spec § 10 types the option
 /// `Throwable|null`, and a bag omitted whole flattens to that option's own
-/// `null` default — so the slot is written on every path and ADR 0022's
+/// `null` default — so the slot is written on every path and `rule:classes/definite-property-initialization`'s
 /// definite assignment holds without a branch here.
 ///
 /// `ParseError`, `Core\Db\DbError` and `Core\Db\RolledBack` each get one of
 /// their own rather than inheriting the root's, because each declares a
-/// property the root's constructor never touches — ADR 0022 makes every
+/// property the root's constructor never touches — `rule:classes/definite-property-initialization` makes every
 /// property definitely assigned, and such a slot would read `null` out of a
 /// type that cannot be one. Each writes all five slots rather than chaining,
 /// which costs three duplicated instructions and buys not needing a call at all
@@ -735,7 +735,7 @@ pub(crate) fn synthesized_exception_constructors() -> Vec<Function> {
 /// beyond the root's four.
 ///
 /// A closed set rather than a value the caller builds: every one of these has
-/// to be a definite assignment ADR 0022 accepts *and* a representation the
+/// to be a definite assignment `rule:classes/definite-property-initialization` accepts *and* a representation the
 /// class's seeded type admits (`nvs_types::error_lib::own_properties` is where
 /// that type is), so a third initializer is a deliberate addition here rather
 /// than an instruction written at a call site.

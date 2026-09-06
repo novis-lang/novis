@@ -246,7 +246,7 @@ refusal to support that auth method.
 ### 5. `Core` means *always present*
 
 Nothing outside Tier 0 may register a class under the `Core` namespace. A `use Core\Intl;` that compiles in
-development and fails in production would make ADR 0011's reserved namespace conditional, which is a worse
+development and fails in production would make `rule:classes/no-free-functions-or-constants`'s reserved namespace conditional, which is a worse
 failure than an unfamiliar namespace. A first-party extension is named like any other extension, and its
 tier is therefore visible at the use site.
 

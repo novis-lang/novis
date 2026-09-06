@@ -28,7 +28,7 @@ foreach ($tags as Tag $tag) {
 
 // The two lists, side by side, so that every step below prints both rather
 // than whichever one it is about. A free function has to be a method
-// (ADR 0011 § 1).
+// (`rule:classes/no-free-functions-or-constants`).
 final class Render {
     public static function pairs(Core\ObjectMap<Tag, int> $map): string {
         string $keys = Core\Str::join(Core\Arr::map($map->keys(), fn(Tag $t): string => $t->name), ",");

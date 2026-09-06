@@ -109,8 +109,7 @@ pub struct Delivery {
     /// the one member that answers both (§ 3).
     topic: Box<str>,
     /// The published value, already copied across the boundary by the
-    /// publisher — [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-    /// § 2, as § 4 requires of anything the bus hands a subscriber.
+    /// publisher — `rule:classes/graph-copy`, as § 4 requires of anything the bus hands a subscriber.
     value: crate::Value,
 }
 

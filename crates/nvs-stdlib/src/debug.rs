@@ -447,7 +447,7 @@ fn append_cut(node: Node, total: usize, cut: usize) -> Node {
 }
 
 /// A class instance, as `rule:errors/diagnostic-record`'s Object node — the class name and its
-/// **declared** properties, per ADR 0028 § 4.
+/// **declared** properties, per `rule:classes/no-debug-hook`.
 ///
 /// Never a `toString` result and never a customization hook (§ 7): a dump
 /// shows a class's real declared properties and their real current values,

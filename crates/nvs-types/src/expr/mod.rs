@@ -27,7 +27,7 @@
 //! | [`literals`] | how a literal takes its type from its position |
 //! | [`members`] | a property, class constant or enum case, and who diagnoses it |
 //! | [`operators`] | `rule:types/arithmetic`'s result table and the refusals layered on it |
-//! | [`presence`] | ADR 0028 § 3's `isset(...)`, and what its operands may be |
+//! | [`presence`] | `rule:classes/unset-is-refused-on-a-property`'s `isset(...)`, and what its operands may be |
 //! | [`quals`] | ADR 0024's `tainted`, ADR 0033's `secret`, and their sinks |
 //!
 //! Two fallbacks are deliberate and belong to no module. A method/static call
@@ -612,7 +612,7 @@ pub(crate) fn infer(
             type_args,
             args,
         } => infer_new(expr, target, type_args, args, live, scope, ctx, env),
-        // ADR 0023 § 1's operand rule, then the operand's own type unchanged:
+        // `rule:classes/clone-is-shallow`'s operand rule, then the operand's own type unchanged:
         // a clone is a new instance of the same class. See
         // [`members::reject_non_object_clone`] for why the refusal is asked
         // of what provably cannot be an object rather than of what is.
@@ -731,7 +731,7 @@ pub(crate) fn infer(
             reject_unthrowable(ty, inner.span, env);
             env.interner.never()
         }
-        // ADR 0028 § 3: `isset($x)` is `$x != null`, and a list of operands
+        // `rule:classes/unset-is-refused-on-a-property`: `isset($x)` is `$x != null`, and a list of operands
         // is the conjunction — so every one of them is checked, and every
         // subscript under one is a guarded read. `presence` owns both rules.
         ExprKind::Isset(operands) => {

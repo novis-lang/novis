@@ -61,7 +61,7 @@ weaker one by accident.
 ### 2. Values are copied across the boundary
 
 `put` copies out of the request heap into the cache; `get` copies into the request heap. The operation is
-the recursive graph copy [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already defines and
+the recursive graph copy `rule:classes/two-copy-depths` already defines and
 already shares with the isolate boundary — not a third mechanism.
 
 This is forced, not chosen. A request's heap is dropped wholesale at the end of the request, so a value the
@@ -144,7 +144,7 @@ no program ever reads it to make a decision and its values are approximate aggre
 
 - **M8:** a value written on one core and read on another via the local tier is absent, asserted rather
   than left implicit, so the coherence contract is tested; the same value via the shared tier is present.
-- **M8:** a `secret` value and a generator are each refused at `put`, reusing the ADR 0023/0033 fixtures.
+- **M8:** a `secret` value and a generator are each refused at `put`, reusing the `rule:classes/two-copy-depths`/0033 fixtures.
 - **M8:** filling the local tier past its configured cap evicts and does not fail an allocation, and the
   memory it holds is reported against the core rather than against any in-flight request — checked against
   the same accounting the request memory cap uses.

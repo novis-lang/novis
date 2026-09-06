@@ -226,7 +226,7 @@ The ordering rows are a **closed** list, exactly as *2*'s conversion grid is. Ev
 orders by converting an operand first, and *2* has no implicit conversion for that to be — so two strings
 order through `Core\Str::compare`, an enum case through its backing `as int` ([0010](0010-enums-are-a-value-type.md)),
 and an `array<T>`, a `callable` and `null` not at all. Each is refused where it is written rather than
-answered plausibly below it, and the object family keeps ADR 0013's own diagnostic however the receiver was
+answered plausibly below it, and the object family keeps `rule:classes/comparable`'s own diagnostic however the receiver was
 spelled, an erased `object` and a shape included.
 
 An operand whose static type names no row **at all** — `mixed`, a union, the `int|float` a division returns —

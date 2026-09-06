@@ -1,10 +1,10 @@
-# ADR 0028 — Closing the remaining magic methods: `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property
+# `rule:classes/no-magic-methods` — Closing the remaining magic methods: `Stringable` replaces `__toString`; no `__destruct`, `__debugInfo`, or `__set_state`; `unset()` is refused on an object property
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
 - **Scope:** every PHP object magic method no prior ADR has ruled on — `__toString`, `__destruct`,
   `__isset`/`__unset`, `__debugInfo`, `__set_state` — plus a closing note on `__autoload`. Also serves as
-  the single index of every magic method's disposition across the project, since [ADR 0014](0014-property-observer.md)
+  the single index of every magic method's disposition across the project, since `rule:classes/property-observer`
   first opened the "magic methods" line item and three more ADRs have each closed a piece of it since.
 - **Amends:** [0007](0007-explicit-type-system.md) § 4 — the conversion table's "anything → `string`" row
   said "an object needs `__toString`, or it throws"; it now names `Stringable` instead. Also
@@ -94,7 +94,7 @@ trigger is gone would misdescribe what is actually happening at the declaration 
 **Novis has no destructors.** A method named `__destruct` cannot even be declared:
 [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule has never allowed a leading
 underscore, so the casing checker refuses the name outright before anything about destructors comes into
-play — the same fate [ADR 0014](0014-property-observer.md) § 6 gives `__call` (that section was itself
+play — the same fate `rule:classes/no-call-magic` gives `__call` (that section was itself
 corrected to say so; earlier drafts of both described the name as "compiling as an ordinary method the
 runtime never invokes," which stopped being accurate once the casing checker existed to reject it first).
 Either way there is no refcount-triggered cleanup hook, no scope-exit hook, nothing. Two independent
@@ -206,7 +206,7 @@ PHP source that has to be `eval`'d or compiled to reconstruct it — a category 
 [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed for exactly this reason. A class declaring `__set_state` never reaches the question of whether the runtime would invoke it: the name
 itself is refused by [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule before any
 resolution logic runs, same as every other double-underscore magic method this document and
-[ADR 0014](0014-property-observer.md) § 6 cover.
+`rule:classes/no-call-magic` cover.
 
 ### 6. `__autoload` — moot, closing note only
 

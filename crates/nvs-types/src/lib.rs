@@ -33,7 +33,7 @@
 //!   assignment.
 //! - [`expr`] — [`expr::check_expr`]: a bidirectional expression checker —
 //!   literals, variable reads, the binary-operator result-type table
-//!   (including ADR 0013's `Comparable` amendment for `< <= > >= <=>`
+//!   (including `rule:classes/comparable`'s `Comparable` amendment for `< <= > >= <=>`
 //!   between two objects), `as`/cast conversions, array literals checked
 //!   against a target element type, and (using [`signatures`]) property
 //!   access, method calls, static calls/properties, `new` (including
@@ -47,7 +47,7 @@
 //!   [`locals::LocalScope`] from its lowered parameters (`$this` included,
 //!   typed as the enclosing class) and checking every `return` against the
 //!   lowered return type.
-//! - [`ctor_init`] — [`ctor_init::check_class_init`]: ADR 0022 § 2's
+//! - [`ctor_init`] — [`ctor_init::check_class_init`]: `rule:classes/definite-property-initialization`'s
 //!   definite-property-initialization check, a second flow-analysis pass
 //!   over each class's own constructor (or, absent one, over its required
 //!   properties' own declarations directly) — extending [`locals`]'s
@@ -81,7 +81,7 @@
 //!   sequence that isn't valid UTF-8. `pub`, and reused directly by
 //!   `nvs-ir`'s own lowering rather than duplicated — see that module's own
 //!   docs for why this one, unlike `expr`'s `int_literal_digits`, is shared.
-//! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: ADR 0038's
+//! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: `rule:classes/lateinit`'s
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
 //!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
 //!   parameter, and `readonly`) and excludes it from `ctor_init`'s
@@ -136,19 +136,19 @@
 //!   table now — [`error_lib`] seeds spec § 10's four readonly properties and
 //!   the one constructor — so `$e->message` is checked like any other
 //!   property read.
-//!   ADR 0014's "a property
+//!   `rule:classes/property-observer`'s "a property
 //!   access on any receiver other than `$this` is checked" half turned out to
 //!   already be done: [`expr::members::check_property_access`] reports
 //!   `E_UNKNOWN_MEMBER` for exactly that shape (see its own module docs) —
 //!   `nvs_hir::members`'s and this module's known-gap notes were just stale
-//!   about it. ADR 0022 (definite *property*
+//!   about it. `rule:classes/definite-property-initialization` (definite *property*
 //!   initialization) is now done for the shapes its own M2 corpus names —
 //!   see [`ctor_init`]'s docs for what is deliberately still out of scope
-//!   within that ADR specifically. ADR 0013 (`Comparable`) is now done too
+//!   within that ADR specifically. `rule:classes/comparable` (`Comparable`) is now done too
 //!   — see [`expr`]'s `object_comparison_result`, and [`conformance`] for
 //!   the half it does not do: a class claiming `implements Comparable` owes
 //!   a `compareTo` there, like an implementer of any other interface, now
-//!   that [`iter_lib`] seeds one. ADR 0028 (`Stringable`, `unset()` refusal) is done too —
+//!   that [`iter_lib`] seeds one. `rule:classes/no-magic-methods` (`Stringable`, `unset()` refusal) is done too —
 //!   see [`expr::require_stringable`]/[`expr::members::check_property_access`]. ADR
 //!   0036's checker semantics are now done as well: `object` carries real
 //!   subtyping (every class or shape type is `<: object`), a shape type
@@ -156,7 +156,7 @@
 //!   ordinary field assignability (see [`expr::is_assignable`]'s own docs),
 //!   and a property access through a shape-missing field or plain `object`
 //!   is silently erased to `mixed` rather than diagnosed, recording the
-//!   written name for ADR 0014 § 5's runtime-checked fallback, which throws
+//!   written name for `rule:classes/no-dynamic-properties`'s runtime-checked fallback, which throws
 //!   for real now — see [`expr::members::check_property_access`]'s own docs. `rule:enums/closed-integer-type`'s enum-vs-class atom distinction beyond "resolves to *a*
 //!   symbol" is now done too: `self`/`static`/`$this` inside an enum
 //!   ([`expr::class_of_ctx`], [`lower`]'s `resolve_special`) and a case access
@@ -304,7 +304,7 @@ pub(crate) struct Ctx<'a> {
     pub namespace: &'a [String],
     pub imports: &'a FxHashMap<String, QName>,
     pub current_class: Option<&'a QName>,
-    /// The name of the property whose ADR 0014 § 1 hook body is being
+    /// The name of the property whose `rule:classes/property-hooks` hook body is being
     /// checked, if any — `$`-sigil not included.
     ///
     /// Exists for one rule: inside `$p`'s own `get`/`set` hooks,
@@ -314,7 +314,7 @@ pub(crate) struct Ctx<'a> {
     /// know *which* accessor it is inside.
     pub current_hook: Option<&'a str>,
     /// Whether the body being checked is the `constructor`'s own — the one
-    /// place ADR 0038 § 1 lets a write to a `readonly` property through
+    /// place `rule:classes/lateinit-restrictions` lets a write to a `readonly` property through
     /// (`crate::expr::assign::check_write_target`).
     ///
     /// A `bool` rather than the method's name because that is the whole of

@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
+`$uri->compareTo` normalizes both references per RFC 3986 § 6.2.2 and then compares components, while `parse` still reports what was written — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // § 6.2.2.1 and § 6.2.2.2: the scheme and the host fold to lower case, and an
@@ -21,7 +21,7 @@ echo Core\Uri::parse("http://h:80/")->compareTo(Core\Uri::parse("http://h/")), "
 echo Core\Uri::parse("http://h/a%2Fb")->compareTo(Core\Uri::parse("http://h/a/b")), "\n";
 echo Core\Uri::parse("http://h/A")->compareTo(Core\Uri::parse("http://h/a")), "\n";
 
-// ADR 0013: the answer is an order, not only an equality — component
+// `rule:classes/comparable`: the answer is an order, not only an equality — component
 // lexicographic, in the order the readers are declared.
 echo Core\Uri::parse("http://a/")->compareTo(Core\Uri::parse("http://b/")), "\n";
 echo Core\Uri::parse("http://b/")->compareTo(Core\Uri::parse("http://a/")), "\n";

@@ -1,8 +1,8 @@
 --TEST--
-Every rendering spelling of a `Core`-owned class the spec gives a `toString` agrees with the member call written out, for each of the three classes that have one — ADR 0028 § 1
+Every rendering spelling of a `Core`-owned class the spec gives a `toString` agrees with the member call written out, for each of the three classes that have one — `rule:classes/stringable`
 --FILE--
 <?nvs
-// ADR 0028 § 1 makes the implicit rendering a `toString()` call, so the four
+// `rule:classes/stringable` makes the implicit rendering a `toString()` call, so the four
 // spellings that render are four spellings of one call. A `Core` class's
 // member is a native symbol rather than an entry in a compiled method table,
 // so what `nvs-ir` emits for it is the same native call the member written

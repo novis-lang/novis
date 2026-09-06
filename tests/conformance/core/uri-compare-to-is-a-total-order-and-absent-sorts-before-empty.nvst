@@ -1,10 +1,10 @@
 --TEST--
-`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
+`$uri->compareTo` is a total order and not only an equality test: antisymmetric, reflexive and transitive over a corpus, decided component by component in the readers' declared order rather than over the text, with an absent component sorting before an empty one — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // The neighbouring case asserts *what* § 6.2.2 normalizes before the
 // comparison happens, row by row. This one asserts the thing no row can show:
-// that the answer is an order at all. ADR 0013 makes `compareTo` the member
+// that the answer is an order at all. `rule:classes/comparable` makes `compareTo` the member
 // `Comparable` declares, so a member that merely answered `0` for equal and
 // something plausible otherwise would pass every row above and still be unfit
 // for a sort.
@@ -26,7 +26,7 @@ array<string> $corpus = [
 ];
 
 // All 100 ordered pairs, counted rather than read off a line: the answer is
-// always one of the three literals ADR 0013 names, it reverses when the
+// always one of the three literals `rule:classes/comparable` names, it reverses when the
 // operands do, and it is `0` exactly on the diagonal plus the one pair the
 // normalization makes equivalent. A member ordering by text would still
 // satisfy the first two and fail the last.

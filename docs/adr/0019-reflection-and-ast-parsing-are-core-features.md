@@ -32,7 +32,7 @@
   second grammar to keep in sync — the same "one implementation, not two" shape
   `rule:statements/nothing-gets-a-second-name`/[ADR 0017](0017-hot-reload-without-restart.md) already chose.
 - Simplicity (priority 4): every domain is meant to have one obvious `Core` home
-  ([ADR 0011](0011-functions-and-constants-are-class-members.md)); leaving AST parsing out would send every
+  (`rule:classes/no-free-functions-or-constants`); leaving AST parsing out would send every
   framework author back to a userland parser, reproducing PHP's own fragmentation.
 - Security (priority 1) is what this decision could spend if left unexamined: PHP's reflection bypasses
   visibility via `setAccessible(true)`, and a runtime-reachable parser is new attacker-reachable surface —
@@ -41,9 +41,9 @@
 ## Decision
 
 **`Core\Reflect` and `Core\Ast` are built-in `Core` domain classes, present in every Novis program with no
-extension to install, following [ADR 0011](0011-functions-and-constants-are-class-members.md)'s domain-class
+extension to install, following `rule:classes/no-free-functions-or-constants`'s domain-class
 shape.** The exact class roster in each namespace is stdlib design due at M8, the same way
-[ADR 0011](0011-functions-and-constants-are-class-members.md) left its own roster to M2/M8 — what this ADR
+`rule:classes/no-free-functions-or-constants` left its own roster to M2/M8 — what this ADR
 fixes is the shape and the two invariants below, not the final member list.
 
 ### 1. `Core\Reflect`: read-only structural introspection
@@ -54,7 +54,7 @@ grab-bag class: `Core\Reflect\ClassInfo`, `MethodInfo`, `PropertyInfo`, `Paramet
 or `Core\Reflect\ClassInfo::of($someObject)`). Covers classes, interfaces, enums (name and cases — see § 4),
 methods, properties, constants, parameters and attributes — including which methods an interface declares as
 `public` (part of its contract) versus `private` (an internal helper, per
-[ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)) — matching what PHP's own
+`rule:classes/no-traits`) — matching what PHP's own
 extension covers today, minus traits, which do not exist.
 
 ### 2. No `setAccessible(true)` — reflective access enforces the same checks ordinary code would
@@ -65,7 +65,7 @@ program's *shape*, not of a running value, and PHP's reflection makes the same c
 
 **Acting on a member** — calling a reflected method, reading or writing a reflected property, invoking a
 reflected constructor — is different: it runs through *exactly* the visibility check and, where one is
-declared, the `PropertyObserver` hook ([ADR 0014](0014-property-observer.md)) that ordinary code at that call
+declared, the `PropertyObserver` hook (`rule:classes/property-observer`) that ordinary code at that call
 site would face. A reflective call from outside a class to one of its `private` methods fails the same way
 an ordinary out-of-class call would. **There is no `setAccessible(true)` and no equivalent** — PHP's escape
 hatch for reaching a private member from anywhere is rejected outright, not merely left undocumented, because
@@ -141,7 +141,7 @@ as `Core\Json::decode()` on one.
   visibility/hook logic ordinary call sites use, rather than a shortcut around it — implemented as a shared
   check both paths call into, not duplicated logic that could drift.
 - The stdlib now carries two more domain-class families to design at M8, on top of the roster
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already deferred there.
+  `rule:classes/no-free-functions-or-constants` already deferred there.
 
 ## Alternatives rejected
 
@@ -149,7 +149,7 @@ as `Core\Json::decode()` on one.
   split. Rejected: precisely the asymmetry that produces grammar drift in PHP's ecosystem, at zero marginal
   cost to avoid via `Core\Ast`.
 - **PHP-equivalent `setAccessible(true)`.** Rejected per § 2: a structural visibility bypass is a cost
-  priority 1 doesn't get to spend for convenience, especially given the [ADR 0014](0014-property-observer.md)
+  priority 1 doesn't get to spend for convenience, especially given the `rule:classes/property-observer`
   hook it would skip silently.
 - **Return the AST as `array<mixed>`** (PHP's `ast` extension/`token_get_all()` shape). Rejected per § 3: the
   exact `mixed`-shaped shortcut `rule:types/declaration` closes everywhere else.
@@ -160,7 +160,7 @@ as `Core\Json::decode()` on one.
 
 - **The exact `Core\Reflect`/`Core\Ast` class rosters and method signatures** are M8 stdlib design, not this
   ADR; the names above are illustrative, following the precedent
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already set for its own roster.
+  `rule:classes/no-free-functions-or-constants` already set for its own roster.
 - **How a request's CPU-time cap applies to a long-running native call inside `Core\Ast::parse()`** — whether
   it is preempted by the same safepoint mechanism JIT-compiled loops poll, or needs its own internal
   yield/budget check — is an M6/M8 mechanism question this ADR flags but does not resolve. Whatever the

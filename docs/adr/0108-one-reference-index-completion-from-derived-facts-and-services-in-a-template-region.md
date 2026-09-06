@@ -96,7 +96,7 @@ each one query against it and none gets a walk of its own:
   declarations it overrides and the one it overrides. Gated on `nvs.codeLens.enable` (default `true`) — a
   lens is a request per visible declaration and a large file is where it is least welcome.
 - **`textDocument/typeHierarchy`** — supertypes and subtypes of a class or interface, including
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)'s default methods and
+  `rule:classes/no-traits`'s default methods and
   delegation, which is where a reader most needs to see the shape rather than reconstruct it.
 - **Unused-member dimming.** A private member, constant or `use` with no reference anywhere in the index is
   reported as a diagnostic carrying LSP's `Unnecessary` tag, which VS Code renders as dimming rather than a
@@ -216,7 +216,7 @@ what a declaration or a literal already determines:
 fully determined. It never invents a body, never names a parameter from a heuristic, and never picks between two
 possible signatures. Anything needing a choice is a refactoring the user drives, not an action a light
 bulb offers. **Getter/setter generation is refused under this bound and under
-[ADR 0014](0014-property-observer.md)** — Novis has property hooks, so the pair of methods that action
+`rule:classes/property-observer`** — Novis has property hooks, so the pair of methods that action
 exists to save typing has no reason to be written at all.
 
 ### 5. The debugger UI is only as deep as the adapter, so the adapter's capabilities are named here
@@ -322,7 +322,7 @@ extension:
   in-source tags — the mature form of which the review documents in detail. Rejected: it is
   [ADR 0029](0029-identifier-casing-is-checked.md) § 3's closed door, and the review is evidence for that
   door rather than against it.
-- **Getter/setter generation.** Rejected under § 4 — [ADR 0014](0014-property-observer.md)'s hooks mean the
+- **Getter/setter generation.** Rejected under § 4 — `rule:classes/property-observer`'s hooks mean the
   generated pair should not exist.
 
 ## Revisiting

@@ -345,8 +345,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// The comparison is exact: a contextual keyword is a reserved spelling
     /// like any other, so it is lower case only
-    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-    /// § 2). `SPAWN` is just an identifier.
+    /// (`rule:classes/reserved-spellings-are-lower-case`). `SPAWN` is just an identifier.
     fn ident_text(&self, span: Span) -> &str {
         self.file.span_text(span).unwrap_or_default()
     }

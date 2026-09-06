@@ -68,7 +68,7 @@ pub(crate) fn infer_method_call(
     check_member_name(method, live, scope, ctx, env);
     // `rule:types/property-key-access`'s first neighbour: a computed name is admitted at a property
     // access and nowhere else, so this is `E0235` whatever the operand's type
-    // is. ADR 0014 § 6 refuses computed *dispatch* as a concept rather than as
+    // is. `rule:classes/no-call-magic` refuses computed *dispatch* as a concept rather than as
     // a spelling, and a key names a property, so there is no operand that could
     // make this one resolve.
     if let MemberName::Variable(e) | MemberName::Expr(e) = method {
@@ -578,7 +578,7 @@ pub(crate) fn infer_new(
     }
     let ctor_owner = resolved.as_ref().map(|(owner, _)| owner.clone());
     let sig = resolved.map(|(_, sig)| sig);
-    // ADR 0125 § 5, asked only of the dynamic form and against the signature
+    // `rule:classes/constructor-compatibility`, asked only of the dynamic form and against the signature
     // *before* [`check_args_typed`] substitutes: `T`'s constructor is what this
     // site checks against, so every implementor of `T` has to accept what it
     // accepts. Ahead of the argument check because a divergent implementor
@@ -707,8 +707,7 @@ fn reject_abstract_instantiation(target: &NewTarget, qname: &QName, span: Span, 
     );
 }
 
-/// [ADR 0125](/docs/adr/0125-a-class-reference-is-a-type-and-as-is-its-only-source.md)
-/// § 5, at `new $cls(...)` over a `class<T>`: the site checks its arguments
+/// `rule:classes/constructor-compatibility`, at `new $cls(...)` over a `class<T>`: the site checks its arguments
 /// against **`T`**'s constructor, and the value may hold any implementor of
 /// `T`, so an implementor whose constructor is not compatible with `T`'s makes
 /// that check a promise the program cannot keep (`E0794`).
@@ -1154,7 +1153,7 @@ pub(crate) enum NoParameterList {
 /// closure may declare such a parameter at all (`E_CLOSURE_INOUT_PARAM`), and
 /// an `inout` parameter list is packed and written back at the *call site*,
 /// which a call that learns its callee at run time cannot do — the same limit
-/// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for ADR 0043 § 4's synthesized
+/// [`E_DELEGATE_MEMBER_NOT_FORWARDABLE`] names for `rule:classes/delegation-by-field`'s synthesized
 /// forward.
 ///
 /// A `...` argument is left alone and lowers: how many arguments it hands over
@@ -1248,7 +1247,7 @@ pub(crate) fn report_args_with_no_parameter_list(
 /// erased property read with a name-keyed runtime fetch and refuses the rest
 /// (`E_RECEIVER_HAS_NO_PROPERTIES`), while a call additionally needs a
 /// signature and a return type, which no receiver here supplies. There is no
-/// `__call` to fall back on either (ADR 0014), so every one of them is refused
+/// `__call` to fall back on either (`rule:classes/property-observer`), so every one of them is refused
 /// where it is written rather than reaching `nvs-ir` with no resolved target.
 ///
 /// `mixed` is deliberately **not** here: `rule:types/conversion` makes it the one
@@ -1585,7 +1584,7 @@ pub(crate) fn check_fn_literal(
         generator_elem: None,
         // Not inherited even inside the constructor: a closure runs when it is
         // called, which this checker cannot bound, so a `readonly` write it
-        // holds is not proven to happen during construction (ADR 0038 § 1).
+        // holds is not proven to happen during construction (`rule:classes/lateinit-restrictions`).
         in_constructor: false,
     };
     // A closure's body is its own function: an enclosing loop's `break`

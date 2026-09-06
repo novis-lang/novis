@@ -275,7 +275,7 @@ fn descriptors() -> &'static ClassTable {
             // `instanceof` on one answers only for itself.
             let id = table.define(class.name, class.slots, &[]);
             table.set_methods(id, dispatch_table(class.name));
-            // ADR 0028 § 1's one rendering member, which is *not* a
+            // `rule:classes/stringable`'s one rendering member, which is *not* a
             // `DISPATCH_ROSTER` row: it has its own descriptor field because
             // it keeps the ordinary `Core` convention of borrowing its
             // receiver, and it is derived from the registry rather than
@@ -539,7 +539,7 @@ mod tests {
         }
     }
 
-    /// The same pairing for ADR 0028 § 1's rendering: a class
+    /// The same pairing for `rule:classes/stringable`'s rendering: a class
     /// [`registry::class_renders`] answers `true` for is one the checker lets
     /// `echo $x` compile against, so a `mixed` holding one has to render at
     /// run time rather than throw. The two ways it can are the two rows of

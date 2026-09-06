@@ -44,7 +44,7 @@ fn a_matching_return_type_is_fine() {
 
 #[test]
 fn a_this_property_access_has_its_declared_type() {
-    // The property has an inline default, so ADR 0022's own check
+    // The property has an inline default, so `rule:classes/definite-property-initialization`'s own check
     // (`crate::ctor_init`) has nothing to say about a missing
     // constructor here — this fixture is only exercising property-type
     // recovery.
@@ -461,7 +461,7 @@ class Config {
     );
 }
 
-/// ADR 0011's class constant on a **user-declared** class: a read of one
+/// `rule:classes/no-free-functions-or-constants`'s class constant on a **user-declared** class: a read of one
 /// answers the type its own declaration wrote, and not the value's, and not
 /// `mixed`.
 ///
@@ -597,7 +597,7 @@ class Limits {
     );
 }
 
-/// ADR 0125 § 5: a `new` over a `class<T>` checks its arguments against `T`'s
+/// `rule:classes/constructor-compatibility`: a `new` over a `class<T>` checks its arguments against `T`'s
 /// constructor, and the value may hold any implementor of `T` -- so one whose
 /// constructor is incompatible makes that check a promise the program cannot
 /// keep. Refused at the `new`, naming the subclass, and never at the subclass's
@@ -1115,7 +1115,7 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
     );
 
     // § 4 row 1: a key is not a method name, so computed dispatch is refused
-    // with the same code and for ADR 0014 § 6's older reason.
+    // with the same code and for `rule:classes/no-call-magic`'s older reason.
     assert!(
         has_e0235(&format!(
             "{CLASSES}class T {{\n\

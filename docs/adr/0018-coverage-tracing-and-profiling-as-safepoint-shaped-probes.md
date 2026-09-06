@@ -136,7 +136,7 @@ Core\Debug::startProfiling(string $path): void;             // writes Callgrind 
 Core\Debug::stopProfiling(): void;
 ```
 
-placed under `Core` per [ADR 0011](0011-functions-and-constants-are-class-members.md), deliberately shaped
+placed under `Core` per `rule:classes/no-free-functions-or-constants`, deliberately shaped
 close to `xdebug_start_code_coverage()`/`xdebug_get_code_coverage()` so a PHPUnit-style coverage collector
 ported by `nvs convert` needs its calls renamed, not its logic rewritten — the concrete payoff of "low
 barrier to entry" this ADR is answering.

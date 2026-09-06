@@ -43,7 +43,7 @@ Four kinds of finding:
 *case*     the target exists, but not with the spelling the link used. Windows and macOS resolve a
            path case-insensitively, so this is the failure that passes on the author's machine and 404s
            on GitHub and on every Linux checkout. It is the doc-side of the rule
-           [ADR 0062](../docs/adr/0062-case-sensitivity-is-a-compiler-property.md) makes for `require`:
+           `rule:classes/names-resolve-case-sensitively` makes for `require`:
            a path is compared to the on-disk entry exactly.
 
 *relative* a source file wrote `../docs/…` where the root-absolute form belongs.

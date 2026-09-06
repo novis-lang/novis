@@ -28,7 +28,7 @@
 //! under ADR 0042 must still describe the code it is paired with.
 //!
 //! A `static` property claims no slot: `rule:statements/static-is-a-member-modifier` makes it class storage, not
-//! instance storage. A *hooked* property (ADR 0014 § 1) does claim one, even
+//! instance storage. A *hooked* property (`rule:classes/property-hooks`) does claim one, even
 //! when nothing ever reads it — Novis has no virtual/backed split, and
 //! [`crate::signatures::PropertyHooks`] owns that decision and what it
 //! spends.
@@ -90,7 +90,7 @@ pub struct ClassLayout {
     /// This is what `nvs_runtime::ClassDesc::method` answers a
     /// `static::method(...)` dispatch from, so the precedence has to be the
     /// language's: a class's own override, then its superclass chain, then an
-    /// interface default (ADR 0043 § 2). A depth-first walk that takes
+    /// interface default (`rule:classes/interface-default-methods`). A depth-first walk that takes
     /// `extends` before `implements` produces exactly that order.
     ///
     /// The visibility bit is carried because it has no source below the front
@@ -275,7 +275,7 @@ fn collect_own(
                 out.insert(qname.clone(), own_properties(&decl.members, src));
                 methods.insert(qname, own_methods(&decl.members, src));
             }
-            // An interface declares no instance property (ADR 0043 § 2 gives
+            // An interface declares no instance property (`rule:classes/interface-default-methods` gives
             // it method bodies, not state), but it still needs an entry: it is
             // a legal `instanceof` target and a legal `catch` type, so
             // `nvs-codegen` must have a descriptor to point at. Its *default*
@@ -439,7 +439,7 @@ fn flatten_methods(
         return;
     };
     // `extends` before `implements`: a superclass's concrete method beats an
-    // interface default of the same name (ADR 0043 § 2's conflict rule).
+    // interface default of the same name (`rule:classes/interface-default-methods`'s conflict rule).
     for parent in links.extends.iter().chain(links.implements.iter()) {
         flatten_methods(parent, graph, own, methods, walked);
     }

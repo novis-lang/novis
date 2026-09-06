@@ -29,7 +29,7 @@
 
 - Every larger PHP application relies on `spl_autoload_register`, in practice through Composer's `psr-4`
   map. Without an equivalent, an Novis project must hand-write a transitive `require` for every declaration
-  it touches. [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 6 closed the *magic method* and
+  it touches. `rule:classes/no-magic-methods` closed the *magic method* and
   correctly observed that static resolution leaves no moment for a loader callback — but it never said what
   a real application does instead, which left the largest single adoption barrier undocumented.
 - **The runtime half cannot be kept, and does not need to be.** A registered loader stack is process-global
@@ -112,7 +112,7 @@ $app->run();
   diagnostic.
 - **Path traversal is structurally impossible**, with no sanitizer: a resolved suffix is built only from
   namespace segments, which are `PascalCase` identifiers that may not begin with `_`
-  ([ADR 0029](0029-identifier-casing-is-checked.md), [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)),
+  ([ADR 0029](0029-identifier-casing-is-checked.md), `rule:classes/no-leading-underscore-identifiers`),
   so `.`, `..` and a path separator cannot occur in one.
 
 ### 2. A file reached by autoload declares exactly one thing
@@ -171,11 +171,11 @@ dependency once, not twice.
 
 No runtime loader, no registration call, no manifest file, no `nvs.toml` home, no walk-up root search, no
 classmap, no PSR-0 underscore rule, and no "load these files unconditionally" list (unnecessary — every
-declaration is a class member, [ADR 0011](0011-functions-and-constants-are-class-members.md)). A deployment
+declaration is a class member, `rule:classes/no-free-functions-or-constants`). A deployment
 that must exclude a module does not ship its directory; there is no allow/deny list, because a check on
 class loading is not a security boundary — nothing stops code *referencing* a denied class, it only moves
-the failure later, against the direction [ADR 0022](0022-definite-property-initialization.md),
-[ADR 0014](0014-property-observer.md) and [ADR 0013](0013-comparable-interface.md) all push.
+the failure later, against the direction `rule:classes/definite-property-initialization`,
+`rule:classes/property-observer` and `rule:classes/comparable` all push.
 
 ### 5. What this adds to the caches
 

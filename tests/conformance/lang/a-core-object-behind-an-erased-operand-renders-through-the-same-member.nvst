@@ -1,5 +1,5 @@
 --TEST--
-A `Core`-owned class reached through an operand whose static type names no class renders through the very `toString` the written-out spelling calls, and one the spec gives no `toString` throws catchably instead — ADR 0028 § 1, `rule:types/erased-member-access`
+A `Core`-owned class reached through an operand whose static type names no class renders through the very `toString` the written-out spelling calls, and one the spec gives no `toString` throws catchably instead — `rule:classes/stringable`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
 // `rule:types/erased-member-access`: an operand typed `mixed` defers *which* class is behind the

@@ -73,7 +73,7 @@
 //!
 //! `Core\Script` itself lands in this module beside its handle, the way
 //! `Core\Task` and `Core\Task\Channel<T>` already sit together under
-//! [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md).
+//! `rule:classes/no-free-functions-or-constants`.
 //! [`CLASS`] is that class; `args()` is its one row so far, and the
 //! `valueOrThrow($result)` that a shape cannot carry as a method is still owed.
 //!
@@ -84,7 +84,7 @@
 //! return type this module implements: **`mixed`**, not an array of anything.
 //! `spawn script`'s `args:` is checked against no expected type at all —
 //! `nvs_types::expr::isolate`'s `check_spawn_script` says why, and it is
-//! ADR 0023 § 2's rule that whether a graph may cross is a run-time question —
+//! `rule:classes/graph-copy`'s rule that whether a graph may cross is a run-time question —
 //! so `with(args: 5)` is accepted where it is written, and an `array<mixed>`
 //! return type would be a lie at the one position anybody reads it from.
 //!
@@ -623,7 +623,7 @@ nvs_runtime::nvs_helper! {
 /// child.
 ///
 /// Judged on the **parent's** map rather than on the child's copy, because the
-/// two hold the same keys — ADR 0023's graph copy preserves them — and only
+/// two hold the same keys — `rule:classes/two-copy-depths`'s graph copy preserves them — and only
 /// this side still has a frame for the ADR's "reported … at the spawn" to
 /// happen in. The other half of that sentence, reporting a *literal* map's
 /// mismatch at compile time, is `nvs_types::expr::isolate`'s one known gap.

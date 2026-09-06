@@ -1,5 +1,5 @@
 --TEST--
-The five relational operators agree on refusing every operand `rule:types/arithmetic` gives no ordering row for, and the object family keeps its own code — `rule:types/arithmetic`, ADR 0013, `rule:enums/closed-integer-type`
+The five relational operators agree on refusing every operand `rule:types/arithmetic` gives no ordering row for, and the object family keeps its own code — `rule:types/arithmetic`, `rule:classes/comparable`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 // Every spelling in `rule:types/arithmetic`'s `< <= > >= <=>` row, over the operand
@@ -42,7 +42,7 @@ mixed $e1 = null <= null;
 // the same refusal with its own help.
 mixed $r1 = $r < $r;
 
-// The object family is ADR 0013's, and an erased receiver names no class
+// The object family is `rule:classes/comparable`'s, and an erased receiver names no class
 // to ask `Comparable` about — the same code the named-class refusal takes,
 // so that "these two do not order" reads as one diagnostic.
 mixed $g1 = $o < $o;
@@ -92,28 +92,28 @@ error[E0715]: `<` has no meaning for `bytes`
    |
 33 | mixed $b1 = $y < $y;
    |             ^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
 
 error[E0715]: `<=>` has no meaning for `array<int>`
    --> %s:34:13
    |
 34 | mixed $c1 = $xs <=> $xs;
    |             ^^^^^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
 
 error[E0715]: `>` has no meaning for `callable`
    --> %s:35:13
    |
 35 | mixed $d1 = $f > $f;
    |             ^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
 
 error[E0715]: `<=` has no meaning for `null`
    --> %s:36:13
    |
 36 | mixed $e1 = null <= null;
    |             ^^^^^^^^^^^^ ordered here
-   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (ADR 0013); this operand is on neither half
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
 
 error[E0715]: `<` has no meaning for `Rank`
    --> %s:40:13

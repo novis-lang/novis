@@ -57,6 +57,19 @@
     "B9": {
       "status": "done",
       "applied": "2026-09-06"
+    },
+    "B10": {
+      "status": "done",
+      "applied": "2026-09-06"
+    },
+    "B11": {
+      "status": "in-flight"
+    },
+    "B12": {
+      "status": "in-flight"
+    },
+    "B13": {
+      "status": "in-flight"
     }
   },
   "snapshot": "2026-09-06"

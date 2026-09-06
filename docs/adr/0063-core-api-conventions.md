@@ -33,7 +33,7 @@
 
 ## Context
 
-- [ADR 0011](0011-functions-and-constants-are-class-members.md) decided *where* built-ins live (`Core`
+- `rule:classes/no-free-functions-or-constants` decided *where* built-ins live (`Core`
   domain classes) and [ADR 0051](0051-standard-library-tiers.md) decided *which* subsystems exist and at
   what tier. Neither says anything about what a member looks like, and both explicitly defer it. Writing
   ~450 signatures without that rule set first is how PHP's library became what it is: every function was
@@ -186,7 +186,7 @@ Each was a live design question; each is now a rule the spec file applies.
   (`SplStack`, `SplQueue`, `SplDoublyLinkedList`, `SplFixedArray`, `ArrayObject`, `ArrayIterator`) are
   dropped. Exactly three structures survive, each expressing something an ordered `int|string`-keyed hash
   cannot: `Core\ObjectMap<K, V>`, `Core\ObjectSet<T>` (identity keys) and `Core\Heap<T>` (O(log n) priority
-  ordering, over [ADR 0013](0013-comparable-interface.md)'s `Comparable`).
+  ordering, over `rule:classes/comparable`'s `Comparable`).
 - **Exceptions are a small closed set on one axis.** `Throwable`, then `LogicError` (a bug: bad argument,
   bad state, bad index), `RuntimeError` (the world said no) with `IOError`/`ParseError`/`TimeoutError`, and
   `ArithmeticError` (overflow per `rule:types/declaration`, division by zero). PHP's 13 SPL
@@ -196,7 +196,7 @@ Each was a live design question; each is now a rule the spec file applies.
   Domain errors are user-defined classes. Resource-limit reports remain outside `Throwable` entirely
   (`rule:errors/escalation-ladder`).
 - **JSON uses one explicit interface, both directions.** `Core\Json\Codec` declares `toJson(): mixed` and a
-  static `fromJson(mixed): static`. No magic hook survives ([ADR 0028](0028-closing-the-remaining-magic-methods.md)),
+  static `fromJson(mixed): static`. No magic hook survives (`rule:classes/no-magic-methods`),
   and the decode half — which `JsonSerializable` lacks, forcing every PHP project to hand-write hydration —
   is part of the same interface. **Structural** encoding of public properties is rejected, because it makes a
   class's public shape an implicit wire contract that a refactor breaks with no diagnostic; a **written**
@@ -242,7 +242,7 @@ member added without one is an incomplete member.
   keeps it honest; a signature with no test is treated as unimplemented.
 - **Familiarity is spent.** A PHP developer knows `strtotime`, `ob_start` and `SplStack` and will not find
   them. Each is deliberate, and each is named with its replacement in the spec so the diagnostic can point
-  at one ([ADR 0011](0011-functions-and-constants-are-class-members.md) § 4's style).
+  at one (`rule:classes/no-free-functions-or-constants`'s style).
 
 ## Alternatives rejected
 

@@ -1,5 +1,5 @@
 --TEST--
-`$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, ADR 0013, `rule:expressions/object-identity-equality`
+`$uri->compareTo` is bounded to exactly `-1`, `0` and `1` over every ordered pair of a corpus, and it is the only ordering two `Uri`s have: `Core\Arr`'s natural order refuses one at `min`, `max` and `sort` alike, and the way through is `{comparator: ...}` calling this member — spec § 12, `rule:classes/comparable`, `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // One neighbouring case shows this member is a total order, another that it

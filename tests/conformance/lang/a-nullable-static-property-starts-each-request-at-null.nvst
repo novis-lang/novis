@@ -1,9 +1,9 @@
 --TEST--
-A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — ADR 0022 § 2, and `docs/adr/README.md` § *Decisions taken at project start* for the lifetime
+A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — `rule:classes/definite-property-initialization`, and `docs/adr/README.md` § *Decisions taken at project start* for the lifetime
 --FILE--
 <?nvs
 class Cache {
-    // No initializer, and none required: ADR 0022 § 2 exempts a nullable
+    // No initializer, and none required: `rule:classes/definite-property-initialization` exempts a nullable
     // declaration, so the slot is armed with `null` when the request starts.
     // This is a deliberate Novis answer rather than PHP's — PHP leaves a typed
     // static *uninitialized* and throws on the read, which is exactly the

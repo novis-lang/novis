@@ -1,5 +1,5 @@
 --TEST--
-`unset()` on an object property is a compile error — ADR 0022's definite initialization has no way back
+`unset()` on an object property is a compile error — `rule:classes/definite-property-initialization`'s definite initialization has no way back
 --FILE--
 <?nvs
 class Tag {

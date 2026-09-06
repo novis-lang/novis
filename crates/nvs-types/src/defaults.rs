@@ -252,7 +252,7 @@ pub(crate) fn eval_param_default(
 ///
 /// The same decoder [`eval_param_default`] uses, plus two shapes a parameter
 /// has no use for. `= []` becomes [`ConstArg::EmptyArray`]: a property is the
-/// position where the empty array is worth having — ADR 0022 obliges a
+/// position where the empty array is worth having — `rule:classes/definite-property-initialization` obliges a
 /// constructor to assign every non-defaulted property, so without it a class
 /// accumulating into an `array<T>` has to write the assignment by hand in
 /// every constructor it declares. And a *named* constant — `Mode::Fast`,
@@ -534,7 +534,7 @@ pub(crate) fn literal_default(
     }
 }
 
-/// A **class constant**'s written value, folded to the [`ConstArg`] ADR 0011's
+/// A **class constant**'s written value, folded to the [`ConstArg`] `rule:classes/no-free-functions-or-constants`'s
 /// inlining rule needs: [`literal_default`]'s type-directed grid first, and an
 /// array literal where that grid has nothing to say.
 ///

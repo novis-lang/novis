@@ -257,8 +257,7 @@ pub enum TokenKind {
 /// A reserved word.
 ///
 /// Spelling is matched **exactly**, in lower case only
-/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-/// § 2) — unlike PHP, which matches its own keywords case-insensitively.
+/// (`rule:classes/reserved-spellings-are-lower-case`) — unlike PHP, which matches its own keywords case-insensitively.
 /// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
 /// token; nothing diagnoses them, because ADR 0029 makes both legal class
 /// names. Every variant's `name()` gives that one spelling.

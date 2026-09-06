@@ -73,7 +73,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         // `$match->groups` is an unknown member and `$match->groups()` is the
         // member. `nvs_stdlib::registry::CoreTy::Instance` owns why.
         table.seed_class(qname.clone(), FxHashMap::default(), methods);
-        // ADR 0013's `Comparable`, which a `Core` class satisfies by carrying
+        // `rule:classes/comparable`'s `Comparable`, which a `Core` class satisfies by carrying
         // the member rather than by naming the interface —
         // `nvs_stdlib::registry::implements_comparable` owns why, and seeding
         // it here is what lets `$a < $b` reach the same
@@ -175,7 +175,7 @@ pub fn symbol_of(qname: &QName, method: &str) -> Option<&'static str> {
 /// `qname` names no registered class or `name` no constant on it.
 ///
 /// The counterpart of [`symbol_of`] for the one member kind that is not a
-/// call: a constant is [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
+/// call: a constant is `rule:classes/no-free-functions-or-constants`'s
 /// "every constant is a class constant", and `rule:enums/no-class-machinery`'s inlining rule for
 /// an enum case is the one it follows — so what a consumer gets back is the
 /// *value*, materialized at the use site, with no storage anywhere.

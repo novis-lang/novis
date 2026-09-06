@@ -491,7 +491,7 @@ is why" — is this file.
   (`expr/mod.rs:264`, `:292`, `expr/calls.rs:143`, `expr/members.rs:85`, `:211`) and has not
   needed it only because its arms answer `mixed` in silence. Nothing catches this: it builds, and
   the first sign is a conformance case that used to pass reporting an extra error.
-- **A value handed to an ADR 0014 § 1 `set` hook is *transferred*, so there is no "afterwards" in
+- **A value handed to an `rule:classes/property-hooks` `set` hook is *transferred*, so there is no "afterwards" in
   which to retain it.** Every other assignment target leaves the target itself owning what was
   stored — a local's slot, an `inout` pointee, a field, an array entry — so a lowering that wants a
   second owner of the stored value can retain once the store has run, and four of the five arms of
@@ -3215,7 +3215,7 @@ is why" — is this file.
   needs `Core\Str::repeat("[", $d as uint)` and not `$d` — the diagnostic is `E0401`, at the argument.
 - **A `.nvst` case's own helper has to be a `public static function` inside a class.** A case is top-level
   statements, so the instinct when two steps want the same rendering is a plain `function render(...)` at
-  file scope — which is `E0215: a function must be a method` (ADR 0011 § 1), caught only when the case is
+  file scope — which is `E0215: a function must be a method` (`rule:classes/no-free-functions-or-constants`), caught only when the case is
   run. Wrap it in a `final class` and call it `Render::pairs($m)`; a compiler-owned generic type
   (`Core\ObjectMap<Tag, int>`) is accepted in that method's parameter list, so the helper can take the
   collection the case is about.
@@ -3857,7 +3857,7 @@ is why" — is this file.
   what it pins.
 
 - **A `Core` class with a `compareTo` is still not `Comparable` to the checker.**
-  `Core\Uri` has the member, its doc comment names ADR 0013, and `$a < $b` over two of them is
+  `Core\Uri` has the member, its doc comment names `rule:classes/comparable`, and `$a < $b` over two of them is
   nonetheless `E0411: does not implement Comparable` — `nvs_types::expr::operators` asks
   `nvs_hir::implements_interface`, and no `Core` class is on that graph as implementing one.
   Two consequences for a case: the ordering operators, `Core\Arr::min`/`max`/`sort` and the
@@ -4713,7 +4713,7 @@ is why" — is this file.
   which is why the difference reads as "the handler is not implemented".
 - **A checker fixture whose subclass declares its own constructor must call `parent::constructor(...)`
   on every path, or `E0410` fails the fixture instead of the rule under test.** A `class Dog extends
-  Animal { public function constructor(string $n, int $age) {} }` written to make ADR 0125 § 5's
+  Animal { public function constructor(string $n, int $age) {} }` written to make `rule:classes/constructor-compatibility`'s
   divergent-constructor case look plausible is *itself* refused, and the report names a rule
   ("a path through its constructor never calls `parent::constructor(...)`") that has nothing to do
   with what the test asserts — so an `assert!(!diags.has_errors())` in the same test fails on a
@@ -4755,7 +4755,7 @@ is why" — is this file.
 - **An `examples/` acceptance fixture can be wrong about the *language*, not just early for its
   stage — and the driver's check message then names the fixture's own bug rather than the member
   the stage owes.** `examples/cli.nvs` failed stage 3 with `error[E0215]: a function must be a
-  method`, because it declared its handler as a top-level `function`, which ADR 0011 has never
+  method`, because it declared its handler as a top-level `function`, which `rule:classes/no-free-functions-or-constants` has never
   allowed; it also wrote `#[Command]` and `#[Argument]`, where `nvs_types::derive::ATTRIBUTES` is a
   closed roster holding `Core\Command` and `Core\Option` and no `Argument` at all. None of that is
   what the stage owes. Under the corrected declaration the honest failure was two missing members,
@@ -4939,7 +4939,7 @@ is why" — is this file.
   `cargo test -p nvs-stdlib` is green, and each has to ask a *different* question of the same member for
   the exemption note to be honest. Budget them with the slice rather than discovering them after the
   rows are written. Two smaller gates fire at the same moment and are cheap to fix once seen:
-  `no_registry_card_cites_an_adr` refuses an `ADR 0023` in a `MethodDoc` (the citation belongs in the
+  `no_registry_card_cites_an_adr` refuses an ``rule:classes/two-copy-depths`` in a `MethodDoc` (the citation belongs in the
   module doc or the helper's own comment), and a class declaring `slots` must declare `instance` members
   too.
 - **A `Core` instance has no property a program can reach, so an ADR that writes one is writing a
@@ -5849,7 +5849,7 @@ is why" — is this file.
   read as parser noise rather than as the rule they are. `var $msg: ?Core\Socket\Message = …`
   produces five `E0101`/`E0102`s pointing at the colon, because `var` infers from its initializer
   and there is no annotation slot at all; a top-level `function describe(…)` is `E0215` ("a
-  function must be a method", ADR 0011 § 1). So a case that needs to *name* a `Core` class — which
+  function must be a method", `rule:classes/no-free-functions-or-constants`). So a case that needs to *name* a `Core` class — which
   is what `Attribution::holders` in `crates/nvs-stdlib/tests/corpus/mod.rs` reads to attribute an
   `->member(` call to a class — names it in a `public static function`'s parameter list inside a
   `class` block. That is also the cheapest way to get a case's arrows counted against a class no
@@ -6073,8 +6073,7 @@ is why" — is this file.
   through the wrong receiver counts for neither.** `conformance_coverage.rs`'s floor is per class,
   and `corpus::Attribution` attributes a case's `->member(` to every class the case *mentions* (or
   provably holds) — so three cases writing `$db->stream(` left `Core\Db\Transaction::stream` at
-  zero, and the failure names only the second class, several minutes into a full `verify.py`. ADR
-  0043's delegation is where this bites: `Core\Db\Queryable`'s rows are declared on `Connection` and
+  zero, and the failure names only the second class, several minutes into a full `verify.py`. `rule:classes/no-traits`'s delegation is where this bites: `Core\Db\Queryable`'s rows are declared on `Connection` and
   on `Transaction` under one symbol, so every one of them needs three cases that write
   `Core\Db\Transaction` somewhere in the file. Cheapest close is usually a `$db->transaction(fn
   (Core\Db\Transaction $tx) => …)` half added to a case you were writing anyway — which is also the
@@ -6700,9 +6699,8 @@ sibling in the same namespace unqualified.
   function constructor(private Greets $inner) {}` parses and checks the *declaration*,
   and then `$this->inner` is `E0313: `Outer` has no property named `inner``, because
   `nvs_types::layout::own_properties` collects declared `ClassMemberKind::Property`
-  members and nothing else — a reader that gets past the checker (a synthesized ADR 0043
-  § 4 forward did) fails one crate down with "nvs-codegen does not lower the property
-  `Outer::inner`, which this unit declares no slot for yet". ADR 0043 § 4's own worked
+  members and nothing else — a reader that gets past the checker (a synthesized `rule:classes/delegation-by-field` forward did) fails one crate down with "nvs-codegen does not lower the property
+  `Outer::inner`, which this unit declares no slot for yet". `rule:classes/delegation-by-field`'s own worked
   example writes the field out, and so should a case.
 - **A new `nvs_runtime::Tag` discriminant collides with a nibble that was chosen as "one past the
   roster".** `FN_PARAM_TAG_ANY`/`CLOSURE_PARAM_TAG_ANY` — the closure-parameter nibble meaning "no
@@ -7110,7 +7108,7 @@ sibling in the same namespace unqualified.
   a row is found for free; a rowless symbol — ADR 0077's two prepared link entry points, ADR 0006's
   `spawn script` and `await` — needs its own `.chain([...])` there beside `address`'s arm. Two
   registrations, not one, and the second has no compile-time gate at all.
-- **The live graph carrier keeps the source object's descriptor, so ADR 0023 § 2's *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
+- **The live graph carrier keeps the source object's descriptor, so `rule:classes/graph-copy`'s *unresolvable class* has no counterpart there until someone hands it a receiving table.** `decode` resolves a class by name and refuses one the program does not declare; `copy_graph` never resolved anything, because both sides of a `clone` are one program. At the isolate boundary they are not — `nvs-cli` compiles one unit per written path — so the rule had to be added rather than found: `copy_graph_into(value, Some(&resolve))` and `Live::admit`. Do not read a refusal in `graph.rs` as covering both carriers; the `Carrier` trait is the list of what they share.
 - **A transferred call argument is released by the *landing block*, not by the normal edge.** `release_temporaries_since` skips a `TemporaryKind::Transferred` entry, so a lowering test asserting "the transferred value is never released" fails on the error path, where the frame still owes it: a callee that returned non-OK never took the reference. Assert per block — the call's own block for what the normal edge does, `inst.on_error`'s for what the throw does — and the pair reads as the bound it is.
 - **`===` and `!==` do not exist**, and reaching for one in a `.nvst` is `E0232` on the operator
   rather than a type error you can read past: Novis keeps exactly one equality operator, `==`, which
@@ -7480,7 +7478,7 @@ sibling in the same namespace unqualified.
   wants to script. What holds is a second predicate beside `watched` — `answerable`, which is the
   queue *or* a terminal — that the deciding-early members read instead.
 - **A rule the compiler enforces at the call site has no enforcement at all on the path where the
-  class is unknown, and nothing in the tree says so.** ADR 0014 § 3 makes `onPropertySet` a second
+  class is unknown, and nothing in the tree says so.** `rule:classes/property-observer-pipeline` makes `onPropertySet` a second
   step over *every* property write, and `nvs_ir::lower` emits it beside the `FieldSet` — which is
   correct precisely because § 4 answers "does this class implement `PropertyObserver`" from the
   declaration. A write through an **erased** receiver has no declaration to answer from, so
@@ -7724,7 +7722,7 @@ sibling in the same namespace unqualified.
   `nvs_types::error_lib::own_properties`, which `panic!`s at *seed* time on a property with no
   type — so every `-p nvs-types` test dies at once with `no type seeded for` and nothing pointing
   at `errors.rs`; an entry in `nvs_ir::lower::exception::synthesized_exception_constructors`,
-  because `declares_constructor` is exactly "has own properties" and ADR 0022 would otherwise read
+  because `declares_constructor` is exactly "has own properties" and `rule:classes/definite-property-initialization` would otherwise read
   `null` out of a slot the root's constructor never wrote; and a second name in the *functions*
   list of `a_file_with_no_class_still_carries_every_compiler_declared_class`, which is a different
   assertion in the same test from the class-label list. Then five `nvs-ir` insta snapshots go
@@ -7782,7 +7780,7 @@ sibling in the same namespace unqualified.
   `declares_constructor` is *derived* from `OWN_PROPERTIES`, so the row alone makes the checker
   promise a constructor `nvs_ir::lower::exception::synthesized_exception_constructors` does not
   build — a hand-kept `vec!` in a crate that depends on neither `nvs-hir` nor `nvs-types`, so
-  nothing fails to compile — and that landing the row without the constructor leaves an ADR 0022
+  nothing fails to compile — and that landing the row without the constructor leaves an `rule:classes/definite-property-initialization`
   slot never definitely assigned. Add both in one change. The tell that you got it right is five
   `nvs-ir` whole-program snapshots going red with only the new constructor in the diff.
 - **`nvs_host::timer::park_until` is not the primitive for "wait for a peer, but no longer than
@@ -8419,7 +8417,7 @@ sibling in the same namespace unqualified.
   a closure inside the method for free. The shape generalises to any per-declaration fact an
   expression-level table wants.
 - **Adding a row to `Core\Db\Connection` fails a test in `db::transaction`, and the failure names
-  neither the class nor the member you added.** ADR 0043's delegation is asserted as a *sweep* —
+  neither the class nor the member you added.** `rule:classes/no-traits`'s delegation is asserted as a *sweep* —
   `a_transaction_is_a_closure_and_transaction_is_a_queryable` formats every `CONNECTION.instance`
   row with `{:?}` and compares the vector against `TRANSACTION`'s — so a `close` landing on the
   connection alone arrives as an eight-element-versus-five-element `Vec<String>` diff of debug-printed
@@ -8491,7 +8489,7 @@ sibling in the same namespace unqualified.
   the runtime one is catchable, and the corpus is where that gets noticed.
 - **A `Core\Db` statement member is declared *twice*, under one symbol, and changing its arity
   means changing both rows.** `nvs_stdlib::db::registry` gives `query`, `queryAs`, `execute`,
-  `executeMany` and `stream` a row on `CONNECTION` and a second row on `TRANSACTION` — ADR 0043
+  `executeMany` and `stream` a row on `CONNECTION` and a second row on `TRANSACTION` — `rule:classes/no-traits`
   makes a transaction delegate `Core\Db\Queryable` to its connection, and the delegation is *one
   body reached through either handle*, so both rows carry the same `symbol`. Adding § 4's
   `{timeout?: Duration}` to the connection's five and not the transaction's five would have left
@@ -9187,7 +9185,7 @@ every session. Nothing below was reworded on the way.
 - **A class reference has no readable name: `$cls::class` is `E0702`.** A `class<T>` value is the run-time
   descriptor and `::class` needs a class named at compile time, so the obvious way to print which
   implementor a reference holds does not exist — `nvs-cli` reports *"this names no class the compiler can
-  resolve"* and points at `Core\Reflect` (ADR 0011). A `.nvst` case that wants to show which class was
+  resolve"* and points at `Core\Reflect` (`rule:classes/no-free-functions-or-constants`). A `.nvst` case that wants to show which class was
   selected calls an overridden member and reads the answer, which is what the three class-reference cases
   under `tests/conformance/class/` do.
 - **An interactive session beside the running loop cannot link `nvs-cli`, and the error names a file

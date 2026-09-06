@@ -1,5 +1,5 @@
 --TEST--
-`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — ADR 0088 § 1, ADR 0023 § 3
+`Core\Serialize::decode`'s operand is a taint sink whatever route the bytes arrived by — a local, a concatenation, a member's return type, an array element, a repeated cast, or taint composed with `secret` — while untainted bytes decode — ADR 0088 § 1, `rule:classes/serialize-is-a-closed-format`
 --FILE--
 <?nvs
 // `decode` names classes and rebuilds their declared properties, so an

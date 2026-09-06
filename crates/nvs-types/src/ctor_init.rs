@@ -1,4 +1,4 @@
-//! ADR 0022 § 2 — definite property initialization: every constructor a
+//! `rule:classes/definite-property-initialization` — definite property initialization: every constructor a
 //! class declares must assign, on every path out of it, every property the
 //! class declares itself ([`crate::signatures::own_required_properties`]),
 //! and — when the class `extends` another *that declares a constructor*
@@ -7,11 +7,11 @@
 //! discharging the inherited properties without re-deriving what the
 //! parent's own constructor already assigns (the parent was checked against
 //! this same rule when it was compiled, exactly as an ordinary call's callee
-//! is trusted rather than re-verified at every call site — ADR 0022 § 2,
+//! is trusted rather than re-verified at every call site — `rule:classes/definite-property-initialization`,
 //! second bullet). A class with no constructor of its own and an
 //! unassigned required property is refused at the property's own
 //! declaration instead, since there is no constructor body to attach the
-//! diagnostic to (ADR 0022 § 2, third bullet).
+//! diagnostic to (`rule:classes/definite-property-initialization`, third bullet).
 //!
 //! This is a second, narrower flow-analysis pass over a constructor's body,
 //! separate from [`crate::locals`]'s: it never checks an expression's
@@ -30,7 +30,7 @@
 //! diagnosing at the end the way [`crate::locals`] does for a local read,
 //! [`finish`] runs at every point a path can leave the constructor (an
 //! explicit `return`, and — if some path never returns — the implicit one
-//! at the end of the body), since ADR 0022 § 2 is stated per-return, not
+//! at the end of the body), since `rule:classes/definite-property-initialization` is stated per-return, not
 //! per-body.
 //!
 //! **Known gaps**, deliberately out of scope for this slice:
@@ -43,7 +43,7 @@
 //!   records its type and visibility, `crate::layout` gives it a slot — and
 //!   it is deliberately no obligation here: the store is emitted from the
 //!   binding by `nvs_ir::lower::promoted_stores` rather than written in the
-//!   body, so ADR 0022 § 2 is discharged by construction and there is nothing
+//!   body, so `rule:classes/definite-property-initialization` is discharged by construction and there is nothing
 //!   for a constructor body to be checked against.
 //! - [`scan_expr`] only descends into a handful of common composite
 //!   expression forms (assignment, calls, binary/unary/cast/ternary,
@@ -100,7 +100,7 @@ impl InitState {
     }
 }
 
-/// Checks one class declaration against ADR 0022 § 2. Interfaces and enums
+/// Checks one class declaration against `rule:classes/definite-property-initialization`. Interfaces and enums
 /// are never called here — only [`crate::check::check_stmts`]'s `ClassDecl`
 /// arm calls this, since only a class is ever instantiated through a
 /// constructor.
@@ -117,7 +117,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
     let Some(ctor) = ctor else {
         // No constructor at all: a required property has no path to get
         // assigned along, so it is refused right at its own declaration
-        // (ADR 0022 § 2, third bullet).
+        // (`rule:classes/definite-property-initialization`, third bullet).
         for (name, span) in &required {
             env.diags.report(
                 Diagnostic::error(
@@ -148,7 +148,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
     let terminates = walk_stmts(&body.stmts, &mut state, &obligations, env);
     if !terminates {
         // Fell off the end of the body without an explicit `return` — the
-        // implicit return ADR 0022 § 2 also covers.
+        // implicit return `rule:classes/definite-property-initialization` also covers.
         finish(&state, &obligations, env);
     }
 }
@@ -161,7 +161,7 @@ pub(crate) fn check_class_init(decl: &ClassDecl, qname: &QName, env: &mut Env<'_
 /// impossible to compile — `parent::constructor()` is itself an `E0309`
 /// against a parent with no such method. Nothing is lost by the narrowing:
 /// a parent with no constructor has no inherited property to discharge,
-/// because ADR 0022 § 2's third bullet already refuses one at its own
+/// because `rule:classes/definite-property-initialization`'s third bullet already refuses one at its own
 /// declaration.
 fn parent_declares_constructor(qname: &QName, env: &Env<'_>) -> bool {
     let Some(links) = env.graph.get(qname) else {
@@ -238,7 +238,7 @@ fn walk_stmt(
         StmtKind::Expr(e) => {
             if matches!(&e.kind, ExprKind::Throw(_)) {
                 // A throwing path never returns the constructed object, so
-                // ADR 0022 § 2 has nothing to check on it.
+                // `rule:classes/definite-property-initialization` has nothing to check on it.
                 return true;
             }
             scan_expr(e, state, env);
@@ -608,7 +608,7 @@ mod tests {
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
-    /// ADR 0038 § 1: a `lateinit` property is exempt from ADR 0022 § 2's
+    /// `rule:classes/lateinit-restrictions`: a `lateinit` property is exempt from `rule:classes/definite-property-initialization`'s
     /// constructor-must-assign obligation entirely, whether or not the class
     /// even has a constructor.
     #[test]

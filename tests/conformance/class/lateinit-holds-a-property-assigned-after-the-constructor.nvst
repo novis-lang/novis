@@ -1,5 +1,5 @@
 --TEST--
-`lateinit` exempts a non-nullable class-typed property from the constructor's definite-assignment obligation, and a later write makes it readable — ADR 0038 § 1
+`lateinit` exempts a non-nullable class-typed property from the constructor's definite-assignment obligation, and a later write makes it readable — `rule:classes/lateinit-restrictions`
 --FILE--
 <?nvs
 class Engine {

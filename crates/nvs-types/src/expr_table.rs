@@ -221,7 +221,7 @@ pub enum ArgSlot {
 
 /// One resolved expression a later pass (today, only `nvs-ir`) needs more
 /// than just a [`TypeId`] for. `#[non_exhaustive]`: expect new variants as
-/// The two labels ADR 0014 § 3's observer step dispatches through, recorded on
+/// The two labels `rule:classes/property-observer-pipeline`'s observer step dispatches through, recorded on
 /// a property access whose receiver's class implements `PropertyObserver`.
 ///
 /// § 3 makes the observer a *second* step over every read and write of every
@@ -257,7 +257,7 @@ pub struct ObserverCalls {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UrlPiece {
     /// A literal segment, `/` included — compared byte for byte at match time
-    /// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+    /// (`rule:classes/names-resolve-case-sensitively`),
     /// so it is copied out exactly as declared.
     Literal(String),
     /// `{name}`: `/` and then `$params[name]`, percent-encoded — § 4's launder
@@ -391,7 +391,7 @@ pub enum ExprInfo {
         /// `T`'s resolved `constructor`, if its chain declares one, and
         /// [`ExprInfo::New`]'s `ctor` in every other respect. Sound to check a
         /// call against even though the allocated class may declare its own,
-        /// because ADR 0125 § 5 refuses at this very site any implementor of
+        /// because `rule:classes/constructor-compatibility` refuses at this very site any implementor of
         /// `T` whose constructor is not compatible with it (`E0794`).
         ctor: Option<ResolvedCall>,
         /// The expression's own result type — always `Ty::Class(bound)`, which
@@ -458,7 +458,7 @@ pub enum ExprInfo {
         name: String,
         /// The property's declared type.
         ty: TypeId,
-        /// ADR 0014 § 3's second step, or `None` when the receiver's class
+        /// `rule:classes/property-observer-pipeline`'s second step, or `None` when the receiver's class
         /// implements no `PropertyObserver` — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
     },
@@ -482,7 +482,7 @@ pub enum ExprInfo {
         /// The property's declared type.
         ty: TypeId,
     },
-    /// A resolved access to a property that declares an ADR 0014 § 1 hook
+    /// A resolved access to a property that declares an `rule:classes/property-hooks` hook
     /// block — recorded *instead of* [`ExprInfo::Property`] for exactly the
     /// same `PropertyAccess` spans, read and write alike, so a consumer that
     /// only knows `Property` cannot silently lower a hooked access as a plain
@@ -518,7 +518,7 @@ pub enum ExprInfo {
         /// declares no `set` hook with a body — in which case a write is an
         /// ordinary slot write.
         set: Option<String>,
-        /// ADR 0014 § 3's second step, or `None` when the receiver's class
+        /// `rule:classes/property-observer-pipeline`'s second step, or `None` when the receiver's class
         /// implements no `PropertyObserver`. A hooked property is **not**
         /// exempt from it — see [`ObserverCalls`].
         observer: Option<ObserverCalls>,
@@ -723,7 +723,7 @@ pub enum ExprInfo {
     },
     /// `Core\Class::CONSTANT`, keyed by the whole access's own span.
     ///
-    /// [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)'s
+    /// `rule:classes/no-free-functions-or-constants`'s
     /// class constant, which `Core\Math::PI` is the first of. It carries the
     /// value for [`ExprInfo::EnumCase`]'s reason exactly: a constant is
     /// inlined at every use site, so there is no storage a consumer could read
@@ -759,7 +759,7 @@ pub enum ExprInfo {
     /// a guess.
     ///
     /// A `Foo::class`/`self::class`/`parent::class` never reaches this: those
-    /// name a class the compiler resolves, so ADR 0011's "inlined at every use
+    /// name a class the compiler resolves, so `rule:classes/no-free-functions-or-constants`'s "inlined at every use
     /// site" still holds for them and they stay [`Self::CoreConst`].
     ClassNameOf,
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
@@ -950,8 +950,7 @@ pub struct ExprTypeTable {
 }
 
 /// One synthesized `implements I by $field;` forward —
-/// [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
-/// § 4's "the compiler synthesizes, for every method the interface requires, a
+/// `rule:classes/delegation-by-field`'s "the compiler synthesizes, for every method the interface requires, a
 /// one-line forward", resolved here and emitted in `nvs_ir::lower`.
 ///
 /// It is resolved in this crate for the reason every other entry in this table
@@ -987,7 +986,7 @@ pub struct Delegation {
     pub frame: String,
     /// The `by $field` clause's own span — the nearest thing a synthesized
     /// forward has to a written position, and all it needs one for is the
-    /// conditional edges of the ADR 0022 § 3 guard
+    /// conditional edges of the `rule:classes/an-unwritten-property-read-throws` guard
     /// (`nvs_ir::lower::call::delegation_forward`).
     pub span: Span,
 }
@@ -1277,11 +1276,11 @@ impl ExprTypeTable {
     }
 
     /// Records the class labelled `label`'s **own** `lateinit` properties
-    /// (ADR 0038 § 1) — [`crate::signatures::ClassSignature::lateinit_properties`],
+    /// (`rule:classes/lateinit-restrictions`) — [`crate::signatures::ClassSignature::lateinit_properties`],
     /// copied across at check time for [`Self::record_property_defaults`]'
     /// reason exactly.
     ///
-    /// `nvs-ir` is the consumer and needs it twice, both for ADR 0022 § 3's
+    /// `nvs-ir` is the consumer and needs it twice, both for `rule:classes/an-unwritten-property-read-throws`'s
     /// never-written storage state: to arm such a slot with the marker at
     /// construction, and to guard the compiled read of one. Sorted here so
     /// that a lowered program is reproducible for an unchanged file, the
@@ -1479,7 +1478,7 @@ impl ExprTypeTable {
     }
 
     /// The `Stringable::toString()` the object-typed operand at `span`
-    /// stringifies through — ADR 0028 § 1's implicit conversion, resolved
+    /// stringifies through — `rule:classes/stringable`'s implicit conversion, resolved
     /// against the operand's own class, or `None` when the operand was not an
     /// object at all (every scalar row, which needs no call) or was already
     /// diagnosed as not implementing `Stringable`.
@@ -1820,7 +1819,7 @@ mod tests {
         assert_eq!(name, "count");
     }
 
-    /// ADR 0014 § 1: a property that declares a hook records
+    /// `rule:classes/property-hooks`: a property that declares a hook records
     /// [`ExprInfo::HookedProperty`] *instead of* [`ExprInfo::Property`], so a
     /// consumer that only knows the latter cannot lower a hooked access as a
     /// plain field touch by accident. Both accessor labels ride along, since

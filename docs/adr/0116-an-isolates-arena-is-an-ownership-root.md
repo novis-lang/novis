@@ -13,7 +13,7 @@
 > **In short:** an isolate's arena is an **ownership root** — one `Ctx` and the values reachable from it —
 > not a region of address space. Allocation keeps going through the process allocator, so entering an
 > isolate maps no memory and leaving one unmaps none; what an isolate owns is reachability, and the
-> boundary is enforced at the single place a value can move, ADR 0023 § 2's graph copy. "Released
+> boundary is enforced at the single place a value can move, `rule:classes/graph-copy`'s graph copy. "Released
 > wholesale" is therefore one drain of `crate::release`'s worklist over that root, followed by § 2's sweep
 > of the objects the refcounts could not free — together they run the native teardown a region free would
 > skip — and a **move at refcount 1 across the boundary is a pointer handoff that costs nothing** — sound
@@ -191,8 +191,7 @@ decides only what the crossing may do once it is.
 
 - **The walk is the audited surface.** With no address range to fall back on, a bug in `graph.rs` is the
   only way state can bleed between isolates. That is a concentration, not an exposure — it is one file
-  with one test suite instead of an invariant spread across every allocation site — but it is why ADR 0023
-  § 2's "one operation, two carriers" is load-bearing here rather than merely tidy.
+  with one test suite instead of an invariant spread across every allocation site — but it is why `rule:classes/graph-copy`'s "one operation, two carriers" is load-bearing here rather than merely tidy.
 - **Spawn-to-result stays in microseconds**, which is what ADR 0006's M5 acceptance figure needs: entering
   an isolate is a `Ctx` construction and a pooled stack, with no mapping syscall in it. A region arena
   would put an `mmap`/`munmap` pair on every isolate, which for a trivial child is most of its lifetime.

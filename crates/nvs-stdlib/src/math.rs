@@ -1126,7 +1126,7 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Math`'s eleven constants — spec § 3's own list, replacing `M_PI`,
 /// `M_E`, `PHP_INT_MAX`, `PHP_FLOAT_EPSILON` and the rest of PHP's global
-/// constants under [ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md).
+/// constants under `rule:classes/no-free-functions-or-constants`.
 ///
 /// **Every one is written as the value, not as an expression.** `TAU` is
 /// spelled out rather than `2.0 * PI` and `EPSILON` rather than an

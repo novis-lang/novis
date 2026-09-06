@@ -101,7 +101,7 @@ outer variables the body reads), not a second declared name reachable from anywh
 slot — it resolves the same way a method resolves `self::`, entirely at compile time, with no cost at
 `fn`-literals that don't use it. It composes with both body shapes in § 1; it is not a third closure form.
 
-This does not reopen [ADR 0011](0011-functions-and-constants-are-class-members.md)'s "every callable is a
+This does not reopen `rule:classes/no-free-functions-or-constants`'s "every callable is a
 declared class member" rule: that rule bars a *free, globally-callable* function existing outside a class.
 `factorial` above is unreachable from anywhere but its own body — the same status as a parameter name, not a
 declaration. A recursive helper that *is* reusable elsewhere still belongs on a class as a named method, per

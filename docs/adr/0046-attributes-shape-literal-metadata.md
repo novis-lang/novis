@@ -45,7 +45,7 @@
 > `null` if none do — no runtime search, no reflection, no ambiguity discovered only when a request happens
 > to hit that code path. A class or its constructor's parameters are named as a lookup target through the
 > class's own `constructor` reference (already nameable per `rule:types/callable-is-a-closure`,
-> since [ADR 0022](0022-definite-property-initialization.md) guarantees every class has one); an ordinary
+> since `rule:classes/definite-property-initialization` guarantees every class has one); an ordinary
 > method's parameters are named through that method's own reference. A property has no callable reference of
 > its own, so its lookup takes the owning class's `constructor` reference plus the property's name as a
 > `string` — the one place this design accepts a name string instead of a fully static reference, and
@@ -197,7 +197,7 @@ to ask for.
 - A **method** (including a constructor) is named by its own first-class-callable reference —
   `Foo::bar(...)` — the exact syntax `rule:types/callable-is-a-closure` already defines.
 - A **class or interface** has no callable of its own, so it is named by its `constructor`'s reference —
-  `Foo::constructor(...)`. Every class has one, definitely, per [ADR 0022](0022-definite-property-initialization.md),
+  `Foo::constructor(...)`. Every class has one, definitely, per `rule:classes/definite-property-initialization`,
   so this needs no new "class as a value" token — including for a class with no user-written constructor,
   since one is always synthesized.
 - A **parameter** is named by the owning method's (or constructor's) reference plus its `$member` name, e.g.
@@ -334,7 +334,7 @@ compile that reports a diagnostic runs nothing after it.
   hand-written literal of the same shape, counted, because *5* replaces the call with that payload and the
   two therefore have to be indistinguishable.
 - **A reference to a synthesized `constructor` resolves** — *4*'s class target rests on
-  [ADR 0022](0022-definite-property-initialization.md) § 2's "every class has one, definitely", so it names
+  `rule:classes/definite-property-initialization`'s "every class has one, definitely", so it names
   the constructor of a class whose body writes none.
   `tests/conformance/reject/a-synthesized-constructor-is-referenced-and-not-called.nvst` pins that
   retrieval against such a class beside the boundary: a *written* `Plain::constructor()`, and the ported
@@ -348,7 +348,7 @@ compile that reports a diagnostic runs nothing after it.
   admits has a form to compile in — `tests/conformance/core/an-attribute-payload-holds-a-constant.nvst`
   pins a class constant, an enum case and `Foo::class` against a read of the same name, from a file that
   imports a *different* enum of that name — and what is left for `E0731` is a class constant whose own
-  declaration folds to no value, ADR 0011's `E0792` surfacing at the one site that needs the value
+  declaration folds to no value, `rule:classes/no-free-functions-or-constants`'s `E0792` surfacing at the one site that needs the value
   rather than the name.
 - ***6*'s explicit `<T>` needs no case of its own**: every retrieval above is written through it, so a
   parse or resolution that stopped working takes all four cases with it.

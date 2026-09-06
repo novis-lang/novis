@@ -1,5 +1,4 @@
-//! [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-//! § 2's graph copy: one walk, reached by two carriers.
+//! `rule:classes/graph-copy`'s graph copy: one walk, reached by two carriers.
 //!
 //! A recursive, cycle-safe traversal of a value's reachable structure that
 //! produces a result sharing no mutable heap state with its source. § 2 names
@@ -78,7 +77,7 @@ use crate::object::{ClassDesc, NvsObj, ObjHeader};
 use crate::string::NvsStr;
 use crate::value::{Tag, Value};
 
-/// Novis's own format marker — ADR 0023 § 3's "does not carry Novis's format
+/// Novis's own format marker — `rule:classes/serialize-is-a-closed-format`'s "does not carry Novis's format
 /// marker and version is refused outright".
 const MAGIC: &[u8; 4] = b"NVS\x1b";
 
@@ -526,7 +525,7 @@ pub fn copy_graph(value: Value) -> Result<Value, GraphError> {
 /// # Errors
 ///
 /// Everything [`copy_graph`] refuses, plus an object whose class the receiving
-/// side does not have — ADR 0023 § 2's third bullet, which [`Live::admit`]
+/// side does not have — `rule:classes/graph-copy`'s third bullet, which [`Live::admit`]
 /// owns the reading of.
 pub fn copy_graph_into(
     value: Value,
@@ -540,7 +539,7 @@ pub fn copy_graph_into(
 // The byte carrier
 // ============================================================================
 
-/// § 2's second carrier: the same walk, appending ADR 0023 § 3's closed format.
+/// § 2's second carrier: the same walk, appending `rule:classes/serialize-is-a-closed-format`'s closed format.
 struct Encode {
     /// The payload so far, magic and version already written.
     out: Vec<u8>,
@@ -1030,7 +1029,7 @@ mod tests {
         move |name: &str| Some(table.desc(table.id_of(name)?))
     }
 
-    /// ADR 0023 § 2's "one operation, two carriers", asserted where a second
+    /// `rule:classes/graph-copy`'s "one operation, two carriers", asserted where a second
     /// implementation would show: both carriers are asked the same questions
     /// over the same graphs and must **agree**, rather than each being right on
     /// its own line.

@@ -80,7 +80,7 @@
 //!    narrower question, which is the one that cannot leak a member.
 //! 3. Invoking a constructor reflectively — the third acting member § 2 names,
 //!    after the read and the write that are both here now — is not. What the
-//!    write does *not* do is run a per-property `set` hook (ADR 0014 § 1): it
+//!    write does *not* do is run a per-property `set` hook (`rule:classes/property-hooks`): it
 //!    reaches storage through [`nvs_runtime::write_erased_property`], which is
 //!    the erased store and not the hook call a known class's write lowers to,
 //!    so a hooked property is written past its own hook and its observer is
@@ -833,7 +833,7 @@ nvs_runtime::nvs_helper! {
     /// `get`'s reasons — the doc comment there owns why visibility is asked
     /// last. What is *not* written here is everything past them: the store
     /// itself, the check of the incoming value against what the class declares
-    /// the property to hold, and ADR 0014 § 3's observer step all belong to
+    /// the property to hold, and `rule:classes/property-observer-pipeline`'s observer step all belong to
     /// [`nvs_runtime::write_erased_property`], which is the same function an
     /// ordinary write through an erased receiver reaches.
     ///
@@ -842,7 +842,7 @@ nvs_runtime::nvs_helper! {
     /// all: § 2 says a reflective write runs "the `PropertyObserver` hook that
     /// ordinary code at that call site would face", and the strongest reading
     /// of *would face* is the same code facing it. A copy here would be a
-    /// second pipeline to keep in step with ADR 0014 § 3, and the copy is the
+    /// second pipeline to keep in step with `rule:classes/property-observer-pipeline`, and the copy is the
     /// one nothing else dispatches through.
     ///
     /// Ownership is that function's too: it retains what it stores and leaves
@@ -1082,7 +1082,7 @@ mod tests {
     }
 
     // Every `onPropertySet` call `ledger_observed` has been handed, in arrival
-    // order, as the two things ADR 0014 § 3 says it is told: the property's
+    // order, as the two things `rule:classes/property-observer-pipeline` says it is told: the property's
     // name and the value that was committed.
     thread_local! {
         static OBSERVED: std::cell::RefCell<Vec<(String, u64)>> =
@@ -1202,7 +1202,7 @@ mod tests {
     ///
     /// The ordinary write is [`ordinary_write`], because `rule:types/erased-member-access`'s erased
     /// store is the one ordinary write whose class is unknown until it runs,
-    /// which is exactly the premise a reflective write site has. ADR 0014 § 4's
+    /// which is exactly the premise a reflective write site has. `rule:classes/property-observer-costs-nothing-when-unused`'s
     /// other half is asserted in the same test, so that "they agree" cannot be
     /// satisfied by two doors that observe nothing.
     #[test]
@@ -1232,7 +1232,7 @@ mod tests {
             seen[0], seen[1],
             "the same name and the same committed value, because it is the same \
              pipeline: `set` dispatches through the erased write rather than \
-             restating ADR 0014 § 3"
+             restating `rule:classes/property-observer-pipeline`"
         );
         assert_eq!(
             seen[0],
@@ -1252,7 +1252,7 @@ mod tests {
         .expect("`n` is public");
         assert_eq!(read.as_uint(), Some(7));
 
-        // ADR 0014 § 4: a class that implements nothing pays nothing, through
+        // `rule:classes/property-observer-costs-nothing-when-unused`: a class that implements nothing pays nothing, through
         // either door.
         let (mut plain_ctx, plain) = ledger(false);
         let plain_info = call(super::nvs_core_reflect_for_object, &mut plain_ctx, &[plain])

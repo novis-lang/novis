@@ -35,8 +35,7 @@
 //! # Decision: a refused argument is the parent's fault, a refused answer is the child's
 //!
 //! One walk refuses at both crossings
-//! ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-//! § 2), and the two refusals mean different things:
+//! (`rule:classes/graph-copy`), and the two refusals mean different things:
 //!
 //! * An **argument** that cannot cross was built by the parent, before any child
 //!   existed. [`Isolate::run`] answers `Err`, no task is started, and the caller
@@ -831,7 +830,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     }
     // Out, at the await. A refusal here is the child's, so it is a failure
     // value rather than an `Err` — the module doc owns the asymmetry. The
-    // parent's table is named, so ADR 0023 § 2's third bullet is asked here
+    // parent's table is named, so `rule:classes/graph-copy`'s third bullet is asked here
     // and not only of the payload carrier.
     let resolve = |name: &str| -> Option<*const nvs_runtime::ClassDesc> {
         Some(receiving?.sibling(name)?.desc())
@@ -1188,7 +1187,7 @@ mod tests {
         );
     }
 
-    /// ADR 0023 § 2's refusals reach this boundary because it is the same walk.
+    /// `rule:classes/graph-copy`'s refusals reach this boundary because it is the same walk.
     /// A closure is the shape a test at this level can build without a compiler,
     /// and what is asserted is the *classification*: no child is started, and
     /// the caller is handed the refusal to raise in the parent.
@@ -1233,7 +1232,7 @@ mod tests {
         }
     }
 
-    /// ADR 0023 § 2's third bullet, at this boundary: an object whose class the
+    /// `rule:classes/graph-copy`'s third bullet, at this boundary: an object whose class the
     /// receiving side does not have is refused naming the class, and never
     /// arrives as a stub.
     ///

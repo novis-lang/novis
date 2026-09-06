@@ -166,7 +166,7 @@ pub(crate) fn borrow(
 ///
 /// The common case is that the object holds the store's only reference, and
 /// then the edit happens in place and the slot's pointer never moves. A
-/// `clone`d collection ([ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md))
+/// `clone`d collection (`rule:classes/two-copy-depths`)
 /// is the other case: two objects share one store, so [`NvsArray::set`]
 /// separates a copy, and the slot has to take over that copy or the write
 /// would land on an allocation this object no longer reads. The retain before

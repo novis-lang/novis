@@ -30,7 +30,7 @@ echo Admin::own(), "\n";
 echo Admin::inherited(), "\n";
 
 // It is a `string`, not a class handle: it binds, concatenates and
-// compares like any other one. ADR 0011 has no `new $name` for it to
+// compares like any other one. `rule:classes/no-free-functions-or-constants` has no `new $name` for it to
 // reach, which is why this is all it is.
 string $s = User::class;
 echo $s . "!", "\n";

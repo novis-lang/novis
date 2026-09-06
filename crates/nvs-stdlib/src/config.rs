@@ -1,6 +1,6 @@
 //! `Core\Config` — [ADR 0064](/docs/adr/0064-configuration-file-format.md)
 //! § 5's four members, and PHP's `ini_get` family with the free functions taken
-//! off it ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)).
+//! off it (`rule:classes/no-free-functions-or-constants`).
 //!
 //! Every member is four lines long, because none of the rules is here. What a
 //! name resolves to, what a `set` is allowed to do and where the ceiling comes

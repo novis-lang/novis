@@ -27,7 +27,7 @@
   which cannot represent `0.10`, or `bcmath`, whose API is `bcadd(bcmul($price, $qty), $shipping)` governed
   by a **process-global** `bcscale()`. The causal chain matters more than either flaw on its own — bcmath is
   unpleasant enough that developers choose the wrong tool, so the ergonomics *are* the vulnerability.
-- **Novis has no operator overloading and is not getting one.** [ADR 0013](0013-comparable-interface.md)
+- **Novis has no operator overloading and is not getting one.** `rule:classes/comparable`
   admits `Comparable` for ordering and explicitly refuses a cross-class overload;
   [ADR 0027](0027-callable-is-closures-only.md) § *Alternatives* parks a general facility as hypothetical.
   A `Core\Decimal` class therefore cannot participate in `+` at any point in the future, which makes the

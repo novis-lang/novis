@@ -1,5 +1,5 @@
 --TEST--
-a `get` hook with a body runs on every read, and an interpolated `$obj->prop` is one of them — ADR 0014 § 1
+a `get` hook with a body runs on every read, and an interpolated `$obj->prop` is one of them — `rule:classes/property-hooks`
 --FILE--
 <?nvs
 class Counter {

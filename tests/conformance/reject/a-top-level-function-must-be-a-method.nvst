@@ -1,5 +1,5 @@
 --TEST--
-every function is a class member, so a free function is refused with the wrapping named — ADR 0011 § 1
+every function is a class member, so a free function is refused with the wrapping named — `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
 function greet(string $who): string {

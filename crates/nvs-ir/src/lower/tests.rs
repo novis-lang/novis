@@ -1454,8 +1454,7 @@ fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$obj . "x"` where `$obj`'s class implements `Stringable` — ADR 0028
-/// § 1's implicit conversion, desugared to the `toString()`
+/// `$obj . "x"` where `$obj`'s class implements `Stringable` — `rule:classes/stringable`'s implicit conversion, desugared to the `toString()`
 /// `nvs_types::expr::operators::require_stringable` resolved under the
 /// operand's own span. A `.` operand is not itself a call expression, so
 /// there is no `ExprInfo::Call` for it the way an actual
@@ -1542,7 +1541,7 @@ fn passing_a_bytes_local_as_a_call_argument_retains_it() {
 /// read exactly like a `string` one, so binding it to a new local retains
 /// the field's own value. `Foo`'s `bytes` property has no literal default
 /// available (see this block's own note), so its constructor assigns it
-/// from a `bytes` parameter instead — ADR 0022's definite-initialization
+/// from a `bytes` parameter instead — `rule:classes/definite-property-initialization`'s definite-initialization
 /// obligation either way.
 #[test]
 fn binding_a_bytes_property_read_to_a_local_retains_it() {
@@ -1716,7 +1715,7 @@ fn passing_an_array_local_as_a_call_argument_retains_it() {
 /// local retains the field's own value. `Foo`'s `array` property has no
 /// literal default available in a property initializer the way a scalar
 /// one would, so its constructor assigns it from an `array` parameter
-/// instead — ADR 0022's definite-initialization obligation either way.
+/// instead — `rule:classes/definite-property-initialization`'s definite-initialization obligation either way.
 /// The constructor call itself also exercises an array literal
 /// (`[1]`) passed as a resolved call argument, not just a local bind.
 #[test]
@@ -2323,7 +2322,7 @@ const HOOKED: &str = concat!(
     "}\n",
 );
 
-/// ADR 0014 § 1's hooks are ordinary compiled functions, each under the
+/// `rule:classes/property-hooks`'s hooks are ordinary compiled functions, each under the
 /// label `nvs_types::signatures::hook_label` spells — the same one the
 /// access site's `InstKind::Call` names, which is why nothing here needs a
 /// dispatch table entry.
@@ -3469,7 +3468,7 @@ array<mixed> $free = $s as array<mixed>;
     assert!(text.contains(&format!("const.uint {nested}")), "{text}");
 }
 
-/// ADR 0013 § 2: ordering two objects *is* a `Comparable::compareTo` call
+/// `rule:classes/ordering-lowers-to-compare-to`: ordering two objects *is* a `Comparable::compareTo` call
 /// followed by a comparison of its `int` against zero — never a comparison
 /// of the two values, which for objects would be two heap pointers.
 #[test]
@@ -3516,7 +3515,7 @@ int $c = $a <=> $a;
     assert!(!text.contains("const.int 0"), "{text}");
 }
 
-/// ADR 0023 § 1: one instruction, a fresh object with one owner, and no
+/// `rule:classes/clone-is-shallow`: one instruction, a fresh object with one owner, and no
 /// hook — `__clone` is one of the magic methods Novis does not have.
 #[test]
 fn clone_lowers_to_one_instruction_with_no_hook_call() {

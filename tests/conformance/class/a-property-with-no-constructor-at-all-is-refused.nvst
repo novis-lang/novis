@@ -1,5 +1,5 @@
 --TEST--
-a class that declares no constructor still owes every property a value, and the diagnostic says so — ADR 0022 § 1
+a class that declares no constructor still owes every property a value, and the diagnostic says so — `rule:classes/no-undefined-value`
 --FILE--
 <?nvs
 class Box {

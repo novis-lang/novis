@@ -1,4 +1,4 @@
-//! ADR 0043's interface method bodies — a `public` default and a `private` helper, and who can see each.
+//! `rule:classes/no-traits`'s interface method bodies — a `public` default and a `private` helper, and who can see each.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -9,7 +9,7 @@ use common::*;
 use nvs_diagnostics::code;
 
 // ------------------------------------------------------------------
-// ADR 0043 §§ 2-3 -- interface default/private methods (M2 follow-up).
+// `rule:classes/interface-default-methods` and `rule:classes/interface-private-methods` -- interface default/private methods (M2 follow-up).
 // ------------------------------------------------------------------
 
 /// § 2's own worked example: `Person` never declares `greet()` itself,

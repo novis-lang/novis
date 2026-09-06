@@ -1,11 +1,11 @@
 --TEST--
-`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (ADR 0011, `rule:types/class-reference`)
+`::class` on a side that carries no class is `E0702` — a `mixed`, a `?T`, a scalar and a `class<T>` each with the help that names where its answer actually lives — and on a name that resolves to nothing it is `E0303` (`rule:classes/no-free-functions-or-constants`, `rule:types/class-reference`)
 --FILE--
 <?nvs
 class User {
 }
 
-// ADR 0011 puts every reflective question on `Core\Reflect`, and an erased
+// `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect`, and an erased
 // receiver is exactly the one it is for: a `mixed` might hold an object and
 // might not, so accepting it would put a tag test and a throw behind a
 // spelling that reads like a member read.
@@ -28,7 +28,7 @@ echo $c::class;
 
 // A name that resolves to nothing is the same mistake, and the same code,
 // `new Undeclared()` already takes. PHP folds this to `"Bogus"` because
-// the string is on its way to `new $name`; ADR 0011 leaves it nowhere to
+// the string is on its way to `new $name`; `rule:classes/no-free-functions-or-constants` leaves it nowhere to
 // go, so the typo has no later place to be caught.
 echo Bogus::class;
 --EXPECTF-ERROR--

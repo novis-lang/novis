@@ -1,5 +1,5 @@
 --TEST--
-a property with no default that the constructor leaves unassigned on some path is a compile error — ADR 0022 § 1
+a property with no default that the constructor leaves unassigned on some path is a compile error — `rule:classes/no-undefined-value`
 --FILE--
 <?nvs
 class Box {

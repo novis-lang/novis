@@ -1,5 +1,5 @@
 --TEST--
-no identifier may start with `_`, so a leading-underscore local is rejected before anything runs — ADR 0030 § 1
+no identifier may start with `_`, so a leading-underscore local is rejected before anything runs — `rule:classes/no-leading-underscore-identifiers`
 --FILE--
 <?nvs
 int $_total = 1;

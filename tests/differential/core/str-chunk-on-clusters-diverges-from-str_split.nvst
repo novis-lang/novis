@@ -22,7 +22,7 @@ final class Show {
 
     // One cell: every piece of a chunking, in hex, each behind its own `|`.
     // A `.nvst` case's own helper has to be a `public static function` inside
-    // a class (ADR 0011 § 1), which is what this class is for.
+    // a class (`rule:classes/no-free-functions-or-constants`), which is what this class is for.
     public static function pieces(string $text, int $size): string {
         string $out = "";
         foreach (Core\Str::chunk($text, $size as uint) as string $piece) {

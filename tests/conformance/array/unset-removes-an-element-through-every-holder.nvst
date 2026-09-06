@@ -1,5 +1,5 @@
 --TEST--
-`unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — `rule:types/arrays`, ADR 0028 § 3
+`unset()` reaches an element through each of the three holders a separated array can be written back into, and through a nested chain — `rule:types/arrays`, `rule:classes/unset-is-refused-on-a-property`
 --FILE--
 <?nvs
 class Holder {

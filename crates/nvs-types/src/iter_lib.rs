@@ -26,7 +26,7 @@
 //!
 //! # `compareTo`'s parameter is `Comparable`, and that is `self` here
 //!
-//! [ADR 0013](/docs/adr/0013-comparable-interface.md) § 1 writes the
+//! `rule:classes/comparable` writes the
 //! member as `compareTo(self $other): int`, and `self` in the declaration
 //! this seeds *is* `Comparable` — an implementation narrows it to its own
 //! class, exactly as the ADR's variance paragraph says. Nothing is lost by
@@ -37,7 +37,7 @@
 //!
 //! # Every member is bodiless, and that is what makes them dispatch
 //!
-//! No interface on the roster declares a default (ADR 0043 § 2), so
+//! No interface on the roster declares a default (`rule:classes/interface-default-methods`), so
 //! [`MethodSig::has_body`] is false throughout. That is not bookkeeping: a
 //! call resolving to a bodiless declaration has no compiled function to name,
 //! so it dispatches on the receiver's runtime class — which is precisely what
@@ -74,7 +74,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
         FxHashMap::default(),
         [(
             "compareTo".to_owned(),
-            // ADR 0013 writes `compareTo(self $other): int`.
+            // `rule:classes/comparable` writes `compareTo(self $other): int`.
             bodiless(&["other"], vec![comparable], int_ty),
         )]
         .into_iter()
@@ -90,7 +90,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
             .collect(),
     );
 
-    // ADR 0014 § 2's pair, written exactly as that section spells it. `$value`
+    // `rule:classes/property-observer`'s pair, written exactly as that section spells it. `$value`
     // is `mixed` because one observer sees properties of every type, which is
     // the boundary shape `rule:types/conversion` reserves `mixed` for; both return `void`
     // because an observer reports and does not decide (§ 3).
@@ -251,7 +251,7 @@ mod tests {
         assert!(sig.is_generic(&interner));
     }
 
-    /// ADR 0013 § 1's `compareTo(self $other): int`, with `self` seeded as
+    /// `rule:classes/comparable`'s `compareTo(self $other): int`, with `self` seeded as
     /// `Comparable` — see this module's docs for why the wider spelling costs
     /// nothing.
     #[test]
@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(interner.describe(param), COMPARABLE);
     }
 
-    /// ADR 0028 § 1's `toString(): string`.
+    /// `rule:classes/stringable`'s `toString(): string`.
     #[test]
     fn stringable_declares_adr_0028_s_conversion_member() {
         let (table, interner) = seeded();

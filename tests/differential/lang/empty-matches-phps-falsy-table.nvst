@@ -1,5 +1,5 @@
 --TEST--
-`empty($x)` is `!$x` over any expression, and it agrees with PHP on every row of the falsy table, on an absent element and on when the operand runs — `rule:expressions/truthy-table`, ADR 0028 § 3
+`empty($x)` is `!$x` over any expression, and it agrees with PHP on every row of the falsy table, on an absent element and on when the operand runs — `rule:expressions/truthy-table`, `rule:classes/unset-is-refused-on-a-property`
 --FILE--
 <?nvs
 final class Show {

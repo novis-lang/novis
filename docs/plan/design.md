@@ -68,11 +68,11 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely (`rule:enums/closed-integer-type`) |
 | Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` (`rule:statements/static-is-a-member-modifier`) |
 | No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement (`rule:statements/no-host-populated-variables`) |
-| Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright ([ADR 0013](../adr/0013-comparable-interface.md)) |
-| Property access | A property's own hook runs first, then a declared `PropertyObserver` second, always both, never a fallback for a missing property ([ADR 0014](../adr/0014-property-observer.md)) |
-| OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)) |
+| Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright (`rule:classes/comparable`) |
+| Property access | A property's own hook runs first, then a declared `PropertyObserver` second, always both, never a fallback for a missing property (`rule:classes/property-observer`) |
+| OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes (`rule:classes/no-free-functions-or-constants`) |
 | Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception (`rule:statements/nothing-gets-a-second-name`) |
-| Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
+| Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` (`rule:classes/no-traits`) |
 | PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `nvs-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
 | Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
 | Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
@@ -143,7 +143,7 @@ listener for it ([ADR 0097](../adr/0097-development-server-and-proxied-origin.md
 - **Existing PHP does not run unconverted.** PHP has no syntax for the type of a `foreach` binding or a
   destructuring target (`rule:types/declaration`), and every one of its global
   functions and global constants needs a new home on a class before it type-checks at all
-  ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)). A plain local has a type-eliding
+  (`rule:classes/no-free-functions-or-constants`). A plain local has a type-eliding
   spelling now — `rule:types/var-inference`'s `var` — so `nvs convert` can emit that
   directly instead of inferring and writing an annotation, but it still has to write annotations and
   rewrite call sites for everything else, not just drop `.php` files into a document root. M11 stays
@@ -340,7 +340,7 @@ consults the *request's* config snapshot, so a script cannot affect its neighbou
 
 The provisional surface, the semantics, and what is/is not shared are decided and stated in full in
 [ADR 0006](../adr/0006-isolated-script-execution.md) — including the `spawn script … with(…)` example, how
-values cross (the graph-copy operation [ADR 0023](../adr/0023-clone-serialize-and-cross-boundary-copy.md) now
+values cross (the graph-copy operation `rule:classes/two-copy-depths` now
 formally defines, shared with `serialize()`/`unserialize()`), how budgets are accounted (at the root of the
 request tree, never per isolate), the `script.spawn` capability and its path resolution, and failure
 arriving as a value rather than as an unwind. The spec pins the exact grammar down in M5. The three

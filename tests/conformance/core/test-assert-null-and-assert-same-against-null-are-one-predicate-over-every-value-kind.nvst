@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertNull`, `assertSame` against `null` in either order and `assertEquals` against `null` are one predicate over every kind of value a program can build -- `rule:testing/assertions-are-typed`, ADR 0013 § 1
+`Core\Test::assertNull`, `assertSame` against `null` in either order and `assertEquals` against `null` are one predicate over every kind of value a program can build -- `rule:testing/assertions-are-typed`, `rule:classes/comparable`
 --FILE--
 <?nvs
 // `test-assert-null-refuses-every-value-that-is-not-null.nvst` asks two of
@@ -11,8 +11,8 @@
 // into `identity::value_identical` for the other two, so the claim is that
 // none of them is a special case in either.
 //
-// `assertEquals` is the member with the most room to disagree here: ADR 0013
-// § 1 sends *two objects* to `Comparable::compareTo`, and an object beside
+// `assertEquals` is the member with the most room to disagree here: `rule:classes/comparable`
+// sends *two objects* to `Comparable::compareTo`, and an object beside
 // `null` is not two objects -- so it must fall back to the identical answer
 // rather than ask the class anything. The object row is what makes that a
 // claim rather than a restatement.

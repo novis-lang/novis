@@ -151,7 +151,7 @@ impl Ctx {
     /// The initializers are constants (`nvs_types::defaults::ConstArg`), so
     /// arming a request runs no user code and cannot fail or throw — the whole
     /// reason a static's initializer is restricted to one. A `None` entry is a
-    /// static ADR 0022 § 2 required no default of (a nullable or `lateinit`
+    /// static `rule:classes/definite-property-initialization` required no default of (a nullable or `lateinit`
     /// one) and starts the request at `null`.
     ///
     /// **The list is shared, not borrowed, and that is the whole of how a

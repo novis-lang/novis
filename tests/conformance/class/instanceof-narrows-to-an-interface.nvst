@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` against an interface narrows its subject to that interface, so the interface's own members resolve (ADR 0043, `rule:types/declaration`)
+`instanceof` against an interface narrows its subject to that interface, so the interface's own members resolve (`rule:classes/no-traits`, `rule:types/declaration`)
 --FILE--
 <?nvs
 // The subject is declared `object`, which names no member at all: every call

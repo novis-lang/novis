@@ -395,7 +395,7 @@ strings, on **every** `$obj->method()`. There is no slot index. PHP caches the r
 The method name is statically known at every `InstKind::CallVirtual` site, so the baseline tier can
 resolve a **slot index** at compile time and emit a load — which needs one real piece of work, a
 vtable layout pass that puts an overridden method at the same index in a subclass's descriptor as
-in its base, and a decision about where [ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+in its base, and a decision about where `rule:classes/no-traits`'s
 default methods sit in it.
 
 **This is not M12's inline cache.** [M12](../plan/m12.md) speculates monomorphic → polymorphic →

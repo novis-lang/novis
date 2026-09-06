@@ -273,11 +273,11 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   bytes` total and free, so this is not a new conversion rule, only its first literal-adjacent use.
 - For a byte sequence that is **not** valid UTF-8 — a raw binary constant, a fixed hash or key material
   written inline — the spelling is a `Core\Encoding` decoder, following
-  [ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)'s "every callable is a class member"
+  `rule:classes/no-free-functions-or-constants`'s "every callable is a class member"
   rule exactly as every other domain class does: `Core\Encoding::fromHex('deadbeef')`,
   `Core\Encoding::fromBase64('...')`. That class, not `Core\Bytes`, because
   [01-core-library § 7](01-core-library.md) sites every `bytes`↔`string` conversion there, and each of
-  these is one. Both join the domain-class roster ADR 0011's summary names as examples, not as a closed list; building
+  these is one. Both join the domain-class roster `rule:classes/no-free-functions-or-constants`'s summary names as examples, not as a closed list; building
   them is ordinary M4S stdlib work, not part of this spec.
 
 This resolves one item in [ADR 0009 *Revisiting*](../adr/0009-string-and-bytes.md), and only that one: it is

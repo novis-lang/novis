@@ -1,5 +1,5 @@
 --TEST--
-A write through `Core\Reflect\ClassInfo::set` reaches the same `PropertyObserver` an ordinary write reaches, and a throwing observer fails it the same way — ADR 0019 § 2, ADR 0014 § 3
+A write through `Core\Reflect\ClassInfo::set` reaches the same `PropertyObserver` an ordinary write reaches, and a throwing observer fails it the same way — ADR 0019 § 2, `rule:classes/property-observer-pipeline`
 --FILE--
 <?nvs
 // ADR 0019 § 2: acting on a reflected property runs the `PropertyObserver`
@@ -32,7 +32,7 @@ $book->balance = 7;
 echo "reflective:\n";
 $described->set($book, "balance", 7);
 
-// ADR 0014 § 3: the observer is told the value that was *committed*, which is
+// `rule:classes/property-observer-pipeline`: the observer is told the value that was *committed*, which is
 // what a following read answers — so the line above is a report of a store and
 // not a report instead of one.
 echo "stored ", $described->get($book, "balance"), "\n";

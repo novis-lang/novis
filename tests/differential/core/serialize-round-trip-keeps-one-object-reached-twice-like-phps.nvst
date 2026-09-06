@@ -2,7 +2,7 @@
 An object reached twice from one array comes back as one object and not as two, which is what PHP's serialize/unserialize pair does with the same shape
 --FILE--
 <?nvs
-// ADR 0023 § 2's "shared substructure inside the source stays shared inside the
+// `rule:classes/graph-copy`'s "shared substructure inside the source stays shared inside the
 // copy", over the array carrier rather than the object one. Both languages
 // record the second route as a reference to the first rather than as a second
 // copy, and the only way to see the difference is to write through one route

@@ -889,7 +889,7 @@ impl TypeInterner {
 
     /// Whether `id` is `null` itself, or a union with `null` as one of its
     /// members — i.e. whether it was written with a leading `?` (or expands
-    /// to one through a `type` alias). ADR 0022 § 1: this is the one thing
+    /// to one through a `type` alias). `rule:classes/no-undefined-value`: this is the one thing
     /// that exempts a property from that ADR's definite-assignment
     /// obligation, since nullability already promises "may legitimately hold
     /// no value."

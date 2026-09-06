@@ -1,5 +1,5 @@
 --TEST--
-Core\Heap<T> answers smallest-first, ordered by ADR 0013's `Comparable` or by the comparator given at construction — docs/spec/01-core-library.md § 9
+Core\Heap<T> answers smallest-first, ordered by `rule:classes/comparable`'s `Comparable` or by the comparator given at construction — docs/spec/01-core-library.md § 9
 --FILE--
 <?nvs
 // § 9's third row: `push`, `peek`, `pop`, `count`, `isEmpty`, replacing
@@ -38,7 +38,7 @@ $d->push(7);
 $d->push(5);
 echo $d->pop(), ";", $d->pop(), ";", $d->pop(), "\n";
 
-// An object orders by ADR 0013's `compareTo`, reached through its own class.
+// An object orders by `rule:classes/comparable`'s `compareTo`, reached through its own class.
 var $jobs = new Core\Heap<Job>();
 $jobs->push(new Job("deploy", 5));
 $jobs->push(new Job("lint", 1));

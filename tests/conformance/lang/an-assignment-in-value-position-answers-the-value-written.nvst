@@ -1,8 +1,8 @@
 --TEST--
-An assignment in value position answers the value written even where a re-read would answer something else — an ADR 0014 § 1 `set` hook and an `rule:types/object-literal` shape field
+An assignment in value position answers the value written even where a re-read would answer something else — an `rule:classes/property-hooks` `set` hook and an `rule:types/object-literal` shape field
 --FILE--
 <?nvs
-// A `set` hook is a call (ADR 0014 § 1), so the property does not hold what
+// A `set` hook is a call (`rule:classes/property-hooks`), so the property does not hold what
 // was written to it. The expression still answers what was *written* — never
 // a re-read of the slot — which is the one place the two can disagree.
 class Tag {

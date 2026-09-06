@@ -1,8 +1,8 @@
 --TEST--
-`<=>` answers -1, 0 or 1 for every scalar `<` already orders, and `1` for an unordered pair (ADR 0013 § 2; `rule:types/arithmetic`; `rule:types/arithmetic`)
+`<=>` answers -1, 0 or 1 for every scalar `<` already orders, and `1` for an unordered pair (`rule:classes/ordering-lowers-to-compare-to`; `rule:types/arithmetic`; `rule:types/arithmetic`)
 --FILE--
 <?nvs
-// ADR 0013 § 2 gave `<=>` an *object* row — `Comparable::compareTo`, whose
+// `rule:classes/ordering-lowers-to-compare-to` gave `<=>` an *object* row — `Comparable::compareTo`, whose
 // `int` already is this operator's answer. Every scalar row is the same three
 // values, and the result is an `int` whatever the operands are.
 int $small = 2;

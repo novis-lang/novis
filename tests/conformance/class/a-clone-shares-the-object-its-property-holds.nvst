@@ -1,5 +1,5 @@
 --TEST--
-`clone` stays PHP-shallow: an object-typed property is copied as a handle, so a write through the copy is seen by the original — ADR 0023 § 1
+`clone` stays PHP-shallow: an object-typed property is copied as a handle, so a write through the copy is seen by the original — `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
 class Leaf {

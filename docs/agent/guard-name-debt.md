@@ -302,7 +302,7 @@ checks are gone rather than renamed.
       [parser/tests/ty.rs:505](../../crates/nvs-syntax/src/parser/tests/ty.rs#L505)
       `shape_type_parses_in_every_declaration_slot`, which asserts every slot rather than the local
 - [x] `an_enum_case_named_with_a_keyword_parses` — was cause 3 *in its test half only*: every keyword
-      lexes at its exact lower-case spelling (ADR 0062 § 2), so a `PascalCase` case never collides with
+      lexes at its exact lower-case spelling (`rule:classes/reserved-spellings-are-lower-case`), so a `PascalCase` case never collides with
       one and nothing had to change in the parser. Now
       [parser/tests/decl.rs:205](../../crates/nvs-syntax/src/parser/tests/decl.rs#L205), sweeping
       fifteen spellings and pinning the lower-case half against `E0220`.

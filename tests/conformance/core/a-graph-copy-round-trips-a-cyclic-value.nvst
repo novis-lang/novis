@@ -1,8 +1,8 @@
 --TEST--
-A cycle survives the graph copy as a cycle rather than unrolling or hanging, and the sharing inside it stays sharing rather than becoming two nodes — ADR 0023 § 2
+A cycle survives the graph copy as a cycle rather than unrolling or hanging, and the sharing inside it stays sharing rather than becoming two nodes — `rule:classes/graph-copy`
 --FILE--
 <?nvs
-// ADR 0023 § 2's two hardest sentences, as a program: "a cycle (`$a->self =
+// `rule:classes/graph-copy`'s two hardest sentences, as a program: "a cycle (`$a->self =
 // $a`) terminates instead of recursing forever", and "shared substructure
 // inside the source stays shared inside the copy". Terminating is only half of
 // the first one — a walk that ran off the end of an unrolled chain would also

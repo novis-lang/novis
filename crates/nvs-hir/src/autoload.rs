@@ -566,7 +566,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
 }
 
 /// ADR 0029's namespace-segment shape: `PascalCase`, ASCII alphanumeric, and
-/// never a leading `_` ([ADR 0030](/docs/adr/0030-no-leading-underscores-constructor-spelling.md)).
+/// never a leading `_` (`rule:classes/no-leading-underscore-identifiers`).
 fn is_namespace_segment(name: &str) -> bool {
     let mut chars = name.chars();
     chars.next().is_some_and(|c| c.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric())

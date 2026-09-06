@@ -24,15 +24,15 @@
 - PHP ships four keywords for one operation (splice a file into the calling frame) across two axes:
   missing/broken file (`include` warns and returns `false`; `require` throws) and repeat guard (`_once` or
   not) — the same "more than one name for one behaviour" surface `rule:statements/nothing-gets-a-second-name` and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already argue against, so this collapses to
+  `rule:classes/no-free-functions-or-constants` already argue against, so this collapses to
   one.
 - **"Warn and continue" doesn't survive**: every other PHP ambient-continuation path here has been closed
-  instead of kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a superglobal has
+  instead of kept — an undeclared property throws (`rule:classes/property-observer`), a superglobal has
   no fallback (`rule:statements/no-host-populated-variables`), comparing objects with no `Comparable` is a diagnostic
-  ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other Novis
+  (`rule:classes/comparable`). `require`'s throw-on-failure already matches every other Novis
   failure path (`rule:errors/propagation`).
 - **The `_once` axis doesn't need to survive**: declarations resolve by namespace
-  ([ADR 0011](0011-functions-and-constants-are-class-members.md)) and by the per-path compiled-unit cache
+  (`rule:classes/no-free-functions-or-constants`) and by the per-path compiled-unit cache
   ([ADR 0017](0017-hot-reload-without-restart.md)), not by splice count — the redeclaration problem `_once`
   guards against is a symptom of PHP's textual-inclusion-as-module-system, which Novis doesn't adopt for
   declarations. A template partial re-`require`d from a loop must still run every time, so the suffix goes,
@@ -116,7 +116,7 @@ of naming the replacement directly:
   (`rule:errors/propagation`); no new "warn and continue" exit from the checked-return
   discipline gets added back in through this one construct.
 - No redeclaration-guard mechanism needs designing at the file-inclusion layer at all — the problem it
-  solved in PHP is a namespace-resolution question ([ADR 0011](0011-functions-and-constants-are-class-members.md)),
+  solved in PHP is a namespace-resolution question (`rule:classes/no-free-functions-or-constants`),
   answered once there rather than twice.
 
 **Negative**

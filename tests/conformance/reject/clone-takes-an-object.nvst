@@ -1,5 +1,5 @@
 --TEST--
-`clone` of an array is refused — ADR 0023 § 1 makes it a new instance of the operand's class, and an array names none
+`clone` of an array is refused — `rule:classes/clone-is-shallow` makes it a new instance of the operand's class, and an array names none
 --FILE--
 <?nvs
 // An `array<T>` is already copied when it is assigned (`rule:programs/memory-priority`'s

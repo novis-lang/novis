@@ -22,7 +22,7 @@ pub(super) const OPEN: &str = r"Core\Db::open";
 pub(super) const QUERY: &str = r"Core\Db\Connection::query";
 
 /// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
-/// [`ADR 0043`](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// [``rule:classes/no-traits``](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
 /// delegation, a call through a `Core\Db\Transaction` names the connection's
 /// member here exactly as [`QUERY`] does.
 pub(super) const QUERY_AS: &str = r"Core\Db\Connection::queryAs";

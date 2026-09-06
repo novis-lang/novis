@@ -13,7 +13,7 @@ final class Point {
 // runtime fetch and stopped there: a call additionally needs a signature to
 // check its arguments against and a return type for the position it sits in,
 // and `object` — `rule:types/grammar`'s opaque top of every class type — supplies
-// neither. There is no `__call` to fall back on (ADR 0014).
+// neither. There is no `__call` to fall back on (`rule:classes/property-observer`).
 object $o = new Point();
 echo $o->scaled(3) as string, "\n";
 

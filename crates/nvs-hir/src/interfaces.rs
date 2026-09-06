@@ -32,13 +32,12 @@
 /// Every compiler-declared global interface, as `(name, type-parameter
 /// names)`.
 ///
-/// `Comparable` ([ADR 0013](/docs/adr/0013-comparable-interface.md))
+/// `Comparable` (`rule:classes/comparable`)
 /// and `Stringable`
-/// ([ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-/// § 1) take none; `Iterable` and `Iterator`
+/// (`rule:classes/stringable`) take none; `Iterable` and `Iterator`
 /// (`rule:iteration/two-interfaces`) each
 /// take one. `PropertyObserver`
-/// ([ADR 0014](/docs/adr/0014-property-observer.md) § 2) takes none
+/// (`rule:classes/property-observer`) takes none
 /// either: it is a contract an ordinary class implements, not a `Core` domain
 /// class, so it belongs on this roster beside `Comparable` rather than under a
 /// namespace.
@@ -50,15 +49,15 @@ pub const RESERVED: &[(&str, &[&str])] = &[
     ("Iterator", &["T"]),
 ];
 
-/// ADR 0013's `Comparable` — the one interface `<`, `>`, `<=`, `>=` and `<=>`
+/// `rule:classes/comparable`'s `Comparable` — the one interface `<`, `>`, `<=`, `>=` and `<=>`
 /// accept over two objects, via its sole member `compareTo(self $other): int`.
 pub const COMPARABLE: &str = "Comparable";
 
-/// ADR 0028 § 1's `Stringable` — what an object owes to be converted to
+/// `rule:classes/stringable`'s `Stringable` — what an object owes to be converted to
 /// `string`, via its sole member `toString(): string`.
 pub const STRINGABLE: &str = "Stringable";
 
-/// ADR 0014 § 2's `PropertyObserver` — what a class implements to be told of
+/// `rule:classes/property-observer`'s `PropertyObserver` — what a class implements to be told of
 /// every read and write of every property it declares, through
 /// `onPropertyGet(string, mixed): void` and its `onPropertySet` twin.
 pub const PROPERTY_OBSERVER: &str = "PropertyObserver";

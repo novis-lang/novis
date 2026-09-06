@@ -115,7 +115,7 @@ impl<'a> Lowering<'a> {
         (v, ty)
     }
 
-    /// `$a < $b` and its four siblings over two objects — ADR 0013 § 2's
+    /// `$a < $b` and its four siblings over two objects — `rule:classes/ordering-lowers-to-compare-to`'s
     /// `Comparable::compareTo` call, then the comparison of *its* `int`
     /// against zero.
     ///
@@ -1044,7 +1044,7 @@ impl<'a> Lowering<'a> {
             BinaryOp::LtEq => (BinOp::LtEq, Ty::Bool),
             BinaryOp::Gt => (BinOp::Gt, Ty::Bool),
             BinaryOp::GtEq => (BinOp::GtEq, Ty::Bool),
-            // ADR 0013 § 2's `<=>` over a *scalar*: the object form never
+            // `rule:classes/ordering-lowers-to-compare-to`'s `<=>` over a *scalar*: the object form never
             // reaches here (`lower_expr`'s guarded arm takes it), and a mixed
             // numeric or `decimal` pair has already returned above — so what
             // is left is one representation and one `BinOp` over it. The

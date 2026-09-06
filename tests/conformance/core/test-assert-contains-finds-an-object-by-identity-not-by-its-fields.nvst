@@ -6,7 +6,7 @@
 // objects are the same value when they are the same allocation and never
 // because their properties agree. `assertEquals` is the member that names a
 // comparison of contents, and it names it at the call site -- so a membership
-// question that quietly walked fields would be the silent fallback ADR 0013
+// question that quietly walked fields would be the silent fallback `rule:classes/comparable`
 // refused for ordering, arrived at through a different member.
 //
 // A twin and an alias are the two sides of that: same fields, different

@@ -1,5 +1,5 @@
 --TEST--
-A property declaring a `get` hook and no `set` hook is not written, while a `set` hook and the hook's own backing slot still are (ADR 0014 § 1)
+A property declaring a `get` hook and no `set` hook is not written, while a `set` hook and the hook's own backing slot still are (`rule:classes/property-hooks`)
 --FILE--
 <?nvs
 class Reading {

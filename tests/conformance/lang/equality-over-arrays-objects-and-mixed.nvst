@@ -20,7 +20,7 @@ array<array<int>> $other = [[1], [3]];
 echo ($nested == $same) as string, "|", ($nested == $other) as string, "|\n";
 
 // § 3's object row: identity. Two instances alike in every property are two
-// values; comparing contents is a method a class opts into (ADR 0013).
+// values; comparing contents is a method a class opts into (`rule:classes/comparable`).
 Point $p = new Point(1);
 Point $q = new Point(1);
 Point $r = $p;

@@ -6,7 +6,7 @@
   `$_REQUEST`, `$_SESSION`, `$_ENV`), the CLI SAPI's `$argv`/`$argc`, and Novis's own `$_ARGS` from
   [ADR 0006](0006-isolated-script-execution.md); the `Core\Server`, `Core\Request`, `Core\Session`,
   `Core\Cli` and `Core\Script` classes; what `Core\Env` gains beyond the `EOL` constant
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave it
+  `rule:classes/no-free-functions-or-constants` already gave it
 - **Amends:** [0006](0006-isolated-script-execution.md) — the spawn-script surface's `$_ARGS` becomes
   `Core\Script::args()`, the same rename this ADR gives every other superglobal; the "not shared" table's
   superglobal row is restated as a **thrown error** on `Core\Request`/`Core\Server`/`Core\Session` inside a
@@ -35,16 +35,16 @@
 > per isolate by the host rather than by a user initialiser: `Core\Server` for server metadata and headers
 > (`$_SERVER`), `Core\Request` for query/post/cookie/file input (`$_GET`/`$_POST`/`$_COOKIE`/`$_FILES`),
 > `Core\Session` for session data (`$_SESSION`, no auto-start), `Core\Env` for environment variables
-> (`$_ENV`, joining the `EOL` constant ADR 0011 already gave it), and `Core\Cli` for the CLI SAPI's process
+> (`$_ENV`, joining the `EOL` constant `rule:classes/no-free-functions-or-constants` already gave it), and `Core\Cli` for the CLI SAPI's process
 > arguments (`$argv`/`$argc`). Novis's own spawn-script argument variable — `$_ARGS` from
 > [ADR 0006](0006-isolated-script-execution.md) — is the same shape of ambient variable this ADR closes, and
 > gets the same treatment: `Core\Script::args()`. Inside a spawned isolate, `Core\Request`, `Core\Server` and
 > `Core\Session` **throw** rather than silently returning empty or the parent's data — an isolation-boundary
 > violation should fail loudly, not look indistinguishable from a genuinely empty request. The exact method
 > signatures are stdlib design, due with the milestone that implements each class
-> ([ADR 0011](0011-functions-and-constants-are-class-members.md)'s *Revisiting* already says the roster is
+> (`rule:classes/no-free-functions-or-constants`'s *Revisiting* already says the roster is
 > illustrative); what is fixed here is that no bare variable is ever ambiently populated, and every one of
-> these facts is reached through a declared class exactly like the built-ins ADR 0011 already relocated.
+> these facts is reached through a declared class exactly like the built-ins `rule:classes/no-free-functions-or-constants` already relocated.
 
 ## Context
 
@@ -56,7 +56,7 @@
 - **The request-input superglobals deliver untrusted data with no declared boundary.**
   `rule:types/unions-and-mixed` already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
   input, but it still arrives as a bare, ambiently-populated variable rather than a declared, traceable
-  entry point (contrast a grep-able `Core\Str::` call, [ADR 0011](0011-functions-and-constants-are-class-members.md)).
+  entry point (contrast a grep-able `Core\Str::` call, `rule:classes/no-free-functions-or-constants`).
 - **`$_SESSION`/`$_ENV` add ambient mutable/host-configuration state**, and `$_REQUEST` adds a third
   failure mode: it merges `$_GET`/`$_POST`/`$_COOKIE` in a `php.ini`-configurable order, so the same key
   can silently mean a different source on different servers.
@@ -82,14 +82,14 @@ replacement at all.**
 | `$_COOKIE` | `Core\Request` | cookie input |
 | `$_FILES` | `Core\Request` | uploaded-file metadata |
 | `$_SESSION` | `Core\Session` | see *4* — no auto-start, backing store deferred |
-| `$_ENV` / `getenv()` | `Core\Env` | joins the `EOL` constant [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave this class |
+| `$_ENV` / `getenv()` | `Core\Env` | joins the `EOL` constant `rule:classes/no-free-functions-or-constants` already gave this class |
 | `$argv` / `$argc` | `Core\Cli` | CLI SAPI only — see *5* |
 | `$_ARGS` (Novis, [ADR 0006](0006-isolated-script-execution.md)) | `Core\Script::args()` | not a PHP superglobal, but the same shape of ambient variable — see *6* |
 
 `Core\Server` and `Core\Request` are two classes, not one, matching the split PHP itself already draws
-between "facts about the server and the request" and "input the client sent": exactly the [ADR 0011](0011-functions-and-constants-are-class-members.md) principle of one domain class per PHP-grouping-shaped
+between "facts about the server and the request" and "input the client sent": exactly the `rule:classes/no-free-functions-or-constants` principle of one domain class per PHP-grouping-shaped
 concern, not one class holding everything. The exact method signatures on each class — a single-key lookup,
-a whole-array accessor, or both — are stdlib design due at the milestone that implements them ([ADR 0011](0011-functions-and-constants-are-class-members.md)'s *Revisiting* already flags the roster as
+a whole-array accessor, or both — are stdlib design due at the milestone that implements them (`rule:classes/no-free-functions-or-constants`'s *Revisiting* already flags the roster as
 illustrative), not fixed by this ADR. What is fixed: each is a `Core` class, each method is `static`, and
 the value handed to user code keeps the shape `rule:types/unions-and-mixed` and
 `rule:types/bytes` already decided — structured input as `array<mixed>`, a scalar
@@ -159,7 +159,7 @@ ambient, undeclared variable this ADR closes for every PHP one. Consistency, not
 concern, is the reason it changes too: `Core\Script::args(): mixed` is the deep-copied value the current
 isolate was spawned with, and `null` where there was none — a child spawned without the option, and the
 root script, which nothing spawned. The type is `mixed` rather than `array<mixed>` because `spawn script`'s
-`args:` accepts any value that can cross ([ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) § 2
+`args:` accepts any value that can cross (`rule:classes/graph-copy`
 decides that at run time, so nothing narrows the option at the call site), and `null` rather than an empty
 array because a program that wrote `args: []` said something a program that wrote no option did not.
 [ADR 0006](0006-isolated-script-execution.md)'s provisional-syntax caveat already says the exact
@@ -177,7 +177,7 @@ isolate is not a new inbound request — it is a child task inside the one that 
 genuinely needs facts from the request that spawned it receives them as ordinary arguments via
 `with(args: […])`, deep-copied like any other value crossing the boundary — the graph-copy operation
 [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* and
-[ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) define. `Core\Env` and
+`rule:classes/two-copy-depths` define. `Core\Env` and
 `Core\Cli` are not restricted this way: environment variables and process arguments are process-wide facts
 already governed by the existing capability/config-overlay machinery
 ([ADR 0005](0005-config-changeability.md), [ADR 0006](0006-isolated-script-execution.md)), not per-request
@@ -186,7 +186,7 @@ secrets this ADR needs to newly wall off.
 ### 8. Diagnostics
 
 Each rejection names its replacement, in the style `rule:statements/no-function-static-and-no-global` and
-[ADR 0011](0011-functions-and-constants-are-class-members.md) § 4 already set:
+`rule:classes/no-free-functions-or-constants` already set:
 
 - `$GLOBALS` → *`$GLOBALS` does not exist; declare a `static` property, a constant, or pass the value as a
   parameter*
@@ -216,14 +216,14 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 
 - There is exactly one way a script ever learns anything from outside itself: a declared class member, an
   object property, or a parameter — the same answer `rule:statements/static-is-a-member-modifier` and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave for state and for behaviour,
+  `rule:classes/no-free-functions-or-constants` already gave for state and for behaviour,
   now complete for *input* too.
 - `$GLOBALS`, PHP's single most dangerous piece of ambient reflection, has no Novis equivalent to accidentally
   reintroduce later — there is no class it could be added back as without recreating the exact bag
   `rule:statements/static-is-a-member-modifier` closed.
 - `$_REQUEST`'s provenance ambiguity cannot exist in Novis: every request-input read names its source.
 - A reviewer sees exactly which `Core` class, and therefore which trust boundary, a line depends on — the
-  same traceability [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives built-in
+  same traceability `rule:classes/no-free-functions-or-constants` already gives built-in
   calls, now extended to untrusted input itself.
 - The isolation boundary [ADR 0006](0006-isolated-script-execution.md) already promised for superglobals
   becomes a checked, catchable error instead of a silent, easily-misread empty result.
@@ -232,7 +232,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 
 - Every PHP file with a bare `$_GET`/`$_POST`/`$_SERVER`/`$_SESSION`/`$_COOKIE`/`$_FILES`/`$_ENV` reference
   needs a rewrite at `nvs convert` (M11), on top of every other rewrite `rule:types/declaration`
-  and [ADR 0011](0011-functions-and-constants-are-class-members.md) already require. Unlike a built-in
+  and `rule:classes/no-free-functions-or-constants` already require. Unlike a built-in
   function rename, a `$_REQUEST` or `$GLOBALS` use has no mechanical one-line replacement — a human has to
   decide which specific source was meant, or how to re-home the global state.
 - `Core\Session`'s real design (storage backend, locking, GC) is still open, and this ADR does not resolve
@@ -247,7 +247,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
   read-only bare variable still has no declared import or traceable dependency, and still does not fit
   `rule:statements/static-is-a-member-modifier`'s exhaustive storage table without a row added back for it.
 - **A single `Core\Http` class for everything request-and-server-shaped.** Rejected per
-  [ADR 0011](0011-functions-and-constants-are-class-members.md): one class for every unrelated concern is
+  `rule:classes/no-free-functions-or-constants`: one class for every unrelated concern is
   a global namespace with extra syntax.
 - **Keep `$_REQUEST` as a merged accessor with a fixed, documented order.** Rejected: still hides the
   source at the read site, which is the actual problem — a fixed order is a smaller footgun, not a fix.

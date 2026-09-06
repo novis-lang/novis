@@ -1,5 +1,5 @@
 --TEST--
-the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — ADR 0014 § 1, `rule:types/arrays`
+the two element writes a hooked array property does allow: through a local read back and assigned in, and inside the property's own hook where `$this->p` is the backing slot — `rule:classes/property-hooks`, `rule:types/arrays`
 --FILE--
 <?nvs
 // The refusal an element write through a hook takes (E0478) has exactly two

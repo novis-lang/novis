@@ -226,7 +226,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing
 /// else, and closing the connection out from under the `transaction()` call
 /// that is still running is not something § 18 gives a spelling for.
-/// ADR 0043 makes `Transaction` delegate the interface to its connection, so
+/// `rule:classes/no-traits` makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
 /// forwarding lands.
 /// ADR 0067 § 4's `{timeout?: Duration}`, the one option every statement member
@@ -539,7 +539,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// only place a transaction is nameable.
 ///
 /// **`implements Queryable by $connection` is spelled here as the same rows
-/// under the same symbols**, which is [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)'s
+/// under the same symbols**, which is `rule:classes/no-traits`'s
 /// delegation with no second body to drift from the first: `query`, `execute`,
 /// `executeMany` and `transaction` resolve to [`CONNECTION`]'s helpers, which
 /// reach the connection through [`handle_of`] and so accept either receiver.
@@ -596,7 +596,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             defaults: &[],
             // [`CONNECTION`]'s row, written out for the reason its `query`
             // sibling is: this is the class `tools/gaps.py` attributes a case
-            // to. The symbol is the connection's too — ADR 0043's delegation
+            // to. The symbol is the connection's too — `rule:classes/no-traits`'s delegation
             // is one body reached through either handle, and [`handle_of`] is
             // what reads the two of them the same way.
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),

@@ -1879,7 +1879,7 @@ fn options_of(value: Value, member: &str) -> Result<Vec<Value>, Fault> {
 /// the option rendered the way `echo` would render it.
 ///
 /// `nvs_runtime::stringify` rather than `value_to_string` directly, so an
-/// object option renders through ADR 0028 § 1's `toString` — a menu of
+/// object option renders through `rule:classes/stringable`'s `toString` — a menu of
 /// `Core\Time\Zone`s should read as its zones, and a class with no renderer
 /// throws here rather than printing a placeholder nobody can choose between.
 fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<String, Fault> {

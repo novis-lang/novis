@@ -113,7 +113,7 @@ pub const CLOSURE_PARAM_NAMES_SLOT: usize = 2;
 /// tag chosen at run time, so no argument can be wrong for it.
 ///
 /// Fifteen is the **top** of the nibble rather than the first number past the
-/// tag roster, and that is deliberate: it was twelve until ADR 0022 § 3's
+/// tag roster, and that is deliberate: it was twelve until `rule:classes/an-unwritten-property-read-throws`'s
 /// never-written storage state took that discriminant ([`Tag::Unset`]), so a
 /// nibble chosen as "one past the last tag" is one that collides the next
 /// time the roster grows. [`Tag::from_byte`] answering `None` for it is half

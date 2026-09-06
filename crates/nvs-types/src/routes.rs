@@ -1463,7 +1463,7 @@ fn split_doc(text: &str) -> Option<Doc> {
 
 /// § 2's three capture forms, each holding the name it binds. A segment that is
 /// none of them is a literal, compared byte for byte and case-sensitively
-/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)),
+/// (`rule:classes/names-resolve-case-sensitively`),
 /// and is not held here at all.
 #[derive(Clone, Copy, Debug)]
 enum Capture<'a> {

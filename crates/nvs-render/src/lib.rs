@@ -312,8 +312,7 @@ pub enum Node {
     /// An `array` read by key — the map shape.
     Map(Vec<(Rendered, Node)>),
     /// A class instance: the class name and its **declared** properties, per
-    /// [ADR 0028](/docs/adr/0028-closing-the-remaining-magic-methods.md)
-    /// § 4. Never a `toString` result, and never a customization hook — ADR
+    /// `rule:classes/no-debug-hook`. Never a `toString` result, and never a customization hook — ADR
     /// 0092 § 7.
     Object {
         /// The class's rendered name.

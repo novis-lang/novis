@@ -3,7 +3,7 @@
 //! after this).
 //!
 //! There is no trait-use flattening or `insteadof` collision resolution here
-//! any more — [ADR 0043](/docs/adr/0043-interface-default-methods-and-delegation-replace-traits.md)
+//! any more — `rule:classes/no-traits`
 //! removes `trait` from the language entirely, replacing it with an
 //! interface default/private method (shared behavior) and `implements
 //! Interface by $field;` delegation (shared state). This module's own
@@ -319,7 +319,7 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 /// consulting neither `namespace` nor `imports`; a name without one is a
 /// short name, looked up in `imports` and failing that joined onto
 /// `namespace`. There is no third step — a short name in neither does not
-/// fall back to the root, because ADR 0011 removed the free functions and
+/// fall back to the root, because `rule:classes/no-free-functions-or-constants` removed the free functions and
 /// constants PHP's fallback existed for (§ 2).
 ///
 /// This is deliberately **not** PHP's rule, which read a qualified name as
@@ -461,7 +461,7 @@ fn resolve_supertype(
 /// [`crate::members::member_declared`] and every `nvs-types` signature
 /// lookup already walk, generalised here to a plain reachability question
 /// rather than a member lookup. `target` itself need not have a
-/// [`ClassGraph`] entry — a reserved global interface like ADR 0013's
+/// [`ClassGraph`] entry — a reserved global interface like `rule:classes/comparable`'s
 /// `Comparable` never does, since equality against it is checked before ever
 /// calling [`ClassGraph::get`] on it.
 ///

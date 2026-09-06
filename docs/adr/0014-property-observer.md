@@ -1,4 +1,4 @@
-# ADR 0014 — Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic`
+# `rule:classes/property-observer` — Property hooks feed a declared `PropertyObserver`; no undefined-property fallback, no `__call`/`__callStatic`
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -11,7 +11,7 @@
   item is resolved into three concrete facts: property hooks stay exactly PHP 8.4's, a new global
   `PropertyObserver` interface replaces PHP's name-triggered `__get`/`__set`, and `__call`/`__callStatic`
   are not implemented at all. M2 — gains the property-access counterpart to the "no bare-name fallback"
-  rule [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives method and constant
+  rule `rule:classes/no-free-functions-or-constants` already gives method and constant
   resolution: naming a property that does not exist on the class is refused at the same point, never
   deferred to a magic method.
 
@@ -39,9 +39,9 @@
   `__call`/`__callStatic` (same ambient shape for methods).
 - The gap: PHP has no cross-cutting hook for *every* declared property, hooked or not — `__get`/`__set` only
   ever see undefined access, so real properties with real hooks get no shared observation point.
-- Same "a method existing by this name changes behaviour" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-  `rule:statements/no-host-populated-variables` and [ADR 0013](0013-comparable-interface.md) already closed elsewhere;
-  [ADR 0013](0013-comparable-interface.md)'s `Comparable` replacement of property-walk `<`/`>` is the direct
+- Same "a method existing by this name changes behaviour" shape `rule:classes/no-free-functions-or-constants`,
+  `rule:statements/no-host-populated-variables` and `rule:classes/comparable` already closed elsewhere;
+  `rule:classes/comparable`'s `Comparable` replacement of property-walk `<`/`>` is the direct
   precedent followed here for `__get`/`__set`. `__call`/`__callStatic` get no replacement at all — dispatch by
   an unresolvable name is rejected outright.
 - Undeclared-property access as a hard error extends `rule:types/declaration`'s existing rule
@@ -82,9 +82,9 @@ interface PropertyObserver {
 }
 ```
 
-`PropertyObserver` lives in the global namespace, exactly where [ADR 0013](0013-comparable-interface.md)
+`PropertyObserver` lives in the global namespace, exactly where `rule:classes/comparable`
 put `Comparable` and PHP itself puts `Stringable` — **not** under `Core`.
-[ADR 0011](0011-functions-and-constants-are-class-members.md) reserves `Core` for domain classes holding
+`rule:classes/no-free-functions-or-constants` reserves `Core` for domain classes holding
 `static` methods and constants; `PropertyObserver` holds neither, it is a contract an ordinary class
 implements. `$name` is the property's declared name; `$value` is `mixed` because a class may have properties
 of any type and one observer method has to see all of them, the same reason `mixed` is the escape hatch
@@ -125,7 +125,7 @@ why letting it do so was rejected.
 ### 4. Zero cost for a class that does not implement `PropertyObserver`
 
 Whether a class implements `PropertyObserver` is known at compile time from its declaration, exactly like
-`Comparable` in [ADR 0013](0013-comparable-interface.md). A property with no hook on a class that does not
+`Comparable` in `rule:classes/comparable`. A property with no hook on a class that does not
 implement `PropertyObserver` compiles to a direct field load or store — no branch, no virtual call, nothing
 paid by a class that never asked for either mechanism. The cost of this ADR is exactly one ordinary virtual
 call per access, paid only by a class that implements `PropertyObserver`, which `rule:programs/memory-priority`
@@ -148,7 +148,7 @@ not on the list:
 
 - is a **compile-time diagnostic** when the property name is a literal identifier (`$obj->typo`) — the same
   point in the pipeline that already refuses an undeclared local, an unresolvable method or an unresolvable
-  constant (`rule:types/declaration`, [ADR 0011](0011-functions-and-constants-are-class-members.md));
+  constant (`rule:types/declaration`, `rule:classes/no-free-functions-or-constants`);
 - is a **checked runtime throw** when the property name is only known at runtime — the compiler cannot refuse
   it statically, but the set of valid names is still exactly the class's declared properties, and a name
   outside it throws rather than silently creating a new property the way PHP does (deprecated, but still
@@ -182,12 +182,12 @@ user code running at all.
 
 Neither name can even be declared: [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule
 requires a lowercase-first `camelCase` name with no leading-underscore allowance of any kind — unlike the
-allowance properties/parameters/locals had until [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)
+allowance properties/parameters/locals had until `rule:classes/no-leading-underscore-identifiers`
 revoked it, methods never had one to begin with — so `__call`/`__callStatic` are rejected by the casing
 checker before any call-resolution logic runs, the same generic diagnostic any other double-underscore
 method name gets. That is a stronger version of this section's intent, not a different one: calling a
 method that does not exist on a class is already a compile-time diagnostic under
-[ADR 0011](0011-functions-and-constants-are-class-members.md)'s exhaustive resolution — the same shape *5*
+`rule:classes/no-free-functions-or-constants`'s exhaustive resolution — the same shape *5*
 gives properties — so there was never a runtime moment left for dynamic dispatch to intercept; now the name
 itself cannot be written down, either. Unlike `__get`/`__set`, this ADR does not offer a declared-interface
 replacement for `__call`/`__callStatic`: the requirement behind this decision rejects the concept of
@@ -203,7 +203,7 @@ any other call.
 - One declared place — `PropertyObserver` — covers every property a class has, hooked or not, closing the
   gap PHP's `__get`/`__set` never actually filled (they only ever saw *undefined* access).
 - Costs nothing beyond an ordinary virtual call already priced by `rule:programs/memory-priority`
-  and already paid the same way by [ADR 0013](0013-comparable-interface.md) — no new storage class
+  and already paid the same way by `rule:classes/comparable` — no new storage class
   (`rule:statements/static-is-a-member-modifier`), no new runtime representation, zero cost for the common case of a
   class that implements neither interface.
 - Removes an entire class of "why didn't my `__get` fire" bug reports: there is no invisibility/accessibility
@@ -231,8 +231,8 @@ any other call.
 ## Alternatives rejected
 
 - **Ambient name-based `__get`/`__set`**, matching PHP exactly. Rejected: same "behaviour triggered by a name
-  being present, not a declaration" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-  `rule:statements/no-host-populated-variables` and [ADR 0013](0013-comparable-interface.md) already closed.
+  being present, not a declaration" shape `rule:classes/no-free-functions-or-constants`,
+  `rule:statements/no-host-populated-variables` and `rule:classes/comparable` already closed.
 - **A property's own hook as a fallback**, with `PropertyObserver` only running for hookless properties.
   Rejected: defeats the cross-cutting use case motivating this ADR, forcing that logic to be duplicated into
   every hook instead of declared once.

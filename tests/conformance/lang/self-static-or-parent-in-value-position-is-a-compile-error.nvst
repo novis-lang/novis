@@ -1,5 +1,5 @@
 --TEST--
-`self`, `static` and `parent` written where a value is expected are each `E0321`, never a panic — all three name a class, and ADR 0011 leaves no class handle for one to evaluate to
+`self`, `static` and `parent` written where a value is expected are each `E0321`, never a panic — all three name a class, and `rule:classes/no-free-functions-or-constants` leaves no class handle for one to evaluate to
 --FILE--
 <?nvs
 class Base {
@@ -10,7 +10,7 @@ class Base {
 
 final class C extends Base {
     // Each of the three names a class. There is no class-object value in
-    // Novis for one to evaluate to — ADR 0011 puts every reflective question
+    // Novis for one to evaluate to — `rule:classes/no-free-functions-or-constants` puts every reflective question
     // on `Core\Reflect` — so a bare occurrence is refused where it is
     // written rather than reaching `nvs-ir`'s dispatch.
     public static function a(): mixed {
@@ -39,20 +39,20 @@ error[E0321]: `self` names a class, and a class is not a value
    |
 14 |         return self;
    |                ^^^^ used where a value is expected
-   = help: write `self::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: ADR 0011 puts every reflective question on `Core\Reflect` instead
+   = help: write `self::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect` instead
 
 error[E0321]: `static` names a class, and a class is not a value
    --> %s:18:16
    |
 18 |         return static;
    |                ^^^^^^ used where a value is expected
-   = help: write `static::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: ADR 0011 puts every reflective question on `Core\Reflect` instead
+   = help: write `static::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect` instead
 
 error[E0321]: `parent` names a class, and a class is not a value
    --> %s:22:16
    |
 22 |         return parent;
    |                ^^^^^^ used where a value is expected
-   = help: write `parent::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: ADR 0011 puts every reflective question on `Core\Reflect` instead
+   = help: write `parent::` and the member wanted — a method call, a constant or a static property. There is no class handle to pass around: `rule:classes/no-free-functions-or-constants` puts every reflective question on `Core\Reflect` instead
 
 error: aborting due to 3 errors

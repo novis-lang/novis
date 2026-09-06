@@ -7,7 +7,7 @@ array<int> $pair = [1, 2];
 // same direction and with the same covariance a `foreach` value binding
 // gets: an `int` element does not satisfy a `string` binding.
 [string $wrong] = $pair;
-// `rule:types/implicit-capture` removed by-reference capture and ADR 0023 makes an
+// `rule:types/implicit-capture` removed by-reference capture and `rule:classes/two-copy-depths` makes an
 // element a copy, so a leaf that aliased the entry it was read from
 // would have no owner in either rule — the array literal's own `&value`
 // refusal, arrived at from the other side.

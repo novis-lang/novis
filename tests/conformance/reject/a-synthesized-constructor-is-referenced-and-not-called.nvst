@@ -1,5 +1,5 @@
 --TEST--
-A reference to a synthesized `constructor` resolves, and a written call to one is refused (`rule:attributes/structural-retrieval`, ADR 0022 § 2)
+A reference to a synthesized `constructor` resolves, and a written call to one is refused (`rule:attributes/structural-retrieval`, `rule:classes/definite-property-initialization`)
 --FILE--
 <?nvs
 type Route = {path: string};
@@ -8,7 +8,7 @@ type Route = {path: string};
 class Plain {}
 
 // Accepted first, so a position that stops being accepted fails here rather
-// than as a missing refusal. ADR 0022 § 2 gives every class a constructor,
+// than as a missing refusal. `rule:classes/definite-property-initialization` gives every class a constructor,
 // definitely, so `rule:attributes/structural-retrieval`'s class target names it whether or not the body
 // writes one.
 ?Route $route = Core\Attributes::get<Route>(Plain::constructor(...));

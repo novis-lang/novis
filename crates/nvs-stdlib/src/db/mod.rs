@@ -609,7 +609,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
             (nvs_core_db_connection_execute_many as *const ()).cast()
         }
         // One arm for both classes' rows: `Core\Db\Transaction` declares
-        // `transaction` under this symbol too, which is what ADR 0043's
+        // `transaction` under this symbol too, which is what `rule:classes/no-traits`'s
         // delegation is here — see [`TRANSACTION`].
         "nvs_core_db_connection_transaction" => {
             (nvs_core_db_connection_transaction as *const ()).cast()

@@ -20,7 +20,7 @@ roster is a roster because the language had no way to *say* what `Core\Uuid` is.
 So this goal says it. **`Parses` is a global interface — one required member, one default body — and
 `converts_from_string`'s class arm becomes "the class implements `Parses`".** `Core\Uuid` stops being a
 name in a match arm and becomes a class that carries the members, the way a `Core` class already satisfies
-[ADR 0013](../../adr/0013-comparable-interface.md)'s `Comparable` (`crates/nvs-types/src/core_lib.rs:76`).
+`rule:classes/comparable`'s `Comparable` (`crates/nvs-types/src/core_lib.rs:76`).
 Every other class in the program gets the same door on the same terms.
 
 Its floor is goal 18's whole list, which is the parity program, the six post-parity goals, M4B, and the
@@ -181,7 +181,7 @@ is refused at the door. Plus:
   distinguished only by a `Parses` capture's *content* are the same route, exactly as two `{id}` captures
   are today.
 - **This goal may open [ADR 0141] and no other new number.** Everything else is an amendment folded into
-  the existing body: ADR 0013 (the roster gains a third global interface, on the precedent it set),
+  the existing body: `rule:classes/comparable` (the roster gains a third global interface, on the precedent it set),
   `rule:expressions/try-parse` (the `tryParse` shape is now a contract and its three conditions are what the interface
   encodes), ADR 0077 § 3 and ADR 0102 §§ 3 and 5 (the type roster's last entry becomes a predicate), and
   novis.md's two prose rosters.

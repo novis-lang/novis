@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and ADR 0043 § 4's `by $field` forward, which is a whole synthesized function rather than a lowered call.
+//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-field`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -598,7 +598,7 @@ impl<'a> Lowering<'a> {
     /// program at all, since the language has no `bytes` literal.
     ///
     /// `ConstArg::Built` is the one entry that emits a **call** rather than a
-    /// constant — an instance has no constant form, so what an ADR 0011 class
+    /// constant — an instance has no constant form, so what an `rule:classes/no-free-functions-or-constants` class
     /// constant of instance type inlines is the `Core` member that produces
     /// one. It is therefore the one entry that can fail, and it carries ADR
     /// 0002's error edge like any other call.
@@ -1130,7 +1130,7 @@ impl<'a> Lowering<'a> {
     }
 }
 
-/// One ADR 0043 § 4 `implements I by $field;` forward, built as a whole
+/// One `rule:classes/delegation-by-field` `implements I by $field;` forward, built as a whole
 /// [`Function`] — the shape `nvs_types::expr_table::Delegation` decided.
 ///
 /// It is a synthesized **method** rather than a rewrite of the call site, and
@@ -1154,17 +1154,16 @@ impl<'a> Lowering<'a> {
 /// what it was handed.
 ///
 /// **`never_written` splits the entry block in two**, and it is
-/// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
-/// § 3 reaching the one read this function makes. A `lateinit` delegate field
-/// (ADR 0038) is the only one `E0720` admits that no constructor is obliged to
+/// `rule:classes/an-unwritten-property-read-throws` reaching the one read this function makes. A `lateinit` delegate field
+/// (`rule:classes/lateinit`) is the only one `E0720` admits that no constructor is obliged to
 /// fill, and dispatching on what the slot then holds is not a null-receiver
 /// bug one call down but an unbounded recursion: [`InstKind::ClassDescOf`] on
 /// a slot holding nothing reads the *forwarding* class back and the forward
 /// calls itself until the stack is gone. So the read is guarded exactly as a
 /// written `$w->logger` is — `Lowering::emit_never_written_guard` owns the
 /// argument for why the test is the payload — and the throw is the same
-/// `LogicError`, worded the same way, so that ADR 0043 § 4's forward reports
-/// the failure ADR 0022 § 3 defines rather than one of its own.
+/// `LogicError`, worded the same way, so that `rule:classes/delegation-by-field`'s forward reports
+/// the failure `rule:classes/an-unwritten-property-read-throws` defines rather than one of its own.
 ///
 /// The guarded edge is the one place this function's ownership is not the
 /// callee's: no call runs, so every argument it was transferred is released
@@ -1228,7 +1227,7 @@ pub(crate) fn delegation_forward(
             field: delegation.field.clone(),
         },
     ));
-    // ADR 0022 § 3's guard, which splits the entry block: an unguarded
+    // `rule:classes/an-unwritten-property-read-throws`'s guard, which splits the entry block: an unguarded
     // forward lowers to exactly the blocks it always did.
     let mut guard_blocks = Vec::new();
     if never_written {

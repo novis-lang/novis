@@ -1,5 +1,5 @@
 --TEST--
-An undeclared property is `E0405` on a reserved exception class exactly as on a user class, read and write alike — ADR 0014 § 5 makes the declared list exhaustive for every class kind
+An undeclared property is `E0405` on a reserved exception class exactly as on a user class, read and write alike — `rule:classes/no-dynamic-properties` makes the declared list exhaustive for every class kind
 --FILE--
 <?nvs
 try {

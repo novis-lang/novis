@@ -1,34 +1,34 @@
-# ADR 0038 — `lateinit` defers a non-nullable object property's first assignment past the constructor
+# `rule:classes/lateinit` — `lateinit` defers a non-nullable object property's first assignment past the constructor
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
 - **Scope:** one new property modifier, `lateinit`, usable only on a non-nullable, class/interface-typed
   property. Nothing else changes: scalar-typed properties, `?T` properties, locals, and every other rule
-  [ADR 0022](0022-definite-property-initialization.md) states keep working exactly as before.
+  `rule:classes/definite-property-initialization` states keep working exactly as before.
 - **Amends:** [0022](0022-definite-property-initialization.md) — resolves the *Revisiting* entry "An opt-in
   `lateinit`-equivalent" that ADR left open, and reuses rather than replaces its § 3 runtime mechanism.
 
 > **In short:** `lateinit` marks a non-nullable, object-typed property as exempt from
-> [ADR 0022](0022-definite-property-initialization.md) § 2's constructor-must-assign rule, for the case that
+> `rule:classes/definite-property-initialization`'s constructor-must-assign rule, for the case that
 > ADR named but declined to solve — a DI container, an ORM, or any setter-injection pattern that populates a
 > property after `new` returns rather than inside a constructor. It adds **no new type or value**: a
 > `lateinit` property is exactly as non-nullable as any other, it just carries the "never written" tag ADR
 > 0022 § 3 already defined for `Core\Reflect`-constructed objects, now reachable from ordinary code too. A
-> read before the first write throws the same checked, catchable error ADR 0022 § 3 already throws in that
+> read before the first write throws the same checked, catchable error `rule:classes/an-unwritten-property-read-throws` already throws in that
 > case — this ADR opens up an existing mechanism rather than building a second one. `lateinit` is restricted
 > to non-nullable class/interface types only (a scalar always has a free, real default — `= 0`, not a
 > deferred one — so there is nothing for `lateinit` to buy there), and once written, a `lateinit` property is
 > an ordinary, freely reassignable property with no write-once restriction; it cannot be combined with
 > `readonly`, whose write-once contract is the opposite promise. Alongside the runtime check, one
 > **intraprocedural, false-positive-free** compile-time check is added for free — it reuses the definite-
-> assignment dataflow ADR 0022 already runs, so it costs nothing new to build, but it only proves the
+> assignment dataflow `rule:classes/definite-property-initialization` already runs, so it costs nothing new to build, but it only proves the
 > narrow, calls-free case; nothing wider is attempted, because that would need whole-program analysis that
 > fights [ADR 0017](0017-hot-reload-without-restart.md)'s per-file hot-reload model (see *Alternatives
 > rejected*).
 
 ## Context
 
-- ADR 0022 committed to compile-time definite assignment for every non-nullable property but deliberately
+- `rule:classes/definite-property-initialization` committed to compile-time definite assignment for every non-nullable property but deliberately
   left one case open: a DI container or ORM that populates properties after `new` rather than inside a
   constructor. That pattern is common enough in ported PHP (a container/setter filling in dependencies after
   construction, a circular reference between two objects, an ORM hydrating a lazy relation) that requiring
@@ -41,8 +41,8 @@
 ## Decision
 
 **A non-nullable, class- or interface-typed property may be declared `lateinit`. Doing so exempts it from
-ADR 0022 § 2's constructor-must-assign obligation. Reading it before its first write throws the same
-checked `Throwable` ADR 0022 § 3 already defines for a `Core\Reflect`-constructed object's unwritten
+`rule:classes/definite-property-initialization`'s constructor-must-assign obligation. Reading it before its first write throws the same
+checked `Throwable` `rule:classes/an-unwritten-property-read-throws` already defines for a `Core\Reflect`-constructed object's unwritten
 property — this ADR extends that throw's reachability from reflection-only construction to any `lateinit`
 property, on any object, however it was constructed. No new type, no new value, no new runtime mechanism.**
 
@@ -55,47 +55,46 @@ property, on any object, however it was constructed. No new type, no new value, 
   free (`= 0`), which is exactly the case `lateinit` exists to cover for object types that have no such free
   placeholder.
 - `?T lateinit` is refused with `E_LATEINIT_NULLABLE` — nullability already spells "may legitimately hold no
-  value" ([ADR 0022](0022-definite-property-initialization.md) § 1); a nullable property has no need for a
+  value" (`rule:classes/no-undefined-value`); a nullable property has no need for a
   second, overlapping "not yet set" state, and `lateinit ?T $x;` read before any write would leave open
-  exactly the ambiguity ADR 0022 § 1 exists to close (is a `null` read the deliberate value, or the "not yet
+  exactly the ambiguity `rule:classes/no-undefined-value` exists to close (is a `null` read the deliberate value, or the "not yet
   written" tag surfacing?).
 - A promoted constructor parameter (`public Foo $x` in the parameter list) cannot be `lateinit`:
-  `E_LATEINIT_PROMOTED_PARAM`. Binding the parameter already is the assignment ADR 0022 § 2 requires, so
+  `E_LATEINIT_PROMOTED_PARAM`. Binding the parameter already is the assignment `rule:classes/definite-property-initialization` requires, so
   there is nothing left to defer — the two modifiers contradict each other by construction.
 - `lateinit readonly` is refused with `E_LATEINIT_READONLY_CONFLICT`. `readonly`'s contract is "assigned
   exactly once, and that assignment happens during construction"; `lateinit`'s contract, decided here, is
   "assigned after construction, and freely reassignable thereafter." The two are opposite promises about the
   same property, not a composable pair. (A write-once-but-deferred variant was considered and deferred — see
   *Revisiting*.)
-- A class with no constructor of its own is unaffected: ADR 0022 § 2's "refused at the property declaration"
+- A class with no constructor of its own is unaffected: `rule:classes/definite-property-initialization`'s "refused at the property declaration"
   rule simply does not fire for a `lateinit` property, because there is no constructor-assignment obligation
   to check in the first place.
 
-### 2. Runtime semantics — reusing ADR 0022 § 3's mechanism, not building a second one
+### 2. Runtime semantics — reusing `rule:classes/an-unwritten-property-read-throws`'s mechanism, not building a second one
 
-A `lateinit` property's storage carries the same "never written" tag ADR 0022 § 3 already introduced for
+A `lateinit` property's storage carries the same "never written" tag `rule:classes/an-unwritten-property-read-throws` already introduced for
 `Core\Reflect`-constructed objects, at the same zero-additional-bytes cost (one more discriminant on the
 existing tagged-value representation, per `rule:programs/memory-priority`'s accounting — nothing
 new to account for here). What changes is only *which properties can carry that tag outside of reflection*:
 before this ADR, only a `Core\Reflect`-bypassed construction could leave a non-nullable property unwritten;
 after it, an ordinarily-constructed object can too, for any property its class marked `lateinit`.
 
-- Reading a `lateinit` property that has never been written throws the identical checked `Throwable` ADR
-  0022 § 3 defines — an ordinary, catchable error, not routed through
+- Reading a `lateinit` property that has never been written throws the identical checked `Throwable` `rule:classes/an-unwritten-property-read-throws` defines — an ordinary, catchable error, not routed through
   `rule:errors/escalation-ladder`'s fatal ladder, propagated exactly like any other checked
   failure (`rule:errors/propagation`).
 - Writing a `lateinit` property — the first time or any later time — behaves exactly like writing any other
   mutable property. There is no write-once tracking: once assigned, it stays an ordinary property for the
   rest of the object's life, indistinguishable from one that was assigned in the constructor.
 - Nothing here changes how a `lateinit` property crosses `clone`, `serialize()`/`unserialize()`, or an
-  isolate boundary ([ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)): a copy's source object is
+  isolate boundary (`rule:classes/two-copy-depths`): a copy's source object is
   already fully in scope for that operation, and if the source itself still holds an unwritten `lateinit`
   property, the copy inherits the same unwritten tag and throws under the same rule on the same first read —
   no special case needed.
 
 ### 3. The one compile-time check added — intraprocedural, and provably free of false positives
 
-ADR 0022's definite-assignment dataflow already computes, at every program point inside a function body,
+`rule:classes/definite-property-initialization`'s definite-assignment dataflow already computes, at every program point inside a function body,
 whether a given property is provably assigned yet. Extending that same pass to also run inside *every*
 method (not only constructors), with a `lateinit` property entering the method in the "not yet proven
 written" state instead of being exempt from the check outright, catches one narrow, genuinely free case: a
@@ -109,7 +108,7 @@ call-free stretch of code before it is ever set — and says nothing at all abou
 cross-object case that motivated `lateinit` in the first place; that case still relies entirely on § 2's
 runtime throw. The diagnostic is `E_LATEINIT_READ_BEFORE_WRITE_LOCAL`, phrased as a warning-shaped compile
 error rather than a suggestion, since — within the narrow shape it covers — it is exactly as certain as any
-other definite-assignment diagnostic ADR 0022 already emits.
+other definite-assignment diagnostic `rule:classes/definite-property-initialization` already emits.
 
 No interprocedural or whole-program analysis is added — see *Alternatives rejected* for why that option,
 raised and considered, is not worth its cost here.
@@ -118,15 +117,15 @@ raised and considered, is not worth its cost here.
 
 **Positive**
 
-- Closes ADR 0022's own deferred item with the smallest addition that actually solves the motivating case:
+- Closes `rule:classes/definite-property-initialization`'s own deferred item with the smallest addition that actually solves the motivating case:
   DI/setter injection and ORM-style post-construction population no longer force a property to be `?T`
   forever or backed by a placeholder instance it never legitimately holds.
 - Zero new runtime mechanism and zero new memory cost: the "never written" tag and its throw already exist
-  from ADR 0022 § 3; this ADR only widens which properties may carry it.
+  from `rule:classes/an-unwritten-property-read-throws`; this ADR only widens which properties may carry it.
 - The one compile-time addition reuses the existing definite-assignment pass rather than adding a second
   analysis, and is constructed to never produce a false positive, so it costs nothing in code trust for
   whatever small number of bugs it does catch.
-- Keeps ADR 0022's core guarantee — no new `undefined` type, no silent per-type default — completely intact.
+- Keeps `rule:classes/definite-property-initialization`'s core guarantee — no new `undefined` type, no silent per-type default — completely intact.
   `lateinit` does not weaken the promise a non-nullable type makes about its *value space*; it only moves
   *when* the one, still-mandatory real assignment is allowed to happen, and still fails loudly, never
   silently, if that promise is broken.
@@ -167,22 +166,22 @@ raised and considered, is not worth its cost here.
   code shows a common pattern of "written exactly once, by exactly one caller, then must never change again,
   but not necessarily during construction," this deserves its own ADR rather than retrofitting one here —
   it needs a tracked write-count check this ADR's freely-reassignable design does not build.
-- **Whether a `lateinit` property backed by a `set` hook** ([ADR 0014](0014-property-observer.md)) should
-  discharge its "never written" tag the moment the hook first commits a value, mirroring how ADR 0022 § 2
-  already treats a hooked property inside a constructor. Left to `docs/spec/`, the same deferral ADR 0022
+- **Whether a `lateinit` property backed by a `set` hook** (`rule:classes/property-observer`) should
+  discharge its "never written" tag the moment the hook first commits a value, mirroring how `rule:classes/definite-property-initialization`
+  already treats a hooked property inside a constructor. Left to `docs/spec/`, the same deferral `rule:classes/definite-property-initialization`
   already uses for its own per-property hook internals.
 - **Whether `nvs convert` (M11) should recognize a PHP class's setter-injection pattern and suggest
   `lateinit`** rather than leaving the converted property `?T` with manual null-checks everywhere. A
-  migration-quality question, not a language-semantics one — belongs with ADR 0022's own M11 entry once that
+  migration-quality question, not a language-semantics one — belongs with `rule:classes/definite-property-initialization`'s own M11 entry once that
   milestone starts.
 
 Verification, in the order it becomes possible:
 
 - **M2**: the checker accepts `lateinit` only on a non-nullable class/interface-typed property, refusing
   `?T lateinit`, a `lateinit` promoted parameter, and `lateinit readonly` with the three diagnostics named
-  in § 1; a `lateinit` property does **not** trigger ADR 0022 § 2's constructor-must-assign diagnostic; the
+  in § 1; a `lateinit` property does **not** trigger `rule:classes/definite-property-initialization`'s constructor-must-assign diagnostic; the
   § 3 intraprocedural check fires on a call-free read-before-write inside one method and stays silent once
   any call intervenes on that path.
-- **M4**: reading a never-written `lateinit` property throws the same checked error ADR 0022 § 3's
+- **M4**: reading a never-written `lateinit` property throws the same checked error `rule:classes/an-unwritten-property-read-throws`'s
   verification already covers for `Core\Reflect`-constructed objects; writing it first and reading after
   succeeds; a second, later write succeeds with no write-once restriction.

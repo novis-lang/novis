@@ -304,7 +304,7 @@ echo $a * $b;
     );
 }
 
-/// ADR 0013 § 2's `<=>` over a *scalar*, which until now had only an object
+/// `rule:classes/ordering-lowers-to-compare-to`'s `<=>` over a *scalar*, which until now had only an object
 /// row: `-1`, `0` or `1` as an `int`, never the operands' own type, over every
 /// representation the relational operators already order.
 ///

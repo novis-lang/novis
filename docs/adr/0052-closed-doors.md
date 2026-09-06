@@ -105,7 +105,7 @@ Four separate mechanisms depend on the set of code in a program being known befo
 `require` graph (`rule:statements/require-is-the-only-inclusion-construct`) is what
 [ADR 0048](0048-portable-single-file-executables.md) § 3 bundles; the artifact cache
 ([ADR 0042](0042-on-disk-artifact-cache-format.md)) is keyed on unit content; definite assignment
-([ADR 0022](0022-definite-property-initialization.md)) and taint tracking
+(`rule:classes/definite-property-initialization`) and taint tracking
 ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)) are whole-program compile-time analyses. `eval`
 does not weaken these one at a time — it makes all four unsound at once, and the escape hatches that would
 be needed to keep them (a "no eval reached this file" analysis) are exactly as hard as not having it.
@@ -150,7 +150,7 @@ or a plugin loader actually needs, with a boundary that `eval` never had.
 - **A read-only shared segment** for caches, with writes going through a coordinator. Rejected: read-only
   is not the property that matters. Any shared mapping means one request's failure can leave another
   request's view inconsistent, and the value it holds still crosses the boundary
-  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) governs.
+  `rule:classes/two-copy-depths` governs.
 
 ## Verification
 

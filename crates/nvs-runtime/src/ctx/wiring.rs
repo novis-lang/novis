@@ -20,7 +20,7 @@ use super::*;
 /// and the write-back at its end.
 ///
 /// **Deliberately not a [`Value`].** The record crosses the store boundary as
-/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)'s
+/// `rule:classes/two-copy-depths`'s
 /// byte carrier in both directions — ADR 0139 § 2 says so, for the same reason
 /// a `Core\Cache` entry does — so holding the bytes means the context has
 /// nothing to release at teardown and holds no object that could name a

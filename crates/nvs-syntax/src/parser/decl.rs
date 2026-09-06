@@ -12,10 +12,9 @@
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
 //! [`Parser::report_trait_not_supported`]) rather than built into any AST node
-//! — ADR 0043 § 1. A class's `implements` list instead grows an optional `by
-//! $field` suffix per entry ([`Parser::parse_implements_clause`], ADR 0043
-//! § 4). A top-level `function`/`const` is the same shape of reject, one layer
-//! out: ADR 0011 makes every function a method and every constant a class
+//! — `rule:classes/no-traits`. A class's `implements` list instead grows an optional `by
+//! $field` suffix per entry ([`Parser::parse_implements_clause`], `rule:classes/delegation-by-field`). A top-level `function`/`const` is the same shape of reject, one layer
+//! out: `rule:classes/no-free-functions-or-constants` makes every function a method and every constant a class
 //! constant, so both are parsed and diagnosed rather than left to fail.
 //!
 //! Part of [`super`]'s one `impl Parser`, split across this directory so a
@@ -462,7 +461,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     // ========================================================================
-    // Classes, interfaces, traits (ADR 0011 §§ 1/4, ADR 0043)
+    // Classes, interfaces, traits (`rule:classes/no-free-functions-or-constants`/4, `rule:classes/no-traits`)
     // ========================================================================
 
     pub(super) fn parse_class_decl(&mut self, start: Span) -> Stmt {
@@ -504,7 +503,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `implements`'s comma-separated list, each entry optionally suffixed
-    /// with `by $field` (ADR 0043 § 4) — the class-only extension of
+    /// with `by $field` (`rule:classes/delegation-by-field`) — the class-only extension of
     /// [`Self::parse_name_list`], which every other `extends`/`implements`
     /// list (an interface's `extends`, an enum's rejected `implements`, an
     /// anonymous class's `implements`) still uses unchanged, since
@@ -579,7 +578,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.finish_trait_decl(start, Vec::new())
     }
 
-    /// `trait Name { ... }` — rejected outright (ADR 0043 § 1): there is no
+    /// `trait Name { ... }` — rejected outright (`rule:classes/no-traits`): there is no
     /// `TraitDecl` AST node left to build, so this still consumes the whole
     /// declaration (name through the closing brace, via
     /// [`Self::parse_class_body`], its members discarded) so a malformed
@@ -603,7 +602,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
     }
 
-    /// ADR 0043 §§ 1, 7: `E_TRAIT_NOT_SUPPORTED` for any of the three
+    /// `rule:classes/no-traits`: `E_TRAIT_NOT_SUPPORTED` for any of the three
     /// removed constructs — a `trait` declaration, a class-body
     /// `use TraitName, ...;`, or an `insteadof` adaptation (which, with the
     /// whole adaptation-block grammar gone, can now only ever be encountered
@@ -614,7 +613,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(span, "not supported")
                 .with_help(
                     "use an interface default/private method for shared behavior, or \
-                     `implements Interface by $field;` for shared state (ADR 0043)",
+                     `implements Interface by $field;` for shared state (`rule:classes/no-traits`)",
                 ),
         );
     }
@@ -852,7 +851,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `Type '$'name (',' '$'name)* ';'`, or the single-declarator hooked
     /// form `Type '$'name '{' hooks '}'` (PHP 8.4 property hooks, feeding
-    /// `PropertyObserver` — ADR 0014). A hooked property is never part of a
+    /// `PropertyObserver` — `rule:classes/property-observer`). A hooked property is never part of a
     /// comma list — real PHP requires it declared alone — so the hooked
     /// branch returns as soon as it is taken.
     pub(super) fn parse_property_members(
@@ -902,7 +901,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `{ hook+ }` — PHP 8.4's property-hook block, kept exactly as PHP has
-    /// it (ADR 0014 § 1: this ADR "adds no new syntax beyond an ordinary
+    /// it (`rule:classes/property-hooks`: this ADR "adds no new syntax beyond an ordinary
     /// interface declaration"). Mirrors [`Self::parse_block`]'s
     /// force-progress guard.
     pub(super) fn parse_property_hooks(&mut self) -> Vec<PropertyHook> {
@@ -991,7 +990,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `use TraitName, ...; (';' | '{' ... '}')` inside a class body —
-    /// rejected outright (ADR 0043 § 1), same shape as
+    /// rejected outright (`rule:classes/no-traits`), same shape as
     /// [`Self::finish_trait_decl`]: there is no `UseTraitMember` AST node
     /// left to build. The trait names and, if written, the whole `{ ... }`
     /// adaptation block (which is where an `insteadof`/`as` clause could
@@ -1024,7 +1023,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Consumes a `{ ... }` block without interpreting its contents, tracking
     /// nested braces so a well-formed skip still lands past the matching
-    /// close — used only where ADR 0043 has removed a construct's grammar
+    /// close — used only where `rule:classes/no-traits` has removed a construct's grammar
     /// (a trait `use` block's `insteadof`/`as` adaptations) but a bare
     /// "consume tokens until this closes" is still needed to keep the parser
     /// from desynchronizing.
@@ -1197,7 +1196,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     // ========================================================================
     // The statement-shaped rejects: a top-level `function`/`const`
-    // (ADR 0011 § 1)
+    // (`rule:classes/no-free-functions-or-constants`)
     // ========================================================================
 
     /// `#[...]` groups precede a class/interface/trait/enum declaration, a
@@ -1252,7 +1251,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "a function must be a method",
             )
             .with_primary(span, "not inside any class")
-            .with_help("wrap it in a class as `public static function` (ADR 0011 § 1)"),
+            .with_help("wrap it in a class as `public static function` (`rule:classes/no-free-functions-or-constants`)"),
         );
         Stmt {
             span,
@@ -1273,7 +1272,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "a constant must belong to a class",
             )
             .with_primary(span, "not inside any class")
-            .with_help("declare it `public const` on the class it belongs to (ADR 0011 § 1)"),
+            .with_help("declare it `public const` on the class it belongs to (`rule:classes/no-free-functions-or-constants`)"),
         );
         Stmt {
             span,

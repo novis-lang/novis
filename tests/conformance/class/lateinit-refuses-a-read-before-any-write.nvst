@@ -1,5 +1,5 @@
 --TEST--
-a `lateinit` property read on a path that has written nothing to it is caught while compiling, not left to throw — ADR 0038 § 3
+a `lateinit` property read on a path that has written nothing to it is caught while compiling, not left to throw — `rule:classes/lateinit-read-before-write`
 --FILE--
 <?nvs
 class Engine {

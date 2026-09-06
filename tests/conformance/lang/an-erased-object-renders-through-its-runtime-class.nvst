@@ -1,5 +1,5 @@
 --TEST--
-An object whose static type names no class renders through its runtime `toString`, and every spelling of the conversion agrees (ADR 0028 § 1, `rule:types/erased-member-access`, `rule:types/conversion`)
+An object whose static type names no class renders through its runtime `toString`, and every spelling of the conversion agrees (`rule:classes/stringable`, `rule:types/erased-member-access`, `rule:types/conversion`)
 --FILE--
 <?nvs
 class Tag implements Stringable {
@@ -18,7 +18,7 @@ object $o = new Tag();
 Tag $t = new Tag();
 mixed $m = new Tag();
 
-// ADR 0028 § 1 makes `as string`, `.` and `echo` one conversion, so what a
+// `rule:classes/stringable` makes `as string`, `.` and `echo` one conversion, so what a
 // value renders as may not depend on which binding read it. Counted rather
 // than read off a line: a spelling that grew an answer of its own fails here
 // while still printing plausibly on its own.

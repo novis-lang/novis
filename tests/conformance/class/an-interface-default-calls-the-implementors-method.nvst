@@ -1,5 +1,5 @@
 --TEST--
-An interface default body is a template method — it calls the abstract member each implementor supplies, and dispatches to the one the receiver actually has (ADR 0043)
+An interface default body is a template method — it calls the abstract member each implementor supplies, and dispatches to the one the receiver actually has (`rule:classes/no-traits`)
 --FILE--
 <?nvs
 interface Greeter {

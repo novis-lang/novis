@@ -153,7 +153,7 @@ division orders
 throws: no ordering for a `string` against a `string` — `Core\Str::compare` is the ordering two strings have
 throws: no ordering for a `int` against a `string`
 throws: no ordering for a `null` against a `int`
-throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written (ADR 0013)
+throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written (`rule:classes/comparable`)
 throws: no ordering for a `array<T>` against a `array<T>`
 equality still answers
 throwsthrowsthrows throws

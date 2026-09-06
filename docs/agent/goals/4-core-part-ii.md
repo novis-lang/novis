@@ -172,7 +172,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
     (`crates/nvs-ir/src/ir.rs:675`, `:715`), whose write check's four known gaps
     (`crates/nvs-runtime/src/object.rs:140`) close by carrying the declared type beside
     `field_tags`/`secret_fields` (`:584`). The write calls item 24's shared visibility-and-hook check —
-    that is why the order. `$obj->$m()` stays refused, ADR 0014 § 6. Its own file set.
+    that is why the order. `$obj->$m()` stays refused, `rule:classes/no-call-magic`. Its own file set.
 25. **`Core\Attributes`' retrieval body** — `rule:attributes/structural-retrieval`, `rule:attributes/retrieval-folds-while-checking` and `rule:attributes/call-site-type-argument`. `get<T>` on a site with zero matches compiles to a constant `null`, one match compiles to that
     constant value **with no runtime lookup**, and more than one is a compile-time diagnostic naming
     `all<T>`. M4 landed the attach grammar and the call-site `<T>`; this is the half that reads.
@@ -241,7 +241,7 @@ Added 2026-09-01 by the user's decision: [ADR 0127](../../adr/0127-the-end-of-a-
 — `Core\Script::onExit`, the end-of-script queue that closes the one ending no user code could observe
 (`exit` runs no `finally`). The ADR is the whole contract: § 2's three endings fire the queue, § 3's
 `FATAL` and cancellation never do, § 4 orders it after tier 2 and before native teardown, § 5 makes it
-observe-only. Nothing here reopens ADR 0028 — a flat per-request queue is not a destructor walk.
+observe-only. Nothing here reopens `rule:classes/no-magic-methods` — a flat per-request queue is not a destructor walk.
 
 38. **The member and its report.** `Core\Script` joins the registry with the five edits of conventions §
     *A `Core` member*: `onExit(callable $hook): void`, the `Script\ExitReason` enum (`Normal`,

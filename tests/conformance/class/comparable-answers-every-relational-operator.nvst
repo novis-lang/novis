@@ -1,5 +1,5 @@
 --TEST--
-one `compareTo` drives `<`, `>`, `<=`, `>=` and `<=>` alike, and its sign is what each of them reads — ADR 0013 § 2
+one `compareTo` drives `<`, `>`, `<=`, `>=` and `<=>` alike, and its sign is what each of them reads — `rule:classes/ordering-lowers-to-compare-to`
 --FILE--
 <?nvs
 class Version implements Comparable {

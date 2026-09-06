@@ -52,7 +52,7 @@
 > a scheduled run's and a job worker's captured output, not only a tty), `Core\Log` (the opposite of `tainted`'s "logging
 > it is the point" stance), debug-dump output and `Throwable` messages (a redaction placeholder, not the real
 > value), `serialize()`/the isolate-crossing boundary (one refusal for the one operation
-> [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified), and — per
+> `rule:classes/two-copy-depths` already unified), and — per
 > `rule:attributes/inert-metadata` — an attribute payload position, since only a
 > compile-time constant may appear there and a `secret` class constant is one. The only way to remove
 > `secret` outside a checked conversion is a narrow, named `Core` function —
@@ -79,7 +79,7 @@
   opposite default, which a parameter-type refusal can't express on an already-`mixed` parameter — forcing
   `nvs check` to inspect `Core\Log::write`'s call-site argument expressions instead, a mechanism `tainted`
   never needed.
-- [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already unified `serialize()`/`unserialize()`
+- `rule:classes/two-copy-depths` already unified `serialize()`/`unserialize()`
   and the `spawn`/`spawn worker`/`spawn script` boundary into one operation to avoid two implementations to
   keep correct. This ADR refuses `secret` at that one operation for both callers rather than reopening the
   seam (*Alternatives rejected*, *Revisiting*).
@@ -187,7 +187,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   once a developer has explicitly said so.
 - **Debug-dump output** (`Core\Debug::dump`) — a property whose *declared* type carries
   `secret` is shown as a fixed redaction placeholder (illustrative: `secret(redacted)`) instead of its
-  current value, amending [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 4's "always show real
+  current value, amending `rule:classes/no-debug-hook`'s "always show real
   declared properties and their real current values" guarantee for this one qualifier. It is a **Redacted
   node** in [0092](0092-one-diagnostic-record-three-renderings.md) § 1's record model, so the plaintext,
   JSON and HTML renderings — and a `Throwable`'s trace, and a `#[Test]` failure — all inherit it from one
@@ -202,7 +202,7 @@ the same trust `Core\Html::escape()`'s author already carries for `tainted`.
   message without `Core\Secret::reveal()` first — closing the common real-world leak of a credential ending
   up in a stack trace or an error page.
 - **`serialize()` and the `spawn`/`spawn worker`/`spawn script` boundary** — refused at the one recursive
-  graph-copy operation [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md) already defines, for both
+  graph-copy operation `rule:classes/two-copy-depths` already defines, for both
   its callers alike, rather than drawing a new distinction between "crossing to a live isolate" and
   "externalizing to bytes." `Core\Secret::reveal()` before the call is the intended escape when a worker
   genuinely needs a credential to do its job — explicit, greppable, and it puts the decision at the one call
@@ -301,7 +301,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   [AGENTS.md](../../AGENTS.md)'s ordering makes, not one this ADR invents.
 - **`serialize()`/isolate-crossing refuses `secret` unconditionally**, which may add real friction to a
   legitimate pattern (a `spawn worker` that exists specifically to isolate credential handling) in exchange
-  for keeping [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s one-operation unification intact.
+  for keeping `rule:classes/two-copy-depths`'s one-operation unification intact.
 
 ## Alternatives rejected
 
@@ -309,14 +309,14 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   the shape-vs-confidentiality distinction in *Context*. Rejected for this first cut in favor of the simpler,
   `tainted`-consistent rule; flagged in *Revisiting* rather than silently dropped.
 - **Split `serialize()`-to-bytes from the live `spawn`/`spawn worker` boundary**, allowing `secret` to cross
-  the latter but not the former. Rejected to preserve [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s
+  the latter but not the former. Rejected to preserve `rule:classes/two-copy-depths`'s
   "one operation, two callers" unification. Flagged in *Revisiting*.
 - **An opaque `Core\Secret` wrapper value type instead of a qualifier.** Would enable runtime memory zeroing
   later, at the cost of a second mechanism alongside `tainted`'s qualifier style plus a wrapper's usual
   friction (no implicit interpolation, explicit unwrap everywhere). Rejected as heavier than the problem
   needs.
 - **Runtime memory zeroing of `secret` values on scope exit.** Rejected outright: needs a destructor-shaped
-  hook, and [ADR 0028](0028-closing-the-remaining-magic-methods.md) § 2 already rules out destructors of any
+  hook, and `rule:classes/no-destructors` already rules out destructors of any
   kind for the same reasons (no sound throw-reporting spot, undoes the wholesale-heap-drop request model).
   `secret` stays compile-time-only and erased before codegen, like `tainted`, per
   `rule:programs/memory-priority`'s ordering.
@@ -337,7 +337,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 - **Whether `serialize()`/the isolate boundary should split** into "refuse `secret` only when externalizing
   to bytes, allow it across a live `spawn worker`/`spawn script` arena." Revisit if the blanket refusal proves
   to be real friction for a credential-isolating worker pattern, weighed against reopening
-  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md)'s unification.
+  `rule:classes/two-copy-depths`'s unification.
 - **Which built-in `Core` accessors, if any, should return `secret` by convention** — a future
   `Core\Env`/config class distinguishing `get()` from a `secret()`-returning accessor, or a `Core\Db` column
   type hint — is real stdlib design, deferred to whichever milestone designs that class's real API, the same
@@ -363,7 +363,7 @@ Verification, in the order it becomes possible:
   instead of its value, in every one of
   [0092](0092-one-diagnostic-record-three-renderings.md) § 3's renderings, while every other declared
   property (including `tainted`-only ones) still shows its
-  real value per [ADR 0028](0028-closing-the-remaining-magic-methods.md)'s unchanged general rule.
+  real value per `rule:classes/no-magic-methods`'s unchanged general rule.
 - **M5** (the plan's own milestone for `spawn`/cross-core worker dispatch, `spawn script`, and
   `serialize()`/`unserialize()` sharing the graph-copy walk): a `secret`-qualified value passed across the
   `spawn worker`/`spawn script` boundary, or into `serialize()` directly, is refused at compile time with a

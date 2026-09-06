@@ -1,5 +1,5 @@
 --TEST--
-Every Core\Math constant is what the class's own members answer at a landmark, spec § 3 and ADR 0011 § 1
+Every Core\Math constant is what the class's own members answer at a landmark, spec § 3 and `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
 // The *agreement* shape (conventions.md): every constant is asked of the

@@ -1,5 +1,5 @@
-//! ADR 0038 § 3 — the one intraprocedural, false-positive-free `lateinit`
-//! read-before-write check: reuses ADR 0022 § 2's [`crate::ctor_init`]
+//! `rule:classes/lateinit-read-before-write` — the one intraprocedural, false-positive-free `lateinit`
+//! read-before-write check: reuses `rule:classes/definite-property-initialization`'s [`crate::ctor_init`]
 //! definite-assignment idea (tracking "definitely written so far" and
 //! joining branches by intersection, the same conservative direction
 //! [`crate::locals`]'s own "read before definite assignment" check for
@@ -38,7 +38,7 @@
 //!   [`crate::signatures::own_lateinit_properties`]) are tracked here. A
 //!   property declared `lateinit` on a parent class, read through `$this` in
 //!   a *subclass*'s own method, is not checked by this pass at all — it
-//!   relies entirely on ADR 0038 § 2's runtime throw. This mirrors
+//!   relies entirely on `rule:classes/lateinit`'s runtime throw. This mirrors
 //!   `crate::signatures::own_required_properties`'s own choice to exclude
 //!   `extends`, for the same reason: the property is checked when its own
 //!   declaring class's methods are checked, not re-derived here.
@@ -49,7 +49,7 @@
 //!   diagnostic is never a false positive.
 //! - A `set`-hooked `lateinit` property is not modeled specially here either
 //!   (mirroring `crate::ctor_init`'s identical gap for a hooked required
-//!   property) — see ADR 0038's own *Revisiting* section, which defers this
+//!   property) — see `rule:classes/lateinit`'s own *Revisiting* section, which defers this
 //!   exact question to `docs/spec/`.
 
 use nvs_diagnostics::{Diagnostic, code};
@@ -63,7 +63,7 @@ use crate::expr::is_this_receiver;
 use crate::signatures::own_lateinit_properties;
 use crate::{Env, span_text, strip_sigil};
 
-/// Runs ADR 0038 § 3's check over every method `decl` declares with a body,
+/// Runs `rule:classes/lateinit-read-before-write`'s check over every method `decl` declares with a body,
 /// for each of `qname`'s own `lateinit` properties. A class with none of its
 /// own does nothing — there is nothing to track.
 pub(crate) fn check_class_lateinit_reads(decl: &ClassDecl, qname: &QName, env: &mut Env<'_>) {
@@ -274,7 +274,7 @@ fn walk_stmt(
 /// `e` directly nests one of a handful of common composite forms — see the
 /// module docs' known gaps for what this does not descend into. Any call
 /// (`Call`/`MethodCall`/`StaticCall`) conservatively marks *every* tracked
-/// property written, per ADR 0038 § 3.
+/// property written, per `rule:classes/lateinit-read-before-write`.
 fn scan_expr(
     e: &Expr,
     written: &mut FxHashSet<String>,
@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn a_call_before_the_read_silences_the_check() {
-        // ADR 0038 § 3: a call is opaque and immediately assumed to have
+        // `rule:classes/lateinit-read-before-write`: a call is opaque and immediately assumed to have
         // written every tracked property, so no diagnostic fires here even
         // though `init()` might not actually assign `$logger`.
         let diags = check_src(

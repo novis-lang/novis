@@ -35,7 +35,7 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 ///
 /// Anything else — an object, an array, or two different rows above — is
 /// `THROWN`, naming both tags and the `member` that asked. An object is the
-/// one worth calling out: ADR 0013 makes `Comparable` the answer, and reaching
+/// one worth calling out: `rule:classes/comparable` makes `Comparable` the answer, and reaching
 /// an instance method from a helper is the thing that is not built yet.
 pub(crate) fn compare_values(
     left: &Value,
@@ -76,7 +76,7 @@ pub(crate) fn compare_values(
     Err(Fault::thrown(format!(
         "{member} has no natural order for tag {} against tag {}: two numbers, two strings, two \
          bools or two nulls have one and no other pair does. `Core\\Arr::sort` takes \
-         `{{comparator: ...}}`; for an object ADR 0013 makes `Comparable` the answer",
+         `{{comparator: ...}}`; for an object `rule:classes/comparable` makes `Comparable` the answer",
         left.tag_byte(),
         right.tag_byte()
     )))

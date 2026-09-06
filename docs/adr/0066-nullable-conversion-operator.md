@@ -38,7 +38,7 @@
   twice** on the request path and requires the two definitions to agree forever. That hazard was closed by
   hand in [spec § 13](../spec/01-core-library.md), by defining the predicate as "true exactly when `as int`
   succeeds". Closing it by construction is better than closing it by prose.
-- [ADR 0022](0022-definite-property-initialization.md) § 1 already settles that `?T` is Novis's one spelling
+- `rule:classes/no-undefined-value` already settles that `?T` is Novis's one spelling
   for a value that may legitimately be absent. Nothing new is being introduced here; an existing type is
   being produced by an existing operator.
 - The shape is well-tested elsewhere. Swift spells it `as?` (`as` / `as?` / `as!` is its full three-way

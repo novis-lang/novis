@@ -241,7 +241,7 @@ pub fn own_properties(name: &str) -> &'static [&'static str] {
 /// Whether `name` declares a synthesized constructor of its own.
 ///
 /// Exactly the classes with own properties: a constructor exists to assign
-/// them ([ADR 0022](/docs/adr/0022-definite-property-initialization.md)),
+/// them (`rule:classes/definite-property-initialization`),
 /// so a class that adds none inherits its parent's and needs no second one.
 /// `nvs_ir::lower::exception` is what actually builds each body.
 #[must_use]

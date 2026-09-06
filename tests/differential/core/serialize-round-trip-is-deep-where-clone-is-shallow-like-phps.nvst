@@ -2,7 +2,7 @@
 A Core\Serialize round-trip shares nothing with its source where clone shares everything one level down, and PHP's serialize/unserialize pair draws the line in the same place
 --FILE--
 <?nvs
-// The two copies ADR 0023 distinguishes, asked the same question in one
+// The two copies `rule:classes/two-copy-depths` distinguishes, asked the same question in one
 // program: `clone` is the language's shallow copy (§ 1) and the graph copy
 // shares no mutable heap state with its source (§ 2). Asserting them together
 // is what makes the second one mean something — a "deep copy" that was really

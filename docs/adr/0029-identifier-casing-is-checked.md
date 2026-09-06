@@ -16,7 +16,7 @@
 > and local variables are `camelCase`. Class constants are `SCREAMING_SNAKE_CASE`. **Only the leading
 > character is checked** — the rest need only be alphanumeric ASCII, so `HTTPClient` and `parseXMLPayload`
 > are accepted on equal footing with `HttpClient` and `parseXmlPayload`. **No identifier may begin with `_`,
-> in any category** ([ADR 0030](0030-no-leading-underscores-constructor-spelling.md)), which is what leaves
+> in any category** (`rule:classes/no-leading-underscore-identifiers`), which is what leaves
 > the rule with zero exceptions. There is exactly one accepted spelling per category, decided while the
 > standard library is still unwritten, because renaming it later is a breaking change with no deprecation
 > path under `rule:statements/nothing-gets-a-second-name`.
@@ -25,7 +25,7 @@
 
 - PHP enforces only legal *characters*, never *case* — `php-src` itself mixes `snake_case` functions
   (`array_map`), `camelCase` methods (`DateTime::createFromFormat`) and inconsistently-cased class names.
-- [ADR 0011](0011-functions-and-constants-are-class-members.md) forced the question: PHP could dodge "what
+- `rule:classes/no-free-functions-or-constants` forced the question: PHP could dodge "what
   casing does a method or constant take" by having free functions and global constants; Novis closed that.
 - More formalization than new choice — every accepted ADR's examples already followed one style by accident
   of single authorship, an accident that stops holding the moment a second contributor writes code.
@@ -66,7 +66,7 @@ needs no dictionary and no judgment.
 ### 2. No identifier begins with an underscore
 
 `_cache`, `$_unused`, `__cache` are all rejected, in every category —
-[ADR 0030](0030-no-leading-underscores-constructor-spelling.md) owns that rule and the reasoning. It is
+`rule:classes/no-leading-underscore-identifiers` owns that rule and the reasoning. It is
 what makes this ADR exception-free: with the constructor spelled `constructor` rather than `__construct`,
 there is no reserved name left that a casing rule has to be told to skip.
 
@@ -85,7 +85,7 @@ A name that must violate the convention — because it mirrors an external wire 
   `{suggested}`*
 - A class constant not matching `SCREAMING_SNAKE_CASE` → *class constants must be SCREAMING_SNAKE_CASE,
   e.g. `{suggested}`*
-- A leading underscore in any category → [ADR 0030](0030-no-leading-underscores-constructor-spelling.md)'s
+- A leading underscore in any category → `rule:classes/no-leading-underscore-identifiers`'s
   diagnostic, which also covers `__construct` by naming `constructor`.
 
 Every diagnostic names a mechanically-derived suggestion (split on existing case/underscore boundaries,

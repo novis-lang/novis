@@ -220,7 +220,7 @@ impl Ctx {
     /// or `None` for a name it does not declare.
     ///
     /// The one route from a `Core` member to a class the *program* wrote, and
-    /// it exists for [`crate::graph::decode`]: ADR 0023 § 3 refuses a payload
+    /// it exists for [`crate::graph::decode`]: `rule:classes/serialize-is-a-closed-format` refuses a payload
     /// naming a class the receiving side cannot resolve, which is a question
     /// only the compiled unit's own table can answer. It reads the table
     /// [`Self::set_runtime_error_class`] installed rather than a second

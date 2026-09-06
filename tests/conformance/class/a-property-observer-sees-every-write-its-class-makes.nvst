@@ -1,14 +1,14 @@
 --TEST--
-A class implementing `PropertyObserver` is told of every read and write of every property it declares, hooked or not, always after the value has settled — ADR 0014 §§ 2, 3, 4
+A class implementing `PropertyObserver` is told of every read and write of every property it declares, hooked or not, always after the value has settled — `rule:classes/property-observer`, `rule:classes/property-observer-pipeline` and `rule:classes/property-observer-costs-nothing-when-unused`
 --FILE--
 <?nvs
-// ADR 0014 § 2: `PropertyObserver` is a reserved *global* interface, named
+// `rule:classes/property-observer`: `PropertyObserver` is a reserved *global* interface, named
 // like `Comparable` and `Stringable` and not under `Core`. `$value` is
 // `mixed` because one observer sees properties of every type.
 class Account implements PropertyObserver {
     public string $owner;
     public int $balance;
-    // ADR 0014 § 1: a property's own hook is kept exactly as PHP 8.4 defines
+    // `rule:classes/property-hooks`: a property's own hook is kept exactly as PHP 8.4 defines
     // it — and § 3 says a hooked property is *not* exempted from the
     // observer, so this one reaches both.
     public int $doubled {
@@ -43,7 +43,7 @@ final class Tally {
     public static int $writes = 0;
 }
 
-// ADR 0014 § 4: whether a class implements the interface is known from its
+// `rule:classes/property-observer-costs-nothing-when-unused`: whether a class implements the interface is known from its
 // declaration, so a class that never asked for the mechanism reaches nothing.
 final class Plain {
     public int $n;
@@ -53,7 +53,7 @@ final class Plain {
     }
 }
 
-// ADR 0014 § 3 again: an observer is inherited like any other method, and the
+// `rule:classes/property-observer-pipeline` again: an observer is inherited like any other method, and the
 // property a subclass adds is observed by it too.
 class Savings extends Account {
     public int $rate;

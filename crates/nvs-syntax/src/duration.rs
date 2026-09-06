@@ -49,8 +49,7 @@ pub enum DurationError {
     /// A unit written in upper or mixed case — `30S`.
     ///
     /// Its own variant rather than an [`Self::UnknownUnit`] because
-    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-    /// § 2 makes "the same word, wrong case" a distinct thing to say, and this
+    /// `rule:classes/reserved-spellings-are-lower-case` makes "the same word, wrong case" a distinct thing to say, and this
     /// is the message that says it.
     MisCasedUnit(String),
     /// Two units in the wrong order, or the same one twice — `rule:types/duration-literal`'s
@@ -77,7 +76,7 @@ impl DurationError {
                  `h`, `d` and `w`"
             ),
             Self::MisCasedUnit(unit) => format!(
-                "a duration unit is lower case only, so `{unit}` is `{}` (ADR 0062)",
+                "a duration unit is lower case only, so `{unit}` is `{}` (`rule:classes/names-resolve-case-sensitively`)",
                 unit.to_ascii_lowercase()
             ),
             Self::OutOfOrder(first, second) => format!(

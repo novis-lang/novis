@@ -1,5 +1,5 @@
 --TEST--
-PHP's `__construct` gets its own diagnostic naming `constructor`, rather than the generic camelCase one — ADR 0030 § 2
+PHP's `__construct` gets its own diagnostic naming `constructor`, rather than the generic camelCase one — `rule:classes/constructor-is-a-method-named-constructor`
 --FILE--
 <?nvs
 class Old {

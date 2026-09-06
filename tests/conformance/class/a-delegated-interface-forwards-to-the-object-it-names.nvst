@@ -1,8 +1,8 @@
 --TEST--
-`implements I by $field;` synthesizes a forward per required member, reached through the class and through the interface alike, and an own method beats it — ADR 0043 § 4
+`implements I by $field;` synthesizes a forward per required member, reached through the class and through the interface alike, and an own method beats it — `rule:classes/delegation-by-field`
 --FILE--
 <?nvs
-// ADR 0043 § 4: the compiler synthesizes, for every method the interface
+// `rule:classes/delegation-by-field`: the compiler synthesizes, for every method the interface
 // requires, a one-line forward onto the named property. It is a real method on
 // the delegating class rather than a rewrite at the call site, which is what
 // the interface-typed reads further down assert.

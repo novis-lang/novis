@@ -20,7 +20,7 @@
 > ways to give something a second name are rejected: `class_alias()` does not exist in `Core` and never will,
 > and `use Foo\Bar as Baz;` is a diagnostic, not an import. (Trait composition's `as`/`insteadof` clauses,
 > originally narrowed rather than removed here, are gone in full — traits do not exist at all as of
-> [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md).) The one alias Novis keeps is a
+> `rule:classes/no-traits`.) The one alias Novis keeps is a
 > **`type` alias** — a new, compile-time-only synonym for a type *expression* (`type UserId = uint;`, `type
 > Row = array<string, int|string>;`), erased entirely by the type checker, never a second runtime-reachable
 > name for a single class. To keep that from becoming the same loophole through a different door, a `type`
@@ -32,12 +32,12 @@
 - PHP gives a name three ways to acquire a second spelling: `class_alias()` (a second global class name),
   `use X as Y;` (rebinds an import's short name), and trait-use `as` (renames a method, or its visibility).
   Each duplicates a declared name the same way `rule:statements/static-is-a-member-modifier` and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed for state and behaviour — a
+  `rule:classes/no-free-functions-or-constants` already closed for state and behaviour — a
   reader who has found one spelling still cannot be sure it is the only one in play.
 - Simplicity (priority 4): two tokens meaning the same class is pure surface for zero semantic gain.
 - Security (priority 1): `class_alias()` is exactly the tool PHP autoloading exploits and feature-flag
   frameworks use to swap which implementation a name resolves to *after the fact* — the same problem
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) and [ADR 0014](0014-property-observer.md)
+  `rule:classes/no-free-functions-or-constants` and `rule:classes/property-observer`
   already closed for calls and property access.
 - Not affected: an `inout` binding (`inout T $x`) binds two *variable names* to one storage slot —
   function-scoped, per `rule:types/declaration` — not a second global name for a
@@ -70,10 +70,9 @@ use App\Models\User as Model;   // rejected — diagnostic naming the collision 
 is a diagnostic: *imports cannot be renamed; refer to `Name` by its declared short name, or use the
 fully-qualified path directly.* This applies uniformly to classes, interfaces, traits and enums — PHP does
 not let `use` rename a function or constant import differently from a class import, and neither does this
-rule need to, since [ADR 0011](0011-functions-and-constants-are-class-members.md) already removed
+rule need to, since `rule:classes/no-free-functions-or-constants` already removed
 free-standing functions and constants from having an import form of their own. If a future Novis version adds
-a `use`-shaped shorthand for reaching a `Core` member without the `Class::` prefix — the possibility ADR
-0011 names in its own *Revisiting* — it inherits this rule without needing its own ADR: no renaming, ever, on
+a `use`-shaped shorthand for reaching a `Core` member without the `Class::` prefix — the possibility `rule:classes/no-free-functions-or-constants` names in its own *Revisiting* — it inherits this rule without needing its own ADR: no renaming, ever, on
 import.
 
 The one real cost of this — two unrelated libraries independently choosing the same short class name — is
@@ -84,7 +83,7 @@ ADR makes on purpose.
 ### 3. Trait composition has no aliasing rule, because there is no trait
 
 `trait`, class-body `use Trait, ...;` and `insteadof` are not in the grammar at all
-([ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md)), so this ADR has no rename
+(`rule:classes/no-traits`), so this ADR has no rename
 or visibility clause to narrow. Shared behaviour is an interface default or private method; shared state
 is `implements Interface by $field;`; and a collision between two of them is resolved by an ordinary
 override calling the source it wants by qualified name (`InterfaceName::method()`) — which is this ADR's
@@ -110,7 +109,7 @@ type Matrix  = array<array<float>>;
 
 - **New declaration, file/namespace scope.** `type Name = TypeExpr;` sits alongside `use` and `namespace`
   declarations, not inside a class. This does not reopen
-  [ADR 0011](0011-functions-and-constants-are-class-members.md)'s "every callable is a method, every constant
+  `rule:classes/no-free-functions-or-constants`'s "every callable is a method, every constant
   a class constant" rule: that rule closed off *runtime-reachable* names with no declared class owner. A
   `type` alias has no runtime existence at all — like a `use` import or a `namespace` statement, it is fully
   resolved and discarded by the type checker before codegen ever runs, so it is not the kind of name that
@@ -154,8 +153,7 @@ parameterised array — never to a single already-named class. `type Ids = array
 
 ### 7. Diagnostics
 
-Each rejection names its replacement, in the style [ADR 0011](0011-functions-and-constants-are-class-members.md)
-§ 4 already sets:
+Each rejection names its replacement, in the style `rule:classes/no-free-functions-or-constants` already sets:
 
 - `class_alias(...)` anywhere → *`class_alias` does not exist; a class has exactly one name*
 - `use Path\To\Name as Other;` → *imports cannot be renamed; use `Name`, or the fully-qualified path*
@@ -170,7 +168,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 **Positive**
 
 - One more name kind joins the list `rule:statements/static-is-a-member-modifier` and
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed: a class, interface, enum,
+  `rule:classes/no-free-functions-or-constants` already closed: a class, interface, enum,
   method or constant is reachable under exactly the name it declared, full stop — no runtime indirection
   layer sitting in front of any of them.
 - `class_alias`'s specific footgun — code written against one name that a *different* request or a later
@@ -186,7 +184,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 **Negative**
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside `rule:enums/closed-integer-type`,
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) and
+  `rule:classes/no-free-functions-or-constants` and
   `rule:statements/no-host-populated-variables`: PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in
   [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6.) `nvs convert`
@@ -212,7 +210,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
   the fully-qualified name is strictly more explicit for strictly more typing, and a "collisions only"
   carve-out rarely stays narrow.
 - **Keep the visibility-only trait `as` form, and `insteadof`.** Superseded rather than argued here further —
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) removes trait composition
+  `rule:classes/no-traits` removes trait composition
   entirely, so there is no narrower middle ground left to consider.
 - **Let a `type` alias name a single bare class**, as FQN shorthand. Rejected in *Decision § 6*: `use` under
   the real short name already solves the long-FQN problem; this would be the same aliasing in different
@@ -227,9 +225,9 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
   - **Whether `nvs convert`'s automatic rewrite for import `as` (*Consequences, Negative*) is good enough**,
   or needs a `--check`-only mode that just flags the site instead of rewriting it, is an M11 UX question this
   ADR does not resolve — following the precedent
-  [ADR 0011](0011-functions-and-constants-are-class-members.md) *Revisiting* already set for its own
+  `rule:classes/no-free-functions-or-constants` *Revisiting* already set for its own
   converter rewrites. (The equivalent question for trait-rename `as` now belongs to
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) *Revisiting*.)
+  `rule:classes/no-traits` *Revisiting*.)
 - **A nominal/newtype form of `type` alias**, if real code turns out to want a distinct type over an existing
   representation rather than a transparent synonym — see *Alternatives rejected* for why this ADR does not
   decide that question.
@@ -239,7 +237,7 @@ Verification, in the order it becomes possible:
 - **M1**: the parser rejects `use Path\To\Name as Other;` with a diagnostic naming the replacement in *7*;
   `type Name = TypeExpr;` parses at file/namespace scope using the full grammar of
   `rule:types/grammar`. (Trait-composition `as`/`insteadof` verification now lives in
-  [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md).)
+  `rule:classes/no-traits`.)
 - **M2**: name resolution has no alias table for classes/interfaces/enums/methods/constants — a name resolves
   to exactly the declaration it names, or fails; a `type` alias resolves and is substituted away before the
   checker looks at anything downstream of it; a `type` alias whose expression is a single bare class/

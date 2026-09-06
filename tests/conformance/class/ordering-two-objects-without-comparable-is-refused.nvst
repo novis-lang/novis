@@ -1,5 +1,5 @@
 --TEST--
-there is no property-walk fallback: ordering two objects without `Comparable` is a compile error — ADR 0013 § 1
+there is no property-walk fallback: ordering two objects without `Comparable` is a compile error — `rule:classes/comparable`
 --FILE--
 <?nvs
 class Point {

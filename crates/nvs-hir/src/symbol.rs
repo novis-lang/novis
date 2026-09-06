@@ -51,8 +51,7 @@ pub struct Symbol {
 /// fully-qualified name.
 ///
 /// Keying is case-sensitive, matching [`QName`]'s own decided behaviour
-/// ([ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-/// § 1) — see its
+/// (`rule:classes/names-resolve-case-sensitively`) — see its
 /// docs.
 #[derive(Debug, Default)]
 pub struct SymbolTable {

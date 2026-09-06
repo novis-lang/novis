@@ -2,7 +2,7 @@
 //! through its receiver's descriptor, and a `static` one through its class's.
 //!
 //! A helper that has to ask an *object* something — `Comparable::compareTo`
-//! for [ADR 0013](/docs/adr/0013-comparable-interface.md), the
+//! for `rule:classes/comparable`, the
 //! `iterate`/`advance`/`current` trio for
 //! `rule:iteration/two-interfaces` — cannot
 //! name a compiled function: the class is one this crate and `nvs-stdlib` know
@@ -646,8 +646,7 @@ impl Drop for RowValues {
 
 /// One test isolate's own copies of the fixtures it asked for — `rule:testing/fixtures`'s
 /// "built once in the parent, copied into each test", which is
-/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-/// § 2's graph copy and nothing else.
+/// `rule:classes/graph-copy`'s graph copy and nothing else.
 ///
 /// It is [`RowValues`]'s shape over a different source, and it is here for that
 /// type's reason: the copy carries one reference each and somebody has to
@@ -821,7 +820,7 @@ pub unsafe fn construct_and_call(
                 Err(fault) => return Err(crate::abi::record_fault(ctx, fault)),
             }
         }
-        // No `constructor` row at all: ADR 0022 § 2 gives such a class nothing
+        // No `constructor` row at all: `rule:classes/definite-property-initialization` gives such a class nothing
         // to run, so the allocation with its armed defaults *is* the instance.
         None => {
             #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]

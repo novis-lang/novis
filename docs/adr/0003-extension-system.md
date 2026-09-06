@@ -56,7 +56,7 @@ different class of code.
 Compiled into the binary. Native speed, direct heap access, no boundary at all. This is where
 **fine-grained primitives** live: string and array operations, arithmetic and conversion helpers, anything
 whose total cost is comparable to a function call — each a `static` method on a `Core` domain class rather
-than a bare function ([ADR 0011](0011-functions-and-constants-are-class-members.md)).
+than a bare function (`rule:classes/no-free-functions-or-constants`).
 
 ### Tier 1 — WebAssembly component extensions (`.nvsx`)
 
@@ -105,7 +105,7 @@ per-call handle table that the host bounds-checks — and reads through host acc
 At load time the host reads the manifest — declared classes, with their `static` methods and `const`
 members, and any `nvs.toml` directives the extension wants — and registers them into the compiler's symbol
 table. There is no separate function- or constant-shaped registration: an extension follows the same
-class-only shape [ADR 0011](0011-functions-and-constants-are-class-members.md) requires of user code.
+class-only shape `rule:classes/no-free-functions-or-constants` requires of user code.
 Consequently `nvs check` **type-checks calls into extensions at compile time**, and codegen emits a direct
 call to the extension trampoline rather than a dynamic dispatch. PHP cannot do either.
 

@@ -338,7 +338,7 @@ pub struct ClassDesc {
     ///
     /// Two kinds of entry, and [`FieldDefault::Unset`] says why they share
     /// one list: a declared `= expr` default, and the never-written marker
-    /// ADR 0022 § 3 owes a `lateinit` slot.
+    /// `rule:classes/an-unwritten-property-read-throws` owes a `lateinit` slot.
     ///
     /// This is the whole of what a property initializer *is* at run time:
     /// [`NvsObj::new`] writes these slots straight after nulling them, so a
@@ -472,7 +472,7 @@ pub struct MethodRow {
     /// by construction. Answered at the declaration by `nvs_types::layout` and
     /// carried down; a row nothing told is public, which is what keeps a
     /// synthesized method (an exception constructor, a generator's state
-    /// machine, an ADR 0043 § 4 forward) callable.
+    /// machine, an `rule:classes/delegation-by-field` forward) callable.
     pub public: bool,
     /// Whether [`Self::code`] is a **native** `rule:errors/propagation` helper rather than a
     /// compiled Novis function — true for exactly the `Core`-owned members
@@ -531,9 +531,8 @@ pub enum FieldDefault {
     /// (`nvs_types::defaults::ConstArg::EmptyArray`).
     EmptyArray,
     /// **Not a default at all**: the "never written" marker
-    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
-    /// § 3 owes a slot no constructor is obliged to fill — today a `lateinit`
-    /// property's (ADR 0038), which is the one declaration ADR 0022 § 2
+    /// `rule:classes/an-unwritten-property-read-throws` owes a slot no constructor is obliged to fill — today a `lateinit`
+    /// property's (`rule:classes/lateinit`), which is the one declaration `rule:classes/definite-property-initialization`
     /// exempts.
     ///
     /// It rides in this list rather than in a second one beside it because it
@@ -1968,7 +1967,7 @@ impl NvsObj {
     /// The slots start `null` rather than uninitialized so that an object
     /// released *before* its constructor finished — a `throw` partway through
     /// one — sweeps well-formed values.
-    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
+    /// `rule:classes/definite-property-initialization`
     /// makes that state unobservable to Novis code; this only makes it safe to
     /// free.
     ///
@@ -1992,7 +1991,7 @@ impl NvsObj {
         let object = unsafe { Self::alloc(class) };
         #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
         let desc = unsafe { &*class };
-        // Every armed slot — a declared `= expr` default, or ADR 0022 § 3's
+        // Every armed slot — a declared `= expr` default, or `rule:classes/an-unwritten-property-read-throws`'s
         // never-written marker — written over the null the slot was just
         // given; see [`ClassDesc::defaults`]. `set_field` releases what it
         // overwrites, which is a `null` here and therefore free.
@@ -2557,8 +2556,7 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
     }
 }
 
-/// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-/// § 1's `clone`: a fresh instance of the *same* class whose every slot holds
+/// `rule:classes/clone-is-shallow`'s `clone`: a fresh instance of the *same* class whose every slot holds
 /// what the original's held, with a reference count of one.
 ///
 /// **Shallow, same-heap, single-level** — PHP's own rule, kept exactly. A slot
@@ -2567,7 +2565,7 @@ pub unsafe extern "C" fn nvs_object_new(class: *const ClassDesc) -> *mut ObjHead
 /// through the original. That is the whole of what `clone` means; deep copying
 /// is `serialize`/`unserialize`'s recursive graph copy, a different operation.
 ///
-/// No hook runs. ADR 0023 makes `__clone` one of the magic methods Novis does
+/// No hook runs. `rule:classes/two-copy-depths` makes `__clone` one of the magic methods Novis does
 /// not have, so this is the entire operation — nothing here can throw, which
 /// is why it wears no checked-return shape.
 ///
@@ -2763,7 +2761,7 @@ pub unsafe extern "C" fn nvs_class_method(
     desc.method(name).unwrap_or(fallback)
 }
 
-/// The one method [`construct`] runs — ADR 0030 fixes the spelling.
+/// The one method [`construct`] runs — `rule:classes/no-leading-underscore-identifiers` fixes the spelling.
 pub const CONSTRUCTOR: &str = "constructor";
 
 /// Builds an instance of `class` by running its own `constructor` — what a
@@ -2787,7 +2785,7 @@ pub const CONSTRUCTOR: &str = "constructor";
 /// throws, so the exception it recorded in `ctx` reaches the request
 /// unchanged. [`Fault::Fatal`] when `class` declares no [`CONSTRUCTOR`], or
 /// when the argument count is not its declared arity — both engine faults:
-/// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
+/// `rule:classes/definite-property-initialization`
 /// gives every class exactly one nameable constructor, and the caller reads
 /// its arity off the same descriptor.
 ///
@@ -2972,9 +2970,9 @@ pub unsafe extern "C" fn nvs_object_field_get(ptr: *mut ObjHeader, index: usize)
 /// PHP's own wording — a `mixed` is the only receiver that reaches it, every
 /// other non-object being `E0495` at check time (ADR 0007 § 7 row 13).
 ///
-/// A third when the slot was never written — ADR 0022 § 3, whose storage
+/// A third when the slot was never written — `rule:classes/an-unwritten-property-read-throws`, whose storage
 /// state is [`Tag::Unset`] and whose only reachable declaration is a
-/// `lateinit` property (ADR 0038).
+/// `lateinit` property (`rule:classes/lateinit`).
 ///
 /// # Safety
 ///
@@ -3106,14 +3104,14 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// what the access needs is exactly the by-name search on the receiver's own
 /// descriptor that `rule:types/erased-member-access` already performs, and every rule that read
 /// states holds here unchanged — the same catchable throw for a name the
-/// concrete class does not carry, the same ADR 0022 § 3 refusal for a slot
+/// concrete class does not carry, the same `rule:classes/an-unwritten-property-read-throws` refusal for a slot
 /// never written, the same borrow. There is no `hint`: the caller has no static
 /// name to have taken a slot position from, which is the whole of what makes
 /// this access keyed.
 ///
 /// **The one thing it inherits that is not free is the erased path's own known
 /// gap**: this reads the slot, so a property declaring a `get` hook
-/// ([ADR 0014](/docs/adr/0014-property-observer.md) § 1) is read past
+/// (`rule:classes/property-hooks`) is read past
 /// its hook, and [`write_erased_property`] does the same on the write side.
 /// That is owned there and closes for every caller at once — the reason § 5
 /// routes a key through this rather than answering it a fourth way.
@@ -3264,10 +3262,10 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
                   inside the allocation and was initialized by `new`"
     )]
     let held = unsafe { *field_ptr(ptr, slot) };
-    // ADR 0022 § 3: a slot that was never written reads as a throw, never as a
+    // `rule:classes/an-unwritten-property-read-throws`: a slot that was never written reads as a throw, never as a
     // value standing in for one. This is the reader that holds the whole slot
     // rather than its payload, so the *tag* is what answers — which is why
-    // `Tag::Unset` is a tag at all. Only a `lateinit` property (ADR 0038) can
+    // `Tag::Unset` is a tag at all. Only a `lateinit` property (`rule:classes/lateinit`) can
     // be in the state; the compiled read makes the same refusal from the
     // payload alone, `nvs_ir::lower`'s `emit_never_written_guard` owning that
     // half.
@@ -3281,7 +3279,7 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
 }
 
 /// `rule:types/erased-member-access`'s erased write and
-/// [ADR 0014](/docs/adr/0014-property-observer.md) § 3's observer step
+/// `rule:classes/property-observer-pipeline`'s observer step
 /// over it — the whole of what [`nvs_object_slot_set`] does, written here so
 /// that a *reflective* write reaches the same code rather than a second copy of
 /// its rules. `nvs_stdlib::reflect`'s `Core\Reflect\ClassInfo::set` is the
@@ -3291,7 +3289,7 @@ fn read_erased_property_hinted(receiver: Value, name: &str, hint: usize) -> crat
 /// half.
 ///
 /// **The observer step is here rather than at the call site**, unlike every
-/// other property write in the language. ADR 0014 § 4 answers "does this class
+/// other property write in the language. `rule:classes/property-observer-costs-nothing-when-unused` answers "does this class
 /// implement `PropertyObserver`" from the *declaration*, so where the
 /// receiver's class is known `nvs_ir::lower` emits `onPropertySet` beside the
 /// `FieldSet` itself and nothing reaches this function. An erased receiver has
@@ -3693,7 +3691,7 @@ mod tests {
         }
     }
 
-    /// ADR 0023 § 1: `clone` is shallow, same-heap and single-level. The two
+    /// `rule:classes/clone-is-shallow`: `clone` is shallow, same-heap and single-level. The two
     /// halves that matter are that the copy is a *different* allocation and
     /// that a slot holding an object ends up shared, with one more reference,
     /// rather than copied — mutating through one is visible through the other,

@@ -1,5 +1,5 @@
 --TEST--
-`Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair — ADR 0013
+`Comparable` reaches the receiver's own `compareTo`, so a subclass that overrides it changes how `<`/`>`/`<=>` answer for a base-typed pair — `rule:classes/comparable`
 --FILE--
 <?nvs
 class Card implements Comparable {

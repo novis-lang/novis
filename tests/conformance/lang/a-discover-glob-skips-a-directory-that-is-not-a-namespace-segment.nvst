@@ -65,7 +65,7 @@ class Tool
 }
 --FILE _Private/src/Tool.nvs--
 <?nvs
-// Skipped on its leading `_`, which ADR 0030 refuses at the front of any
+// Skipped on its leading `_`, which `rule:classes/no-leading-underscore-identifiers` refuses at the front of any
 // identifier — the second half of `is_namespace_segment`'s test.
 namespace Private;
 

@@ -1,5 +1,5 @@
 --TEST--
-writing a property the class does not declare is a compile error, not a silently created one — ADR 0014 § 3
+writing a property the class does not declare is a compile error, not a silently created one — `rule:classes/property-observer-pipeline`
 --FILE--
 <?nvs
 class Box {

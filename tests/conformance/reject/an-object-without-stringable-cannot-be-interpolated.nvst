@@ -1,5 +1,5 @@
 --TEST--
-`Stringable` is the only route from an object to a string, and an interpolation of one that lacks it is refused — ADR 0028 § 1
+`Stringable` is the only route from an object to a string, and an interpolation of one that lacks it is refused — `rule:classes/stringable`
 --FILE--
 <?nvs
 class Point {

@@ -10,7 +10,7 @@ spawn = true
 <?nvs
 // The child's whole job is to answer a value. A file-scope `return` is what
 // crosses (`rule:statements/a-require-expression-is-mixed`'s value form, read here through the isolate boundary),
-// and it crosses as ADR 0023 § 2's graph copy — so a structured answer arrives
+// and it crosses as `rule:classes/graph-copy`'s graph copy — so a structured answer arrives
 // whole rather than as a handle onto the child's arena, which no longer exists
 // by the time the parent reads it.
 var $total = 0;

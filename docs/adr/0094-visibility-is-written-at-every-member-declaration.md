@@ -10,7 +10,7 @@
   what each level *means* at an access site (who may read a `private` property), which is
   `rule:types/declaration`'s checker debt owned by `nvs-types`; nor modifier *order*
   ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing ([ADR 0029](0029-identifier-casing-is-checked.md));
-  nor property-hook semantics ([ADR 0014](0014-property-observer.md)).
+  nor property-hook semantics (`rule:classes/property-observer`).
 
 > **In short:** every member declaration in a class, interface or anonymous-class body writes exactly
 > one of `public`, `protected` or `private`. **There is no default, because there is nothing to default** —
@@ -45,9 +45,9 @@
   The author who forgot the keyword is exactly the author who did not decide.
 - **Two accepted ADRs already assume the level was written.** [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md) § 2
   exposes a member's declared visibility through `Core\Reflect`, and
-  [ADR 0028](0028-closing-the-remaining-magic-methods.md) annotates every property in a debug dump with it.
+  `rule:classes/no-magic-methods` annotates every property in a debug dump with it.
   With a default, both report a level no one typed.
-- **[ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) made this load-bearing inside
+- **`rule:classes/no-traits` made this load-bearing inside
   an interface.** A `public` interface method with a body is a *default method*; a `private` one is an
   internal helper visible only to that interface's own bodies. The slot where PHP could argue "only one
   level is legal, so writing it is noise" no longer exists here.
@@ -63,11 +63,11 @@ override, and no suppression annotation — the same terms as ADR 0029.
 | Property with `readonly`/`lateinit` | yes — those are not visibility | `public readonly uint $id;` |
 | Class constant | yes | `public const int MAX = 10;` |
 | Method, instance or `static` | yes | `protected function normalize(string $s): string` |
-| Method in an `interface` body | yes — `public` and `private` differ (ADR 0043) | `public function encode(): string;` |
+| Method in an `interface` body | yes — `public` and `private` differ (`rule:classes/no-traits`) | `public function encode(): string;` |
 | Asymmetric property | yes, **as a pair** (§ 3) | `public private(set) string $name;` |
 | Constructor parameter, unmodified | **no** — it is not a member (§ 2) | `function constructor(int $n)` |
 | Anything in an `enum` body | **no** — an enum declares only cases (`E0220`) | `case Active;` |
-| Property hook (`get`/`set`) | **no** — no visibility slot exists (ADR 0014) | `get => $this->a . $this->b;` |
+| Property hook (`get`/`set`) | **no** — no visibility slot exists (`rule:classes/property-observer`) | `get => $this->a . $this->b;` |
 
 ### 1. An omission is a hard error, with no default to fall back on
 

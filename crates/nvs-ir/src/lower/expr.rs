@@ -177,7 +177,7 @@ impl<'a> Lowering<'a> {
                 lhs,
                 rhs,
             } => self.lower_concat(lhs, rhs, env, cur),
-            // ADR 0013 § 2: ordering two objects is a `Comparable::compareTo`
+            // `rule:classes/ordering-lowers-to-compare-to`: ordering two objects is a `Comparable::compareTo`
             // call, never a comparison of the values themselves — there is no
             // property-walk fallback and nothing else an object `<` could
             // mean. Split out ahead of the general arm below, which would
@@ -268,7 +268,7 @@ impl<'a> Lowering<'a> {
             ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
             // Two things wear this syntax, and both are inlined constants.
             // `rule:enums/no-class-machinery` makes `EnumName::CaseName` "an integer constant,
-            // inlined at every use site"; ADR 0011's `Core\Math::PI` is the
+            // inlined at every use site"; `rule:classes/no-free-functions-or-constants`'s `Core\Math::PI` is the
             // same rule for a class constant. So each lowers to exactly the
             // constant a literal would, with no storage, no descriptor and no
             // allocation. `nvs_types` resolved the value — the enum's
@@ -423,7 +423,7 @@ impl<'a> Lowering<'a> {
             // PHP's one expression-valued output construct — see
             // `Self::lower_print` for why its answer is always `1`.
             ExprKind::Print(operand) => self.lower_print(operand, env, cur),
-            // ADR 0028 § 3's `isset($x)` is `$x != null`, and a list of them
+            // `rule:classes/unset-is-refused-on-a-property`'s `isset($x)` is `$x != null`, and a list of them
             // is the conjunction — see `Self::lower_isset`.
             ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
             // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s truthy table negated — so
@@ -850,7 +850,7 @@ impl<'a> Lowering<'a> {
                 }
                 (sv, false)
             }
-            // ADR 0028 § 1's implicit stringification. The call's own result
+            // `rule:classes/stringable`'s implicit stringification. The call's own result
             // is a fresh `string` with one owner, so it is never an aliasing
             // read — the same answer every scalar row above gives.
             Ty::Object => match self.lower_to_string_call(expr, v, env, *cur) {
@@ -883,7 +883,7 @@ impl<'a> Lowering<'a> {
             // reachable target left. Nine are the rows above: `Ty::Str`, the
             // five scalars each through their own helper, `Ty::Null` as the
             // empty string, `Ty::Tagged` through the runtime tag and
-            // `Ty::Object` through ADR 0028 § 1's `toString`.
+            // `Ty::Object` through `rule:classes/stringable`'s `toString`.
             //
             // Four are refused a phase up by
             // `nvs_types::expr::operators::require_stringable`, the one check
@@ -908,7 +908,7 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    /// ADR 0028 § 1's implicit `toString()`, for an operand that lowered to a
+    /// `rule:classes/stringable`'s implicit `toString()`, for an operand that lowered to a
     /// [`Ty::Object`]. `.`, an interpolated piece, `echo`/`print` and
     /// `as string` all reach it, because
     /// `nvs_types::expr::operators::require_stringable` is the single check
@@ -1404,7 +1404,7 @@ impl<'a> Lowering<'a> {
         *cur = merge_block;
         (value, result_repr)
     }
-    /// `isset($a, $b, …)` — ADR 0028 § 3: each operand is `!= null`, and the
+    /// `isset($a, $b, …)` — `rule:classes/unset-is-refused-on-a-property`: each operand is `!= null`, and the
     /// list is their conjunction, evaluated left to right and **short-circuit**
     /// exactly as PHP's is. That is observable rather than an optimisation:
     /// `isset($a, $b[$i++])` leaves `$i` alone when `$a` is `null`, so the
@@ -1478,7 +1478,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Only a [`Ty::Tagged`] operand can hold `null` at run time, so every
     /// other one is a constant — `true` for a value that exists by its own
-    /// declaration (ADR 0022 makes a declared property definitely initialised,
+    /// declaration (`rule:classes/definite-property-initialization` makes a declared property definitely initialised,
     /// `rule:types/declaration` a local), `false` for the literal `null`'s own
     /// [`Ty::Null`]. That is the same short-circuit on representation
     /// [`Self::lower_coalesce`] takes, and it is why `isset` costs nothing at
@@ -2771,7 +2771,7 @@ impl<'a> Lowering<'a> {
     /// cases — the instruction asks the allocated class first, so a subclass's
     /// own constructor wins. That is what makes checking the arguments against
     /// `T`'s signature the right check rather than an optimistic one, together
-    /// with ADR 0125 § 5, which refuses at this site any implementor of `T`
+    /// with `rule:classes/constructor-compatibility`, which refuses at this site any implementor of `T`
     /// whose constructor would not accept what `T`'s accepts.
     ///
     /// The operand is evaluated before the arguments, which is the order it is
@@ -3717,7 +3717,7 @@ impl<'a> Lowering<'a> {
     /// every access it returns from and refuses the rest, and its own doc
     /// comment is that proof's only home. `lower_store`'s `PropertyAccess`
     /// arm asserts the same thing from the write side.
-    /// ADR 0014 § 3's second step: `$receiver->onPropertyGet($name, $value)`,
+    /// `rule:classes/property-observer-pipeline`'s second step: `$receiver->onPropertyGet($name, $value)`,
     /// or its `onPropertySet` twin, emitted after the first step has settled
     /// what the read produced or the write committed.
     ///
@@ -3795,7 +3795,7 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
-        // ADR 0014 § 1: a read of a property that declares a `get`
+        // `rule:classes/property-hooks`: a read of a property that declares a `get`
         // hook is a call to that hook's compiled function, with the
         // receiver in the ordinary parameter-0 slot — see
         // `lower_property_hook`. A property with only a `set` hook
@@ -3857,7 +3857,7 @@ impl<'a> Lowering<'a> {
         let class_label = class.to_string();
         let field_name = name.clone();
         let observed_name = name.clone();
-        // ADR 0022 § 3's never-written state, asked of the *declaring* class,
+        // `rule:classes/an-unwritten-property-read-throws`'s never-written state, asked of the *declaring* class,
         // which is what the table recorded. A `get` hook answers with its own
         // body rather than with the slot, so there is nothing to guard there.
         let never_written = get.is_none() && self.exprs.is_lateinit_property(&class_label, name);
@@ -3921,7 +3921,7 @@ impl<'a> Lowering<'a> {
                 read
             }
         };
-        // ADR 0014 § 3's second step, on the read side: the value is settled
+        // `rule:classes/property-observer-pipeline`'s second step, on the read side: the value is settled
         // first — by the `get` hook above or by the slot — and *that* value is
         // what the observer is told about, never anything it answers, since
         // `onPropertyGet` returns `void`. Emitted before the temporaries are
@@ -3958,16 +3958,15 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// [ADR 0022](/docs/adr/0022-definite-property-initialization.md)
-    /// § 3's never-written storage state, on the compiled read: `value` is
+    /// `rule:classes/an-unwritten-property-read-throws`'s never-written storage state, on the compiled read: `value` is
     /// the object `class`'s slot for `$field` just handed back, and this
     /// leaves `cur` on the block where it is a real instance.
     ///
     /// **The test is the payload, not the tag**, and that is the whole reason
     /// this is three instructions rather than a call. The state is only
-    /// reachable on a `lateinit` property (ADR 0038), whose declared type
-    /// ADR 0038 § 1 restricts to a non-nullable class or interface — one
-    /// pointer, null in this state and in no other, since ADR 0022 § 2
+    /// reachable on a `lateinit` property (`rule:classes/lateinit`), whose declared type
+    /// `rule:classes/lateinit-restrictions` restricts to a non-nullable class or interface — one
+    /// pointer, null in this state and in no other, since `rule:classes/definite-property-initialization`
     /// discharges every other non-nullable property at its constructor and a
     /// `?T` is not a `lateinit` at all. So [`InstKind::IsNull`] over the
     /// [`Ty::Object`] already loaded answers the same question
@@ -4062,7 +4061,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Nothing else is synthesized. The class is methodless, conforms to
     /// nothing and declares no constructor — the literal assigns every field
-    /// itself, which is ADR 0022 § 2's definite-assignment obligation
+    /// itself, which is `rule:classes/definite-property-initialization`'s definite-assignment obligation
     /// discharged by construction — so `nvs-codegen` defines it through
     /// `Classes::define` like any other class and no codegen knows a shape
     /// exists.
@@ -4440,7 +4439,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         // `&value` never arrives here, at any depth: `nvs_types` refuses it as
-        // `E0483`, because `rule:types/implicit-capture` and ADR 0023 between them leave an
+        // `E0483`, because `rule:types/implicit-capture` and `rule:classes/two-copy-depths` between them leave an
         // aliasing element no owner, so it is a shape the language does not
         // have rather than one this function has not learned.
         let spread = items.iter().any(|item| item.spread);
@@ -4747,7 +4746,7 @@ impl<'a> Lowering<'a> {
         result
     }
 
-    /// ADR 0023 § 1: PHP's shallow, same-heap, single-level copy, with
+    /// `rule:classes/clone-is-shallow`: PHP's shallow, same-heap, single-level copy, with
     /// no `__clone` hook to run — so the whole operation is one
     /// instruction, and the result is a fresh object with exactly one
     /// owner, the same as `new`.

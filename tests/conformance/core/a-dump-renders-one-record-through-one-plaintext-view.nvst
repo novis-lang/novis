@@ -25,7 +25,7 @@ echo Core\Debug::render($list), "\n";
 array<int> $map = ["a" => 1, "b" => 2];
 echo Core\Debug::render($map), "\n";
 
-// § 1 and ADR 0028 § 4: a class instance shows its class, its identity and its
+// § 1 and `rule:classes/no-debug-hook`: a class instance shows its class, its identity and its
 // *declared* properties -- never a `toString` result, and never a hook (§ 7).
 class Point {
     public function constructor(public int $x, public int $y) {}

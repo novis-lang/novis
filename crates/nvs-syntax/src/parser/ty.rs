@@ -627,8 +627,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// such as `list` lexes as a keyword, and `Foo\list` still has to parse
     /// per [`docs/spec/00-overview.md` § 5](/docs/spec/00-overview.md).
     /// `Core\Bytes` no longer needs this tolerance —
-    /// [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
-    /// § 2 made keyword matching exact, so `Bytes` is an ordinary
+    /// `rule:classes/reserved-spellings-are-lower-case` made keyword matching exact, so `Bytes` is an ordinary
     /// [`TokenKind::Ident`] instead of colliding with the `bytes` type
     /// keyword.
     /// Once a name is expected at all (this is only ever called after an

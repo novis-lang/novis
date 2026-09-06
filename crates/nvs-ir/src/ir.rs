@@ -52,7 +52,7 @@ pub struct StaticProp {
     /// has ([`Class::field_reprs`]).
     pub repr: Ty,
     /// The declared initializer, or `None` for a nullable or `lateinit`
-    /// static ADR 0022 § 2 required no default of, whose slot starts each
+    /// static `rule:classes/definite-property-initialization` required no default of, whose slot starts each
     /// request at `null`.
     pub default_value: Option<nvs_types::FieldDefault>,
 }
@@ -1055,13 +1055,12 @@ pub enum InstKind {
         value: ValueId,
     },
     /// `clone $obj` —
-    /// [ADR 0023](/docs/adr/0023-clone-serialize-and-cross-boundary-copy.md)
-    /// § 1's shallow, same-heap, single-level copy. Defines a fresh
+    /// `rule:classes/clone-is-shallow`'s shallow, same-heap, single-level copy. Defines a fresh
     /// [`crate::ty::Ty::Object`] with exactly one natural owner, exactly like
     /// [`InstKind::New`], whose every slot holds what the original's held with
     /// one more reference taken.
     ///
-    /// No hook runs and nothing can fail: ADR 0023 has no `__clone`, so this
+    /// No hook runs and nothing can fail: `rule:classes/two-copy-depths` has no `__clone`, so this
     /// carries no status check and no landing block, the same as
     /// [`InstKind::Concat`]. Reads `object` without retaining it, the way
     /// [`InstKind::FieldGet`] reads its receiver.
@@ -1140,7 +1139,7 @@ pub enum InstKind {
     /// compare one representation down: an object is a bare pointer and a
     /// null one *is* `null` (`nvs_runtime::object`'s own decision). Its one
     /// producer is `nvs_ir::lower`'s `emit_never_written_guard`, where the
-    /// null pointer is ADR 0022 § 3's never-written slot rather than a value
+    /// null pointer is `rule:classes/an-unwritten-property-read-throws`'s never-written slot rather than a value
     /// any expression produced.
     IsNull {
         /// The tagged value being tested.
@@ -1274,7 +1273,7 @@ pub enum InstKind {
     /// already held) otherwise. Unlike [`InstKind::FieldSet`], which reads
     /// the field's *previous* value back with a [`InstKind::FieldGet`] before
     /// releasing it — safe there because a declared field always exists on a
-    /// definitely-initialized instance (ADR 0022) — an array key may or may
+    /// definitely-initialized instance (`rule:classes/definite-property-initialization`) — an array key may or may
     /// not already be present, so this instruction bundles the entire
     /// replace-or-insert operation rather than splitting it into a get/
     /// release pair the way `FieldSet` does: no codegen exists yet to make
@@ -1813,7 +1812,7 @@ pub enum Helper {
     /// no class to resolve against — an erased `object`
     /// (`rule:types/erased-member-access`), a
     /// union, a `Core`-owned class — and `nvs_runtime::stringify` answers it
-    /// by asking the receiver's runtime class for ADR 0028 § 1's `toString`.
+    /// by asking the receiver's runtime class for `rule:classes/stringable`'s `toString`.
     /// The static path is unchanged and cheaper: where `nvs_types` did resolve
     /// one, an ordinary [`InstKind::CallVirtual`] is emitted and no helper is
     /// reached at all.
@@ -2050,7 +2049,7 @@ pub enum Helper {
     /// access.
     ///
     /// Two objects behind two `mixed`s throw here as well, and deliberately:
-    /// ADR 0013 orders them through a `Comparable::compareTo` **call**, which
+    /// `rule:classes/comparable` orders them through a `Comparable::compareTo` **call**, which
     /// `crate::lower::Lowering::lower_object_comparison` emits from the class
     /// the site named. A helper that has only the tag names none.
     ValueLt,
@@ -2381,7 +2380,7 @@ pub enum BinOp {
     /// A pairing with two representations does not reach here, the same way it
     /// does not for [`Self::Eq`]: a mixed numeric pair takes
     /// [`Helper::NumericCmp`], a `decimal` one [`Helper::DecimalCmp`], and two
-    /// objects are ADR 0013's `Comparable::compareTo` call, whose `int` result
+    /// objects are `rule:classes/comparable`'s `Comparable::compareTo` call, whose `int` result
     /// already *is* this operator's answer.
     Cmp,
 }

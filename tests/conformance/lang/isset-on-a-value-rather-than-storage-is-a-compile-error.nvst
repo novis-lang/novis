@@ -1,10 +1,10 @@
 --TEST--
-An `isset(...)` operand that names no storage is refused where it is written, and parentheses are transparent — ADR 0028 § 3
+An `isset(...)` operand that names no storage is refused where it is written, and parentheses are transparent — `rule:classes/unset-is-refused-on-a-property`
 --FILE--
 <?nvs
 // PHP refuses the identical shape at compile time and its own message names
 // the replacement: `isset` asks whether *storage* holds something, and an
-// operand that is already a value has nothing to ask that ADR 0028 § 3's own
+// operand that is already a value has nothing to ask that `rule:classes/unset-is-refused-on-a-property`'s own
 // definition — `$x != null` — does not ask more plainly.
 final class Reg {
     public const string NAME = "n";

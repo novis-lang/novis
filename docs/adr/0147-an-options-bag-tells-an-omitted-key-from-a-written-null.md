@@ -33,7 +33,7 @@
 > **In short:** an optional field of an options bag may now be **nullable**, and the call site's two
 > ways of not giving it a value stop being one. `{}` leaves a component alone; `{fragment: null}`
 > removes it. The mechanism is one constant, not a sentinel: an omitted **nullable** field fills
-> [ADR 0022](0022-definite-property-initialization.md) § 3's already-existing never-written marker
+> `rule:classes/an-unwritten-property-read-throws`'s already-existing never-written marker
 > instead of `null`, so the helper reads three states from one ABI argument and
 > [ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3's flattening —
 > one argument per field, no runtime shape, no new calling convention — survives untouched. A
@@ -105,7 +105,7 @@ part worth protecting: a bag is **one ABI argument per field**, no runtime repre
 exists, and no helper learns a new calling convention. All of that is untouched. What changes is which
 constant fills one slot, for one kind of field.
 
-The marker is [ADR 0022](0022-definite-property-initialization.md) § 3's `Tag::Unset` — already
+The marker is `rule:classes/an-unwritten-property-read-throws`'s `Tag::Unset` — already
 defined as *"distinct from every legal value including `null`"*, already costing **zero additional
 bytes** because it is one more discriminant on a representation that carries one, and already
 non-refcounted, so it raises no ownership question at a call boundary. Reaching it from a call site
@@ -119,7 +119,7 @@ so nothing needs migrating and no helper that does not want the distinction has 
 
 ### 3. The marker still never reaches a program
 
-[ADR 0022](0022-definite-property-initialization.md) § 3 admits its state on three conditions, and all
+`rule:classes/an-unwritten-property-read-throws` admits its state on three conditions, and all
 three survive here:
 
 - **It is not in the type system.** The field's declared type is `?T`; the marker is not a member of

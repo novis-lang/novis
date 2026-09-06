@@ -114,7 +114,7 @@ T::bump(inout $a[0]);
     );
 }
 
-/// ADR 0014 section 1 makes a hooked read a call and a hooked write a
+/// `rule:classes/property-observer` section 1 makes a hooked read a call and a hooked write a
 /// second one, so there is no slot to hand a callee.
 #[test]
 fn a_hooked_property_passed_by_reference_is_diagnosed() {

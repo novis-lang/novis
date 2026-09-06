@@ -1,9 +1,9 @@
 //! What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s result-type table and the three refusals layered onto it.
 //!
 //! [`binary_result`] is the table itself, including refusing `int ⊕ uint`.
-//! ADR 0013's `Comparable` requirement is the amendment for the five ordering
+//! `rule:classes/comparable`'s `Comparable` requirement is the amendment for the five ordering
 //! operators when both operands are objects ([`object_comparison_result`]),
-//! with no property-walk fallback. ADR 0028 § 1's sibling is
+//! with no property-walk fallback. `rule:classes/stringable`'s sibling is
 //! [`require_stringable`], which is what `rule:types/conversion`'s "anything → `string`"
 //! row is worth at an *implicit* site — interpolation, concatenation,
 //! `echo`/`print`: a scalar, and an object that provably implements the
@@ -595,7 +595,7 @@ fn is_declared_class(qname: &QName, env: &Env<'_>) -> bool {
         .is_some_and(|symbol| symbol.kind == nvs_hir::SymbolKind::Class)
 }
 
-/// ADR 0013 §§ 2-4: `< <= > >= <=>` lower to a `compareTo` call when both
+/// `rule:classes/ordering-lowers-to-compare-to`, `rule:classes/comparable` and `rule:classes/comparable-is-same-class-only`: `< <= > >= <=>` lower to a `compareTo` call when both
 /// operands are objects, so ordering them requires both sides to be the same
 /// class and that class to (transitively) implement the reserved global
 /// `Comparable` interface — returns `None` when either operand isn't a class
@@ -640,7 +640,7 @@ pub(crate) fn object_comparison_result(
         );
         return Some(env.interner.mixed());
     }
-    // ADR 0013 § 2: the comparison *is* a `compareTo` call, so `nvs-ir` needs
+    // `rule:classes/ordering-lowers-to-compare-to`: the comparison *is* a `compareTo` call, so `nvs-ir` needs
     // its resolved target the same way an ordinary `$a->compareTo($b)` does —
     // recorded under the *binary expression's* own span, since there is no
     // call node in the AST to key it by. `Comparable::compareTo` is bodiless,
@@ -788,7 +788,7 @@ fn report_void_operand(span: Span, env: &mut Env<'_>) {
 /// name has no `<`/`<=`/`>`/`>=`/`<=>` at all and is refused where it is
 /// written rather than answered below.
 ///
-/// The table orders the numeric types against each other, and ADR 0013 orders
+/// The table orders the numeric types against each other, and `rule:classes/comparable` orders
 /// two objects of one `Comparable` class — [`object_comparison_result`] owns
 /// that half and runs first, so everything reaching here either names no class
 /// at all or names one on only one side. Everything else PHP orders, it orders
@@ -866,7 +866,7 @@ fn reject_unordered_operand(
         }
         _ => {
             "`rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one \
-             `Comparable` class (ADR 0013); this operand is on neither half"
+             `Comparable` class (`rule:classes/comparable`); this operand is on neither half"
         }
     };
     env.diags.report(
@@ -1381,7 +1381,7 @@ pub(crate) fn report_int_uint(span: Span, env: &mut Env<'_>) {
     );
 }
 
-/// ADR 0028 § 1: every implicit string-conversion site — interpolation,
+/// `rule:classes/stringable`: every implicit string-conversion site — interpolation,
 /// concatenation, `echo`/`print`, `as string`/`(string)` — accepts an object
 /// only when its static type provably implements the reserved global
 /// `Stringable` interface. Returns without diagnosing for any non-`Ty::Class`
@@ -1795,7 +1795,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 /// three shapes of `as` legitimately name one, so a blanket refusal is wrong:
 ///
 /// * **A downcast out of an erased view.** `$erased as Plain` over a plain
-///   `object`, and `$other as Cell` over the interface ADR 0013's `compareTo`
+///   `object`, and `$other as Cell` over the interface `rule:classes/comparable`'s `compareTo`
 ///   receives, are the two spellings `rule:types/erased-member-access` leaves standing. Both erase
 ///   to one pointer representation, so the conversion runs nothing and the
 ///   check happens at the member access instead (`InstKind::SlotGet`).
@@ -2215,7 +2215,7 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
         (ClassRef, _) => {
             "a class reference is a class descriptor: `rule:types/class-reference-sites`'s three sites take the value \
              itself, `as string` reads the class's own name off it, and `Core\\Reflect` answers \
-             every other reflective question about a class (ADR 0011)"
+             every other reflective question about a class (`rule:classes/no-free-functions-or-constants`)"
         }
         (Void, _) => {
             "a call that returns `void` has no value at all, so there is nothing here to convert"
@@ -2520,7 +2520,7 @@ pub(crate) fn reject_carrier_as_text(ty: TypeId, span: Span, env: &mut Env<'_>) 
     );
 }
 
-/// ADR 0028 § 1's half of the row above: an object is stringifiable exactly
+/// `rule:classes/stringable`'s half of the row above: an object is stringifiable exactly
 /// where it provably implements the reserved global `Stringable`, with no
 /// property-walk fallback and no `__toString`. A `Core`-owned class is asked
 /// the same question of `nvs_stdlib::registry` instead, for the reason
@@ -2573,7 +2573,7 @@ fn require_stringable_object(ty: TypeId, span: Span, env: &mut Env<'_>) {
             return;
         }
     }
-    // ADR 0028 § 1: the conversion *is* a `toString()` call, so `nvs-ir` needs
+    // `rule:classes/stringable`: the conversion *is* a `toString()` call, so `nvs-ir` needs
     // its resolved target the same way an ordinary `$obj->toString()` does —
     // and, exactly like `object_comparison_result`'s `compareTo`, there is no
     // call node in the AST to key it by. The operand's own span is the key,

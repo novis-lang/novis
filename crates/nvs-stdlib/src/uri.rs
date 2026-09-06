@@ -2026,7 +2026,7 @@ nvs_runtime::nvs_helper! {
     /// there is nothing a round trip could lose, and holding the text is what
     /// buys that guarantee for the price the module docs' *What it spends*
     /// states. Named `toString` for [`crate::uuid`]'s reason, and that name is
-    /// load-bearing now: ADR 0028 § 1's rendering *is* this member, so
+    /// load-bearing now: `rule:classes/stringable`'s rendering *is* this member, so
     /// `echo $uri` reaches it too — through the native call the checker
     /// resolves where the operand's type names this class, and through
     /// [`crate::instance`]'s descriptor renderer where it names none.
@@ -2185,7 +2185,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$uri->compareTo(Uri $other): int` — `Comparable`'s member
-    /// ([ADR 0013](/docs/adr/0013-comparable-interface.md)), over
+    /// (`rule:classes/comparable`), over
     /// the two references' RFC 3986 § 6.2.2 normal forms.
     ///
     /// This is the member that answers "are these the same URI", because

@@ -200,7 +200,7 @@ impl<'a> Lowering<'a> {
             // operand has already been lowered for its effects and `Ty::Null`
             // is not refcounted, so there is nothing here to release.
             (Ty::Null, Ty::Str) => self.emit(cur, Ty::Str, InstKind::ConstStr(String::new())),
-            // ADR 0028 § 1's row: `as string` is the explicit spelling of the
+            // `rule:classes/stringable`'s row: `as string` is the explicit spelling of the
             // same implicit conversion `.` and `echo` apply, so it goes
             // through the same resolved `toString()` rather than a second
             // answer of its own (`Self::lower_to_string_call`). The receiver's own

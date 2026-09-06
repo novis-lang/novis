@@ -87,8 +87,7 @@ Binary `+` and `+=` with an array operand are a **compile error** whose diagnost
 alongside the existing arithmetic diagnostic for the other operand types. This is a removal, not a
 migration hazard: the operator has no silent behaviour change to fall into, because it stops compiling.
 
-**No member reproduces `array_merge`.** That is the deliberate part. `nvs convert` ([ADR 0011](0011-functions-and-constants-are-class-members.md)
-§ 4's style) rewrites it by static type:
+**No member reproduces `array_merge`.** That is the deliberate part. `nvs convert` (`rule:classes/no-free-functions-or-constants`'s style) rewrites it by static type:
 
 | PHP call | Rewrite | When |
 |---|---|---|

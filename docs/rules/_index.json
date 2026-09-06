@@ -44,6 +44,11 @@
       "topic": "types",
       "title": "Types",
       "order": 90
+    },
+    {
+      "topic": "classes",
+      "title": "Classes",
+      "order": 100
     }
   ]
 }

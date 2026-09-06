@@ -195,7 +195,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
   `cmd.exe`-spawn escape hatch, unlike PHP, which runs one with `exec("script.bat")` today, quoting risk and
   all.
 - **`nvs convert` gains another non-mechanical gap**, in the family `rule:types/bytes`,
-  [ADR 0023](0023-clone-serialize-and-cross-boundary-copy.md), and
+  `rule:classes/two-copy-depths`, and
   [ADR 0024](0024-taint-tracking-for-injection-sinks.md) already carry: every ported call site in § 7's table
   needs a human to supply path/argv, not a mechanical rewrite.
 - **Memory**, per `rule:programs/memory-priority`'s discipline of naming the spend: one suspended
@@ -227,7 +227,7 @@ on shell grammar `nvs convert` does not (and, per § 1, Novis never will) interp
 
 - **The exact `process.exec` capability grammar** — a bare boolean vs. an allowlist of permitted executable
   paths/directories, and whether it reuses `script.spawn`'s canonicalise-then-prefix path resolution verbatim
-  — is stdlib design due at M8, the same deferral [ADR 0011](0011-functions-and-constants-are-class-members.md)'s
+  — is stdlib design due at M8, the same deferral `rule:classes/no-free-functions-or-constants`'s
   *Revisiting* already gives every `Core` class roster.
 - **Whether a narrowly-scoped, separately-gated `.ps1`/`.bat` execution path should exist later**, if real
   deployments show the refusal in § 4 is a genuine blocker rather than a rare case. Not requested by any

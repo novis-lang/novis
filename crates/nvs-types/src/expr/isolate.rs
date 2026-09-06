@@ -44,7 +44,7 @@
 //!   the property such a class cannot have is the property this one must not
 //!   have. `Core\Task` beside `Core\Task\Channel<T>` is the same pairing
 //!   already on disk, so `Core\Script::args()` (item 22) and this class sit
-//!   together under ADR 0011 exactly as those two do.
+//!   together under `rule:classes/no-free-functions-or-constants` exactly as those two do.
 //! - **The result is an `rule:types/shape-type` shape**, not a class. `$result->ok` is
 //!   read on the next line, and a class read with `->` is the one thing this
 //!   cannot be without new machinery in three crates — a property resolution
@@ -89,7 +89,7 @@
 //! caller who wants the child's failure to propagate. It becomes
 //! `Core\Script::valueOrThrow($result)` — a static member on the class item 22
 //! introduces anyway — which is the ordinary way this language spells a verb
-//! (ADR 0011), and the ADR marks its whole surface provisional pending the
+//! (`rule:classes/no-free-functions-or-constants`), and the ADR marks its whole surface provisional pending the
 //! spelling `docs/spec/` fixes at M5. Nothing else in that ADR's semantics
 //! moves.
 //!
@@ -134,7 +134,7 @@ pub(crate) fn check_spawn_script(
     let string = env.interner.string();
     for opt in options {
         let expected = match opt.key {
-            // The value that crosses. No expected type, because ADR 0023 § 2's
+            // The value that crosses. No expected type, because `rule:classes/graph-copy`'s
             // walk is what decides whether a given graph may cross and that is
             // a run-time question for everything a declared type does not
             // already settle.

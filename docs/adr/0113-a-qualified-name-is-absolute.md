@@ -57,7 +57,7 @@
   drivers, the package system — are what will produce namespaced code in volume, and every line of it
   is written against whichever rule is in place when it is written.
 - PHP's fallback-to-global for an unqualified name exists because a function or constant call had to
-  find a built-in from inside a namespace. [ADR 0011](0011-functions-and-constants-are-class-members.md)
+  find a built-in from inside a namespace. `rule:classes/no-free-functions-or-constants`
   removed free functions and constants entirely, so nothing is left that the fallback was for.
 
 ## Decision

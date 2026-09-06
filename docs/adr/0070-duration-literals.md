@@ -56,7 +56,7 @@ unit     := ns | us | ms | s | m | h | d | w
   naming this rule. There is exactly one spelling of any given constant, up to a coarser unit's value.
 - **Only after a plain decimal integer.** Never after `0x…`, `0b…`, a float, or an exponent, so `0x1d`
   stays a hex literal and `1.5s` is an error rather than a rounded duration.
-- **Lower case only**, per [ADR 0062](0062-case-sensitivity-is-a-compiler-property.md); `30S` is a
+- **Lower case only**, per `rule:classes/names-resolve-case-sensitively`; `30S` is a
   diagnostic naming that ADR, not a second spelling.
 - **No sign.** `-7d` does not parse; a backwards step is `->minus(7d)`. The parser therefore never has to
   decide whether the `-` in `$a -7d` is binary or part of a literal.

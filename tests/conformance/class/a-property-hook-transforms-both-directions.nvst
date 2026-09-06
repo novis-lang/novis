@@ -1,5 +1,5 @@
 --TEST--
-A property's own `get`/`set` hook runs on every read and every write, including the constructor's — ADR 0014 § 1
+A property's own `get`/`set` hook runs on every read and every write, including the constructor's — `rule:classes/property-hooks`
 --FILE--
 <?nvs
 class Doubled {

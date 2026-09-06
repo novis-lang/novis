@@ -9,7 +9,7 @@ Core\Random::bytes and ::token each name which of their two checks refused an ov
 // says which of the two stopped the call, so every row here reads the message
 // rather than only that something threw.
 //
-// `Which` exists because a case's own helper has to be a method (ADR 0011 § 1)
+// `Which` exists because a case's own helper has to be a method (`rule:classes/no-free-functions-or-constants`)
 // and every row below asks the same question of a different count.
 final class Which {
     public static function bytes(uint $count): string {

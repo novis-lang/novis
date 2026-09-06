@@ -132,7 +132,7 @@ those objects by identity per the class row, which bounds that walk too.
 
 `$a == $b` on two class instances asks whether they are the same object. It never walks properties.
 
-That is the same refusal [ADR 0013](0013-comparable-interface.md) makes for ordering, for the same reason
+That is the same refusal `rule:classes/comparable` makes for ordering, for the same reason
 stated there: an ambient, undeclared property walk has unbounded cost in the object graph's size and no
 way for a class to opt out. It is also why there is **no `__equals`, no `equals()` protocol and no
 `Equatable` interface** — a per-class equality hook would make `==` mean something different in every file,

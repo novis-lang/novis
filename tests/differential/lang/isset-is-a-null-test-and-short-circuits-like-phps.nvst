@@ -1,8 +1,8 @@
 --TEST--
-`isset(...)` agrees with PHP on every operand shape: a null test, an absent key answering `false` rather than throwing, a stored `null` answering `false` too, and a left-to-right conjunction that short-circuits — ADR 0028 § 3, ADR 0007 § 7 row 11
+`isset(...)` agrees with PHP on every operand shape: a null test, an absent key answering `false` rather than throwing, a stored `null` answering `false` too, and a left-to-right conjunction that short-circuits — `rule:classes/unset-is-refused-on-a-property`, ADR 0007 § 7 row 11
 --FILE--
 <?nvs
-// ADR 0028 § 3: `isset($x)` is `$x != null`, and nothing else. A
+// `rule:classes/unset-is-refused-on-a-property`: `isset($x)` is `$x != null`, and nothing else. A
 // non-nullable binding can never be `null`, so it is always `true`.
 ?string $a = null;
 ?string $b = "x";
@@ -31,7 +31,7 @@ echo isset($grid["r"]["c"]) ? "y" : "n",
 echo isset($maybe["k"]) ? "y" : "n", "\n";
 
 // A property: nullable reflects what was last assigned, non-nullable is
-// always `true` (ADR 0022 makes it definitely initialised).
+// always `true` (`rule:classes/definite-property-initialization` makes it definitely initialised).
 final class Box {
     public ?string $tag;
     public string $name = "boxy";

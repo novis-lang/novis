@@ -1,4 +1,4 @@
-# ADR 0030 — No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct`
+# `rule:classes/no-leading-underscore-identifiers` — No leading underscores anywhere; the constructor is spelled `constructor`, not `__construct`
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -40,7 +40,7 @@
    when converting a `_foo`-style PHP name, the same class of mechanical rename ADR 0029 § *Consequences*
    already prices in for casing conversion generally.
 2. Novis's constructor method is spelled `constructor`. It keeps every semantic role `__construct` had —
-   automatically invoked by `new`, the site where [ADR 0022](0022-definite-property-initialization.md)'s
+   automatically invoked by `new`, the site where `rule:classes/definite-property-initialization`'s
    definite-property-initialization obligation attaches, discharged for inherited properties via
    `parent::constructor(...)` — only the spelling changes. `constructor` is an ordinary lowercase-first
    word, so it already satisfies ADR 0029's method-casing rule outright: no exception, table row, or
@@ -96,8 +96,8 @@
   *Verification* section names the home for these): a property/parameter/local named with a leading `_` is
   now rejected — a flip from ADR 0029's original "accepted" corpus case to a rejected one; a method named
   `__construct` gets the targeted "spelled `constructor`" diagnostic, not the generic `camelCase` one; a
-  class declaring `constructor` produces no diagnostic and is recognized as satisfying ADR 0022's
+  class declaring `constructor` produces no diagnostic and is recognized as satisfying `rule:classes/definite-property-initialization`'s
   per-constructor obligation.
 - No code exists yet that depends on the old spelling or the underscore allowance in a load-bearing way —
   the casing checker itself isn't implemented. This ADR is otherwise a text/example correction pass across
-  ADR 0013, ADR 0022, and `crates/nvs-syntax`'s one test that used `__construct`.
+  `rule:classes/comparable`, `rule:classes/definite-property-initialization`, and `crates/nvs-syntax`'s one test that used `__construct`.
