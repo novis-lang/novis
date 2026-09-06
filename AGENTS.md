@@ -4,8 +4,8 @@ Novis is a JIT-compiled, memory-safe language for web servers and the command li
 requests and CLI programs **securely and fast**.
 
 This file is inlined into every agent's context before it does anything, so it holds only what cannot be
-looked up on demand: the routing table's two entries, the priority ordering, the rules whose whole cost is
-that you did not know they existed, and the session workflow. **Everything else is one call away.**
+looked up on demand: the routing table's three entries, the priority ordering, the rules whose whole cost
+is that you did not know they existed, and the session workflow. **Everything else is one call away.**
 
 **Every fact in this repository has exactly one home.** If two documents state the same thing, the one
 named as the home is authoritative and the other is a bug — fix it rather than reconciling it in your head.
@@ -22,22 +22,24 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 |---|---|
 | A session of the unattended loop | Nothing — the driver ran `python tools/orient.py` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
 | Working interactively, on anything | `python tools/brief.py` — the plan's status, one line per milestone and per module, the definitions most often grepped for, the guard tests, what is on disk |
-| Looking for the file that owns a topic | `python tools/brief.py --where <keyword>` — the routing table in [docs/adr/README.md](docs/adr/README.md) § *Where to look*, filtered |
+| Looking for the file that owns a topic | `python tools/brief.py --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
 Those three route to everything else. The four files behind them, none of which is read in full by default:
 
-- **[docs/ground-rules.md](docs/ground-rules.md)** — one sentence per settled decision, with its
-  ADR. The index of what has already been decided; the linked ADR's body is the rule.
+- **[docs/ground-rules.md](docs/ground-rules.md)** — generated, one line per rule, each linking the rule
+  it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
+  `docs/rules/<topic>.md` that renders it is what you read.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `peek.py`, `verify.py`,
   `session.py`, `splice.py`, `plan.py`, `disk.py`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
-  case, a `Core` member, an ADR, a diagnostic. Read this instead of opening an example to copy.
+  case, a `Core` member, a decision record, a diagnostic. Read this instead of opening an example to
+  copy.
 
-**An ADR's body always states the current rule.** A later decision is folded into the earlier ADR's text,
-never left as an overlay you have to apply while reading. If a body disagrees with a cross-link, the body
-is the bug — fix it.
+**A rule's fragment under `docs/rules/` is the rule, and it is always currently true.** A record under
+`docs/decisions/` is frozen rationale, reached through a rule's `because`, and is never edited to track a
+later decision. If a fragment and a record disagree, the fragment is the rule and the record is history.
 
 ## The priority ordering
 
@@ -54,8 +56,8 @@ When choosing between designs:
 
 - Prefer the safer, faster or simpler one even when it holds more memory. Novis is **not** a low-footprint
   runtime; "allocates less" is not on its own a reason to change anything.
-- If a change spends memory, **say what it spends** — per request or per task — in the doc comment or ADR
-  that records it.
+- If a change spends memory, **say what it spends** — per request or per task — in the doc comment or
+  decision record that records it.
 - Memory must stay attributable to a request and under an enforceable cap, and must be O(in-flight) rather
   than O(requests served). Growth with total traffic is a leak, not a trade-off.
 - Bytes *moved* are not cheap. An allocation or extra cache miss on a hot path is a latency question
@@ -120,7 +122,7 @@ Every session runs the same five steps, in this order, and **stops**:
    verification happens**, and a group shares one run: the build is the same build.
 4. **Write the docs and the handoff, once for the whole group.** The plan's status block, a playbook bullet
    if a trap cost you time, and `docs/agent/handoff.md` overwritten with where the work stands now. The
-   handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, an ADR, or
+   handoff is *state* — a fact that will still be true in ten sessions belongs in the playbook, a rule, or
    a crate's module doc instead. Naming the **next** group, and the file set it shares, is this step's job:
    you are the only one holding the context to decide it cheaply, and `python tools/peek.py --locate` turns
    its `file.rs:NN` anchors into one call.
@@ -151,8 +153,8 @@ Step 5 above, in detail:
   add a bullet when a trap costs you time, edit one when it stops being true, and otherwise leave it
   alone. Never reword it to say the same thing differently — this lore lived inside the handoff until it
   was two thirds of it, regenerated in full every session, and the rewording was the whole cost.
-- The docs accumulate rationale bloat as ADRs are added. Periodically — the user fires this by hand, never
-  you automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
+- The process docs drift as decisions land. Periodically — the user fires this by hand, never you
+  automatically — re-run the pass in [docs/agent/doc-cleanup.md](docs/agent/doc-cleanup.md).
 - Every time we add, change or remove a feature, decide and say what the tradeoffs are in performance,
   memory, usability and simplicity for developers using the language. If there are large tradeoffs, notify
   the user and ask for agreement before proceeding. If there are only benefits, go ahead.
