@@ -17,12 +17,13 @@
 > by the user; the rest the loop picks under ADR 0051 § 4.
 >
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
-> backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own 1000-case
-> corpus figure is the one thing left and it is met through goals 1–5. M4S Part I registered —
-> `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys, which is this project's
-> definition of *registered*. M1's own section lists the one grammar addition still owed — the pipeline
-> operator, ADR 0098 — which blocks nothing and is scheduled after the current loop goal. Each milestone
-> file under [docs/plan/](plan/) states its own acceptance.
+> backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
+> 1000-case corpus figure is the one thing left and it is met through goals 1–5. M4S Part I
+> registered but for the two members ADR 0146 added to spec § 12 —
+> `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds those two keys and no others, both
+> owned by goal 29. M1's own section lists the one grammar addition still owed — the pipeline
+> operator, ADR 0098 — which blocks nothing and is scheduled after the current loop goal. Each
+> milestone file under [docs/plan/](plan/) states its own acceptance.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan and fuzz legs), and the
 > nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`, `nvs-runtime`,
@@ -107,7 +108,7 @@ somebody has already followed.
 | goal 2 | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | goal 3 | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | goals 6, 16, 18, 19, 23 | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goals 4, 5, 17, 20, 24, 25, 26 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| goals 4, 5, 17, 20, 24, 25, 26, 29 | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | backlog 2 | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by ADR 0040, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |

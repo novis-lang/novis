@@ -868,6 +868,8 @@ input opens two streams.
 | `$uri->with` | `$uri->with({scheme?, host?, port?, path?, query?, fragment?}): Uri` | manual reassembly | |
 | `$uri->resolve` | `$uri->resolve(string $reference): Uri` | nothing | |
 | `$uri->compareTo` | `$uri->compareTo(Uri $other): int` | nothing — PHP compares `parse_url` arrays by hand | |
+| `$uri->sign` | `$uri->sign({keys: array<secret bytes>, until: ?Time\Instant}): Uri` | nothing — Laravel's `URL::signedRoute`, Symfony's `UriSigner` | |
+| `$uri->verifySignature` | `$uri->verifySignature(array<secret bytes> $keys): void` | nothing | neutral |
 
 `Uri::parse` is an ADR 0057 intrinsic. Note what is **not** here: `Core\Uri` never decides whether a URL
 may be *fetched* — that is `Core\Http::allowUrl` in § 16, the SSRF launderer
@@ -891,6 +893,17 @@ differently as the table grew. `==` on two `Uri`s is still object identity, whic
 [ADR 0090](../adr/0090-one-equality-operator-and-disjoint-types-do-not-compile.md) § 4 fixes for every
 class; `compareTo` is that ADR's own named answer for content equality, and it gives an order as well —
 component-lexicographic, absent before present.
+
+**`$uri->sign` signs exactly what `compareTo` normalizes**, and that is the whole reason the two signing
+members sit on this class rather than beside `Core\Crypto`: a signature computed over assembled URL
+*text* is the canonicalization bug every framework in this space carries, and reusing the § 6.2.2
+normalization above is what makes it impossible for the signing and verifying sides to drift. The
+reserved `_sig` parameter carries the tag and the lifetime together, every other component present is
+covered — so appending a parameter invalidates — and the fragment is never signed, because the server
+never receives one. [ADR 0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)
+owns all of it, including why `verifySignature` answers nothing and throws rather than returning a
+`bool` a caller can drop. **These two land with M8** rather than with the rest of Part I: they need
+`Core\Crypto`'s construction, which is the same split `Core\Router` already carries.
 
 **Asking whether text is a URI is `Uri::tryParse($s) != null`** — `parse` with `null` where it throws, and
 the one spelling [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits `try…` for
@@ -1142,7 +1155,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
 | `Core\Db` | the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs | [0067](../adr/0067-core-db.md) |
 | `Core\Crypto` | AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string. Replaces `openssl_*`'s primitive half and `sodium_*` | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Password` | `hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt` | [0063](../adr/0063-core-api-conventions.md), [0129](../adr/0129-password-verify-reads-a-stored-bcrypt-hash.md) |
-| `Core\Jwt`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie` | the closed four-entry roster; a JWT's algorithm comes from the key, never the token | [0060](../adr/0060-application-security-protocols.md) |
+| `Core\Jwt`, `Core\Csrf`, `Core\Totp`, `Core\SignedCookie`, `Core\Signature` | the closed five-entry roster; a JWT's algorithm comes from the key, never the token. `Core\Signature::sign(array<string, mixed> $payload, {keys: array<secret bytes>, until: ?Time\Instant}): string` and `::verify(string $token, array<secret bytes> $keys): array<string, mixed>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)) | [0060](../adr/0060-application-security-protocols.md) |
 | `Core\Process` | `run`, `spawn` — argv only, never a shell string | [0044](../adr/0044-core-process-argv-only-no-shell.md) |
 | `Core\Mail` | an SMTP client with structured headers. Replaces `mail()` | [0051](../adr/0051-standard-library-tiers.md) |
 | `Core\Cache` | `local(): Cache\Store`, `shared(): Cache\Store`, and on the store `put(string $key, mixed $value): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing. Replaces `apcu_*`, `memcached` for the local case | [0059](../adr/0059-cross-request-state-is-explicit.md) |
