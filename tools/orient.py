@@ -111,6 +111,16 @@ traps_detail: list[str] = []
 #: that carries it.
 TRAPS_TITLE = "THE TRAPS THAT APPLY HERE"
 
+#: How many of the item's path-promoted playbook bullets are printed WHOLE. The rest keep their
+#: one-line lead-in and their `--show` selector, so nothing goes out of reach -- see
+#: `run_playbook`, which owns why the bound exists and why it is here rather than on the manifest.
+#:
+#: 20 against the 46 one measured item promoted: the bullets a session actually acts on are the
+#: ones naming its own files, and ranking puts those first. Raise it if a handoff reports a trap
+#: it needed and only found in the lead-in list -- that is the signal this number is too low, and
+#: it is cheaper to read than any byte count.
+PROMOTED_WHOLE = 20
+
 #: A `path:line` anchor in a checklist item, which `run_state` expands into a window of the file.
 #: `docs` is a root here for the same reason the code trees are: a group whose work is prose --
 #: a reference page, an ADR section, a table that still says a feature has no spelling -- names the
@@ -493,6 +503,57 @@ def emit_check_block(fail: str) -> None:
     if len(b["lines"]) > CHECK_BLOCK_LINES:
         rest = len(b["lines"]) - CHECK_BLOCK_LINES
         emit(f"  ... {rest} more line(s) -- `python tools/peek.py '{anchor}'` for the whole block.")
+    emit_stage_siblings(b)
+
+
+#: How many of a stage's other checks are named under the failing one. A stage is a handful of
+#: checks by construction; the floor is not a stage in that sense and is excluded outright below.
+STAGE_SIBLINGS = 12
+
+#: Lines of each sibling's own `[[check]]` body. A check is a dozen lines at most; this bounds the
+#: pathological one rather than trimming the ordinary one.
+SIBLING_BLOCK_LINES = 14
+
+
+def emit_stage_siblings(hit: dict) -> None:
+    """Name the rest of the failing check's STAGE, so the session sees its whole red edge.
+
+    Measured over one 39-session run: 34 of the 44 head calls that re-read an orientation source
+    went to `loop-goal.toml`, and every one of them had the same shape -- a blind `sed -n
+    '4590,4700p'` around the check printed above, or a `re:stage = ` sweep. The pack was telling
+    sessions "do not go and find it" while printing one `[[check]]` of a stage that has three, so
+    what they were going to find was the SIBLINGS: what else this stage asserts, and therefore
+    what closing it actually means.
+
+    One line each, not the block: the failing one is printed whole above because it is what the
+    session must satisfy exactly, and the others are context for reading it. The floor stage is
+    skipped -- it is the previous goal's entire acceptance list carried verbatim, hundreds of
+    checks, and it is not a stage a session works inside."""
+    stage = str(hit["fields"].get("stage", ""))
+    if not stage or "floor" in stage.lower() or stage.startswith("0"):
+        return
+    siblings = [
+        b for b in check_blocks(read(GOAL_TOML))
+        if str(b["fields"].get("stage", "")) == stage and b["top"] != hit["top"]
+    ]
+    if not siblings:
+        return
+    emit()
+    emit(f"The rest of stage {stage!r} -- {len(siblings)} more check(s). The stage goes green")
+    emit("only when these do too, so they are what closing the one above actually means:")
+    for b in siblings[:STAGE_SIBLINGS]:
+        emit()
+        emit(f"  -- {rel(GOAL_TOML)}:{b['top'] + 1}")
+        # The `[[check]]` onwards, not the comment header: the header is the stage banner, and
+        # it was already printed above with the failing check. `fields` cannot serve here --
+        # `CHECK_FIELD` captures the text after `=`, which for a multi-line `want = [` is `[`.
+        body = [ln for ln in b["lines"] if not ln.lstrip().startswith("#")]
+        for line in body[:SIBLING_BLOCK_LINES]:
+            emit(f"  {line}" if line.strip() else "")
+        if len(body) > SIBLING_BLOCK_LINES:
+            emit(f"  ... {len(body) - SIBLING_BLOCK_LINES} more line(s)")
+    if len(siblings) > STAGE_SIBLINGS:
+        emit(f"  ... and {len(siblings) - STAGE_SIBLINGS} more check(s) in this stage.")
 
 
 def run_marker() -> None:
@@ -518,9 +579,19 @@ def run_marker() -> None:
         emit(f"THE PREVIOUS SESSION WAS CUT OFF at {cut.get('when', 'an unrecorded time')} --")
         emit(f"{cut.get('why', 'reason unrecorded')}.")
         emit("Everything it committed stands; one commit per slice is what buys that. The paths")
-        emit("below are the slice it was in the MIDDLE of. Read them first and either finish that")
-        emit("slice or revert it -- do not start new work on top of it, and do not assume the")
-        emit("handoff describes them, because it was never written.")
+        emit("below are the slice it was in the MIDDLE of.")
+        if cut.get("swept"):
+            # The driver commits an unfinished slice rather than leaving it in the tree, so this
+            # is a commit to read and continue -- not a diff to reconstruct. `mark_interrupted`
+            # in loop.py owns why.
+            emit(f"THE DRIVER COMMITTED THEM as {str(cut.get('head', ''))[:9]}, so the tree you")
+            emit("open is clean. That commit has NOT been verified. Read it first, then continue")
+            emit("it, amend it or revert it -- do not start new work on top of it, and do not")
+            emit("assume the handoff describes it, because it was never written.")
+        else:
+            emit("They are UNCOMMITTED. Read them first and either finish that slice or revert")
+            emit("it -- do not start new work on top of it, and do not assume the handoff")
+            emit("describes them, because it was never written.")
         for f in files[:20]:
             emit(f"  {f}")
         if len(files) > 20:
@@ -540,11 +611,21 @@ def run_marker() -> None:
             emit(f"THE DRIVER'S LAST ACCEPTANCE CHECK FAILED, after session {session}:")
             emit(f"  {fail}")
             emit("The run ends only when every check in loop-goal.toml passes, and nothing else")
-            emit("shows a session this one -- the driver writes it to the ledger and moves on. If")
-            emit("the group below does not close it, CLOSE THIS FIRST: it outranks the handoff's")
-            emit("next group, and the handoff you write says what you found. A check that names a")
-            emit("test that 'did not run' is an item still open and is the ordinary state of this")
-            emit("goal; any other failure is a regression and outranks new work outright.")
+            emit("shows a session this one -- the driver writes it to the ledger and moves on.")
+            emit("This is the EARLIEST-STAGE failing check, so it is the one that can be closed")
+            emit("without three other stages landing first; any later stages also red are named")
+            emit("after it on the same line.")
+            emit()
+            emit("Two failures read differently, and getting them the wrong way round is the")
+            emit("expensive mistake here:")
+            emit("  * A check whose artefact IS NOT WRITTEN YET -- a test that 'did not run', a")
+            emit("    fixture whose member does not exist, an `unrecognized subcommand` -- is an")
+            emit("    item still open. It is the ordinary state of a goal in progress. It does")
+            emit("    NOT outrank the handoff's next group; if the group below is the work that")
+            emit("    leads to it, do the group.")
+            emit("  * A check that USED TO PASS is a regression and outranks new work outright.")
+            emit("The ledger in .loop/log.md says which: the same line repeating session after")
+            emit("session is the first kind, and it is not an alarm.")
             emit_check_block(fail)
     # Below the acceptance verdict on purpose: a red check is a regression and outranks this.
     gate = doc_gate_failure()
@@ -948,10 +1029,31 @@ def run_playbook(wanted: list[str]) -> None:
     terms = list(dict.fromkeys(terms))
 
     if terms:
-        whole = [(n, b) for n, b in picked if playbook.score({"body": b, "section": n}, terms)[0]]
+        ranked = sorted(
+            ((playbook.score({"body": b, "section": n}, terms)[0], i, n, b)
+             for i, (n, b) in enumerate(picked)),
+            key=lambda r: (-r[0], r[1]),  # most terms matched first, then manifest order
+        )
+        hits = [(n, b) for s, _i, n, b in ranked if s]
+        # THE PROMOTION IS BOUNDED, and this is the playbook's only brake.
+        #
+        # `playbook.md` went 644 KB -> 860 KB in the four days to 2026-09-06, at ~54 KB a day, and
+        # its two pruning signals (`--check` for stale paths, `--dupes` for restatements) both read
+        # clean throughout: they catch a bullet that is WRONG or DUPLICATED, and neither can catch
+        # one that is correct, unique and simply not worth 818 bytes to every future session. So
+        # the file has no brake at all, and the manifest is written once per goal against a file
+        # that grew a third since the last one.
+        #
+        # The bound goes here rather than on the manifest because this is where the cost lands:
+        # 46 promoted bullets were 42,828 B of a 97,648 B pack -- 44% of everything a session
+        # reads, before it reads any code. Ranking by how many of the item's own paths a bullet
+        # names puts the most specific traps first, and the overflow is not dropped: it joins the
+        # lead-in list below, one line each, `--show`-able. Nothing becomes unreachable, which is
+        # the property the item narrowing already had and the one worth keeping.
+        whole, spilled = hits[:PROMOTED_WHOLE], hits[PROMOTED_WHOLE:]
         listed = [(n, b) for n, b in picked if (n, b) not in whole]
     else:
-        whole, listed = picked, []
+        whole, listed, spilled = picked, [], []
 
     section(
         TRAPS_TITLE,
@@ -990,15 +1092,15 @@ def run_playbook(wanted: list[str]) -> None:
     traps_detail.extend([
         f"    manifest names {len(wanted)} selector(s) -> {len(picked)} bullet(s), "
         f"{unnarrowed:,} B whole",
-        f"    your ITEM's {len(terms)} path(s) promote {len(whole)} of them: "
-        f"{whole_b:,} B printed in full"
+        f"    your ITEM's {len(terms)} path(s) promote {len(whole) + len(spilled)}, "
+        f"of which {len(whole)} print whole: {whole_b:,} B"
+        + (f" ({len(spilled)} spilled past PROMOTED_WHOLE={PROMOTED_WHOLE})" if spilled else "")
         if terms
         else f"    your ITEM names no path, so all {len(whole)} are printed in full: "
         f"{whole_b:,} B",
         f"    the other {len(listed)} cost one lead-in line each: {listed_b:,} B",
-        f"    so narrowing saved {max(unnarrowed - whole_b - listed_b, 0):,} B, and a bound on "
-        "the manifest",
-        f"    would act on the {unnarrowed:,} B -- not on this item's share of it",
+        f"    so narrowing saved {max(unnarrowed - whole_b - listed_b, 0):,} B -- the item's share",
+        f"    is bounded by PROMOTED_WHOLE; trimming the manifest acts on the {unnarrowed:,} B",
     ])
 
 
