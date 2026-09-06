@@ -100,10 +100,10 @@ Every session runs the same five steps, in this order, and **stops**:
    restating a number, because three files holding three different numbers is how it last went wrong.
 
    **The gate is the budget, not a count**, because a slice's cost is not fixed and a count prices every
-   slice as the most expensive one. A session's fixed cost is 35 of its 62 calls — 14 to orient, 21 to
-   verify and wrap, the `fixed cost per session` line of `python tools/loop-stats.py` on 2026-09-02 — and
+   slice as the most expensive one. A session's fixed cost is 29 of its 75 calls — 14 to orient, 16 to
+   verify and wrap, the `fixed cost per session` line of `python tools/loop-stats.py` on 2026-09-06 — and
    it is the same for a three-line slice as for a three-hundred-line one, so a slice that only writes a
-   test over landed work buys that 56% a second time when it gets a session to itself.
+   test over landed work buys that 39% a second time when it gets a session to itself.
    One lowering slice spends the 120k by itself; five test-writing slices over one file set do not, and a
    rule counting slices cannot tell those apart. This replaced a cap of 2, which `python
    tools/loop-stats.py` had derived three ways at once — and could not have derived otherwise, because it
