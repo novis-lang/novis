@@ -92,7 +92,7 @@ trigger is gone would misdescribe what is actually happening at the declaration 
 ### 2. `__destruct` — rejected outright, no replacement of any kind
 
 **Novis has no destructors.** A method named `__destruct` cannot even be declared:
-[ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule has never allowed a leading
+`rule:core-api/identifier-casing`'s method-casing rule has never allowed a leading
 underscore, so the casing checker refuses the name outright before anything about destructors comes into
 play — the same fate `rule:classes/no-call-magic` gives `__call` (that section was itself
 corrected to say so; earlier drafts of both described the name as "compiling as an ordinary method the
@@ -204,7 +204,7 @@ models, and this ADR does not ask [0019](0019-reflection-and-ast-parsing-are-cor
 which gives the same "get an object's data out, get an equivalent object back" capability without emitting
 PHP source that has to be `eval`'d or compiled to reconstruct it — a category of trust problem
 [0023](0023-clone-serialize-and-cross-boundary-copy.md) already closed for exactly this reason. A class declaring `__set_state` never reaches the question of whether the runtime would invoke it: the name
-itself is refused by [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule before any
+itself is refused by `rule:core-api/identifier-casing`'s method-casing rule before any
 resolution logic runs, same as every other double-underscore magic method this document and
 `rule:classes/no-call-magic` cover.
 
@@ -296,7 +296,7 @@ for; the fixtures named here are the whole set [M4's acceptance](../plan/m4.md) 
   invokes it" and is what makes §§ 2, 4 and 5 checkable at all — there is no declaration for anything to
   decline to call. `tests/conformance/reject/every-magic-method-name-this-adr-closes-is-unspellable.nvst`
   takes all six in one compile: `__toString`, `__destruct`, `__isset`, `__unset`, `__debugInfo` and
-  `__set_state` are each [ADR 0029](0029-identifier-casing-is-checked.md) § 1's `E0111`, carrying the
+  `__set_state` are each `rule:core-api/casing-checks-the-leading-character`'s `E0111`, carrying the
   rename `nvs convert` makes at M11. They are refused in source order, so a name that stops being refused
   shifts a line rather than quietly declaring a member.
 - **`Stringable` is an ordinary interface and the only route from an object to text** (*1*).

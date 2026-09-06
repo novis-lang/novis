@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cldr::pluralCategory` answers from the language's own rules, so English and Russian disagree on four counts in five — `rule:programs/framework-core-half`, ADR 0063 R1
+`Core\Cldr::pluralCategory` answers from the language's own rules, so English and Russian disagree on four counts in five — `rule:programs/framework-core-half`, `rule:core-api/shape-rules` R1
 --FILE--
 <?nvs
 // `rule:programs/framework-core-half` puts this member in `Core` so `Web\I18n` picks a plural form
@@ -34,7 +34,7 @@ foreach ($counts as int $count) {
 }
 echo "differ: ", $differ, "\n";
 
-// ADR 0063 R1's argument order: the count is what is classified and the
+// `rule:core-api/shape-rules` R1's argument order: the count is what is classified and the
 // locale is the rule it is classified under. Only the language subtag of the
 // tag is read, so a region and a script change nothing.
 echo "en-GB: ", Form::of(2, "en-GB"), "\n";

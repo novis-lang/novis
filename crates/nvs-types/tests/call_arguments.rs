@@ -117,7 +117,7 @@ fn a_variadic_tail_cannot_be_filled_by_name() {
 
 #[test]
 fn a_core_member_is_called_by_the_names_the_spec_writes() {
-    // ADR 0063 R2: `Core\Str::repeat(string $s, uint $times)`, written out of
+    // `rule:core-api/shape-rules` R2: `Core\Str::repeat(string $s, uint $times)`, written out of
     // order by name. The names are `nvs_stdlib::registry::CoreMethod::names`
     // and what versions them is `docs/spec/01-core-library.md`'s signature
     // column, so this fixture reads as that column does.
@@ -168,7 +168,7 @@ fn a_skipped_defaulted_core_parameter_takes_the_rows_default() {
 fn a_name_at_a_core_variadic_tail_is_unknown() {
     // `Core\Str::format(string $template, mixed ...$arguments)` is the one
     // registry row with a variadic tail. Its entry in `CoreMethod::names`
-    // documents the tail; ADR 0063 R2 says a name never reaches one, and
+    // documents the tail; `rule:core-api/shape-rules` R2 says a name never reaches one, and
     // `MethodSig::param_index` is where that holds for a `Core` row exactly as
     // for a user-declared method.
     let diags = check_in_method(

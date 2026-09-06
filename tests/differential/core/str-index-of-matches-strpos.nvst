@@ -1,8 +1,8 @@
 --TEST--
-Core\Str::indexOf answers every position strpos does, once absence is rendered the same on both sides (ADR 0063 R5, R8)
+Core\Str::indexOf answers every position strpos does, once absence is rendered the same on both sides (`rule:core-api/shape-rules` R5, R8)
 --FILE--
 <?nvs
-// ADR 0063 R5: `indexOf` answers `?uint`, so absence is `null` and a match at
+// `rule:core-api/shape-rules` R5: `indexOf` answers `?uint`, so absence is `null` and a match at
 // the front is `0`. PHP cannot tell those two apart — `strpos` answers `false`
 // and `false == 0` is true — which is the bug family this member exists to
 // remove. Rendering absence as `none` on both sides is what makes the two
@@ -28,7 +28,7 @@ echo Show::render(Core\Str::indexOf("haystack", "zz")), "\n";
 echo Show::render(Core\Str::indexOf("haystack", "haystack")), "\n";
 echo Show::render(Core\Str::indexOf("", "a")), "\n";
 
-// `from` is a position, so ADR 0063 R8's sign rule applies: a negative one
+// `from` is a position, so `rule:core-api/shape-rules` R8's sign rule applies: a negative one
 // counts back from the end and the scan runs forward from there.
 echo Show::render(Core\Str::indexOf("haystack", "a", {from: 2})), "\n";
 echo Show::render(Core\Str::indexOf("haystack", "st", {from: 3})), "\n";

@@ -92,7 +92,7 @@ pub(crate) const CURRENT_SYMBOL: &str = "nvs_core_channel_current";
 /// `new Core\Task\Channel<T>(uint $capacity)` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers.
 ///
-/// A positional required parameter rather than an options bag: ADR 0063 R2
+/// A positional required parameter rather than an options bag: `rule:core-api/shape-rules` R2
 /// puts a bag last for a member with several settings, and a channel has
 /// exactly one thing to say about itself. It is required rather than defaulted
 /// because there is no capacity a program should acquire by not thinking about
@@ -141,7 +141,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `new Core\Task\Channel`'s reference card — ADR 0117.
+/// `new Core\Task\Channel`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Core\\Task\\Channel<T>` — a bounded queue between two tasks, whose `send` \
             suspends at the bound instead of growing.",
@@ -157,7 +157,7 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Task\Channel::send`'s reference card — ADR 0117.
+/// `Core\Task\Channel::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
     short: "Queues `$value` for the consuming task, suspending the calling task for as long as \
             the channel is full.",
@@ -171,7 +171,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Task\Channel::close`'s reference card — ADR 0117.
+/// `Core\Task\Channel::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
     short: "Ends the stream, so that a consumer's `foreach` finishes once the queued values are \
             drained.",

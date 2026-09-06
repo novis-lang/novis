@@ -270,7 +270,7 @@ spellings rejected, and the reasoning.
   package. A required capability that is not granted fails the build; one a package declares *optional*
   compiles and throws only if reached, so a library degrades through `Core\Cap::has` instead of refusing to
   install** ([0112](0112-authority-is-keyed-on-the-enclosing-namespace.md)).
-- **Novis ships its own framework, split by ADR 0051's six tests** — privileged halves in `Core`, the
+- **Novis ships its own framework, split by `rule:core-api/tier-placement`'s six tests** — privileged halves in `Core`, the
   opinionated layer as the `nvs/web` package, no ORM and no runtime container
   ([0082](0082-the-first-party-framework.md)).
 - **A background job is a row in a `Core\Db` table, so an enqueue commits with the write that caused it**,

@@ -163,7 +163,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Script::onExit`'s reference card — ADR 0117.
+/// `Core\Script::onExit`'s reference card — `rule:core-api/reference-card`.
 const ON_EXIT_DOC: MethodDoc = MethodDoc {
     short: "Registers a closure to run as the last user code of this script — at a normal end, at \
             an `exit`, and when a throw reaches the root with nothing left to catch it. Hooks run \
@@ -202,7 +202,7 @@ pub(crate) const EXIT_REASON: crate::registry::CoreEnum = crate::registry::CoreE
     doc: Some(&EXIT_REASON_DOC),
 };
 
-/// [`EXIT_REASON`]'s reference card — ADR 0117.
+/// [`EXIT_REASON`]'s reference card — `rule:core-api/reference-card`.
 const EXIT_REASON_DOC: EnumDoc = EnumDoc {
     short: "Which of the three endings ran the exit hooks. A `FATAL` and a cancellation have no \
             case here because they run no hook at all.",
@@ -278,7 +278,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // ADR 0063 R4's "absence is `?T`": two of the three endings have no
+            // `rule:core-api/shape-rules` R4's "absence is `?T`": two of the three endings have no
             // exception, and a `Throwable` with an empty message would be a
             // different claim from having none.
             return_ty: CoreTy::Nullable(&THROWABLE),
@@ -290,7 +290,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Script\ExitReport::reason`'s reference card — ADR 0117.
+/// `Core\Script\ExitReport::reason`'s reference card — `rule:core-api/reference-card`.
 const REASON_DOC: MethodDoc = MethodDoc {
     short: "Which ending is running the hooks.",
     params: &[],
@@ -299,7 +299,7 @@ const REASON_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script\ExitReport::status`'s reference card — ADR 0117.
+/// `Core\Script\ExitReport::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "The status the process will exit with, decided before the first hook ran.",
     params: &[],
@@ -308,7 +308,7 @@ const STATUS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script\ExitReport::error`'s reference card — ADR 0117.
+/// `Core\Script\ExitReport::error`'s reference card — `rule:core-api/reference-card`.
 const ERROR_DOC: MethodDoc = MethodDoc {
     short: "The exception that ended the script, for the one ending that has one.",
     params: &[],
@@ -317,7 +317,7 @@ const ERROR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script::args`'s reference card — ADR 0117.
+/// `Core\Script::args`'s reference card — `rule:core-api/reference-card`.
 const ARGS_DOC: MethodDoc = MethodDoc {
     short: "Answers the value this script was spawned with — `spawn script … with(args: …)` as \
             the child sees it, already copied into this isolate's own arena.",

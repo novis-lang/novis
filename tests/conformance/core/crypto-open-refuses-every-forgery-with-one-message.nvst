@@ -1,5 +1,5 @@
 --TEST--
-Core\Crypto::open refuses an altered message, a truncated one, a buffer too short to be one and the wrong key with a single RuntimeError, while a key of the wrong length is a LogicError instead — ADR 0051 § 3, ADR 0063
+Core\Crypto::open refuses an altered message, a truncated one, a buffer too short to be one and the wrong key with a single RuntimeError, while a key of the wrong length is a LogicError instead — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // The bound asserted on both sides. `openssl_decrypt` answers `false` on a

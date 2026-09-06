@@ -5,7 +5,7 @@
 - **Scope:** the `Core\Task` roster — `all`, `map`, `afterResponse` — the `{limit, deadline}` options they
   share, what a cancellation does and does not run, and the `[deferred]` directives that bound work
   outliving a response. It also names what M5's loose verb list (`all`, `race`, `timeout`, `parallel_map`)
-  becomes under [ADR 0063](0063-core-api-conventions.md)'s rules. Not in scope: `spawn`/`await`'s grammar
+  becomes under `rule:core-api/shape-rules`'s rules. Not in scope: `spawn`/`await`'s grammar
   and `Core\Task\Channel`'s surface, both of which stay M5's own design; and the scheduler itself.
 - **Amends:** [0006](0006-isolated-script-execution.md) — its *Revisiting* asked what happens if an isolate
   must **outlive its parent**; § 4 answers the adjacent case that actually occurs (the *connection* ends,
@@ -39,7 +39,7 @@
   `race` / `timeout` / `Channel` / `parallel_map` since the plan was written, as a list of verbs with no
   home, no signatures and no owning ADR. Under
   `rule:classes/no-free-functions-or-constants` none of them can be a free function, and
-  under [ADR 0063](0063-core-api-conventions.md) `parallel_map` is subject-last and abbreviated. Left as
+  under `rule:core-api/shape-rules` `parallel_map` is subject-last and abbreviated. Left as
   they are, they become the library's first four members that do not obey the library's rules.
 - The shape that matters is narrow and very common: a request handler fetching a user, their orders and a
   feature-flag set concurrently, then rendering all three. In PHP that is three sequential round trips,
@@ -104,7 +104,7 @@ $responses = Task::map($urls, fn(string $u): Response => Http\Client::get($u), {
 ```
 
 `map(array<T> $items, callable $fn, {limit?, deadline?}): array<U>`, subject first
-([ADR 0063](0063-core-api-conventions.md) R1), the callback receiving `($value, $key)` like every other
+(`rule:core-api/shape-rules` R1), the callback receiving `($value, $key)` like every other
 callback in the library (R9), and the result **preserving the input's keys and order** regardless of
 completion order. It replaces the plan's `parallel_map`, which was subject-last and abbreviated (R1, R7).
 

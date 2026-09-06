@@ -1,9 +1,8 @@
 //! `Core\Storage` — `rule:programs/framework-core-half`'s
 //! object storage: four members that put, get, delete and enumerate **named objects on a disk an
-//! operator configured**, over the `fs.*` capabilities [ADR 0051](/docs/adr/0051-standard-library-tiers.md)
-//! § 3 already grants and no capability of its own.
+//! operator configured**, over the `fs.*` capabilities `rule:core-api/tier-roster` already grants and no capability of its own.
 //!
-//! `rule:programs/framework-core-half`'s row is one sentence — "local-filesystem object storage over ADR 0051's existing
+//! `rule:programs/framework-core-half`'s row is one sentence — "local-filesystem object storage over `rule:core-api/tier-placement`'s existing
 //! `fs.*` capabilities. Remote backends (S3 and friends) are a package or an extension, never
 //! Core" — and the decisions it does not write are below.
 //!
@@ -72,7 +71,7 @@
 //! no test can freeze. The sort is over names already in hand, and it buys every caller a total
 //! order each of them would otherwise have to impose.
 //!
-//! **`prefix` is an option, and it is empty or itself an object key.** Being optional, ADR 0063 R3
+//! **`prefix` is an option, and it is empty or itself an object key.** Being optional, `rule:core-api/shape-rules` R3
 //! puts it in the one trailing shape rather than in a second positional slot. Every non-empty
 //! prefix of a key *is* a key — the grammar bounds length from above only, and no byte it admits
 //! is one a longer name may not carry — so any other spelling names nothing this disk can hold,
@@ -83,7 +82,7 @@
 //! # Known gaps, recorded rather than worked around
 //!
 //! **There is no `exists`, and that one is deliberate.** [`get`](CLASS) answers absence as `null`
-//! under [ADR 0063](/docs/adr/0063-core-api-conventions.md) R7, so a second member
+//! under `rule:core-api/shape-rules` R7, so a second member
 //! asking the same question would be the one operation reachable two ways that R20 forbids. The
 //! cost is real and named: `get` on a large object reads it to answer a question about its
 //! existence. [`list`](CLASS) under a `prefix` is the cheap half of that — it reads the directory
@@ -242,7 +241,7 @@ const REFUSAL_DOC: ErrorDoc = ErrorDoc {
            a deployment or a call that was written wrong.",
 };
 
-/// `Core\Storage::put`'s reference card — ADR 0117.
+/// `Core\Storage::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
     short: "Writes `$contents` as the object `$key` on `$disk`, replacing whatever was there \
             unless `overwrite` says not to.",
@@ -273,7 +272,7 @@ const PUT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Storage::get`'s reference card — ADR 0117.
+/// `Core\Storage::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Reads the object `$key` on `$disk`, or answers `null` where the disk holds no object \
             of that name.",
@@ -289,7 +288,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Storage::delete`'s reference card — ADR 0117.
+/// `Core\Storage::delete`'s reference card — `rule:core-api/reference-card`.
 const DELETE_DOC: MethodDoc = MethodDoc {
     short: "Removes the object `$key` from `$disk`.",
     params: &[DISK_DOC, KEY_DOC],
@@ -305,7 +304,7 @@ const DELETE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Storage::list`'s reference card — ADR 0117.
+/// `Core\Storage::list`'s reference card — `rule:core-api/reference-card`.
 const LIST_DOC: MethodDoc = MethodDoc {
     short: "Answers the keys of the objects on `$disk`, sorted byte-ascending — every entry one \
             that `get` hands octets back for.",

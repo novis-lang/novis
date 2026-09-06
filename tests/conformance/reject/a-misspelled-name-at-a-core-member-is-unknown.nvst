@@ -1,5 +1,5 @@
 --TEST--
-a name that reaches no `Core` parameter is refused where it is written, whether it is a misspelling or the one name a variadic tail carries (ADR 0063 R2)
+a name that reaches no `Core` parameter is refused where it is written, whether it is a misspelling or the one name a variadic tail carries (`rule:core-api/shape-rules` R2)
 --FILE--
 <?nvs
 // The spec writes `Core\Str::repeat(string $s, uint $times)`, so `subject:`

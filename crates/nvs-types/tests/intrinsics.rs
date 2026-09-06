@@ -116,7 +116,7 @@ fn a_literal_date_format_is_validated_while_checking() {
     // § 1's rows 3 and 4 — the two members reading `nvs_stdlib::cldr`'s
     // letters, and the only two rows whose written argument positions differ:
     // `$d->format(…)`'s pattern is written argument 0, while `Core\Time::parse`
-    // puts the text being parsed first (ADR 0063 R1) and its pattern second.
+    // puts the text being parsed first (`rule:core-api/shape-rules` R1) and its pattern second.
     // `Y` — CLDR's week-based year — is a real letter this closed subset does
     // not carry, which is exactly the case the module's own refusal names.
     let rendered = check_call(

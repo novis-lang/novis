@@ -1,5 +1,5 @@
 --TEST--
-A local cache entry may be absent at any time: a miss answers `null` rather than throwing, and an unreachable shared store does the opposite — ADR 0059 § 1
+A local cache entry may be absent at any time: a miss answers `null` rather than throwing, and an unreachable shared store does the opposite — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 var $cache = Core\Cache::local();

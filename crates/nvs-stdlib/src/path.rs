@@ -189,7 +189,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: CONSTANTS,
 };
 
-/// `Core\Path::basename`'s reference card — ADR 0117.
+/// `Core\Path::basename`'s reference card — `rule:core-api/reference-card`.
 const BASENAME_DOC: MethodDoc = MethodDoc {
     short: "Answers the name of `$path`'s last component, as `basename` and \
             `pathinfo(…, PATHINFO_BASENAME)` do; a trailing separator is ignored, so `/a/b/` \
@@ -212,7 +212,7 @@ const BASENAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::dirname`'s reference card — ADR 0117.
+/// `Core\Path::dirname`'s reference card — `rule:core-api/reference-card`.
 const DIRNAME_DOC: MethodDoc = MethodDoc {
     short: "Answers `$path` with `levels` components dropped from the end, as `dirname` does; \
             the answer is always a usable directory.",
@@ -236,7 +236,7 @@ const DIRNAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::extension`'s reference card — ADR 0117.
+/// `Core\Path::extension`'s reference card — `rule:core-api/reference-card`.
 const EXTENSION_DOC: MethodDoc = MethodDoc {
     short: "Answers the text after the last `.` of `$path`'s last component, without the dot, \
             as `pathinfo(…, PATHINFO_EXTENSION)` does.",
@@ -251,7 +251,7 @@ const EXTENSION_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::withExtension`'s reference card — ADR 0117.
+/// `Core\Path::withExtension`'s reference card — `rule:core-api/reference-card`.
 const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
     short: "Answers `$path` with its last component's extension replaced by `$extension`, or \
             removed for `null` — the inverse of `Core\\Path::extension`, replacing the string \
@@ -278,7 +278,7 @@ const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Path::join`'s reference card — ADR 0117.
+/// `Core\Path::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Appends each of `$segments` to `$base` with a separator between — the \
             `$a . \"/\" . $b` every PHP program writes. Only the base decides the root: a \
@@ -303,7 +303,7 @@ const JOIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::split`'s reference card — ADR 0117.
+/// `Core\Path::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
     short: "Splits `$path` into its components — `explode(DIRECTORY_SEPARATOR, …)` for both \
             separators at once, and lossless: `Path::join(...Path::split($p))` is `$p` with \
@@ -319,7 +319,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::normalize`'s reference card — ADR 0117.
+/// `Core\Path::normalize`'s reference card — `rule:core-api/reference-card`.
 const NORMALIZE_DOC: MethodDoc = MethodDoc {
     short: "Resolves `.` and `..` in `$path` lexically and re-renders it with \
             `Path::SEPARATOR` — the half of `realpath` that does not touch the disk. Not a \
@@ -335,7 +335,7 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::isAbsolute`'s reference card — ADR 0117.
+/// `Core\Path::isAbsolute`'s reference card — `rule:core-api/reference-card`.
 const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$path` begins at a root — a separator, or a drive letter followed \
             by a separator — replacing the manual checks PHP leaves this to.",
@@ -350,7 +350,7 @@ const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Path::relativeTo`'s reference card — ADR 0117.
+/// `Core\Path::relativeTo`'s reference card — `rule:core-api/reference-card`.
 const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
     short: "Answers the relative path that leads from `$base` to `$path`, both resolved \
             lexically first — a member PHP has no equivalent of.",
@@ -748,7 +748,7 @@ nvs_runtime::nvs_helper! {
     /// **It takes exactly what [`nvs_core_path_extension`] answers**: the
     /// extension undotted, or `null` to remove one. That inverse is the point
     /// of the member, so a leading `.` is refused rather than accepted as a
-    /// second spelling (ADR 0063 R20) — `withExtension($p, '.txt')` names
+    /// second spelling (`rule:core-api/shape-rules` R20) — `withExtension($p, '.txt')` names
     /// `'txt'` in its diagnostic. An interior dot is fine, so `'tar.gz'` is a
     /// usable extension even though `extension` would then answer `'gz'`.
     ///
@@ -756,7 +756,7 @@ nvs_runtime::nvs_helper! {
     /// component into two, which is `join`'s job and not this member's.
     ///
     /// A path with no last component has no name to rewrite, so `'/'` and `''`
-    /// throw rather than inventing one (ADR 0063 R4).
+    /// throw rather than inventing one (`rule:core-api/shape-rules` R4).
     fn nvs_core_path_with_extension(_ctx, args: [2]) {
         let path = text(&args[0], "withExtension", "the path")?;
         let extension = maybe_text(&args[1], "withExtension", "the extension")?;

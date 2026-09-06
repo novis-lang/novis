@@ -64,7 +64,7 @@ echo Core\Json::encode(Core\Arr::overlayDeep($a, $b, $c)), "\n";
 echo Core\Json::encode(Core\Arr::overlayDeep(Core\Arr::overlayDeep($a, $b), $c)), "\n";
 echo Core\Json::encode(Core\Arr::overlayDeep($a)), "\n";
 
-// ADR 0063 R3: the members are pure, and the nested arrays a deep merge
+// `rule:core-api/shape-rules` R3: the members are pure, and the nested arrays a deep merge
 // copies are copies — `$a`'s own nesting is unchanged by all of the above.
 echo Core\Json::encode($a), "\n";
 --EXPECT--

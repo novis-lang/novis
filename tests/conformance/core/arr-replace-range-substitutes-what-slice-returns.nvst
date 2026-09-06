@@ -42,7 +42,7 @@ array<string> $m = ["k" => "a", "j" => "b", "i" => "c"];
 array<string> $keyed = ["p" => "X"];
 echo Core\Json::encode(Core\Arr::replaceRange($m, 1, 1, $keyed)), "\n";
 
-// ADR 0063 R3: every member is pure, so the subject is untouched.
+// `rule:core-api/shape-rules` R3: every member is pure, so the subject is untouched.
 echo Core\Json::encode($a), "\n";
 --EXPECT--
 ["a","X","Y","d"]

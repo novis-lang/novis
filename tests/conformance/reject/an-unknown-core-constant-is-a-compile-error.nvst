@@ -1,5 +1,5 @@
 --TEST--
-A `Core` class's constant list is closed while compiling too, so a misspelled one is named rather than waved through — ADR 0011 § 2
+A `Core` class's constant list is closed while compiling too, so a misspelled one is named rather than waved through — `rule:core-api/reserved-namespace`
 --FILE--
 <?nvs
 echo Core\Math::PHI, "\n";

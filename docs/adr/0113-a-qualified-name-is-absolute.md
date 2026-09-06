@@ -115,7 +115,7 @@ A single-segment `use` is not a special form; it is the ordinary absolute path t
 happens to be one segment long — and an import naming a reserved global is trusted at the import the
 same way one naming a `Core` class is, since neither has a user declaration to check against. The
 reserved tree gets no auto-import, for the same reason
-[ADR 0011](0011-functions-and-constants-are-class-members.md) § 2 gives `Core` none: a name that
+`rule:core-api/reserved-namespace` gives `Core` none: a name that
 resolves without appearing anywhere in the file is a name a reader cannot trace, and one closed
 roster's worth of exception would be a second resolution rule to hold alongside § 1's.
 
@@ -148,7 +148,7 @@ parser rejects never reaches the formatter.
 - **A short name for a class in the same namespace.** `namespace App\Models; ... new User();` resolves
   to `App\Models\User` exactly as before — the enclosing-namespace step in § 1 is PHP's, kept.
 - **`Core`.** `Core\Str::length($s)` is a qualified name, absolute under § 1, and resolves identically
-  from any namespace — which is what [ADR 0011](0011-functions-and-constants-are-class-members.md) § 2's
+  from any namespace — which is what `rule:core-api/reserved-namespace`'s
   examples already assume and already spell without a leading `\`.
 - **Case comparison, autoload, and the `Core` reservation** are untouched; each is its own ADR's rule.
 

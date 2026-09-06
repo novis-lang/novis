@@ -91,7 +91,7 @@ echo Core\Arr::contains($floats, 1) ? "true" : "false", "\n";
 echo Ask::reported(["a", "b", "c"], "z"), "\n";
 echo Ask::reported($empty, ""), "\n";
 
-// 6. ADR 0063 R2's trailing bag sits in front of that report as everywhere.
+// 6. `rule:core-api/shape-rules` R2's trailing bag sits in front of that report as everywhere.
 try {
     Test::assertContains($map, "seed", {message: "the fixture loaded its seed row"});
 } catch (Core\Test\Failure $withMessage) {

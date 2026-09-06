@@ -110,7 +110,7 @@ then removed — is gone now that today's column measures the real thing: that p
 win.** `19-object-property` wins because a property is a fixed offset into an `NvsObj` where PHP's
 is a hash lookup. `11-array-sort-by-field` wins because `Core\Arr::sort`'s `by:` option makes the
 sort a Schwartzian transform — 50 000 callback calls, where PHP's `usort` makes one per
-*comparison*, about 780 000. That is [ADR 0063](../adr/0063-core-api-conventions.md)'s API shape
+*comparison*, about 780 000. That is `rule:core-api/shape-rules`'s API shape
 paying off, not the engine. The same reading from the other side is the whole of this file: where
 the two languages perform the same operations, Novis's cost per operation is higher.
 

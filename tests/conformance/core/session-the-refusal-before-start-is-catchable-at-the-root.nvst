@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Session` member called before `start` refuses with a throw the root of spec § 10's tree catches, so a program that cannot use sessions can say so -- ADR 0139 § 1
+A `Core\Session` member called before `start` refuses with a throw the root of spec § 10's tree catches, so a program that cannot use sessions can say so -- `rule:core-api/session-roster`
 --FILE--
 <?nvs
 // The sibling cases pinned the class and the wording. This pins the *tree*: the

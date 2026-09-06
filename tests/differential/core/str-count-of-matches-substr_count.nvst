@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::countOf matches substr_count, counting non-overlapping occurrences where lastIndexOf's scan overlaps (ADR 0063 R20)
+Core\Str::countOf matches substr_count, counting non-overlapping occurrences where lastIndexOf's scan overlaps (`rule:core-api/shape-rules` R20)
 --FILE--
 <?nvs
 // A count partitions the subject where a position search does not, so

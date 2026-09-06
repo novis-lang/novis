@@ -188,7 +188,7 @@ than one shared spelling, because a JSON key and a column name are independently
 equal would need an escape hatch immediately.
 
 - **`name`** renames one field's key or column. There is no whole-class naming *policy* — no
-  `namingStrategy: "snake_case"` — because that is a mode string ([ADR 0063](0063-core-api-conventions.md)
+  `namingStrategy: "snake_case"` — because that is a mode string (`rule:core-api/shape-rules`
   R11) and because it would make a wire format depend on a setting rather than on the source. The default is
   the property's own name, exactly, matching `rule:core-classes/db-column-types`'s existing "no snake-to-camel
   mapping layer" rule for columns.
@@ -257,7 +257,7 @@ that is not an error — allocates nothing for it.
 `toJson()` and carries `#[Json\Derive]` gets the generated `fromJson` and keeps its own encoder — the common
 real case, since a custom representation usually needs a mechanical inverse rather than a second bespoke
 one. A class that declares **both** halves gets a compile error: the attribute generates nothing, and an
-attribute with no effect is a mistake, not a no-op ([ADR 0029](0029-identifier-casing-is-checked.md)'s
+attribute with no effect is a mistake, not a no-op (`rule:core-api/identifier-casing`'s
 standing preference for a hard error over a suppressed one).
 
 - **`#[Db\Derive]` is one-directional.** `Core\Db\Codec` declares `fromRow` only; there is no `toRow`,
@@ -267,7 +267,7 @@ standing preference for a hard error over a suppressed one).
   user-facing half of the one graph-copy operation the `spawn` boundary already runs: it handles every
   object with no per-class opt-in, preserves identity and cycles, and is not a declared wire contract at
   all. A derive for it would be a second, weaker path to an operation that already works —
-  [ADR 0063](0063-core-api-conventions.md) R17.
+  `rule:core-api/shape-rules` R17.
 - **An `rule:types/object-literal` shape encodes with no attribute at all**, as a JSON
   object keyed by its field names, and this is not a hole in § 1's written opt-in: a shape literal has no
   declaration to carry an attribute, so there is nothing a program could have written and nothing an
@@ -359,7 +359,7 @@ derive attribute pays nothing at all, including no pass.
   a column name to be the same string, which is wrong often enough that the escape hatch would be needed
   immediately, and the escape hatch is the two attributes.
 - **A whole-class naming strategy (`snake_case`, `camelCase`).** Rejected as a mode string
-  ([ADR 0063](0063-core-api-conventions.md) R11) and, worse, as a wire format that depends on a setting
+  (`rule:core-api/shape-rules` R11) and, worse, as a wire format that depends on a setting
   rather than on the source you are reading.
 - **Report the first failed field only**, as serde does. Rejected: the motivating case is a submitted form,
   where telling a user about one of their four mistakes at a time is the behaviour this is meant to fix.

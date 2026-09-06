@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Bytes::pack` integer code accepts exactly the union of its width's signed and unsigned ranges and refuses the value one past each end, `unpack` reads that field back unsigned, and `slice`'s window clamps at both ends of the buffer — spec § 7, ADR 0063 R4 and R8
+Every `Core\Bytes::pack` integer code accepts exactly the union of its width's signed and unsigned ranges and refuses the value one past each end, `unpack` reads that field back unsigned, and `slice`'s window clamps at both ends of the buffer — spec § 7, `rule:core-api/shape-rules` R4 and R8
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/bytes.rs`'s own docs state the rule these rows pin:
@@ -89,7 +89,7 @@ echo "back ", Probe::readUnsigned(Core\Bytes::pack("N", -2147483648), "N"), " ",
     Probe::readUnsigned(Core\Bytes::pack("C", -128), "C"), " ",
     Probe::readUnsigned(Core\Bytes::pack("n", -32768), "n"), "\n";
 
-// ADR 0063 R8's sign rule, at the ends of the buffer rather than inside it.
+// `rule:core-api/shape-rules` R8's sign rule, at the ends of the buffer rather than inside it.
 // `slice` clamps rather than throwing — the sibling case pins an offset well
 // past the end; these are the offsets *at* the boundary, where an off-by-one
 // shows up and a far offset does not.

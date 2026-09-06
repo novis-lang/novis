@@ -188,7 +188,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Jwt::sign`'s reference card — ADR 0117.
+/// `Core\Jwt::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
     short: "Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and \
             HMAC-SHA-256. The expiry is written here rather than passed in, so a token this \
@@ -230,7 +230,7 @@ const SIGN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Jwt::verify`'s reference card — ADR 0117.
+/// `Core\Jwt::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
     short: "Answers the claims `$token` carries, having checked that this key signed it and \
             that it has not expired. It throws rather than answering an empty value, so there \

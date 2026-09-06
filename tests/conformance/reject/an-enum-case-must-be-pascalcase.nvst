@@ -1,5 +1,5 @@
 --TEST--
-an enum case is a PascalCase declaration site like the enum itself, and every mis-cased case is reported — ADR 0029 § 1
+an enum case is a PascalCase declaration site like the enum itself, and every mis-cased case is reported — `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 enum Level {

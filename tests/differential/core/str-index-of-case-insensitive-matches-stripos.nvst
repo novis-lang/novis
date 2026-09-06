@@ -1,8 +1,8 @@
 --TEST--
-Core\Str::indexOf's {caseInsensitive} option selects between strpos and stripos on the same call (ADR 0063 R20)
+Core\Str::indexOf's {caseInsensitive} option selects between strpos and stripos on the same call (`rule:core-api/shape-rules` R20)
 --FILE--
 <?nvs
-// ADR 0063 R20: one member with an option replaces PHP's `strpos`/`stripos`
+// `rule:core-api/shape-rules` R20: one member with an option replaces PHP's `strpos`/`stripos`
 // pair rather than carrying a second spelling of one operation. So the claim
 // here is not "indexOf can search case-insensitively" — it is that the *same
 // call*, with the option off and then on, is each of PHP's two functions in

@@ -527,7 +527,7 @@ pub struct MailEndpoint {
 ///
 /// **One field, and there is deliberately no `capabilities.storage` beside it.** The grant over a
 /// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what ADR
-/// 0082 § 2's "over ADR 0051's existing `fs.*` capabilities" means and what
+/// 0082 § 2's "over `rule:core-api/tier-placement`'s existing `fs.*` capabilities" means and what
 /// `nvs_stdlib::storage`'s module doc argues at length: a second grant over one door is the shape
 /// where a deployment is tightened in one of them and stays open through the other.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -904,7 +904,7 @@ pub struct Cache {
     /// `[cache.local]` — ADR 0059 § 3's bound on the per-core tier, for the reason `shared` below
     /// sits here: `Core\Cache` is one class, and its two tiers are looked for under its own name.
     pub local: Option<CacheLocal>,
-    /// `[cache.shared]` — ADR 0059 § 1's coherent tier, which is a *store* and not this block's
+    /// `[cache.shared]` — `rule:core-api/two-cache-tiers`'s coherent tier, which is a *store* and not this block's
     /// compiled artifacts. It sits here rather than in a block of its own because `Core\Cache` is
     /// one class and an operator looking for where its entries live looks under its own name;
     /// nothing else about the two halves is shared.

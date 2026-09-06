@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::parse and `Uuid::tryParse` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, ADR 0063 R4, `rule:expressions/try-parse`
+Core\Uuid::parse and `Uuid::tryParse` answer one question about one spelling — the canonical hyphenated form in either case, with the three shapes a UUID library usually also takes refused — spec § 11, `rule:core-api/shape-rules` R4, `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // `Read` exists because a `catch` does not lower at file scope; every throwing
@@ -14,7 +14,7 @@ class Read {
     }
 
     // `rule:expressions/try-parse`: the non-throwing question is `tryParse`, the one `try…`
-    // ADR 0063 R5 admits, and there is no `isValid` beside it — one
+    // `rule:core-api/shape-rules` R5 admits, and there is no `isValid` beside it — one
     // predicate, one spelling, one implementation. `$s as ?Core\Uuid` does
     // not compile; § 3's class row has no exceptions.
     public static function valid(string $s): string {
@@ -49,7 +49,7 @@ echo Read::valid("f9168c5ec-eb2-4faa-b6bf-329bf39fa1e4"), "\n";
 echo Read::valid(" f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4"), "\n";
 echo Read::valid(""), "\n";
 
-// ADR 0063 R4: `parse` asserts that the text is a UUID, so it throws where
+// `rule:core-api/shape-rules` R4: `parse` asserts that the text is a UUID, so it throws where
 // `tryParse` answers `null`. That is not two definitions of the shape agreeing
 // — `tryParse` *is* `parse`, with the throw turned into a `null`.
 echo Read::parsed("not a uuid"), "\n";

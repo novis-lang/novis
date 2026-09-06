@@ -407,7 +407,7 @@ pub(crate) fn open_named(
     Ok(key)
 }
 
-/// ADR 0135 § 3's merged field list of [`SETTINGS`], as ABI slots: the server
+/// `rule:core-api/shape-flattens-at-the-abi`'s merged field list of [`SETTINGS`], as ABI slots: the server
 /// arm's ten fields in order, then the SQLite arm's `path` — `driver`,
 /// `timeZone` and `timeout` are already spoken for — then the trailing bag's
 /// `shared`. Twelve, which is what `nvs_core_db_open` declares.
@@ -517,7 +517,7 @@ pub(super) fn settings_uint(value: &Value, key: &str) -> Result<Option<u64>, Fau
 /// would be.** `E0402` refuses a literal that omits a key the merged list
 /// requires, and the merged list can only require a key **every** arm does:
 /// `driver` is one, `host` is not, because the SQLite arm does not declare it.
-/// So a missing `host` reaches here as a `Tag::Null`, and until ADR 0135 § 2's
+/// So a missing `host` reaches here as a `Tag::Null`, and until `rule:core-api/shape-arms-are-disjoint`'s
 /// arm selection lands — this module's known gap 1 — it is a program error and
 /// a catchable one, rather than an impossible state worth a `FATAL`.
 ///
@@ -850,7 +850,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// § 2's `open` over the SQLite arm of ADR 0135 § 1's union: a file, § 13's
+/// § 2's `open` over the SQLite arm of `rule:core-api/shape-parameter`'s union: a file, § 13's
 /// pool around it, and none of the address machinery the server arm is.
 ///
 /// **§ 3's grants are three and not one.** That section puts a *config-written*

@@ -685,17 +685,21 @@ mod tests {
 
     #[test]
     fn a_divergence_must_state_its_reason_and_its_own_expectation() {
-        let e = case("--TEST--\nt\n--FILE--\n<?nvs\n--ORACLE-DIVERGES--\nADR 0063 R7\n")
-            .expect_err("a divergence with no expectation is rejected");
+        let e = case(
+            "--TEST--\nt\n--FILE--\n<?nvs\n--ORACLE-DIVERGES--\n`rule:core-api/shape-rules` R7\n",
+        )
+        .expect_err("a divergence with no expectation is rejected");
         assert!(e.message.contains("states its own"), "{e}");
 
         let parsed = case(
-            "--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n--ORACLE-DIVERGES--\nADR 0063 R7\n",
+            "--TEST--\nt\n--FILE--\n<?nvs\necho 1;\n--EXPECT--\n1\n--ORACLE-DIVERGES--\n`rule:core-api/shape-rules` R7\n",
         )
         .expect("a divergence with an expectation parses");
         assert_eq!(
             parsed.oracle,
-            Some(Oracle::Diverges("ADR 0063 R7".to_owned()))
+            Some(Oracle::Diverges(
+                "`rule:core-api/shape-rules` R7".to_owned()
+            ))
         );
     }
 

@@ -23,7 +23,7 @@ echo $safe, "\n";
 // by nobody, exactly as `Core\Secret::reveal`'s is.
 string $source = Core\Html::toSource($safe, "asking which references the escape produced");
 
-// All five, always, with no flag to choose between them — ADR 0063 R6 forbids
+// All five, always, with no flag to choose between them — `rule:core-api/shape-rules` R6 forbids
 // the `htmlspecialchars` bitmask, and the member of every pair those flags
 // chose between that is worth having is the safe one. Escaping both quote
 // characters is what makes the answer safe in an unquoted attribute position

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — spec § 14, ADR 0063 R17
+Core\IO::stat answers in one call what ::size, ::isFile, ::isDir and ::modifiedAt answer in four, and every pair agrees — asserted by counting the agreements rather than by printing each answer, so a member that grew its own reading of the same `stat` fails here while still looking right on its own line — spec § 14, `rule:core-api/shape-rules` R17
 --FILE--
 <?nvs
 // The four single-question members and the one that answers all four exist
@@ -27,7 +27,7 @@ if ($file->isDir() == Core\IO::isDir("note.txt")) {
     $agree = $agree + 1;
 }
 // The modification time is a point on the timeline and not a number, so the
-// comparison is `compareTo` -- ADR 0063 R12's units-are-types, and the whole
+// comparison is `compareTo` -- `rule:core-api/shape-rules` R12's units-are-types, and the whole
 // reason `filemtime`'s epoch integer does not survive into Novis.
 if ($file->modifiedAt()->compareTo(Core\IO::modifiedAt("note.txt")) == 0) {
     $agree = $agree + 1;

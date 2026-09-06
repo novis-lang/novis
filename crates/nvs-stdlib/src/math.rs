@@ -2,7 +2,7 @@
 //! § 3, over `int`, `uint` and `float`.
 //!
 //! `**` is exponentiation and `%` is integer modulo, so neither has a member
-//! (ADR 0063 R17); that section's own note owns why.
+//! (`rule:core-api/shape-rules` R17); that section's own note owns why.
 //!
 //! # Two rules cover every member here, so no member restates them
 //!
@@ -416,7 +416,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: CONSTANTS,
 };
 
-/// `Core\Math::abs`'s reference card — ADR 0117.
+/// `Core\Math::abs`'s reference card — `rule:core-api/reference-card`.
 const ABS_DOC: MethodDoc = MethodDoc {
     short: "The magnitude of `$n`, in `$n`'s own type, as `abs` does — the one member here whose \
             result type is the argument's.",
@@ -433,7 +433,7 @@ const ABS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::sign`'s reference card — ADR 0117.
+/// `Core\Math::sign`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
     short: "Which side of zero `$n` is on — `-1`, `0` or `1` — as PHP's `$n <=> 0` does.",
     params: &[ParamDoc {
@@ -454,7 +454,7 @@ const SIGN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Math::min`'s reference card — ADR 0117.
+/// `Core\Math::min`'s reference card — `rule:core-api/reference-card`.
 const MIN_DOC: MethodDoc = MethodDoc {
     short: "The smaller of two values under their natural order, as `min` does with two scalar \
             arguments; the array form is `Core\\Arr::min`.",
@@ -479,7 +479,7 @@ const MIN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::max`'s reference card — ADR 0117.
+/// `Core\Math::max`'s reference card — `rule:core-api/reference-card`.
 const MAX_DOC: MethodDoc = MethodDoc {
     short: "The larger of two values under their natural order, as `max` does with two scalar \
             arguments; the array form is `Core\\Arr::max`.",
@@ -504,7 +504,7 @@ const MAX_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::clamp`'s reference card — ADR 0117.
+/// `Core\Math::clamp`'s reference card — `rule:core-api/reference-card`.
 const CLAMP_DOC: MethodDoc = MethodDoc {
     short: "`$n` brought inside `[$low, $high]`, replacing PHP's `min(max($n, $low), $high)` \
             idiom.",
@@ -535,7 +535,7 @@ const CLAMP_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::ceil`'s reference card — ADR 0117.
+/// `Core\Math::ceil`'s reference card — `rule:core-api/reference-card`.
 const CEIL_DOC: MethodDoc = MethodDoc {
     short: "The smallest integral value at or above `$n`, as `ceil` does.",
     params: &[ParamDoc {
@@ -547,7 +547,7 @@ const CEIL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::floor`'s reference card — ADR 0117.
+/// `Core\Math::floor`'s reference card — `rule:core-api/reference-card`.
 const FLOOR_DOC: MethodDoc = MethodDoc {
     short: "The largest integral value at or below `$n`, as `floor` does.",
     params: &[ParamDoc {
@@ -559,7 +559,7 @@ const FLOOR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::truncate`'s reference card — ADR 0117.
+/// `Core\Math::truncate`'s reference card — `rule:core-api/reference-card`.
 const TRUNCATE_DOC: MethodDoc = MethodDoc {
     short: "`$n` with its fractional part dropped — toward zero, so `floor` for a positive `$n` \
             and `ceil` for a negative one — as PHP's `(int)` cast does without the type change.",
@@ -572,7 +572,7 @@ const TRUNCATE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::round`'s reference card — ADR 0117.
+/// `Core\Math::round`'s reference card — `rule:core-api/reference-card`.
 const ROUND_DOC: MethodDoc = MethodDoc {
     short: "`$n` rounded to `precision` decimal places, with the tie rule named as a \
             `Core\\RoundMode` case, as `round` and its four `PHP_ROUND_*` constants do.",
@@ -601,7 +601,7 @@ const ROUND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::intDiv`'s reference card — ADR 0117.
+/// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
 const INT_DIV_DOC: MethodDoc = MethodDoc {
     short: "The integer quotient of `$a / $b`, truncated toward zero, as `intdiv` does.",
     params: &[
@@ -624,7 +624,7 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::mod`'s reference card — ADR 0117.
+/// `Core\Math::mod`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
     short: "The remainder of `$a / $b` over floats, with the sign of `$a`, as `fmod` does; \
             integer modulo is the `%` operator, so this member is the `float` case only.",
@@ -649,7 +649,7 @@ const MOD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::fdiv`'s reference card — ADR 0117.
+/// `Core\Math::fdiv`'s reference card — `rule:core-api/reference-card`.
 const FDIV_DOC: MethodDoc = MethodDoc {
     short: "The IEEE quotient of `$a / $b`, as `fdiv` does — the one member here that answers a \
             zero divisor instead of throwing, the `/` operator having no such spelling.",
@@ -670,7 +670,7 @@ const FDIV_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::gcd`'s reference card — ADR 0117.
+/// `Core\Math::gcd`'s reference card — `rule:core-api/reference-card`.
 const GCD_DOC: MethodDoc = MethodDoc {
     short: "The greatest common divisor of two integers, never negative, as `gmp_gcd` does \
             without the GMP objects.",
@@ -695,7 +695,7 @@ const GCD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::lcm`'s reference card — ADR 0117.
+/// `Core\Math::lcm`'s reference card — `rule:core-api/reference-card`.
 const LCM_DOC: MethodDoc = MethodDoc {
     short: "The least common multiple of two integers, never negative, as `gmp_lcm` does \
             without the GMP objects.",
@@ -719,7 +719,7 @@ const LCM_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::sqrt`'s reference card — ADR 0117.
+/// `Core\Math::sqrt`'s reference card — `rule:core-api/reference-card`.
 const SQRT_DOC: MethodDoc = MethodDoc {
     short: "The square root of `$n`, as `sqrt` does.",
     params: &[ParamDoc {
@@ -731,7 +731,7 @@ const SQRT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::cbrt`'s reference card — ADR 0117.
+/// `Core\Math::cbrt`'s reference card — `rule:core-api/reference-card`.
 const CBRT_DOC: MethodDoc = MethodDoc {
     short: "The cube root of `$n`, replacing PHP's `pow($n, 1/3)` — and defined for a negative \
             `$n`, where that idiom answers `NaN`.",
@@ -744,7 +744,7 @@ const CBRT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::hypot`'s reference card — ADR 0117.
+/// `Core\Math::hypot`'s reference card — `rule:core-api/reference-card`.
 const HYPOT_DOC: MethodDoc = MethodDoc {
     short: "The length of the hypotenuse of a right triangle with legs `$a` and `$b`, as `hypot` \
             does, without the intermediate overflow `sqrt($a ** 2 + $b ** 2)` has.",
@@ -764,7 +764,7 @@ const HYPOT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::exp`'s reference card — ADR 0117.
+/// `Core\Math::exp`'s reference card — `rule:core-api/reference-card`.
 const EXP_DOC: MethodDoc = MethodDoc {
     short: "`E` raised to the power `$n`, as `exp` does.",
     params: &[ParamDoc {
@@ -777,7 +777,7 @@ const EXP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::log`'s reference card — ADR 0117.
+/// `Core\Math::log`'s reference card — `rule:core-api/reference-card`.
 const LOG_DOC: MethodDoc = MethodDoc {
     short: "The logarithm of `$n`, natural unless a `base` is given — one member for PHP's \
             `log`, `log10` and `log2`.",
@@ -802,7 +802,7 @@ const LOG_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::sin`'s reference card — ADR 0117.
+/// `Core\Math::sin`'s reference card — `rule:core-api/reference-card`.
 const SIN_DOC: MethodDoc = MethodDoc {
     short: "The sine of an angle in radians, as `sin` does.",
     params: &[ParamDoc {
@@ -814,7 +814,7 @@ const SIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::cos`'s reference card — ADR 0117.
+/// `Core\Math::cos`'s reference card — `rule:core-api/reference-card`.
 const COS_DOC: MethodDoc = MethodDoc {
     short: "The cosine of an angle in radians, as `cos` does.",
     params: &[ParamDoc {
@@ -826,7 +826,7 @@ const COS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::tan`'s reference card — ADR 0117.
+/// `Core\Math::tan`'s reference card — `rule:core-api/reference-card`.
 const TAN_DOC: MethodDoc = MethodDoc {
     short: "The tangent of an angle in radians, as `tan` does.",
     params: &[ParamDoc {
@@ -838,7 +838,7 @@ const TAN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::asin`'s reference card — ADR 0117.
+/// `Core\Math::asin`'s reference card — `rule:core-api/reference-card`.
 const ASIN_DOC: MethodDoc = MethodDoc {
     short: "The arc sine — the angle in radians whose sine is `$n` — as `asin` does.",
     params: &[ParamDoc {
@@ -850,7 +850,7 @@ const ASIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::acos`'s reference card — ADR 0117.
+/// `Core\Math::acos`'s reference card — `rule:core-api/reference-card`.
 const ACOS_DOC: MethodDoc = MethodDoc {
     short: "The arc cosine — the angle in radians whose cosine is `$n` — as `acos` does.",
     params: &[ParamDoc {
@@ -862,7 +862,7 @@ const ACOS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::atan`'s reference card — ADR 0117.
+/// `Core\Math::atan`'s reference card — `rule:core-api/reference-card`.
 const ATAN_DOC: MethodDoc = MethodDoc {
     short: "The arc tangent — the angle in radians whose tangent is `$n` — as `atan` does; for a \
             pair of coordinates, `atan2` keeps the quadrant.",
@@ -875,7 +875,7 @@ const ATAN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::atan2`'s reference card — ADR 0117.
+/// `Core\Math::atan2`'s reference card — `rule:core-api/reference-card`.
 const ATAN2_DOC: MethodDoc = MethodDoc {
     short: "The angle of the point `($x, $y)` from the positive x-axis, in radians, as `atan2` \
             does — `$y` first, as in PHP and in C.",
@@ -896,7 +896,7 @@ const ATAN2_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::sinh`'s reference card — ADR 0117.
+/// `Core\Math::sinh`'s reference card — `rule:core-api/reference-card`.
 const SINH_DOC: MethodDoc = MethodDoc {
     short: "The hyperbolic sine of `$n`, as `sinh` does.",
     params: &[ParamDoc {
@@ -909,7 +909,7 @@ const SINH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::cosh`'s reference card — ADR 0117.
+/// `Core\Math::cosh`'s reference card — `rule:core-api/reference-card`.
 const COSH_DOC: MethodDoc = MethodDoc {
     short: "The hyperbolic cosine of `$n`, as `cosh` does.",
     params: &[ParamDoc {
@@ -921,7 +921,7 @@ const COSH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::tanh`'s reference card — ADR 0117.
+/// `Core\Math::tanh`'s reference card — `rule:core-api/reference-card`.
 const TANH_DOC: MethodDoc = MethodDoc {
     short: "The hyperbolic tangent of `$n`, as `tanh` does.",
     params: &[ParamDoc {
@@ -933,7 +933,7 @@ const TANH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::asinh`'s reference card — ADR 0117.
+/// `Core\Math::asinh`'s reference card — `rule:core-api/reference-card`.
 const ASINH_DOC: MethodDoc = MethodDoc {
     short: "The inverse hyperbolic sine of `$n`, as `asinh` does.",
     params: &[ParamDoc {
@@ -945,7 +945,7 @@ const ASINH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::acosh`'s reference card — ADR 0117.
+/// `Core\Math::acosh`'s reference card — `rule:core-api/reference-card`.
 const ACOSH_DOC: MethodDoc = MethodDoc {
     short: "The inverse hyperbolic cosine of `$n`, as `acosh` does.",
     params: &[ParamDoc {
@@ -957,7 +957,7 @@ const ACOSH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::atanh`'s reference card — ADR 0117.
+/// `Core\Math::atanh`'s reference card — `rule:core-api/reference-card`.
 const ATANH_DOC: MethodDoc = MethodDoc {
     short: "The inverse hyperbolic tangent of `$n`, as `atanh` does.",
     params: &[ParamDoc {
@@ -970,7 +970,7 @@ const ATANH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::toRadians`'s reference card — ADR 0117.
+/// `Core\Math::toRadians`'s reference card — `rule:core-api/reference-card`.
 const TO_RADIANS_DOC: MethodDoc = MethodDoc {
     short: "An angle in degrees as radians, as `deg2rad` does — computed as PHP's own \
             `($degrees / 180) * PI`, so a round trip through `toDegrees` agrees with PHP's.",
@@ -983,7 +983,7 @@ const TO_RADIANS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::toDegrees`'s reference card — ADR 0117.
+/// `Core\Math::toDegrees`'s reference card — `rule:core-api/reference-card`.
 const TO_DEGREES_DOC: MethodDoc = MethodDoc {
     short: "An angle in radians as degrees, as `rad2deg` does — computed as PHP's own \
             `($radians / PI) * 180`, so a round trip through `toRadians` agrees with PHP's.",
@@ -996,7 +996,7 @@ const TO_DEGREES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::isNan`'s reference card — ADR 0117.
+/// `Core\Math::isNan`'s reference card — `rule:core-api/reference-card`.
 const IS_NAN_DOC: MethodDoc = MethodDoc {
     short: "Whether `$n` is `NaN` — the one `float` that is not equal to itself, so `==` cannot \
             ask — as `is_nan` does.",
@@ -1009,7 +1009,7 @@ const IS_NAN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::isFinite`'s reference card — ADR 0117.
+/// `Core\Math::isFinite`'s reference card — `rule:core-api/reference-card`.
 const IS_FINITE_DOC: MethodDoc = MethodDoc {
     short: "Whether `$n` is neither an infinity nor `NaN`, as `is_finite` does; negated and \
             joined with `isNan`, it is `is_infinite` too.",
@@ -1023,7 +1023,7 @@ const IS_FINITE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::toBase`'s reference card — ADR 0117.
+/// `Core\Math::toBase`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE_DOC: MethodDoc = MethodDoc {
     short: "`$n` written out in `$base`, with lowercase digits above nine, as `decbin`, `dechex`, \
             `decoct` and the writing half of `base_convert` do.",
@@ -1047,7 +1047,7 @@ const TO_BASE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::fromBase`'s reference card — ADR 0117.
+/// `Core\Math::fromBase`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE_DOC: MethodDoc = MethodDoc {
     short: "The integer `$s` spells in `$base`, case-insensitive above nine, as `bindec`, \
             `hexdec`, `octdec` and the reading half of `base_convert` do — but every digit must \
@@ -1079,7 +1079,7 @@ const FROM_BASE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Math::format`'s reference card — ADR 0117.
+/// `Core\Math::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "`$n` written for a reader, with a fixed count of decimals and separators the caller \
             names, as `number_format` does — except that grouping is off unless asked for, since \
@@ -1239,7 +1239,7 @@ pub const ROUND_MODE: CoreEnum = CoreEnum {
     doc: Some(&ROUND_MODE_DOC),
 };
 
-/// [`ROUND_MODE`]'s reference card — ADR 0117 § 1, one line per case, and
+/// [`ROUND_MODE`]'s reference card — `rule:core-api/reference-card`, one line per case, and
 /// the semantics are [`RoundMode`]'s, which `round_with` implements.
 const ROUND_MODE_DOC: EnumDoc = EnumDoc {
     short: "How `Core\\Math::round` settles a value between two neighbours — PHP's four \
@@ -1984,7 +1984,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_math_to_base`], leading `-` included. Every one of PHP's
     /// four **silently ignores** a digit the base has no room for — `hexdec`
     /// reads `"beefy"` as `48879` — which is precisely the quiet wrong answer
-    /// ADR 0063 R4 makes a throw here, along with an empty string and a result
+    /// `rule:core-api/shape-rules` R4 makes a throw here, along with an empty string and a result
     /// past `int`.
     fn nvs_core_math_from_base(_ctx, args: [2]) {
         let text = str_at(args, 0, "fromBase")?;

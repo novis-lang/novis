@@ -141,7 +141,7 @@ pub const DIRECTIVES: &[Directive] = &[
     // 0078's "the server's listen addresses" and includes them.
     Directive { key: "cache.dir", class: Class::System, apply: Apply::Boot },
     // Neither of the other two `[cache]` keys is an artifact directory at all, and both are more
-    // specific rows than `cache.dir`'s sibling and so found by `lookup` first. ADR 0059 § 1's
+    // specific rows than `cache.dir`'s sibling and so found by `lookup` first. `rule:core-api/two-cache-tiers`'s
     // shared tier is `System` because where a fleet's coherent state lives is not a decision a
     // request may make for itself, and `Boot` because each core holds one connection to it — moving
     // the store re-dials every one of them, which is the same "re-creates the runtime's mapping"

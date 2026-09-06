@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::replace takes `{caseInsensitive}` and `{limit}` in one options bag — ADR 0063 R2
+Core\Str::replace takes `{caseInsensitive}` and `{limit}` in one options bag — `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 echo Core\Str::replace("aAaA", "a", "-"), "\n";

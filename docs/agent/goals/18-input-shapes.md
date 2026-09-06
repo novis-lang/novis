@@ -55,7 +55,7 @@ is already in the file being edited.
 1. **An optional field, `{name?: T}`.** `Ty::Shape(Vec<(String, TypeId)>)`
    (`crates/nvs-types/src/ty.rs:250`) gains a required bit per field. **The bit already exists one struct
    away**: `CoreShapeField::required` (`:359`) is exactly this for a Core options bag under
-   [ADR 0135](../../adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md), so this is the
+   `rule:core-api/shape-parameter`, so this is the
    user-facing half of something the Core half has had since that ADR landed — one representation, not a
    second one. The parser is `crates/nvs-syntax/src/parser/ty.rs`. **`{a?: T}` and `{a: ?T}` are different
    types and both are legal**: the first says the key may be absent, the second that it must be present
@@ -97,7 +97,7 @@ is already in the file being edited.
 at `:255`, the cards after them, the bodies, the `address()` arm at `:982`):
 
 1. **One member each, not two.** `postAs<T>({name?: string}): T` reads the whole form; with `name` it
-   reads one bracket-named subtree under `post`'s existing convention. [ADR 0063](../../adr/0063-core-api-conventions.md)
+   reads one bracket-named subtree under `post`'s existing convention. `rule:core-api/shape-rules`
    R15 — one name, one signature, optional arguments the only variance — is why this is one row.
 2. **The whole-form read walks nothing new.** `crate::uri::parse_query` already answers the entire array
    and `post(name)` indexes into it (`request.rs:1229`), so the whole-form spelling hands over the array
@@ -124,10 +124,10 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   at the boundary is strictly the safer half of that trade anyway: it checks the data where it arrives and
   where a `400` is still the right answer, and after it nothing downstream is holding a `mixed` to check.
 - **Both spellings land — the general converter and the two wrappers.** Settled, and not re-opened on
-  [ADR 0051](../../adr/0051-standard-library-tiers.md) test 6 grounds: the wrappers are one call each over
+  `rule:core-api/tier-placement` test 6 grounds: the wrappers are one call each over
   one mechanism, and the request boundary is the only place the taint diagnosis actually pays.
 - **Extras are ignored, and there is no `exact` option.** A client adding a field must not break a server.
-  A flag choosing between two behaviours is what ADR 0063 R4 refuses.
+  A flag choosing between two behaviours is what `rule:core-api/shape-rules` R4 refuses.
 - **The taint diagnosis stays on, and `tainted {…}` is the answer to its verbosity** — not an opt-out, not
   an auto-taint that leaves the declaration understating the value, and not a `taintedPostAs` spelling: no
   `Core` member names a qualifier today (`body`, `post`, `query`, `header`, `cookie` and `Part::filename`
@@ -137,7 +137,7 @@ required key names the key, and a shape whose `tainted` promises nothing is refu
   missing, the fix is `rule:types/conversion`'s table, where every other conversion in the language already reads.
 - **This goal may open [ADR 0140] and no other new number.** Everything else is an amendment folded into
   the existing body: `rule:types/shape-type` (the optional marker, and the two spellings it distinguishes), ADR 0024
-  § 1 (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), ADR 0063 R15's
+  § 1 (the qualifier grammar), `rule:types/arrays` (the third member at the type-argument door), `rule:core-api/shape-rules` R15's
   worked list, and spec §§ 6 and 15's rosters.
 - **Goal 16's `json(): tainted mixed` is settled here, not there.** ADR 0024 § 1's grammar admits that
   spelling no more than it admits `tainted {…}`, so stage 2 either widens to cover `mixed` as well or

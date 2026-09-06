@@ -89,7 +89,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Program::implementing`'s reference card — ADR 0117.
+/// `Core\Program::implementing`'s reference card — `rule:core-api/reference-card`.
 const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
     short: "Expands, at compile time, to an array literal of `new` expressions — one per \
             non-abstract class in the program implementing the interface `T` written as the \
@@ -101,7 +101,7 @@ const IMPLEMENTING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Program::id`'s reference card — ADR 0117.
+/// `Core\Program::id`'s reference card — `rule:core-api/reference-card`.
 const ID_DOC: MethodDoc = MethodDoc {
     short: "This program's identity: `BLAKE3` over every compiled unit's content hash, in program \
             order, combined with the digest of the environment they were compiled for. The same \

@@ -114,7 +114,7 @@ sharing no mutable heap state with its source.
   graph copy and encodes the result into Novis's own binary format, and `Core\Serialize::decode($b): mixed`,
   which decodes it back into a live value by running the identical operation in reverse. They are class
   members like everything else (`rule:classes/no-free-functions-or-constants`) and take
-  [ADR 0063](0063-core-api-conventions.md) R6's `encode`/`decode` pairing; PHP's bare `serialize`/
+  `rule:core-api/shape-rules` R6's `encode`/`decode` pairing; PHP's bare `serialize`/
   `unserialize` spellings do not exist. The wire format is private to Novis (see § 3) — this is a round-trip
   pair, not a PHP-wire-format encoder.
 
@@ -254,7 +254,7 @@ program that runs; there is no refusal case, because nothing in *1* is a diagnos
   rather than off a line, because a class that quietly stopped being observed at all would print the same
   silence.
 - **"No `__clone()` runs" has no program at all**, and that is stronger than the rule asks for rather than
-  a case nobody wrote: [ADR 0029](0029-identifier-casing-is-checked.md)'s camelCase rule refuses the name
+  a case nobody wrote: `rule:core-api/identifier-casing`'s camelCase rule refuses the name
   where it is *written* (`E0111`, suggesting `clone`), so a class cannot declare the hook for `clone` to
   decline to call. What is verified instead is the lowering — `nvs-ir`'s
   `clone_lowers_to_one_instruction_with_no_hook_call` snapshot — which is where a future member resolution

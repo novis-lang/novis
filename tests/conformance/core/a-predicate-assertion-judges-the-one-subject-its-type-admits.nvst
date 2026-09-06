@@ -50,7 +50,7 @@ try {
     echo $miscounted->message, "\n";
 }
 
-// 3. ADR 0063 R2's trailing bag is in front of the report, exactly as it is for
+// 3. `rule:core-api/shape-rules` R2's trailing bag is in front of the report, exactly as it is for
 // the equality members -- § 4's own `{message: "a fresh user is active"}`.
 try {
     Test::assertTrue(false, {message: "a fresh user is active"});

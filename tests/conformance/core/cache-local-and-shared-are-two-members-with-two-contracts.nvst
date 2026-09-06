@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cache::local` and `Core\Cache::shared` are two members with two contracts rather than one API with a flag, and the tier a program chose is visible where it wrote it — ADR 0059 § 1
+`Core\Cache::local` and `Core\Cache::shared` are two members with two contracts rather than one API with a flag, and the tier a program chose is visible where it wrote it — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 // § 1: the tier is the member's own name. Neither takes an argument, so there

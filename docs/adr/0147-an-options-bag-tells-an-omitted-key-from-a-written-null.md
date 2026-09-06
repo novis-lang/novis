@@ -1,4 +1,4 @@
-# ADR 0147 — An options bag tells an omitted key from a written `null`, and `null` is the one spelling that removes
+# `rule:core-api/omission-is-not-a-written-null` — An options bag tells an omitted key from a written `null`, and `null` is the one spelling that removes
 
 - **Status:** Accepted
 - **Date:** 2026-09-06
@@ -35,7 +35,7 @@
 > removes it. The mechanism is one constant, not a sentinel: an omitted **nullable** field fills
 > `rule:classes/an-unwritten-property-read-throws`'s already-existing never-written marker
 > instead of `null`, so the helper reads three states from one ABI argument and
-> [ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3's flattening —
+> `rule:core-api/shape-flattens-at-the-abi`'s flattening —
 > one argument per field, no runtime shape, no new calling convention — survives untouched. A
 > **non**-nullable field is completely unaffected and every existing member lowers byte for byte as
 > it does today. The semantic half is as fixed as the mechanical one: **wherever a `Core` member
@@ -48,7 +48,7 @@
 ## Context
 
 - **The bag has no way to say "clear this", and the reason is representational rather than considered.**
-  [ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3 flattens a bag into
+  `rule:core-api/shape-flattens-at-the-abi` flattens a bag into
   one ABI argument per field and fills every field the caller left out with `Const::Null`. That makes
   `null` the *marker for omission*, so a field that could itself hold `null` would arrive at the
   helper as the same argument whether it was written or not. The invariant that follows — a bag or
@@ -60,13 +60,13 @@
   has to recompose the text and re-parse it — through the same `parse` whose whole job was to save it
   from doing that. `""` cannot stand in: an empty query is what `?` with nothing after it produces and
   `query()` already reports it as distinct from `null`, and `file:///tmp` has an empty host.
-- **It is about to bind a second member.** [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)'s
+- **It is about to bind a second member.** `rule:core-api/signing-is-over-a-payload`'s
   `$uri->sign({keys, until})` makes `until` a *required* key holding a nullable value precisely
   because the bag cannot offer an optional one — `{until: null}` is the forever spelling and a lifetime
   is written rather than omitted. That reading is the right one for a signature and it stays, but it
   was reached with one hand tied.
 - **The distinction is not a new idea in this repository; it is one the bag alone lost.**
-  [ADR 0071](0071-derived-codecs.md) § 4 already answers the same question for a decoded payload with
+  `rule:core-api/required-optional-and-nullable` already answers the same question for a decoded payload with
   a four-row table, on the principle that *nullability is a property of the type and optionality is a
   property of the default; neither borrows the other's meaning*. A written `?int $rank = null` at an
   ordinary parameter has always worked. The bag is the one position where the two collapsed, and only
@@ -100,7 +100,7 @@ that is now true, and a row that gets the pairing wrong still fails the build.
 
 ### 2. The ABI does not change, and neither does any existing member's lowering
 
-[ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3's flattening is the
+`rule:core-api/shape-flattens-at-the-abi`'s flattening is the
 part worth protecting: a bag is **one ABI argument per field**, no runtime representation of a shape
 exists, and no helper learns a new calling convention. All of that is untouched. What changes is which
 constant fills one slot, for one kind of field.
@@ -167,7 +167,7 @@ here so the next member does not have to rediscover it.
   is already distinguishable — an empty query is not an absent one — so overloading it would reinstate
   exactly the in-band sentinel this decision removes.
 
-Folded into [ADR 0063](0063-core-api-conventions.md) R2 as the bag's own rule, since R2 is where a
+Folded into `rule:core-api/shape-rules` R2 as the bag's own rule, since R2 is where a
 reader looking for what a bag may contain arrives.
 
 ### 5. `Core\Uri` is the first class to spend it, and it does so at two levels
@@ -218,7 +218,7 @@ $uri->withQueryParameter(string $name, mixed $value): Uri
 They add **no mechanism**. Both compose `parseQuery`, `buildQuery` and `with` — all three already
 specified, implemented and tested — so a query string gains no second canonicalization for one of them
 to drift from, which is the whole of what
-[ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) found every
+`rule:core-api/signing-is-over-a-payload` found every
 framework in this space getting wrong. Four things they settle:
 
 - **A `null` value removes the parameter**, which is § 4's rule and, for this member, is inherited
@@ -253,7 +253,7 @@ third and fourth spelling would each be R15's *two behaviours need two names* re
   away. Two things blunt it: the nullability is written in the signature, so the possibility is visible
   at the call site, and § 4's last rule keeps a field non-nullable wherever an accidental removal would
   be dangerous rather than merely surprising.
-- **[ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)'s `sign` is not
+- **`rule:core-api/signing-is-over-a-payload`'s `sign` is not
   reopened by this.** `{until: null}` stays the forever spelling and `until` stays a *required* key:
   that reading was chosen because a permanent bearer credential should be something a person typed,
   which is an argument about the member and not about what the bag could express. This ADR removes the
@@ -275,14 +275,14 @@ third and fourth spelling would each be R15's *two behaviours need two names* re
   clears.
 - **A presence bitmask as an extra ABI argument.** Correct, and it would work for a user-declared
   function too, but it changes the calling convention
-  [ADR 0135](0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) § 3 deliberately left
+  `rule:core-api/shape-flattens-at-the-abi` deliberately left
   alone, and charges a word to every call with a bag for a distinction a handful of fields want.
   Reusing an existing tag costs nothing and reaches every case this decision is scoped to.
 - **Six members — `withoutFragment()`, `withoutPort()`.** Multiplies the surface by the number of
   clearable components on every class that has any, and
-  [ADR 0063](0063-core-api-conventions.md) R6 would then want `with`/`without` treated as a symmetric
+  `rule:core-api/shape-rules` R6 would then want `with`/`without` treated as a symmetric
   pair, which they are not: one takes a structural literal and the other would take names.
-- **Make `with` mutate the receiver instead.** Refused by [ADR 0063](0063-core-api-conventions.md) R3
+- **Make `with` mutate the receiver instead.** Refused by `rule:core-api/shape-rules` R3
   and R20, and it is not an answer to this question anyway: removal is a *spelling* problem, so an
   in-place `set` with the same bag would be unable to express it for exactly the same reason.
 

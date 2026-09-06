@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` agree with `indexOf`, `slice` and `compare` on every ordered pair of a swept table, and `compare` is antisymmetric across the same sweep — `rule:types/bytes`, ADR 0063 R6
+Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` agree with `indexOf`, `slice` and `compare` on every ordered pair of a swept table, and `compare` is antisymmetric across the same sweep — `rule:types/bytes`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // The three predicates are not three rules: each one is a question `indexOf`,

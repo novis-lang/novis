@@ -36,7 +36,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
    is authoritative: whole-file, streaming write, metadata, manipulation, resolution and handles. Every
    member is an [ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md) **path sink** and needs
    an `fs.read` or `fs.write` grant, which goal 3 built the gate for.
-3. **`resource` is never exposed**, and `FileMode` is an enum rather than a mode string — ADR 0063 R14 and
+3. **`resource` is never exposed**, and `FileMode` is an enum rather than a mode string — `rule:core-api/shape-rules` R14 and
    R11. That is what replaces `fopen`'s `"r+b"` grammar and the whole `fread`/`fgets`/`fseek`/`feof`
    family, and it is a rule rather than a convenience: a mode string is a parser at every call site.
 4. **`Core\IO::within` is the path-traversal launderer**, and it is the one member in this stage worth
@@ -86,7 +86,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 ## Stage 4 — crypto, and the protocols built on it
 
-12. **Hashing and crypto**, RustCrypto and **AEAD-only** per ADR 0051 § 3: `sha2`, `blake3`, `argon2`,
+12. **Hashing and crypto**, RustCrypto and **AEAD-only** per `rule:core-api/tier-roster`: `sha2`, `blake3`, `argon2`,
     `bcrypt`, `aes-gcm`. `Core\Password` rides them. `Core\Digest`'s roster is goal 1 item 16 and is not
     redone here; this item's hashing half is the migration rows for `hash_algos`'s names over it.
 13. **`Core\Secret::reveal()`**, which with the password-hashing helpers is one of exactly two ways a value
@@ -126,7 +126,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 17. **Outbound `traceparent` propagation** — [ADR 0076](../../adr/0076-observability-export.md) § 2, which
     is the point at which a trace crosses a service boundary at all. The exporter itself is goal 6's.
 18. **`Core\Net`** — sockets over the runtime's own reactor rather than a second event loop, which is
-    ADR 0051's own phrasing and the whole reason goal 2 came first.
+    `rule:core-api/tier-placement`'s own phrasing and the whole reason goal 2 came first.
 
 ## Stage 6 — the two stores
 
@@ -184,7 +184,7 @@ M4's, goal 1's, goal 2's and goal 3's whole acceptance lists, **never traded.**
 
 27. **`Core\Html::escape`/`Markup` and the `Core\Taint` launderers** — ADR 0024. Every other stage in this
     goal produces `tainted` values; this is the stage that says how one stops being one.
-28. **The privileged half of the framework**, each entry placed by ADR 0051's own six tests rather than by
+28. **The privileged half of the framework**, each entry placed by `rule:core-api/tier-placement`'s own six tests rather than by
     a new rule — `rule:programs/framework-core-half`: `Core\Validate` (the
     launderer, and the one entry that could never be a package), `Core\Password`, `Core\Mail` against an
     operator-named SMTP endpoint, `Core\Storage` over local disk, `Core\Cldr::pluralCategory`.
@@ -297,10 +297,10 @@ there by the switch that left it and folded forward at every switch since.
   own argued ADR — 0019, 0020, 0024, 0033, 0044, 0046, 0052, 0054, 0056, 0058, 0059, 0060, 0074, 0075,
   0076, 0082, 0086, 0105. A session that believes it needs a new number has almost certainly found a
   section it has not read.
-- **Redis is the default shared store**, decided in ADR 0059 § 1. Its client is a synchronous one over
+- **Redis is the default shared store**, decided in `rule:core-api/two-cache-tiers`. Its client is a synchronous one over
   goal 2's parking stream; picking it is pre-authorized under ADR 0051 § 4.
 - **`Core\Cache::local` and `Core\RateLimit::shed` need no capability, and each declares that as a
-  `None` row in `registry::CAPABILITIES`.** ADR 0059 § 1 is the decision behind both: their state is a
+  `None` row in `registry::CAPABILITIES`.** `rule:core-api/two-cache-tiers` is the decision behind both: their state is a
   map in the calling core's own thread, so nothing leaves the process, no name is resolved and no file
   is opened, and ADR 0118 § 1 has no door to put a check at. What is left to bound is footprint, which
   ADR 0059 § 3's `nvs.toml` cap bounds and a boolean grant would not. Their siblings `shared()` and

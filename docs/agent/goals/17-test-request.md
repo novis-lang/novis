@@ -42,7 +42,7 @@ Goal 16's whole acceptance list, never traded.
    with a boundary. Two of them together is a refusal naming both, never a merge
    (`rule:errors/ambiguous-input-refused`).
 3. **The encoder is the builder's, and `crates/nvs-stdlib/src/multipart.rs` stays a parser.** One
-   direction each: they are not twins under [ADR 0063](../../adr/0063-core-api-conventions.md) R17,
+   direction each: they are not twins under `rule:core-api/shape-rules` R17,
    because neither can be reached through the other.
 4. **Goal 16's sections re-point at it.** `--GET--`/`--POST--`/`--POST_RAW--`/`--COOKIE--`/`--HEADERS--`
    and `nvs run --request` stop building an `Inbound` by hand and build an `InboundSpec` instead. This is
@@ -84,7 +84,7 @@ Goal 16's whole acceptance list, never traded.
   that finds itself wiring a route table has left the goal.
 - **The builder's home is `nvs-runtime`, beside `Inbound`.** Ambiguity about where a piece of it belongs
   resolves toward that module, recorded in its doc comment, never `BLOCKED`.
-- **`Core\Test\Response` gets `json()` and `jsonAs<T>()`.** Settled; not re-opened on ADR 0051 test 6
+- **`Core\Test\Response` gets `json()` and `jsonAs<T>()`.** Settled; not re-opened on `rule:core-api/tier-placement` test 6
   grounds. The argument for the request-side pair does not apply here — nothing about a captured body is
   single-use — but the argument for *one spelling in both directions* does, and it is the stronger one for
   a member a test author reads.

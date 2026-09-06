@@ -1,7 +1,7 @@
 //! `Core\Bytes` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 7's second class, over `nvs_runtime`'s `Bytes`-tagged `NvsStr`.
 //!
-//! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
+//! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
 //! consuming it, exactly as [`crate::str`] does — see [`crate`]'s own docs for
 //! why that falls out of being a helper.
 //!
@@ -50,7 +50,7 @@
 //!   magic-byte sniffing needs"* says this class is for — through a
 //!   one-element buffer allocation and a second call to read the number out of
 //!   it. An out-of-range index throws, which is `Core\Str::at`'s answer and
-//!   ADR 0063 R4/R5's: absence would have to be spelled `?uint` in the type.
+//!   `rule:core-api/shape-rules` R4/R5's: absence would have to be spelled `?uint` in the type.
 //!   **That `uint` answer is why `at` is the one member here classified
 //!   against the shape of its return type.** ADR 0088 § 2's rule — written out
 //!   on [`crate::registry::Qual`] — makes a member `Neutral` when its answer
@@ -79,7 +79,7 @@
 //!   `==` does not answer.
 //! - **`fill` is `fill(uint $length, uint $byte)`, length first.** It is the
 //!   one member with no subject at all — it builds a buffer rather than
-//!   answering about one — so ADR 0063 R1 does not order it and `Core\Str`'s
+//!   answering about one — so `rule:core-api/shape-rules` R1 does not order it and `Core\Str`'s
 //!   nearest row does: `padStart(string $s, uint $length, string $padding)`
 //!   writes the size before the thing repeated into it, and a zero-filled
 //!   header reads as `Core\Bytes::fill(16, 0)`. A `$byte` above 255 throws
@@ -119,7 +119,7 @@
 //! - **An integer field accepts the union of its width's signed and unsigned
 //!   ranges** and writes two's complement, so `-1` and `4294967295` both write
 //!   `ffffffff` under `N`. Nothing outside that range wraps — it throws, which
-//!   is ADR 0063 R4, and it is why `c` and `C` write the same octet and differ
+//!   is `rule:core-api/shape-rules` R4, and it is why `c` and `C` write the same octet and differ
 //!   only in what `unpack` will read back.
 //! - **A `mixed` argument is not converted.** An integer field takes an `int`
 //!   or a `uint` and a float field takes a `float`; anything else throws
@@ -307,7 +307,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Bytes::length`'s reference card — ADR 0117.
+/// `Core\Bytes::length`'s reference card — `rule:core-api/reference-card`.
 const LENGTH_DOC: MethodDoc = MethodDoc {
     short: "Counts the octets in `$b`, as `strlen` does on binary data; O(1), where \
             `Core\\Str::length` walks its subject.",
@@ -320,7 +320,7 @@ const LENGTH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::at`'s reference card — ADR 0117.
+/// `Core\Bytes::at`'s reference card — `rule:core-api/reference-card`.
 const AT_DOC: MethodDoc = MethodDoc {
     short: "Answers the one octet at `$index` of `$b` as a number, as `ord($s[$i])` does; a \
             negative index counts from the end.",
@@ -343,7 +343,7 @@ const AT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::slice`'s reference card — ADR 0117.
+/// `Core\Bytes::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
     short: "Copies a window of `$b`, as `substr` does on binary data, counted in bytes.",
     params: &[
@@ -370,7 +370,7 @@ const SLICE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::indexOf`'s reference card — ADR 0117.
+/// `Core\Bytes::indexOf`'s reference card — `rule:core-api/reference-card`.
 const INDEX_OF_DOC: MethodDoc = MethodDoc {
     short: "Finds where `$needle` first occurs in `$haystack`, as `strpos` does on binary data, \
             as a byte offset `slice` takes directly. There is no case-insensitive option, \
@@ -398,7 +398,7 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::compare`'s reference card — ADR 0117.
+/// `Core\Bytes::compare`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
     short: "Orders `$a` against `$b` lexicographically over unsigned octets, as `strcmp` does on \
             binary data; a shorter buffer that is a prefix of a longer one sorts first. For \
@@ -419,7 +419,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::contains`'s reference card — ADR 0117.
+/// `Core\Bytes::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
     short: "Tells whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does on \
             binary data.",
@@ -440,7 +440,7 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::startsWith`'s reference card — ADR 0117.
+/// `Core\Bytes::startsWith`'s reference card — `rule:core-api/reference-card`.
 const STARTS_WITH_DOC: MethodDoc = MethodDoc {
     short: "Tells whether `$b` begins with `$prefix`, as `str_starts_with` does on binary data — \
             the member a magic-byte sniff writes.",
@@ -460,7 +460,7 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::endsWith`'s reference card — ADR 0117.
+/// `Core\Bytes::endsWith`'s reference card — `rule:core-api/reference-card`.
 const ENDS_WITH_DOC: MethodDoc = MethodDoc {
     short: "Tells whether `$b` ends with `$suffix`, as `str_ends_with` does on binary data.",
     params: &[
@@ -479,7 +479,7 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Bytes::fill`'s reference card — ADR 0117.
+/// `Core\Bytes::fill`'s reference card — `rule:core-api/reference-card`.
 const FILL_DOC: MethodDoc = MethodDoc {
     short: "Builds a buffer of `$length` copies of the octet `$byte`, as the \
             `str_repeat(chr($b), $n)` idiom does; a zero-filled header is `fill(16, 0)`.",
@@ -503,7 +503,7 @@ const FILL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::repeat`'s reference card — ADR 0117.
+/// `Core\Bytes::repeat`'s reference card — `rule:core-api/reference-card`.
 const REPEAT_DOC: MethodDoc = MethodDoc {
     short: "Builds a buffer of `$b` repeated `$times` times, as `str_repeat` does on binary \
             data.",
@@ -526,7 +526,7 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::join`'s reference card — ADR 0117.
+/// `Core\Bytes::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Concatenates every buffer in `$parts` with `$separator` between neighbours, as \
             `implode` does on binary data — `Core\\Str::join`'s row over buffers, and this \
@@ -550,7 +550,7 @@ const JOIN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::pack`'s reference card — ADR 0117.
+/// `Core\Bytes::pack`'s reference card — `rule:core-api/reference-card`.
 const PACK_DOC: MethodDoc = MethodDoc {
     short: "Writes `$values` as the octets `$format` describes, as `pack` does, over a closed \
             code table: `a`/`A`/`Z` a buffer NUL-padded, space-padded, or NUL-padded and \
@@ -587,7 +587,7 @@ const PACK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Bytes::unpack`'s reference card — ADR 0117.
+/// `Core\Bytes::unpack`'s reference card — `rule:core-api/reference-card`.
 const UNPACK_DOC: MethodDoc = MethodDoc {
     short: "Reads `$b` back through `$format`, as `unpack` does, over `pack`'s code table in \
             reverse — so `unpack(pack($f, ...$v), $f)` is `$v`, field for field. Octets the \
@@ -619,7 +619,7 @@ const UNPACK_DOC: MethodDoc = MethodDoc {
 /// `Core\Bytes::indexOf`'s `{from?: int}` — the module doc owns why
 /// `Core\Str::indexOf`'s second option has no counterpart here.
 ///
-/// `from` is a **position**, so it obeys ADR 0063 R8's sign rule and reads
+/// `from` is a **position**, so it obeys `rule:core-api/shape-rules` R8's sign rule and reads
 /// through [`offset`], the same way every other position in this module does.
 /// Its default is the start of the subject, which is a search of the whole of
 /// it.
@@ -717,7 +717,7 @@ fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
 /// [`crate::granularity::Unit::byte_of_signed_index`]'s counterpart for a
 /// subject whose unit is already the byte, and it saturates for that method's
 /// reason: a search or a slice starting past the end finds nothing, which
-/// composes with a loop where a throw would not. ADR 0063 R8 is the sign rule.
+/// composes with a loop where a throw would not. `rule:core-api/shape-rules` R8 is the sign rule.
 fn offset(total: usize, index: i64) -> usize {
     let from_start = if index < 0 {
         i64::try_from(total)
@@ -838,7 +838,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The two shapes that separate it from `Core\Str::at` — a `uint` answer,
     /// and an index counted in bytes — are this module's own docs' second and
-    /// third headings. A negative index counts from the end (ADR 0063 R8's
+    /// third headings. A negative index counts from the end (`rule:core-api/shape-rules` R8's
     /// range rule applied to a range of one), and an index that addresses
     /// nothing throws rather than answering a sentinel.
     fn nvs_core_bytes_at(_ctx, args: [2]) {
@@ -859,7 +859,7 @@ nvs_runtime::nvs_helper! {
     /// — replacing PHP's `substr` used on binary data.
     ///
     /// `Core\Str::slice`'s rules, counted in bytes rather than in grapheme
-    /// clusters, so both arguments follow ADR 0063 R8's sign rule:
+    /// clusters, so both arguments follow `rule:core-api/shape-rules` R8's sign rule:
     ///
     /// * A **negative offset** counts from the end, and one before the start
     ///   clamps to it.
@@ -901,7 +901,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Bytes::indexOf(bytes $haystack, bytes $needle, {from?: int}): ?uint`
     /// — replacing PHP's `strpos` used on binary data.
     ///
-    /// **Absence is `null`, not `false`**, which is ADR 0063 R5 and the same
+    /// **Absence is `null`, not `false`**, which is `rule:core-api/shape-rules` R5 and the same
     /// correctness win it is on `Core\Str::indexOf`: a `?uint` has no falsy
     /// member that `0` could be confused with, so PHP's `strpos(…) == false`
     /// bug family cannot be written.
@@ -994,7 +994,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The module doc's fourth heading owns the argument order and why `$byte`
     /// is a `uint`. **A value above 255 throws** rather than being truncated to
-    /// its low octet, which is ADR 0063 R4: a caller who computed 256 has a
+    /// its low octet, which is `rule:core-api/shape-rules` R4: a caller who computed 256 has a
     /// bug, and PHP's `chr()` wrapping it to `"\0"` is the silent-substitution
     /// failure this language does not do.
     ///
@@ -1044,7 +1044,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Bytes::join(array<bytes> $parts, bytes $separator = ""): bytes` —
     /// `Core\Str::join`'s row over buffers, which is why it is `join` here
-    /// rather than a `concat` of its own: ADR 0063 R6 pairs this class's
+    /// rather than a `concat` of its own: `rule:core-api/shape-rules` R6 pairs this class's
     /// members with `Core\Str`'s by name, and spec § 7 says so outright.
     ///
     /// The separator's default is the empty buffer, materialized at the call
@@ -1251,7 +1251,7 @@ fn emit(out: &mut Vec<u8>, field: &[u8], big: bool) {
 /// The accepted range is the **union** of the width's signed and unsigned
 /// ranges, so `-1` and `4294967295` both write `ffffffff` under `N` and
 /// neither loses anything; anything outside it throws rather than wrapping,
-/// which is ADR 0063 R4 and the same rule `fill` applies to an octet.
+/// which is `rule:core-api/shape-rules` R4 and the same rule `fill` applies to an octet.
 fn integer_field(
     out: &mut Vec<u8>,
     value: i128,
@@ -1829,7 +1829,7 @@ mod tests {
 
     /// An integer field accepts the union of its width's signed and unsigned
     /// ranges, writes two's complement, and throws outside it rather than
-    /// wrapping the way PHP does — ADR 0063 R4.
+    /// wrapping the way PHP does — `rule:core-api/shape-rules` R4.
     #[test]
     fn an_integer_field_spans_both_ranges_and_refuses_outside_them() {
         assert_eq!(hex("N", &[Value::int(-1)]), "ffffffff");

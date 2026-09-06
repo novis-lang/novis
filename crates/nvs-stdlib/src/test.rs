@@ -11,7 +11,7 @@
 //!
 //! Every member takes `$actual` then `$expected`, which is the **opposite** of
 //! PHPUnit's order and falls out of
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) rather than
+//! `rule:core-api/shape-rules` rather than
 //! out of a preference. Because reversing the two is the single commonest
 //! mistake in the ecosystem this language is migrated from, every failure
 //! message below labels the sides `$actual` and `$expected` by **name**, so a
@@ -122,7 +122,7 @@
 //! * **`assertThrows`'s `$expected` is not [`Qual::Sink`] either.** It is a
 //!   class name matched by [`nvs_runtime::Ctx::pending_conforms_to`], and
 //!   [`Qual::Sink`] is ADR 0088 § 1's predicate — content that becomes an
-//!   instruction something executes, which on disk is ADR 0063 R11's four
+//!   instruction something executes, which on disk is `rule:core-api/shape-rules` R11's four
 //!   grammars plus `Core\IO`'s paths, where `..` and the separators direct the
 //!   resolver. A name matched
 //!   against a roster compiles nothing and executes nothing. The spelling a
@@ -183,7 +183,7 @@ pub(crate) const NAME: &str = r"Core\Test";
 /// module's docs for what it buys.
 const T: CoreTy = CoreTy::Var("T");
 
-/// `{message?: string}` — ADR 0063 R2's trailing bag, and § 4's own
+/// `{message?: string}` — `rule:core-api/shape-rules` R2's trailing bag, and § 4's own
 /// `{message: "a fresh user is active"}`.
 ///
 /// [`Const::Null`] rather than an empty `string` because "not given" and
@@ -427,7 +427,7 @@ const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s second slot: the bytes the program wrote.
 const BODY_SLOT: usize = 1;
 
-/// `Core\Test::advance`'s reference card — ADR 0117.
+/// `Core\Test::advance`'s reference card — `rule:core-api/reference-card`.
 const ADVANCE_DOC: MethodDoc = MethodDoc {
     short: "Moves the fixed clock a `#[Test(at: ...)]` declared forward by `$by`, so a test of \
             something that expires can reach the far side of the expiry without waiting — the \
@@ -451,7 +451,7 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Test::serverUrl`'s reference card — ADR 0117.
+/// `Core\Test::serverUrl`'s reference card — `rule:core-api/reference-card`.
 const SERVER_URL_DOC: MethodDoc = MethodDoc {
     short: "The base URL of the listener a `#[Test(server: true)]` case was given — a real socket \
             on a port the operating system chose, for the cases that genuinely need the wire \
@@ -462,7 +462,7 @@ const SERVER_URL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test::scriptAnswers`'s reference card — ADR 0117.
+/// `Core\Test::scriptAnswers`'s reference card — `rule:core-api/reference-card`.
 const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     short: "Writes down what the next `Core\\Cli` prompts will be answered with, so an \
             interactive flow is assertable instead of untestable — each prompt takes the oldest \
@@ -479,7 +479,7 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test::request`'s reference card — ADR 0117.
+/// `Core\Test::request`'s reference card — `rule:core-api/reference-card`.
 const REQUEST_DOC: MethodDoc = MethodDoc {
     short: "Runs one request through the program under test in this process — the compiled route \
             table and the real handler chain, with no socket and no port — and answers with what \
@@ -508,7 +508,7 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test\Response::status`'s reference card — ADR 0117.
+/// `Core\Test\Response::status`'s reference card — `rule:core-api/reference-card`.
 const RESPONSE_STATUS_DOC: MethodDoc = MethodDoc {
     short: "The status the program under test declared for this request.",
     params: &[],
@@ -517,7 +517,7 @@ const RESPONSE_STATUS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test\Response::body`'s reference card — ADR 0117.
+/// `Core\Test\Response::body`'s reference card — `rule:core-api/reference-card`.
 const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     short: "The bytes the program under test wrote while answering this request.",
     params: &[],
@@ -526,7 +526,7 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Test::assertSame`'s reference card — ADR 0117.
+/// `Core\Test::assertSame`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` is identical to `$expected` — two objects are the same object \
             and nothing else is — as PHPUnit's `assertSame` does, subject first.",
@@ -557,7 +557,7 @@ const ASSERT_SAME_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertEquals`'s reference card — ADR 0117.
+/// `Core\Test::assertEquals`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` equals `$expected` — identity everywhere except two objects, \
             which are compared through `Comparable::compareTo` — as PHPUnit's `assertEquals` \
@@ -595,7 +595,7 @@ const ASSERT_EQUALS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Test::assertEqualsDeep`'s reference card — ADR 0117.
+/// `Core\Test::assertEqualsDeep`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` and `$expected` agree structurally — arrays entry by entry, \
             objects property by property, everything else by identity — and reports where \
@@ -634,7 +634,7 @@ const ASSERT_EQUALS_DEEP_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Test::assertTrue`'s reference card — ADR 0117.
+/// `Core\Test::assertTrue`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_TRUE_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` is `true`, as PHPUnit's `assertTrue` does; the subject is a \
             declared `bool`, so anything else is refused at the checker rather than read \
@@ -660,7 +660,7 @@ const ASSERT_TRUE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertNull`'s reference card — ADR 0117.
+/// `Core\Test::assertNull`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` is `null`, as PHPUnit's `assertNull` does; the subject is \
             `mixed`, so a value of any type may be asked.",
@@ -685,7 +685,7 @@ const ASSERT_NULL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertCount`'s reference card — ADR 0117.
+/// `Core\Test::assertCount`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
     short: "Asserts `$actual` holds exactly `$expected` entries — `Core\\Arr::count`'s own \
             signature — as PHPUnit's `assertCount` does, subject first. A `string`'s length \
@@ -716,7 +716,7 @@ const ASSERT_COUNT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertContains`'s reference card — ADR 0117.
+/// `Core\Test::assertContains`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
     short: "Asserts some entry of `$actual` is `$expected` under strict identity — the question \
             `Core\\Arr::contains` answers, and the same answer — as PHPUnit's `assertContains` \
@@ -749,7 +749,7 @@ const ASSERT_CONTAINS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertMatchesInline`'s reference card — ADR 0117.
+/// `Core\Test::assertMatchesInline`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
     short: "Asserts that `$actual`, rendered as `Core\\Debug::render` renders it, is exactly \
             `$expected` — an inline snapshot, whose expectation is a literal in the test's own \
@@ -783,7 +783,7 @@ const ASSERT_MATCHES_INLINE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertThrows`'s reference card — ADR 0117.
+/// `Core\Test::assertThrows`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts it throws `$expected` or a subclass of it, as PHPUnit's \
             `expectException` does; the throw it judged is consumed, so only the assertion's \
@@ -818,7 +818,7 @@ const ASSERT_THROWS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::assertDoesNotThrow`'s reference card — ADR 0117.
+/// `Core\Test::assertDoesNotThrow`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts it returns without throwing — the way out of the rule \
             that a test asserting nothing fails; the throw it judged is consumed, so only the \
@@ -846,7 +846,7 @@ const ASSERT_DOES_NOT_THROW_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Test::expectFailure`'s reference card — ADR 0117.
+/// `Core\Test::expectFailure`'s reference card — `rule:core-api/reference-card`.
 const EXPECT_FAILURE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` and asserts that an assertion inside it failed, then discharges those \
             failures from the test's ledger — the one greppable spelling for a failure that \

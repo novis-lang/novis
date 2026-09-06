@@ -46,7 +46,7 @@ echo Core\Json::encode(Core\Arr::values($engineers)), "\n";
 var $byInitial = Core\Arr::groupBy($words, fn (string $w): string => Core\Str::slice($w, 0, 1));
 echo Core\Json::encode($byInitial), "\n";
 
-// ADR 0063 R3: both are pure, and an empty subject groups into nothing.
+// `rule:core-api/shape-rules` R3: both are pure, and an empty subject groups into nothing.
 array<string> $empty = [];
 echo Core\Json::encode(Core\Arr::groupBy($empty, fn (string $w): string => $w)), "\n";
 echo Core\Json::encode($people), "\n";

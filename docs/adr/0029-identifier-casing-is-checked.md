@@ -1,4 +1,4 @@
-# ADR 0029 — Identifier casing is a hard compiler error: `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants
+# `rule:core-api/identifier-casing` — Identifier casing is a hard compiler error: `PascalCase` types, `camelCase` members, `SCREAMING_SNAKE_CASE` constants
 
 - **Status:** Accepted
 - **Date:** 2026-08-21

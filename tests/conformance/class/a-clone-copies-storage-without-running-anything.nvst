@@ -6,7 +6,7 @@
 // privileged path property initialization already uses — never by ordinary
 // property assignment. Three rules fall out of that one sentence, and this
 // case is each of them. The fourth, "no `__clone()` runs", has no program:
-// ADR 0029's camelCase rule refuses the name where it is written (`E0111`),
+// `rule:core-api/identifier-casing`'s camelCase rule refuses the name where it is written (`E0111`),
 // so the hook is unspellable rather than merely never called.
 
 final class Tally {

@@ -170,7 +170,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Uuid::v4`'s reference card — ADR 0117.
+/// `Core\Uuid::v4`'s reference card — `rule:core-api/reference-card`.
 const V4_DOC: MethodDoc = MethodDoc {
     short: "Draws a random UUID — 122 bits from the CSPRNG under RFC 9562's version-4 layout — \
             replacing `uniqid`, `com_create_guid` and the userland libraries around them.",
@@ -179,7 +179,7 @@ const V4_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uuid::v7`'s reference card — ADR 0117.
+/// `Core\Uuid::v7`'s reference card — `rule:core-api/reference-card`.
 const V7_DOC: MethodDoc = MethodDoc {
     short: "Draws a time-ordered UUID — a 48-bit millisecond timestamp then 74 random bits, RFC \
             9562's version 7 — for a database key, where an ascending identifier appends to the \
@@ -192,7 +192,7 @@ const V7_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uuid::parse`'s reference card — ADR 0117.
+/// `Core\Uuid::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads `$s` as a UUID in RFC 9562's canonical hyphenated `8-4-4-4-12` form, in either \
             letter case, replacing the hand-written validation PHP programs carried strings \
@@ -211,7 +211,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Uuid::tryParse`'s reference card — ADR 0117.
+/// `Core\Uuid::tryParse`'s reference card — `rule:core-api/reference-card`.
 const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     short: "`Core\\Uuid::parse` with `null` where it throws — the one spelling of \"is this text \
             a UUID\", replacing `uuid_is_valid` and every userland `isValid`.",
@@ -224,7 +224,7 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uuid->toString`'s reference card — ADR 0117.
+/// `$uuid->toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
     short: "Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` \
             form — the only way its text comes back out, and what `echo $uuid` writes.",
@@ -434,7 +434,7 @@ nvs_runtime::nvs_helper! {
     /// this module's docs own why the three other spellings `uuid` would take
     /// are refused, and why any 128 bits inside that shape are accepted.
     ///
-    /// **Throws on anything else** (ADR 0063 R4), which is what makes the
+    /// **Throws on anything else** (`rule:core-api/shape-rules` R4), which is what makes the
     /// return type `Uuid` rather than `?Uuid`: a caller asking to *parse* has
     /// asserted that the text is one, and the non-throwing question is
     /// [`nvs_core_uuid_try_parse`] beside it. The message quotes the text,

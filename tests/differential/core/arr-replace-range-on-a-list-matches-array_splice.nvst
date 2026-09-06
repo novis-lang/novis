@@ -3,7 +3,7 @@ Core\Arr::replaceRange substitutes the same window as array_splice at every sign
 --FILE--
 <?nvs
 // Spec § 2's substituting window against the returning half of its PHP twin.
-// ADR 0063 R3 makes every member pure, so `array_splice`'s by-reference form
+// `rule:core-api/shape-rules` R3 makes every member pure, so `array_splice`'s by-reference form
 // is not reproduced and the oracle has to copy the subject before splicing it;
 // what is being compared is the *array afterwards*, not the removed entries.
 //

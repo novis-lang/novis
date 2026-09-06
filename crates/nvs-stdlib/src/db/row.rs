@@ -362,7 +362,7 @@ pub(super) fn converted(
         // sides are written at different times: the label is what
         // `nvs_types::derive` read off the declaration, and the descriptor is
         // the one `crate::instance` gave the value the driver's components
-        // built. ADR 0051 keeps the `Core\` prefix for Tier 0, so no program
+        // built. `rule:core-api/tier-placement` keeps the `Core\` prefix for Tier 0, so no program
         // can declare a second class answering to one of these five names.
         CodecTy::Class => {
             let Some(declared) = class else {
@@ -723,7 +723,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$rows->first(): ?Db\Row` — the first row, or `null` for none.
     ///
-    /// `null` rather than a throw, and rather than PHP's `false`: ADR 0063 R5
+    /// `null` rather than a throw, and rather than PHP's `false`: `rule:core-api/shape-rules` R5
     /// makes `?T` the only absence spelling, and a `select` that matched
     /// nothing is an answer rather than a failure. There is no cursor a second
     /// call would move past, either — this is the first row every time, which

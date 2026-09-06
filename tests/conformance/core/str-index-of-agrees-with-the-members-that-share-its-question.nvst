@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::indexOf`'s `?uint` answer agrees with `contains`, `countOf` and `lastIndexOf` about occurrence, and its position is a grapheme index `slice` accepts — spec § 1 *Search*, ADR 0063 R5/R8, `rule:types/string-is-utf8`
+`Core\Str::indexOf`'s `?uint` answer agrees with `contains`, `countOf` and `lastIndexOf` about occurrence, and its position is a grapheme index `slice` accepts — spec § 1 *Search*, `rule:core-api/shape-rules` R5/R8, `rule:types/string-is-utf8`
 --FILE--
 <?nvs
 // Four members answer the same underlying question — does this needle occur,

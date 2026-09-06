@@ -1,5 +1,5 @@
 --TEST--
-a method whose name starts with an upper-case letter is refused, and the diagnostic names the spelling to use — ADR 0029 § 1
+a method whose name starts with an upper-case letter is refused, and the diagnostic names the spelling to use — `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 class Helper {

@@ -48,7 +48,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Server::isDraining`'s reference card — ADR 0117.
+/// `Core\Server::isDraining`'s reference card — `rule:core-api/reference-card`.
 const IS_DRAINING_DOC: MethodDoc = MethodDoc {
     short: "Reports whether this server has begun a graceful shutdown — the same fact `[server] \
             health_path` answers a proxy with, for an application endpoint of its own.",

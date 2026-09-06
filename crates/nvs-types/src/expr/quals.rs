@@ -699,7 +699,7 @@ pub(crate) fn reject_secret_logged_argument(
 }
 
 /// Whether this written argument is `Core\Log::write`'s `fields` bag — its
-/// third parameter, or the one an ADR 0063 R2 named argument spells `fields:`.
+/// third parameter, or the one an `rule:core-api/shape-rules` R2 named argument spells `fields:`.
 ///
 /// The rule is scoped to it rather than to the whole call because the *other*
 /// two positions are already refused by their declared types: `message` is a

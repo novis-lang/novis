@@ -173,7 +173,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
 
 - **Inspections and quick fixes** as LSP code actions, each backed by a diagnostic the checker already
   emits or will emit: a casing violation offers "rename to `camelCase`/`PascalCase`"
-  ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md));
+  (`rule:core-api/identifier-casing`/[0030](0030-no-leading-underscores-constructor-spelling.md));
   a legacy `(int)$x` cast offers "replace with `$x as int`" (`rule:types/no-legacy-cast`);
   a missing constructor property assignment offers to add it
   (`rule:classes/definite-property-initialization`); `include`/`require_once` offer "replace with

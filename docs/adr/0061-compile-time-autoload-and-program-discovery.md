@@ -89,7 +89,7 @@ $app->run();
   directory it matches becomes a root, and the segment `*` matched becomes that root's prefix — so
   `'../../*/src'` yields `ADB\ → ../../ADB/src`, `FOO\ → ../../FOO/src`, `Framework\ → ../../Framework/src`.
   A matched directory whose name is not a legal `PascalCase` namespace segment
-  ([ADR 0029](0029-identifier-casing-is-checked.md)) is **skipped, not diagnosed** — a glob over a
+  (`rule:core-api/identifier-casing`) is **skipped, not diagnosed** — a glob over a
   filesystem inevitably sweeps `.git`, `vendor` and friends, and diagnosing them would make the form
   unusable. The *glob* is a different matter: one that is not a single whole-segment `*`, and one whose
   base directory does not exist, are both `E_AUTOLOAD_GLOB_SHAPE`, because a typo that silently discovers
@@ -112,7 +112,7 @@ $app->run();
   diagnostic.
 - **Path traversal is structurally impossible**, with no sanitizer: a resolved suffix is built only from
   namespace segments, which are `PascalCase` identifiers that may not begin with `_`
-  ([ADR 0029](0029-identifier-casing-is-checked.md), `rule:classes/no-leading-underscore-identifiers`),
+  (`rule:core-api/identifier-casing`, `rule:classes/no-leading-underscore-identifiers`),
   so `.`, `..` and a path separator cannot occur in one.
 
 ### 2. A file reached by autoload declares exactly one thing
@@ -232,7 +232,7 @@ deployment's log lines from another's — and `secret` refuses an echo by design
 make the member useless for the things it exists for. It does tell a reader that a deployment's code
 changed, and when; that is a fingerprinting caveat rather than a disclosure, since a digest reveals no
 source and answers no question about what changed. The caveat is recorded in the member's registry card
-([ADR 0117](0117-an-implemented-core-member-documents-itself-in-the-registry.md)), not enforced.
+(`rule:core-api/reference-card`), not enforced.
 
 A context nobody wrote an id onto makes the member **throw**, rather than answer an empty string or invent
 one — the same call `Core\Command::completions` makes for a context with no program name. Callers key
@@ -342,7 +342,7 @@ answer at all.
   same revalidated listings are what re-expand a [0097](0097-development-server-and-proxied-origin.md) § 3
   mount scan in development.
 - **M8** — `Core\Program::implementing<T>()` lands with the `Core` roster
-  ([ADR 0051](0051-standard-library-tiers.md)); the expansion is checker work that may land earlier, the
+  (`rule:core-api/tier-placement`); the expansion is checker work that may land earlier, the
   same split `rule:attributes/inert-metadata` has between attribute grammar and
   `Core\Attributes` retrieval. Tests assert deterministic name-sorted order, exclusion of abstract classes,
   the no-argument-constructor diagnostic, and that a program with no query performs no scan.

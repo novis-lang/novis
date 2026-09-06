@@ -1,5 +1,5 @@
 --TEST--
-Core\RateLimit::consume takes burst and cost in one trailing shape, and every parameter by name — `rule:core-classes/ratelimit-two-members`, ADR 0063 R2
+Core\RateLimit::consume takes burst and cost in one trailing shape, and every parameter by name — `rule:core-classes/ratelimit-two-members`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // § 1's signature is subject first, the two required arguments in dataflow
@@ -26,7 +26,7 @@ try {
     echo "login throttle unavailable", "\n";
 }
 
-// ADR 0063 R2: every `Core` parameter is callable by the spec's own `$name`,
+// `rule:core-api/shape-rules` R2: every `Core` parameter is callable by the spec's own `$name`,
 // which is compatibility surface rather than a convenience.
 try {
     var $named = Core\RateLimit::consume(key: "api:key-3", limit: 60, per: 1m);

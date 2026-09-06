@@ -23,7 +23,7 @@
 //! The registry has no overloading and wants none: what the two spellings
 //! differ in is *which* declaration is named, which is one argument's worth of
 //! information. So the parameter is a single `string` defaulting to the empty
-//! string, which is not a member name any declaration can have — ADR 0029's
+//! string, which is not a member name any declaration can have — `rule:core-api/identifier-casing`'s
 //! casing rule needs at least one character — and so is the one value that can
 //! mean "the target itself" without shadowing a real name.
 
@@ -92,7 +92,7 @@ const MEMBER_DOC: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// `Core\Attributes::get`'s reference card — ADR 0117.
+/// `Core\Attributes::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Answers the one attribute attached to `$target` — or to its member `$member` — whose \
             literal structurally satisfies the shape `T` written at the call site, resolved in \
@@ -106,7 +106,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Attributes::all`'s reference card — ADR 0117.
+/// `Core\Attributes::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Answers every attribute attached to `$target` — or to its member `$member` — whose \
             literal structurally satisfies the shape `T` written at the call site, resolved in \

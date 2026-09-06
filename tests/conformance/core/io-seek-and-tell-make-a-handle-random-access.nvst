@@ -1,5 +1,5 @@
 --TEST--
-`Core\IO\File::seek` moves the handle to an offset from the start and `::tell` answers where it is, with no `whence` argument anywhere between them — spec § 14, ADR 0063 R3
+`Core\IO\File::seek` moves the handle to an offset from the start and `::tell` answers where it is, with no `whence` argument anywhere between them — spec § 14, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // A handle is random-access, and these two members are the whole of what makes

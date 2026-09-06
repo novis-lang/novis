@@ -1651,7 +1651,7 @@ crate::nvs_helper! {
 /// per (source, target) pair" rule [`to_int`] already follows.
 ///
 /// **Three tags convert to nothing, and each throws** rather than producing
-/// PHP's `"Array"`-plus-warning: [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// PHP's `"Array"`-plus-warning: `rule:core-api/shape-rules`
 /// R4 makes failure a throw, and a silent placeholder is exactly the class of
 /// answer `rule:types/conversion` removed from the language. An **object** is among them
 /// here, but this is the *tag* table and not the whole rule: `rule:classes/stringable` makes

@@ -1,5 +1,5 @@
 --TEST--
-Core\Arr::range closes both of its ends and bounds its `step` on both sides — the last entry is inside the range while one step further is outside it, `1` is the smallest step accepted and `0` or less throws, and a cursor that would leave `int` stops rather than wrapping — spec § 2, `rule:types/arithmetic`, ADR 0063 R2
+Core\Arr::range closes both of its ends and bounds its `step` on both sides — the last entry is inside the range while one step further is outside it, `1` is the smallest step accepted and `0` or less throws, and a cursor that would leave `int` stops rather than wrapping — spec § 2, `rule:types/arithmetic`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // `range` is written around one claim: both ends are closed. That is only

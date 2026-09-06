@@ -75,7 +75,7 @@
 - **What is *not* worth copying is as informative**, and their pricing page is the evidence: the features
   behind the paywall are whole-workspace analysis, a per-rule configurable formatter, and completion-list
   re-ranking. Two of those three are things [ADR 0039](0039-canonical-code-formatting.md) and
-  [ADR 0029](0029-identifier-casing-is-checked.md) already refuse on principle — a formatter with ~40
+  `rule:core-api/identifier-casing` already refuse on principle — a formatter with ~40
   rule settings across nine named code styles, and diagnostic severity configurable per file through
   `.editorconfig`, `settings.json` globs and in-source suppression tags, are the mature form of exactly the
   configurability those two ADRs closed the door on.
@@ -320,7 +320,7 @@ extension:
   are on disk and may be shown; the index may not be queried.
 - **Configurable diagnostic severity and suppression**, reached through `.editorconfig`, settings globs or
   in-source tags — the mature form of which the review documents in detail. Rejected: it is
-  [ADR 0029](0029-identifier-casing-is-checked.md) § 3's closed door, and the review is evidence for that
+  `rule:core-api/casing-has-no-suppression`'s closed door, and the review is evidence for that
   door rather than against it.
 - **Getter/setter generation.** Rejected under § 4 — `rule:classes/property-observer`'s hooks mean the
   generated pair should not exist.

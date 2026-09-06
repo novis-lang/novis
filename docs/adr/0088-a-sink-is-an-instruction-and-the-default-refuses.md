@@ -95,7 +95,7 @@ carve-out it grants, which is the test of whether it is the right predicate rath
 | `Core\Regex`'s pattern | instruction — it compiles to something that runs | **sink** |
 | `Core\Regex`'s subject | data | tainted-friendly |
 
-**One corollary settles a whole class at once.** [ADR 0063](0063-core-api-conventions.md) R11 fixes the
+**One corollary settles a whole class at once.** `rule:core-api/shape-rules` R11 fixes the
 library's grammar count at exactly four — a regex pattern, a `printf` template, a CLDR date pattern, and a
 `Core\Bytes::pack` format. Every one of the four is an instruction by this predicate, so **every R11
 grammar is a sink**, and R11's count doubles as the roster. `Core\Regex` already was; the other three are

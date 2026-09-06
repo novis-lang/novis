@@ -1,4 +1,4 @@
-# ADR 0117 — An implemented Core member documents itself in the registry
+# `rule:core-api/reference-card` — An implemented Core member documents itself in the registry
 
 - **Status:** Accepted
 - **Date:** 2026-08-29

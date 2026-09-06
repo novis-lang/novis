@@ -1,5 +1,5 @@
 --TEST--
-a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and reaches a `Core` member by the spec's own name (ADR 0063 R2, `rule:classes/no-free-functions-or-constants`)
+a `name:` call argument is matched against the callee's parameter names, fills exactly one parameter, ends the positional part of the list, and reaches a `Core` member by the spec's own name (`rule:core-api/shape-rules` R2, `rule:classes/no-free-functions-or-constants`)
 --FILE--
 <?nvs
 final class Label {
@@ -14,7 +14,7 @@ echo Label::render(1, count: 2, text: "x"), "\n";
 // Which parameter a positional argument fills is its own place in the list,
 // so there is no position left once a `name:` has been written.
 echo Label::render(count: 1, "x"), "\n";
-// ADR 0063 R2: a `Core` member's parameters are callable by the spec's
+// `rule:core-api/shape-rules` R2: a `Core` member's parameters are callable by the spec's
 // `$name`, so a misspelled one is the same unknown-name refusal as above.
 echo Core\Str::repeat(subject: "x", times: 2), "\n";
 --EXPECT--

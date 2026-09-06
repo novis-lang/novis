@@ -7,7 +7,7 @@ Goal 23's whole list is this goal's Stage 1 floor.
 
 These are the three classes in spec § 16 that **no milestone and no goal named at all** — the others in
 `spec-classes-part-two-outstanding.txt` each had an owner once it was looked for. They are M8's:
-[ADR 0051](../../adr/0051-standard-library-tiers.md) § 3 puts all three at Tier 0, and M8's stdlib
+`rule:core-api/tier-roster` puts all three at Tier 0, and M8's stdlib
 goals (4 and 5) walked without them.
 
 `Core\Socket` (`crates/nvs-stdlib/src/socket.rs`) is ADR 0083's WebSocket upgrade and is **not** what
@@ -20,7 +20,7 @@ this goal extends — the name collision is the trap worth knowing before openin
 `crates/nvs-stdlib/src/net.rs`.
 
 - [ ] **The ADR first.** One number for the socket surface: what a program may open, what the
-      capability answers, and why there is no second event loop. ADR 0051 § 3's row is the whole design
+      capability answers, and why there is no second event loop. `rule:core-api/tier-roster`'s row is the whole design
       on disk today.
 - [ ] **`net.local` joins the roster** — ADR 0142 § 6 named it and goal 20 deliberately did not add it
       ("it has no caller until `Core\Net` lands"). This goal is that caller. `net.listen` is separate

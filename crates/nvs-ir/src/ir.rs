@@ -1461,7 +1461,7 @@ pub enum InstKind {
     /// which is the opposite of `InstKind::Call`'s. So
     /// `crate::lower::Lowering::lower_call_args` inserts no retain here, and
     /// the caller keeps owning every reference it passed;
-    /// `nvs_stdlib`'s own docs own that rule and why ADR 0063's purity
+    /// `nvs_stdlib`'s own docs own that rule and why `rule:core-api/shape-rules`'s purity
     /// requirement is what makes it safe. A refcounted *result* is a fresh
     /// reference this frame owns, exactly like a `Call`'s.
     ///
@@ -1472,7 +1472,7 @@ pub enum InstKind {
     /// anyway. `crate::lower`'s `MethodCall` arm is what puts it there, and it
     /// borrows the receiver exactly as it borrows every other argument — so a
     /// *freshly built* receiver is released by that arm rather than by the
-    /// callee. ADR 0063 R20 keeps the two directions apart: a static member is
+    /// callee. `rule:core-api/shape-rules` R20 keeps the two directions apart: a static member is
     /// unreachable through a value and an instance member is a compile error
     /// through the class name, so no member is ever reached both ways.
     CoreCall {

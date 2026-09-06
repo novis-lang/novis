@@ -92,7 +92,7 @@ each field's type inferred from its initializer expression — the same inferenc
   identical to any class instance, because it is one; `clone` and `serialize`/`unserialize` work on it with
   no special case, via `rule:classes/two-copy-depths`'s existing, uniform
   mechanism, since it has real (if compiler-named) declared properties;
-- field names are ordinary property names, so [ADR 0029](0029-identifier-casing-is-checked.md)'s
+- field names are ordinary property names, so `rule:core-api/identifier-casing`'s
   `camelCase` rule and `rule:classes/no-leading-underscore-identifiers`'s no-leading-`_` rule
   both apply unchanged.
 

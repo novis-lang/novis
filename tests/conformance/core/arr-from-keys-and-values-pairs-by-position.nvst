@@ -30,7 +30,7 @@ var $collapsed = Core\Arr::fromKeysAndValues($repeated, $three);
 echo Core\Str::join(Core\Arr::keys($collapsed), ","), "\n";
 echo $collapsed["k"], "\n";
 
-// Two arrays of different lengths throw (ADR 0063 R4), as PHP's array_combine
+// Two arrays of different lengths throw (`rule:core-api/shape-rules` R4), as PHP's array_combine
 // raises a ValueError, rather than pairing what they can.
 array<string|int> $short = ["only"];
 try {

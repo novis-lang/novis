@@ -1,11 +1,11 @@
-# ADR 0063 — `Core` API conventions: one shape for every built-in
+# `rule:core-api/shape-rules` — `Core` API conventions: one shape for every built-in
 
 - **Status:** Accepted
 - **Date:** 2026-08-23
 - **Scope:** the *shape* of every member of every `Core` class — argument order, optional arguments,
   failure signalling, naming, mutation, callbacks — and the standing rules that decide which of PHP's
   ~1,900 built-ins survive at all. Not in scope: which tier a subsystem lands at, which is
-  [ADR 0051](0051-standard-library-tiers.md); and not the member list itself, which is
+  `rule:core-api/tier-placement`; and not the member list itself, which is
   [docs/spec/01-core-library.md](../spec/01-core-library.md).
 - **Amends:** [0007](0007-explicit-type-system.md) § 5 — the illustrative stdlib signature
   `array_map(callable, array<T>)` becomes subject-first, per § 1 R1. [0011](0011-functions-and-constants-are-class-members.md)
@@ -27,18 +27,18 @@
 > literal**, never flags; **nothing mutates and nothing takes a reference**; **failure throws, absence is
 > `?T`, and `false` is never a return value**; and **no operation is reachable two ways** — no procedural
 > twin of a class, no class wrapper on a static, no mutable/immutable pair, no `from`/`tryFrom` pair, and
-> no methods on scalars or `array<T>`. Applying these plus [ADR 0051](0051-standard-library-tiers.md)'s six
+> no methods on scalars or `array<T>`. Applying these plus `rule:core-api/tier-placement`'s six
 > tests takes PHP's ~1,900 functions to roughly **450 members across ~30 domain classes**, covering strictly
 > more ground.
 
 ## Context
 
 - `rule:classes/no-free-functions-or-constants` decided *where* built-ins live (`Core`
-  domain classes) and [ADR 0051](0051-standard-library-tiers.md) decided *which* subsystems exist and at
+  domain classes) and `rule:core-api/tier-placement` decided *which* subsystems exist and at
   what tier. Neither says anything about what a member looks like, and both explicitly defer it. Writing
   ~450 signatures without that rule set first is how PHP's library became what it is: every function was
   locally reasonable and the whole is unlearnable.
-- The cost being controlled is the one [ADR 0051](0051-standard-library-tiers.md) names as expensive:
+- The cost being controlled is the one `rule:core-api/tier-placement` names as expensive:
   **API surface** (priority 4). A consistent surface is smaller than an inconsistent one of the same size,
   because a developer who has learned ten members can predict the eleventh.
 - PHP duplicates along **two axes**, and only one of them is obvious:
@@ -64,7 +64,7 @@ Every `Core` member obeys all twenty. A proposed member that cannot is a design 
 | # | Rule | Reason |
 |---|---|---|
 | **R1** | **The subject is parameter 1**, always — including for callback-taking and needle-taking members. `Arr::map($array, $fn)`, `Str::replace($subject, $search, $replacement)`, `Arr::contains($haystack, $needle)`. | The single most-cited PHP complaint; a rule with no exceptions is learnable in one sentence. |
-| **R2** | Then required arguments in dataflow order, then **at most one trailing optional shape literal** (`rule:types/object-top`) declared as a `type` alias. No `bool` flag parameters, no `int` bitmasks, no positional optional tails longer than one. **Every parameter is also callable by name** — the `$name` the signature in [01-core-library.md](../spec/01-core-library.md) writes, and the trailing bag by the one name `options` — under exactly the rules a user-declared method has (`rule:types/arrays`): written order is evaluation order, a name fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name never reaches a variadic tail. A parameter's **name is compatibility surface**, versioned where its type is: renaming one is a breaking change to the spec. **A bag field may be nullable, and where it is, leaving the key out and writing `null` into it are two different requests** — omitted carries the existing value through, and a written `null` *removes*, never a second meaning a member invented ([ADR 0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 4). So the nullability in the signature is what announces that a field can be cleared, `""` is never a clearing spelling, and a field stays non-nullable wherever the member has no removal to offer. | The bag stays the home of optional knobs — named, order-free, structurally checked, and a compile-time-constant bag folds to a constant. Calling by name is the same feature the language already has for every other method, and a surface a user's own method has that a `Core` member lacks is one more rule to learn. |
+| **R2** | Then required arguments in dataflow order, then **at most one trailing optional shape literal** (`rule:types/object-top`) declared as a `type` alias. No `bool` flag parameters, no `int` bitmasks, no positional optional tails longer than one. **Every parameter is also callable by name** — the `$name` the signature in [01-core-library.md](../spec/01-core-library.md) writes, and the trailing bag by the one name `options` — under exactly the rules a user-declared method has (`rule:types/arrays`): written order is evaluation order, a name fills its own slot, a defaulted parameter may be skipped, a positional after a name is refused, and a name never reaches a variadic tail. A parameter's **name is compatibility surface**, versioned where its type is: renaming one is a breaking change to the spec. **A bag field may be nullable, and where it is, leaving the key out and writing `null` into it are two different requests** — omitted carries the existing value through, and a written `null` *removes*, never a second meaning a member invented (`rule:core-api/a-written-null-removes`). So the nullability in the signature is what announces that a field can be cleared, `""` is never a clearing spelling, and a field stays non-nullable wherever the member has no removal to offer. | The bag stays the home of optional knobs — named, order-free, structurally checked, and a compile-time-constant bag folds to a constant. Calling by name is the same feature the language already has for every other method, and a surface a user's own method has that a `Core` member lacks is one more rule to learn. |
 | **R3** | **Nothing mutates and nothing takes a reference.** No `inout $out`, no out-parameters, no in-place variants. The result is the return value. | COW makes it free: a refcount-1 argument is mutated in place by the implementation, exactly as PHP's own `sort()` does after a copy-on-write check. |
 | **R4** | **Failure throws; absence is `?T`.** `false` is never returned to signal failure, no member returns an error code, and there are no error globals (`json_last_error`, `error_get_last`). A `?T` return means the absence is an ordinary, expected outcome. | `strpos()` returning `0\|false` is PHP's most productive bug source; unions make it unnecessary. |
 | **R5** | A **fixed verb lexicon**: `is…`/`has…`/`contains`/`startsWith` → `bool`; `find…` → `?T`; `indexOf`/`keyOf` → `?uint`/`?K`; `count…` → `uint`; `to…`/`from…` for conversion and static construction. Two constructor spellings join them: **the unit or component it is built from** (`Duration::seconds`, `TimeOfDay::at`) and **`of`, for a canonical identifier** (`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`/`add…`, which is not a mutation of a value and so not an R3 question. `…OrNull`, `…Safe` and `…Ex` are **banned**, and so is `try…` on every verb but one: **`tryParse`**, which `rule:expressions/try-parse` admits for a class whose `parse` takes exactly one `string` and can fail. That is the one case R4 does not in fact cover — a malformed string is a *failure*, not the absence `?T` means, and § 3's `as ?T` never targets a class — so `Core\Uri` and `Core\Uuid` would otherwise have no non-throwing spelling at all. Every other `try…` stays banned. The `…Safe` half of the ban is a ban on a **non-throwing variant** and reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is untouched, which is why `rule:core-classes/schema-apply-capability`'s `Core\Db\Schema::applySafe` is admitted — it is named for the *grade of the steps it will run*, throws where its sibling `applyIncludingRisky` does not, and is the more refusing of the two rather than the quiet one. | One verb per meaning, so a name predicts a return type. |
@@ -97,7 +97,7 @@ The twin sets these rules retire, with their replacements:
 | PHP's duplication | Replacement |
 |---|---|
 | ~35 `date_*` procedural aliases of `DateTime`; `DateTime` vs `DateTimeImmutable` | `Core\Time`, objects only, immutable only (both axes) |
-| every `intl` class's procedural twin (`collator_*`, `numfmt_*`, `datefmt_*`, `msgfmt_*`, `normalizer_*`, …) | the intl extension, objects only ([ADR 0051](0051-standard-library-tiers.md) § 3) |
+| every `intl` class's procedural twin (`collator_*`, `numfmt_*`, `datefmt_*`, `msgfmt_*`, `normalizer_*`, …) | the intl extension, objects only (`rule:core-api/tier-roster`) |
 | `Reflection*` classes **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `class_parents`, `spl_object_id` | `Core\Reflect` only. The `instanceof` **operator** stays — it is syntax, not a second API |
 | `fopen`-family, `SplFileObject`/`SplFileInfo`, `DirectoryIterator`/`FilesystemIterator` | `Core\IO\File` and `Core\IO\Dir`; no `SplFileInfo`-shaped twin of `Core\Path` |
 | `socket_*`, `stream_socket_*`, `fsockopen` | `Core\Net` |
@@ -118,7 +118,7 @@ notice the twelfth one nobody thought about, which is how `ctype_*`, `iterator_t
 `serialize`/`unserialize` each reached a full spec review with no home.
 
 1. **Pure aliases** — `sizeof`, `join`, `chop`, `key_exists`, `pos`, `fputs`, `is_integer`, `is_long`,
-   `is_double`, `is_real`, `doubleval`, `ini_alter`. [ADR 0051](0051-standard-library-tiers.md) test 6.
+   `is_double`, `is_real`, `doubleval`, `ini_alter`. `rule:core-api/tier-placement` test 6.
 2. **Dead or dying in PHP itself** — `ereg*`, `mysql_*`, `mcrypt`, `create_function`, `each`,
    `money_format`, `get_magic_quotes_*`, `utf8_encode`/`utf8_decode`, `strptime`, `strftime`,
    `date_sunrise`/`date_sunset`, `convert_cyr_string`, `hebrev`, `get_browser`, `highlight_*`.
@@ -154,7 +154,7 @@ only meaningful on a `mixed` and the checker already knows every other case.
 Each was a live design question; each is now a rule the spec file applies.
 
 - **No ambient timezone.** A `Zone` is an explicit argument at every instant↔calendar conversion, and there
-  is no process or per-request default — the same unsoundness argument [ADR 0051](0051-standard-library-tiers.md)
+  is no process or per-request default — the same unsoundness argument `rule:core-api/tier-placement`
   makes against `setlocale`, which Novis already has no equivalent of.
 - **Weak digests are available and structurally refused where unsafe.** One `Digest` enum carries MD5,
   SHA-1 and CRC32 for the interop that genuinely needs them (ETags, checksums, legacy APIs); the HMAC,
@@ -205,7 +205,7 @@ Each was a live design question; each is now a rule the spec file applies.
   than silently omitted from `toJson()`
   ([ADR 0033](0033-secret-qualifier-for-confidential-values.md)).
 - **No lazy pipeline API yet.** A `Core\Seq` over `Iterable` would be a second spelling of `map`/`filter`/
-  `reduce`, which [ADR 0051](0051-standard-library-tiers.md) test 6 argues against, and the question is much
+  `reduce`, which `rule:core-api/tier-placement` test 6 argues against, and the question is much
   better informed once generators actually run. Deferred past M5; streaming today is `foreach` over an
   `Iterable`, which needs nothing new. Adding it later is purely additive.
 
@@ -248,7 +248,7 @@ member added without one is an incomplete member.
 
 - **Mirror PHP's built-ins one-for-one and rely on `nvs convert`.** Maximum familiarity, trivial conversion.
   Rejected: it imports both duplication axes wholesale and makes the ~1,900-name surface permanent, which is
-  the cost [ADR 0051](0051-standard-library-tiers.md) ranks as the expensive one.
+  the cost `rule:core-api/tier-placement` ranks as the expensive one.
 - **Positional-only `Core` members, with the options bag as their only by-name surface.** This ADR's
   original rule, held from 2026-08-23 to 2026-08-29 on two grounds: named arguments are a real language
   feature (grammar, checker rules), and they make every parameter *name* public compatibility surface
@@ -263,7 +263,7 @@ member added without one is an incomplete member.
   slice per registry row in `.rodata`; and the compatibility promise above.
 - **Keep by-reference mutators for the hot paths** (`Arr::sortInPlace`). Rejected: COW already gives the
   in-place mutation when the refcount is 1, so the only thing a second spelling buys is the aliasing rules
-  R3 removes — a violation of R15 and of [ADR 0051](0051-standard-library-tiers.md) test 6 for no measurable
+  R3 removes — a violation of R15 and of `rule:core-api/tier-placement` test 6 for no measurable
   gain.
 - **A fuller typed collections library** (`List<T>`, `Map<K,V>`, `Set<T>`) beside `array<T>`. Rejected: two
   ways to hold a sequence, a conversion tax at every library boundary, and a standing question about which

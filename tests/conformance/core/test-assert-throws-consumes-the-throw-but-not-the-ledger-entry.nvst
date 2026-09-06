@@ -77,7 +77,7 @@ echo "discharged=", $discharged, "/2 refused=", $refused, "/1\n";
 
 // § 4's other edge, on the subject `assertCount` is written around: an empty
 // array is a length like any other, and the report names both sides of it with
-// ADR 0063 R2's bag in front, exactly as the predicate members' reports do.
+// `rule:core-api/shape-rules` R2's bag in front, exactly as the predicate members' reports do.
 array<string> $empty = [];
 Core\Test::assertCount($empty, 0);
 try {

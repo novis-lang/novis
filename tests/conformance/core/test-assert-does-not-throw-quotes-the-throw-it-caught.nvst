@@ -141,7 +141,7 @@ foreach ($bodies as callable $body) {
 }
 echo "agreed=", $agreed, "/6 completed=", $completed, "/6\n";
 
-// 5. ADR 0063 R2's bag sits in front of the report here as everywhere else.
+// 5. `rule:core-api/shape-rules` R2's bag sits in front of the report here as everywhere else.
 try {
     Test::assertDoesNotThrow(fn (): void => { Body::deep(1); }, {message: "the migration applies"});
 } catch (Core\Test\Failure $withMessage) {

@@ -1,4 +1,4 @@
-//! ADR 0094's levels, enforced: which class a `private`/`protected` member is
+//! `rule:core-api/written-visibility`'s levels, enforced: which class a `private`/`protected` member is
 //! reachable *from*.
 //!
 //! Every case here turns on where the access is written and never on what the

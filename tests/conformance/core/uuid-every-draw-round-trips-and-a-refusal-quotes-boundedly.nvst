@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, ADR 0063 R4, ADR 0088
+Every `Core\Uuid` draw is canonical, distinct and round-trips through `parse`; `tryParse` agrees with `parse` on every spelling; and a refusal quotes the operand it refused, bounded — spec § 11, `rule:core-api/shape-rules` R4, ADR 0088
 --FILE--
 <?nvs
 // A drawn UUID cannot be asserted, so the two generators are pinned by
@@ -50,7 +50,7 @@ echo "v7 ", $shape7, " ", $trip7, "\n";
 // re-seeded per call, fails this line rather than the shape lines above.
 echo "distinct ", $draws, " ", $repeats, "\n";
 
-// ADR 0063 R4 and this module's own docs: `tryParse` is `parse` with the
+// `rule:core-api/shape-rules` R4 and this module's own docs: `tryParse` is `parse` with the
 // throw turned into a `null`, which is a claim about *every* spelling rather
 // than about the rows each member's own case happens to write. So the two are
 // swept together and only their agreement is counted.

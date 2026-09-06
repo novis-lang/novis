@@ -76,7 +76,7 @@ try {
     echo $silent->message, "\n";
 }
 
-// The third slot is ADR 0063 R2's option bag, and it decides nothing about the
+// The third slot is `rule:core-api/shape-rules` R2's option bag, and it decides nothing about the
 // match: it prefixes the report of a refusal the two arguments have already
 // settled.
 try {

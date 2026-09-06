@@ -22,7 +22,7 @@
 //!   `nvs_hir::members`'s own member table, which has the same gap. Its
 //!   visibility is therefore not enforced either, since [`is_visible_from`]
 //!   is only reached for a property this table found.
-//!   A method has no such gap: [`MethodSig::visibility`] records ADR 0094's
+//!   A method has no such gap: [`MethodSig::visibility`] records `rule:core-api/written-visibility`'s
 //!   level for every one, promoted parameter or not, because the modifier is
 //!   on the method's own declaration.
 //! - A variadic parameter's declared type is matched against every argument
@@ -58,7 +58,7 @@ pub struct MethodSig {
     /// Each parameter's own name without the `$`, positionally — one entry per
     /// [`Self::params`] entry, for **every** signature this crate builds.
     ///
-    /// There is no "nameless signature" case left to spell, and ADR 0063 R2 is
+    /// There is no "nameless signature" case left to spell, and `rule:core-api/shape-rules` R2 is
     /// why: a `Core` row's names come from
     /// `nvs_stdlib::registry::CoreMethod::names` through [`crate::core_lib`],
     /// the synthesized `Throwable` constructor's from [`crate::error_lib`],
@@ -92,7 +92,7 @@ pub struct MethodSig {
     /// One entry is present without making its parameter optional, and it is
     /// the only exception: a
     /// [`ConstArg::RequiredShape`](crate::defaults::ConstArg::RequiredShape)
-    /// records ADR 0135 § 3's per-field fills for a shape parameter a call
+    /// records `rule:core-api/shape-flattens-at-the-abi`'s per-field fills for a shape parameter a call
     /// must still write. That is why [`Self::required`] is the one reader
     /// allowed to answer "is this parameter optional" off this vector.
     ///
@@ -176,7 +176,7 @@ pub struct MethodSig {
     /// Whether this is a `private` interface method (`rule:classes/interface-private-methods`) —
     /// declared with the `private` modifier inside an `interface`, not a
     /// `class`. Kept alongside [`Self::visibility`], which records the same
-    /// keyword, because `rule:classes/interface-private-methods` is a *different* rule than ADR 0094's
+    /// keyword, because `rule:classes/interface-private-methods` is a *different* rule than `rule:core-api/written-visibility`'s
     /// level with the same name: a private interface method is not part of
     /// that interface's contract, so it is never reachable outside that
     /// interface's own method bodies, not even from an implementing class —
@@ -184,7 +184,7 @@ pub struct MethodSig {
     /// `crate::expr::members::check_method_visibility` reports it and stops
     /// rather than reporting both.
     pub interface_private: bool,
-    /// ADR 0094 § 1's level, as this declaration wrote it — `public` where
+    /// `rule:core-api/written-visibility`'s level, as this declaration wrote it — `public` where
     /// nothing did, which is every synthesized and `Core`-installed method
     /// (only user source can write a keyword at all) and every user
     /// declaration `nvs_syntax::check_declarations` is already refusing with
@@ -225,7 +225,7 @@ impl MethodSig {
     /// `Core\Str::format` look one argument short.
     ///
     /// A [`ConstArg::RequiredShape`](crate::defaults::ConstArg::RequiredShape)
-    /// entry does not end the leading run either: ADR 0135 § 3's fill list is
+    /// entry does not end the leading run either: `rule:core-api/shape-flattens-at-the-abi`'s fill list is
     /// a property of the parameter's *type* — what a written literal's missing
     /// keys pass — and a parameter that carries one is written at every call
     /// site. `Self::defaults`' own docs name this as its one exception.
@@ -419,7 +419,7 @@ pub fn hook_label_class(label: &str) -> Option<&str> {
 pub struct ClassSignature {
     /// Instance property types, keyed by name with the `$` sigil stripped.
     pub properties: FxHashMap<String, TypeId>,
-    /// This declaration's own properties' **read** visibility (ADR 0094 § 3:
+    /// This declaration's own properties' **read** visibility (`rule:core-api/asymmetric-visibility-is-a-pair`:
     /// the plain keyword of an asymmetric pair is the read half, and
     /// `private(set)`'s write half is a separate rule this map does not
     /// model). Read through [`property_visibility`], never directly — a
@@ -877,7 +877,7 @@ fn collect_stmts(
 
 /// The one plain `public`/`protected`/`private` keyword a member declaration
 /// carries, if it wrote one. [`Modifier::SetVisibility`] is deliberately not
-/// read here: `private(set)` is the *write* half of ADR 0094 § 3's pair, and
+/// read here: `private(set)` is the *write* half of `rule:core-api/asymmetric-visibility-is-a-pair`'s pair, and
 /// the read half is always the plain keyword written alongside it.
 ///
 /// `None` where nothing was written — which `nvs_syntax::check_declarations`
@@ -1082,7 +1082,7 @@ fn collect_members(
 ///
 /// This is the whole of what "a promoted parameter *is* a property" means on
 /// this side: [`resolve_property`] answers it, so a `$this->n` read, an
-/// `$obj->n` access, an ADR 0094 visibility check and `rule:classes/delegation-by-field`'s
+/// `$obj->n` access, an `rule:core-api/written-visibility` visibility check and `rule:classes/delegation-by-field`'s
 /// `check_delegate_field` all see it with no case of their own.
 /// [`crate::layout`] gives it the slot, and `nvs_ir::lower` emits the store.
 ///
@@ -1429,7 +1429,7 @@ fn resolve_const_rec<'t>(
 /// declaring class [`resolve_property_owned`] returned, not the class the
 /// access was written on, since that is where the keyword is.
 ///
-/// `public` where no entry exists, and that is not a default in ADR 0094 § 1's
+/// `public` where no entry exists, and that is not a default in `rule:core-api/written-visibility`'s
 /// sense: a property with no entry is one no user declaration wrote, which
 /// today means a `Core` class installed through [`SignatureTable::seed_class`].
 #[must_use]

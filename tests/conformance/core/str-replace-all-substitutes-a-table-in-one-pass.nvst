@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::replaceAll` substitutes a whole table in one left-to-right pass, longest needle first, so the answer never depends on the order the pairs were written — spec § 1, ADR 0063 R20
+`Core\Str::replaceAll` substitutes a whole table in one left-to-right pass, longest needle first, so the answer never depends on the order the pairs were written — spec § 1, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // One pass, and a replacement is never rescanned: `strtr`'s reading, which is

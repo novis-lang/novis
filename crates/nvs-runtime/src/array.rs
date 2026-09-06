@@ -160,7 +160,7 @@
 //! back: it consumes one reference to its `array` argument and returns one
 //! reference to the array that now holds the change. When the refcount was
 //! already `1` that is the same pointer and the same reference, mutated in
-//! place with no copy at all — the fast path [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! place with no copy at all — the fast path `rule:core-api/shape-rules`
 //! R3's "nothing mutates" API shape rests on, measured by
 //! `a_refcount_one_array_member_mutates_in_place` in `benches/abi-probe`.
 //! When it was higher, the entry storage is copied, every key and value in it

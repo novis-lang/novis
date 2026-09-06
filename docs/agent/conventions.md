@@ -211,15 +211,15 @@ CoreMethod {
 },
 ```
 
-`names` is the spec's signature column, one per positional slot and never the `$` (ADR 0063 R2);
+`names` is the spec's signature column, one per positional slot and never the `$` (`rule:core-api/shape-rules` R2);
 `every_registry_rows_names_are_the_specs_signature_column` holds the two together.
 
-**2. The card** — ADR 0117's reference documentation, a `const` in the block of cards directly after the
+**2. The card** — `rule:core-api/reference-card`'s reference documentation, a `const` in the block of cards directly after the
 class, in row order. `every_registry_row_carries_a_reference_card` fails `cargo test -p nvs-stdlib`
 without it, and so does an enum without its `EnumDoc` or a constant with an empty `desc`:
 
 ```rust
-/// `Core\Json::isValid`'s reference card — ADR 0117.
+/// `Core\Json::isValid`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$json` is a well-formed JSON document, as `json_validate` does, \
             without building the value.",

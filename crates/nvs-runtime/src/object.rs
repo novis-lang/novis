@@ -685,7 +685,7 @@ pub struct CodecField {
     /// case, exactly as [`Self::class`] holds the element's label. `None` for
     /// every other wire type.
     pub cases: Option<EnumCases>,
-    /// Whether the declared type admits `null` — ADR 0071 § 4's second
+    /// Whether the declared type admits `null` — `rule:core-api/required-optional-and-nullable`'s second
     /// column, which is a property of the *type* and says nothing about
     /// whether the key may be absent.
     pub nullable: bool,

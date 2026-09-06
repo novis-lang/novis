@@ -30,7 +30,7 @@
 //!    is bound to whatever the actual side is at that position. First binding
 //!    wins, so a member declaring the same variable twice
 //!    (`contains(array<T> $a, T $needle)`) takes it from the subject, which is
-//!    ADR 0063 R1's first parameter and therefore the argument a developer
+//!    `rule:core-api/shape-rules` R1's first parameter and therefore the argument a developer
 //!    means to be authoritative.
 //! 2. [`substitute`] rewrites the whole signature with those bindings. A
 //!    variable no argument bound becomes `mixed` — the honest answer for "this
@@ -273,7 +273,7 @@ pub(crate) fn bind(
         // a class, and `null` binds nothing — so the interner's canonical
         // member order does not decide the answer.
         (Ty::Union(members), _) => members.iter().map(|member| (*member, actual)).collect(),
-        // Neither a bag nor ADR 0135's shape parameter ever appears on the
+        // Neither a bag nor `rule:core-api/shape-parameter`'s shape parameter ever appears on the
         // `actual` side — a call site writes an object literal, which infers to
         // a `Ty::Shape` — so the two arms below cover every pair that occurs,
         // and binding a declared key's type against a matching written field is

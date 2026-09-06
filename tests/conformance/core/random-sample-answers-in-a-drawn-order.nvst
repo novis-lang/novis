@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::sample answers in an order that is itself drawn rather than the subject's, which is where PHP's array_rand is diverged from — spec § 11, ADR 0063 R4
+Core\Random::sample answers in an order that is itself drawn rather than the subject's, which is where PHP's array_rand is diverged from — spec § 11, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // PHP's `array_rand` hands its picks back in the *subject's* order, which

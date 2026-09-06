@@ -3,7 +3,7 @@ Core\Arr::min and max answer what PHP's min and max answer wherever a subject's 
 --FILE--
 <?nvs
 // Spec § 2's `min`/`max` rows, in the array form — PHP's variadic `min(1, 2, 3)`
-// has no member at all (ADR 0063 R17), so the array argument is the whole
+// has no member at all (`rule:core-api/shape-rules` R17), so the array argument is the whole
 // overlap between the two.
 //
 // The two members do not ask the same question. PHP compares with `<`, the

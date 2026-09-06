@@ -37,7 +37,7 @@ foreach ($subjects as string $s) {
     ?string $head = Core\Str::before($s, $n);
     ?string $tail = Core\Str::after($s, $n);
     // Absence is one answer given three times: a needle that does not occur is
-    // `null` from all three members, never `""` from the cut pair (ADR 0063 R5,
+    // `null` from all three members, never `""` from the cut pair (`rule:core-api/shape-rules` R5,
     // and PHP's `false` is not what either returns).
     if ($at == null) {
         if ($head == null && $tail == null) {

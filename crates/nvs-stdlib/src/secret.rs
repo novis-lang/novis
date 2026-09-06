@@ -64,7 +64,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Secret::reveal`'s reference card — ADR 0117.
+/// `Core\Secret::reveal`'s reference card — `rule:core-api/reference-card`.
 const REVEAL_DOC: MethodDoc = MethodDoc {
     short: "Answers `$value` with the `secret` qualifier dropped, at the one call site where \
             handing the secret over is the point — the one named escape hatch, and the only \
@@ -88,7 +88,7 @@ const REVEAL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Secret::revealBytes`'s reference card — ADR 0117.
+/// `Core\Secret::revealBytes`'s reference card — `rule:core-api/reference-card`.
 const REVEAL_BYTES_DOC: MethodDoc = MethodDoc {
     short: "`reveal` over `bytes`: answers `$value` with the `secret` qualifier dropped. A \
             separate name because a `Core` member has one signature, and answering \

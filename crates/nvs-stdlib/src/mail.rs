@@ -2,7 +2,7 @@
 //! half: one member that hands a message to an SMTP endpoint **an operator named**, and no spelling
 //! anywhere for one a program chose.
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 places the class — Native by
+//! `rule:core-api/tier-roster` places the class — Native by
 //! test 3, because it waits on the outside world — and the spec's § 16 row gives it one sentence,
 //! "an SMTP client with structured headers, replacing `mail()`". What belongs here is the roster
 //! that sentence does not write, and the five decisions behind it.
@@ -187,7 +187,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Mail::send`'s reference card — ADR 0117.
+/// `Core\Mail::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
     short: "Hands one message to the SMTP endpoint `[mail.$endpoint]` names, and returns once that \
             endpoint has accepted it.",

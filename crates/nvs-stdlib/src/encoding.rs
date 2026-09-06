@@ -145,7 +145,7 @@
 //! # Encoding is total, decoding throws
 //!
 //! `toHex` cannot fail: every octet has a spelling. `fromHex` is the checked
-//! direction ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! direction (`rule:core-api/shape-rules`
 //! R4) — it throws on an odd length or a non-hexadecimal character rather than
 //! substituting, dropping or truncating, which is the same reason `rule:types/conversion`
 //! refuses `iconv`'s `//IGNORE`. A caller who wants the question without the
@@ -233,7 +233,7 @@ pub(crate) const CHARSET: CoreEnum = CoreEnum {
     doc: Some(&CHARSET_DOC),
 };
 
-/// [`CHARSET`]'s reference card — ADR 0117; a table rather than a card, so
+/// [`CHARSET`]'s reference card — `rule:core-api/reference-card`; a table rather than a card, so
 /// only `short` is written, as [`EnumDoc::cases`] allows.
 const CHARSET_DOC: EnumDoc = EnumDoc {
     short: "The encoding a `Core\\Encoding` text conversion reads or writes — one case per \
@@ -434,7 +434,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Encoding::encodeText`'s reference card — ADR 0117.
+/// `Core\Encoding::encodeText`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
     short: "Writes `$s` as `$charset`'s octets, as `iconv`, `mb_convert_encoding` and \
             `utf8_encode` do — exactly, with no `//IGNORE` or `//TRANSLIT` mode: a character \
@@ -459,7 +459,7 @@ const ENCODE_TEXT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Encoding::decodeText`'s reference card — ADR 0117.
+/// `Core\Encoding::decodeText`'s reference card — `rule:core-api/reference-card`.
 const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
     short: "Reads the octets `$b` as `$charset` into a string, as `iconv`, \
             `mb_convert_encoding` and `utf8_decode` do — exactly: a sequence the charset \
@@ -483,7 +483,7 @@ const DECODE_TEXT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Encoding::isValidText`'s reference card — ADR 0117.
+/// `Core\Encoding::isValidText`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
     short: "Tells whether every byte sequence in `$b` is one `$charset` reads, as \
             `mb_check_encoding` does — `decodeText`'s question without the throw.",
@@ -504,7 +504,7 @@ const IS_VALID_TEXT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Encoding::toBase64`'s reference card — ADR 0117.
+/// `Core\Encoding::toBase64`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE64_DOC: MethodDoc = MethodDoc {
     short: "Spells `$b` in RFC 4648 § 4's base64 alphabet, padded — byte for byte what \
             `base64_encode` answers.",
@@ -517,7 +517,7 @@ const TO_BASE64_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Encoding::fromBase64`'s reference card — ADR 0117.
+/// `Core\Encoding::fromBase64`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE64_DOC: MethodDoc = MethodDoc {
     short: "Reads base64 text `$s` back to octets, as `base64_decode` does in strict mode and \
             stricter: § 4's alphabet only, padding required and canonical, and no unread bits \
@@ -536,7 +536,7 @@ const FROM_BASE64_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Encoding::toBase64Url`'s reference card — ADR 0117.
+/// `Core\Encoding::toBase64Url`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
     short: "Spells `$b` in RFC 4648 § 5's URL-safe base64 alphabet, unpadded — the \
             `rtrim(strtr(base64_encode($b), \"+/\", \"-_\"), \"=\")` idiom, as a JWT or a \
@@ -550,7 +550,7 @@ const TO_BASE64_URL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Encoding::fromBase64Url`'s reference card — ADR 0117.
+/// `Core\Encoding::fromBase64Url`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
     short: "Reads URL-safe base64 text `$s` back to octets — `toBase64Url`'s other half, as \
             strict as `fromBase64` and refusing padding rather than tolerating it.",
@@ -567,7 +567,7 @@ const FROM_BASE64_URL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Encoding::toBase32`'s reference card — ADR 0117.
+/// `Core\Encoding::toBase32`'s reference card — `rule:core-api/reference-card`.
 const TO_BASE32_DOC: MethodDoc = MethodDoc {
     short: "Spells `$b` in RFC 4648 § 6's base32 alphabet, upper case and unpadded — the form \
             an `otpauth:` secret is written in; PHP has no counterpart.",
@@ -580,7 +580,7 @@ const TO_BASE32_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Encoding::fromBase32`'s reference card — ADR 0117.
+/// `Core\Encoding::fromBase32`'s reference card — `rule:core-api/reference-card`.
 const FROM_BASE32_DOC: MethodDoc = MethodDoc {
     short: "Reads base32 text `$s` back to octets — `toBase32`'s other half, taking either \
             case and padding that is canonical or absent, since neither changes which octets \
@@ -599,7 +599,7 @@ const FROM_BASE32_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Encoding::toHex`'s reference card — ADR 0117.
+/// `Core\Encoding::toHex`'s reference card — `rule:core-api/reference-card`.
 const TO_HEX_DOC: MethodDoc = MethodDoc {
     short: "Spells `$b` as lowercase hexadecimal, two digits per octet, as `bin2hex` and the \
             `unpack(\"H*\", …)` idiom do.",
@@ -612,7 +612,7 @@ const TO_HEX_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Encoding::fromHex`'s reference card — ADR 0117.
+/// `Core\Encoding::fromHex`'s reference card — `rule:core-api/reference-card`.
 const FROM_HEX_DOC: MethodDoc = MethodDoc {
     short: "Reads hexadecimal text `$s` back to octets, as `hex2bin` does but throwing where \
             it warned and answered `false`: either case, two digits per octet, and nothing \

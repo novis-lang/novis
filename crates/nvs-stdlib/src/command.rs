@@ -132,7 +132,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Command::help`'s reference card — ADR 0117.
+/// `Core\Command::help`'s reference card — `rule:core-api/reference-card`.
 const HELP_DOC: MethodDoc = MethodDoc {
     short: "The usage page, generated from the table `#[Command]` built while compiling — one \
             command's arguments, or the program's own list of commands. Nobody writes usage text \
@@ -152,7 +152,7 @@ const HELP_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Command::run`'s reference card — ADR 0117.
+/// `Core\Command::run`'s reference card — `rule:core-api/reference-card`.
 const RUN_DOC: MethodDoc = MethodDoc {
     short: "Matches this process's own command line against the table `#[Command]` built while \
             compiling, calls the handler the first word names, and answers the status the process \
@@ -170,7 +170,7 @@ const RUN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Command::completions`'s reference card — ADR 0117.
+/// `Core\Command::completions`'s reference card — `rule:core-api/reference-card`.
 const COMPLETIONS_DOC: MethodDoc = MethodDoc {
     short: "A completion script for this program, in the named shell's own syntax, generated from \
             the same table `help` reads: every command it declares, and every option each one \

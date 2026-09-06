@@ -12,7 +12,7 @@ echo Core\Math::fromBase("beef", 16), "|", Core\Math::fromBase("BEEF", 16), "|",
      Core\Math::fromBase("101", 2), "|", Core\Math::fromBase("zz", 36), "\n";
 echo (Core\Math::fromBase(Core\Math::toBase(123456, 36), 36) == 123456) as string, "|\n";
 
-// PHP's hexdec reads "beefy" as 48879, silently. ADR 0063 R4 makes that a
+// PHP's hexdec reads "beefy" as 48879, silently. `rule:core-api/shape-rules` R4 makes that a
 // throw.
 try {
     echo Core\Math::fromBase("beefy", 16), "\n";

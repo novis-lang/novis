@@ -1,5 +1,5 @@
 --TEST--
-Core\Crypto::generateKey, ::seal and ::open round-trip with no cipher, mode, padding or nonce argument, and a fresh nonce makes two seals of one message differ — ADR 0051 § 3, ADR 0063
+Core\Crypto::generateKey, ::seal and ::open round-trip with no cipher, mode, padding or nonce argument, and a fresh nonce makes two seals of one message differ — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` names its primitive in

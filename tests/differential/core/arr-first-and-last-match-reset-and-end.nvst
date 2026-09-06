@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::first and last answer what reset and end answer, without PHP's internal array pointer (ADR 0063 R5)
+Core\Arr::first and last answer what reset and end answer, without PHP's internal array pointer (`rule:core-api/shape-rules` R5)
 --FILE--
 <?nvs
-// ADR 0063 R5: the empty array answers `null` rather than throwing, because
+// `rule:core-api/shape-rules` R5: the empty array answers `null` rather than throwing, because
 // asking a possibly-empty array for its first entry is not a failure. PHP's
 // `reset`/`end` answer `false` for the same case, so — as in
 // `str-index-of-matches-strpos` — both sides render absence as `none` and what

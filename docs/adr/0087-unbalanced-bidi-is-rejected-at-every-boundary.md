@@ -28,7 +28,7 @@
 > opens a scope and is never closed before its span ends.** Balanced controls — what legitimate Arabic,
 > Hebrew and mixed-direction text actually uses — are untouched, which is what makes rejecting the rest
 > affordable. So there is **one predicate** and four callers: the lexer makes it a **hard compile error
-> with no suppression**, matching [ADR 0029](0029-identifier-casing-is-checked.md)'s stance on every other
+> with no suppression**, matching `rule:core-api/identifier-casing`'s stance on every other
 > spelling question; `Core\Cli`'s sink and `Core\Html::escape` **neutralize** it, substituting `�` exactly
 > as [0086](0086-core-cli-terminal-is-a-sink.md) § 1 already does for a C1 code point; and
 > [0092](0092-one-diagnostic-record-three-renderings.md)'s record model applies it when a record is built,
@@ -96,7 +96,7 @@ print it would turn a display concern into an availability one. Substituting `�
 [0086](0086-core-cli-terminal-is-a-sink.md) § 1's property that a neutralized byte is *visible* — the reader
 sees that something was removed instead of silently reading a shorter string.
 
-**No suppression at the lexer**, per [ADR 0029](0029-identifier-casing-is-checked.md) § 1's standing
+**No suppression at the lexer**, per `rule:core-api/casing-checks-the-leading-character`'s standing
 position: this project fails a build over a lowercase class name, and an attribute that switches off a
 security check would be the first exception. A file that legitimately needs an unterminated control does not
 exist — terminating it is always available and always correct.
@@ -148,7 +148,7 @@ table lookup — the eleven code points are a match arm.
   — and would push developers to build such strings by concatenation to evade the check, which is worse
   than the disease.
 - **A warning rather than an error at the lexer.** A warning nobody fails a build on is not a control, and
-  [ADR 0029](0029-identifier-casing-is-checked.md) already settled that this project does not have a
+  `rule:core-api/identifier-casing` already settled that this project does not have a
   suppression story for spelling rules.
 - **Handle it only in `nvs fmt`.** [ADR 0039](0039-canonical-code-formatting.md) fixes that `fmt` is never
   wired into `nvs check`, so a formatter-only rule is one an attacker's PR simply does not run.

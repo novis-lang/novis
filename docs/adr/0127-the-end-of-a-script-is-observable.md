@@ -55,7 +55,7 @@ Script\ExitReport::error(): ?Throwable
 ```
 
 Three accessors and not three properties, because a `Core`-owned instance has no property a program
-can reach — [ADR 0063](0063-core-api-conventions.md)'s shape, stated at
+can reach — `rule:core-api/shape-rules`'s shape, stated at
 `nvs_stdlib::registry::CoreTy::Instance` and already spelled this way by `Core\RateLimit\Decision`
 and `Core\Http\Response`. Readonly is then structural: there is no member that writes a slot and no
 constructor a program may reach, so the only thing that builds a report is the ending itself.

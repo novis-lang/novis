@@ -108,7 +108,7 @@ them unasked; both are one call, and the second is the complete legal record. Th
 two-column text with no colour and no paging, so it pipes.
 
 This is the one place in Novis where an operation is deliberately reachable two ways.
-[ADR 0063](0063-core-api-conventions.md) R-"no operation reachable two ways" governs the `Core` library
+`rule:core-api/shape-rules` R-"no operation reachable two ways" governs the `Core` library
 API, not the CLI, and the reason for the exception is specific: `-i` is the spelling a PHP developer
 will try first, and the whole point of this command is that nobody should have to hunt for it.
 Combining `-i` with a subcommand is refused rather than guessed at.

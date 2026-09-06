@@ -1,4 +1,4 @@
-//! A call's arguments: arity, each argument against its parameter, ADR 0063
+//! A call's arguments: arity, each argument against its parameter, `rule:core-api/shape-rules`
 //! R2's trailing options bag, an `inout $x` argument, and the type arguments a call
 //! site binds.
 //!
@@ -448,7 +448,7 @@ fn parameter_names(sig: &MethodSig) -> String {
 }
 
 /// One argument against its parameter's declared type — [`check_expr`] for
-/// every position but ADR 0063 R2's trailing options bag, which is checked by
+/// every position but `rule:core-api/shape-rules` R2's trailing options bag, which is checked by
 /// [`check_options_arg`] instead.
 ///
 /// The fork exists because a bag is a *type* with no assignability rule: an
@@ -578,12 +578,12 @@ pub(crate) fn carries_contagion(
     })
 }
 
-/// ADR 0063 R2's options bag at a call site: it must be written out as an
+/// `rule:core-api/shape-rules` R2's options bag at a call site: it must be written out as an
 /// object literal (or omitted, which never reaches here), every field must be
 /// an option the member declares, and each field's value must be assignable to
 /// that option's own declared type.
 ///
-/// **And ADR 0135's shape parameter, on the same terms.** Both intern to
+/// **And `rule:core-api/shape-parameter`'s shape parameter, on the same terms.** Both intern to
 /// [`Ty::CoreShape`](crate::ty::Ty::CoreShape), so both are checked here; the
 /// one rule a bag never reaches is the missing-required-key refusal below,
 /// because a bag's every field is optional.
@@ -642,7 +642,7 @@ pub(crate) fn check_options_arg(
         let slot = options.iter().find(|option| option.name == name);
         let declared = slot.map(|option| option.ty);
         let ty = match slot {
-            // ADR 0135 § 3's classification, which is on the field: a sink key
+            // `rule:core-api/shape-flattens-at-the-abi`'s classification, which is on the field: a sink key
             // is checked here so that its refusal can say what to do about it.
             Some(option) if option.qual == Some(Qual::Sink) => {
                 check_shape_field(&field.value, option, live, scope, ctx, env)
@@ -674,7 +674,7 @@ pub(crate) fn check_options_arg(
             ty,
         });
     }
-    // ADR 0135 § 2's *exactly one arm accepts it*, which is where the rest of
+    // `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it*, which is where the rest of
     // the exact-key check lives. One arm is the ordinary case and every bag,
     // and there the arm is the merged list itself — so what follows is the
     // missing-required-key refusal this function has always made, asked of a
@@ -684,7 +684,7 @@ pub(crate) fn check_options_arg(
     options_ty
 }
 
-/// [`check_arg`] for a shape key ADR 0135 § 3 classifies [`Qual::Sink`] —
+/// [`check_arg`] for a shape key `rule:core-api/shape-flattens-at-the-abi` classifies [`Qual::Sink`] —
 /// `Db\Settings`'s `host` and its `path`, which are the two the registry
 /// declares.
 ///
@@ -753,7 +753,7 @@ fn merged_accepts(shape: &crate::ty::CoreShape, key: &WrittenKey<'_>, env: &mut 
 /// One key a call site wrote in an options or shape literal: its name, where it
 /// was written, and the type its value checked to.
 ///
-/// The type is what ADR 0135 § 2's arm selection needs and the reason the
+/// The type is what `rule:core-api/shape-arms-are-disjoint`'s arm selection needs and the reason the
 /// selection cannot happen first — an arm accepts on its keys *and* on its
 /// values, so every value is typed against the merged slot before any arm is
 /// chosen.
@@ -763,7 +763,7 @@ struct WrittenKey<'src> {
     ty: TypeId,
 }
 
-/// ADR 0135 § 2's arm selection: the arm that accepts the written literal, or —
+/// `rule:core-api/shape-arms-are-disjoint`'s arm selection: the arm that accepts the written literal, or —
 /// where none does, which is the call site's error — the arm it is closest to.
 ///
 /// An arm **accepts** when every written key is one it declares, every key it
@@ -929,7 +929,7 @@ fn required_key_names(options: &[crate::ty::CoreShapeField]) -> String {
 /// an *effect* — `Core\Http\Client::post` — may not ask for retries without an
 /// idempotency key.
 ///
-/// **This is reportable at all only because of ADR 0063 R2.** The verb is the
+/// **This is reportable at all only because of `rule:core-api/shape-rules` R2.** The verb is the
 /// member's own name and the bag has to be written out as a literal at the call
 /// site ([`check_options_arg`] is the refusal that makes it so), so both halves
 /// of § 7's question are in hand while compiling — which is the payoff R2 was
@@ -1178,7 +1178,7 @@ pub(crate) fn check_inout_arg(
 /// that literal. [`crate::generics`] owns why, and owns the case that binds
 /// nothing.
 ///
-/// An ADR 0063 R2 options bag is the one argument left out of the first pass
+/// An `rule:core-api/shape-rules` R2 options bag is the one argument left out of the first pass
 /// and checked entirely in the second. It is always the last parameter, so
 /// nothing it could bind is ever needed by an earlier one; and its own option
 /// types may mention a variable the earlier arguments bind, so checking it
@@ -1463,7 +1463,7 @@ pub(crate) fn check_written_type_args(
 /// `array<C>` records `C` with `true`: a list decode is the same decode run
 /// once per element, so the class the native member needs is the element's and
 /// the flag is the whole of what distinguishes the two shapes. Nesting stops
-/// there — `array<array<C>>` is not a document shape ADR 0071 § 4 gives a
+/// there — `array<array<C>>` is not a document shape `rule:core-api/required-optional-and-nullable` gives a
 /// field, so it is refused here rather than recorded as a class it is not.
 ///
 /// `None` for every member not on that roster, which is all but one of them —
@@ -1590,7 +1590,7 @@ mod tests {
     use super::*;
     use crate::ty::CoreShapeField;
 
-    /// ADR 0135 § 3's required half, asked of the rule itself: no registry row
+    /// `rule:core-api/shape-flattens-at-the-abi`'s required half, asked of the rule itself: no registry row
     /// declares a shape parameter yet, so the call-site case that reports this
     /// arrives with `Core\Db::open` and this is what holds the rule until then.
     /// Both directions in one test on purpose — a bag is the all-optional
@@ -1621,7 +1621,7 @@ mod tests {
         assert!(missing_required_keys(&shape, &["host", "driver"]).is_empty());
         assert_eq!(required_key_names(&shape), "driver, host");
 
-        // ADR 0063 R2's bag: every field optional, so this rule has nothing to
+        // `rule:core-api/shape-rules` R2's bag: every field optional, so this rule has nothing to
         // say about one however little the call site wrote.
         let bag = [key("by", false), key("comparator", false)];
         assert!(missing_required_keys(&bag, &[]).is_empty());

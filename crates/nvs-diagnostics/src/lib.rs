@@ -118,19 +118,19 @@ pub mod code {
     /// ADR 0024 § 1.
     pub const E_TAINTED_NON_SCALAR: Code = Code::new("E0109");
     /// A class/interface/trait/enum/enum-case/namespace-segment name is not
-    /// `PascalCase` — ADR 0029's casing table.
+    /// `PascalCase` — `rule:core-api/identifier-casing`'s casing table.
     pub const E_BAD_TYPE_CASING: Code = Code::new("E0110");
-    /// A method name is not `camelCase` — ADR 0029's casing table. Distinct
+    /// A method name is not `camelCase` — `rule:core-api/identifier-casing`'s casing table. Distinct
     /// from `E_LEGACY_CONSTRUCTOR_SPELLING`, which covers the one mis-cased
     /// spelling (`__construct`) that gets a targeted fix instead of this
     /// generic diagnostic.
     pub const E_BAD_METHOD_CASING: Code = Code::new("E0111");
     /// A property, parameter, local variable or closure self-name is not
-    /// `camelCase` — ADR 0029's casing table, tightened by
-    /// `rule:classes/no-leading-underscore-identifiers` to allow no leading underscore at all (ADR 0029's original
+    /// `camelCase` — `rule:core-api/identifier-casing`'s casing table, tightened by
+    /// `rule:classes/no-leading-underscore-identifiers` to allow no leading underscore at all (`rule:core-api/identifier-casing`'s original
     /// one-underscore allowance for these three categories is revoked).
     pub const E_BAD_MEMBER_CASING: Code = Code::new("E0112");
-    /// A class constant name is not `SCREAMING_SNAKE_CASE` — ADR 0029's
+    /// A class constant name is not `SCREAMING_SNAKE_CASE` — `rule:core-api/identifier-casing`'s
     /// casing table.
     pub const E_BAD_CONST_CASING: Code = Code::new("E0113");
     /// A method literally named `__construct` —
@@ -171,7 +171,7 @@ pub mod code {
     /// `class`, `interface` or anonymous-class body — carrying no
     /// `public`/`protected`/`private`, or PHP 8.4's `(set)` form written
     /// without its read visibility. There is no implicit `public`; see
-    /// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md).
+    /// `rule:core-api/written-visibility`.
     /// A class body's PHP `var $x;` reports this too, rather than a message
     /// about the statement grammar it would otherwise fall into (§ 4).
     pub const E_MISSING_VISIBILITY: Code = Code::new("E0122");
@@ -247,7 +247,7 @@ pub mod code {
     /// class — see `rule:classes/no-free-functions-or-constants`.
     pub const E_TOPLEVEL_CONST_UNSUPPORTED: Code = Code::new("E0216");
     /// `namespace Core;` (or anything nested under it) in user source:
-    /// `Core` is reserved for built-ins — see ADR 0011 § 2.
+    /// `Core` is reserved for built-ins — see `rule:core-api/reserved-namespace`.
     pub const E_RESERVED_CORE_NAMESPACE: Code = Code::new("E0217");
     /// `enum Name implements Iface { ... }`: an enum declares only cases and
     /// an optional backing type — see `rule:enums/no-class-machinery`.
@@ -305,7 +305,7 @@ pub mod code {
     /// case-insensitively; Novis accepts exactly one spelling of each, so a
     /// program's meaning never depends on the case a reserved word was typed
     /// in. See `rule:classes/reserved-spellings-are-lower-case`. A mis-cased *keyword* (`IF`, `TRUE`) gets no diagnostic of its
-    /// own — it is simply an ordinary identifier, since ADR 0029 makes
+    /// own — it is simply an ordinary identifier, since `rule:core-api/identifier-casing` makes
     /// `IF` a legal class name the lexer cannot tell apart from a mis-typed
     /// `if`.
     pub const E_RESERVED_SPELLING_CASE: Code = Code::new("E0231");
@@ -359,7 +359,7 @@ pub mod code {
     /// suppress: `rule:errors/escalation-ladder`
     /// makes every runtime failure a `Throwable` propagated by checked return
     /// (`rule:errors/propagation`), not a
-    /// diagnostic printed alongside a value, and ADR 0063 § 3 already lists
+    /// diagnostic printed alongside a value, and `rule:core-api/removals` already lists
     /// `@` among the constructs that decision closes. `try`/`catch` is the
     /// replacement, and it is the only one.
     pub const E_SUPPRESSION_UNSUPPORTED: Code = Code::new("E0236");
@@ -554,7 +554,7 @@ pub mod code {
     /// A value whose type cannot be what this position requires.
     pub const E_TYPE_MISMATCH: Code = Code::new("E0401");
     /// Wrong number of arguments — including a **shape key** a member
-    /// requires and a written literal does not carry. ADR 0135 § 3 flattens
+    /// requires and a written literal does not carry. `rule:core-api/shape-flattens-at-the-abi` flattens
     /// each key of a shape parameter into one argument of its own, so an
     /// omitted required key is a call one argument short rather than a
     /// separate kind of mistake.
@@ -812,10 +812,10 @@ pub mod code {
     /// shape.
     pub const E_PARAM_DEFAULT_ORDER: Code = Code::new("E0452");
     /// Something other than an `rule:types/object-top` object literal written at a `Core`
-    /// member's trailing options-bag parameter (ADR 0063 R2). The bag has no
+    /// member's trailing options-bag parameter (`rule:core-api/shape-rules` R2). The bag has no
     /// runtime representation — it flattens into one argument per declared
     /// option at the call site — so it must be written out there or omitted
-    /// entirely; a variable holding one cannot be passed. ADR 0135 § 3's
+    /// entirely; a variable holding one cannot be passed. `rule:core-api/shape-flattens-at-the-abi`'s
     /// **shape key** parameter is refused here on the same terms and for the
     /// same reason — one flatten, one rule — and the message says "options"
     /// for either, the bag being the all-optional case of the shape.
@@ -823,8 +823,8 @@ pub mod code {
     /// A field name in an options bag that the member does not declare —
     /// usually a typo. Unlike `rule:types/shape-type`'s width subtyping, which accepts an
     /// extra field on purpose, an options bag refuses one: a misspelled option
-    /// that is silently ignored is the failure ADR 0063 R2 exists to prevent.
-    /// A **shape key** no arm of an ADR 0135 § 1 shape parameter declares is
+    /// that is silently ignored is the failure `rule:core-api/shape-rules` R2 exists to prevent.
+    /// A **shape key** no arm of an `rule:core-api/shape-parameter` shape parameter declares is
     /// this same code: the merged list is the whole key set either way. So is a
     /// key that belongs to an arm the literal's other values did not select —
     /// § 2's arm selection narrows *which* key set a call is held to, and a key
@@ -845,7 +845,7 @@ pub mod code {
     // atoms intern as real types now (`nvs_types::lower::lower_atom`), so there
     // is nothing left for it to refuse.
     /// A `Core` **instance** member written as a static call —
-    /// `Core\Regex\Match::text($m)` rather than `$m->text()`. ADR 0063 R20
+    /// `Core\Regex\Match::text($m)` rather than `$m->text()`. `rule:core-api/shape-rules` R20
     /// gives every `Core` operation exactly one spelling, and this is the one
     /// place two could otherwise reach the same helper: an instance member's
     /// receiver is argument slot 0 at the ABI, so the static spelling would
@@ -918,7 +918,7 @@ pub mod code {
     pub const E_ENUM_CASE_SUBSET_MISMATCH: Code = Code::new("E0470");
     /// `$obj->secret` where `secret` is declared `private` outside the class
     /// the access is written in, or `protected` outside that class and its
-    /// subclasses — ADR 0094's levels, now meaning something. The test is
+    /// subclasses — `rule:core-api/written-visibility`'s levels, now meaning something. The test is
     /// keyed on the **accessing** class and never on the receiver's static
     /// type: `$other->secret` is legal inside `Secret`'s own body and the
     /// identical line is not at file scope. A name nothing declares anywhere
@@ -1084,7 +1084,7 @@ pub mod code {
     /// `mixed` binding or parameter being the reachable one.
     pub const E_SPREAD_SUBJECT_NOT_AN_ARRAY: Code = Code::new("E0484");
     // `E0485` is retired and is never reused: it refused a `name:` argument at
-    // a target whose signature carried no parameter names, and ADR 0063 R2
+    // a target whose signature carried no parameter names, and `rule:core-api/shape-rules` R2
     // left no such signature — a `Core` row's names are
     // `nvs_stdlib::registry::CoreMethod::names`, the synthesized `Throwable`
     // constructor's are `message` and `options`, and a reserved interface's
@@ -2439,7 +2439,7 @@ pub mod code {
     /// ADR 0077 § 3's first compile error. A capture's value arrives *as* the
     /// parameter it is named after, so a capture with no parameter is a value
     /// with nowhere to go; the comparison is exact, per
-    /// [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md), so
+    /// `rule:core-api/identifier-casing`, so
     /// `{userId}` and `$userid` are two names. The reverse is not an error: a
     /// parameter the path does not name is simply not the router's.
     pub const E_ROUTE_CAPTURE_UNBOUND: Code = Code::new("E0751");
@@ -2756,7 +2756,7 @@ pub mod code {
     /// inside a `static` method of any class.
     ///
     /// [`E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY`] is the same mistake
-    /// against a `Core` class, kept separate because its wording is ADR 0063
+    /// against a `Core` class, kept separate because its wording is `rule:core-api/shape-rules`
     /// R20's one-spelling rule rather than this one's missing receiver. This
     /// code is the sibling `rule:statements/static-is-a-member-modifier` asks for: `static` keeps PHP's
     /// semantics unchanged, so a method without it is called on a value.
@@ -2956,7 +2956,7 @@ pub mod code {
     /// `retryIdempotencyKey`.
     ///
     /// Reportable while compiling because both halves are written: the verb is
-    /// the member's own name, and ADR 0063 R2 makes the options bag a literal
+    /// the member's own name, and `rule:core-api/shape-rules` R2 makes the options bag a literal
     /// at the call site. Distinct from [`E_UNKNOWN_OPTION`], which is the
     /// mistake of naming an option that does not exist; here every option
     /// named is real and it is the *absent* one that is the defect.

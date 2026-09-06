@@ -4,7 +4,7 @@
 <?nvs
 // `truncate` is the length half of a random-access handle: `seek` says where
 // the next byte goes and this says how many bytes there are. Both are measured
-// from the start of the file, and neither takes an origin argument (ADR 0063
+// from the start of the file, and neither takes an origin argument (`rule:core-api/shape-rules`
 // R3) because there is no other origin a length could have.
 Core\IO\File $out = Core\IO::open("cut.txt", Core\IO\FileMode::Write);
 $out->write("abcdefghij");

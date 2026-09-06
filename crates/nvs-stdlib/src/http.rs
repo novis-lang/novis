@@ -60,7 +60,7 @@
 //!
 //! **§ 7's refusal is a diagnostic, and so it is not in this module.** A `post` that asks for
 //! retries needs [`RETRY_KEY_OPTION`], and both halves of that question are written at the call
-//! site — the verb is the member's own name, the bag is an ADR 0063 R2 literal — so
+//! site — the verb is the member's own name, the bag is an `rule:core-api/shape-rules` R2 literal — so
 //! `nvs_types::expr::args`' `reject_keyless_retry` reports it while compiling and the body has
 //! nothing left to judge. What this module owns is the two option names the rule is written over,
 //! handed to the checker by [`crate::registry::idempotent_retry_rule`] rather than copied into it.
@@ -158,7 +158,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Http::allowUrl`'s reference card — ADR 0117.
+/// `Core\Http::allowUrl`'s reference card — `rule:core-api/reference-card`.
 const ALLOW_URL_DOC: MethodDoc = MethodDoc {
     short: "Checks `$url` against the outbound policy and pins it: the scheme, the `net.connect` \
             grant and the resolved address are all decided here, and the answer carries the \
@@ -515,7 +515,7 @@ const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s body slot. See [`STATUS_SLOT`].
 const BODY_SLOT: usize = 1;
 
-/// `Core\Http\Response::status`'s reference card — ADR 0117.
+/// `Core\Http\Response::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "The reply's HTTP status code, as the origin sent it and with nothing read into it — \
             replacing `curl_getinfo`'s `CURLINFO_RESPONSE_CODE` key.",
@@ -525,7 +525,7 @@ const STATUS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Http\Response::text`'s reference card — ADR 0117.
+/// `Core\Http\Response::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "The reply's body as text, replacing `curl_exec`'s return value and the \
             `CURLOPT_RETURNTRANSFER` flag that decided whether there was one.",
@@ -625,7 +625,7 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
     },
 ];
 
-/// `Core\Http\Client::get`'s reference card — ADR 0117.
+/// `Core\Http\Client::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Fetches `$url` under a finite budget, over the address the outbound policy pinned.",
     params: REQUEST_PARAMS,
@@ -633,7 +633,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
-/// `Core\Http\Client::post`'s reference card — ADR 0117.
+/// `Core\Http\Client::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
     short: "Sends a `POST` to `$url` under a finite budget. The one member whose retries need \
             `retryIdempotencyKey`, because a repeated `POST` is a second effect rather than a \
@@ -643,7 +643,7 @@ const POST_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
-/// `Core\Http\Client::put`'s reference card — ADR 0117.
+/// `Core\Http\Client::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
     short: "Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its \
             retries need no key.",
@@ -652,7 +652,7 @@ const PUT_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
-/// `Core\Http\Client::delete`'s reference card — ADR 0117.
+/// `Core\Http\Client::delete`'s reference card — `rule:core-api/reference-card`.
 const DELETE_DOC: MethodDoc = MethodDoc {
     short: "Sends a `DELETE` to `$url` under a finite budget.",
     params: REQUEST_PARAMS,
@@ -660,7 +660,7 @@ const DELETE_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
-/// `Core\Http\Client::head`'s reference card — ADR 0117.
+/// `Core\Http\Client::head`'s reference card — `rule:core-api/reference-card`.
 const HEAD_DOC: MethodDoc = MethodDoc {
     short: "Asks `$url` for its headers alone, under the same budget a `get` would have.",
     params: REQUEST_PARAMS,

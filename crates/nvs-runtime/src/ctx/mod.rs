@@ -1019,8 +1019,7 @@ pub struct Ctx {
     /// The session `Core\Session::start` opened, or `None` for a request that
     /// started none — see [`Session`].
     ///
-    /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
-    /// § 1 makes every other member of that class throw while this is `None`,
+    /// `rule:core-api/session-roster` makes every other member of that class throw while this is `None`,
     /// which is the whole of what
     /// `rule:core-classes/session-is-started-explicitly` was buying:
     /// "this request uses sessions" is a line in the source, and it is worth

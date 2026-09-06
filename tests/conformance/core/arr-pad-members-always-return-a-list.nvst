@@ -21,7 +21,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::padEnd($a, 4, "-")), ","), "\n";
 echo Core\Str::join(Core\Arr::padEnd($a, 2, "-"), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::padStart($a, 1, "-")), ","), "\n";
 
-// Nothing mutates (ADR 0063 R3): the subject still carries its own keys.
+// Nothing mutates (`rule:core-api/shape-rules` R3): the subject still carries its own keys.
 echo Core\Str::join(Core\Arr::keys($a), ","), "\n";
 
 // An empty subject is all padding, and a size of zero adds none.

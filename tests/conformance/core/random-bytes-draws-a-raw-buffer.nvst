@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, `rule:types/bytes` and `rule:types/conversion`, ADR 0063 R4
+Core\Random::bytes draws a raw buffer of the count it is given, two draws differ, and a zero-byte draw throws — spec § 11, `rule:types/bytes` and `rule:types/conversion`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line pins an invariant of the
@@ -20,7 +20,7 @@ echo ($a == $b) ? "same" : "differ", "\n";
 echo Core\Str::length($a), "\n";
 echo Core\Regex::matches($a, '^[0-9a-f]{64}$') ? "hex" : "not hex", "\n";
 
-// ADR 0063 R4: an empty buffer is a secret every other empty draw matches, so
+// `rule:core-api/shape-rules` R4: an empty buffer is a secret every other empty draw matches, so
 // there is no reading of `bytes(0)` worth being total for.
 try {
     echo Core\Bytes::length(Core\Random::bytes(0)), "\n";

@@ -1,5 +1,5 @@
 --TEST--
-Every Core\Crypto::generateKey draw is a key seal and open both take, no two draws are equal, and no message sealed under one draw opens under another — counted over the whole matrix rather than read off a line — ADR 0051 § 3
+Every Core\Crypto::generateKey draw is a key seal and open both take, no two draws are equal, and no message sealed under one draw opens under another — counted over the whole matrix rather than read off a line — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted. A `generateKey` that had become a

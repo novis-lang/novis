@@ -131,7 +131,7 @@
 //!    program knows would be *written* is an ADR 0067 § 13 question and not a
 //!    shape this module may pick on its own.
 //!
-//!    ADR 0135 § 2's *exactly one arm accepts it* **is** the checker's rule —
+//!    `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it* **is** the checker's rule —
 //!    `nvs_types::expr::args`' `select_arm` — so a `host` written beside
 //!    `Driver::Sqlite` is the compile error § 18 says it is, and a key only one
 //!    arm requires is required of the call that selected that arm. What reaches

@@ -401,7 +401,7 @@ pub struct DerivedField {
     /// [`nvs_stdlib::CodecField::cases`], which this is the declaration half
     /// of.
     pub cases: Option<EnumCases>,
-    /// Whether the declared type admits `null` (ADR 0071 § 4's second column).
+    /// Whether the declared type admits `null` (`rule:core-api/required-optional-and-nullable`'s second column).
     pub nullable: bool,
     /// This field's position in the constructor's parameter list, or `None`
     /// when the class declares no matching parameter — which

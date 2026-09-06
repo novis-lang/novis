@@ -1,5 +1,5 @@
 --TEST--
-a `Throwable`'s synthesized constructor is callable by name like any other member — `message:` on its own, and `options: {previous: …}` for the chain (ADR 0063 R2, spec § 10)
+a `Throwable`'s synthesized constructor is callable by name like any other member — `message:` on its own, and `options: {previous: …}` for the chain (`rule:core-api/shape-rules` R2, spec § 10)
 --FILE--
 <?nvs
 // The constructor is `constructor(string $message, {previous?: Throwable|null})`

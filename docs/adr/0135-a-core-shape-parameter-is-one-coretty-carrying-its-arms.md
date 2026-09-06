@@ -1,4 +1,4 @@
-# ADR 0135 — A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does
+# `rule:core-api/shape-parameter` — A fixed-key shape parameter is one `CoreTy` carrying its arms, and it flattens at the ABI exactly as an options bag does
 
 - **Status:** Accepted
 - **Date:** 2026-09-02

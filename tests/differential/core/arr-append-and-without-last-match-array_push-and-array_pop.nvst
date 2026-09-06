@@ -3,7 +3,7 @@ Core\Arr::append and ::withoutLast answer what array_push and array_pop leave be
 --FILE--
 <?nvs
 // Spec § 2's two *back* ends against their PHP twins. Both twins mutate and
-// one of them also returns — ADR 0063 R3 makes nothing mutate, so the spec
+// one of them also returns — `rule:core-api/shape-rules` R3 makes nothing mutate, so the spec
 // splits `array_pop` into `Core\Arr::last` for the element and
 // `::withoutLast` for the remainder, and the oracle here copies the subject
 // before calling either.

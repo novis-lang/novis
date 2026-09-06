@@ -1,5 +1,5 @@
 --TEST--
-Spec § 2: `Core\Arr::slice` and `::chunk` read one window, so an array's window agrees with a string's at every sign and every chunk is the slice at its own offset, per ADR 0063 R8
+Spec § 2: `Core\Arr::slice` and `::chunk` read one window, so an array's window agrees with a string's at every sign and every chunk is the slice at its own offset, per `rule:core-api/shape-rules` R8
 --FILE--
 <?nvs
 // `slice` and `replaceRange` read their `$offset` and `?int $length` through

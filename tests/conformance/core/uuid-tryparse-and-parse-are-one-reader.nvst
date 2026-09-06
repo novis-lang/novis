@@ -1,5 +1,5 @@
 --TEST--
-Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — `rule:expressions/try-parse`, ADR 0063 R4, spec § 11
+Core\Uuid::tryParse is Core\Uuid::parse with the throw turned into a null — every subject of one table asked of both, with the agreement counted rather than read off a line — `rule:expressions/try-parse`, `rule:core-api/shape-rules` R4, spec § 11
 --FILE--
 <?nvs
 // `rule:expressions/try-parse` says `tryParse` *is* `parse`, `null` where it throws — one
@@ -96,7 +96,7 @@ echo "disagree ", $disagree, "\n";
 echo "accepted ", $accepted, "\n";
 echo "normalized ", $normalized, "\n";
 
-// ADR 0063 R4: `parse` asserts the text is a UUID, so a refusal is a throw.
+// `rule:core-api/shape-rules` R4: `parse` asserts the text is a UUID, so a refusal is a throw.
 // Counted on both sides, these two are the same twelve subjects — the per-row
 // equality above is what says *the same* twelve, and these say how many.
 echo "threw ", $threw, "\n";

@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::float's half-open [0, 1) is asserted at both ends — 4000 draws fill all ten tenths of the interval, none falls below 0.0, and none reaches 1.0 — spec § 11, ADR 0063 R5
+Core\Random::float's half-open [0, 1) is asserted at both ends — 4000 draws fill all ten tenths of the interval, none falls below 0.0, and none reaches 1.0 — spec § 11, `rule:core-api/shape-rules` R5
 
 --FILE--
 <?nvs

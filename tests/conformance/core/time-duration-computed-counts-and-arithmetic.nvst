@@ -21,7 +21,7 @@ echo (1500ns)->toMicroseconds() as string, "|\n";
 echo (1500ns)->negated()->toMicroseconds() as string, "|\n";
 echo (1999ms)->toSeconds() as string, "|\n";
 
-// ADR 0063 R3: nothing mutates. `plus` answers a fresh value and leaves its
+// `rule:core-api/shape-rules` R3: nothing mutates. `plus` answers a fresh value and leaves its
 // receiver alone.
 var $base = 1h;
 var $longer = $base->plus(30m);
@@ -39,7 +39,7 @@ echo (90m)->negated()->negated()->compareTo(90m) as string, "|\n";
 // `Comparable`'s answer is a sign, not a difference.
 echo (30s)->compareTo(1h) as string, "|", (1h)->compareTo(30s) as string, "|\n";
 
-// ADR 0063 R4: failure throws. A count past the nanosecond range is refused
+// `rule:core-api/shape-rules` R4: failure throws. A count past the nanosecond range is refused
 // rather than wrapped, at run time exactly as a literal is while compiling.
 try {
     echo Core\Time\Duration::weeks(1000000)->toString(), "|\n";

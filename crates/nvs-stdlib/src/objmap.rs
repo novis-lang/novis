@@ -63,7 +63,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// **`get` returns `?V`, not a throwing read**: § 9 says so outright, because
 /// these types have no subscript (`rule:iteration/two-interfaces`
 /// rejects `ArrayAccess`) and so cannot offer the `$a[$k]` / `$a[$k] ?? $d`
-/// pair that `array<T>` does, while ADR 0063 R5 bans a `getOrNull` twin.
+/// pair that `array<T>` does, while `rule:core-api/shape-rules` R5 bans a `getOrNull` twin.
 ///
 /// **A `foreach` over a map yields its keys**, which is what
 /// `SplObjectStorage` yields and the only choice that loses nothing: a key
@@ -161,7 +161,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `new Core\ObjectMap`'s reference card — ADR 0117.
+/// `new Core\ObjectMap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     short: "Builds an empty `Core\\ObjectMap<K, V>` — a map keyed by identity, which replaces \
             `SplObjectStorage` used as a map and every `spl_object_id` side table.",
@@ -170,7 +170,7 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::set`'s reference card — ADR 0117.
+/// `Core\ObjectMap::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Associates `$value` with `$key`, replacing whatever `$key` held; a key is matched by \
             identity, never by equality.",
@@ -190,7 +190,7 @@ const SET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::get`'s reference card — ADR 0117.
+/// `Core\ObjectMap::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Answers what `$key` holds — `?V` rather than a throwing read, because these types \
             have no subscript and so no `$a[$k] ?? $d` to offer instead.",
@@ -205,7 +205,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::has`'s reference card — ADR 0117.
+/// `Core\ObjectMap::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
     short: "Whether the map holds a key identical to `$key`.",
     params: &[ParamDoc {
@@ -217,7 +217,7 @@ const HAS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::remove`'s reference card — ADR 0117.
+/// `Core\ObjectMap::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Drops `$key` and the value it held.",
     params: &[ParamDoc {
@@ -229,7 +229,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::count`'s reference card — ADR 0117.
+/// `Core\ObjectMap::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
     short: "Counts the pairs the map holds.",
     params: &[],
@@ -237,7 +237,7 @@ const COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::isEmpty`'s reference card — ADR 0117.
+/// `Core\ObjectMap::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     short: "Whether the map holds no pairs.",
     params: &[],
@@ -245,7 +245,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::keys`'s reference card — ADR 0117.
+/// `Core\ObjectMap::keys`'s reference card — `rule:core-api/reference-card`.
 const KEYS_DOC: MethodDoc = MethodDoc {
     short: "Every key, as a list in insertion order — the same order a `foreach` over the map \
             yields.",
@@ -254,7 +254,7 @@ const KEYS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::values`'s reference card — ADR 0117.
+/// `Core\ObjectMap::values`'s reference card — `rule:core-api/reference-card`.
 const VALUES_DOC: MethodDoc = MethodDoc {
     short: "Every value, as a list in the order `keys()` answers its keys.",
     params: &[],
@@ -262,7 +262,7 @@ const VALUES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectMap::clear`'s reference card — ADR 0117.
+/// `Core\ObjectMap::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
     short: "Drops every pair, leaving the map empty.",
     params: &[],

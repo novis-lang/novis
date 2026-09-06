@@ -141,7 +141,7 @@ const UNSAFE_VERBS: [&str; 4] = ["Post", "Put", "Patch", "Delete"];
 /// § 1's own spelling, in the order that section writes it.
 ///
 /// `method` is an enum case rather than a string
-/// ([ADR 0063](/docs/adr/0063-core-api-conventions.md) R11), and an
+/// (`rule:core-api/shape-rules` R11), and an
 /// enum case is one of the three things a payload may contain (`rule:attributes/payload-is-a-compile-time-constant`);
 /// it is the same `Core\Http\Method` `Core\Request::method` answers with, which
 /// is why the row names that enum rather than a spelling of its own. There is
@@ -1680,7 +1680,7 @@ fn check_captures(
                 .with_primary(path_span, "this capture names no parameter")
                 .with_help(
                     "a capture is the parameter it is named after and the comparison is exact \
-                     (ADR 0029) — the reverse is fine, and a parameter the path does not name \
+                     (`rule:core-api/identifier-casing`) — the reverse is fine, and a parameter the path does not name \
                      is simply not the router's",
                 ),
             );

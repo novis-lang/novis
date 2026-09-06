@@ -1,4 +1,4 @@
-//! Call lowering: argument ownership, ADR 0063 R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-field`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
+//! Call lowering: argument ownership, `rule:core-api/shape-rules` R2's options bag flattened at the site, an `inout $x` argument staged and written back, `$fn(...)` through the one helper a `Core` member's callback already takes, and `rule:classes/delegation-by-field`'s `by $field` forward, which is a whole synthesized function rather than a lowered call.
 //!
 //! Part of [`super`]'s one `impl Lowering`, split across this directory so a
 //! session editing one area does not carry the rest in context. Every item
@@ -192,7 +192,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
         out: &mut LoweredArgs,
     ) {
-        // ADR 0063 R2's options bag, and ADR 0135 § 3's shape parameter with
+        // `rule:core-api/shape-rules` R2's options bag, and `rule:core-api/shape-flattens-at-the-abi`'s shape parameter with
         // it: not one argument but one *per slot of the merged list*, so
         // neither ever reaches `lower_checked_ty` — a shape has no IR type at
         // all. See [`Self::lower_options_arg`].
@@ -302,7 +302,7 @@ impl<'a> Lowering<'a> {
         out.values.push(v);
     }
 
-    /// ADR 0063's variadic tail as the single ABI argument it becomes: every
+    /// `rule:core-api/shape-rules`'s variadic tail as the single ABI argument it becomes: every
     /// argument from parameter `fixed` onward collected into one fresh
     /// `array<T>`, keyed `"0"`, `"1"`, … in written order.
     ///
@@ -492,7 +492,7 @@ impl<'a> Lowering<'a> {
             }
         }
     }
-    /// Flattens one ADR 0063 R2 options bag into `out`: one value per option
+    /// Flattens one `rule:core-api/shape-rules` R2 options bag into `out`: one value per option
     /// `options` declares, in that declared order — the written field's value
     /// where the call site gave one, the option's own default where it did
     /// not.

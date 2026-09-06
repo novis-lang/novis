@@ -5,7 +5,7 @@ what is left; [goal 1](../agent/goals/1-core-depth.md) is the loop goal that fin
 `python tools/gaps.py` is the live worklist behind it.
 
 The library the language has been compiling calls *against* since M2 without any of it existing. Its shape
-is [ADR 0063](../adr/0063-core-api-conventions.md) and its member list is
+is `rule:core-api/shape-rules` and its member list is
 [docs/spec/01-core-library.md](../spec/01-core-library.md), which is authoritative for every signature; this
 milestone implements **§§ 1–12** of that file — `Core\Str`, `Arr`, `Math`, `Time`, `Json`, `Regex`,
 `Encoding`, `Bytes`, `Path`, the three collection types, the exception types, `Random`, `Uuid`, `Hash`,
@@ -51,13 +51,13 @@ command name, two options sharing a spelling, an `#[Option]` on a parameter with
 reachable before capabilities exist at M6.
 
 **Verify:** every member in the spec file has a conformance test, and a mechanical check over that file
-enforces the rules that can be checked mechanically — [ADR 0063](../adr/0063-core-api-conventions.md)'s
+enforces the rules that can be checked mechanically — `rule:core-api/shape-rules`'s
 *Verification* section is the one home for that list. PHP 8.5 is the differential oracle wherever a member
 claims PHP-compatible observable behaviour (`Core\Str`, `Core\Arr`, `Core\Math`, `Core\Regex`), and each
 deliberate divergence is a named fixture rather than a failing comparison. A `tainted` value cannot reach a
 sink and cannot be laundered except by the members the spec marks **launder**. `Core\Arr` mutates in place
 when its argument's refcount is 1 — measured, since it is the whole cost argument for
-[ADR 0063](../adr/0063-core-api-conventions.md) R3 — and allocates a copy when it is not.
+`rule:core-api/shape-rules` R3 — and allocates a copy when it is not.
 `rule:core-classes/derive-attribute`'s own *Verification* section lists the derive's cases, including the
 one that matters most: a decode with four bad fields throws exactly one error listing all four. The M4 CLI program
 is rewritten against `Core` and gets shorter. `python tools/check-migration.py` reports full coverage of

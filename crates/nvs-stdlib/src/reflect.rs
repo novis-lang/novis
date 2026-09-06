@@ -116,7 +116,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             // `?ClassInfo`, and the `null` is what replaces `class_exists`:
             // a name the running program declares no class for is an absence
-            // (ADR 0063 R6), not a failure — see the card.
+            // (`rule:core-api/shape-rules` R6), not a failure — see the card.
             return_ty: CoreTy::Nullable(&CoreTy::Instance(CLASS_INFO_NAME)),
             symbol: "nvs_core_reflect_for_class",
             doc: Some(&FOR_CLASS_DOC),
@@ -151,7 +151,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Reflect::forClass`'s reference card — ADR 0117.
+/// `Core\Reflect::forClass`'s reference card — `rule:core-api/reference-card`.
 const FOR_CLASS_DOC: MethodDoc = MethodDoc {
     short: "Describes the class `$name` names, reaching it by name rather than through a value. \
             Replaces `ReflectionClass`'s constructor and `class_exists`.",
@@ -167,7 +167,7 @@ const FOR_CLASS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Reflect::forObject`'s reference card — ADR 0117.
+/// `Core\Reflect::forObject`'s reference card — `rule:core-api/reference-card`.
 const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
     short: "Describes `$object`'s class — its name, and the properties code outside the class can \
             see. Replaces `get_class` and `get_object_vars`.",
@@ -186,7 +186,7 @@ const FOR_OBJECT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Reflect::typeOf`'s reference card — ADR 0117.
+/// `Core\Reflect::typeOf`'s reference card — `rule:core-api/reference-card`.
 const TYPE_OF_DOC: MethodDoc = MethodDoc {
     short: "Which of the language's representations `$value` currently holds. The single \
             replacement for PHP's fourteen `is_*` predicates and `gettype`, which are only \
@@ -232,7 +232,7 @@ pub(crate) const TYPE_KIND: CoreEnum = CoreEnum {
     doc: Some(&TYPE_KIND_DOC),
 };
 
-/// [`TYPE_KIND`]'s reference card — ADR 0117.
+/// [`TYPE_KIND`]'s reference card — `rule:core-api/reference-card`.
 const TYPE_KIND_DOC: EnumDoc = EnumDoc {
     short: "What a value is, once its static type is gone — ten cases, one per representation the \
             runtime has, and every value is in exactly one of them.",
@@ -357,7 +357,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Reflect\ClassInfo::name`'s reference card — ADR 0117.
+/// `Core\Reflect\ClassInfo::name`'s reference card — `rule:core-api/reference-card`.
 const NAME_DOC: MethodDoc = MethodDoc {
     short: "The described class's name, namespace included, spelled as the declaration writes it.",
     params: &[],
@@ -366,7 +366,7 @@ const NAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Reflect\ClassInfo::properties`'s reference card — ADR 0117.
+/// `Core\Reflect\ClassInfo::properties`'s reference card — `rule:core-api/reference-card`.
 const PROPERTIES_DOC: MethodDoc = MethodDoc {
     short: "The described class's property names, in slot order — every ancestor's first, then \
             its own.",
@@ -377,7 +377,7 @@ const PROPERTIES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Reflect\ClassInfo::get`'s reference card — ADR 0117.
+/// `Core\Reflect\ClassInfo::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Reads `$object`'s `$name` property, under exactly the visibility ordinary code at \
             this call site would face. Replaces `ReflectionProperty::getValue`, and there is no \
@@ -412,7 +412,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Reflect\ClassInfo::set`'s reference card — ADR 0117.
+/// `Core\Reflect\ClassInfo::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Writes `$object`'s `$name` property, under exactly the visibility ordinary code at \
             this call site would face, and then runs the `PropertyObserver` an ordinary write \
@@ -511,7 +511,7 @@ fn subject_of(
     Ok((ptr, class))
 }
 
-/// `Core\Reflect\ClassInfo::call`'s reference card — ADR 0117.
+/// `Core\Reflect\ClassInfo::call`'s reference card — `rule:core-api/reference-card`.
 const CALL_DOC: MethodDoc = MethodDoc {
     short: "Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility \
             ordinary code at this call site would face. Replaces `ReflectionMethod::invoke`, and \

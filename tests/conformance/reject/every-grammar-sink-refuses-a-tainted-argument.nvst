@@ -1,9 +1,9 @@
 --TEST--
-all four of ADR 0063 R11's grammars refuse a tainted argument, and they agree across four classes rather than each answering for itself — ADR 0088 § 1
+all four of `rule:core-api/shape-rules` R11's grammars refuse a tainted argument, and they agree across four classes rather than each answering for itself — ADR 0088 § 1
 --FILE--
 <?nvs
 // ADR 0088 § 1 classifies a parameter whose content becomes an instruction as
-// a sink, and ADR 0063 R11 names the four grammars that are one: a regex
+// a sink, and `rule:core-api/shape-rules` R11 names the four grammars that are one: a regex
 // pattern, a `printf` template, a CLDR date pattern and a `Core\Bytes::pack`
 // format. Each already has cases of its own; what this file asks is that they
 // **agree** -- a member that grew its own answer here still reads right on its

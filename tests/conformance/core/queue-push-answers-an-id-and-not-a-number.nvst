@@ -1,11 +1,11 @@
 --TEST--
-`push` answers a `Core\Queue\Id` rather than the row's primary key, so what `cancel` and `status` are asked about carries its queue with it — ADR 0084 § 1, ADR 0063
+`push` answers a `Core\Queue\Id` rather than the row's primary key, so what `cancel` and `status` are asked about carries its queue with it — ADR 0084 § 1, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // The receipt is a handle and not an integer. ADR 0084 § 1's other two members
 // take one, and both of them have to know *which* queue the job is in as well
 // as which row — a `uint` would leave the caller carrying the queue name
-// beside it, which is the pair this class is the name for. ADR 0063's opaque
+// beside it, which is the pair this class is the name for. `rule:core-api/shape-rules`'s opaque
 // handle is what that shape is called.
 var $id = Core\Queue::push("jobs/send-receipt.nvs");
 

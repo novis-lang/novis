@@ -127,7 +127,7 @@ Core\Metrics::observe(string $name, float $value, {labels?: array<string, string
 Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
 ```
 
-Subject first ([ADR 0063](0063-core-api-conventions.md) R1), required value in dataflow order, one trailing
+Subject first (`rule:core-api/shape-rules` R1), required value in dataflow order, one trailing
 options shape (R2). `increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value —
 three verbs for three kinds, rather than one `record` with a kind enum, because the kind is a property of
 the series and not of the call, and a series recorded two ways is a bug the backend reports and the call
@@ -206,7 +206,7 @@ deployment decision, and a request able to turn tracing on for itself is the rec
 `[debug] mode`. A developer wanting a trace of their own request has `Core\Debug`, which is that ADR's
 surface and is unaffected.
 
-The exporter is **Native and feature-gated** ([ADR 0051](0051-standard-library-tiers.md) § 1), defaulting
+The exporter is **Native and feature-gated** (`rule:core-api/five-placements`), defaulting
 on in the server distribution, so a CLI binary or an
 [ADR 0048](0048-portable-single-file-executables.md) single-file executable does not carry an OTLP client
 and its transitive dependencies. `Core\Metrics` is Tier 0 either way — the same split 0051 § 3 already uses
@@ -305,9 +305,9 @@ registry, both of which are about Novis's own runtime and could not be a crate.
   approximate by definition and is merged at scrape anyway.
 - **`Core\Metrics` at Tier 2 alongside its exporter.** Smaller Tier 0. Rejected: a program's instrumentation
   calls would then compile in one build and not another, which makes the `Core` namespace conditional —
-  precisely what [ADR 0051](0051-standard-library-tiers.md) § 5 forbids.
+  precisely what `rule:core-api/core-means-always-present` forbids.
 - **One `Metrics::record(name, value, Kind)` member** instead of three. Rejected: the kind is a property of
-  the series, not the call ([ADR 0063](0063-core-api-conventions.md) R11's instinct), and one name recorded
+  the series, not the call (`rule:core-api/shape-rules` R11's instinct), and one name recorded
   as two kinds is a bug the call site cannot see.
 - **StatsD as the wire format.** Simplest possible exporter. Rejected: no histogram semantics worth the
   name, no trace story at all, and OTLP plus Prometheus scrape covers essentially every deployment.

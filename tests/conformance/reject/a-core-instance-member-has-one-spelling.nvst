@@ -1,5 +1,5 @@
 --TEST--
-a `Core` instance member is called on a value and never through its class name, and a `Core` class is never constructed — ADR 0063 R20
+a `Core` instance member is called on a value and never through its class name, and a `Core` class is never constructed — `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 echo Core\Regex\Match::text(), "\n";

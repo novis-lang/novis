@@ -1,12 +1,12 @@
 --TEST--
-An empty value is a value and not an absence, in both of `Core\Env`'s answers — spec § 15, ADR 0063
+An empty value is a value and not an absence, in both of `Core\Env`'s answers — spec § 15, `rule:core-api/shape-rules`
 --ENV--
 NVS_CASE_EMPTY=
 NVS_CASE_FULL=x
 --FILE--
 <?nvs
 // The bound named on both sides: a variable the operator set to nothing, and a
-// name nobody set at all. ADR 0063 gives `?T` one meaning — absence — so the
+// name nobody set at all. `rule:core-api/shape-rules` gives `?T` one meaning — absence — so the
 // first of these is a `string` of length 0 and only the second is `null`. A
 // member that read an empty value as "unset" prints plausibly against the
 // second line alone.

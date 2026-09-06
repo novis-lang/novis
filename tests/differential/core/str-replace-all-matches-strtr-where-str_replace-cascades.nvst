@@ -13,7 +13,7 @@ Core\Str::replaceAll answers strtr on every cell of a table where PHP's two twin
 // takes the longest needle matching at each position, and never rescans what
 // it produced; `str_replace`'s array form runs each pair over the whole
 // subject in turn, so an earlier pair's output is fed to every later pair.
-// `replaceAll` is `strtr`'s reading, and ADR 0063 R20 is why — the other one
+// `replaceAll` is `strtr`'s reading, and `rule:core-api/shape-rules` R20 is why — the other one
 // makes the answer depend on the literal order of an array whose order is
 // otherwise never observable.
 

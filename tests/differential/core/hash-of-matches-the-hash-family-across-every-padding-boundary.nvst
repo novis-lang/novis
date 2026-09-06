@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of` answers what `hash()` answers for a subject one octet under, exactly at and one octet over every block width and length-field boundary in spec § 11's roster, and no trailing zero octet is absorbed by the padding (spec § 11, `rule:types/bytes`, ADR 0063 R17)
+`Core\Hash::of` answers what `hash()` answers for a subject one octet under, exactly at and one octet over every block width and length-field boundary in spec § 11's roster, and no trailing zero octet is absorbed by the padding (spec § 11, `rule:types/bytes`, `rule:core-api/shape-rules` R17)
 --FILE--
 <?nvs
 // `hash-of-matches-the-hash-family` asks all fourteen algorithms about five

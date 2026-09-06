@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test`'s four single-subject assertions all put ADR 0063 R2's `{message: …}` in front of their own report rather than in place of it — `rule:testing/assertions-are-typed`
+`Core\Test`'s four single-subject assertions all put `rule:core-api/shape-rules` R2's `{message: …}` in front of their own report rather than in place of it — `rule:testing/assertions-are-typed`
 --FILE--
 <?nvs
 // The *agreement* shape over the one option every assertion in § 4 shares.

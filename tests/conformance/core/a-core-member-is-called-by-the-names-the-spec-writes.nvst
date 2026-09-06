@@ -1,5 +1,5 @@
 --TEST--
-every `Core` parameter is callable by the spec's `$name` — a static and an instance member written out of order, a defaulted positional skipped in the middle, the trailing bag as `options:`, and written order as evaluation order (ADR 0063 R2, `rule:types/arrays`)
+every `Core` parameter is callable by the spec's `$name` — a static and an instance member written out of order, a defaulted positional skipped in the middle, the trailing bag as `options:`, and written order as evaluation order (`rule:core-api/shape-rules` R2, `rule:types/arrays`)
 --FILE--
 <?nvs
 final class Tap {

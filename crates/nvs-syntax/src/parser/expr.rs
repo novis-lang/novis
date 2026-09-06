@@ -603,7 +603,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             // cast above is, so `UnaryOp::Suppress` is a variant the parser
             // never produces. `rule:errors/escalation-ladder`'s ladder makes a runtime failure a
             // `Throwable`, not a diagnostic printed next to a value, so there
-            // is nothing an operand-shaped marker could suppress; ADR 0063 § 3
+            // is nothing an operand-shaped marker could suppress; `rule:core-api/removals`
             // already lists `@` among what that decision closes. The operand is
             // parsed *and handed back in place of the whole thing*, so `@$n * 2`
             // is typed as `$n * 2` and reports once rather than reporting again
@@ -994,7 +994,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// marks the binding, not the value. Whether it is *required* here needs
     /// the callee's signature and so belongs to `nvs_types` (E0713/E0714).
     ///
-    /// **A `name` here is any word, keyword or not.** [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+    /// **A `name` here is any word, keyword or not.** `rule:core-api/shape-rules`
     /// R2 makes every parameter callable by the `$name` the spec writes, and
     /// seven of those names — `Core\Arr::map`'s `$fn` and its siblings — are
     /// spellings the lexer reserves. The `:` is the whole disambiguation: no

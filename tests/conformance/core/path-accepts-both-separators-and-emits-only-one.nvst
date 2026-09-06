@@ -44,7 +44,7 @@ echo "accepted ", $accepted, " of 8 members x ", Core\Arr::count($subjects), " s
 
 // The ninth member is asked over its own list: `withExtension` has no name to
 // rewrite on a path whose last component is missing, so `'/'` and `''` throw
-// (ADR 0063 R4) rather than joining the sweep above.
+// (`rule:core-api/shape-rules` R4) rather than joining the sweep above.
 array<string> $named = ["/var/log/app.log", "a/b/c.txt", "C:/tmp/x", "x"];
 int $renamed = 0;
 foreach ($named as string $n) {

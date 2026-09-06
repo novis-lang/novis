@@ -1,5 +1,5 @@
 --TEST--
-a property and a parameter are separate declaration sites, so each mis-cased one gets its own diagnostic — ADR 0029 § 1
+a property and a parameter are separate declaration sites, so each mis-cased one gets its own diagnostic — `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 class Point {

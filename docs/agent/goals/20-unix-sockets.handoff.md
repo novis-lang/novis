@@ -7,7 +7,7 @@ landed yet.** Goal 19's whole list is this goal's Stage 1 floor, which is the pa
 
 The design is settled and written:
 [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md), six sections, with
-its cross-links already folded into ADR 0058 § 3's carve-out and ADR 0059 § 1's `shared()` row. **This
+its cross-links already folded into ADR 0058 § 3's carve-out and `rule:core-api/two-cache-tiers`'s `shared()` row. **This
 goal opens no ADR number** — a gap in 0142 is a folded edit to its body.
 
 The short of it: `Core\Cache::shared()` and `Core\RateLimit::consume` stop asking `net.connect` at a

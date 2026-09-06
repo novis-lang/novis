@@ -91,7 +91,7 @@ answer to every other collision, reached with no exception of its own.
 
 ### 4. Nothing may shadow a `Core` name, and no alias exists to try it with
 
-[ADR 0011](0011-functions-and-constants-are-class-members.md) § 2 refuses a `namespace` declaration or a
+`rule:core-api/reserved-namespace` refuses a `namespace` declaration or a
 class declaration that shadows anything under `Core`. It needs no third case for a *renamed* import,
 because *Decision § 2* leaves no `as` to rename one with: `use My\Custom\Thing as Str;` does not parse, so
 making a bare `Str` resolve to an unrelated class is structurally unreachable rather than merely refused. A

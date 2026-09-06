@@ -43,7 +43,7 @@
 //!
 //! # The options bag
 //!
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 makes a
+//! `rule:core-api/shape-rules` R2 makes a
 //! trailing options shape (`{step?: int}`) the form of *every* optioned
 //! member. It is [`CoreTy::Options`], and the four properties below are what
 //! it costs and what it buys — recorded here because the fork is the
@@ -74,7 +74,7 @@
 //!
 //! A **required, positional** fixed-key shape parameter — `Core\Db::open`'s
 //! `Db\Settings`, the first the spec writes — generalises all four, and is
-//! [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+//! `rule:core-api/shape-parameter`'s
 //! `CoreTy::Shape`: a list of *arms*, flattened by the same rule, one arm for
 //! the ordinary case and two or more for a discriminated union. The bag keeps
 //! its own variant rather than being folded into it, because the two differ in
@@ -112,7 +112,7 @@
 ///   including one whose own bytes never appear in the answer:
 ///   `Core\Str::before`'s separator decides *which* slice comes back, and
 ///   laundering by influence is not something a member may do silently.
-/// * ADR 0063 R11's four grammars — a regex pattern, a `printf` template, a
+/// * `rule:core-api/shape-rules` R11's four grammars — a regex pattern, a `printf` template, a
 ///   CLDR date pattern and a `Core\Bytes::pack` format — are [`Self::Sink`]
 ///   wherever they are declared, by ADR 0088 § 1's own corollary.
 /// * [`Self::Launder`] is the default of nothing. A member claims it, and its
@@ -179,7 +179,7 @@
 ///   § 1's predicate: the transform is the identity, so it is idempotent, and
 ///   a value the developer has just sworn is trusted re-entering a sink is the
 ///   case that predicate exists to let pass.
-// `Hash` because `nvs_types::ty::CoreShapeField` carries one — ADR 0135 § 3's
+// `Hash` because `nvs_types::ty::CoreShapeField` carries one — `rule:core-api/shape-flattens-at-the-abi`'s
 // classification lands on the field, and a `Ty` is interned by hash.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Qual {
@@ -506,7 +506,7 @@ pub enum CoreTy {
     /// `?T` — `rule:expressions/nullable-conversion`'s
     /// nullable, which the spec's own tables write at every member that
     /// answers "absent" (`Core\Arr::first`, `Str::indexOf`, `Path::extension`
-    /// — ADR 0063 R5 makes it the *only* absence spelling).
+    /// — `rule:core-api/shape-rules` R5 makes it the *only* absence spelling).
     ///
     /// A variant of its own rather than a [`Self::Union`] with a `Null`
     /// member, because that is what the spec writes and because there is no
@@ -639,7 +639,7 @@ pub enum CoreTy {
     /// [`Self::Options`] bag, and never nested: `a_variadic_tail_is_last_and_alone`
     /// holds all three. The bag exclusion is not a limitation of the ABI but
     /// of the *call site* — a trailing `{…}` written after a variadic tail is
-    /// ambiguous between "one more argument" and "the bag", and ADR 0063 R20
+    /// ambiguous between "one more argument" and "the bag", and `rule:core-api/shape-rules` R20
     /// leaves no room for a rule that guesses.
     ///
     /// **One ABI argument, not one per written argument.** A helper's
@@ -658,7 +658,7 @@ pub enum CoreTy {
     /// `MethodSig::required()` stops one short of the parameter list for a
     /// variadic signature.
     Variadic(&'static CoreTy),
-    /// ADR 0063 R2's trailing options shape — `{step?: int}`, one
+    /// `rule:core-api/shape-rules` R2's trailing options shape — `{step?: int}`, one
     /// [`CoreOption`] per declared option, in the order the ABI passes them.
     /// See this module's own docs for why it is its own type rather than a
     /// [`CoreTy`] wrapping an `rule:types/object-top` shape.
@@ -670,7 +670,7 @@ pub enum CoreTy {
     /// [`OPTIONS_NAME`] for every member that has one.
     /// `an_options_bag_is_last_and_never_empty` holds both.
     Options(&'static [CoreOption]),
-    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)'s
+    /// `rule:core-api/shape-parameter`'s
     /// fixed-key shape parameter — `Core\Db::open`'s `Db\Settings`, the first
     /// one the spec writes. The outer slice is the **arms** and is never
     /// empty: one arm is a plain fixed-key shape, two or more a discriminated
@@ -700,14 +700,14 @@ pub enum CoreTy {
     /// the two differ in call-site rules and not in checking.
     ///
     /// It flattens at the call site into one ABI argument per field of the
-    /// **arms merged in order, deduplicated by name** (ADR 0135 § 3) — so no
+    /// **arms merged in order, deduplicated by name** (`rule:core-api/shape-flattens-at-the-abi`) — so no
     /// runtime representation of a shape appears anywhere, and `open`'s helper
     /// is an ordinary `args: [12]`.
     Shape(&'static [&'static [CoreField]]),
 }
 
 /// The one name a trailing [`CoreTy::Options`] bag is callable by, for every
-/// member that has one — [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// member that has one — `rule:core-api/shape-rules`
 /// R2's "the trailing bag by the one name `options`".
 ///
 /// It lives beside the type rather than on the row because it is a property of
@@ -726,7 +726,7 @@ pub const OPTIONS_NAME: &str = "options";
 /// name is the only arrangement in which the two cannot drift apart.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreOption {
-    /// The option's own name, `camelCase` per ADR 0029 — what a call site
+    /// The option's own name, `camelCase` per `rule:core-api/identifier-casing` — what a call site
     /// writes on the left of the `:` in `{step: 2}`.
     pub name: &'static str,
     /// Its declared type. Never itself a [`CoreTy::Options`]: a bag flattens
@@ -740,8 +740,7 @@ pub struct CoreOption {
 }
 
 /// One field of one arm of a [`CoreTy::Shape`]: its name, its type, and
-/// whether a call site may leave it out — [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-/// § 1.
+/// whether a call site may leave it out — `rule:core-api/shape-parameter`.
 ///
 /// Modelled on [`CoreOption`] and differing in exactly one field. A bag's
 /// option is optional *by construction*, so its default is a bare [`Const`];
@@ -756,7 +755,7 @@ pub struct CoreOption {
 /// sink, while the shape as a whole classifies nothing.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreField {
-    /// The field's own name, `camelCase` per ADR 0029 — what a call site
+    /// The field's own name, `camelCase` per `rule:core-api/identifier-casing` — what a call site
     /// writes on the left of the `:` in `{driver: Driver::Sqlite}`.
     pub name: &'static str,
     /// Its declared type. Never itself a [`CoreTy::Shape`], and never
@@ -788,7 +787,7 @@ pub struct CoreField {
 pub enum Const {
     /// `null` — an option that was **not given**.
     ///
-    /// ADR 0063 R2 makes every option optional, but the spec writes several
+    /// `rule:core-api/shape-rules` R2 makes every option optional, but the spec writes several
     /// whose type has no "absent" value in it: `Core\Arr::sort`'s
     /// `{by?: callable, comparator?: callable}` are the first two — a
     /// `callable` cannot be a "no callback" callable, and inventing a
@@ -877,8 +876,7 @@ pub enum Const {
 
 /// One member's reference documentation — the card, not the essay.
 ///
-/// [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)
-/// § 1's five fields, as plain static data next to the row they describe,
+/// `rule:core-api/reference-card`'s five fields, as plain static data next to the row they describe,
 /// so the one artifact that provably matches the shipped behaviour is also
 /// the one that documents it. Every field is inline markdown, one or two
 /// sentences; long-form prose stays in the website's pages by the same
@@ -954,14 +952,14 @@ pub struct ErrorDoc {
 /// One `Core` member.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreMethod {
-    /// The member's own name, `camelCase` per ADR 0029.
+    /// The member's own name, `camelCase` per `rule:core-api/identifier-casing`.
     pub name: &'static str,
     /// The `$name` each positional parameter is callable by — one per entry of
     /// [`Self::positional`], in the same order, and **the spelling
     /// [01-core-library.md](/docs/spec/01-core-library.md)'s signature
     /// column writes**.
     ///
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 is the
+    /// `rule:core-api/shape-rules` R2 is the
     /// rule: every `Core` parameter is callable by name under exactly the
     /// rules a user-declared method has, so a name is compatibility surface
     /// and renaming one is a breaking change to the spec. That is what makes
@@ -975,7 +973,7 @@ pub struct CoreMethod {
     /// the alignment holds for every row, but R2 also says a name never
     /// reaches one — the entry documents the tail, it does not open it.
     pub names: &'static [&'static str],
-    /// Each parameter's declared type, positional. ADR 0063 R1 puts the
+    /// Each parameter's declared type, positional. `rule:core-api/shape-rules` R1 puts the
     /// subject first, and R2 puts an options bag ([`CoreTy::Options`]) last if
     /// the member has one.
     pub params: &'static [CoreTy],
@@ -1004,7 +1002,7 @@ pub struct CoreMethod {
     pub symbol: &'static str,
     /// The member's reference documentation, or `None` for a row not yet
     /// documented —
-    /// [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
+    /// `rule:core-api/reference-card`'s
     /// seam. Read by `nvs meta --json` and by nothing on the request path;
     /// the runtime dispatches on [`Self::symbol`] and never looks here.
     pub doc: Option<&'static MethodDoc>,
@@ -1143,7 +1141,7 @@ fn collect_written(ty: &CoreTy, found: &mut Vec<&'static str>) {
 /// `Core` constant has no storage, no descriptor and no address.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreConst {
-    /// The constant's own name, `SCREAMING_SNAKE_CASE` per ADR 0029.
+    /// The constant's own name, `SCREAMING_SNAKE_CASE` per `rule:core-api/identifier-casing`.
     pub name: &'static str,
     /// Its declared type — what a `var $x = Core\Math::PI;` binding infers.
     ///
@@ -1157,8 +1155,7 @@ pub struct CoreConst {
     pub ty: CoreTy,
     /// Its value, inlined wherever the constant is written.
     pub value: Const,
-    /// What the constant is, in one sentence of inline markdown — ADR 0117
-    /// § 1's card for a constant, which is this one field because a constant
+    /// What the constant is, in one sentence of inline markdown — `rule:core-api/reference-card`'s card for a constant, which is this one field because a constant
     /// has a value and no signature. A plain string rather than an
     /// `Option<&'static …>` as [`CoreEnum::doc`] is, since a one-field card
     /// has nothing for a struct to hold: **empty means "not written yet"**,
@@ -1290,7 +1287,7 @@ pub const CLASSES: &[CoreClass] = &[
     // value, so a program asking more than one question about a path pays for
     // one syscall. Its own docs argue why it is an instance rather than an ADR
     // 0036 shape, and why the questions it answers are also members of
-    // `Core\IO` without that being ADR 0063 R17's two spellings.
+    // `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
     crate::io::METADATA,
     // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
     // with. Beside `Core\IO` because it is the other class that reaches the
@@ -1452,7 +1449,7 @@ pub const CLASSES: &[CoreClass] = &[
     // are `echo`'s output and the member adds the `Content-Type`.
     crate::response::CLASS,
     // Spec § 15's third half of one request: what arrived, what goes back, and
-    // what is remembered between the two. ADR 0139 § 1's roster, of which
+    // what is remembered between the two. `rule:core-api/session-roster`'s roster, of which
     // `start` is the member that talks to the store — [`crate::session`]'s own
     // module doc owns which of § 2's four operations are on disk, why the local
     // tier is unreachable from there rather than merely unselected, and why a
@@ -1533,7 +1530,7 @@ pub const CLASSES: &[CoreClass] = &[
     // of the second. [`crate::password`] owns the parameters and why there is
     // no argument for them.
     crate::password::CLASS,
-    // ADR 0051 § 3's "AEAD only", and beside the two above for their reason:
+    // `rule:core-api/tier-roster`'s "AEAD only", and beside the two above for their reason:
     // this is the class whose `secret bytes` key crosses the same boundary
     // without any member removing the mark, which is what keeps the roster
     // above closed at two. [`crate::crypto`] owns the construction and why
@@ -1552,7 +1549,7 @@ pub const CLASSES: &[CoreClass] = &[
     // identifier where the cookie seals a payload, so this crate still holds
     // one AEAD and not three. Its own module doc owns why the session arrives
     // as an argument, why there is no key ring here, and why a class whose
-    // whole point is a missing accessor is not ADR 0063 R17's "reachable two
+    // whole point is a missing accessor is not `rule:core-api/shape-rules` R17's "reachable two
     // ways" against the cookie above.
     crate::csrf::CLASS,
     // ADR 0060 § 1's third roster entry, and the one class in this crate that
@@ -1721,7 +1718,7 @@ pub const CLASSES: &[CoreClass] = &[
 /// a security review is trying not to have to make.
 ///
 /// **Nothing reads this at run time.** It is audit data — `nvs meta` renders
-/// it, the reference documentation prints it beside a member's card (ADR 0117),
+/// it, the reference documentation prints it beside a member's card (`rule:core-api/reference-card`),
 /// and § 7's closure test reads it. Enforcement is
 /// `nvs_runtime::capability::require`, called inside the door that performs the
 /// effect, and that function never looks here — so an edit to this table cannot
@@ -1902,7 +1899,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "allowUrl",
         Some(nvs_config::Cap::NetConnect),
     ),
-    // ADR 0059 § 1: the shared tier is a real store over the network, gated by
+    // `rule:core-api/two-cache-tiers`: the shared tier is a real store over the network, gated by
     // `net.connect` under ADR 0058's policy, and `shared()` is the door — it
     // resolves the configured host and connects, while `Core\Cache\Store`'s two
     // operations run on what it approved and so declare nothing, exactly as
@@ -1914,7 +1911,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     ),
     // And its sibling declares `None`, which is the asymmetry the two rows
     // exist to state: a tier that leaves the process has a door, and one that
-    // cannot has nothing to put a door on. ADR 0059 § 1 decided this before the
+    // cannot has nothing to put a door on. `rule:core-api/two-cache-tiers` decided this before the
     // member was written — the local tier is a `HashMap` in the calling core's
     // own thread, so nothing leaves the process, no name is resolved and no file
     // is opened, and ADR 0118 § 1 has no door to check at. What is left to bound
@@ -2005,7 +2002,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (crate::db::SCHEMA_NAME, "planAgainst", None),
     (crate::db::SCHEMA_NAME, "fromArray", None),
     (crate::db::SCHEMA_NAME, "toArray", None),
-    // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over ADR 0051's
+    // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over `rule:core-api/tier-placement`'s
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key
     // resolve to. There is deliberately no `storage.*` capability — a second
@@ -2029,7 +2026,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 /// `rule:expressions/nullable-conversion`
 /// The `Core` classes that declare a `tryParse` beside their `parse` —
 /// `rule:expressions/try-parse`'s
-/// closed exception to [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// closed exception to `rule:core-api/shape-rules`
 /// R5's `try…` ban.
 ///
 /// A **list, not a roster**: unlike [`CONSTRUCTORS`] this drives nothing at
@@ -2106,7 +2103,7 @@ pub struct CoreEnum {
     pub doc: Option<&'static EnumDoc>,
 }
 
-/// One enum's reference documentation — ADR 0117 § 1's card for the values a
+/// One enum's reference documentation — `rule:core-api/reference-card`'s card for the values a
 /// parameter may take, so a `{mode: RoundMode::HalfEven}` is explained where
 /// `RoundMode` is declared and not only where `round` is.
 ///
@@ -2591,7 +2588,7 @@ mod tests {
                 let name = method.name;
                 assert!(
                     !(name.starts_with("try") && name != "tryParse"),
-                    "{}::{name} spells a `try…` ADR 0063 R5 bans",
+                    "{}::{name} spells a `try…` `rule:core-api/shape-rules` R5 bans",
                     class.name
                 );
                 // R5's `…Safe` ban reads the suffix as a claim about *failure*,
@@ -2607,7 +2604,7 @@ mod tests {
                         || (!name.ends_with("OrNull")
                             && !name.ends_with("Safe")
                             && !name.ends_with("Ex")),
-                    "{}::{name} spells a non-throwing variant ADR 0063 R5 bans",
+                    "{}::{name} spells a non-throwing variant `rule:core-api/shape-rules` R5 bans",
                     class.name
                 );
             }
@@ -2615,7 +2612,7 @@ mod tests {
     }
 
     /// Every registered name is one the spec's own naming rules allow: a
-    /// class under `Core`, a `camelCase` member (ADR 0029), and no leading
+    /// class under `Core`, a `camelCase` member (`rule:core-api/identifier-casing`), and no leading
     /// underscore anywhere (`rule:classes/no-leading-underscore-identifiers`). Cheap, and it catches a paste error in
     /// a table that will grow to several hundred rows.
     #[test]
@@ -2721,7 +2718,7 @@ mod tests {
         }
     }
 
-    /// ADR 0063 R2, mechanically: at most one options bag per member, always
+    /// `rule:core-api/shape-rules` R2, mechanically: at most one options bag per member, always
     /// last, never empty, and never nested inside another type. Every one of
     /// those is load-bearing — [`CoreMethod::options`] reads only the last
     /// parameter, and `nvs_types::core_lib` synthesizes exactly one
@@ -2837,7 +2834,7 @@ mod tests {
     /// re-derived by a reader.
     #[test]
     fn a_written_type_parameter_is_ordered_and_deduplicated() {
-        /// The fixture's reference card — ADR 0117, so that no row anywhere in
+        /// The fixture's reference card — `rule:core-api/reference-card`, so that no row anywhere in
         /// the crate is left undocumented.
         const SAMPLE_DOC: MethodDoc = MethodDoc {
             short: "A fixture rather than a member: the row this test reads its `<K, V, R>` \
@@ -2965,7 +2962,7 @@ mod tests {
     /// A [`CoreTy::Shape`] flattens into one ABI argument per field of its
     /// merged arms, so it only means anything as a *whole parameter*: nested
     /// in an array, a union, an option or another shape's field there would be
-    /// nothing for it to flatten into — ADR 0135 § 1, the restriction
+    /// nothing for it to flatten into — `rule:core-api/shape-parameter`, the restriction
     /// `a_callback_result_type_is_only_ever_a_whole_parameter` already holds
     /// for [`CoreTy::CallableTo`]. The emptiness half rides along here because
     /// it is the same walk: a shape with no arms, or an arm with no fields,
@@ -3030,7 +3027,7 @@ mod tests {
         }
     }
 
-    /// ADR 0135 § 2: checking a written literal is "exactly one arm accepts
+    /// `rule:core-api/shape-arms-are-disjoint`: checking a written literal is "exactly one arm accepts
     /// it", so two arms that could both accept one is a **registry** bug and
     /// is refused here rather than at a call site. A pair is proved disjoint
     /// either by a field name both declare whose declared types share no
@@ -3098,7 +3095,7 @@ mod tests {
         }
     }
 
-    /// ADR 0135 § 3: every slot the written literal does not fill passes a
+    /// `rule:core-api/shape-flattens-at-the-abi`: every slot the written literal does not fill passes a
     /// [`Const`], and [`Const::Null`] is what a field of an arm the caller did
     /// not write passes. So "filled" is only readable if a field can never be
     /// `null` itself — the reason [`CoreTy::Union`]'s own doc already gives
@@ -3387,7 +3384,7 @@ mod tests {
         assert!(matches!(options[0].default, Const::Int(1)));
     }
 
-    /// A `Core` enum's name and cases follow ADR 0029's casing rules too —
+    /// A `Core` enum's name and cases follow `rule:core-api/identifier-casing`'s casing rules too —
     /// `PascalCase` for both, since a case is a type-level name (§ 1's
     /// enum-case row), not a member.
     #[test]
@@ -3471,7 +3468,7 @@ mod tests {
         }
     }
 
-    /// ADR 0063 R2's names, structurally: one per positional slot, in that
+    /// `rule:core-api/shape-rules` R2's names, structurally: one per positional slot, in that
     /// order, `camelCase`, distinct within a row, and never the bag's own
     /// [`OPTIONS_NAME`] — which is not on the row at all.
     ///
@@ -3560,7 +3557,7 @@ mod tests {
         );
     }
 
-    /// Every row, enum and constant carries its ADR 0117 card — the second of
+    /// Every row, enum and constant carries its `rule:core-api/reference-card` card — the second of
     /// conventions.md's five edits, and the one nothing at a call site would
     /// miss. The types keep their `Option` and empty-string spellings for the
     /// emitter's sake ([`MethodDoc`] owns why), so *this* is where "not
@@ -3644,7 +3641,7 @@ mod tests {
         }
         assert!(
             missing.is_empty(),
-            "{} registry entries ship undocumented — ADR 0117 § 1, conventions.md's second edit:\n  {}",
+            "{} registry entries ship undocumented — `rule:core-api/reference-card`, conventions.md's second edit:\n  {}",
             missing.len(),
             missing.join("\n  ")
         );
@@ -3652,7 +3649,7 @@ mod tests {
 
     /// A card states the fact, never the decision's file name.
     ///
-    /// ADR 0117 § 1's card is reference documentation for someone writing
+    /// `rule:core-api/reference-card`'s card is reference documentation for someone writing
     /// Novis, and it ships **raw** through `nvs meta --json`: `tools/
     /// reference.py` rewrites citations on its way to the website, but that
     /// consumer never sees the rewrite, so "throws as `rule:core-classes/regex-two-tiers`'s two engines
@@ -3710,7 +3707,7 @@ mod tests {
         );
     }
 
-    /// ADR 0117's card keys itself by ADR 0063 R2's names, so the two cannot
+    /// `rule:core-api/reference-card`'s card keys itself by `rule:core-api/shape-rules` R2's names, so the two cannot
     /// be written independently: [`MethodDoc::params`] is one entry per
     /// positional parameter under the row's own [`CoreMethod::names`], then
     /// one per option of a trailing bag under the option's name.
@@ -3948,7 +3945,7 @@ mod tests {
         assert!(matches!(options[3].default, Const::Bool(false)));
     }
 
-    /// ADR 0029's `SCREAMING_SNAKE_CASE` for every registered constant, and
+    /// `rule:core-api/identifier-casing`'s `SCREAMING_SNAKE_CASE` for every registered constant, and
     /// no name registered twice on one class — [`CoreClass::constant`]
     /// returns the first match, so a duplicate would silently hide the second.
     #[test]

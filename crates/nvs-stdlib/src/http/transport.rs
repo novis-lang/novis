@@ -867,7 +867,7 @@ mod tests {
         assert_eq!(super::redirect_of(&reply).as_deref(), Some("/next"));
     }
 
-    /// ADR 0051 § 3's "over the runtime's own reactor rather than a second
+    /// `rule:core-api/tier-roster`'s "over the runtime's own reactor rather than a second
     /// event loop", asserted from the core's side rather than the caller's: the
     /// exchange is driven with `Scheduler::run` alone, so a core that came back
     /// is what the assertions describe. A transport that blocked in `read` — or

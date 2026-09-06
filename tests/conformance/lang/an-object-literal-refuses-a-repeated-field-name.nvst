@@ -1,5 +1,5 @@
 --TEST--
-An `rule:types/object-literal` object literal writing one field name twice is `E0494` where it is written, at every depth and once per repeat, while the same braces spelling an ADR 0063 R2 options bag keeps its own `E0304`
+An `rule:types/object-literal` object literal writing one field name twice is `E0494` where it is written, at every depth and once per repeat, while the same braces spelling an `rule:core-api/shape-rules` R2 options bag keeps its own `E0304`
 --FILE--
 <?nvs
 // A shape's fields are a set: `{a: int}` names one slot, so the second `a`
@@ -13,7 +13,7 @@ var $thrice = {b: 1, b: 2, b: 3};
 // A literal nested inside another is an ordinary initializer, so the inner
 // one is checked by the same rule at its own depth.
 var $nested = {outer: {inner: 1, inner: 2}};
-// ADR 0063 R2's options bag is written with the same braces and is *not*
+// `rule:core-api/shape-rules` R2's options bag is written with the same braces and is *not*
 // this rule: a repeated option is `E0304` at the argument checker, which
 // resolves each key against the member's own row rather than interning a
 // shape. One spelling, two owners, and no diagnostic reported twice.

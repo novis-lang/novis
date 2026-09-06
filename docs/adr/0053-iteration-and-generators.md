@@ -110,7 +110,7 @@ function called from a generator cannot yield into it. Where PHP would delegate,
 
 A generator is a lazy sequence and nothing more. There is no `yield from`, no `send()` into a generator, no
 `throw()` into one, and no generator return value to retrieve. PHP's `yield from` is the second spelling of
-the `foreach`-and-re-yield loop above — test 6 of [ADR 0051](0051-standard-library-tiers.md) § 2, and it
+the `foreach`-and-re-yield loop above — test 6 of `rule:core-api/tier-placement`, and it
 costs O(nesting depth) per element rather than O(1), which is a real if small loss recorded here rather
 than hidden. `send()`/`throw()` make a generator a bidirectional coroutine, which is a different feature
 wearing the same syntax; Novis already has coroutines, and they are not spelled `yield`.

@@ -1,4 +1,4 @@
-//! A `Core` member call — `nvs_stdlib::registry`'s signatures reached through the ordinary call path, including ADR 0063 R2's options bag.
+//! A `Core` member call — `nvs_stdlib::registry`'s signatures reached through the ordinary call path, including `rule:core-api/shape-rules` R2's options bag.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -30,7 +30,7 @@ fn a_core_member_call_with_the_wrong_arity_is_diagnosed() {
     );
 }
 
-/// ADR 0063 R2's options bag at a call site: written, and omitted whole.
+/// `rule:core-api/shape-rules` R2's options bag at a call site: written, and omitted whole.
 /// `Core\Arr::range`'s `{step?: int}` is the first one in the roster, and
 /// `MethodSig::required()` has to say 2 either way — the bag is optional
 /// by construction, so nothing about the arity check changed to allow it.
@@ -199,7 +199,7 @@ fn a_repeated_option_is_diagnosed() {
 /// `get`, since a repeated `GET` is a second question rather than a second
 /// effect.
 ///
-/// The refusal is reportable at all only because of ADR 0063 R2 — the verb is
+/// The refusal is reportable at all only because of `rule:core-api/shape-rules` R2 — the verb is
 /// the member's own name and the bag has to be a literal — which is
 /// `reject_keyless_retry`'s own subject. The two accepted retries pin the
 /// halves a refusal written one condition too wide would take with it, and the
@@ -415,7 +415,7 @@ fn a_limit_and_deadline_options_shape_is_the_only_spelling() {
     }
 }
 
-/// ADR 0135 § 2 at the call site it was written for: `Db\Settings`'s two arms,
+/// `rule:core-api/shape-arms-are-disjoint` at the call site it was written for: `Db\Settings`'s two arms,
 /// and `host` on the SQLite one. SQLite is a file and has no host to reach, so
 /// its arm declares none — and the merged list the ABI flattens to *does*,
 /// which is why this is the case that says arm selection happens at all. Under
@@ -459,7 +459,7 @@ fn a_host_on_a_sqlite_settings_literal_is_a_compile_error() {
 /// being accepted by the arm whose keys it wrote.
 ///
 /// It is the `driver` value that is reported, because that is the one field the
-/// two arms declare differently — ADR 0135 § 2's disjointness, arriving at a
+/// two arms declare differently — `rule:core-api/shape-arms-are-disjoint`'s disjointness, arriving at a
 /// call site as an ordinary type mismatch with nothing naming a discriminant.
 #[test]
 fn a_sqlite_driver_on_a_server_settings_literal_is_a_compile_error() {

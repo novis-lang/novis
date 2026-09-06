@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::join`, `::fill` and `::repeat` build the buffers `implode`, `str_repeat(chr(…), n)` and `str_repeat` build, including at a count of zero and over an octet no text spelling can carry (spec § 7, ADR 0063 R6)
+`Core\Bytes::join`, `::fill` and `::repeat` build the buffers `implode`, `str_repeat(chr(…), n)` and `str_repeat` build, including at a count of zero and over an octet no text spelling can carry (spec § 7, `rule:core-api/shape-rules` R6)
 --FILE--
 <?nvs
 // § 7 keeps `join` rather than giving `Core\Bytes` a `concat` of its own,

@@ -2,7 +2,7 @@
 `Core\Json::decodeAs<T>` admits exactly the wire spellings a field's declared type names, and `uint` ⊂ `int` ⊂ `float` ⊂ `mixed` is strict at one named spelling each — ADR 0071 §§ 2 and 4, `rule:types/conversion`
 --FILE--
 <?nvs
-// ADR 0071 § 4's table read as a *bound*: one class per codec type, each with
+// `rule:core-api/required-optional-and-nullable`'s table read as a *bound*: one class per codec type, each with
 // the same single field, so a document differs only in the spelling it puts
 // there and the answer is the declared type's alone.
 #[Core\Json\Derive]
@@ -41,7 +41,7 @@ class Probe {
         return "{\"v\":" . $spelling . "}";
     }
     // Six cells rather than one generic one: the class is written at the call
-    // site (ADR 0063 R4), so `decodeAs<T>` has no `T` a parameter could carry.
+    // site (`rule:core-api/shape-rules` R4), so `decodeAs<T>` has no `T` a parameter could carry.
     public static function asBool(string $spelling): bool {
         try { Core\Json::decodeAs<AsBool>(Probe::doc($spelling)); return true; }
         catch (Throwable $bad) { return false; }
@@ -106,7 +106,7 @@ echo "strict-mixed=", Probe::mark(Probe::asMixed("[]") && !Probe::asFloat("[]"))
 echo "strict-float=", Probe::mark(Probe::asFloat("1.0") && !Probe::asInt("1.0")), "\n";
 echo "strict-int=", Probe::mark(Probe::asInt("-1") && !Probe::asUint("-1")), "\n";
 
-// ADR 0071 § 4: nullability belongs to the *type*, and the check runs ahead of
+// `rule:core-api/required-optional-and-nullable`: nullability belongs to the *type*, and the check runs ahead of
 // the type switch — so `null` is the one spelling even a `mixed` field refuses,
 // and `?T` in the neighbouring case is the only thing that admits it.
 echo "null-taken=", $nullTaken, "\n";

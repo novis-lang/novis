@@ -1,5 +1,5 @@
 --TEST--
-Core\Crypto::seal and ::open agree over a sweep of message lengths, each sealed message costing the same flat 40 octets, and every draw of Core\Crypto::generateKey sealing a message the previous key cannot open — ADR 0051 § 3
+Core\Crypto::seal and ::open agree over a sweep of message lengths, each sealed message costing the same flat 40 octets, and every draw of Core\Crypto::generateKey sealing a message the previous key cannot open — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line. A stream

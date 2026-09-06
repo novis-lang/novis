@@ -19,7 +19,7 @@
 > **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
 > backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
 > 1000-case corpus figure is the one thing left and it is met through goals 1–5. M4S Part I
-> registered but for the two members ADR 0146 added to spec § 12 —
+> registered but for the two members `rule:core-api/signing-is-over-a-payload` added to spec § 12 —
 > `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds those two keys and no others, both
 > owned by goal 29. M1's own section lists the one grammar addition still owed — the pipeline
 > operator, `rule:expressions/pipeline-substitution` — which blocks nothing and is scheduled after the current loop goal. Each

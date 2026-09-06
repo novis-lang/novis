@@ -21,7 +21,7 @@ because prose was carrying the argument.
 | Outcome | Meaning |
 |---|---|
 | `member` | a `Core` member does this job. The Novis cell names it |
-| `language` | an operator or keyword does this job; no member exists, by [ADR 0063](../adr/0063-core-api-conventions.md) R17 |
+| `language` | an operator or keyword does this job; no member exists, by `rule:core-api/shape-rules` R17 |
 | `dropped` | nothing does this job. The Novis cell says why, and gives the rewrite where one exists |
 | `open` | not yet decided. Absence of a row means the same thing, and the checker counts both |
 
@@ -103,7 +103,7 @@ Novis actually has.
 | `iconv_mime_decode` | member | `Core\Mail` — MIME header decoding belongs to the one subsystem that needs it |
 | `iconv_mime_decode_headers` | member | `Core\Mail` |
 | `iconv_mime_encode` | member | `Core\Mail` |
-| `iconv_set_encoding` | dropped | ambient process state, unsound per core ([ADR 0051](../adr/0051-standard-library-tiers.md)) |
+| `iconv_set_encoding` | dropped | ambient process state, unsound per core (`rule:core-api/tier-placement`) |
 | `iconv_strlen` | member | `Core\Str::length` — no encoding argument exists (R13) |
 | `iconv_strpos` | member | `Core\Str::indexOf` |
 | `iconv_strrpos` | member | `Core\Str::lastIndexOf` |
@@ -111,7 +111,7 @@ Novis actually has.
 | `implode` | member | `Core\Str::join` |
 | `join` | member | `Core\Str::join` |
 | `lcfirst` | member | `Core\Str::lowerFirst` |
-| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member, and no UTF-8 edit-distance replacement either: fuzzy matching does not pass ADR 0051's tests for Tier 0, so it is a library rather than a candidate |
+| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member, and no UTF-8 edit-distance replacement either: fuzzy matching does not pass `rule:core-api/tier-placement`'s tests for Tier 0, so it is a library rather than a candidate |
 | `ltrim` | member | `Core\Str::trimStart` |
 | `metaphone` | dropped | an English-only phonetic algorithm |
 | `nl2br` | dropped | it builds markup from text. `Core\Str::replace($s, "\n", "<br>")` after the value is escaped, or a template |
@@ -368,14 +368,14 @@ either are gone.
 
 `Core\Time` ([01 § 4](01-core-library.md)) has **no ambient timezone** and no mutable/immutable pair, so
 PHP's ~40 `date_*` procedural aliases of `DateTime` collapse onto the object members they were aliases of
-([ADR 0063](../adr/0063-core-api-conventions.md) R17, R20). Two rules decide most of the rows below. A
+(`rule:core-api/shape-rules` R17, R20). Two rules decide most of the rows below. A
 zone is an argument at every instant↔calendar conversion, which is why nothing installs, reads back or
 guesses one. And a pattern is **CLDR**, not `date()`'s letters — both grammars are closed, so `nvs convert`
 rewrites one into the other mechanically.
 
 There is no relative-expression string in either half: everything `strtotime` accepts is a typed call, and
 [01 § 4](01-core-library.md) tabulates the common expressions one by one. PHP's `calendar` extension is
-dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)).
+dropped outright (`rule:core-api/tier-placement`).
 
 | PHP | Outcome | Novis |
 |---|---|---|
@@ -392,7 +392,7 @@ dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)).
 | `date_create_immutable_from_format` | member | `Core\Time::parse` |
 | `date_date_set` | member | `Core\Time\DateTime::with` |
 | `date_default_timezone_get` | member | `Core\Time\Zone::system` — an ordinary value a program asks for and then passes, not a default anything picks up |
-| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness [ADR 0051](../adr/0051-standard-library-tiers.md) rejects `setlocale` for |
+| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness `rule:core-api/tier-placement` rejects `setlocale` for |
 | `date_diff` | member | `Core\Time\DateTime::difference` in whole units, or `Core\Time\Instant::since` for an exact `Duration`. There is no `DateInterval` |
 | `date_format` | member | `Core\Time\DateTime::format` |
 | `date_get_last_errors` | dropped | a parse failure throws rather than recording itself (R4) |
@@ -404,7 +404,7 @@ dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)).
 | `date_parse` | member | `Core\Time::parse` |
 | `date_parse_from_format` | member | `Core\Time::parse` |
 | `date_sub` | member | `Core\Time\DateTime::minus`, `Core\Time\Instant::minus` — the same split as `date_add` |
-| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern ([ADR 0051](../adr/0051-standard-library-tiers.md)) |
+| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern (`rule:core-api/tier-placement`) |
 | `date_sunrise` | dropped | same |
 | `date_sunset` | dropped | same |
 | `date_time_set` | member | `Core\Time\DateTime::withTime` |
@@ -893,7 +893,7 @@ answers the second by never accepting a shell string at all, which is why `escap
 | `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
 | `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
 | `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
-| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
+| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only (`rule:core-api/tier-roster`) |
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
 
 ## Reflection and the class API
@@ -916,7 +916,7 @@ at run time. The **dumping** family is one diagnostic record with three renderin
 Two domains are gone rather than moved, and every row that names them says so once. There is no `trait`
 (`rule:classes/no-traits`) — shared behaviour is
 an interface method with a body and shared state is delegation — and there is no `resource`
-([ADR 0063](../adr/0063-core-api-conventions.md) R14), so the `get_resource_*` trio has no atom left to
+(`rule:core-api/shape-rules` R14), so the `get_resource_*` trio has no atom left to
 identify.
 
 | PHP | Outcome | Novis |
@@ -943,7 +943,7 @@ identify.
 | `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` (`rule:programs/no-runtime-autoload`), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |
 | `get_declared_interfaces` | member | the same query, from the other end |
 | `get_declared_traits` | dropped | there is no `trait` (`rule:classes/no-traits`) |
-| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
+| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` (`rule:core-api/tier-roster`); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_id` | member | `Core\ObjectMap` and `Core\ObjectSet` ([01 § 9](01-core-library.md)) — the side table the id existed to key. An identity valid only while the object is alive, handed out as a reusable `int`, is the bug those two classes remove |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
 | `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
@@ -1004,7 +1004,7 @@ than a string ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)).
 | `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
 | `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
 | `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](../adr/0074-http-defaults-safe-and-finite.md)) |
-| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways (`rule:core-api/shape-rules`) |
 | `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](../adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
 | `request_parse_body` | member | `Core\Request`'s `body`, `query` and `files`. PHP 8.4 added this to parse a body the engine had decided not to parse; here the request is asked for what the handler needs, and an upload is a stream with exactly one way to receive it ([ADR 0105](../adr/0105-an-uploaded-file-is-a-stream-and-there-is-one-way-to-receive-it.md)) |
@@ -1041,13 +1041,13 @@ its eleven readers, which are `fopen`'s roster written a second time. And an **i
 `deflate_init`/`deflate_add`. `Core\Compress` ([01 § 17](01-core-library.md)) is one API over gzip,
 deflate, brotli and zstd, and three rules stated elsewhere collapse the table: the format is an enum case
 rather than part of a function's name (as in *Hashing* above), anything with a lifetime is an object rather
-than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), and there are no stream wrappers
+than a `resource` (`rule:core-api/shape-rules` R14), and there are no stream wrappers
 or filters for `zlib.*` to be registered against ([ADR 0052](../adr/0052-closed-doors.md)).
 
 The rule that is this section's own is that **decompression is bounded, and the bound is not the caller's
 to forget**. A decompression bomb is policy, and policy must be non-optional — which is the whole reason
 `Core\Compress` is Tier 0 rather than a sandboxed component
-([ADR 0051](../adr/0051-standard-library-tiers.md) § 3). Every row below that decompresses inherits that
+(`rule:core-api/tier-roster`). Every row below that decompresses inherits that
 ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is the shape it replaces.
 
 | PHP | Outcome | Novis |
@@ -1065,7 +1065,7 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
 | `gzread` | dropped | the same pair — `Core\IO`'s handle reads, `Core\Compress` decodes |
 | `gzwrite` | dropped | the same pair, in the other direction |
-| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways (`rule:core-api/shape-rules`) |
 | `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](01-core-library.md)) |
 | `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
 | `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends (`rule:iteration/two-interfaces`) |
@@ -1079,7 +1079,7 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `deflate_add` | member | that object's update member. PHP's `$flush_mode` constants are the one place this API is genuinely incremental, and they stay |
 | `inflate_init` | member | the same, decompressing, under the same non-optional ceiling |
 | `inflate_add` | member | that object's update member |
-| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
 
 ---
@@ -1097,7 +1097,7 @@ Three rules collapse the table. A parse **throws** on a malformed document
 (`rule:errors/ambiguous-input-refused`, and
 `rule:core-classes/html-parsing` for why
 HTML's parser is the opposite), so there is no error bucket to enable and read back. Anything with a
-lifetime is an object rather than a `resource` ([ADR 0063](../adr/0063-core-api-conventions.md) R14), which
+lifetime is an object rather than a `resource` (`rule:core-api/shape-rules` R14), which
 removes the create/free/set-option roster around the parser. And the SAX handler table is an *iteration*
 (`rule:iteration/two-interfaces`): the streaming reader yields events a `foreach` reads,
 so eleven registered callbacks become arms in a loop body that can also just stop.
@@ -1132,7 +1132,7 @@ being a switch.
 | `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
 | `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
 | `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/closure-literal`) |
-| `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](../adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
+| `xml_get_error_code` | dropped | a failed parse throws (`rule:core-api/shape-rules`), so there is no code left on a parser to read afterwards |
 | `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces (`rule:errors/diagnostic-record`) |
 | `xml_get_current_line_number` | member | position belongs to the event and to the failure, not to an implicit *current* state: the reader reports where the event it just yielded came from, and a parse failure carries the same on the throw |
 | `xml_get_current_column_number` | member | the same position, other axis |
@@ -1222,8 +1222,8 @@ one row here that grows a member rather than losing one.
 | `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
 | `gethostname` | member | `Core\Os::hostname` — the host's own name is a process fact, not a lookup ([01 § 15](01-core-library.md)) |
 | `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
-| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways ([ADR 0063](../adr/0063-core-api-conventions.md) R17) |
-| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` ([ADR 0051](../adr/0051-standard-library-tiers.md) § 1) |
+| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways (`rule:core-api/shape-rules` R17) |
+| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` (`rule:core-api/five-placements`) |
 | `dns_get_mx` | dropped | the same, narrowed to MX. `Core\Mail` sends through an endpoint an operator named, so the one first-party use of an MX lookup is already configuration |
 | `getmxrr` | dropped | `dns_get_mx`'s alias, with the answer returned through two by-reference parameters (R3) |
 | `getprotobyname` | dropped | an `/etc/protocols` lookup, a convenience for building a raw socket. `Core\Net`'s protocol is the constructor it was reached through |
@@ -1245,7 +1245,7 @@ one row here that grows a member rather than losing one.
 PHP's error model is four mechanisms that do not compose: a global error handler, a severity **bitmask**, a
 second and separate exception handler, and `assert()`, whose calls a configuration directive can remove
 from the program. Novis has one ladder instead — `rule:errors/escalation-ladder`: a
-failure throws ([ADR 0063](../adr/0063-core-api-conventions.md)), an uncaught throw reaches `Core\Fatal`'s
+failure throws (`rule:core-api/shape-rules`), an uncaught throw reaches `Core\Fatal`'s
 tier-2 hook on the engine's own reserved budget, and a fatal never reaches an ordinary `catch`. There are no
 warnings and no notices to convert into exceptions, which is what most `set_error_handler` calls in the wild
 are for, so the whole handler roster goes.
@@ -1277,7 +1277,7 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 
 ## Validation: what survives of `filter`
 
-[ADR 0051](../adr/0051-standard-library-tiers.md) § 3 splits this extension in two and keeps one half.
+`rule:core-api/tier-roster` splits this extension in two and keeps one half.
 `Core\Validate` ([01 § 12](01-core-library.md)) is the genuine validators, each named for the format it
 checks; the *sanitizing* filters are dropped outright, because half-escaping produces exactly the false
 confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no
@@ -1290,7 +1290,7 @@ confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists 
 | `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` (`rule:core-classes/derive-attribute`) rather than mixing the value, `null` and `false` in one array |
 | `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings (`rule:statements/no-host-populated-variables`), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
 | `filter_input_array` | dropped | both of those at once, over a spec array |
-| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](../adr/0063-core-api-conventions.md)) |
+| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` (`rule:core-api/shape-rules`) |
 | `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |
 | `filter_id` | dropped | maps one of those names to its integer constant |
 
@@ -1300,7 +1300,7 @@ confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists 
 surface, its output is a `tainted` sink that substitutes control bytes visibly, and its prompts are members
 rather than a line editor a program configures with global callbacks.
 
-The second half is a decision [ADR 0051](../adr/0051-standard-library-tiers.md) § 3 already recorded and
+The second half is a decision `rule:core-api/tier-roster` already recorded and
 this table is where it becomes rows: `setlocale` mutates **process-global C state**, which is unsound in a
 thread-per-core runtime and would leak from one request into the next. **Novis has no ambient locale at
 all.** Locale is an explicit argument — to `Core\Time`'s CLDR patterns ([01 § 4](01-core-library.md)) and to
@@ -1317,7 +1317,7 @@ restore.
 | `readline_clear_history` | dropped | empties that copy |
 | `readline_completion_function` | dropped | it installs a global callback the line editor calls back into. A closed set of answers is `Core\Cli`'s selection prompts; free-text completion over a dynamic set is not a `Core` member |
 | `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](../adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
-| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](../adr/0051-standard-library-tiers.md) § 3) |
+| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set (`rule:core-api/tier-roster`) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
 | `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order (`rule:types/bytes`) and ordering is the renderer's |
 
@@ -1391,7 +1391,7 @@ run between them, and there is no unopened `Db\Connection` for them to run again
 `Db\DbError` with a normalised `kind` (§ 8), which is why every `errno`/`error`/`sqlstate` reader below is
 dropped rather than renamed: they exist to be read after a call that returned `false`.
 
-The result half is emptied by a third rule, [ADR 0063](../adr/0063-core-api-conventions.md) R17: `fetch_row`,
+The result half is emptied by a third rule, `rule:core-api/shape-rules` R17: `fetch_row`,
 `fetch_assoc`, `fetch_array` and `fetch_object` are four spellings of one operation, chosen by a constant,
 and the shape a member returns does not vary with an argument here. The transaction half is emptied by § 7 —
 a transaction is a closure, so `commit`, `rollback`, `autocommit` and the two savepoint calls have no call
@@ -1439,7 +1439,7 @@ site left.
 | `mysqli_refresh` | dropped | `FLUSH` by bitmask, the same |
 | `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's ([ADR 0041](../adr/0041-timeline-export-and-gc-spawn-trace-events.md)) and a query is already a trace event ([ADR 0067](../adr/0067-core-db.md) § 11) |
 | `mysqli_dump_debug_info` | dropped | asks the server to write debug information into its own log |
-| `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always ([ADR 0063](../adr/0063-core-api-conventions.md) R4), so there is no mode to select |
+| `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always (`rule:core-api/shape-rules` R4), so there is no mode to select |
 | `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections ([ADR 0072](../adr/0072-core-task-structured-concurrency.md)), not a poll loop over one |
 | `mysqli_reap_async_query` | dropped | collects one of those results; the same answer |
 
@@ -1492,7 +1492,7 @@ site left.
 |---|---|---|
 | `mysqli_fetch_all` | member | `Db\Rows`'s `->all()`, an `array<Row>` — or `array<T>` where the query was `Core\Db\Queryable::queryAs` |
 | `mysqli_fetch_assoc` | member | `Db\Rows`'s `->first()` for one row, and iterating it for the rest. A `Db\Row` is read by name, which is the half of `fetch_array` that survives |
-| `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument ([ADR 0063](../adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument (`rule:core-api/shape-rules` R17), and rows are read by name |
 | `mysqli_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
 | `mysqli_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row (`rule:core-classes/db-column-types`), rather than assigning whatever columns arrived onto a `stdClass` |
 | `mysqli_fetch_column` | member | `Db\Rows`'s `->value()` for a single cell, and `->column()` for one column of every row |
@@ -1550,7 +1550,7 @@ between. The polling loop those functions are the parts of is the scheduler's.
 
 **Generating SQL from a table name and an array is not `Core`.** `pg_convert`, `pg_insert`, `pg_update`,
 `pg_delete` and `pg_select` are a query builder inside a database extension, and query builders, ORMs and
-migration tooling fail [ADR 0051](../adr/0051-standard-library-tiers.md) test 6 outright.
+migration tooling fail `rule:core-api/tier-placement` test 6 outright.
 
 Three families are **deferred rather than refused**, with the trigger in that ADR's *Revisiting*: `COPY`,
 `LISTEN`/`NOTIFY`, and large objects under LOB streaming (`rule:core-classes/db-one-api`). Their
@@ -1628,7 +1628,7 @@ with better manners.
 | `pg_getlastoid` | dropped | the deprecated spelling, and the same answer |
 | `pg_fetch_all` | member | `Db\Rows`'s `->all()`, an `array<Row>` — or `array<T>` where the query was `Core\Db\Queryable::queryAs` |
 | `pg_fetch_assoc` | member | `Db\Rows`'s `->first()` for one row, and iterating it for the rest. A `Db\Row` is read by name, which is the half of `pg_fetch_array` that survives |
-| `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument ([ADR 0063](../adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument (`rule:core-api/shape-rules` R17), and rows are read by name |
 | `pg_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
 | `pg_fetch_object` | member | `Core\Db\Queryable::queryAs`, which hydrates into an inline shape or a `Db\Codec` class checked against the result-set metadata per row (`rule:core-classes/db-column-types`), rather than assigning whatever columns arrived onto a `stdClass` |
 | `pg_fetch_result` | member | `Db\Rows`'s `->value()` for a single cell. PHP addresses it by a row number and a field; a `Db\Row`'s typed readers name the column and throw naming it when the value does not convert (`rule:core-classes/db-column-types`) |
@@ -1679,7 +1679,7 @@ with better manners.
 | PHP | Outcome | Novis |
 |---|---|---|
 | `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
-| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all ([ADR 0051](../adr/0051-standard-library-tiers.md) test 6) |
+| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |
 | `pg_delete` | dropped | the same for `DELETE` |

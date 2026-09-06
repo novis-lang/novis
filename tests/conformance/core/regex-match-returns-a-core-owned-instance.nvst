@@ -2,7 +2,7 @@
 Spec § 5: `Core\Regex::match` answers a `?Match`, whose four members read the groups it captured
 --FILE--
 <?nvs
-// ADR 0063 R3: there is no `$matches` out-parameter. The match *is* the
+// `rule:core-api/shape-rules` R3: there is no `$matches` out-parameter. The match *is* the
 // return value, and R5 makes "no match" `null` rather than a falsy int.
 var $found = Core\Regex::match("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)");
 echo $found?->text() ?? "none", "|\n";
@@ -26,7 +26,7 @@ foreach (Core\Regex::matchAll("order 4711 shipped", "(?<kind>[a-z]+) (\\d+)") as
 echo "|\n";
 
 // A group the pattern declares but this match did not reach is `null`; one
-// the pattern does not declare at all throws (ADR 0063 R4 versus R5).
+// the pattern does not declare at all throws (`rule:core-api/shape-rules` R4 versus R5).
 var $partial = Core\Regex::match("abc", "([a-z]+)(\\d+)?");
 echo $partial?->group(2) ?? "null", "|\n";
 try {

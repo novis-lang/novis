@@ -35,7 +35,7 @@
 > `Duration` has no infinite value, there is no `deadline: null`, and a call that names nothing inherits a
 > finite default from `[http.client]`. Retry is **opt-in**, exponential with **full jitter**, and its
 > `deadline` covers **all** attempts rather than each one. A `POST` or `PATCH` is not retried without an
-> `retryIdempotencyKey`, and because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a
+> `retryIdempotencyKey`, and because `rule:core-api/shape-rules` R2 makes the options bag a
 > compile-time-constant literal, that is a **diagnostic** rather than a runtime surprise.
 
 ## Context
@@ -142,7 +142,7 @@ reason: browsers reject it, so it is a policy with no meaning rather than a weak
 
 `Core\Response::addCookie`'s options shape carries the same four settings as an
 `rule:enums/closed-integer-type` enum and booleans — `SameSite` is an enum, never the string
-above ([ADR 0063](0063-core-api-conventions.md) R11) — and each defaults to the configured value. A cookie
+above (`rule:core-api/shape-rules` R11) — and each defaults to the configured value. A cookie
 that genuinely needs to be readable by script says so at the call site, in one field, visibly.
 
 A cookie's **name** is not this section's business:
@@ -191,7 +191,7 @@ type Core\Http\Options = {
 ```
 
 **The three retry keys are flat rather than a nested `retry` shape.**
-[ADR 0063](0063-core-api-conventions.md) R2's bag flattens to one argument per option at the ABI, so a
+`rule:core-api/shape-rules` R2's bag flattens to one argument per option at the ABI, so a
 bag nested inside one has nothing to flatten into — it would need a runtime shape value on the common
 path, which R2 exists to avoid. The prefix keeps the grouping legible at a call site
 (`{retryAttempts: 3, retryIdempotencyKey: $key}`) and costs seven characters at each of them.
@@ -208,7 +208,7 @@ between them. A single stated number is what a caller can reason about; the per-
 clients offer is the one that turns "5 seconds" into fifteen.
 
 Expiry throws `TimeoutError` ([docs/spec/01-core-library.md](../spec/01-core-library.md) § 10), never a
-falsy return ([ADR 0063](0063-core-api-conventions.md) R4).
+falsy return (`rule:core-api/shape-rules` R4).
 
 ### 6. Outbound: retry is opt-in, jittered, and covered by the same deadline
 
@@ -234,7 +234,7 @@ falsy return ([ADR 0063](0063-core-api-conventions.md) R4).
 `retryIdempotencyKey`**, sent as an `Idempotency-Key` header identical across attempts — the de-facto
 convention every payment API already implements.
 
-Because [ADR 0063](0063-core-api-conventions.md) R2 makes the options bag a compile-time-constant shape
+Because `rule:core-api/shape-rules` R2 makes the options bag a compile-time-constant shape
 literal, and because the method is usually the member's own name (`Client::post`), **both halves are
 statically known at an ordinary call site and the missing key is a diagnostic**, naming the field and this
 section. That is the payoff R2 was designed for, showing up in a place nobody planned it for.

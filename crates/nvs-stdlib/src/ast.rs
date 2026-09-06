@@ -97,7 +97,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Ast::parse`'s reference card — ADR 0117.
+/// `Core\Ast::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Parses `$source` with the compiler's own parser and answers the file's node tree. \
             Replaces `token_get_all` and every userland parser over it.",
@@ -153,7 +153,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Ast\Node::kind`'s reference card — ADR 0117.
+/// `Core\Ast\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
     short: "Which production this node is, spelled as the grammar spells it — `Binary`, `Echo`, \
             `Method`, `File`.",
@@ -163,7 +163,7 @@ const KIND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Ast\Node::children`'s reference card — ADR 0117.
+/// `Core\Ast\Node::children`'s reference card — `rule:core-api/reference-card`.
 const CHILDREN_DOC: MethodDoc = MethodDoc {
     short: "The nodes this one directly contains, in source order.",
     params: &[],
@@ -171,7 +171,7 @@ const CHILDREN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Ast\Node::nodes`'s reference card — ADR 0117.
+/// `Core\Ast\Node::nodes`'s reference card — `rule:core-api/reference-card`.
 const NODES_DOC: MethodDoc = MethodDoc {
     short: "Every node this one contains, however deeply — `children` closed transitively, which \
             is the whole walk when the receiver is the file.",

@@ -172,7 +172,7 @@ pub(crate) const DIGEST: CoreEnum = CoreEnum {
     doc: Some(&DIGEST_DOC),
 };
 
-/// [`DIGEST`]'s reference card — ADR 0117. The roster's home is spec § 11's
+/// [`DIGEST`]'s reference card — `rule:core-api/reference-card`. The roster's home is spec § 11's
 /// table; the notes here are that table's, condensed.
 const DIGEST_DOC: EnumDoc = EnumDoc {
     short: "The algorithm a `Core\\Hash` member computes — every one PHP's `hash()` names that \
@@ -347,7 +347,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Hash::of`'s reference card — ADR 0117.
+/// `Core\Hash::of`'s reference card — `rule:core-api/reference-card`.
 const OF_DOC: MethodDoc = MethodDoc {
     short: "Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`, \
             `crc32` and `openssl_digest` at once — raw octets, never hex or an `int`.",
@@ -369,7 +369,7 @@ const OF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Hash::hmac`'s reference card — ADR 0117.
+/// `Core\Hash::hmac`'s reference card — `rule:core-api/reference-card`.
 const HMAC_DOC: MethodDoc = MethodDoc {
     short: "Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` does \
             without its `raw_output` flag — and only under a `StrongDigest`, so `Digest::Md5` \
@@ -396,7 +396,7 @@ const HMAC_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Hash::equals`'s reference card — ADR 0117.
+/// `Core\Hash::equals`'s reference card — `rule:core-api/reference-card`.
 const EQUALS_DOC: MethodDoc = MethodDoc {
     short: "Compares two digests in constant time, as `hash_equals` does: the running time does \
             not depend on where two equal-length operands first differ.",
@@ -417,7 +417,7 @@ const EQUALS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Hash::stream`'s reference card — ADR 0117.
+/// `Core\Hash::stream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Opens an incremental digest under `$digest`, as `hash_init` does — a \
             `Core\\Hash\\Stream` fed by `update` and closed by `finish`.",
@@ -468,7 +468,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `$stream->update`'s reference card — ADR 0117.
+/// `$stream->update`'s reference card — `rule:core-api/reference-card`.
 const STREAM_UPDATE_DOC: MethodDoc = MethodDoc {
     short: "Feeds `$data` to the stream, as `hash_update` does; the chunks are digested in \
             order at `finish`.",
@@ -485,7 +485,7 @@ const STREAM_UPDATE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$stream->finish`'s reference card — ADR 0117.
+/// `$stream->finish`'s reference card — `rule:core-api/reference-card`.
 const STREAM_FINISH_DOC: MethodDoc = MethodDoc {
     short: "Closes the stream and answers the digest of everything `update` fed it, as \
             `hash_final` does — the same octets `Core\\Hash::of` answers over the \

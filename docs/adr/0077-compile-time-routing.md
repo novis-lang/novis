@@ -93,7 +93,7 @@ framework carrying its own `Route`-shaped literal is not it either. That list's 
 `rule:core-classes/derive-attribute` and is not restated here — a count kept in two places is a count that
 goes stale ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 9).
 
-- **`method` is an enum case** ([ADR 0063](0063-core-api-conventions.md) R11), not a string, and an enum
+- **`method` is an enum case** (`rule:core-api/shape-rules` R11), not a string, and an enum
   case is one of the three things an attribute payload may contain
   (`rule:attributes/payload-is-a-compile-time-constant`). `Core\Http\Method` is the same enum
   `Core\Request::method` returns.
@@ -140,7 +140,7 @@ than a second one.
 ### 3. A parameter's type comes from the method, and that is what launders it
 
 Every `{name}` in a path must correspond to a parameter of the same name on the annotated method
-([ADR 0029](0029-identifier-casing-is-checked.md)'s casing rules apply, so the comparison is exact).
+(`rule:core-api/identifier-casing`'s casing rules apply, so the comparison is exact).
 **A `{name}` with no such parameter is a compile error** naming both. The reverse is fine: a method
 parameter the path does not name is simply not the router's.
 
@@ -243,7 +243,7 @@ Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
   rather than re-parsing anything, and answers that `Router\Match` or throws — **the application calls
   it, at whatever place it keeps**, because nothing here dispatches and nothing here renders a refusal.
   Everything else about signing, including `$uri->sign` for the case that is not a route at all, is
-  [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md).
+  `rule:core-api/signing-is-over-a-payload`.
 
 **What it deliberately does not do**, because each is a framework opinion and the user confirmed the point
 of stopping short:

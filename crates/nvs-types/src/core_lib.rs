@@ -14,7 +14,7 @@
 //!
 //! * A `Core` member is `static` and never `private` — [`seed`] sets both, so
 //!   `Core\Arr::count($a)` is the only reachable spelling and
-//!   `$a->count()` resolves to nothing, as ADR 0063 R20 ("no operation is
+//!   `$a->count()` resolves to nothing, as `rule:core-api/shape-rules` R20 ("no operation is
 //!   reachable two ways") requires.
 //! * A member `nvs_stdlib` does not register does not exist. Before this
 //!   existed, `nvs_hir::QName::is_core` made every `Core\…` reference trusted
@@ -110,7 +110,7 @@ fn method_sig(
         // spelling for it, and a `Core` class is never extended —
         // see `MethodSig::returns_static`.
         returns_static: false,
-        // ADR 0063 R2: every `Core` parameter is callable by the spec's
+        // `rule:core-api/shape-rules` R2: every `Core` parameter is callable by the spec's
         // `$name`. The row carries one name per positional slot and none
         // for a trailing bag, so `param_names` re-aligns them to `params`
         // — see its own docs for why the bag's entry is made there.
@@ -121,7 +121,7 @@ fn method_sig(
         // what the argument *is* — so this is the one place the row's
         // judgement reaches the checker. See `MethodSig::param_quals`.
         param_quals: method.params.iter().map(qual_of).collect(),
-        // ADR 0063 R7: nothing in `Core` mutates its subject, so
+        // `rule:core-api/shape-rules` R7: nothing in `Core` mutates its subject, so
         // no `Core` parameter is ever by-reference. Not a gap in
         // the registry — a property of the convention.
         inout: vec![false; method.params.len()],
@@ -137,7 +137,7 @@ fn method_sig(
         // recomputed here — see `CoreMethod::written`.
         type_params: method.written().into_iter().map(str::to_owned).collect(),
         return_ty: lower(&method.return_ty, interner),
-        // A `Core` member is reachable exactly one way (ADR 0063
+        // A `Core` member is reachable exactly one way (`rule:core-api/shape-rules`
         // R20): a static one through its class name, an instance
         // one through a value. The registry states which by which
         // roster the row is written in — see
@@ -146,7 +146,7 @@ fn method_sig(
         interface_private: false,
         // Every registered row is part of `Core`'s surface — the
         // registry has no way to write an internal one, so there
-        // is nothing here for ADR 0094's levels to say.
+        // is nothing here for `rule:core-api/written-visibility`'s levels to say.
         visibility: nvs_syntax::ast::Visibility::Public,
         // Native Rust behind a helper symbol, not a compiled Novis
         // function — but it is code, so a call never needs to go
@@ -226,7 +226,7 @@ pub(crate) fn is_registered(qname: &QName) -> bool {
 ///
 /// A [`CoreTy::Shape`](nvs_stdlib::registry::CoreTy::Shape) parameter gets its
 /// entry synthesized the same way, from [`shape_fills`], and this is the one
-/// place ADR 0135 § 3's fills are recorded. Which *variant* carries them is
+/// place `rule:core-api/shape-flattens-at-the-abi`'s fills are recorded. Which *variant* carries them is
 /// the parameter's own optionality and nothing else: a shape a call must write
 /// takes [`ConstArg::RequiredShape`], which
 /// [`MethodSig::required`](crate::signatures::MethodSig::required) skips, and
@@ -276,7 +276,7 @@ fn defaults_of(method: &nvs_stdlib::registry::CoreMethod) -> Vec<Option<ConstArg
 /// choice. This is the one place that entry is materialized.
 ///
 /// A variadic tail keeps its entry, so the alignment holds for every row.
-/// ADR 0063 R2 says a name never reaches one, and
+/// `rule:core-api/shape-rules` R2 says a name never reaches one, and
 /// [`MethodSig::param_index`](crate::signatures::MethodSig::param_index) is
 /// where that is enforced — for a `Core` row on exactly the terms a
 /// user-declared method gets.
@@ -559,7 +559,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
                 .collect();
             interner.options(options)
         }
-        // ADR 0135 § 3's ABI, built here and nowhere else: the arms in
+        // `rule:core-api/shape-flattens-at-the-abi`'s ABI, built here and nowhere else: the arms in
         // declaration order, each arm's fields in declaration order, a name
         // already emitted skipped. See [`merge_shape_arms`].
         CoreTy::Shape(arms) => {
@@ -577,7 +577,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
-/// ADR 0135 § 3's merged field list: the arms in declaration order, each arm's
+/// `rule:core-api/shape-flattens-at-the-abi`'s merged field list: the arms in declaration order, each arm's
 /// fields in declaration order, a name a previous arm already emitted skipped.
 ///
 /// A name more than one arm declares occupies **one** slot whose type is the
@@ -620,7 +620,7 @@ fn merge_shape_arms(
     merged
 }
 
-/// One arm's own fields, lowered — ADR 0135 § 2's half of
+/// One arm's own fields, lowered — `rule:core-api/shape-arms-are-disjoint`'s half of
 /// [`crate::ty::CoreShape`], where [`merge_shape_arms`] builds § 3's.
 ///
 /// A field is required of its arm exactly where it declares no default, which
@@ -641,7 +641,7 @@ fn lower_arm(
         .collect()
 }
 
-/// One slot of ADR 0135 § 3's merged list per entry, in the order the list
+/// One slot of `rule:core-api/shape-flattens-at-the-abi`'s merged list per entry, in the order the list
 /// flattens, carrying every arm declaration behind that slot: the arms in
 /// declaration order, each arm's fields in declaration order, a name a
 /// previous arm already emitted folded into the slot it already has.
@@ -666,7 +666,7 @@ fn merged_arm_fields(
     merged
 }
 
-/// ADR 0135 § 3's fill list: one constant per slot of [`merged_arm_fields`]'s
+/// `rule:core-api/shape-flattens-at-the-abi`'s fill list: one constant per slot of [`merged_arm_fields`]'s
 /// order — the first declaring arm's own default where it has one, and `null`
 /// for a field belonging to an arm the caller did not write.
 ///
@@ -675,8 +675,7 @@ fn merged_arm_fields(
 /// by the literal and never reaches here, and the same key is a key some other
 /// arm's call site does not write at all. So "no default" is `null` rather than
 /// an absence — which is also why a shape field is never nullable
-/// ([ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-/// § 3), so that `null` cannot be mistaken for a written one.
+/// (`rule:core-api/shape-flattens-at-the-abi`), so that `null` cannot be mistaken for a written one.
 fn shape_fills(arms: &[&'static [nvs_stdlib::registry::CoreField]]) -> Vec<(String, ConstArg)> {
     merged_arm_fields(arms)
         .into_iter()
@@ -698,7 +697,7 @@ mod tests {
     use nvs_hir::ClassGraph;
     use nvs_stdlib::registry::CoreField;
 
-    /// ADR 0135 § 3's ABI, held over a two-arm shape because no registry row
+    /// `rule:core-api/shape-flattens-at-the-abi`'s ABI, held over a two-arm shape because no registry row
     /// declares one yet: the arms in declaration order, a name a previous arm
     /// already emitted taking **one** slot whose type is the union of what the
     /// arms declare for it, and a key required only where every arm requires
@@ -742,7 +741,7 @@ mod tests {
             panic!("a `CoreTy::Shape` lowers to a `Ty::CoreShape`");
         };
         let fields = &shape.fields;
-        // ADR 0135 § 2's half, which the merge deliberately cannot state: each
+        // `rule:core-api/shape-arms-are-disjoint`'s half, which the merge deliberately cannot state: each
         // arm keeps its own keys, its own types and its own required flags, so
         // `host` is required *of the server arm* where the merged list below
         // has to call it optional.
@@ -779,7 +778,7 @@ mod tests {
         );
     }
 
-    /// ADR 0135 § 3's fill list, and the reason it is a variant of its own: a
+    /// `rule:core-api/shape-flattens-at-the-abi`'s fill list, and the reason it is a variant of its own: a
     /// shape parameter records what its unwritten slots pass *and* stays
     /// required, which a `ConstArg::Options` entry could not do — `required`
     /// reads optionality off this vector, so a bag-shaped entry here would let
@@ -936,7 +935,7 @@ mod tests {
     /// mark that stopped being lowered would leave the one escape hatch every
     /// `secret` refusal's help text names refusing its own argument.
     ///
-    /// The second half is ADR 0063 R11's four grammars, asked of the registry
+    /// The second half is `rule:core-api/shape-rules` R11's four grammars, asked of the registry
     /// rather than of one row: each of the classes that owns one has to carry a
     /// sink somewhere in its rows, so a class whose pattern parameter lost its
     /// mark fails here while every case over the other three still passes.
@@ -982,7 +981,7 @@ mod tests {
         for grammar in [r"Core\Regex", r"Core\Str", r"Core\Bytes", r"Core\Time"] {
             assert!(
                 sinks_by_class.iter().any(|name| name.starts_with(grammar)),
-                "ADR 0063 R11's {grammar} grammar carries a sink somewhere in its rows, \
+                "`rule:core-api/shape-rules` R11's {grammar} grammar carries a sink somewhere in its rows, \
                  among {sinks_by_class:?}"
             );
         }
@@ -1478,7 +1477,7 @@ mod tests {
     /// its URL — the spelling that reads most natural, since the URL is what
     /// the request is made of — fails here rather than at a review.
     ///
-    /// The `names` column is what identifies the parameter, and ADR 0063 R2
+    /// The `names` column is what identifies the parameter, and `rule:core-api/shape-rules` R2
     /// makes that the spec's own signature column rather than a convention
     /// this test invented.
     #[test]

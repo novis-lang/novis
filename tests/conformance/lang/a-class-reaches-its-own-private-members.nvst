@@ -1,5 +1,5 @@
 --TEST--
-A class reaches its own `private` property and `private` method through a `public` one, and a second instance of that class is as reachable as `$this` — ADR 0094 § 1
+A class reaches its own `private` property and `private` method through a `public` one, and a second instance of that class is as reachable as `$this` — `rule:core-api/written-visibility`
 --FILE--
 <?nvs
 // The other half of the same rule: `private` is scoped to the declaring

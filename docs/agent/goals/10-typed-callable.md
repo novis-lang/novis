@@ -137,5 +137,5 @@ One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/closur
   of the goal is moving a check earlier; a case that could be answered in either place is answered in
   `nvs-types`, and the runtime keeps only what bare `callable` still needs.
 - **Stages 4 and 5 edit the spec in the same slice as the registry rows**, never as a separate tidy-up:
-  ADR 0117 makes the registry and the spec answer field-wise, and a slice that moves one without the
+  `rule:core-api/reference-card` makes the registry and the spec answer field-wise, and a slice that moves one without the
   other is what that rule exists to prevent.

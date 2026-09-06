@@ -21,7 +21,7 @@
 > than two tiers**: **`Core\RateLimit::consume`** goes to the shared store, is coherent across cores and
 > machines, and enforces a **policy**; **`Core\RateLimit::shed`** counts per core, is approximate by
 > construction, and protects the **host**. Two names for the same reason
-> [ADR 0059](0059-cross-request-state-is-explicit.md) § 1 gives `local()`/`shared()` two names: one name
+> `rule:core-api/two-cache-tiers` gives `local()`/`shared()` two names: one name
 > covering two guarantees invites using the weaker one by accident. Both use **GCRA**, so `retryAfter`
 > falls out of the arithmetic exactly rather than being estimated, and the answer is a `Decision` carrying
 > the `Retry-After` the `429` is supposed to have. The key accepts `tainted` — a tenant id *is* user data —
@@ -46,7 +46,7 @@
   request in order to reject it, which is the wrong end of the pipe.
 - **The two-tier trap is real and it is why the naming matters.** An in-process limiter is fast and wrong:
   on eight cores a limit of 100 admits up to 800, and nothing about the call site says so. That is the
-  identical hazard [ADR 0059](0059-cross-request-state-is-explicit.md) § 1 solved by refusing a
+  identical hazard `rule:core-api/two-cache-tiers` solved by refusing a
   `coherent: true` flag and giving the two tiers two method names — the default would be chosen once and
   copied thereafter, and choosing wrong fails silently.
 - **The algorithm is observable, so it is a decision and not an implementation detail.** `retryAfter` is a
@@ -66,7 +66,7 @@ Core\RateLimit::shed(tainted string $key, uint $limit, Duration $per,
                      {burst?: uint, cost?: uint}): RateLimit\Decision;      // per core, approximate
 ```
 
-Subject first ([ADR 0063](0063-core-api-conventions.md) R1), the two required arguments in dataflow order,
+Subject first (`rule:core-api/shape-rules` R1), the two required arguments in dataflow order,
 one trailing options shape (R2), and `per` a `Duration` rather than a count of seconds (R12), written as an
 `rule:types/duration-literal` literal.
 
@@ -114,7 +114,7 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 ```
 
 `retryAfter` is `?Duration` and is `null` exactly when `allowed` is true —
-[ADR 0063](0063-core-api-conventions.md) R4's "absence is `?T`", not a sentinel zero.
+`rule:core-api/shape-rules` R4's "absence is `?T`", not a sentinel zero.
 
 - **`$key` accepts `tainted`.** A tenant id, an account id or an API key id *is* user-derived data, and
   requiring a launderer would be pure friction with no security benefit — the identical reasoning
@@ -151,7 +151,7 @@ Core\RateLimit\Decision — readonly allowed: bool, limit: uint, remaining: uint
 
 `consume` on an unreachable shared store throws `IOError`
 ([docs/spec/01-core-library.md](../spec/01-core-library.md) § 10), per
-[ADR 0063](0063-core-api-conventions.md) R4. It does **not** return `allowed: true`.
+`rule:core-api/shape-rules` R4. It does **not** return `allowed: true`.
 
 This is the load-bearing choice in the whole ADR. A security control that fails open silently is worse than
 no control, because the deployment believes it has one — and whether *this* limiter should fail open or

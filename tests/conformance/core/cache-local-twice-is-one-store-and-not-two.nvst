@@ -1,5 +1,5 @@
 --TEST--
-`Core\Cache::local()` names this core's one store rather than handing back a container — a handle taken before every write reads them all, either handle reads what the other wrote, and an entry outlives every handle that wrote it — ADR 0059 § 1
+`Core\Cache::local()` names this core's one store rather than handing back a container — a handle taken before every write reads them all, either handle reads what the other wrote, and an entry outlives every handle that wrote it — `rule:core-api/two-cache-tiers`
 --FILE--
 <?nvs
 // § 1's tier is *one store per core*, so the value `local()` answers is a name

@@ -163,7 +163,7 @@ impl Ctx {
 
     /// Open `session` on this request, replacing whatever it had open.
     ///
-    /// Replacing rather than refusing, because ADR 0139 § 1's `regenerate` is
+    /// Replacing rather than refusing, because `rule:core-api/session-roster`'s `regenerate` is
     /// exactly this call under a new identifier. The refusal of a *second*
     /// `start` belongs to that member, which is the only one that can tell an
     /// accidental re-open from a deliberate one.
@@ -186,7 +186,7 @@ impl Ctx {
 
     /// Close the session this request had open, leaving it with none.
     ///
-    /// ADR 0139 § 1's `destroy` is the only caller, and closing rather than
+    /// `rule:core-api/session-roster`'s `destroy` is the only caller, and closing rather than
     /// emptying is the honest answer: the record is gone from the store, so a
     /// record left on the request would be a copy of something that no longer
     /// exists — and § 4's write-back would put it straight back. What a member

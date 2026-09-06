@@ -68,7 +68,7 @@ foreach ($offsets as int $anchor) {
 echo $held, " of ", $cells, "\n";
 
 // The `null` length — "to the end of the subject" said by the type rather
-// than by a sentinel (ADR 0063 R5). `slice` may omit it, because it is the
+// than by a sentinel (`rule:core-api/shape-rules` R5). `slice` may omit it, because it is the
 // first `Core` member whose default is `null`; `replaceRange` must write it,
 // since a default there would put an optional parameter before a mandatory
 // one. PHP spells the same thing by leaving the argument off in both.

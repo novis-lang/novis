@@ -1,5 +1,5 @@
 --TEST--
-Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — spec § 11, ADR 0063 R5
+Every `Core\Random` draw is swept for its invariants: an int stays inside its closed bounds and reaches both of them, a float fills the unit interval, no two buffers repeat, `pick` only ever answers an element of its subject, and `shuffle` is a permutation rather than a fresh draw — spec § 11, `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
 // A drawn value cannot be asserted, so every member here is pinned by
@@ -70,7 +70,7 @@ echo "bytes ", $sized, " ", $repeats, "\n";
 // `Arr::diff` of the whole run against the subject is what says so, and it is
 // empty only if every one of 120 draws came out of the box. Every element is
 // also reached, so a member answering the first entry — or the last — fails
-// the distinct count. ADR 0063 R5 makes the empty subject `null`, which is why
+// the distinct count. `rule:core-api/shape-rules` R5 makes the empty subject `null`, which is why
 // the answer is `?int`; over a non-empty one it is never null, and that is the
 // last count.
 array<int> $box = [10, 20, 30, 40];

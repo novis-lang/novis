@@ -271,7 +271,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "select",
-            // `choices` rather than § 4's own `$options`: ADR 0063 R2 reserves
+            // `choices` rather than § 4's own `$options`: `rule:core-api/shape-rules` R2 reserves
             // `options` as the name every member's trailing bag is callable
             // by, so a positional sharing it would be ambiguous at a named
             // call site. That ADR's rule is the later and wider one, and § 4's
@@ -336,7 +336,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cli::escape`'s reference card — ADR 0117.
+/// `Core\Cli::escape`'s reference card — `rule:core-api/reference-card`.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
     short: "Answers `$text` with every control byte replaced by a visible, inert glyph — `ESC` as \
             `␛`, a bare `CR` as `␍`, `DEL` as `␡`, a C1 code point or an unterminated \
@@ -354,7 +354,7 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::isTty`'s reference card — ADR 0117.
+/// `Core\Cli::isTty`'s reference card — `rule:core-api/reference-card`.
 const IS_TTY_DOC: MethodDoc = MethodDoc {
     short: "Reports whether one standard stream is attached to a terminal — `posix_isatty` and \
             `stream_isatty`, which PHP splits between two extensions. Resolved once for the \
@@ -370,7 +370,7 @@ const IS_TTY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::width`'s reference card — ADR 0117.
+/// `Core\Cli::width`'s reference card — `rule:core-api/reference-card`.
 const WIDTH_DOC: MethodDoc = MethodDoc {
     short: "The controlling terminal's width in columns — `tput cols`, without a child process. \
             Resolved once for the process.",
@@ -380,7 +380,7 @@ const WIDTH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::height`'s reference card — ADR 0117.
+/// `Core\Cli::height`'s reference card — `rule:core-api/reference-card`.
 const HEIGHT_DOC: MethodDoc = MethodDoc {
     short: "The controlling terminal's height in rows — `tput lines`. Resolved once for the \
             process, alongside the width it was read with.",
@@ -390,7 +390,7 @@ const HEIGHT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::colorDepth`'s reference card — ADR 0117.
+/// `Core\Cli::colorDepth`'s reference card — `rule:core-api/reference-card`.
 const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
     short: "How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, \
             `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes \
@@ -403,7 +403,7 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::displayWidth`'s reference card — ADR 0117.
+/// `Core\Cli::displayWidth`'s reference card — `rule:core-api/reference-card`.
 const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
     short: "How many terminal columns `$value` will occupy when it is written — UAX #11 widths \
             over grapheme clusters, replacing `mb_strwidth`. A CJK ideograph and a fullwidth \
@@ -456,7 +456,7 @@ const WRITE_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Cli::arguments`'s reference card — ADR 0117.
+/// `Core\Cli::arguments`'s reference card — `rule:core-api/reference-card`.
 const ARGUMENTS_DOC: MethodDoc = MethodDoc {
     short: "The words this program was started with, past the program itself — PHP's `$argv` and \
             `$argc` in one place. A program that declares a `#[Command]` reads its arguments off \
@@ -471,7 +471,7 @@ const ARGUMENTS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli::write`'s reference card — ADR 0117.
+/// `Core\Cli::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A \
             `string` has every control byte replaced by the visible glyph `Core\\Cli::escape` \
@@ -568,7 +568,7 @@ const MULTI_SELECT_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Cli::ask`'s reference card — ADR 0117.
+/// `Core\Cli::ask`'s reference card — `rule:core-api/reference-card`.
 const ASK_DOC: MethodDoc = MethodDoc {
     short: "Asks `$question` at the controlling terminal and answers the line typed back — \
             `readline`, without the GNU library and without reading standard input, so a program \
@@ -604,7 +604,7 @@ const ASK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli::confirm`'s reference card — ADR 0117.
+/// `Core\Cli::confirm`'s reference card — `rule:core-api/reference-card`.
 const CONFIRM_DOC: MethodDoc = MethodDoc {
     short: "Asks `$question` as a yes/no question, showing which way the `Enter` key goes, and \
             answers what was typed. An answer that is neither is asked again rather than read as \
@@ -631,7 +631,7 @@ const CONFIRM_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli::select`'s reference card — ADR 0117.
+/// `Core\Cli::select`'s reference card — `rule:core-api/reference-card`.
 const SELECT_DOC: MethodDoc = MethodDoc {
     short: "Offers `$choices` as a numbered list and answers the one chosen — the value itself, \
             never its position, so nothing at the call site indexes back into the array.",
@@ -674,7 +674,7 @@ const SELECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cli::multiSelect`'s reference card — ADR 0117.
+/// `Core\Cli::multiSelect`'s reference card — `rule:core-api/reference-card`.
 const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
     short: "Offers `$choices` as a numbered list and answers every one chosen, as the values \
             themselves — `select` where the answer is a set, so the numbers are typed together \
@@ -717,7 +717,7 @@ const MULTI_SELECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cli::secret`'s reference card — ADR 0117.
+/// `Core\Cli::secret`'s reference card — `rule:core-api/reference-card`.
 const SECRET_DOC: MethodDoc = MethodDoc {
     short: "Asks `$question` with the terminal's echo turned off, so a password is not left on \
             the screen or in a scrollback buffer — PHP's `readline` has no spelling for this at \
@@ -738,7 +738,7 @@ const SECRET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli::live`'s reference card — ADR 0117.
+/// `Core\Cli::live`'s reference card — `rule:core-api/reference-card`.
 const LIVE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` with a live region open on the terminal, and answers whatever `$body` \
             answered. `$body` receives a `Core\\Cli\\Live` whose `set` replaces the region's rows \
@@ -792,7 +792,7 @@ pub(crate) const LIVE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cli\Live::set`'s reference card — ADR 0117.
+/// `Core\Cli\Live::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Replaces the region's rows with `$lines`. The runtime owns the cursor: it coalesces \
             frames on a timer rather than repainting per call, diffs against what is on screen, \
@@ -815,7 +815,7 @@ const SET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli::progress`'s reference card — ADR 0117.
+/// `Core\Cli::progress`'s reference card — `rule:core-api/reference-card`.
 const PROGRESS_DOC: MethodDoc = MethodDoc {
     short: "Runs `$body` with a progress bar open on the terminal, and answers whatever `$body` \
             answered. A closed, named behaviour over `live`'s general one: the region is a bar \
@@ -897,7 +897,7 @@ pub(crate) const PROGRESS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cli\Progress::advance`'s reference card — ADR 0117.
+/// `Core\Cli\Progress::advance`'s reference card — `rule:core-api/reference-card`.
 const ADVANCE_DOC: MethodDoc = MethodDoc {
     short: "Counts `by` units of work as done and redraws the bar, optionally changing the \
             caption beside it.",
@@ -938,7 +938,7 @@ pub(crate) const STREAM: CoreEnum = CoreEnum {
     doc: Some(&STREAM_DOC),
 };
 
-/// [`STREAM`]'s reference card — ADR 0117.
+/// [`STREAM`]'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: EnumDoc = EnumDoc {
     short: "One of the three standard streams a process begins with. It exists because \"is a \
             terminal\" is always a question about one of them and never about the process.",
@@ -972,7 +972,7 @@ pub(crate) const COLOR_DEPTH: CoreEnum = CoreEnum {
     doc: Some(&COLOR_DEPTH_DOC),
 };
 
-/// [`COLOR_DEPTH`]'s reference card — ADR 0117.
+/// [`COLOR_DEPTH`]'s reference card — `rule:core-api/reference-card`.
 const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
     short: "How much colour standard output can show. The cases ascend, so a sink degrading to \
             what a terminal has is a comparison rather than a lookup.",
@@ -1017,7 +1017,7 @@ pub(crate) const SHELL: CoreEnum = CoreEnum {
     doc: Some(&SHELL_DOC),
 };
 
-/// [`SHELL`]'s reference card — ADR 0117.
+/// [`SHELL`]'s reference card — `rule:core-api/reference-card`.
 const SHELL_DOC: EnumDoc = EnumDoc {
     short: "Which shell `Core\\Command::completions` writes a completion script for. Four cases \
             and no catch-all: a script is generated in the named shell's own syntax, so a case \
@@ -1652,7 +1652,7 @@ nvs_runtime::nvs_helper! {
     /// — § 4's third prompt.
     ///
     /// **It answers the value, not the index**, which is
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4 and R5
+    /// `rule:core-api/shape-rules` R4 and R5
     /// and is what earns the generic: the compiler knows the result's type
     /// from the options array, so no call site casts and none indexes back
     /// into the list it just passed.
@@ -1957,7 +1957,7 @@ pub(crate) const TEXT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cli\Text::plain`'s reference card — ADR 0117.
+/// `Core\Cli\Text::plain`'s reference card — `rule:core-api/reference-card`.
 const PLAIN_DOC: MethodDoc = MethodDoc {
     short: "Answers `$text` as a `Core\\Cli\\Text`, with every control byte already replaced by the \
             visible glyph `Core\\Cli::escape` gives it. This is the terminal sink's own carrier: \
@@ -1975,7 +1975,7 @@ const PLAIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cli\Text::styled`'s reference card — ADR 0117.
+/// `Core\Cli\Text::styled`'s reference card — `rule:core-api/reference-card`.
 const STYLED_DOC: MethodDoc = MethodDoc {
     short: "Answers `$text` as a `Core\\Cli\\Text` wearing `$style`, with the text itself \
             neutralized exactly as `plain` neutralizes it — so the only control bytes in the \
@@ -2185,7 +2185,7 @@ pub(crate) const COLOR: CoreClass = CoreClass {
     constants: NAMED,
 };
 
-/// `Core\Cli\Color::index`'s reference card — ADR 0117.
+/// `Core\Cli\Color::index`'s reference card — `rule:core-api/reference-card`.
 const INDEX_DOC: MethodDoc = MethodDoc {
     short: "A colour from the terminal's 256-entry palette, whose first sixteen entries are the \
             named constants on this class.",
@@ -2202,7 +2202,7 @@ const INDEX_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli\Color::rgb`'s reference card — ADR 0117.
+/// `Core\Cli\Color::rgb`'s reference card — `rule:core-api/reference-card`.
 const RGB_DOC: MethodDoc = MethodDoc {
     short: "A 24-bit colour, for the terminals that have one — the sixteen million members that \
             are why this class is a value type and not an enum.",
@@ -2385,7 +2385,7 @@ const STYLE_OPTIONS: &[CoreOption] = &[
 
 /// ADR 0086 § 2's `Cli\Style` — what a `Text` wears, as a value.
 ///
-/// One member, because a style is constructed and then read: ADR 0063 R5's
+/// One member, because a style is constructed and then read: `rule:core-api/shape-rules` R5's
 /// `of` for the canonical construction, R2's one trailing shape for the
 /// options, R20's immutability for everything after.
 pub(crate) const STYLE: CoreClass = CoreClass {
@@ -2404,7 +2404,7 @@ pub(crate) const STYLE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cli\Style::of`'s reference card — ADR 0117.
+/// `Core\Cli\Style::of`'s reference card — `rule:core-api/reference-card`.
 const STYLE_OF_DOC: MethodDoc = MethodDoc {
     short: "A style, as a value — the replacement for the `\"\\e[1;31m\"` string and the \
             `\"<bold><red>\"` markup, neither of which Novis has a grammar for.",
@@ -2694,7 +2694,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Cli\Style::of({color?, background?, bold?, dim?, italic?,
     /// underline?, strikethrough?}): Cli\Style` — ADR 0086 § 2's style, as a
-    /// value rather than as a fifth grammar (ADR 0063 R11 fixes the count at
+    /// value rather than as a fifth grammar (`rule:core-api/shape-rules` R11 fixes the count at
     /// four).
     ///
     /// Seven arguments for one options bag: `nvs-ir` flattens it to one per

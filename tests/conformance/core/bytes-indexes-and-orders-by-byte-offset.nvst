@@ -1,9 +1,9 @@
 --TEST--
-Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — `rule:types/bytes`, ADR 0063 R5/R6/R8
+Spec § 7: `Core\Bytes`'s indexing half counts in bytes where `Core\Str`'s members of the same name count characters — `rule:types/bytes`, `rule:core-api/shape-rules` R5/R6/R8
 --FILE--
 <?nvs
 class Probe {
-    // ADR 0063 R4/R5: the declared return type is `uint`, not `?uint`, so an
+    // `rule:core-api/shape-rules` R4/R5: the declared return type is `uint`, not `?uint`, so an
     // index that addresses nothing throws rather than answering a sentinel.
     public static function at(bytes $b, int $i): string {
         try {

@@ -924,7 +924,7 @@ fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
 
 /// § 3: `fleet` fires once across the deployment under a lease in the shared store, and a tree with
 /// no store configured refuses rather than degrading to one run per host — which is the exact
-/// failure the key exists to prevent. The store is `[cache.shared] url`, ADR 0059 § 1's coherent
+/// failure the key exists to prevent. The store is `[cache.shared] url`, `rule:core-api/two-cache-tiers`'s coherent
 /// tier and the one `Core\Cache::shared()` opens, so the two sides are asserted together: a tree
 /// that writes it accepts the same entry the tree without it refused. Asserted on both sides
 /// because a check that only refused would pass just as well if `fleet` were refused

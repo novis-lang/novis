@@ -189,7 +189,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         names
     }
 
-    /// ADR 0011 § 2: `Core` is reserved for built-ins. Reports and keeps
+    /// `rule:core-api/reserved-namespace`: `Core` is reserved for built-ins. Reports and keeps
     /// going.
     pub(super) fn check_reserved_core_namespace(&mut self, name: &Name) {
         let text = self.file.span_text(name.span).unwrap_or_default();
@@ -642,7 +642,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         // Only a class/interface/anonymous-class body redirects `var`; an
         // enum body reaches `parse_class_member_with_attrs` directly and
         // already reports `E_ENUM_MEMBER_UNSUPPORTED` for whatever it holds,
-        // which is the one diagnostic ADR 0094's scope leaves it.
+        // which is the one diagnostic `rule:core-api/written-visibility`'s scope leaves it.
         if self.at_keyword(Keyword::Var) {
             out.push(self.parse_class_body_var(start, attributes));
             return;
@@ -692,8 +692,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// PHP's `var $x;` property form, which
-    /// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
-    /// § 4 answers with the same `E_MISSING_VISIBILITY` a bare `int $x;`
+    /// `rule:core-api/legacy-property-shapes-name-the-visibility` answers with the same `E_MISSING_VISIBILITY` a bare `int $x;`
     /// gets. It needs its own arm because `var` is
     /// `rule:types/var-inference`'s
     /// local-inference keyword and starts no type, so without this the

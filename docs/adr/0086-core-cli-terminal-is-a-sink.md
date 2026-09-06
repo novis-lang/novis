@@ -36,7 +36,7 @@
 > unlike HTML's `&`→`&amp;` this substitution transforms no visible text, because a control sequence was
 > never text: today those bytes vanish into the terminal's command stream and the user sees nothing.
 > **Styling is a value, not a grammar** — `Cli\Text` is peer to `Core\Html\Markup` and the only thing that
-> writes raw, which is what keeps [ADR 0063](0063-core-api-conventions.md) R11's *exactly four grammars*
+> writes raw, which is what keeps `rule:core-api/shape-rules` R11's *exactly four grammars*
 > true. **A prompt is a `Core` member** — `ask`, `confirm`, `select<T>`, `multiSelect<T>`, `secret` —
 > because raw mode is unreachable from userland with [0052](0052-closed-doors.md)'s FFI door shut, so if
 > `Core` does not ship it Novis cannot have it; `secret()` returns a `secret string`, so a password read at a
@@ -134,7 +134,7 @@ reach here, and why the rule cannot land before `Core\Secret::reveal()` exists.
 
 ### 2. Styling is a value type, never a grammar
 
-[ADR 0063](0063-core-api-conventions.md) R11 fixes the grammar count at four — a regex pattern, a `printf`
+`rule:core-api/shape-rules` R11 fixes the grammar count at four — a regex pattern, a `printf`
 template, a CLDR date pattern, a `pack` format. Both obvious styling designs would be a fifth: raw
 `"\e[31m"` escapes, and a `"<red>…</red>"` markup string. The second would additionally collide with the
 inline-HTML lexer mode ([0049](0049-single-open-tag-and-single-exit-keyword.md)). So styling is typed

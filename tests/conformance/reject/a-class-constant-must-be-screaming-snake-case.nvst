@@ -1,5 +1,5 @@
 --TEST--
-a class constant is the one SCREAMING_SNAKE_CASE category, and a camelCase one is refused — ADR 0029 § 1
+a class constant is the one SCREAMING_SNAKE_CASE category, and a camelCase one is refused — `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 class Limits {

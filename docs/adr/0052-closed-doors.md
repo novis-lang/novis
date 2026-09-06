@@ -5,7 +5,7 @@
 - **Scope:** four mechanisms PHP has that Novis will not implement at any tier, each because it contradicts a
   commitment the project has already made rather than because it is unpopular or hard. Ordinary triage
   outcomes — extensions dropped because something better replaces them — stay in
-  [ADR 0051](0051-standard-library-tiers.md) § 3.
+  `rule:core-api/tier-roster`.
 - **Amends:** [0003](0003-extension-system.md) — its `dlopen` rejection covered *loading a shared library*
   but not FFI, which reaches the same place through a different door; § 1 closes it by name.
   [0008](0008-static-and-global.md) — its storage-class table is exhaustive for *language* constructs; § 3
@@ -24,7 +24,7 @@
 
 ## Context
 
-- The [ADR 0051](0051-standard-library-tiers.md) placement procedure asks *which tier* a capability belongs
+- The `rule:core-api/tier-placement` placement procedure asks *which tier* a capability belongs
   at. These four have no correct tier: each is unsafe in-process, unavailable in a sandbox, and unsafe as
   a build-time option, so answering "which tier" for them is a category error.
 - Each has a genuine constituency in PHP, and none is being closed because it is unused. FFI is how modern

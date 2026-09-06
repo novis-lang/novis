@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, ADR 0063 R4
+`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // `rule:core-classes/derive-reports-every-field`: a class participates in a wire format by carrying the

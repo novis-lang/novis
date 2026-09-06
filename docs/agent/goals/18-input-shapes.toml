@@ -16,7 +16,7 @@ files = [
 modules = [
   # The type grammar: `{name?: T}`'s marker, and `tainted` in front of a shape.
   "crates/nvs-syntax/src/parser/ty.rs",
-  # `Ty::Shape` gains the required bit `CoreShapeField` has had since ADR 0135; the tainted variants
+  # `Ty::Shape` gains the required bit `CoreShapeField` has had since `rule:core-api/shape-parameter`; the tainted variants
   # the desugaring rewrites into are the same file.
   "crates/nvs-types/src/ty.rs",
   # `is_assignable` -- width subtyping learns that a missing optional field still satisfies.

@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::pick, sample and shuffle draw over array<T> — every element survives a shuffle, a sample is distinct, and an oversized one throws — spec § 11, ADR 0063 R4 and R5
+Core\Random::pick, sample and shuffle draw over array<T> — every element survives a shuffle, a sample is distinct, and an oversized one throws — spec § 11, `rule:core-api/shape-rules` R4 and R5
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line here pins an invariant of
@@ -32,7 +32,7 @@ echo Core\Arr::count(Core\Arr::unique($three)), "\n";
 echo Draw::sampleCount($a, 0), "\n";
 echo Draw::sampleCount($a, 5), "\n";
 
-// `pick` over one element has one answer, and ADR 0063 R5 makes the empty
+// `pick` over one element has one answer, and `rule:core-api/shape-rules` R5 makes the empty
 // array `null` rather than a throw — asking a possibly-empty array for an
 // element is an absence, not a failure.
 array<int> $one = [7];
@@ -41,7 +41,7 @@ echo Core\Random::pick($one), "\n";
 array<int> $empty = [];
 echo (Core\Random::pick($empty) == null) ? "null" : "something", "\n";
 
-// ADR 0063 R4: there is no fifth distinct entry in a four-entry array, so
+// `rule:core-api/shape-rules` R4: there is no fifth distinct entry in a four-entry array, so
 // answering short or repeating one would each be a failure reported as a
 // result.
 echo Draw::sampleCount($a, 9), "\n";

@@ -1,11 +1,11 @@
 # Loop goal 29 — signing a URL, and the payload behind it
 
-[ADR 0146](../../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md), built.
+`rule:core-api/signing-is-over-a-payload`, built.
 One general member — `Core\Signature`, [ADR 0060](../../adr/0060-application-security-protocols.md)'s
 fifth and final roster entry — and the two doors onto it where a reader will actually look:
 `$uri->sign`/`$uri->verifySignature`, and `Core\Router`'s pair for the one case a path cannot express.
 
-**The design is finished and this goal does not re-open it.** ADR 0146 is written, 0060's roster is
+**The design is finished and this goal does not re-open it.** `rule:core-api/signing-is-over-a-payload` is written, 0060's roster is
 already five and 0077 § 4 already lists the two router members. What is missing is every line of
 implementation, the spec rows are written against nothing, and
 `crates/nvs-stdlib/tests/spec-members-outstanding.txt` names this goal as the owner of two of them.
@@ -67,7 +67,7 @@ $uri->verifySignature(array<secret bytes> $keys): void;
    and a URL carrying two of them fails rather than resolving to one.
 3. **Every component present is covered and the fragment is never covered.** Appending a query
    parameter invalidates; changing a fragment does not, because RFC 3986 § 3.5 fragments never reach
-   the server. There is no option naming which parameters are signed — ADR 0146's *Alternatives
+   the server. There is no option naming which parameters are signed — `rule:core-api/signing-is-over-a-payload`'s *Alternatives
    rejected* is the home of why that option is the bypass.
 4. **`sign` answers a `Uri`** so it composes with `with` and `toString`; signing one that already
    carries `_sig` replaces it rather than nesting.
@@ -104,13 +104,13 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
    is checked first and the clock only after, so `SignatureExpired` is reachable only by someone
    already holding a valid signature. **A test proves the ordering**: a token both forged *and* past
    its `until` throws the *invalid* error, never the expired one.
-3. **`{until: null}` is the forever spelling and omitting the key does not compile** — ADR 0146 § 3,
+3. **`{until: null}` is the forever spelling and omitting the key does not compile** — `rule:core-api/a-lifetime-is-written`,
    which is [ADR 0096](../../adr/0096-a-route-without-a-declared-access-decision-does-not-compile.md)
    § 3's rule one surface over.
 
 ## Standing decisions
 
-- **This goal opens no ADR number.** ADR 0146 is the design, written before the goal existed. A session
+- **This goal opens no ADR number.** `rule:core-api/signing-is-over-a-payload` is the design, written before the goal existed. A session
   that finds a genuine hole in it folds the fix into 0146's body and says so in the handoff — it does
   not open 0147.
 - **The canonical form is `compareTo`'s, and that is not a session's call to revisit.** A second
@@ -118,7 +118,7 @@ Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
   reasonable it looks at the call site.
 - **Sign-and-reveal is not seal-and-hide.** `Core\SignedCookie` is AEAD and its payload is hidden; a
   signature's payload is visible and must be. The two share the key ring and the base64 and nothing
-  else, and neither loses a row to the other (ADR 0146 § 6).
+  else, and neither loses a row to the other (`rule:core-api/each-door-takes-a-different-thing`).
 - **No options bag names which parameters are signed**, ever, at any of the three doors. If a caller
   needs a URL where some parameter is free, that parameter does not belong in the signed URL.
 - **Verification never renders anything.** It throws; the application catches and decides. A session

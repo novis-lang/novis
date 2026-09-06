@@ -41,7 +41,7 @@
 //!
 //! # The three refusals
 //!
-//! Each is [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4
+//! Each is `rule:core-api/shape-rules` R4
 //! ("failure throws") applied where PHP's `json_encode`/`json_decode` returned
 //! a degraded value instead:
 //!
@@ -88,7 +88,7 @@
 //!    An enum came off it third and cost no nesting at all: a case is its
 //!    backing integer, so [`scalar`] answers it as a membership test against
 //!    the roster [`nvs_runtime::CodecField::cases`] carries.
-//! 3. **A parameter default does not make a key optional.** ADR 0071 § 4's
+//! 3. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
 //!    two default-bearing rows are unimplemented: an absent key is always
 //!    *required field missing*, and a `#[Json\Field(skip: true)]` property
 //!    that is also a constructor parameter leaves a position nothing fills,
@@ -193,9 +193,9 @@ pub const CLASS: CoreClass = CoreClass {
 ///
 /// Both default to `false`, which is `json_encode`'s own no-flags behaviour:
 /// the compact document, and UTF-8 written through. The other thirteen flags
-/// are gone rather than moved here — ADR 0063 R20 leaves no room for a second
+/// are gone rather than moved here — `rule:core-api/shape-rules` R20 leaves no room for a second
 /// spelling of an escaping rule that is already the crate's.
-/// `Core\Json::encode`'s reference card (ADR 0117): each option is its own
+/// `Core\Json::encode`'s reference card (`rule:core-api/reference-card`): each option is its own
 /// [`ParamDoc`] under the option's name, which is how [`MethodDoc::params`]
 /// says a bag is documented. What is stated here is what
 /// [`nvs_core_json_encode`] and [`Encodable`] do, and nothing the spec's § 6
@@ -233,7 +233,7 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Json::decode`'s reference card — ADR 0117.
+/// `Core\Json::decode`'s reference card — `rule:core-api/reference-card`.
 const DECODE_DOC: MethodDoc = MethodDoc {
     short: "Parses the JSON text `$json` into a value, as `json_decode` does with `$associative` \
             set: an object becomes a string-keyed array, an array a list, and a scalar itself. A \
@@ -268,7 +268,7 @@ const DECODE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Json::decodeAs`'s reference card — ADR 0117.
+/// `Core\Json::decodeAs`'s reference card — `rule:core-api/reference-card`.
 const DECODE_AS_DOC: MethodDoc = MethodDoc {
     short: "Parses the JSON object `$json` into an instance of `T`, a class carrying \
             `#[Json\\Derive]`, reading every declared field and running the constructor only \
@@ -308,7 +308,7 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Json::isValid`'s reference card — ADR 0117.
+/// `Core\Json::isValid`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_DOC: MethodDoc = MethodDoc {
     short: "Tells whether `$json` is a document `decode` would accept at the default depth of \
             `512`, as `json_validate` does, by parsing it.",
@@ -1278,7 +1278,7 @@ unsafe fn decode_fields(
 
 /// The `index`th field of `owner`, taken over, or how it failed.
 ///
-/// ADR 0071 § 4's table, minus its two default-bearing rows: a parameter
+/// `rule:core-api/required-optional-and-nullable`'s table, minus its two default-bearing rows: a parameter
 /// default is `nvs_types::defaults`' constant and no call site emits one here,
 /// so an absent key is always *required field missing* today.
 ///

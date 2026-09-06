@@ -1,10 +1,10 @@
 --TEST--
-each of the six magic method names `rule:classes/no-magic-methods` closes is refused where it is written, so no class can declare one for the runtime to decline to call — `rule:classes/stringable`, `rule:classes/no-destructors`, `rule:classes/unset-is-refused-on-a-property`, `rule:classes/no-debug-hook` and `rule:classes/no-magic-methods`, ADR 0029 § 1
+each of the six magic method names `rule:classes/no-magic-methods` closes is refused where it is written, so no class can declare one for the runtime to decline to call — `rule:classes/stringable`, `rule:classes/no-destructors`, `rule:classes/unset-is-refused-on-a-property`, `rule:classes/no-debug-hook` and `rule:classes/no-magic-methods`, `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 // `rule:classes/no-magic-methods` is the index of every magic method's disposition, and for the six
 // names it closes itself the disposition is one and the same: the name cannot
-// be written at all. ADR 0029 § 1's method-casing rule refuses a leading
+// be written at all. `rule:core-api/casing-checks-the-leading-character`'s method-casing rule refuses a leading
 // underscore before any resolution runs, so "the runtime never invokes it" is
 // stronger than the ADR's own wording — there is no declaration to invoke.
 class Legacy {

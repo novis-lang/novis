@@ -53,7 +53,7 @@ echo Core\Json::encode(Core\Arr::overlay($left, $right)), "\n";
 echo Core\Json::encode(Core\Arr::underlay($left, $right)), "\n";
 echo Core\Json::encode(Core\Arr::appendAll($left, $right)), "\n";
 
-// Every argument is a value and none of them is touched (ADR 0063 R3).
+// Every argument is a value and none of them is touched (`rule:core-api/shape-rules` R3).
 echo Core\Json::encode($base), Core\Json::encode($layer), "\n";
 
 // A layer of a second element type is what the `array<T|U>` return exists for;

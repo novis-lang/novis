@@ -231,7 +231,7 @@ const PUBLISH_SYMBOL: &str = "nvs_core_topic_publish";
 /// The symbol [`CLASS`]'s `unsubscribe` row is reached through.
 const UNSUBSCRIBE_SYMBOL: &str = "nvs_core_topic_unsubscribe";
 
-/// `Core\Topic::subscribe`'s reference card — ADR 0117.
+/// `Core\Topic::subscribe`'s reference card — `rule:core-api/reference-card`.
 const SUBSCRIBE_DOC: MethodDoc = MethodDoc {
     short: "Joins this connection to `$topic`, so that a value published to it arrives at the \
             next `receive()` as a message whose `topic()` is that name.",
@@ -251,7 +251,7 @@ const SUBSCRIBE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Topic::publish`'s reference card — ADR 0117.
+/// `Core\Topic::publish`'s reference card — `rule:core-api/reference-card`.
 const PUBLISH_DOC: MethodDoc = MethodDoc {
     short: "Copies `$value` to every connection subscribed to `$topic`, and answers how many were \
             reached.",
@@ -284,7 +284,7 @@ const PUBLISH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Topic::unsubscribe`'s reference card — ADR 0117.
+/// `Core\Topic::unsubscribe`'s reference card — `rule:core-api/reference-card`.
 const UNSUBSCRIBE_DOC: MethodDoc = MethodDoc {
     short: "Leaves `$topic`, so nothing published to it reaches this connection again.",
     params: &[ParamDoc {

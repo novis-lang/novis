@@ -152,7 +152,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Totp::code`'s reference card — ADR 0117.
+/// `Core\Totp::code`'s reference card — `rule:core-api/reference-card`.
 const CODE_DOC: MethodDoc = MethodDoc {
     short: "Answers the RFC 6238 code for `$secret` at this moment — the same six digits the \
             authenticator application holding that secret is showing. For enrolment and for \
@@ -172,7 +172,7 @@ const CODE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Totp::check`'s reference card — ADR 0117.
+/// `Core\Totp::check`'s reference card — `rule:core-api/reference-card`.
 const CHECK_DOC: MethodDoc = MethodDoc {
     short: "Reports which time step `$code` belonged to, or `null`. Accepts the current 30-second \
             step and one either side, and nothing at or below `$after` — so storing the answer \

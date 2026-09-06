@@ -226,7 +226,7 @@ impl<'a> Lexer<'a> {
     /// inside the span that opened it, and the span is **one line** of one
     /// token — so a heredoc, a block comment or an inline-HTML run cannot open
     /// a scope on one line and close it on the next. A failure is a hard error
-    /// with no suppression, which is ADR 0029 § 1's standing position for every
+    /// with no suppression, which is `rule:core-api/casing-checks-the-leading-character`'s standing position for every
     /// other spelling rule.
     ///
     /// Called on the four spans that carry free text: a comment, a
@@ -530,7 +530,7 @@ impl<'a> Lexer<'a> {
 
     /// A reserved word is matched **exactly**, in lower case only
     /// (`rule:classes/reserved-spellings-are-lower-case`). `IF` is therefore an ordinary [`TokenKind::Ident`], not a
-    /// mis-cased `if`, and gets no diagnostic here: ADR 0029 makes `IF` a
+    /// mis-cased `if`, and gets no diagnostic here: `rule:core-api/identifier-casing` makes `IF` a
     /// perfectly legal class name, so nothing lexical distinguishes the two.
     /// It also means `Core\Bytes` needs no special handling — `Bytes` is an
     /// `Ident`, where PHP-style case-insensitive matching made it collide
@@ -1479,7 +1479,7 @@ mod tests {
     #[test]
     fn keywords_are_lower_case_only() {
         // `rule:classes/reserved-spellings-are-lower-case`. `ECHO` is an ordinary identifier, with no diagnostic
-        // of its own: ADR 0029 makes it a legal class name, so nothing
+        // of its own: `rule:core-api/identifier-casing` makes it a legal class name, so nothing
         // here can tell a mis-typed `echo` from a deliberate `ECHO`.
         assert_eq!(
             kinds_ok("<?nvs ECHO myVar"),

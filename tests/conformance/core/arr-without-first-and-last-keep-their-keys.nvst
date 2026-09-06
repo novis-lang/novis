@@ -14,7 +14,7 @@ echo Core\Str::join(Core\Arr::withoutLast($a), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutFirst($a)), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::withoutLast($a)), ","), "\n";
 
-// PHP mutates its argument and returns the element; ADR 0063 R3 makes nothing
+// PHP mutates its argument and returns the element; `rule:core-api/shape-rules` R3 makes nothing
 // mutate, so the subject still holds all three entries.
 echo Core\Str::join(Core\Arr::keys($a), ","), "\n";
 

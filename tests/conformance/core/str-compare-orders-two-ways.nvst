@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — spec § 1 *Comparison*, ADR 0063 R20
+`Core\Str::compare` answers a sign over one of two orderings, and `{natural: true}` selects the other one — spec § 1 *Comparison*, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // The answer is `-1`, `0` or `1` and never a byte difference — PHP 8 already

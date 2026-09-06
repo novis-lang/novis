@@ -305,7 +305,7 @@ pub fn call_erased_method(
         // the engine-protocol rows `nvs_stdlib::instance` puts there — so
         // "has no method" would be a plausible answer and a wrong one for a
         // member the spec plainly gives it. `Core` is a reserved namespace
-        // (ADR 0011 § 2), which is what makes the name enough to tell, and
+        // (`rule:core-api/reserved-namespace`), which is what makes the name enough to tell, and
         // this only runs on the failing edge.
         if class.starts_with("Core\\") {
             return Err(Fault::thrown_as(

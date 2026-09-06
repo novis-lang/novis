@@ -153,8 +153,7 @@ impl Connection {
     /// A second method rather than an `Option<u64>` on [`Connection::set`],
     /// because the two callers are two decisions and neither may drift into the
     /// other's: `Core\Cache`'s entries have no expiry at all
-    /// ([ADR 0059](/docs/adr/0059-cross-request-state-is-explicit.md)
-    /// § 1 gives the tier a cap and not a clock), while every
+    /// (`rule:core-api/two-cache-tiers` gives the tier a cap and not a clock), while every
     /// [`crate::session`] record has one and a record written without one is
     /// [ADR 0139](/docs/adr/0139-a-session-is-a-record-its-store-issued.md)
     /// § 5's sweeper coming back. A default argument would let a caller reach
@@ -598,7 +597,7 @@ mod tests {
         assert_eq!(got, Some(b"hi".to_vec()));
     }
 
-    /// ADR 0059 § 1: an entry that is not there is an answer and not a failure,
+    /// `rule:core-api/two-cache-tiers`: an entry that is not there is an answer and not a failure,
     /// and on the wire that answer is the null bulk. A store's own `-ERR` is the
     /// other half — that one *is* a failure, and it carries the store's text so
     /// an operator can act on it.

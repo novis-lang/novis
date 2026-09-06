@@ -1,5 +1,5 @@
 //! `nvs meta --json`, driven as a consumer drives it —
-//! [ADR 0117](/docs/adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)'s
+//! `rule:core-api/reference-card`'s
 //! *Verification* section: a golden of § 2's shape over the first documented
 //! member, through the built binary for the same reason `openapi.rs` goes
 //! through it — the contract is what the *command* prints.
@@ -93,7 +93,7 @@ fn the_golden_for_str_length_matches_the_contract() {
 /// Every member the document lists carries a `doc` with a `short` — the
 /// registry's own guard `every_registry_row_carries_a_reference_card` seen
 /// from the consumer's side, so a card the emitter dropped on the way out
-/// would show here. `names` is beside it on every row, because ADR 0063 R2's
+/// would show here. `names` is beside it on every row, because `rule:core-api/shape-rules` R2's
 /// by-name surface is signature and not documentation. The omission rule
 /// itself — no key for a field with nothing written — is proven over
 /// synthetic cards in `meta.rs`'s own tests, since no shipped row is

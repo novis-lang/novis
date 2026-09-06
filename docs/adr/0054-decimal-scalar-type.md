@@ -211,7 +211,7 @@ between "we cover 99% of this" and "we cover 99% of this and here is the other 1
   production plus its own diagnostics — a suffix in a `float` position, a suffix on a hex literal — spelling
   in two positions what the general `as decimal` already spells everywhere. It would also make `19.99m` and
   `19.99 as decimal` two ways to write one value, the duplication
-  [ADR 0063](0063-core-api-conventions.md) refuses across `Core`. `d` was never a candidate either: in C#
+  `rule:core-api/shape-rules` refuses across `Core`. `d` was never a candidate either: in C#
   and Java it already means *double*, so `19.99d` would read as precisely the wrong thing.
 
 ## Verification

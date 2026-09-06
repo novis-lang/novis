@@ -157,7 +157,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // the request is data rather than an instruction (ADR 0088 § 2).
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            // `mixed` rather than ADR 0063 R7's `?T`: what went in is any value the byte carrier
+            // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value the byte carrier
             // admits, so there is no `T` to make nullable, and `mixed` already spells absent.
             return_ty: CoreTy::Mixed,
             symbol: "nvs_core_session_get",
@@ -198,7 +198,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "regenerate",
             names: &[],
             // No argument, because PHP's `$delete_old_session` chose between a fixation window and
-            // a lost session and only one of those is correct — ADR 0139 § 1, and the migration
+            // a lost session and only one of those is correct — `rule:core-api/session-roster`, and the migration
             // guide's *Sessions, requests and headers* is where the pair is named.
             params: &[],
             defaults: &[],
@@ -221,7 +221,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Session::start`'s reference card — ADR 0117.
+/// `Core\Session::start`'s reference card — `rule:core-api/reference-card`.
 const START_DOC: MethodDoc = MethodDoc {
     short: "Opens the session the store issued, taking the identifier from the session cookie \
             unless one is given — and issuing a fresh one where the store has no record under it.",
@@ -253,7 +253,7 @@ const START_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::get`'s reference card — ADR 0117.
+/// `Core\Session::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Reads one key of the record this request's session holds, answering `null` where the \
             record does not hold it.",
@@ -279,7 +279,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::set`'s reference card — ADR 0117.
+/// `Core\Session::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Writes one key of the record this request's session holds, replacing whatever was \
             under it.",
@@ -317,7 +317,7 @@ const SET_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::remove`'s reference card — ADR 0117.
+/// `Core\Session::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Takes one key out of the record this request's session holds.",
     params: &[ParamDoc {
@@ -345,7 +345,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::clear`'s reference card — ADR 0117.
+/// `Core\Session::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
     short: "Empties the record this request's session holds, keeping the session and its \
             identifier.",
@@ -358,7 +358,7 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Session::regenerate`'s reference card — ADR 0117.
+/// `Core\Session::regenerate`'s reference card — `rule:core-api/reference-card`.
 const REGENERATE_DOC: MethodDoc = MethodDoc {
     short: "Issues a new identifier, moves the record to it and forgets the old entry — what to \
             call the moment a request changes who the session speaks for.",
@@ -382,7 +382,7 @@ const REGENERATE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Session::destroy`'s reference card — ADR 0117.
+/// `Core\Session::destroy`'s reference card — `rule:core-api/reference-card`.
 const DESTROY_DOC: MethodDoc = MethodDoc {
     short: "Forgets the record in the store and closes the session on this request, which is what \
             signing out is.",
@@ -576,7 +576,7 @@ pub(crate) fn issuable(presented: &str) -> bool {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::start(?tainted string $presented = null): void` — ADR 0139 § 1's member that
+    /// `Core\Session::start(?tainted string $presented = null): void` — `rule:core-api/session-roster`'s member that
     /// talks to the store, replacing `session_start`.
     ///
     /// **Absent is one answer with one response.** § 2 gives `load` three ways to answer absent —
@@ -720,7 +720,7 @@ fn issue_cookie(ctx: &mut Ctx, member: &str, id: &str) -> Result<(), Fault> {
 
 /// The throw every member but `start` makes while this request has started no session.
 ///
-/// **One spelling for all of them**, because ADR 0139 § 1's rule is one rule: a member called
+/// **One spelling for all of them**, because `rule:core-api/session-roster`'s rule is one rule: a member called
 /// before `start` throws naming it, and a program that meets it from `get` should read the same
 /// sentence it would have read from `remove`.
 /// `tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst` asserts that
@@ -829,7 +829,7 @@ fn write_back(ctx: &mut Ctx, record: NvsArray, member: &str) -> Result<Value, Fa
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::get(string $key): mixed` — ADR 0139 § 1's read of the record `start` loaded,
+    /// `Core\Session::get(string $key): mixed` — `rule:core-api/session-roster`'s read of the record `start` loaded,
     /// replacing `$_SESSION[$key]`.
     ///
     /// **A key the record does not hold is `null`**, exactly as `Core\Cache\Store::get` answers a
@@ -955,7 +955,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Session::regenerate(): void` — ADR 0139 § 1's move to a new identifier, replacing
+    /// `Core\Session::regenerate(): void` — `rule:core-api/session-roster`'s move to a new identifier, replacing
     /// `session_regenerate_id`.
     ///
     /// **In § 1's order: issue, move the record, forget the old entry.** A failure between the

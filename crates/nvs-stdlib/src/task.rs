@@ -63,7 +63,7 @@
 //!
 //! # `{limit, deadline}` is the only optioned spelling
 //!
-//! § 3: one trailing options shape (ADR 0063 R2), the same two fields on `all`
+//! § 3: one trailing options shape (`rule:core-api/shape-rules` R2), the same two fields on `all`
 //! and on the `map` that follows it. Both default to [`Const::Null`] and both
 //! mean "unbounded" there — `limit` because a shape literal is already bounded
 //! by its field count, and `deadline` because a call that names none is bounded
@@ -199,7 +199,7 @@ const GROUP_ERRORS: &[ErrorDoc] = &[
     },
 ];
 
-/// `Core\Task::all`'s reference card — ADR 0117.
+/// `Core\Task::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Runs every closure of the `$tasks` shape literal as a concurrent child task and \
             answers a shape with the same field names, each carrying that closure's own declared \
@@ -220,7 +220,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
     errors: GROUP_ERRORS,
 };
 
-/// `Core\Task::map`'s reference card — ADR 0117.
+/// `Core\Task::map`'s reference card — `rule:core-api/reference-card`.
 const MAP_DOC: MethodDoc = MethodDoc {
     short: "Calls `$fn` once per element of `$items`, each call a concurrent child task, and \
             answers the results under the subject's own keys and in its order regardless of \
@@ -246,7 +246,7 @@ const MAP_DOC: MethodDoc = MethodDoc {
     errors: GROUP_ERRORS,
 };
 
-/// `Core\Task::afterResponse`'s reference card — ADR 0117.
+/// `Core\Task::afterResponse`'s reference card — `rule:core-api/reference-card`.
 const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$fn` once the request's own execution is over, still charged to the request \
             tree — for receipts, webhooks, cache warming and audit shipping. **This is not a \

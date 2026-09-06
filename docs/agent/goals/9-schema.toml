@@ -324,7 +324,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0b -- ADR 0063 R2, amended 2026-08-29 after this goal opened: every `Core` parameter is callable
+# Stage 0b -- `rule:core-api/shape-rules` R2, amended 2026-08-29 after this goal opened: every `Core` parameter is callable
 # by the spec's `$name`. Items 28-30 in loop-goal.md. A "0" stage runs in the catch-up class, ahead of
 # the program legs, and after Stage 0 because the run order inside the class is this file's order.
 #
@@ -2402,7 +2402,7 @@ file = "examples/cli.nvs"
 want = ["greet: Hello, ada!", "usage: greet <name> [--loud]", "width resolved once"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- crypto and the protocols on it. AEAD-only per ADR 0051 § 3.
+# Stage 4 -- crypto and the protocols on it. AEAD-only per `rule:core-api/tier-roster`.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "cargo-named"
@@ -2468,7 +2468,7 @@ tests = [
   "a_retry_is_jittered_and_shares_the_covering_deadline",
   # ADR 0076 § 2 -- where a trace crosses a service boundary at all.
   "an_outbound_request_carries_traceparent",
-  # ADR 0051 -- over the runtime's own reactor, not a second event loop.
+  # `rule:core-api/tier-placement` -- over the runtime's own reactor, not a second event loop.
   "a_socket_read_runs_on_the_reactor_and_parks_its_coroutine",
 ]
 
@@ -2487,7 +2487,7 @@ file = "examples/http.nvs"
 want = ["status=200", "body=ok", "refused: tainted url", "refused: denied range", "deadline hit"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 6 -- the two stores. Redis by default for the shared tier (ADR 0059 § 1); the container it runs
+# Stage 6 -- the two stores. Redis by default for the shared tier (`rule:core-api/two-cache-tiers`); the container it runs
 # in is the same compose file goal 5 uses, brought up once per run.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
@@ -3235,7 +3235,7 @@ cases = [
   "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
   # ADR 0024 § 4's pair, the binding half included.
   "tests/conformance/core/db-query-refuses-a-tainted-statement-and-binds-one-freely.nvst",
-  # ADR 0135 § 2's arm selection, of which a `host` written under `Driver::Sqlite` is the refusing half.
+  # `rule:core-api/shape-arms-are-disjoint`'s arm selection, of which a `host` written under `Driver::Sqlite` is the refusing half.
   "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
 ]
 

@@ -457,7 +457,7 @@ pub(crate) fn infer(
             }
             let text = span_text(env.src, *name);
             let prop_name = strip_sigil(text).to_owned();
-            // Resolved through the *owning* class so ADR 0094's level test
+            // Resolved through the *owning* class so `rule:core-api/written-visibility`'s level test
             // reaches the static spelling too — `Foo::$secret` is the same
             // access as `$foo->secret` with the receiver written as a name.
             let resolved = resolve_class_expr(class, ctx, env).and_then(|qname| {

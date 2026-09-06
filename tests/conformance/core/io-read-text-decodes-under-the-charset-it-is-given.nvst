@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::readText decodes one file under two charsets and each reading encodes back to the octets on disk, so a decoder that dropped or replaced a byte moves a number here even when the string it answered still prints plausibly — omitting the option is naming `Core\Charset::Utf8`, and for a file already written that way `read` answers the same string — spec § 14, `rule:types/bytes`, ADR 0063 R3
+Core\IO::readText decodes one file under two charsets and each reading encodes back to the octets on disk, so a decoder that dropped or replaced a byte moves a number here even when the string it answered still prints plausibly — omitting the option is naming `Core\Charset::Utf8`, and for a file already written that way `read` answers the same string — spec § 14, `rule:types/bytes`, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // The file is written by the program rather than dropped in as a fixture, so
@@ -20,7 +20,7 @@ string $latin1 = Core\IO::readText("note.txt", {charset: Core\Charset::Latin1});
 echo "utf8 round-trip: ", Core\Encoding::toHex(Core\Encoding::encodeText($utf8, Core\Charset::Utf8)), "\n";
 echo "latin1 round-trip: ", Core\Encoding::toHex(Core\Encoding::encodeText($latin1, Core\Charset::Latin1)), "\n";
 
-// Omitting the option is naming `Utf8` and nothing else: ADR 0063 R3's trailing
+// Omitting the option is naming `Utf8` and nothing else: `rule:core-api/shape-rules` R3's trailing
 // shape carries the default, so these two calls are one call.
 if ($utf8 == $named) {
     echo "the default is Utf8\n";

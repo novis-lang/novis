@@ -1,4 +1,4 @@
-# ADR 0051 — The standard library's tiers: what is `Core`, what ships native, what is an extension
+# `rule:core-api/tier-placement` — The standard library's tiers: what is `Core`, what ships native, what is an extension
 
 - **Status:** Accepted
 - **Date:** 2026-08-23

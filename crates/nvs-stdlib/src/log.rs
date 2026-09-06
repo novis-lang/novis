@@ -103,7 +103,7 @@ pub(crate) const LEVEL: CoreEnum = CoreEnum {
     doc: Some(&LEVEL_DOC),
 };
 
-/// [`LEVEL`]'s reference card — ADR 0117.
+/// [`LEVEL`]'s reference card — `rule:core-api/reference-card`.
 const LEVEL_DOC: EnumDoc = EnumDoc {
     short: "How loud a log record is — five cases, each valued by its own syslog severity so that \
             a `syslog` target needs no second table. A smaller number is a louder record.",
@@ -156,7 +156,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Log::write`'s reference card — ADR 0117.
+/// `Core\Log::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Writes one log record — the same record, through the same writer, the engine itself \
             uses when it reports for a program that has stopped, so a log pipeline never sees two \

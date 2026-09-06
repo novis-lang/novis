@@ -21,7 +21,7 @@
 //! implementation detail of the tree.
 //!
 //! **`peek` and `pop` throw on an empty heap.** § 9's row gives the class an
-//! `isEmpty`, which is the question, and [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! `isEmpty`, which is the question, and `rule:core-api/shape-rules`
 //! R5 bans the `peekOrNull` twin that a `?T` return would otherwise invite.
 //!
 //! # Decision: three orderings, tried in one fixed order
@@ -87,7 +87,7 @@ const COMPARE_TO: &str = "compareTo";
 /// `new Core\Heap<T>({comparator})` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers.
 ///
-/// A positional optional parameter rather than an options bag: ADR 0063 R2
+/// A positional optional parameter rather than an options bag: `rule:core-api/shape-rules` R2
 /// puts a bag last for a member with *several* settings, and this class has
 /// exactly one thing to say about itself. The spec's own § 9 prose calls it
 /// "a comparator given at construction", which is this.
@@ -160,7 +160,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `new Core\Heap`'s reference card — ADR 0117.
+/// `new Core\Heap`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     short: "Builds an empty `Core\\Heap<T>` — a priority queue that replaces `SplPriorityQueue`, \
             `SplMinHeap` and `SplMaxHeap` — ordered by `$comparator` when one is given, \
@@ -178,7 +178,7 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Heap::push`'s reference card — ADR 0117.
+/// `Core\Heap::push`'s reference card — `rule:core-api/reference-card`.
 const PUSH_DOC: MethodDoc = MethodDoc {
     short: "Adds `$value`, keeping the heap ordered in O(log n); a duplicate is held rather than \
             folded away, because this is a priority queue and not a set.",
@@ -196,7 +196,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Heap::peek`'s reference card — ADR 0117.
+/// `Core\Heap::peek`'s reference card — `rule:core-api/reference-card`.
 const PEEK_DOC: MethodDoc = MethodDoc {
     short: "Answers the element `pop` would answer with — the smallest under the ordering in \
             force — and leaves it where it is.",
@@ -208,7 +208,7 @@ const PEEK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Heap::pop`'s reference card — ADR 0117.
+/// `Core\Heap::pop`'s reference card — `rule:core-api/reference-card`.
 const POP_DOC: MethodDoc = MethodDoc {
     short: "Removes and answers the smallest element under the ordering in force, in O(log n).",
     params: &[],
@@ -221,7 +221,7 @@ const POP_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Heap::count`'s reference card — ADR 0117.
+/// `Core\Heap::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
     short: "Counts the elements the heap holds, duplicates included.",
     params: &[],
@@ -229,7 +229,7 @@ const COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Heap::isEmpty`'s reference card — ADR 0117.
+/// `Core\Heap::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     short: "Whether the heap holds nothing — the question to ask before `peek` or `pop`, which \
             throw on an empty heap.",

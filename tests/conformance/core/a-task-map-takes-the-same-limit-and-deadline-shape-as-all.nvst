@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::map` is bounded by the same `{limit, deadline}` shape as `Core\Task::all` and by no other spelling: `timeout` is still not an option, `limit` is still a `uint`, and there is no second member carrying a bound — ADR 0072 §§ 2, 3, ADR 0063 R2
+`Core\Task::map` is bounded by the same `{limit, deadline}` shape as `Core\Task::all` and by no other spelling: `timeout` is still not an option, `limit` is still a `uint`, and there is no second member carrying a bound — ADR 0072 §§ 2, 3, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // § 3 gives `all` and `map` one options shape between them, so the question

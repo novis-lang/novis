@@ -3,10 +3,10 @@
 **This file is authoritative for every `Core` signature.** It is the member list
 [ADR 0011 § 2](../adr/0011-functions-and-constants-are-class-members.md) deferred and
 [ADR 0051 § 3](../adr/0051-standard-library-tiers.md) placed. The *shape* rules every entry obeys are
-[ADR 0063](../adr/0063-core-api-conventions.md) — read that first; this file applies it and does not
+`rule:core-api/shape-rules` — read that first; this file applies it and does not
 re-argue it. Where a class has its own ADR (`Core\Regex`, `Core\Decimal`, `Core\Reflect`, `Core\Process`,
 `Core\Cache`, …) that ADR owns the semantics and this file owns only the signatures. For an *implemented*
-member, [ADR 0117](../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md) puts its
+member, `rule:core-api/reference-card` puts its
 reference documentation in the `nvs-stdlib` registry declaration, exposed by `nvs meta --json`, and a doc
 field the registry carries wins over this file, field by field; this file remains authoritative for every
 member the registry does not yet hold, and for the designed signature of everything.
@@ -17,7 +17,7 @@ Every member is `public static` on its domain class unless the entry shows a `$r
 instance method. The `public static function` prefix is omitted throughout; `Core\Str::length` is written
 `length(string $s): uint`. **The `$name` in a signature is callable**: `Str::length(s: $x)` binds exactly as
 it would at a user-declared method, and a trailing options shape is addressable as `options:` —
-[ADR 0063](../adr/0063-core-api-conventions.md) R2, which is also why a parameter's name is versioned here
+`rule:core-api/shape-rules` R2, which is also why a parameter's name is versioned here
 like its type.
 
 **A `Core` value object's readonly members are reached as readers** — `$write->affected()`, never
@@ -53,7 +53,7 @@ rather than data something returns or frames* — of which one corollary is that
 Two conventions apply throughout and are not repeated per entry:
 
 - **Ranges** are `(offset, ?length)` — negative offset counts from the end, negative length stops that many
-  from the end, `null` runs to the end ([ADR 0063](../adr/0063-core-api-conventions.md) R8).
+  from the end, `null` runs to the end (`rule:core-api/shape-rules` R8).
 - **A variadic member takes no options shape.** R2 requires the options shape to be last, and a variadic
   parameter already is; where both are wanted the member takes an `array` instead of a variadic.
 
@@ -64,7 +64,7 @@ keeps the two from becoming two spellings of one thing:
 
 | Operation | Spelling | Note |
 |---|---|---|
-| read an element | `$a[$k]` | throws on a missing key ([ADR 0063](../adr/0063-core-api-conventions.md) R4) |
+| read an element | `$a[$k]` | throws on a missing key (`rule:core-api/shape-rules` R4) |
 | read a possibly-absent element | `$a[$k] ?? $default` | the absence-tolerant spelling; there is **no** `Arr::get` |
 | write an element | `$a[$k] = $v` | |
 | remove an element | `unset($a[$k])` | an array element of a named holder, and nothing else — a declared property, static or instance, and every other operand alike are refused (`rule:classes/unset-is-refused-on-a-property`) |
@@ -130,7 +130,7 @@ second member name. `{natural: true}` selects a **different ordering**, not a va
 length-limited form is `Str::slice` first.
 
 `strcoll` and every locale-sensitive comparison are **not** here: Novis has no ambient locale
-([ADR 0051](../adr/0051-standard-library-tiers.md)), and locale-aware collation is the intl extension's
+(`rule:core-api/tier-placement`), and locale-aware collation is the intl extension's
 batch-shaped API.
 
 ### Extraction
@@ -470,7 +470,7 @@ contagious. **Patterns are CLDR** (`yyyy-MM-dd HH:mm:ss`,
 always a literal, so `nvs convert` rewrites one into the other mechanically, and the intl extension needs
 CLDR anyway. The same patterns serve `DateTime::format`. The **subset** of CLDR field letters implemented,
 and the fact that a name renders in CLDR's root locale because there is no `setlocale`
-([ADR 0051](../adr/0051-standard-library-tiers.md)), are `crates/nvs-stdlib/src/cldr.rs`'s own docs; a
+(`rule:core-api/tier-placement`), are `crates/nvs-stdlib/src/cldr.rs`'s own docs; a
 letter outside the subset is a diagnostic naming itself, never a silent literal.
 
 PHP's free-form `strtotime` is **not** implemented, in either half. Every expression it accepts is a typed
@@ -542,14 +542,14 @@ because constructing an invalid date throws.
 `Zone::system()` is **not** an ambient default: it is an ordinary value a program asks for and then passes
 explicitly, so a call site still names the zone it converts in. What has no equivalent is
 `date_default_timezone_set` — nothing installs a zone that a later conversion silently picks up, which is
-the unsoundness [ADR 0051](../adr/0051-standard-library-tiers.md) rejects `setlocale` for.
+the unsoundness `rule:core-api/tier-placement` rejects `setlocale` for.
 
 Enums: `Weekday { Monday … Sunday }`, `Month { January … December }`,
 `Unit { Nanosecond, Microsecond, Millisecond, Second, Minute, Hour, Day, Week, Month, Quarter, Year }` —
 full words, because R7's closed abbreviation list does not reach enum cases either.
 
 PHP's `calendar` extension (`cal_days_in_month`, `easter_date`, the Julian/Jewish/French converters) is
-dropped outright ([ADR 0051](../adr/0051-standard-library-tiers.md)); `cal_days_in_month` is
+dropped outright (`rule:core-api/tier-placement`); `cal_days_in_month` is
 `$d->startOf(Unit::Month)->plus(…)` arithmetic, and the rest has no place in a Tier 0 library.
 
 ## 5. `Core\Regex`
@@ -806,7 +806,7 @@ lets a route segment ([ADR 0077](../adr/0077-compile-time-routing.md)) and a dat
 (`rule:core-classes/db-statement-members`) state that they take one.
 
 **Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,
-one of the two `tryParse`s [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits
+one of the two `tryParse`s `rule:core-api/shape-rules` R5 admits
 (`rule:expressions/try-parse`). `$s as ?Uuid` does **not** compile; `as`
 never targets a class. There is no `Uuid::isValid`, because it was exactly `tryParse` asked a second time
 and R17 keeps one — the same argument, and the same CVE, that § 12 gives for `Uri`. `v7` is time-ordered across
@@ -900,13 +900,13 @@ members sit on this class rather than beside `Core\Crypto`: a signature computed
 normalization above is what makes it impossible for the signing and verifying sides to drift. The
 reserved `_sig` parameter carries the tag and the lifetime together, every other component present is
 covered — so appending a parameter invalidates — and the fragment is never signed, because the server
-never receives one. [ADR 0146](../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)
+never receives one. `rule:core-api/signing-is-over-a-payload`
 owns all of it, including why `verifySignature` answers nothing and throws rather than returning a
 `bool` a caller can drop. **These two land with M8** rather than with the rest of Part I: they need
 `Core\Crypto`'s construction, which is the same split `Core\Router` already carries.
 
 **Asking whether text is a URI is `Uri::tryParse($s) != null`** — `parse` with `null` where it throws, and
-the one spelling [ADR 0063](../adr/0063-core-api-conventions.md) R5 admits `try…` for
+the one spelling `rule:core-api/shape-rules` R5 admits `try…` for
 (`rule:expressions/try-parse`). `$s as ?Uri` does **not** compile: `as`
 never targets a class, which is § 3's row without exceptions. There is no `Uri::isValid` either, by R17:
 a validator written as a *separate* implementation from the parser is how
@@ -1002,7 +1002,7 @@ same shape rules.
 only meaningful on a `mixed`, and the checker already knows every other case.
 
 **`Core\Test` is a surface plus a compiler feature**, which is why it sits here rather than in Part I. Its
-members are ordinary `Core` members obeying [ADR 0063](../adr/0063-core-api-conventions.md); what is not
+members are ordinary `Core` members obeying `rule:core-api/shape-rules`; what is not
 ordinary is that `#[Test]`, `#[Fixture]`, `#[TestWith]`, `#[Property]` and `#[Bench]` are read while
 compiling, that `assertEquals<T>` makes a type-mismatched comparison a compile error, and that each test
 runs in its own isolate. `rule:testing/test-attribute` owns all of that,
@@ -1026,7 +1026,7 @@ compatible with PHP's, and there is no hook to customise it
 # Part II — the capability-bearing half (M8)
 
 Everything below needs a capability grant, the reactor, an open handle or a driver. It is listed at one
-line per member because the semantics are owned by [ADR 0051](../adr/0051-standard-library-tiers.md)'s
+line per member because the semantics are owned by `rule:core-api/tier-placement`'s
 roster and by each subsystem's own ADR; the shape rules are identical to Part I's. Three entries land
 before M8 — see *Milestones* above for which and why.
 
@@ -1250,7 +1250,7 @@ text-family columns only, and the universal path is `->get()` plus `as`. An unkn
 
 A class participates in `queryAs<T>` by implementing `Core\Db\Codec`, which declares
 `static fromRow(Db\Row $row): static` — read-only by design, since writing rows from objects is an ORM
-concern and not `Core`'s ([ADR 0051](../adr/0051-standard-library-tiers.md) test 6). The other accepted `T`
+concern and not `Core`'s (`rule:core-api/tier-placement` test 6). The other accepted `T`
 is an inline shape (`rule:types/object-top`), validated per row.
 
 ### Enums, settings and errors

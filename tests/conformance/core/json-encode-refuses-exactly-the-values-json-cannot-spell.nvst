@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, ADR 0063 R4, `rule:core-classes/derive-reports-every-field`, `rule:types/bytes`
+`Core\Json::encode` writes every value JSON has a spelling for and refuses the rest in `LogicError`, each refusal wrapped in its own name — spec § 6, `rule:core-api/shape-rules` R4, `rule:core-classes/derive-reports-every-field`, `rule:types/bytes`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-reports-every-field`: participation in a wire format is written, never inferred, so
@@ -55,7 +55,7 @@ foreach ($unwritable as mixed $other) {
         echo "not refused=", $written, "\n";
     } catch (LogicError $no) {
         $refused = $refused + 1;
-        // ADR 0063 R4: the member that refused names itself, which is the half
+        // `rule:core-api/shape-rules` R4: the member that refused names itself, which is the half
         // of the sentence the three tails below do not carry.
         if (Core\Str::startsWith($no->message, 'Core\Json::encode(): ')) {
             $wrapped = $wrapped + 1;

@@ -9,7 +9,7 @@ yet.** Goal 24's whole list is this goal's Stage 1 floor.
 `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`'s header said "the four in § 17 are the
 document and archive formats M9 carries"; [m9.md](../../plan/m9.md) is the extension system — `.nvsx`
 loading, the WIT world, the capability bridge — and carries none of them, while
-[ADR 0051](../../adr/0051-standard-library-tiers.md) § 3 puts all three at Tier 0.
+`rule:core-api/tier-roster` puts all three at Tier 0.
 
 All three are Tier 0 for one reason: what a compressed or archived input can do to a server is
 **policy**, and policy must be non-optional. `Core\Zip` is Core "despite passing test 5" for exactly

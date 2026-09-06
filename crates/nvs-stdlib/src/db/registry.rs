@@ -14,8 +14,7 @@
 use super::*;
 
 /// Spec § 18's `Db\Settings` — the two arms `open` takes, in the spec's own
-/// order, per [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-/// § 1.
+/// order, per `rule:core-api/shape-parameter`.
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
 /// declared.** § 2's arm selection is "exactly one arm accepts it", and ADR
@@ -432,7 +431,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 #[cfg(test)]
 pub(super) const BEYOND_QUERYABLE: &[&str] = &["close", "driver", "isOpen"];
 
-/// `Core\Db\Connection::close`'s reference card — ADR 0117.
+/// `Core\Db\Connection::close`'s reference card — `rule:core-api/reference-card`.
 const CLOSE_DOC: MethodDoc = MethodDoc {
     short: "Releases the connection to this core's pool, ahead of the request that opened it. \
             Every other member of this connection then throws; `isOpen` answers `false`, and a \
@@ -443,7 +442,7 @@ const CLOSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Connection::driver`'s reference card — ADR 0117.
+/// `Core\Db\Connection::driver`'s reference card — `rule:core-api/reference-card`.
 const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
     short: "Which backend this connection speaks to, as the `Core\\Db\\Driver` case the \
             `[db.<name>]` block or the `open` settings named.",
@@ -455,7 +454,7 @@ const DRIVER_MEMBER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Connection::isOpen`'s reference card — ADR 0117.
+/// `Core\Db\Connection::isOpen`'s reference card — `rule:core-api/reference-card`.
 const IS_OPEN_DOC: MethodDoc = MethodDoc {
     short: "Whether this connection is still usable — `true` until `close`, and `false` after \
             it. It is the one member a closed connection still answers.",
@@ -466,7 +465,7 @@ const IS_OPEN_DOC: MethodDoc = MethodDoc {
 };
 
 /// `rule:core-classes/db-transactions`'s `{isolation?, readOnly?, retries?}` — the bag
-/// [`TRANSACTION_ROW`] declares last, per ADR 0063 R2.
+/// [`TRANSACTION_ROW`] declares last, per `rule:core-api/shape-rules` R2.
 ///
 /// **Every default is § 7's own and each is a decision rather than a
 /// placeholder.** `isolation` is [`Const::Null`] and so *absent*, which is the
@@ -543,7 +542,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
 /// `executeMany` and `transaction` resolve to [`CONNECTION`]'s helpers, which
 /// reach the connection through [`handle_of`] and so accept either receiver.
 /// The alternative — four forwarding bodies — is four places for a rule to be
-/// stated twice, and ADR 0063 R17 is the same objection to two spellings of one
+/// stated twice, and `rule:core-api/shape-rules` R17 is the same objection to two spellings of one
 /// operation.
 ///
 /// **The first two slots are [`CONNECTION`]'s, in the same positions and under
@@ -682,7 +681,7 @@ pub(crate) const DRIVER_NAME: &str = r"Core\Db\Driver";
 /// as. Nothing about a backend is decided here.
 ///
 /// **The cases are what make `Db\Settings` a discriminated union**, and they
-/// are the whole of the mechanism: ADR 0135 § 2 selects an arm by asking which
+/// are the whole of the mechanism: `rule:core-api/shape-arms-are-disjoint` selects an arm by asking which
 /// one accepts the literal, and `rule:types/literal-types`'s enum-case types make
 /// `Driver::Sqlite` and the other four disjoint sets. No field is declared to
 /// be a discriminant, here or anywhere.
@@ -703,7 +702,7 @@ pub(crate) const DRIVER: CoreEnum = CoreEnum {
     doc: Some(&DRIVER_DOC),
 };
 
-/// [`DRIVER`]'s reference card — ADR 0117.
+/// [`DRIVER`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
     short: "Which backend a connection speaks to. It is what a `Core\\Db::open` settings literal \
             names first, and naming it is what decides which of the two shapes the rest of that \
@@ -766,7 +765,7 @@ pub(crate) const TLS: CoreEnum = CoreEnum {
     doc: Some(&TLS_DOC),
 };
 
-/// [`TLS`]'s reference card — ADR 0117.
+/// [`TLS`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const TLS_DOC: EnumDoc = EnumDoc {
     short: "How much of a server's identity a TCP connection establishes before it sends a \
             credential. `VerifyFull` is what every connection does and what a settings literal \
@@ -828,7 +827,7 @@ pub(crate) const ISOLATION: CoreEnum = CoreEnum {
     doc: Some(&ISOLATION_DOC),
 };
 
-/// [`ISOLATION`]'s reference card — ADR 0117.
+/// [`ISOLATION`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
     short: "What a transaction is allowed to see of the work running beside it — the `isolation` \
             option `transaction` takes, and the connection's own level when it is absent. A driver \
@@ -914,7 +913,7 @@ pub(crate) const ERROR_KIND: CoreEnum = CoreEnum {
     doc: Some(&ERROR_KIND_DOC),
 };
 
-/// [`ERROR_KIND`]'s reference card — ADR 0117.
+/// [`ERROR_KIND`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
     short: "Why the server refused a statement, normalised across the drivers so that a program \
             branches on the condition rather than on a vendor code. `Core\\Db\\DbError::$kind` \
@@ -1019,7 +1018,7 @@ pub(crate) const COLUMN_TYPE: CoreEnum = CoreEnum {
     doc: Some(&COLUMN_TYPE_DOC),
 };
 
-/// [`COLUMN_TYPE`]'s reference card — ADR 0117.
+/// [`COLUMN_TYPE`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
     short: "What a result column was declared as, which is a description of the column and not a \
             summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read \
@@ -1219,7 +1218,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
 /// numeric twin to ask for and no object twin either: `get`/`toArray` are the
 /// associative reading, the typed readers below are what an object reading was
 /// wanted for, and `queryAs<T>` — `rule:core-classes/derive-attribute`'s `#[Db\Derive]` — is where a real
-/// class comes from. A fetch-mode argument would be [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// class comes from. A fetch-mode argument would be `rule:core-api/shape-rules`
 /// R11's flag deciding what a member returns, which is the thing that section
 /// removes.
 ///
@@ -1464,7 +1463,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
 /// which is the thing [`COLUMN_TYPE`] exists to replace; the rest is either a
 /// property of the wire encoding rather than of the column, or a second catalog
 /// round trip per statement — and PHP's own answer for it is an array whose keys
-/// differ per driver, which is the shape [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// differ per driver, which is the shape `rule:core-api/shape-rules`
 /// R11 removes.
 pub(crate) const COLUMN: CoreClass = CoreClass {
     name: COLUMN_NAME,
@@ -1584,7 +1583,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Db\Schema::fromArray`'s reference card — ADR 0117.
+/// `Core\Db\Schema::fromArray`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_FROM_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "Reads a schema out of its canonical array form — the same form `toArray` writes, a \
             file holds and `nvs schema dump` prints. Every rule the vocabulary has is checked \
@@ -1609,7 +1608,7 @@ const SCHEMA_FROM_ARRAY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Schema::toArray`'s reference card — ADR 0117.
+/// `Core\Db\Schema::toArray`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_TO_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "The schema in its canonical array form — what a program saves to a file, hands to \
             `Core\\Json::encode`, or compares against another schema.",
@@ -1621,7 +1620,7 @@ const SCHEMA_TO_ARRAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Schema::planAgainst`'s reference card — ADR 0117.
+/// `Core\Db\Schema::planAgainst`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_PLAN_AGAINST_DOC: MethodDoc = MethodDoc {
     short: "Reads the database this connection reaches and answers every difference between it and \
             this schema, in the order the differences must be closed. A plan is a document: \
@@ -1643,7 +1642,7 @@ const SCHEMA_PLAN_AGAINST_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Schema::applySafe`'s reference card — ADR 0117.
+/// `Core\Db\Schema::applySafe`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_APPLY_SAFE_DOC: MethodDoc = MethodDoc {
     short: "Plans against this connection and runs the plan, provided every step it would run is \
             graded `Safe`. Needs the `db.schema` capability for the connection's block: issuing \
@@ -1669,7 +1668,7 @@ const SCHEMA_APPLY_SAFE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Schema::applyIncludingRisky`'s reference card — ADR 0117.
+/// `Core\Db\Schema::applyIncludingRisky`'s reference card — `rule:core-api/reference-card`.
 const SCHEMA_APPLY_RISKY_DOC: MethodDoc = MethodDoc {
     short: "`applySafe`, without the grade check: runs every step of the plan including the ones \
             that can hold a long lock, rewrite a table or fail on rows that already exist. Named \
@@ -1720,7 +1719,7 @@ pub(crate) const PLAN: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Db\Plan::steps`'s reference card — ADR 0117.
+/// `Core\Db\Plan::steps`'s reference card — `rule:core-api/reference-card`.
 const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
     short: "Every step of the plan, in the order they must run, reports included.",
     params: &[],
@@ -1787,7 +1786,7 @@ pub(crate) const STEP: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Db\Plan\Step::grade`'s reference card — ADR 0117.
+/// `Core\Db\Plan\Step::grade`'s reference card — `rule:core-api/reference-card`.
 const STEP_GRADE_DOC: MethodDoc = MethodDoc {
     short: "What this step can cost, at worst.",
     params: &[],
@@ -1797,7 +1796,7 @@ const STEP_GRADE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Plan\Step::reason`'s reference card — ADR 0117.
+/// `Core\Db\Plan\Step::reason`'s reference card — `rule:core-api/reference-card`.
 const STEP_REASON_DOC: MethodDoc = MethodDoc {
     short: "Why the step is graded the way it is, in one sentence an operator reads.",
     params: &[],
@@ -1806,7 +1805,7 @@ const STEP_REASON_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Plan\Step::sql`'s reference card — ADR 0117.
+/// `Core\Db\Plan\Step::sql`'s reference card — `rule:core-api/reference-card`.
 const STEP_SQL_DOC: MethodDoc = MethodDoc {
     short: "The complete, terminated, dialect-correct SQL this step is. Never elided, including \
             for a step no `apply` will run: a deployment whose application credentials cannot \
@@ -1818,7 +1817,7 @@ const STEP_SQL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Plan\Step::isRefused`'s reference card — ADR 0117.
+/// `Core\Db\Plan\Step::isRefused`'s reference card — `rule:core-api/reference-card`.
 const STEP_IS_REFUSED_DOC: MethodDoc = MethodDoc {
     short: "Whether this step is a report — a table, column or key the database has and the \
             schema does not name.",
@@ -1843,7 +1842,7 @@ pub(crate) const GRADE: CoreEnum = CoreEnum {
     doc: Some(&GRADE_DOC),
 };
 
-/// [`GRADE`]'s reference card — ADR 0117.
+/// [`GRADE`]'s reference card — `rule:core-api/reference-card`.
 const GRADE_DOC: EnumDoc = EnumDoc {
     short: "What one step of a schema plan can cost at worst, so that a deployment can run the \
             half it is willing to run unattended.",
@@ -1867,7 +1866,7 @@ const GRADE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Db::connect`'s reference card — ADR 0117.
+/// `Core\Db::connect`'s reference card — `rule:core-api/reference-card`.
 pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
     short: "Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, and \
             answers the same one again for the rest of the request — `new PDO`, `pg_connect` and \
@@ -1915,7 +1914,7 @@ pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db::open`'s reference card — ADR 0117.
+/// `Core\Db::open`'s reference card — `rule:core-api/reference-card`.
 ///
 /// `shape` is filled here and empty on every other card in this module,
 /// because this is the one parameter that is a written shape rather than a
@@ -2026,7 +2025,7 @@ pub(super) const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db::inList`'s reference card — ADR 0117.
+/// `Core\Db::inList`'s reference card — `rule:core-api/reference-card`.
 pub(super) const IN_LIST_DOC: MethodDoc = MethodDoc {
     short: "Marks `$values` as a run of bound values rather than one, so the placeholder it is \
             bound to expands into a parenthesised list of that many — the `IN (?, ?, ?)` every \
@@ -2049,7 +2048,7 @@ pub(super) const IN_LIST_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db::quoteIdentifier`'s reference card — ADR 0117.
+/// `Core\Db::quoteIdentifier`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
     short: "Checks that `$name` is a bare SQL identifier — a letter or `_`, then letters, digits \
             or `_` — and answers it unchanged and no longer `tainted`, so it can be written into \
@@ -2071,7 +2070,7 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Connection::query`'s reference card — ADR 0117.
+/// `Core\Db\Connection::query`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement with its values bound, and reads every row it answers into memory \
             before returning — `PDO::prepare` plus `execute` plus `fetchAll` in one call, with no \
@@ -2136,7 +2135,7 @@ const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// `Core\Db\Connection::queryAs`'s reference card — ADR 0117.
+/// `Core\Db\Connection::queryAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement exactly as `query` does and answers its rows as the class written at \
             the call site — `PDO::FETCH_CLASS` and the hand-written hydration loop, with the \
@@ -2178,7 +2177,7 @@ pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Connection::execute`'s reference card — ADR 0117.
+/// `Core\Db\Connection::execute`'s reference card — `rule:core-api/reference-card`.
 pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement that answers counts rather than rows — an `insert`, an `update`, a \
             `delete`, a `create table` — and answers what it did: `PDO::exec`, \
@@ -2227,7 +2226,7 @@ pub(super) const EXECUTE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Connection::executeMany`'s reference card — ADR 0117.
+/// `Core\Db\Connection::executeMany`'s reference card — `rule:core-api/reference-card`.
 pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement once per set of values and answers how many rows the whole batch \
             wrote — the loop around `PDOStatement::execute` that every driver writes by hand, with \
@@ -2274,7 +2273,7 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Queryable::stream`'s reference card — ADR 0117.
+/// `Core\Db\Queryable::stream`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement and walks its rows one at a time, holding the connection open until \
             the walk ends — `MYSQLI_USE_RESULT` and `PDO::CURSOR_*`, with the cursor answered as \
@@ -2334,7 +2333,7 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Queryable::transaction`'s reference card — ADR 0117.
+/// `Core\Db\Queryable::transaction`'s reference card — `rule:core-api/reference-card`.
 pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
     short: "Runs `$fn` inside a transaction and answers whatever it answered: returning commits, \
             throwing rolls back and propagates. Replaces `beginTransaction`/`commit`/`rollBack` \
@@ -2403,7 +2402,7 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Transaction::rollBack`'s reference card — ADR 0117.
+/// `Core\Db\Transaction::rollBack`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
     short: "Gives up on this transaction: records `$reason`, and throws `Core\\Db\\RolledBack` \
             carrying it. There is no way to ask for a rollback and carry on inside the same \
@@ -2431,7 +2430,7 @@ pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Rows::all`'s reference card — ADR 0117.
+/// `Core\Db\Rows::all`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
     short: "Every row of the result, in the server's order — `PDO::fetchAll` without a fetch-mode \
             argument to choose the shape with.",
@@ -2442,7 +2441,7 @@ pub(super) const ROWS_ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Rows::first`'s reference card — ADR 0117.
+/// `Core\Db\Rows::first`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
     short: "The first row, or `null` where there is none — `PDO::fetch`, without its `false` and \
             without a cursor that a second call would move.",
@@ -2453,7 +2452,7 @@ pub(super) const ROWS_FIRST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Rows::value`'s reference card — ADR 0117.
+/// `Core\Db\Rows::value`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
     short: "The first column of the first row — `PDO::fetchColumn`, and the shape a `select \
             count(*)` is read with.",
@@ -2464,7 +2463,7 @@ pub(super) const ROWS_VALUE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Rows::column`'s reference card — ADR 0117.
+/// `Core\Db\Rows::column`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
     short: "One column's value from every row, in the server's order — `PDO::fetchAll` under \
             `FETCH_COLUMN`, with the column named rather than a mode flag.",
@@ -2483,7 +2482,7 @@ pub(super) const ROWS_COLUMN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Rows::count`'s reference card — ADR 0117.
+/// `Core\Db\Rows::count`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
     short: "How many rows the statement answered — `PDOStatement::rowCount` on a select, which is \
             the use of that member this replaces. A write's count is `Core\\Db\\Write::affected`.",
@@ -2493,7 +2492,7 @@ pub(super) const ROWS_COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Rows::columns`'s reference card — ADR 0117.
+/// `Core\Db\Rows::columns`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
     short: "What the statement described, one `Core\\Db\\Column` per column and in the server's \
             own order — `PDOStatement::getColumnMeta` asked once for the whole row description \
@@ -2505,7 +2504,7 @@ pub(super) const ROWS_COLUMNS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Column::name`'s reference card — ADR 0117.
+/// `Core\Db\Column::name`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
     short: "The column's label, as the server described it — `getColumnMeta`'s `name`. It is the \
             alias wherever the `select` list wrote one, because an alias is what the server \
@@ -2516,7 +2515,7 @@ pub(super) const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Column::type`'s reference card — ADR 0117.
+/// `Core\Db\Column::type`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
     short: "What the column was declared as, as a `Core\\Db\\ColumnType` case rather than the \
             vendor type name `getColumnMeta` hands back — so a program branches on something the \
@@ -2529,7 +2528,7 @@ pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Column::nullable`'s reference card — ADR 0117.
+/// `Core\Db\Column::nullable`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
     short: "Whether the column may hold NULL. On PostgreSQL this is always `true`, because a row \
             description carries no NOT NULL flag: the only way to learn it is a catalog query per \
@@ -2542,7 +2541,7 @@ pub(super) const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Row::has`'s reference card — ADR 0117.
+/// `Core\Db\Row::has`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_HAS_DOC: MethodDoc = MethodDoc {
     short: "Reports whether the row has a column with this name, so that a reader that would throw \
             on an unknown one can be asked first.",
@@ -2557,7 +2556,7 @@ pub(super) const ROW_HAS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Row::get`'s reference card — ADR 0117.
+/// `Core\Db\Row::get`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_GET_DOC: MethodDoc = MethodDoc {
     short: "One column's value, whatever the SQL-to-Novis type map made of it — the universal \
             read, which a program narrows with `as` where the typed readers do not fit.",
@@ -2573,7 +2572,7 @@ pub(super) const ROW_GET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::toArray`'s reference card — ADR 0117.
+/// `Core\Db\Row::toArray`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_TO_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "The whole row as a string-keyed array, in the server's column order — `FETCH_ASSOC`, \
             which is the only one of PHP's three fetch shapes that survives.",
@@ -2583,7 +2582,7 @@ pub(super) const ROW_TO_ARRAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Row::string`'s reference card — ADR 0117.
+/// `Core\Db\Row::string`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_STRING_DOC: MethodDoc = MethodDoc {
     short: "One column as `string`, for the text family alone — `CHAR`, `VARCHAR`, `TEXT`, `ENUM` \
             and `JSON`, each of which reads back as a `tainted string`.",
@@ -2600,7 +2599,7 @@ pub(super) const ROW_STRING_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::bytes`'s reference card — ADR 0117.
+/// `Core\Db\Row::bytes`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_BYTES_DOC: MethodDoc = MethodDoc {
     short: "One column as `bytes` — `BINARY`, `BLOB` and `BYTEA`, which have no text form at all \
             and are a separate type from `string`.",
@@ -2617,7 +2616,7 @@ pub(super) const ROW_BYTES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::int`'s reference card — ADR 0117.
+/// `Core\Db\Row::int`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_INT_DOC: MethodDoc = MethodDoc {
     short: "One column as `int` — `SMALLINT`, `INT` and `BIGINT`, and an unsigned column whose \
             value fits.",
@@ -2635,7 +2634,7 @@ pub(super) const ROW_INT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::uint`'s reference card — ADR 0117.
+/// `Core\Db\Row::uint`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_UINT_DOC: MethodDoc = MethodDoc {
     short: "One column as `uint` — MySQL's and MariaDB's `… UNSIGNED`, and a signed column that is \
             not negative.",
@@ -2652,7 +2651,7 @@ pub(super) const ROW_UINT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::float`'s reference card — ADR 0117.
+/// `Core\Db\Row::float`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
     short: "One column as `float` — `FLOAT`, `REAL` and `DOUBLE`, and nothing else.",
     params: &[ParamDoc {
@@ -2669,7 +2668,7 @@ pub(super) const ROW_FLOAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::bool`'s reference card — ADR 0117.
+/// `Core\Db\Row::bool`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_BOOL_DOC: MethodDoc = MethodDoc {
     short: "One column as `bool` — `BOOLEAN` and `BIT(1)`, and an integer column holding `0` or \
             `1`, which is how MySQL's and MariaDB's `TINYINT(1)` is read: it is naturally an \
@@ -2688,7 +2687,7 @@ pub(super) const ROW_BOOL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::decimal`'s reference card — ADR 0117.
+/// `Core\Db\Row::decimal`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_DECIMAL_DOC: MethodDoc = MethodDoc {
     short: "One column as `decimal` — `DECIMAL`, `NUMERIC` and `MONEY`, exact, where PHP hands \
             back a string to parse.",
@@ -2704,7 +2703,7 @@ pub(super) const ROW_DECIMAL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::instant`'s reference card — ADR 0117.
+/// `Core\Db\Row::instant`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_INSTANT_DOC: MethodDoc = MethodDoc {
     short: "One column as a `Core\\Time\\Instant` — `TIMESTAMPTZ` and `datetimeoffset`, the two \
             that carry their own zone.",
@@ -2722,7 +2721,7 @@ pub(super) const ROW_INSTANT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::date`'s reference card — ADR 0117.
+/// `Core\Db\Row::date`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_DATE_DOC: MethodDoc = MethodDoc {
     short: "One column as a `Core\\Time\\Date` — a `DATE`, which is a calendar day and carries no \
             time at all.",
@@ -2738,7 +2737,7 @@ pub(super) const ROW_DATE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::time`'s reference card — ADR 0117.
+/// `Core\Db\Row::time`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_TIME_DOC: MethodDoc = MethodDoc {
     short: "One column as a `Core\\Time\\TimeOfDay` — a `TIME`, which is a clock reading with no \
             day behind it.",
@@ -2754,7 +2753,7 @@ pub(super) const ROW_TIME_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Row::uuid`'s reference card — ADR 0117.
+/// `Core\Db\Row::uuid`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
     short: "One column as a `Core\\Uuid` — PostgreSQL's `UUID`, SQL Server's `uniqueidentifier` \
             and MariaDB 10.7+'s `UUID`. MySQL stores one as `BINARY(16)`, which stays `bytes`.",
@@ -2771,7 +2770,7 @@ pub(super) const ROW_UUID_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Db\Write::affected`'s reference card — ADR 0117.
+/// `Core\Db\Write::affected`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_AFFECTED_DOC: MethodDoc = MethodDoc {
     short: "How many rows the statement affected — `PDOStatement::rowCount` on a write, without \
             its documented unreliability on a select, because a select does not answer with one \
@@ -2782,7 +2781,7 @@ pub(super) const WRITE_AFFECTED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Write::changed`'s reference card — ADR 0117.
+/// `Core\Db\Write::changed`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_CHANGED_DOC: MethodDoc = MethodDoc {
     short: "The same count as the server itself reported it, whose `null` is the one thing \
             `affected` cannot say: this statement's kind carries no row count at all.",
@@ -2794,7 +2793,7 @@ pub(super) const WRITE_CHANGED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Write::lastId`'s reference card — ADR 0117.
+/// `Core\Db\Write::lastId`'s reference card — `rule:core-api/reference-card`.
 pub(super) const WRITE_LAST_ID_DOC: MethodDoc = MethodDoc {
     short: "The key the statement handed back, read off the write that produced it rather than \
             off the connection — `lastInsertId` and `mysqli_insert_id` without their \

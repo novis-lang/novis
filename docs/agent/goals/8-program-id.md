@@ -59,7 +59,7 @@ Goal 7's whole acceptance list — the parity program and the temp sweep, never 
 1. **`Core\Program::id()`** — the `Core` member shape's full set of edits, in a new
    `crates/nvs-stdlib/src/program.rs`, with the registry card
    (`crates/nvs-stdlib/src/registry.rs`) carrying the two descriptions above per
-   [ADR 0117](../../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md), and the
+   `rule:core-api/reference-card`, and the
    reference doc at `docs/reference/core/Program.md`. Zero arguments, pure, no capability gate — it reads
    program state and touches no I/O.
 2. **The conformance case** — `tests/conformance/core/` — asserting in-language what frozen output can

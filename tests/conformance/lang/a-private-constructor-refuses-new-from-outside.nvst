@@ -1,5 +1,5 @@
 --TEST--
-`new` takes the same visibility test a call does, so a `private` constructor is the singleton it was written to be — ADR 0094 § 1
+`new` takes the same visibility test a call does, so a `private` constructor is the singleton it was written to be — `rule:core-api/written-visibility`
 --FILE--
 <?nvs
 // Nothing names `constructor` at the `new` site, but the constructor is what

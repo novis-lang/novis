@@ -33,7 +33,7 @@ class Tool
 }
 --FILE vendor/src/Tool.nvs--
 <?nvs
-// Never parsed. `vendor` is not a `PascalCase` segment (ADR 0029), so it
+// Never parsed. `vendor` is not a `PascalCase` segment (`rule:core-api/identifier-casing`), so it
 // never becomes a prefix and no name can resolve into this file. That is also
 // why this file is free to be one that no autoloaded file may be: § 2 allows
 // exactly one top-level declaration, so `E0317` would fire here the moment

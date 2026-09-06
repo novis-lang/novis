@@ -7,7 +7,7 @@
 // names the one exception: the developer validated the value and needs to say
 // so. Every other `Qual::Launder` row on the roster is refused at the sinks it
 // did not name; this is the row that names none, so the claim is asked of
-// three of ADR 0063 R11's grammars across three classes rather than of one.
+// three of `rule:core-api/shape-rules` R11's grammars across three classes rather than of one.
 // A row that grew its own narrower answer still reads right on its own line
 // and fails here.
 tainted string $pattern = "a.b";

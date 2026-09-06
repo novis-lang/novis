@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — spec § 7, `rule:types/bytes`, ADR 0063 R4 and R8
+`Core\Bytes::unpack`, `::at` and `::fill` each name the last octet they read beside the first they cannot — spec § 7, `rule:types/bytes`, `rule:core-api/shape-rules` R4 and R8
 --FILE--
 <?nvs
 // Spec § 7's three reading boundaries, each asserted on both sides and by the
@@ -95,7 +95,7 @@ echo Buf::why($packet, "N"), "\n";
 echo Buf::fields(Core\Bytes::slice($packet, 0, 4), "N"), " ", Buf::fields($packet, "Nx"), " ", Buf::fields($packet, "NC"), "\n";
 echo Buf::why(Core\Encoding::fromHex("0102"), ""), "\n";
 
-// `Core\Bytes::at` asks the strict question ADR 0063 R8's range rule leaves the
+// `Core\Bytes::at` asks the strict question `rule:core-api/shape-rules` R8's range rule leaves the
 // window members answering leniently: the last index each way is an octet and
 // the first past it is a throw, on both signs, and an empty buffer has no index
 // at all rather than a sentinel one.
@@ -126,7 +126,7 @@ echo $same, " of 4\n";
 
 // `Core\Bytes::fill`'s byte is a `uint`, so only its top end is a runtime
 // bound: 255 is the last octet and 256 is a caller's bug rather than `chr()`'s
-// wrap to `"\0"` (ADR 0063 R4). The low end never becomes an argument — a
+// wrap to `"\0"` (`rule:core-api/shape-rules` R4). The low end never becomes an argument — a
 // negative literal is `E0401` at the call, exactly as `pack`'s 64-bit codes
 // leave their range to the compiler.
 echo Buf::fill(2, 255), "\n";

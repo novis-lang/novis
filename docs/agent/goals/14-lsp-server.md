@@ -82,7 +82,7 @@ session.
 
 - **`hover`** — the declared type under the cursor from `nvs_types::ExprTypeTable`; for a `Core` member its
   `nvs_stdlib::registry` signature row and reference card
-  ([ADR 0117](../../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md)); for a
+  (`rule:core-api/reference-card`); for a
   declaration, its own **doc comment**, which goal 11 made a checked structure rather than raw trivia
   ([ADR 0137](../../adr/0137-a-doc-comment-is-three-slashes-and-two-tags.md)).
 - **`definition`** — within the document or anywhere in its resolved graph.

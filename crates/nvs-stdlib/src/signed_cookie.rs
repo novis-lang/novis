@@ -52,7 +52,7 @@
 //! # `seal` and `open` here are not `Core\Crypto`'s, and R17 is why they can
 //! share the names
 //!
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R17 refuses an
+//! `rule:core-api/shape-rules` R17 refuses an
 //! operation reachable two ways. These rows are not a second route to
 //! `Core\Crypto::seal`: that member takes `bytes` and one key and answers the
 //! raw sealed message, and these take a `string` and a *ring* and answer text a
@@ -145,7 +145,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\SignedCookie::seal`'s reference card — ADR 0117.
+/// `Core\SignedCookie::seal`'s reference card — `rule:core-api/reference-card`.
 const SEAL_DOC: MethodDoc = MethodDoc {
     short: "Seals `$value` under the newest key in `$keys` and answers cookie-safe text. \
             The construction is `Core\\Crypto`'s, so the cookie is encrypted as well as \
@@ -180,7 +180,7 @@ const SEAL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\SignedCookie::open`'s reference card — ADR 0117.
+/// `Core\SignedCookie::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
     short: "Authenticates `$cookie` against every key in `$keys` and answers the value that \
             was sealed, or throws. The answer is **unqualified**: a payload this application \

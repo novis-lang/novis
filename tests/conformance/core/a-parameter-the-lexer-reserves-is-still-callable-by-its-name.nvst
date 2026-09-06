@@ -1,5 +1,5 @@
 --TEST--
-a `Core` parameter whose spec name is a reserved word is callable by that name — `fn:` in argument position is a name, and an `fn` literal beside it is still a closure (ADR 0063 R2)
+a `Core` parameter whose spec name is a reserved word is callable by that name — `fn:` in argument position is a name, and an `fn` literal beside it is still a closure (`rule:core-api/shape-rules` R2)
 --FILE--
 <?nvs
 // `docs/spec/01-core-library.md` § 6 writes `Core\Arr::map(array<T> $a,

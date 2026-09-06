@@ -1,7 +1,7 @@
 //! `Core\Arr` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 2, over `nvs_runtime`'s insertion-ordered, copy-on-write `array<T>`.
 //!
-//! Every member here is pure (ADR 0063 R3) and borrows its subject rather
+//! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather
 //! than consuming it — see [`crate`]'s own docs for why that falls out of
 //! being a helper rather than being a rule this module states.
 //!
@@ -667,7 +667,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Arr::count`'s reference card — ADR 0117.
+/// `Core\Arr::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
     short: "Counts the entries in `$a`, as `count` and `sizeof` do.",
     params: &[ParamDoc {
@@ -679,7 +679,7 @@ const COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::filter`'s reference card — ADR 0117.
+/// `Core\Arr::filter`'s reference card — `rule:core-api/reference-card`.
 const FILTER_DOC: MethodDoc = MethodDoc {
     short: "Keeps the entries `$predicate` answers truthily for, as `array_filter` does — with \
             both of its flags folded in, since the callback receives `($value, $key)` and may \
@@ -702,7 +702,7 @@ const FILTER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::map`'s reference card — ADR 0117.
+/// `Core\Arr::map`'s reference card — `rule:core-api/reference-card`.
 const MAP_DOC: MethodDoc = MethodDoc {
     short: "Replaces every value with what `$fn` answers for it, as `array_map` does over one \
             array; keys are preserved.",
@@ -723,7 +723,7 @@ const MAP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::mapKeys`'s reference card — ADR 0117.
+/// `Core\Arr::mapKeys`'s reference card — `rule:core-api/reference-card`.
 const MAP_KEYS_DOC: MethodDoc = MethodDoc {
     short: "Stores every value under the key `$fn` answers for it — the `keyBy` idiom, and \
             `array_combine(array_map(…), …)` as one member.",
@@ -745,7 +745,7 @@ const MAP_KEYS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::groupBy`'s reference card — ADR 0117.
+/// `Core\Arr::groupBy`'s reference card — `rule:core-api/reference-card`.
 const GROUP_BY_DOC: MethodDoc = MethodDoc {
     short: "Partitions the entries into buckets named by what `$key` answers for each — the \
             group-by loop PHP has no function for.",
@@ -767,7 +767,7 @@ const GROUP_BY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::reduce`'s reference card — ADR 0117.
+/// `Core\Arr::reduce`'s reference card — `rule:core-api/reference-card`.
 const REDUCE_DOC: MethodDoc = MethodDoc {
     short: "Folds the entries into one value from `$initial`, as `array_reduce` does; the \
             callback receives `($carry, $value, $key)` and may declare fewer parameters.",
@@ -792,7 +792,7 @@ const REDUCE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::find`'s reference card — ADR 0117.
+/// `Core\Arr::find`'s reference card — `rule:core-api/reference-card`.
 const FIND_DOC: MethodDoc = MethodDoc {
     short: "The first value `$predicate` answers truthily for, as `array_find` does; the walk \
             stops at the match.",
@@ -813,7 +813,7 @@ const FIND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::findKey`'s reference card — ADR 0117.
+/// `Core\Arr::findKey`'s reference card — `rule:core-api/reference-card`.
 const FIND_KEY_DOC: MethodDoc = MethodDoc {
     short: "The key of the first entry `$predicate` answers truthily for, as `array_find_key` \
             does; the walk stops at the match.",
@@ -833,7 +833,7 @@ const FIND_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::any`'s reference card — ADR 0117.
+/// `Core\Arr::any`'s reference card — `rule:core-api/reference-card`.
 const ANY_DOC: MethodDoc = MethodDoc {
     short: "Whether at least one entry satisfies `$predicate`, as `array_any` does; the walk \
             stops at the first match.",
@@ -853,7 +853,7 @@ const ANY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::all`'s reference card — ADR 0117.
+/// `Core\Arr::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Whether every entry satisfies `$predicate`, as `array_all` does; the walk stops at \
             the first failure.",
@@ -873,7 +873,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::isEmpty`'s reference card — ADR 0117.
+/// `Core\Arr::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     short: "Whether `$a` holds no entries — `empty($a)` and `count($a) === 0` as one member.",
     params: &[ParamDoc {
@@ -885,7 +885,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::hasKey`'s reference card — ADR 0117.
+/// `Core\Arr::hasKey`'s reference card — `rule:core-api/reference-card`.
 const HAS_KEY_DOC: MethodDoc = MethodDoc {
     short: "Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as \
             `isset($a[$k])` does, since a stored `null` still counts.",
@@ -905,7 +905,7 @@ const HAS_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::contains`'s reference card — ADR 0117.
+/// `Core\Arr::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
     short: "Whether some entry is `$needle` under strict identity, as `in_array` with `strict: \
             true` does — there is no loose form.",
@@ -926,7 +926,7 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::keyOf`'s reference card — ADR 0117.
+/// `Core\Arr::keyOf`'s reference card — `rule:core-api/reference-card`.
 const KEY_OF_DOC: MethodDoc = MethodDoc {
     short: "The key of the first entry that is `$needle` under strict identity, as `array_search` \
             with `strict: true` does.",
@@ -946,7 +946,7 @@ const KEY_OF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::isList`'s reference card — ADR 0117.
+/// `Core\Arr::isList`'s reference card — `rule:core-api/reference-card`.
 const IS_LIST_DOC: MethodDoc = MethodDoc {
     short: "Whether the keys are exactly `\"0\", \"1\", …` in that order, as `array_is_list` \
             does.",
@@ -960,7 +960,7 @@ const IS_LIST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::keys`'s reference card — ADR 0117.
+/// `Core\Arr::keys`'s reference card — `rule:core-api/reference-card`.
 const KEYS_DOC: MethodDoc = MethodDoc {
     short: "Every key in insertion order, as `array_keys` does without its search argument.",
     params: &[ParamDoc {
@@ -973,7 +973,7 @@ const KEYS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::values`'s reference card — ADR 0117.
+/// `Core\Arr::values`'s reference card — `rule:core-api/reference-card`.
 const VALUES_DOC: MethodDoc = MethodDoc {
     short: "Every value in insertion order under fresh keys, as `array_values` does.",
     params: &[ParamDoc {
@@ -985,7 +985,7 @@ const VALUES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::first`'s reference card — ADR 0117.
+/// `Core\Arr::first`'s reference card — `rule:core-api/reference-card`.
 const FIRST_DOC: MethodDoc = MethodDoc {
     short: "The first entry's value, as `reset`, `current` and `$a[array_key_first($a)]` answer \
             it — with no internal pointer to move.",
@@ -999,7 +999,7 @@ const FIRST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::last`'s reference card — ADR 0117.
+/// `Core\Arr::last`'s reference card — `rule:core-api/reference-card`.
 const LAST_DOC: MethodDoc = MethodDoc {
     short: "The last entry's value, as `end` and `$a[array_key_last($a)]` answer it.",
     params: &[ParamDoc {
@@ -1012,7 +1012,7 @@ const LAST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::firstKey`'s reference card — ADR 0117.
+/// `Core\Arr::firstKey`'s reference card — `rule:core-api/reference-card`.
 const FIRST_KEY_DOC: MethodDoc = MethodDoc {
     short: "The first entry's key, as `array_key_first` and `key` answer it.",
     params: &[ParamDoc {
@@ -1024,7 +1024,7 @@ const FIRST_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::lastKey`'s reference card — ADR 0117.
+/// `Core\Arr::lastKey`'s reference card — `rule:core-api/reference-card`.
 const LAST_KEY_DOC: MethodDoc = MethodDoc {
     short: "The last entry's key, as `array_key_last` answers it.",
     params: &[ParamDoc {
@@ -1036,7 +1036,7 @@ const LAST_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::slice`'s reference card — ADR 0117.
+/// `Core\Arr::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
     short: "The entries in one window of positions, as `array_slice` does; a position is \
             ordinal, whatever the keys are.",
@@ -1069,7 +1069,7 @@ const SLICE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::replaceRange`'s reference card — ADR 0117.
+/// `Core\Arr::replaceRange`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
     short: "The array with one window of positions replaced by `$replacement`'s values — what \
             `array_splice` returns, never what it does by reference.",
@@ -1102,7 +1102,7 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::chunk`'s reference card — ADR 0117.
+/// `Core\Arr::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
     short: "The entries in consecutive runs of `$size`, as `array_chunk` does; the last run is \
             short when the count does not divide.",
@@ -1131,7 +1131,7 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::append`'s reference card — ADR 0117.
+/// `Core\Arr::append`'s reference card — `rule:core-api/reference-card`.
 const APPEND_DOC: MethodDoc = MethodDoc {
     short: "The array with every trailing value added after its last entry, as `array_push` does \
             — `$a[] = $v` in expression position.",
@@ -1153,7 +1153,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::prepend`'s reference card — ADR 0117.
+/// `Core\Arr::prepend`'s reference card — `rule:core-api/reference-card`.
 const PREPEND_DOC: MethodDoc = MethodDoc {
     short: "The trailing values, then the array's values, as `array_unshift` does.",
     params: &[
@@ -1173,7 +1173,7 @@ const PREPEND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::withoutFirst`'s reference card — ADR 0117.
+/// `Core\Arr::withoutFirst`'s reference card — `rule:core-api/reference-card`.
 const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Every entry but the first — what `array_shift` leaves behind, with `first` answering \
             the element it removes.",
@@ -1187,7 +1187,7 @@ const WITHOUT_FIRST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::withoutLast`'s reference card — ADR 0117.
+/// `Core\Arr::withoutLast`'s reference card — `rule:core-api/reference-card`.
 const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
     short: "Every entry but the last — what `array_pop` leaves behind, with `last` answering the \
             element it removes.",
@@ -1201,7 +1201,7 @@ const WITHOUT_LAST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::padStart`'s reference card — ADR 0117.
+/// `Core\Arr::padStart`'s reference card — `rule:core-api/reference-card`.
 const PAD_START_DOC: MethodDoc = MethodDoc {
     short: "Copies of `$value` in front until the array holds `$size` entries, as `array_pad` \
             with a negative length does.",
@@ -1229,7 +1229,7 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::padEnd`'s reference card — ADR 0117.
+/// `Core\Arr::padEnd`'s reference card — `rule:core-api/reference-card`.
 const PAD_END_DOC: MethodDoc = MethodDoc {
     short: "Copies of `$value` after the last entry until the array holds `$size` entries, as \
             `array_pad` with a positive length does.",
@@ -1257,7 +1257,7 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::reverse`'s reference card — ADR 0117.
+/// `Core\Arr::reverse`'s reference card — `rule:core-api/reference-card`.
 const REVERSE_DOC: MethodDoc = MethodDoc {
     short: "The entries in the opposite order, as `array_reverse` does.",
     params: &[
@@ -1277,7 +1277,7 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::flip`'s reference card — ADR 0117.
+/// `Core\Arr::flip`'s reference card — `rule:core-api/reference-card`.
 const FLIP_DOC: MethodDoc = MethodDoc {
     short: "Every value made a key and every key made its value, as `array_flip` does.",
     params: &[ParamDoc {
@@ -1291,7 +1291,7 @@ const FLIP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::flatten`'s reference card — ADR 0117.
+/// `Core\Arr::flatten`'s reference card — `rule:core-api/reference-card`.
 const FLATTEN_DOC: MethodDoc = MethodDoc {
     short: "One level of nesting removed — every inner array's values in order, as a hand-written \
             walk does.",
@@ -1305,7 +1305,7 @@ const FLATTEN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::flattenDeep`'s reference card — ADR 0117.
+/// `Core\Arr::flattenDeep`'s reference card — `rule:core-api/reference-card`.
 const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
     short: "Every level of nesting removed, as a recursive walk or `iterator_to_array` over a \
             `RecursiveIteratorIterator` does; there is no depth count, since `flatten` is the \
@@ -1320,7 +1320,7 @@ const FLATTEN_DEEP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::column`'s reference card — ADR 0117.
+/// `Core\Arr::column`'s reference card — `rule:core-api/reference-card`.
 const COLUMN_DOC: MethodDoc = MethodDoc {
     short: "One named cell out of every row, as `array_column` does.",
     params: &[
@@ -1348,7 +1348,7 @@ const COLUMN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::sort`'s reference card — ADR 0117.
+/// `Core\Arr::sort`'s reference card — `rule:core-api/reference-card`.
 const SORT_DOC: MethodDoc = MethodDoc {
     short: "The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, \
             `uasort`, `natsort`, `natcasesort` and `array_multisort` as one member and four \
@@ -1396,7 +1396,7 @@ const SORT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::sortByKey`'s reference card — ADR 0117.
+/// `Core\Arr::sortByKey`'s reference card — `rule:core-api/reference-card`.
 const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
     short: "The entries in key order, stably, every key kept — `ksort`, `krsort` and `uksort` as \
             one member.",
@@ -1428,7 +1428,7 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::fill`'s reference card — ADR 0117.
+/// `Core\Arr::fill`'s reference card — `rule:core-api/reference-card`.
 const FILL_DOC: MethodDoc = MethodDoc {
     short: "`$count` copies of `$value` under `\"0\", \"1\", …`, as `array_fill` does from index \
             zero; there is no start index, since `fillKeys` takes the keys a caller wants.",
@@ -1451,7 +1451,7 @@ const FILL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::fillKeys`'s reference card — ADR 0117.
+/// `Core\Arr::fillKeys`'s reference card — `rule:core-api/reference-card`.
 const FILL_KEYS_DOC: MethodDoc = MethodDoc {
     short: "`$value` stored under every key in `$keys`, as `array_fill_keys` does.",
     params: &[
@@ -1471,7 +1471,7 @@ const FILL_KEYS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::range`'s reference card — ADR 0117.
+/// `Core\Arr::range`'s reference card — `rule:core-api/reference-card`.
 const RANGE_DOC: MethodDoc = MethodDoc {
     short: "The integers from `$start` to `$end` inclusive, as `range` does; the direction is \
             the bounds', so `$start > $end` counts down.",
@@ -1501,7 +1501,7 @@ const RANGE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::fromKeysAndValues`'s reference card — ADR 0117.
+/// `Core\Arr::fromKeysAndValues`'s reference card — `rule:core-api/reference-card`.
 const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
     short: "`$values`' entries stored under `$keys`' entries, paired in order, as \
             `array_combine` does.",
@@ -1526,7 +1526,7 @@ const FROM_KEYS_AND_VALUES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::from`'s reference card — ADR 0117.
+/// `Core\Arr::from`'s reference card — `rule:core-api/reference-card`.
 const FROM_DOC: MethodDoc = MethodDoc {
     short: "A sequence materialised as an array, as `iterator_to_array` does with \
             `preserve_keys: false` — an `Iterable<T>`, an `Iterator<T>` or an array, whatever \
@@ -1548,7 +1548,7 @@ const FROM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::overlay`'s reference card — ADR 0117.
+/// `Core\Arr::overlay`'s reference card — `rule:core-api/reference-card`.
 const OVERLAY_DOC: MethodDoc = MethodDoc {
     short: "`$base` with every layer's entries written over it, the right-hand value winning, as \
             `array_replace` does — and as `array_merge` over maps does, with every key treated \
@@ -1570,7 +1570,7 @@ const OVERLAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::overlayDeep`'s reference card — ADR 0117.
+/// `Core\Arr::overlayDeep`'s reference card — `rule:core-api/reference-card`.
 const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
     short: "`overlay` recursing wherever both sides of a key hold an array and neither is a \
             list, as `array_replace_recursive` does; a list is replaced wholesale.",
@@ -1591,7 +1591,7 @@ const OVERLAY_DEEP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::underlay`'s reference card — ADR 0117.
+/// `Core\Arr::underlay`'s reference card — `rule:core-api/reference-card`.
 const UNDERLAY_DOC: MethodDoc = MethodDoc {
     short: "`$base` with every layer's entries written underneath it, the left-hand value \
             winning — PHP's `array + array`, which does not compile here.",
@@ -1612,7 +1612,7 @@ const UNDERLAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::appendAll`'s reference card — ADR 0117.
+/// `Core\Arr::appendAll`'s reference card — `rule:core-api/reference-card`.
 const APPEND_ALL_DOC: MethodDoc = MethodDoc {
     short: "Every value of `$a`, then of each of `$others`, under fresh keys — `array_merge` \
             over lists, and the `array_merge(...$arrays)` idiom.",
@@ -1632,7 +1632,7 @@ const APPEND_ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::diff`'s reference card — ADR 0117.
+/// `Core\Arr::diff`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
     short: "The entries of `$a` that `$b` does not have, under strict identity — `array_diff`, \
             `array_diff_key`, `array_diff_assoc` and their three `u` variants as one member.",
@@ -1675,7 +1675,7 @@ const DIFF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::intersect`'s reference card — ADR 0117.
+/// `Core\Arr::intersect`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
     short: "The entries of `$a` that `$b` also has, under strict identity — `array_intersect` \
             and its five variants as one member.",
@@ -1718,7 +1718,7 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::countBy`'s reference card — ADR 0117.
+/// `Core\Arr::countBy`'s reference card — `rule:core-api/reference-card`.
 const COUNT_BY_DOC: MethodDoc = MethodDoc {
     short: "How many entries fall under each distinct value, as `array_count_values` does — or \
             under each answer of `by`, the group-and-count loop PHP has no function for.",
@@ -1741,7 +1741,7 @@ const COUNT_BY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::unique`'s reference card — ADR 0117.
+/// `Core\Arr::unique`'s reference card — `rule:core-api/reference-card`.
 const UNIQUE_DOC: MethodDoc = MethodDoc {
     short: "The entries whose value has not been seen before, as `array_unique` does — by strict \
             identity, so `1` and `\"1\"` are two entries, never `SORT_STRING`'s cast.",
@@ -1763,7 +1763,7 @@ const UNIQUE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::min`'s reference card — ADR 0117.
+/// `Core\Arr::min`'s reference card — `rule:core-api/reference-card`.
 const MIN_DOC: MethodDoc = MethodDoc {
     short: "The smallest entry under the natural order, as `min` with an array argument does — \
             the order `sort` uses without a comparator, never PHP's loose comparison.",
@@ -1781,7 +1781,7 @@ const MIN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::max`'s reference card — ADR 0117.
+/// `Core\Arr::max`'s reference card — `rule:core-api/reference-card`.
 const MAX_DOC: MethodDoc = MethodDoc {
     short: "The largest entry under the natural order, as `max` with an array argument does — \
             the order `sort` uses without a comparator, never PHP's loose comparison.",
@@ -1799,7 +1799,7 @@ const MAX_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::sum`'s reference card — ADR 0117.
+/// `Core\Arr::sum`'s reference card — `rule:core-api/reference-card`.
 const SUM_DOC: MethodDoc = MethodDoc {
     short: "The entries added up, as `array_sum` does, promoting entry by entry: `int` with `int` \
             stays `int`, a `float` anywhere makes the total `float`, a `decimal` anywhere makes \
@@ -1818,7 +1818,7 @@ const SUM_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::product`'s reference card — ADR 0117.
+/// `Core\Arr::product`'s reference card — `rule:core-api/reference-card`.
 const PRODUCT_DOC: MethodDoc = MethodDoc {
     short: "The entries multiplied together, as `array_product` does, promoting entry by entry \
             exactly as `sum` does.",
@@ -1836,7 +1836,7 @@ const PRODUCT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::average`'s reference card — ADR 0117.
+/// `Core\Arr::average`'s reference card — `rule:core-api/reference-card`.
 const AVERAGE_DOC: MethodDoc = MethodDoc {
     short: "The entries' mean — `array_sum($a) / count($a)` with the empty case answered.",
     params: &[ParamDoc {
@@ -1874,7 +1874,7 @@ pub const ORDER: CoreEnum = CoreEnum {
     doc: Some(&ORDER_DOC),
 };
 
-/// [`ORDER`]'s reference card — ADR 0117 § 1, on the first enum documented.
+/// [`ORDER`]'s reference card — `rule:core-api/reference-card`, on the first enum documented.
 const ORDER_DOC: EnumDoc = EnumDoc {
     short: "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec § 2's \
             `{order: …}` option, which is `Asc` when omitted.",
@@ -1905,7 +1905,7 @@ pub const SET_ON: CoreEnum = CoreEnum {
     doc: Some(&SET_ON_DOC),
 };
 
-/// [`SET_ON`]'s reference card — ADR 0117.
+/// [`SET_ON`]'s reference card — `rule:core-api/reference-card`.
 const SET_ON_DOC: EnumDoc = EnumDoc {
     short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare — spec § 2's \
             `{on: …}` option, which is `Values` when omitted; `by` and `comparator` apply to \
@@ -2343,7 +2343,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Keys are preserved**, which is PHP's own single-array behaviour and
     /// the one `Core\Arr::filter` already keeps: `array_map` renumbers only in
-    /// its multi-array form, which ADR 0063 R20 leaves no room for anyway.
+    /// its multi-array form, which `rule:core-api/shape-rules` R20 leaves no room for anyway.
     /// Re-keying is `mapKeys`, its own member in the spec's § 2 table.
     ///
     /// The callback receives `($value, $key)` and may declare fewer parameters,
@@ -2806,7 +2806,7 @@ fn copy_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray) {
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::hasKey(array<T> $a, int|string $key): bool` — replacing
     /// PHP's `array_key_exists` **and** `isset($a[$k])`, which differ in PHP
-    /// only over a stored `null` and therefore cannot both survive ADR 0063
+    /// only over a stored `null` and therefore cannot both survive `rule:core-api/shape-rules`
     /// R20.
     ///
     /// The first member with a **union** parameter. It needs no IR
@@ -2897,7 +2897,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// PHP's `array_keys($a, $search)` search form is not reproduced: that is
     /// `Core\Arr::keyOf` for one and a `filter` for many, and folding two
-    /// unrelated questions into one name is what ADR 0063 R20 refuses.
+    /// unrelated questions into one name is what `rule:core-api/shape-rules` R20 refuses.
     fn nvs_core_arr_keys(_ctx, args: [1]) {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
@@ -2925,7 +2925,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// The entry positions an `int $offset` and a `?int $length` name over an
-/// array of `count` entries, under ADR 0063 R8's sign rule.
+/// array of `count` entries, under `rule:core-api/shape-rules` R8's sign rule.
 ///
 /// Deliberately `crate::str::window`'s rule, one unit up: an array counts in
 /// *entries* where a string counts in characters, and nothing else differs.
@@ -2934,7 +2934,7 @@ nvs_runtime::nvs_helper! {
 ///   past the first clamps to it.
 /// * A **negative length** stops that many entries short of the end.
 /// * A **null length** runs to the end. That is the type saying what a
-///   sentinel would otherwise have to (ADR 0063 R5), and [`Const::Null`] is
+///   sentinel would otherwise have to (`rule:core-api/shape-rules` R5), and [`Const::Null`] is
 ///   what a call site materializes for a `slice` that omits it.
 /// * The end never precedes the start, so a window that closes before it
 ///   opens is empty rather than reversed.
@@ -3036,7 +3036,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Arr::replaceRange(array<T> $a, int $offset, ?int $length, array<T> $replacement = []): array<T>`
     /// — one window's entries substituted, replacing PHP's `array_splice` in
-    /// its returning form (ADR 0063 R3 makes every member pure, so the
+    /// its returning form (`rule:core-api/shape-rules` R3 makes every member pure, so the
     /// by-reference half is not reproduced).
     ///
     /// This is [`nvs_core_arr_slice`]'s window with the entries *replaced*
@@ -3236,7 +3236,7 @@ nvs_runtime::nvs_helper! {
     /// first, replacing what is left of the subject after PHP's `array_shift`.
     ///
     /// PHP splits that question across a statement that answers two at once:
-    /// `array_shift($a)` hands back the element *and* mutates `$a`. ADR 0063 R3
+    /// `array_shift($a)` hands back the element *and* mutates `$a`. `rule:core-api/shape-rules` R3
     /// makes nothing mutate, so the spec's § 2 table splits it in two —
     /// `Core\Arr::first` gets the element, this gets the remainder — and an
     /// empty array yields an empty array rather than a `null` and a warning.
@@ -3787,7 +3787,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::range(int $start, int $end, {step?: int}): array<int>` — the
     /// integers from `$start` to `$end` inclusive, replacing PHP's `range`.
     ///
-    /// The first member with an ADR 0063 R2 options bag, and therefore the
+    /// The first member with an `rule:core-api/shape-rules` R2 options bag, and therefore the
     /// first whose arity says something the spec's signature does not:
     /// `{step?: int}` is flattened into one ordinary argument by
     /// `nvs_ir::lower::lower_call_args`, so this is an `args: [3]` helper and
@@ -3889,7 +3889,7 @@ nvs_runtime::nvs_helper! {
     /// `array_combine`.
     ///
     /// **Two arrays of different lengths throw**, which is the spec's § 2
-    /// *Structure* note and ADR 0063 R4: PHP 8 raises a `ValueError` here, and
+    /// *Structure* note and `rule:core-api/shape-rules` R4: PHP 8 raises a `ValueError` here, and
     /// the shorter-wins alternative would silently drop data. The two are
     /// walked by their own cursors, so it is each array's *entry count* that
     /// has to match — neither side's keys are looked at, and the `$keys`
@@ -4710,7 +4710,7 @@ nvs_runtime::nvs_helper! {
     /// `$a[array_key_first($a)]`.
     ///
     /// The first `Core` member to answer `?T`. The empty array is `null`, not
-    /// a throw: ADR 0063 R5 makes `?T` the absence spelling and R4's throw is
+    /// a throw: `rule:core-api/shape-rules` R5 makes `?T` the absence spelling and R4's throw is
     /// for a *failure*, which asking a possibly-empty array for its first
     /// entry is not. The spec's § 2 notes the one thing this costs — over an
     /// `array<?T>` the answer cannot tell "absent" from "present and null",
@@ -4878,7 +4878,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::keyOf(array<T> $haystack, T $needle): ?string` — the key of
     /// the first entry that is the needle, replacing PHP's `array_search`.
     ///
-    /// `?string` rather than `string|false`: ADR 0063 R5 makes `?T` the one
+    /// `?string` rather than `string|false`: `rule:core-api/shape-rules` R5 makes `?T` the one
     /// absence spelling, which is the whole of what removes `array_search`'s
     /// `=== false` trap — a `0` key and a "not found" answer are the same
     /// value under `==` in PHP, and the reason its manual warns to compare
@@ -5195,7 +5195,7 @@ nvs_runtime::nvs_helper! {
     /// same entries but in `$b`'s key order, and an Novis array is
     /// insertion-ordered, so the difference is observable in `foreach`, in
     /// `Core\Json::encode` and in every `Arr::first`. Two behaviours, two
-    /// names — ADR 0063 R15.
+    /// names — `rule:core-api/shape-rules` R15.
     fn nvs_core_arr_underlay(_ctx, args: [2]) {
         let base = subject(args, "underlay")?;
         let mut out = NvsArray::new();
@@ -5467,7 +5467,7 @@ nvs_runtime::nvs_helper! {
     /// natural ordering, replacing PHP's `min` with an array argument.
     ///
     /// `null` over an empty array rather than PHP's `ValueError`, on
-    /// [`nvs_core_arr_first`]'s terms: ADR 0063 R5 makes `?T` the absence
+    /// [`nvs_core_arr_first`]'s terms: `rule:core-api/shape-rules` R5 makes `?T` the absence
     /// spelling, and "what is the smallest of nothing" is a question with an
     /// answer, not a failure.
     ///
@@ -5485,7 +5485,7 @@ nvs_runtime::nvs_helper! {
     /// `tests/differential/core/arr-min-and-max-*`.
     ///
     /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
-    /// and a ternary are for (ADR 0063 R17), and the array form is the one
+    /// and a ternary are for (`rule:core-api/shape-rules` R17), and the array form is the one
     /// that cannot be written in the language.
     fn nvs_core_arr_min(_ctx, args: [1]) {
         let subject = subject(args, "min")?;
@@ -6646,7 +6646,7 @@ mod tests {
         );
     }
 
-    /// ADR 0063 R4: PHP 8 raises a `ValueError` here rather than pairing what
+    /// `rule:core-api/shape-rules` R4: PHP 8 raises a `ValueError` here rather than pairing what
     /// it can, and silently dropping the excess would lose data.
     #[test]
     fn two_arrays_of_different_lengths_do_not_combine() {
@@ -6902,7 +6902,7 @@ mod tests {
     }
 
     /// An empty subject answers `null` at all four ends rather than throwing —
-    /// ADR 0063 R5's absence spelling, not R4's failure.
+    /// `rule:core-api/shape-rules` R5's absence spelling, not R4's failure.
     #[test]
     fn an_empty_array_has_no_ends() {
         let mut ctx = Ctx::new(OutputSink::Sink);

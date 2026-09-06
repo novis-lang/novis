@@ -46,7 +46,7 @@ try {
     echo $wrong->message, "\n";
 }
 
-// 4. A body that throws nothing is the other failure, with ADR 0063 R2's
+// 4. A body that throws nothing is the other failure, with `rule:core-api/shape-rules` R2's
 // `{message: ...}` bag in front of the report.
 try {
     Test::assertThrows(fn (): void => { Body::quiet(); }, ParseError::class, {message: "the decode refuses"});

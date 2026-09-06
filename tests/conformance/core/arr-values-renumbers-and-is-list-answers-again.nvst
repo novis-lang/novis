@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::values` renumbers a map into a list from `0`, and does it again after a key is unset — ADR 0063
+`Core\Arr::values` renumbers a map into a list from `0`, and does it again after a key is unset — `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 array<string> $a = ["x" => "one", "y" => "two", "z" => "three"];

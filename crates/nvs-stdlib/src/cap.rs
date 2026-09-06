@@ -92,7 +92,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cap::has`'s reference card — ADR 0117.
+/// `Core\Cap::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
     short: "Reports whether the code running here holds `$capability` at this point in the \
             request — the deployment's grant table, narrowed by anything the request or an \

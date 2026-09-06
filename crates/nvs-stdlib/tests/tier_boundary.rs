@@ -1,4 +1,4 @@
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 5 as a gate:
+//! `rule:core-api/core-means-always-present` as a gate:
 //! nothing outside Tier 0 registers a class under the `Core` namespace.
 //!
 //! § 1's table is what makes this checkable. Tier 0 is "compiled into every
@@ -14,7 +14,7 @@
 //! **A `Core\`-prefixed name is not by itself a tier violation**, which is why
 //! this gate does not look for one. `Core\Db`, `Core\Crypto` and
 //! `Core\Http\Client` are all Native subsystems and all keep the prefix — the
-//! split ADR 0051 § 3 states for `Core\Metrics` is the general rule: the
+//! split `rule:core-api/tier-roster` states for `Core\Metrics` is the general rule: the
 //! *class* is Tier 0 and unconditional, and it is the backend behind it that a
 //! Cargo feature may remove. What may never be conditional is whether the name
 //! resolves.
@@ -115,7 +115,7 @@ fn attributes_above<'a>(lines: &[&'a str], at: usize) -> Vec<&'a str> {
     found
 }
 
-/// ADR 0051 § 5: nothing outside Tier 0 registers a class under the `Core`
+/// `rule:core-api/core-means-always-present`: nothing outside Tier 0 registers a class under the `Core`
 /// namespace, and nothing a build flag can remove is registered there at all.
 ///
 /// Three claims, because "outside Tier 0" has three edges on a tree that has
@@ -147,7 +147,7 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
     assert!(
         unprefixed.is_empty(),
         "{} class(es) in `registry::CLASSES` do not name themselves under `Core`: {}\n\
-         Tier 0 is the `Core` namespace (ADR 0051 §§ 1 and 5), so a row here that is \
+         Tier 0 is the `Core` namespace (`rule:core-api/five-placements` and `rule:core-api/core-means-always-present`), so a row here that is \
          named anything else is a class claiming Tier 0's unconditional presence \
          without its namespace.",
         unprefixed.len(),
@@ -184,7 +184,7 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
     assert!(
         doors.is_empty(),
         "{} file(s) outside `nvs-stdlib` build a `CoreClass`: {}\n\
-         Tier 0's crate is the only one that may — ADR 0051 § 5. A subsystem at any \
+         Tier 0's crate is the only one that may — `rule:core-api/core-means-always-present`. A subsystem at any \
          other tier is named under its own namespace, so that its tier is visible at \
          the use site.",
         doors.len(),
@@ -219,10 +219,10 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
     assert!(
         conditional.is_empty(),
         "{} `Core` class registration(s) are conditional: {}\n\
-         ADR 0051 § 5: a `Core\\` name whose presence depends on a build flag makes \
+         `rule:core-api/core-means-always-present`: a `Core\\` name whose presence depends on a build flag makes \
          `rule:classes/no-free-functions-or-constants`'s reserved namespace conditional, which is the failure that section \
          exists to refuse. The feature gate belongs on the backend behind the class, \
-         the way ADR 0051 § 3 splits `Core\\Metrics`.",
+         the way `rule:core-api/tier-roster` splits `Core\\Metrics`.",
         conditional.len(),
         conditional.join(", ")
     );

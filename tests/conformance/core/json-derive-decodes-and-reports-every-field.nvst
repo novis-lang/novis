@@ -5,7 +5,7 @@
 #[Core\Json\Derive]
 class Row {
     public string $name;
-    // ADR 0071 § 4: nullability is a property of the *type*, so `null` is a
+    // `rule:core-api/required-optional-and-nullable`: nullability is a property of the *type*, so `null` is a
     // legal value here and an issue on every other field.
     public ?int $rank;
     #[Core\Json\Field(name: "is_live")]

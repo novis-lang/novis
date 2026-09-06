@@ -1,8 +1,8 @@
 --TEST--
-The six `Core\Session` members that need a session give one answer to a request that opened none, asserted by counting rather than read off any one of them -- ADR 0139 § 1
+The six `Core\Session` members that need a session give one answer to a request that opened none, asserted by counting rather than read off any one of them -- `rule:core-api/session-roster`
 --FILE--
 <?nvs
-// ADR 0139 § 1 states one rule for all of them, so this asks whether they
+// `rule:core-api/session-roster` states one rule for all of them, so this asks whether they
 // *agree* rather than what each said: a member that grew a refusal of its own
 // still looks right on its own line, and fails here. Each message has its own
 // member name taken out first, which is the only part allowed to differ.

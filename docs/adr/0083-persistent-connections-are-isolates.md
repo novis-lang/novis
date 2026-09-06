@@ -197,7 +197,7 @@ Core\Topic::unsubscribe(string $topic): void
 - **Cross-machine fan-out is not the runtime's.** A fleet that needs a publish on one host to reach a
   subscriber on another bridges topics to a broker in application code. Building an inter-node bus would
   mean owning a distributed system's failure modes, which
-  [ADR 0051](0051-standard-library-tiers.md)'s domain-logic rule says to take as a dependency, not write.
+  `rule:core-api/tier-placement`'s domain-logic rule says to take as a dependency, not write.
 
 ### 5. SSE is the same model without `receive`
 

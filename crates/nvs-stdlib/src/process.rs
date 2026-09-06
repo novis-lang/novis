@@ -105,7 +105,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Process::run`'s reference card — ADR 0117.
+/// `Core\Process::run`'s reference card — `rule:core-api/reference-card`.
 const RUN_DOC: MethodDoc = MethodDoc {
     short: "Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP's \
             `exec`, `system`, `shell_exec`, `passthru` and the backtick operator, all of which \
@@ -210,7 +210,7 @@ pub(crate) const RESULT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Process\Result::exitCode`'s reference card — ADR 0117.
+/// `Core\Process\Result::exitCode`'s reference card — `rule:core-api/reference-card`.
 const EXIT_CODE_DOC: MethodDoc = MethodDoc {
     short: "The status the child exited with — `$?`, and the third out-parameter `exec` writes.",
     params: &[],
@@ -219,7 +219,7 @@ const EXIT_CODE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Process\Result::stdout`'s reference card — ADR 0117.
+/// `Core\Process\Result::stdout`'s reference card — `rule:core-api/reference-card`.
 const STDOUT_DOC: MethodDoc = MethodDoc {
     short: "Everything the child wrote to its standard output, captured whole.",
     params: &[],
@@ -229,7 +229,7 @@ const STDOUT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Process\Result::stderr`'s reference card — ADR 0117.
+/// `Core\Process\Result::stderr`'s reference card — `rule:core-api/reference-card`.
 const STDERR_DOC: MethodDoc = MethodDoc {
     short: "Everything the child wrote to its standard error, captured whole and kept separate \
             from `stdout` — the stream PHP's `exec` discards and `shell_exec` merges.",

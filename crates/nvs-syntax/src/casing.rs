@@ -1,8 +1,8 @@
 //! The declaration checks that need only the AST: identifier casing
-//! ([ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md),
+//! (`rule:core-api/identifier-casing`,
 //! tightened by `rule:classes/no-leading-underscore-identifiers`)
 //! and the visibility
-//! [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
+//! `rule:core-api/written-visibility`
 //! requires at every member declaration. Each is checked directly off the
 //! AST a declaration already produces — no name resolution needed, so this
 //! lives in `nvs-syntax` rather than waiting on `nvs-hir`/`nvs-types`.
@@ -12,7 +12,7 @@
 //! Splitting them into two passes would walk every file twice to learn what
 //! one visit already knows.
 //!
-//! Every category uses exactly the pattern in ADR 0029's table — the leading
+//! Every category uses exactly the pattern in `rule:core-api/identifier-casing`'s table — the leading
 //! character's case, an alphanumeric rest — with no leading-underscore
 //! carve-out and no acronym restriction of any kind. A method literally named
 //! `__construct` gets [`nvs_diagnostics::code::E_LEGACY_CONSTRUCTOR_SPELLING`]
@@ -21,7 +21,7 @@
 //!
 //! # What is, and isn't, walked
 //!
-//! Every category ADR 0029's own scope names gets checked: class/interface/
+//! Every category `rule:core-api/identifier-casing`'s own scope names gets checked: class/interface/
 //! enum/enum-case/namespace-segment names (`PascalCase`), method names
 //! (`camelCase`), property/parameter/local-variable names (`camelCase`,
 //! `$`-sigil stripped before the pattern check), and class constant names
@@ -30,7 +30,7 @@
 //! variable — it is exactly that shape of identifier, just spelled without a
 //! `$` sigil.
 //!
-//! ADR 0094's visibility rule reaches the member slots of a `class`, an
+//! `rule:core-api/written-visibility`'s visibility rule reaches the member slots of a `class`, an
 //! `interface` and an anonymous class — the three bodies [`check_members`]
 //! walks. It deliberately does not reach a parameter (§ 2: visibility is
 //! what promotes one to a property, so requiring it everywhere would delete
@@ -46,7 +46,7 @@
 //! it: `nvs-cli` calls this straight after [`crate::parse_file`] on the file
 //! it was pointed at, and `nvs_hir::resolve_program` calls it on each file
 //! it parses for a `require`. Nothing else parses a file, so there is no
-//! third call site and no path that skips the rule ADR 0029 says has no
+//! third call site and no path that skips the rule `rule:core-api/identifier-casing` says has no
 //! suppression.
 //!
 //! Only a *declaration* site is checked, never a reference: `Class::method`,
@@ -55,7 +55,7 @@
 //! site.
 //!
 //! **Known gaps, left out deliberately:**
-//! - A `type` alias's own name is not checked — ADR 0029's scope table does
+//! - A `type` alias's own name is not checked — `rule:core-api/identifier-casing`'s scope table does
 //!   not list "type alias" as one of the categories it covers, so no rule is
 //!   enforced here rather than guessing one.
 //! - Anything that already gets its own diagnostic for being an
@@ -75,8 +75,8 @@ use crate::ast::{
     StmtKind, StringPart, Visibility,
 };
 
-/// Checks every declaration in `stmts` against ADR 0029/0030's casing rules
-/// and ADR 0094's required member visibility, reporting one diagnostic per
+/// Checks every declaration in `stmts` against `rule:core-api/identifier-casing`/0030's casing rules
+/// and `rule:core-api/written-visibility`'s required member visibility, reporting one diagnostic per
 /// violation into `diags`.
 ///
 /// Needs nothing besides the parsed AST and the source it came from — no
@@ -91,11 +91,10 @@ fn span_text(src: &SourceFile, span: Span) -> &str {
 }
 
 // ============================================================================
-// Pattern checks — ADR 0029's table, `rule:classes/no-leading-underscore-identifiers`'s zero-exception tightening
+// Pattern checks — `rule:core-api/identifier-casing`'s table, `rule:classes/no-leading-underscore-identifiers`'s zero-exception tightening
 // ============================================================================
 
-/// Exactly [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md)
-/// § 1's rule: only the first character's case is checked, and the rest need
+/// Exactly `rule:core-api/casing-checks-the-leading-character`'s rule: only the first character's case is checked, and the rest need
 /// only be alphanumeric — no run-length or acronym check of any kind, so
 /// `HTTPClient` is accepted on equal footing with `HttpClient`.
 fn is_pascal_case(s: &str) -> bool {
@@ -131,7 +130,7 @@ fn is_screaming_snake_case(s: &str) -> bool {
 
 // ============================================================================
 // Mechanical rename suggestions — split on existing case/underscore
-// boundaries, re-join in the target convention (ADR 0029's *Diagnostics*
+// boundaries, re-join in the target convention (`rule:core-api/identifier-casing`'s *Diagnostics*
 // section promises every message names one of these).
 // ============================================================================
 
@@ -401,7 +400,7 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             body,
         } => {
             // `rule:iteration/for-init-clause`: the counter a declaration form binds is an
-            // ordinary local, so ADR 0029's `camelCase` rule reaches it
+            // ordinary local, so `rule:core-api/identifier-casing`'s `camelCase` rule reaches it
             // through the same arm a declaration above the loop takes.
             if let Some(decl) = init.decl() {
                 check_stmt(decl, src, diags);
@@ -540,8 +539,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
     }
 }
 
-/// [ADR 0094](/docs/adr/0094-visibility-is-written-at-every-member-declaration.md)
-/// § 1: a member declaration carrying none of `public`/`protected`/`private`
+/// `rule:core-api/written-visibility`: a member declaration carrying none of `public`/`protected`/`private`
 /// is [`code::E_MISSING_VISIBILITY`], because there is no default for it to
 /// have meant. § 3 makes PHP 8.4's bare `private(set)` the same error rather
 /// than a member whose read side is inferred, so a `(set)` modifier does not
@@ -824,7 +822,7 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
         ExprKind::Require { path } => check_expr(path, src, diags),
         ExprKind::ObjectLiteral(fields) => {
             // `rule:types/object-literal`: a literal's field names are ordinary property
-            // names, so ADR 0029's camelCase rule applies unchanged — reuse
+            // names, so `rule:core-api/identifier-casing`'s camelCase rule applies unchanged — reuse
             // the same check an ordinary class property declaration gets,
             // even though this field carries no `$` sigil to strip.
             for field in fields {
@@ -886,7 +884,7 @@ mod tests {
 
     #[test]
     fn an_all_caps_acronym_is_accepted() {
-        // ADR 0029 § 1: only the leading character's case is checked, so a
+        // `rule:core-api/casing-checks-the-leading-character`: only the leading character's case is checked, so a
         // kept-all-caps acronym is not flagged.
         let diags = check("<?nvs\nclass HTTPClient {}\n");
         assert!(diags.is_empty(), "{diags:?}");
@@ -1151,12 +1149,12 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // ADR 0094 — a member declaration writes its visibility
+    // `rule:core-api/written-visibility` — a member declaration writes its visibility
     // ------------------------------------------------------------------
 
     #[test]
     fn a_member_without_visibility_is_a_compile_error() {
-        // ADR 0094 § 1: all three member slots, in all three bodies that
+        // `rule:core-api/written-visibility`: all three member slots, in all three bodies that
         // have one. There is no default for any of them to have meant.
         for src in [
             "<?nvs\nclass Foo { int $count = 0; }\n",
@@ -1198,7 +1196,7 @@ mod tests {
 
     #[test]
     fn a_bare_set_visibility_is_a_compile_error() {
-        // ADR 0094 § 3: PHP 8.4 infers a `public` read side here, which is
+        // `rule:core-api/asymmetric-visibility-is-a-pair`: PHP 8.4 infers a `public` read side here, which is
         // the same implicit `public` this rule removes — so the message
         // names the pair rather than a bare keyword.
         let diags = check("<?nvs\nclass Foo { private(set) string $name = \"a\"; }\n");
@@ -1209,7 +1207,7 @@ mod tests {
 
     #[test]
     fn a_plain_constructor_parameter_needs_no_visibility() {
-        // ADR 0094 § 2: visibility is what promotes a parameter to a
+        // `rule:core-api/a-parameter-is-not-a-member`: visibility is what promotes a parameter to a
         // property, so requiring it on every parameter would delete the
         // distinction. Only the promoted one is a member.
         let diags = check(
@@ -1220,7 +1218,7 @@ mod tests {
 
     #[test]
     fn a_class_body_var_names_the_missing_visibility() {
-        // ADR 0094 § 4: `var` is `rule:types/var-inference`'s local-inference keyword, so
+        // `rule:core-api/legacy-property-shapes-name-the-visibility`: `var` is `rule:types/var-inference`'s local-inference keyword, so
         // without its own arm this would report something about the
         // statement grammar to an author writing PHP's property form.
         let diags = parse_and_check("<?nvs\nclass Foo { var $name; }\n");
@@ -1229,7 +1227,7 @@ mod tests {
 
     #[test]
     fn an_enum_body_reports_only_that_it_has_no_members() {
-        // ADR 0094's scope stops at a body with a member slot; `rule:enums/no-class-machinery`
+        // `rule:core-api/written-visibility`'s scope stops at a body with a member slot; `rule:enums/no-class-machinery`
         // already rejects everything in an enum that is not a case, and two
         // diagnostics for one mistake is worse than one.
         let diags = parse_and_check(

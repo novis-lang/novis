@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::join`'s length is its parts plus one separator between each, over a whole sweep, and its answer is `Core\Str::join`'s byte for byte — spec § 7, ADR 0063 R6, `rule:types/conversion`
+`Core\Bytes::join`'s length is its parts plus one separator between each, over a whole sweep, and its answer is `Core\Str::join`'s byte for byte — spec § 7, `rule:core-api/shape-rules` R6, `rule:types/conversion`
 --FILE--
 <?nvs
 // `bytes-join-concatenates-buffers.nvst` pins what `join` answers on five
@@ -7,7 +7,7 @@
 // *arithmetic* the separator cursor implements, over every part count from
 // zero to eight, and the *agreement* with `Core\Str::join`, which
 // `crates/nvs-stdlib/src/bytes.rs` names as the member this one is the buffer
-// row of (ADR 0063 R6 pairs the two classes by name). Both are counted rather
+// row of (`rule:core-api/shape-rules` R6 pairs the two classes by name). Both are counted rather
 // than read off a line: a cursor that emitted a leading or a trailing
 // separator answers the written-out rows plausibly and fails a sweep, and a
 // `join` that grew a rendering of its own — the one thing `rule:types/conversion` keeps

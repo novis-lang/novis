@@ -1,5 +1,5 @@
 --TEST--
-Both members that are asked *about* a job take the receipt itself, so neither of them can be handed a bare row number — ADR 0084 § 1, ADR 0063
+Both members that are asked *about* a job take the receipt itself, so neither of them can be handed a bare row number — ADR 0084 § 1, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // The agreement first: one receipt, two members, and each takes it whole. That

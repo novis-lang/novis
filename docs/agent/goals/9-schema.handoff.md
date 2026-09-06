@@ -23,7 +23,7 @@ including the steps `apply` refuses.
       `rule:core-classes/db-one-api`'s *Revisiting* item — *"a portable `Core\Db\Schema`, if
       migration tooling in `nvs` itself needs it"* — takes over
       `rule:core-classes/queue-storage-is-a-table`'s schema, and carries the placement
-      argument through [ADR 0051](../../adr/0051-standard-library-tiers.md) tests 2, 1 and 6. Take the
+      argument through `rule:core-api/tier-placement` tests 2, 1 and 6. Take the
       number that is free when the slice starts.
 - [ ] **The vocabulary in a new `crates/nvs-db/src/schema.rs`** — table, columns, primary key, unique
       constraints, indexes, and the column-type enum that is

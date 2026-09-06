@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::float draws 53 bits and exactly 53 — every draw is an exact multiple of 2^-53, the last of those bits varies, and no draw sits on the 2^-32 grid a narrower generator would leave it on — spec § 11, ADR 0063 R5
+Core\Random::float draws 53 bits and exactly 53 — every draw is an exact multiple of 2^-53, the last of those bits varies, and no draw sits on the 2^-32 grid a narrower generator would leave it on — spec § 11, `rule:core-api/shape-rules` R5
 
 --FILE--
 <?nvs

@@ -6,7 +6,7 @@ reactor drives, ask the host what process it is, and be told to shut down gracef
 `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` is three keys shorter.
 
 **They are M8's**, not a future milestone's:
-[ADR 0051](../../adr/0051-standard-library-tiers.md) § 3 puts all three at Tier 0 (`Core\Net` at
+`rule:core-api/tier-roster` puts all three at Tier 0 (`Core\Net` at
 `0051:143`, `Core\Os` at `0051:101`, `Core\Signal` at `0051:195`), and M8 is the milestone that builds
 Core's stdlib. M8's stdlib goals — 4 and 5 — have walked without them, which is what made these a gap
 in a past milestone rather than work on a future one.
@@ -19,7 +19,7 @@ fans out over, not a number nothing reads.
 1. **The three rows in `docs/spec/01-core-library.md` § 16** are the signatures, and they are thin —
    one sentence each. Each class's surface is settled *here*, in this goal's stages, and the spec row
    is edited to match rather than the other way round. That is the one place this goal writes the spec.
-2. **`Core\Net` has no ADR of its own** — ADR 0051 § 3's row is the whole design on disk. Stage 2's
+2. **`Core\Net` has no ADR of its own** — `rule:core-api/tier-roster`'s row is the whole design on disk. Stage 2's
    first act is the ADR this goal is allowed to open.
 
 ## Stage 1 — the floor
@@ -29,7 +29,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Stage 2 — `Core\Net`, over the reactor and nothing else
 
 1. **The ADR.** One number for the socket surface: what a program may open, what the capability
-   answers, and why there is no second event loop — "over the runtime's own reactor" is ADR 0051's
+   answers, and why there is no second event loop — "over the runtime's own reactor" is `rule:core-api/tier-placement`'s
    sentence and this is where it becomes a rule.
 2. **`net.local` joins the capability roster.**
    [ADR 0142](../../adr/0142-a-configured-store-is-authorized-by-its-configuring.md) § 6 names it and
@@ -66,7 +66,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 
 ## Stage 4 — `Core\Signal`, graceful shutdown and nothing else
 
-1. **The roster is closed at shutdown.** ADR 0051 § 3's row is "what remains of `pcntl_*` after `fork`
+1. **The roster is closed at shutdown.** `rule:core-api/tier-roster`'s row is "what remains of `pcntl_*` after `fork`
    is refused", and the surface is a handler for the terminating signals and nothing that resembles
    job control. There is no `kill`, no `alarm` and no signal number as an integer.
 2. **It composes with the drain that already exists.** ADR 0017 § 5's drain answers the probe and
@@ -87,7 +87,7 @@ Goal 23's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Standing decisions
 
 - **This goal may open one ADR number** — the `Core\Net` socket surface. `Core\Os` and `Core\Signal`
-  are ADR 0051 § 3 rows with no design question between them and get none.
+  are `rule:core-api/tier-roster` rows with no design question between them and get none.
 - **A second event loop is never the answer.** Every socket parks on the runtime's reactor. If a
   shape cannot be expressed that way the shape is cut, not the rule — this is what "over the runtime's
   own reactor rather than a second event loop" already decides.

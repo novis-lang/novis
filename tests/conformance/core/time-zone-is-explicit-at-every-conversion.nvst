@@ -26,7 +26,7 @@ try {
     echo Core\Str::contains($e->message, "unknown time zone") as string, "|\n";
 }
 
-// An offset spelling is `fixed`'s, never `of`'s — ADR 0063 R20 leaves one way
+// An offset spelling is `fixed`'s, never `of`'s — `rule:core-api/shape-rules` R20 leaves one way
 // to build one value.
 try {
     echo Core\Time\Zone::of("+02:00")->offsetAt($winter)->toSeconds() as string, "|\n";

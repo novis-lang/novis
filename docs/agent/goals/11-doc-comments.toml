@@ -25,7 +25,7 @@ modules = [
   "crates/nvs-diagnostics/src/lib.rs",
   # `Command::Meta`, and where `--strict-docs` and `nvs doc` are wired.
   "crates/nvs-cli/src/main.rs",
-  # The JSON emitter ADR 0117 s2 shapes; stage 5 adds the user half.
+  # The JSON emitter `rule:core-api/reference-card` s2 shapes; stage 5 adds the user half.
   "crates/nvs-cli/src/meta.rs",
 ]
 

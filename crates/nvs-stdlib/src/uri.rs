@@ -601,7 +601,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Uri::parse`'s reference card — ADR 0117.
+/// `Core\Uri::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads `$uri` as an RFC 3986 URI reference, as `parse_url` does — reporting, never \
             normalizing: every component comes back exactly as written, still percent-encoded \
@@ -621,7 +621,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Uri::tryParse`'s reference card — ADR 0117.
+/// `Core\Uri::tryParse`'s reference card — `rule:core-api/reference-card`.
 const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     short: "`Core\\Uri::parse` with `null` where it throws — the one spelling of \"is this text \
             a URI\", replacing `filter_var` with `FILTER_VALIDATE_URL`; its narrower question, \
@@ -636,7 +636,7 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uri::encodeComponent`'s reference card — ADR 0117.
+/// `Core\Uri::encodeComponent`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     short: "Percent-encodes `$s` for use as one piece of a URI — a path segment, a fragment, one \
             side of a query pair — as `rawurlencode` does: a space is `%20`, and every byte \
@@ -652,7 +652,7 @@ const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uri::decodeComponent`'s reference card — ADR 0117.
+/// `Core\Uri::decodeComponent`'s reference card — `rule:core-api/reference-card`.
 const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     short: "Reverses `Core\\Uri::encodeComponent`, as `rawurldecode` does: every `%XX` escape \
             becomes its byte, and a `+` stays a literal `+`.",
@@ -667,7 +667,7 @@ const DECODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uri::encodeFormValue`'s reference card — ADR 0117.
+/// `Core\Uri::encodeFormValue`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Encodes `$s` as one value of an `application/x-www-form-urlencoded` payload — a \
             query-string pair or a POST body — as `urlencode` does: a space is `+`, and every \
@@ -683,7 +683,7 @@ const ENCODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uri::decodeFormValue`'s reference card — ADR 0117.
+/// `Core\Uri::decodeFormValue`'s reference card — `rule:core-api/reference-card`.
 const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     short: "Reverses `Core\\Uri::encodeFormValue`, as `urldecode` does: a `+` is a space, `%2B` \
             is a `+`, and every other `%XX` escape becomes its byte.",
@@ -697,7 +697,7 @@ const DECODE_FORM_VALUE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Uri::parseQuery`'s reference card — ADR 0117.
+/// `Core\Uri::parseQuery`'s reference card — `rule:core-api/reference-card`.
 const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
     short: "Reads a query string into an array, as `parse_str` does but returning it rather than \
             populating variables: pairs split at `&`, each at its first `=`, both halves \
@@ -720,7 +720,7 @@ const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Uri::buildQuery`'s reference card — ADR 0117.
+/// `Core\Uri::buildQuery`'s reference card — `rule:core-api/reference-card`.
 const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
     short: "Writes `$parameters` as a query string, as `http_build_query` does — pairs joined by \
             `&`, both halves form-encoded, and a nested array written under its whole bracket \
@@ -740,7 +740,7 @@ const BUILD_QUERY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$uri->scheme`'s reference card — ADR 0117.
+/// `$uri->scheme`'s reference card — `rule:core-api/reference-card`.
 const SCHEME_DOC: MethodDoc = MethodDoc {
     short: "The scheme as written, never case-folded — `parse_url`'s `scheme` key.",
     params: &[],
@@ -748,7 +748,7 @@ const SCHEME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->userInfo`'s reference card — ADR 0117.
+/// `$uri->userInfo`'s reference card — `rule:core-api/reference-card`.
 const USER_INFO_DOC: MethodDoc = MethodDoc {
     short: "The whole userinfo subcomponent as written — `parse_url`'s `user` and `pass` keys \
             as one reader, because RFC 3986 deprecates the `user:password` form and a member \
@@ -759,7 +759,7 @@ const USER_INFO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->host`'s reference card — ADR 0117.
+/// `$uri->host`'s reference card — `rule:core-api/reference-card`.
 const HOST_DOC: MethodDoc = MethodDoc {
     short: "The host as written, never case-folded, an IPv6 literal still inside its brackets — \
             `parse_url`'s `host` key.",
@@ -769,7 +769,7 @@ const HOST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->port`'s reference card — ADR 0117.
+/// `$uri->port`'s reference card — `rule:core-api/reference-card`.
 const PORT_DOC: MethodDoc = MethodDoc {
     short: "The authority's port as a number — `parse_url`'s `port` key.",
     params: &[],
@@ -778,7 +778,7 @@ const PORT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->path`'s reference card — ADR 0117.
+/// `$uri->path`'s reference card — `rule:core-api/reference-card`.
 const PATH_DOC: MethodDoc = MethodDoc {
     short: "The path as written, still percent-encoded and with its dot segments in place — \
             `parse_url`'s `path` key.",
@@ -788,7 +788,7 @@ const PATH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->query`'s reference card — ADR 0117.
+/// `$uri->query`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
     short: "The raw query as written, still encoded — `parse_url`'s `query` key; \
             `Core\\Uri::parseQuery` turns it into an array.",
@@ -798,7 +798,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->fragment`'s reference card — ADR 0117.
+/// `$uri->fragment`'s reference card — `rule:core-api/reference-card`.
 const FRAGMENT_DOC: MethodDoc = MethodDoc {
     short: "The raw fragment as written, still encoded — `parse_url`'s `fragment` key.",
     params: &[],
@@ -807,7 +807,7 @@ const FRAGMENT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->toString`'s reference card — ADR 0117.
+/// `$uri->toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
     short: "The reference this `Uri` was parsed from, byte for byte — not a recomposition — and \
             what `echo $uri` writes.",
@@ -816,7 +816,7 @@ const TO_STRING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->with`'s reference card — ADR 0117.
+/// `$uri->with`'s reference card — `rule:core-api/reference-card`.
 const WITH_DOC: MethodDoc = MethodDoc {
     short: "A fresh `Uri` with the named components replaced and every other one carried over, \
             replacing reassembly by hand. It replaces and never removes — there is no spelling \
@@ -865,7 +865,7 @@ const WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$uri->resolve`'s reference card — ADR 0117.
+/// `$uri->resolve`'s reference card — `rule:core-api/reference-card`.
 const RESOLVE_DOC: MethodDoc = MethodDoc {
     short: "Resolves `$reference` against the receiver as a base, RFC 3986 § 5's reference \
             resolution, which PHP has no function for: the receiver's fragment is dropped \
@@ -885,7 +885,7 @@ const RESOLVE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$uri->compareTo`'s reference card — ADR 0117.
+/// `$uri->compareTo`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders the receiver against `$other` over their RFC 3986 § 6.2.2 normal forms — \
             `Comparable`'s member, and the spelling of \"are these the same URI\": scheme and \
@@ -1904,7 +1904,7 @@ nvs_runtime::nvs_helper! {
     /// Where `parse_url` answers an array with a key missing for every absent
     /// component, this answers an object whose readers are `?string`, so
     /// "absent" is a value the type system knows about rather than an index
-    /// that is not there. ADR 0063 R5's reading of `?T` is the same one.
+    /// that is not there. `rule:core-api/shape-rules` R5's reading of `?T` is the same one.
     fn nvs_core_uri_parse(_ctx, args: [1]) {
         let text = text_of(args, "parse")?;
 
@@ -1924,7 +1924,7 @@ nvs_runtime::nvs_helper! {
     /// `isValid` for that reason, and the narrower question that one asked —
     /// "is this an **absolute** URI" — is `tryParse($s)?->scheme() != null`.
     ///
-    /// The name is the one `try…` [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+    /// The name is the one `try…` `rule:core-api/shape-rules`
     /// R5 admits, because R4's "failure throws, absence is `?T`" leaves a
     /// class no other non-throwing spelling: `as ?T` never targets one.
     ///

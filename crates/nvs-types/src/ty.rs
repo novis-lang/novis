@@ -248,10 +248,10 @@ pub enum Ty {
     /// no flattening to do, since a shape field's type is never itself
     /// required to be a shape.
     Shape(Vec<(String, TypeId)>),
-    /// A `Core` parameter whose keys are fixed — ADR 0063 R2's trailing options
-    /// bag (`{step?: int}`) and ADR 0135's fixed-key shape parameter, which are
+    /// A `Core` parameter whose keys are fixed — `rule:core-api/shape-rules` R2's trailing options
+    /// bag (`{step?: int}`) and `rule:core-api/shape-parameter`'s fixed-key shape parameter, which are
     /// **one** checked type because they differ in call-site rules rather than
-    /// in checking (ADR 0135 § 4).
+    /// in checking (`rule:core-api/one-checked-shape-type`).
     ///
     /// Named for the shape and not for the bag because the bag is the narrower
     /// of the two uses: it is this type with every
@@ -259,7 +259,7 @@ pub enum Ty {
     /// arrive through [`crate::core_lib`], which is the one place either
     /// translation happens — `CoreTy::Options` one field per declared option,
     /// `CoreTy::Shape` its arms **merged in declaration order and deduplicated
-    /// by name**, which is ADR 0135 § 3's ABI.
+    /// by name**, which is `rule:core-api/shape-flattens-at-the-abi`'s ABI.
     ///
     /// The second type in this enum no source text can spell (see
     /// [`Self::TypeVar`] for the first). A *value* of this type is still
@@ -270,7 +270,7 @@ pub enum Ty {
     /// Deliberately not a [`Self::Shape`]. A shape is checked by `rule:types/shape-type`'s
     /// **width** subtyping, which accepts a field the target does not name;
     /// this one must refuse one, because a mistyped key that is silently
-    /// ignored is exactly the failure ADR 0063 R2 exists to prevent.
+    /// ignored is exactly the failure `rule:core-api/shape-rules` R2 exists to prevent.
     /// [`crate::expr`] owns that check.
     ///
     /// Fields keep their **declared order** rather than being sorted the way
@@ -284,7 +284,7 @@ pub enum Ty {
     /// `crate::expr::args::check_options_arg` reports both, one code each.
     ///
     /// That list is the *widest* statement of what the parameter takes, and it
-    /// is deliberately not the rule a written literal is held to: ADR 0135 § 2
+    /// is deliberately not the rule a written literal is held to: `rule:core-api/shape-arms-are-disjoint`
     /// selects one of [`CoreShape::arms`] and holds the literal to that arm's
     /// keys and that arm's types. See [`CoreShape`] for why the type carries
     /// both.
@@ -319,7 +319,7 @@ pub enum Ty {
     TypeVar(String),
 }
 
-/// ADR 0135's fixed-key shape parameter, both ways round: § 3's merged field
+/// `rule:core-api/shape-parameter`'s fixed-key shape parameter, both ways round: § 3's merged field
 /// list, which is the ABI, and § 2's arms, which are what a written literal is
 /// actually checked against.
 ///
@@ -358,7 +358,7 @@ pub struct CoreShape {
 
 /// One key of a [`Ty::CoreShape`] — the checked half of
 /// `nvs_stdlib::registry`'s `CoreOption` and `CoreField`, which are the two
-/// registry spellings ADR 0135 § 4 collapses into this one.
+/// registry spellings `rule:core-api/one-checked-shape-type` collapses into this one.
 ///
 /// A named struct rather than the pair this replaced, because the third member
 /// is a bare `bool`: `("host", id, false)` at a construction site says nothing
@@ -376,12 +376,12 @@ pub struct CoreShapeField {
     /// from, so nothing here re-checks them.
     pub ty: TypeId,
     /// Whether a call site must write this key. **False for every field of an
-    /// options bag** — ADR 0063 R2 makes the whole bag omittable, so an option
+    /// options bag** — `rule:core-api/shape-rules` R2 makes the whole bag omittable, so an option
     /// that had to be written could not exist — and for a shape field it is
-    /// ADR 0135 § 1's `CoreField::default` read the other way round: a field
+    /// `rule:core-api/shape-parameter`'s `CoreField::default` read the other way round: a field
     /// with no default is required.
     pub required: bool,
-    /// ADR 0135 § 3's qualifier classification, which lands on the **field**
+    /// `rule:core-api/shape-flattens-at-the-abi`'s qualifier classification, which lands on the **field**
     /// and never on the parameter: `Db\Settings`'s `host` is a [`Qual::Sink`]
     /// because `rule:core-classes/db-capabilities` makes an address one, while the parameter holding
     /// it classifies nothing at all.
@@ -842,9 +842,9 @@ impl TypeInterner {
         self.intern(Ty::Shape(fields))
     }
 
-    /// Interns ADR 0063 R2's options bag — every option optional, which is what
+    /// Interns `rule:core-api/shape-rules` R2's options bag — every option optional, which is what
     /// makes a bag the narrow case of [`Ty::CoreShape`] rather than a second
-    /// type (ADR 0135 § 4). That variant owns why the order given is kept
+    /// type (`rule:core-api/one-checked-shape-type`). That variant owns why the order given is kept
     /// rather than sorted the way [`Self::shape`] sorts.
     ///
     /// Two callers, and both seed a signature the program did not write:
@@ -865,7 +865,7 @@ impl TypeInterner {
                 qual,
             })
             .collect();
-        // A bag is ADR 0135 § 2's one-arm case, and carries that arm rather
+        // A bag is `rule:core-api/shape-arms-are-disjoint`'s one-arm case, and carries that arm rather
         // than an empty list: the selection rule then reaches a bag unchanged,
         // which is [`CoreShape::arms`]' own reason for never being empty.
         self.intern(Ty::CoreShape(CoreShape {
@@ -874,7 +874,7 @@ impl TypeInterner {
         }))
     }
 
-    /// Interns ADR 0135's fixed-key shape parameter, `shape` already carrying
+    /// Interns `rule:core-api/shape-parameter`'s fixed-key shape parameter, `shape` already carrying
     /// § 3's merged list and § 2's arms — [`crate::core_lib`] is the only
     /// caller that builds one from a registry row, and does both.
     ///

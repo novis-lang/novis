@@ -99,7 +99,7 @@
 //!
 //! **A TTL and a `forget`.** A lifetime is a second reason an entry goes, and
 //! the cap above is the one that had to exist first; `put` grows the trailing
-//! options shape ADR 0063 R2 puts last when a TTL lands, which is an addition
+//! options shape `rule:core-api/shape-rules` R2 puts last when a TTL lands, which is an addition
 //! to the row rather than a change to it.
 //!
 //! **A shared store behind a password, a database index or TLS.** The URL this
@@ -166,7 +166,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cache::local`'s reference card — ADR 0117.
+/// `Core\Cache::local`'s reference card — `rule:core-api/reference-card`.
 const LOCAL_DOC: MethodDoc = MethodDoc {
     short: "The per-core, in-process tier: one store per core, with no coherence between cores and \
             no network behind it.",
@@ -177,7 +177,7 @@ const LOCAL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Cache::shared`'s reference card — ADR 0117.
+/// `Core\Cache::shared`'s reference card — `rule:core-api/reference-card`.
 const SHARED_DOC: MethodDoc = MethodDoc {
     short: "The coherent tier: a real store over the network, shared by every core and every \
             machine that names it.",
@@ -233,7 +233,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             names: &["key"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
-            // `mixed` rather than ADR 0063 R7's `?T`: what went in is any value
+            // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value
             // the copy admits, so there is no `T` to make nullable, and `mixed`
             // already spells the absent answer.
             return_ty: CoreTy::Mixed,
@@ -271,7 +271,7 @@ const TIMEOUT: &str = "cache.shared.timeout";
 /// refuses to give any outbound wait a spelling for.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// `Core\Cache\Store::put`'s reference card — ADR 0117.
+/// `Core\Cache\Store::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
     short: "Copies `$value` into the store under `$key`, replacing whatever was there — a recursive \
             graph copy, so the entry shares nothing with the request that wrote it.",
@@ -305,7 +305,7 @@ const PUT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cache\Store::get`'s reference card — ADR 0117.
+/// `Core\Cache\Store::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "Copies the entry stored under `$key` back into this request, or answers `null` when \
             there is none.",
@@ -349,7 +349,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 const MAX_SIZE: &str = "cache.local.max_size";
 
 /// The cap a deployment that configured none inherits: the 32 MiB APCu ships
-/// for the extension ADR 0051 records this class as answering, read per core
+/// for the extension `rule:core-api/tier-placement` records this class as answering, read per core
 /// rather than per host. Eight cores hold up to eight of it, which is § 3's
 /// O(cores × working set) with a number in front of it.
 const DEFAULT_MAX_SIZE: usize = 32 * 1024 * 1024;
@@ -735,7 +735,7 @@ pub(crate) fn on_shared<T>(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache::local(): Core\Cache\Store` — ADR 0059 § 1's per-core tier.
+    /// `Core\Cache::local(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s per-core tier.
     ///
     /// Nothing is allocated for the tier itself: the entries live in this
     /// core's [`ENTRIES`] whether a program has asked for a store or not, and
@@ -749,7 +749,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cache::shared(): Core\Cache\Store` — ADR 0059 § 1's coherent tier,
+    /// `Core\Cache::shared(): Core\Cache\Store` — `rule:core-api/two-cache-tiers`'s coherent tier,
     /// which no deployment can configure yet.
     ///
     /// This is the **door**, and the module doc's third decision is why: the
@@ -908,7 +908,7 @@ mod tests {
         }
     }
 
-    /// ADR 0059 § 1: two members, not one API with a flag — and the check that
+    /// `rule:core-api/two-cache-tiers`: two members, not one API with a flag — and the check that
     /// makes that structural is that neither takes an argument at all, so no
     /// value computed at run time can choose the tier.
     #[test]
@@ -939,7 +939,7 @@ mod tests {
         );
     }
 
-    /// ADR 0059 § 1: any entry may be absent at any time, for any reason. The
+    /// `rule:core-api/two-cache-tiers`: any entry may be absent at any time, for any reason. The
     /// store answers `None` for a key nothing wrote, and — the half a program
     /// depends on — the card *says* so, since a contract nobody can read is one
     /// every caller will assume away.
@@ -963,7 +963,7 @@ mod tests {
         );
     }
 
-    /// ADR 0059 § 1: a write on one core is not visible on another. The store is
+    /// `rule:core-api/two-cache-tiers`: a write on one core is not visible on another. The store is
     /// a `thread_local`, and the runtime is thread-per-core, so a second thread
     /// *is* a second core for this question.
     #[test]

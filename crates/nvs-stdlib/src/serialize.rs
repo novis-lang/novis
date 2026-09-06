@@ -39,7 +39,7 @@ use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// `rule:classes/graph-copy`'s `encode`/`decode` pair, taking
-/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R6's naming.
+/// `rule:core-api/shape-rules` R6's naming.
 /// PHP's bare `serialize`/`unserialize` spellings do not exist.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: r"Core\Serialize",
@@ -68,7 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Serialize::encode`'s reference card — ADR 0117.
+/// `Core\Serialize::encode`'s reference card — `rule:core-api/reference-card`.
 const ENCODE_DOC: MethodDoc = MethodDoc {
     short: "Copies the whole value graph under `$value` into Novis's own closed byte format, as \
             `serialize` does — the same graph copy the `spawn` boundary runs, externalized so it \
@@ -88,7 +88,7 @@ const ENCODE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Serialize::decode`'s reference card — ADR 0117.
+/// `Core\Serialize::decode`'s reference card — `rule:core-api/reference-card`.
 const DECODE_DOC: MethodDoc = MethodDoc {
     short: "Rebuilds the value `encode` wrote into `$payload`, as `unserialize` does, over \
             Novis's own format and no other. The parameter is a `tainted` sink, so bytes that \

@@ -100,7 +100,7 @@ echo $agreed, "/", $cells, " ", $needleBack, "/", $matched, "\n";
 // `0` is the value PHP's `array_search` needs `=== false` to survive, and
 // `array_find` needs it again for the entry itself. Here the key of a
 // front-of-array match is the string `"0"` and absence is `null`, so the two
-// are never the same answer in either member (ADR 0063 R5).
+// are never the same answer in either member (`rule:core-api/shape-rules` R5).
 array<int> $zero = [0];
 array<int> $none = [];
 echo Core\Arr::keyOf($zero, 0) ?? "absent", "|", Core\Arr::keyOf($none, 0) ?? "absent", "|",

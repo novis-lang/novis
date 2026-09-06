@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request\Part::saveTo` takes `Core\IO::writeStream`'s own `{max?, overwrite?}` and nothing else, so a size written as text and an option the bag does not declare are both refused — `rule:core-classes/io-write-stream`, ADR 0063 R2
+`Core\Request\Part::saveTo` takes `Core\IO::writeStream`'s own `{max?, overwrite?}` and nothing else, so a size written as text and an option the bag does not declare are both refused — `rule:core-classes/io-write-stream`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // The delegation is visible in the bag: `saveTo` names `writeStream`'s options

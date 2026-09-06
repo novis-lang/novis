@@ -1,5 +1,5 @@
 --TEST--
-`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — `rule:testing/failure-ledger` and `rule:testing/inline-snapshots`, ADR 0063 R2
+`Core\Test::assertMatchesInline`'s failure quotes the rendering it produced beside the snapshot it was given, including the empty snapshot § 14's workflow starts from — `rule:testing/failure-ledger` and `rule:testing/inline-snapshots`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // A snapshot's failure has to say both halves: what the value rendered as is
@@ -33,7 +33,7 @@ try {
     echo $container->message, "\n";
 }
 
-// 4. ADR 0063 R2's bag sits in front of this report as in front of every other.
+// 4. `rule:core-api/shape-rules` R2's bag sits in front of this report as in front of every other.
 try {
     Test::assertMatchesInline(true, "bool(false)", {message: "the summary is stable"});
 } catch (Core\Test\Failure $withMessage) {

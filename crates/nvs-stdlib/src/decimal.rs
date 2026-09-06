@@ -81,7 +81,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Decimal::divExact`'s reference card — ADR 0117.
+/// `Core\Decimal::divExact`'s reference card — `rule:core-api/reference-card`.
 const DIV_EXACT_DOC: MethodDoc = MethodDoc {
     short: "`$value / $divisor` where the quotient is exact, and a throw where it is not — the \
             division for a place that has assumed the split comes out even, so the assumption \
@@ -107,7 +107,7 @@ const DIV_EXACT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Decimal::divRound`'s reference card — ADR 0117.
+/// `Core\Decimal::divRound`'s reference card — `rule:core-api/reference-card`.
 const DIV_ROUND_DOC: MethodDoc = MethodDoc {
     short: "`$value / $divisor` rounded to `$scale` places under `$mode`, both named at the call \
             — the spelling for rounding that is business logic, since the `/` operator's own \
@@ -227,7 +227,7 @@ nvs_runtime::nvs_helper! {
     /// Core\RoundMode $mode): decimal` — `rule:types/arithmetic`'s "names both".
     ///
     /// Both arguments are required rather than optional, which is the one
-    /// place this member parts from ADR 0063 R3's trailing options shape: a
+    /// place this member parts from `rule:core-api/shape-rules` R3's trailing options shape: a
     /// default scale or a default mode would be exactly the ambient precision
     /// § 3 refuses, moved from a global into a signature. A caller who wants
     /// the language's own rule already has `/`.

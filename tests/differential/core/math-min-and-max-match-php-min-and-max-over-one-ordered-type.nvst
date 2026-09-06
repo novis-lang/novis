@@ -3,7 +3,7 @@ Core\Math::min and max answer what PHP's two-argument min and max answer whereve
 --FILE--
 <?nvs
 // Spec § 3's `min`/`max` rows, in the two-argument form. PHP's variadic
-// `min(1, 2, 3)` has no member at all (ADR 0063 R17): the two-argument form
+// `min(1, 2, 3)` has no member at all (`rule:core-api/shape-rules` R17): the two-argument form
 // nests, and the array form is `Core\Arr::min`, so those two are the whole
 // overlap between the languages and both are asserted below.
 //
@@ -23,7 +23,7 @@ Core\Math::min and max answer what PHP's two-argument min and max answer whereve
 final class Show {
     // `Core\Arr::min` answers `?T` where `Core\Math::min` answers `T`, so the
     // agreement row at the foot needs the guard the array member's absence
-    // spelling requires (ADR 0063 R5).
+    // spelling requires (`rule:core-api/shape-rules` R5).
     public static function num(?int $found): string {
         if ($found == null) {
             return "none";

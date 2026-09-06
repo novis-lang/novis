@@ -6,7 +6,7 @@ Core\Regex::matchAll answers preg_match_all's sets under PREG_SET_ORDER — the 
 // `array<Match>` and PHP returns an array of arrays, so the reading being
 // compared is `PREG_SET_ORDER`: one entry per match, each holding that match's
 // whole group set. `PREG_PATTERN_ORDER` — PHP's default, one entry per *group*
-// holding every match of it — is the shape ADR 0063 R7 refuses, because it is
+// holding every match of it — is the shape `rule:core-api/shape-rules` R7 refuses, because it is
 // the same member answering a differently-shaped array.
 //
 // `PREG_UNMATCHED_AS_NULL` is the second half of the reading, for the reason

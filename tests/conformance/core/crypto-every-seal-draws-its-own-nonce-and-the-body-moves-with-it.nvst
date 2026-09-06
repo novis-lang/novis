@@ -1,5 +1,5 @@
 --TEST--
-Eight seals of one message under one key agree about the plaintext and disagree about every ciphertext — the 24-octet nonce prefix distinct across all 28 pairs, and the body behind it distinct too — ADR 0051 § 3
+Eight seals of one message under one key agree about the plaintext and disagree about every ciphertext — the 24-octet nonce prefix distinct across all 28 pairs, and the body behind it distinct too — `rule:core-api/tier-roster`
 --FILE--
 <?nvs
 // Agreement and disagreement in one case, counted over a sweep. That two

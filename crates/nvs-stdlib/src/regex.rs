@@ -209,7 +209,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Regex::compile`'s reference card — ADR 0117.
+/// `Core\Regex::compile`'s reference card — `rule:core-api/reference-card`.
 const COMPILE_DOC: MethodDoc = MethodDoc {
     short: "Compiles `$pattern` under the four flags into a `Pattern` handle every other member \
             takes in place of a pattern string — PCRE's `/…/imsU` delimiter-and-modifier \
@@ -251,7 +251,7 @@ const COMPILE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::matches`'s reference card — ADR 0117.
+/// `Core\Regex::matches`'s reference card — `rule:core-api/reference-card`.
 const MATCHES_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used as a \
             predicate. The pattern is unanchored, so `^` and `$` are how a call asks for more.",
@@ -276,7 +276,7 @@ const MATCHES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::matchAll`'s reference card — ADR 0117.
+/// `Core\Regex::matchAll`'s reference card — `rule:core-api/reference-card`.
 const MATCH_ALL_DOC: MethodDoc = MethodDoc {
     short: "Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each in \
             the order they occur — `preg_match_all` in `PREG_SET_ORDER`'s shape, with each \
@@ -302,7 +302,7 @@ const MATCH_ALL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::replace`'s reference card — ADR 0117.
+/// `Core\Regex::replace`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_DOC: MethodDoc = MethodDoc {
     short: "Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, as \
             `preg_replace` does; in the replacement `$1` and `${name}` are group references and \
@@ -342,7 +342,7 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::replaceWith`'s reference card — ADR 0117.
+/// `Core\Regex::replaceWith`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
     short: "Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answers \
             for each, as `preg_replace_callback` does; the callback receives one `Match` and \
@@ -382,7 +382,7 @@ const REPLACE_WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::split`'s reference card — ADR 0117.
+/// `Core\Regex::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
     short: "Splits `$subject` at every match of `$pattern`, as `preg_split` does, under \
             `Core\\Str::split`'s reading of `limit`.",
@@ -421,7 +421,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex::quote`'s reference card — ADR 0117.
+/// `Core\Regex::quote`'s reference card — `rule:core-api/reference-card`.
 const QUOTE_DOC: MethodDoc = MethodDoc {
     short: "Escapes every character either engine gives a meaning to in `$literal`, as \
             `preg_quote` does, so the result is a pattern matching that literal and nothing \
@@ -486,7 +486,7 @@ const PATTERN_FLAGS_SLOT: usize = 1;
 /// `Regex::compile` exists for the call that wants flags or wants the
 /// pattern's validity checked at one place. [`pattern_of`] is where the two
 /// meet again.
-/// Its `string` half is ADR 0088 § 2's **sink**: a pattern is one of ADR 0063
+/// Its `string` half is ADR 0088 § 2's **sink**: a pattern is one of `rule:core-api/shape-rules`
 /// R11's four grammars, so its content becomes an instruction the engine
 /// executes and a `tainted` one is refused at the call. `Core\Regex::quote` is
 /// the [`Qual::Launder`] that answers for it.
@@ -545,7 +545,7 @@ const NO_FLAGS: u8 = 0;
 const MATCH_NAME: &str = r"Core\Regex\Match";
 
 /// Spec § 5's `Core\Regex\Match` — the first `Core`-owned instance, and the
-/// shape that replaces `preg_match`'s `$matches` out-parameter (ADR 0063 R3
+/// shape that replaces `preg_match`'s `$matches` out-parameter (`rule:core-api/shape-rules` R3
 /// forbids one) together with `PREG_OFFSET_CAPTURE`.
 ///
 /// Four members over two slots, and no static member at all: a `Match` is only
@@ -609,7 +609,7 @@ pub const MATCH: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Regex\Match::group`'s reference card — ADR 0117.
+/// `Core\Regex\Match::group`'s reference card — `rule:core-api/reference-card`.
 const MATCH_GROUP_DOC: MethodDoc = MethodDoc {
     short: "Answers one group's text by number or by name — `$matches[$group]` read after \
             `preg_match`.",
@@ -626,7 +626,7 @@ const MATCH_GROUP_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Regex\Match::groups`'s reference card — ADR 0117.
+/// `Core\Regex\Match::groups`'s reference card — `rule:core-api/reference-card`.
 const MATCH_GROUPS_DOC: MethodDoc = MethodDoc {
     short: "Answers every group at once in `preg_match`'s own order — a named group under its \
             name and then under its number — as `$matches` reads under \
@@ -637,7 +637,7 @@ const MATCH_GROUPS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Regex\Match::offset`'s reference card — ADR 0117.
+/// `Core\Regex\Match::offset`'s reference card — `rule:core-api/reference-card`.
 const MATCH_OFFSET_DOC: MethodDoc = MethodDoc {
     short: "Answers where the whole match starts in the subject — `PREG_OFFSET_CAPTURE`'s \
             position, counted in graphemes rather than bytes.",
@@ -647,7 +647,7 @@ const MATCH_OFFSET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Regex\Match::text`'s reference card — ADR 0117.
+/// `Core\Regex\Match::text`'s reference card — `rule:core-api/reference-card`.
 const MATCH_TEXT_DOC: MethodDoc = MethodDoc {
     short: "Answers the whole match's text, which is group `0`.",
     params: &[],
@@ -671,7 +671,7 @@ const OFFSET_SLOT: usize = 1;
 ///
 /// A [`crate::granularity::DEFAULT`]-unit index, like every other `string`
 /// position Novis takes or hands back, and negative counts from the end under
-/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8. It is
+/// `rule:core-api/shape-rules` R8. It is
 /// **not** `preg_match`'s `$offset`, which counts bytes and documents that a
 /// value inside a multi-byte character is undefined behaviour.
 ///
@@ -680,7 +680,7 @@ const OFFSET_SLOT: usize = 1;
 /// "search from" entry points give, and the only one under which
 /// `Regex::match($s, $p, {from: $m->offset() + 1})` finds the second match
 /// rather than a different pattern's.
-/// `Core\Regex::match`'s reference card (ADR 0117) — the member that proves
+/// `Core\Regex::match`'s reference card (`rule:core-api/reference-card`) — the member that proves
 /// [`ErrorDoc`], because it throws: both of its errors are the `RuntimeError`
 /// [`compiled`] and [`budget_exhausted`] raise, and they are two entries
 /// rather than one because a reader wants to know *when*.
@@ -1293,7 +1293,7 @@ nvs_runtime::nvs_helper! {
     /// — replacing `preg_match`, its `$matches` out-parameter and
     /// `PREG_OFFSET_CAPTURE` at once.
     ///
-    /// `null` is "no match", which ADR 0063 R5 makes the only absence
+    /// `null` is "no match", which `rule:core-api/shape-rules` R5 makes the only absence
     /// spelling — there is no `0`/`false`/`1` return to read, and no error code
     /// beside it, because a pattern that cannot run throws
     /// ([`budget_exhausted`], [`compiled`]).
@@ -1327,7 +1327,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// One `Match` per match, in the order they occur: `PREG_SET_ORDER`'s
     /// shape, since `PREG_PATTERN_ORDER`'s transpose is a differently-shaped
-    /// return from the same member, which ADR 0063 R7 refuses.
+    /// return from the same member, which `rule:core-api/shape-rules` R7 refuses.
     /// `Core\Arr::map($matches, fn($m) => $m->group(1))` is the transpose, in
     /// one line, when a caller wants it.
     ///
@@ -1366,7 +1366,7 @@ nvs_runtime::nvs_helper! {
     /// reach it.
     ///
     /// A group the **pattern** does not declare is a different question, and
-    /// **throws**: ADR 0063 R5's `?T` says "this match has no such text", while
+    /// **throws**: `rule:core-api/shape-rules` R5's `?T` says "this match has no such text", while
     /// R4's throw says "there is no such group to ask about." PHP answers both
     /// with an absent array entry, which is why `preg_match` code so often
     /// reads a typo as an empty capture.
@@ -1396,7 +1396,7 @@ nvs_runtime::nvs_helper! {
     /// `preg_match`'s own order and shape ([`built_match`]).
     ///
     /// **The shape is `$matches` under `PREG_UNMATCHED_AS_NULL`, not under
-    /// PHP's default**, and ADR 0063 R11 is why that is a decision rather than
+    /// PHP's default**, and `rule:core-api/shape-rules` R11 is why that is a decision rather than
     /// a default: there are no `PREG_*` constants, so one of the two readings
     /// has to be the only one. PHP's default trims *trailing* unmatched groups
     /// out of the array and writes `""` for the ones in the middle, conflating
@@ -1543,7 +1543,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_regex_match`] — including the throw for a group the pattern
     /// never declared. `preg_replace_callback_array`'s several-patterns form
     /// is a loop over this member rather than a second shape of argument,
-    /// which ADR 0063 R7 is the rule for.
+    /// which `rule:core-api/shape-rules` R7 is the rule for.
     ///
     /// **What the callback answers is inserted literally.** A `$1` in it is
     /// two characters rather than a group reference, which is the one place
@@ -1649,7 +1649,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// `PREG_SPLIT_DELIM_CAPTURE` and `PREG_SPLIT_OFFSET_CAPTURE` have no
     /// option: the first returns a differently-shaped array from the same
-    /// member, which ADR 0063 R7 refuses, and the second is what `matchAll`
+    /// member, which `rule:core-api/shape-rules` R7 refuses, and the second is what `matchAll`
     /// answers.
     fn nvs_core_regex_split(_ctx, args: [4]) {
         let subject = text(&args[0], "split", "the subject")?;

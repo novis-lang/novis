@@ -19,7 +19,7 @@
 > (§ 8): it never reflows an expression to fit a width — an author's own line breaks inside an expression are
 > preserved, and only what surrounds them is normalized (gofmt's model, not Prettier's); it takes **no
 > configuration at all**, ever — no config file, no style-changing flag, the same "no suppression
-> mechanism" stance ADR 0029 already takes for casing; and it is a separate, opt-in tool, never wired into
+> mechanism" stance `rule:core-api/identifier-casing` already takes for casing; and it is a separate, opt-in tool, never wired into
 > `nvs check`/`nvs run` — an unformatted file is not a compiler warning, let alone an error. `nvs fmt`
 > rewrites in place; `nvs fmt --check` is the non-mutating mode that reports which files would change and
 > exits non-zero, the "warns without touching anything" behaviour a CI job or pre-commit hook runs.
@@ -63,7 +63,7 @@ prose with nothing in the tool to enforce it.
 
 No config file, no per-project or per-directory override, no CLI flag that changes output. `nvs fmt`'s
 result for a given input is a pure function of that input and nothing else — the same stance
-[ADR 0029](0029-identifier-casing-is-checked.md) already takes for identifier casing, extended from naming
+`rule:core-api/identifier-casing` already takes for identifier casing, extended from naming
 to layout. A configurable knob would let two files in the same project, or two projects run through the
 same tool, disagree about what "formatted" means — exactly the property ADR 0016's own verification line
 depends on ("both editors agreeing byte-for-byte on the same file's formatted output"). The only flags
@@ -141,7 +141,7 @@ read as promising that two semantically identical files converge; what converges
   unformatted file is never a diagnostic — not an error, not a warning — and never blocks compilation or
   execution. `nvs fmt` is a separate, opt-in developer tool a person or a CI job chooses to run, the same
   boundary `cargo fmt` keeps from `cargo build`. This is the deliberate counterpart to
-  [ADR 0029](0029-identifier-casing-is-checked.md): casing is a hard compile error with no suppression;
+  `rule:core-api/identifier-casing`: casing is a hard compile error with no suppression;
   formatting is the opposite end of the same axis, entirely outside the compiler's diagnostic surface.
 - **An editor may run `nvs fmt` and a set of quick fixes together on one keystroke; that composition
   happens in the client, never inside `nvs fmt`.** VS Code's `editor.formatOnSave` and its separate
@@ -167,7 +167,7 @@ diagnostic that names the fix:
   `<?NVS` → `<?nvs` (`E_RESERVED_SPELLING_CASE`).
 
 The criterion is what generalizes, not the list. A keyword never qualifies: `rule:classes/reserved-spellings-are-lower-case` refuses to
-normalize `IF` or `ECHO` because [ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes both legal
+normalize `IF` or `ECHO` because `rule:core-api/casing-checks-the-leading-character` makes both legal
 `PascalCase` class names, so nothing lexical separates a mis-typed keyword from a deliberate class
 reference, and guessing would be the only place in the toolchain that guesses. An identifier never
 qualifies either, for a different reason: fixing its casing is a *rename*, which must reach every use site
@@ -199,7 +199,7 @@ diff-visible code action; it is not something a formatter does on save.
   `nvs-syntax`, in the same spirit as ADR 0016 § 1 already frames `nvs-fmt` and `nvs-lsp` as the only two
   consumers of "language smarts."
 - Zero configuration (§ 3) removes an entire category of PR bikeshedding and a `.nvs-fmt.toml` nobody needs
-  to review — the same benefit ADR 0029 already banked for casing, extended to layout.
+  to review — the same benefit `rule:core-api/identifier-casing` already banked for casing, extended to layout.
 - `nvs fmt --check` (§ 9) gives a team exactly the "warn when it doesn't match" workflow this ADR was asked
   to provide, without the compiler ever holding a stylistic opinion.
 
@@ -212,7 +212,7 @@ diff-visible code action; it is not something a formatter does on save.
   model stays trivially byte-for-byte deterministic as the parser evolves.
 - Several rules in § 7 have exactly one contributor — this ADR — rather than an existing PER convention to
   defer to. If a different convention emerges later, changing one is a breaking rewrite of every
-  already-formatted `.nvs` file, the same cost class ADR 0029 already accepted for casing.
+  already-formatted `.nvs` file, the same cost class `rule:core-api/identifier-casing` already accepted for casing.
 - Quote normalization (§ 4) and trailing-comma insertion (§ 5) rewrite bytes beyond pure whitespace, so a
   future change to either rule is a real diff across an entire codebase, not a settings change — mitigated
   by treating `nvs-fmt`'s rule set as stable once M10 ships it, the same promise `rustfmt`'s stable subset
@@ -223,7 +223,7 @@ diff-visible code action; it is not something a formatter does on save.
 - **Prettier-style width-based reflow.** Rejected in § 2: more opinionated output, at the cost of a
   materially larger implementation this project has no other use for.
 - **A configurable style** (a small stable-knob set, or a full config file). Rejected in § 3 for the same
-  reason ADR 0029 gives casing no suppression mechanism: configurability reopens the exact "which style is
+  reason `rule:core-api/identifier-casing` gives casing no suppression mechanism: configurability reopens the exact "which style is
   this file in" question a canonical formatter exists to close.
 - **Folding formatting into `nvs check` as a warning diagnostic.** Rejected in § 9 — the compiler already
   carries real hard-error surface (casing, definite assignment, taint); adding a purely stylistic one would
@@ -251,7 +251,7 @@ diff-visible code action; it is not something a formatter does on save.
   has asked for one yet.
 - **Normalizing mis-cased keywords** (`IF` → `if`, `ECHO` → `echo`). Rejected by
   `rule:classes/reserved-spellings-are-lower-case` before this ADR
-  reached it, and § 10 keeps the refusal: ADR 0029 makes those legal class names, so the rewrite is a
+  reached it, and § 10 keeps the refusal: `rule:core-api/identifier-casing` makes those legal class names, so the rewrite is a
   guess. Normalizing PHP's case-insensitive reserved words is
   [ADR 0089](0089-convert-is-one-rule-table-with-two-modes.md)'s job, where the input is known to be PHP.
 

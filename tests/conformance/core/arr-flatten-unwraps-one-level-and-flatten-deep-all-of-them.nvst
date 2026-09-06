@@ -33,7 +33,7 @@ array<array<string>> $none = [];
 echo Core\Json::encode(Core\Arr::flatten($none)), "\n";
 echo Core\Json::encode(Core\Arr::flattenDeep($none)), "\n";
 
-// ADR 0063 R3: both are pure, so the subject keeps its nesting.
+// `rule:core-api/shape-rules` R3: both are pure, so the subject keeps its nesting.
 echo Core\Json::encode($rows), "\n";
 --EXPECT--
 ["a","b","c"]

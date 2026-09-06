@@ -95,7 +95,7 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
   second spelling everywhere else in the language has refused one.
 - **Deprecate first, remove later** (accept with a warning for one milestone, then reject). Novis's casing
   checker and every other rejected-construct diagnostic in this project is a hard error with no warning
-  tier ([ADR 0029](0029-identifier-casing-is-checked.md) § 3's reasoning applies here too); a staged removal
+  tier (`rule:core-api/casing-has-no-suppression`'s reasoning applies here too); a staged removal
   would be the first exception; the standard library and any real userland code are still unwritten, which
   is the cheapest possible time to make the change outright rather than staged.
 - **Keep the syntax only for `array`/`object`, drop it for the scalar types.** No principled line — every

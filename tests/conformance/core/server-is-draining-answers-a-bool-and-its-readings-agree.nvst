@@ -1,8 +1,8 @@
 --TEST--
-`Core\Server::isDraining` answers the `bool` itself — it binds to one, its negation inverts it and its one conversion is the textual one, with no falsy stand-in behind any of the three — ADR 0097 § 5, ADR 0063 R4
+`Core\Server::isDraining` answers the `bool` itself — it binds to one, its negation inverts it and its one conversion is the textual one, with no falsy stand-in behind any of the three — ADR 0097 § 5, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
-// The question here is the *type* of the answer, not its value. ADR 0063 R4
+// The question here is the *type* of the answer, not its value. `rule:core-api/shape-rules` R4
 // keeps a `Core` member from reporting a state through a falsy return, and the
 // three readings below are the ones a caller writes: the binding, which a
 // non-`bool` return would not compile against; the negation, which a value

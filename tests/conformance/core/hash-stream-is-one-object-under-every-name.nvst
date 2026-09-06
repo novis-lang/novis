@@ -1,10 +1,10 @@
 --TEST--
-`Core\Hash\Stream` is an identity rather than a value: every name for one stream is that stream, `finish` closes the object, and two streams of one digest never mix — spec § 11, ADR 0063 R3
+`Core\Hash\Stream` is an identity rather than a value: every name for one stream is that stream, `finish` closes the object, and two streams of one digest never mix — spec § 11, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // § 11's stream is the one mutable `Core` instance outside § 9's collections,
 // so what every case before this one leaves open is what a *name* holding one
-// means. ADR 0063 R3 is that no `Core` member mutates its subject; `update` is
+// means. `rule:core-api/shape-rules` R3 is that no `Core` member mutates its subject; `update` is
 // the exception § 11's fourth row buys, and its price is that a stream behaves
 // like an identity rather than like a value — two names for one stream are one
 // stream, and closing it closes it for both.

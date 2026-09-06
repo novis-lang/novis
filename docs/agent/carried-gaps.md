@@ -54,7 +54,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `goto` labels, grouped `use`, `var` as a property declarator, an enum case named with a keyword | 13 | `crates/nvs-syntax/src/lib.rs` § *Known gaps* — M1's own *Verify* is a `php-src` corpus parse |
 | `nvs serve` runs on one core, and no path in the process starts a second | 23 | `crates/nvs-cli/src/serve.rs:42`, [m7.md](../plan/m7.md)'s own scope |
 | `Core\Net`, `Core\Os`, `Core\Signal` — spec § 16, named by no milestone at all | 24 | `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` |
-| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | 25 | the same file; ADR 0051 § 3 puts all three at Tier 0 |
+| `Core\Compress`, `Core\Mime`, `Core\Zip` — spec § 17 | 25 | the same file; `rule:core-api/tier-roster` puts all three at Tier 0 |
 | `Core\Xml`'s tree and stream, and the two gaps behind it — `Core\Html::sanitize` and `rule:core-classes/html-parsing`'s parser | 26 | `crates/nvs-stdlib/src/html.rs` § *Known gaps*, `rule:core-classes/html-parsing` |
 | ~110 module-doc `# Known gaps` items name no owner and are in no index | 27 | this file's own contract, applied one level down |
 | `Core\Uri::with` replaces a component and cannot remove one | 28 | `crates/nvs-stdlib/src/uri.rs` gap 1 |

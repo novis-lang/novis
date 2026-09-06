@@ -13,7 +13,7 @@
 //! `nvs_hir` at all (it has no static type to check against), so this module
 //! reports `E_UNKNOWN_MEMBER` for those directly.
 //!
-//! **A member that exists is then checked for being reachable.** ADR 0094's
+//! **A member that exists is then checked for being reachable.** `rule:core-api/written-visibility`'s
 //! `private`/`protected` levels are applied by [`check_member_visibility`],
 //! keyed on the accessing class rather than on the receiver — every property
 //! access lands there, whatever its receiver's spelling, and a method call
@@ -1513,7 +1513,7 @@ pub(crate) fn report_unset_on_property(span: Span, qname: &QName, name: &str, en
 /// Reports `E_UNKNOWN_MEMBER` for a property/method access this module
 /// resolved a receiver class for, but found nothing declared under `name` on
 /// it or any ancestor.
-/// ADR 0094's three levels, enforced: `private` is reachable only from the
+/// `rule:core-api/written-visibility`'s three levels, enforced: `private` is reachable only from the
 /// declaring class's own bodies, `protected` from those and from any class
 /// that extends it, `public` from everywhere.
 ///
@@ -1580,7 +1580,7 @@ pub(crate) fn report_unknown_member(
     );
 }
 
-/// ADR 0063 R20, at the one place two spellings can reach one `Core` member:
+/// `rule:core-api/shape-rules` R20, at the one place two spellings can reach one `Core` member:
 /// an instance member's receiver travels in argument slot 0, so
 /// `Core\Regex\Match::text($m)` passes the arity check that `$m->text()`
 /// passes and lowers to the identical helper call. Worse, the *zero*-argument
@@ -1604,7 +1604,7 @@ pub(crate) fn report_core_instance_member(
         )
         .with_primary(span, "called through the class name here")
         .with_help(format!(
-            "write `$value->{name}(…)`; ADR 0063 R20 gives every `Core` operation exactly one \
+            "write `$value->{name}(…)`; `rule:core-api/shape-rules` R20 gives every `Core` operation exactly one \
              spelling"
         )),
     );
@@ -1612,7 +1612,7 @@ pub(crate) fn report_core_instance_member(
 
 /// The same shape for a user-declared class, and the reason it is a separate
 /// refusal from [`report_core_instance_member`]: a `Core` instance member is
-/// refused *wherever* it is written statically, because ADR 0063 R20 gives it
+/// refused *wherever* it is written statically, because `rule:core-api/shape-rules` R20 gives it
 /// one spelling and the static one would reach the identical helper. A
 /// declared class's non-static method is refused only where the frame holds no
 /// `$this` — `rule:statements/static-is-a-member-modifier` keeps PHP's semantics for `static`, so `self::f()`
@@ -1651,7 +1651,7 @@ pub(crate) fn report_instance_method_called_statically(
 
 /// Both visibility rules a resolved method call answers to, in the order a
 /// reader wants them: `rule:classes/interface-private-methods`'s private-interface-method rule first,
-/// because it is the more specific refusal, and ADR 0094's three levels only
+/// because it is the more specific refusal, and `rule:core-api/written-visibility`'s three levels only
 /// where that one did not already fire.
 ///
 /// They overlap exactly: a `private` interface method is `Visibility::Private`

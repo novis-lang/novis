@@ -66,7 +66,7 @@
 //!
 //! Path traversal is structurally impossible with no sanitizer, per § 1: a
 //! probed suffix is built only out of namespace segments, and
-//! [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md) leaves
+//! `rule:core-api/identifier-casing` leaves
 //! no way to spell `.`, `..` or a separator in one.
 
 use std::fmt::Write as _;
@@ -565,7 +565,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     out
 }
 
-/// ADR 0029's namespace-segment shape: `PascalCase`, ASCII alphanumeric, and
+/// `rule:core-api/identifier-casing`'s namespace-segment shape: `PascalCase`, ASCII alphanumeric, and
 /// never a leading `_` (`rule:classes/no-leading-underscore-identifiers`).
 fn is_namespace_segment(name: &str) -> bool {
     let mut chars = name.chars();

@@ -5,7 +5,7 @@
 //! § 2 is the contract, and this command owns it: every class in
 //! [`nvs_stdlib::registry::CLASSES`], every member — static ones first, then
 //! instance ones — with the `$name` each of its positional parameters is
-//! callable by under `names` ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! callable by under `names` (`rule:core-api/shape-rules`
 //! R2) and, for a member whose row carries a
 //! [`MethodDoc`], its reference card under a `doc` key; every constant of the
 //! class beside its members, with its one-sentence card as its `doc`; and,
@@ -153,7 +153,7 @@ fn directive_json(directive: &nvs_config::Directive) -> Value {
 }
 
 /// One member: its name, its `kind`, the `$name` each positional parameter is
-/// callable by ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// callable by (`rule:core-api/shape-rules`
 /// R2), its signature half — `signature`, `params`, `options`, `returns` —
 /// and its `doc` only when the row carries one.
 ///

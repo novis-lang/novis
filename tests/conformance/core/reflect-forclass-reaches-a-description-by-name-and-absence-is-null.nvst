@@ -1,5 +1,5 @@
 --TEST--
-`Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — ADR 0019 §§ 1-2, ADR 0063 R6
+`Core\Reflect::forClass` reaches the same description by name that `forObject` reaches through a value, and a name nothing declares is `null` — ADR 0019 §§ 1-2, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 class Point {
@@ -8,7 +8,7 @@ class Point {
     private int $scratch = 0;
 }
 
-// ADR 0063 R6: absence is `?T`, so a name the program declares no class for is
+// `rule:core-api/shape-rules` R6: absence is `?T`, so a name the program declares no class for is
 // `null` rather than a throw — that `null` is the whole of what `class_exists`
 // answered, and asking about a name that turns out to be nothing is not a
 // mistake in the program.

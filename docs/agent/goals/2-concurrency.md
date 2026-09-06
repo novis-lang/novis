@@ -49,7 +49,7 @@ hardest to find later.
 
 ## Stage 0b — the catch-up, and it is calling a `Core` member by name
 
-[ADR 0063](../../adr/0063-core-api-conventions.md) R2 was amended on 2026-08-29, after this goal opened:
+`rule:core-api/shape-rules` R2 was amended on 2026-08-29, after this goal opened:
 every `Core` parameter is callable by the `$name` [01-core-library.md](../../spec/01-core-library.md)
 writes, and the trailing options bag by `options`, under exactly the rules a user-declared method already
 has (`rule:types/arrays`). It is catch-up for the same reason Stage 0 is —
@@ -85,7 +85,7 @@ the bag. The items add a name to slots that already exist, and a check that the 
     side-effecting argument as `tests/conformance/lang/a-named-argument-binds-by-name-and-a-spread-by-position.nvst`
     does; one `error` case constructing a `Throwable` by `message:` alone and with
     `options: {previous: …}`; one `reject` case where a misspelled name at a `Core` member and a name at a
-    variadic tail are both `E_UNKNOWN_ARG_NAME`. The docs are already written — ADR 0063 R2, ADR 0117, the
+    variadic tail are both `E_UNKNOWN_ARG_NAME`. The docs are already written — `rule:core-api/shape-rules` R2, `rule:core-api/reference-card`, the
     spec's *How to read an entry*, and the comments at each site above say "Stage 0b lands it"; landing it
     means rewriting those comments to the present tense, not adding to them.
 
@@ -216,7 +216,7 @@ there by the switch that left it and folded forward at every switch since.
 
   Anything else is decided-and-recorded. Claim the next free ADR number by creating the file, and
   **re-check it immediately before you do**: `python tools/brief.py` derives it from the directory.
-- **Stage 0b opens no ADR and changes no member.** ADR 0063 R2 already carries the rule; the names live
+- **Stage 0b opens no ADR and changes no member.** `rule:core-api/shape-rules` R2 already carries the rule; the names live
   on the registry row (`CoreMethod::names`), the bag is `options`, and the guard is the spec's signature
   column. Where a row's arity disagrees with the spec, the spec is authoritative for the *names* and the
   registry for what is *built*: give the row the spec's names and leave its `params` alone, and put a

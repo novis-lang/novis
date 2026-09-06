@@ -2,7 +2,7 @@
 Spec § 1: `Core\Str::indexOf`/`lastIndexOf` answer `?uint`, `countOf` counts without overlapping, and `reverse`/`wrap` work in characters
 --FILE--
 <?nvs
-// ADR 0063 R5: absence is `null`, so PHP's `strpos(...) == false` bug family
+// `rule:core-api/shape-rules` R5: absence is `null`, so PHP's `strpos(...) == false` bug family
 // has no spelling here — `0` and "not found" are different types of thing.
 echo (Core\Str::indexOf("The Quick, brown", "brown") ?? 99) as string, "|\n";
 echo (Core\Str::indexOf("abc", "a") ?? 99) as string, "|\n";

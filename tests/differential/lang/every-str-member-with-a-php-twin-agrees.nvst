@@ -1,5 +1,5 @@
 --TEST--
-every Core\Str member the spec gives a PHP twin answers what that twin answers over one shared ASCII corpus, and the ten identities the members hold jointly hold in PHP too (spec § 1, ADR 0063 R5, `rule:types/string-is-utf8`)
+every Core\Str member the spec gives a PHP twin answers what that twin answers over one shared ASCII corpus, and the ten identities the members hold jointly hold in PHP too (spec § 1, `rule:core-api/shape-rules` R5, `rule:types/string-is-utf8`)
 --FILE--
 <?nvs
 // The roster case for `Core\Str`. Every other file under

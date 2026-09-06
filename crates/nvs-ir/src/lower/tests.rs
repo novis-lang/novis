@@ -2713,7 +2713,7 @@ fn a_local_declared_in_one_if_branch_is_released_where_the_branches_merge() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// ADR 0063 R2's options bag, flattened: `Core\Arr::range` takes two
+/// `rule:core-api/shape-rules` R2's options bag, flattened: `Core\Arr::range` takes two
 /// positional arguments and one bag declaring one option, and both calls
 /// below emit a `core.call` with **three** arguments — the written
 /// `{step: 3}` in the first, the materialized default `1` in the second.

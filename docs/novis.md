@@ -21193,7 +21193,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `htmlspecialchars` | member | `Core\Html::escape` |
 | `iconv` | member | `Core\Encoding::decodeText` / `Core\Encoding::encodeText` |
 | `iconv_get_encoding` | dropped | there is no ambient encoding to read; `string` is UTF-8 by type |
-| `iconv_set_encoding` | dropped | ambient process state, unsound per core ([ADR 0051](adr/0051-standard-library-tiers.md)) |
+| `iconv_set_encoding` | dropped | ambient process state, unsound per core (`rule:core-api/tier-placement`) |
 | `iconv_strlen` | member | `Core\Str::length` — no encoding argument exists (R13) |
 | `iconv_strpos` | member | `Core\Str::indexOf` |
 | `iconv_strrpos` | member | `Core\Str::lastIndexOf` |
@@ -21201,7 +21201,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `implode` | member | `Core\Str::join` |
 | `join` | member | `Core\Str::join` |
 | `lcfirst` | member | `Core\Str::lowerFirst` |
-| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member, and no UTF-8 edit-distance replacement either: fuzzy matching does not pass ADR 0051's tests for Tier 0, so it is a library rather than a candidate |
+| `levenshtein` | dropped | byte-oriented, and wrong on any multi-byte input. No member, and no UTF-8 edit-distance replacement either: fuzzy matching does not pass `rule:core-api/tier-placement`'s tests for Tier 0, so it is a library rather than a candidate |
 | `ltrim` | member | `Core\Str::trimStart` |
 | `metaphone` | dropped | an English-only phonetic algorithm |
 | `nl2br` | dropped | it builds markup from text. `Core\Str::replace($s, "\n", "<br>")` after the value is escaped, or a template |
@@ -21429,7 +21429,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `date_create_immutable_from_format` | member | `Core\Time::parse` |
 | `date_date_set` | member | `Core\Time\DateTime::with` |
 | `date_default_timezone_get` | member | `Core\Time\Zone::system` — an ordinary value a program asks for and then passes, not a default anything picks up |
-| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness [ADR 0051](adr/0051-standard-library-tiers.md) rejects `setlocale` for |
+| `date_default_timezone_set` | dropped | nothing installs a zone that a later conversion silently reads; that is the unsoundness `rule:core-api/tier-placement` rejects `setlocale` for |
 | `date_diff` | member | `Core\Time\DateTime::difference` in whole units, or `Core\Time\Instant::since` for an exact `Duration`. There is no `DateInterval` |
 | `date_format` | member | `Core\Time\DateTime::format` |
 | `date_get_last_errors` | dropped | a parse failure throws rather than recording itself (R4) |
@@ -21441,7 +21441,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `date_parse` | member | `Core\Time::parse` |
 | `date_parse_from_format` | member | `Core\Time::parse` |
 | `date_sub` | member | `Core\Time\DateTime::minus`, `Core\Time\Instant::minus` — the same split as `date_add` |
-| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern ([ADR 0051](adr/0051-standard-library-tiers.md)) |
+| `date_sun_info` | dropped | solar geometry is not a Tier 0 concern (`rule:core-api/tier-placement`) |
 | `date_sunrise` | dropped | same |
 | `date_sunset` | dropped | same |
 | `date_time_set` | member | `Core\Time\DateTime::withTime` |
@@ -21750,7 +21750,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `sapi_windows_cp_is_utf8` | dropped | same; the answer is fixed |
 | `sapi_windows_cp_conv` | dropped | same — converting between encodings is `Core\Encoding`, on every platform alike |
 | `sapi_windows_vt100_support` | dropped | `Core\Cli` answers what the terminal supports rather than which console API the platform has, and it does so identically on every platform ([ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) § 1) |
-| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
+| `sapi_windows_set_ctrl_handler` | dropped | signals are `Core\Signal`, graceful shutdown only (`rule:core-api/tier-roster`) |
 | `sapi_windows_generate_ctrl_event` | dropped | sending one is `Core\Process::spawn`'s handle where the target is a child, and not offered at all where it is not |
 | `class_exists` | member | `Core\Reflect::forClass`, whose `null` is the answer: an undeclared name is an absence rather than a failure (R6). PHP's `$autoload` argument has nothing left to control, because no existence check can run a loader (`rule:programs/no-runtime-autoload`) |
 | `interface_exists` | member | `Core\Reflect::forClass`. Which kind of declaration carries the name is not a second question, and the description it answers with says which |
@@ -21771,7 +21771,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `class_uses` | dropped | there is no `trait` (`rule:classes/no-traits`) |
 | `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
 | `get_declared_traits` | dropped | there is no `trait` (`rule:classes/no-traits`) |
-| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` ([ADR 0051](adr/0051-standard-library-tiers.md) § 3); a list of the classes one extension registered describes a build, not a program |
+| `spl_classes` | dropped | SPL's data structures are `Core\Arr`, `Core\Heap`, `Core\ObjectMap` and `Core\ObjectSet` (`rule:core-api/tier-roster`); a list of the classes one extension registered describes a build, not a program |
 | `spl_object_hash` | dropped | the same id in hex, with the same reuse hazard and a string's cost on top |
 | `spl_autoload_register` | dropped | *"which file declares this name?"* is `autoload`, whose literal paths are resolved relative to the file that declares it and which has no runtime existence (`rule:programs/no-runtime-autoload`). A loader stack is process-global state a thread-per-core runtime cannot keep |
 | `spl_autoload_unregister` | dropped | there is no stack to remove from |
@@ -21806,7 +21806,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `header_register_callback` | dropped | a hook the engine runs just before flushing, to correct headers written from somewhere else. Nothing writes headers from somewhere else |
 | `http_response_code` | member | `Core\Response::setStatus`. Its getter half is a read-back the handler does not need, since it chose the status |
 | `setcookie` | member | `Core\Response::addCookie`, one options shape instead of eight positional arguments, defaulted from `[http.cookies]` ([ADR 0074](adr/0074-http-defaults-safe-and-finite.md)) |
-| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `setrawcookie` | dropped | it differs from `setcookie` only by skipping the URL-encoding, and encoding a cookie's value is `addCookie`'s job rather than a second function's — no operation is reachable two ways (`rule:core-api/shape-rules`) |
 | `http_get_last_response_headers` | dropped | it reports the headers of the last fetch a **stream wrapper** made — `$http_response_header` under a function name. There are no stream wrappers ([ADR 0052](adr/0052-closed-doors.md)), and an outbound response is the value `Core\Http\Client` returns ([01 § 16](spec/01-core-library.md)) |
 | `http_clear_last_response_headers` | dropped | same; there is no hidden slot to clear |
 | `session_start` | dropped | `Core\Session`'s members are the session ([01 § 15](spec/01-core-library.md)). There is no superglobal to populate first, so there is no call that must come before the others and no failure mode where it did not |
@@ -21837,7 +21837,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzclose` | dropped | there is no second handle roster to close; a `Core\IO` handle's lifetime is the object's |
 | `gzread` | dropped | the same pair — `Core\IO`'s handle reads, `Core\Compress` decodes |
 | `gzwrite` | dropped | the same pair, in the other direction |
-| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `gzputs` | dropped | `gzwrite`'s alias. No operation is reachable two ways (`rule:core-api/shape-rules`) |
 | `gzgetc` | dropped | one byte per call is what a handle offers. The decompressed bytes are a value here, and reading one out of it is `Core\Bytes` ([01 § 7](spec/01-core-library.md)) |
 | `gzgets` | dropped | splitting into lines is `Core\Str`'s job over those bytes, not a second thing the decompressor does |
 | `gzeof` | dropped | end-of-input is a question about a handle being drained by hand. An iteration ends when it ends (`rule:iteration/two-interfaces`) |
@@ -21846,7 +21846,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
 | `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding ([ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)) |
-| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
 | `xml_parser_free` | dropped | a reader's lifetime is its object's (R14). There is no handle to free, and nothing observes the difference |
 | `xml_parser_set_option` | dropped | its options are settled rather than configurable — case folding is `Core\Str`'s job on a name the caller chose to fold, the namespace separator does not exist because a qualified name is a pair rather than a joined string, and the target encoding is `Core\Encoding` at the `bytes`↔`string` boundary (`rule:types/bytes`) |
@@ -21861,7 +21861,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `xml_set_unparsed_entity_decl_handler` | dropped | it announces an entity naming an external file, so that the program can go and read it. Nothing here resolves one |
 | `xml_set_external_entity_ref_handler` | dropped | the XXE hook itself: PHP hands the program a system id and asks it to fetch and parse what it names. There is no such door (section lead) |
 | `xml_set_object` | dropped | it rebinds every string-named handler onto a method of an object — a workaround for callables that are strings, which Novis does not have (`rule:types/closure-literal`) |
-| `xml_get_error_code` | dropped | a failed parse throws ([ADR 0063](adr/0063-core-api-conventions.md)), so there is no code left on a parser to read afterwards |
+| `xml_get_error_code` | dropped | a failed parse throws (`rule:core-api/shape-rules`), so there is no code left on a parser to read afterwards |
 | `xml_error_string` | dropped | the message arrives on the throw. A code-to-string table is what one diagnostic record with three renderings replaces (`rule:errors/diagnostic-record`) |
 | `simplexml_load_file` | member | `Core\IO::read` for the bytes and that same tree entry for the parse. Reading a file and parsing XML are two jobs (R17), and only the first needs `fs.read` |
 | `simplexml_import_dom` | dropped | there is one node family, so there is nothing to convert between |
@@ -21907,8 +21907,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gethostbynamel` | dropped | the same, as a list, and the same gap |
 | `gethostbyaddr` | dropped | a reverse lookup, whose answer is controlled by whoever owns the address and is used almost exclusively as a name to trust |
 | `checkdnsrr` | dropped | "does a record exist" as a boolean, reached for as email validation. `Core\Validate::isDomain` answers the question about the *text*, and no probe makes an address deliverable |
-| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways ([ADR 0063](adr/0063-core-api-conventions.md) R17) |
-| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` ([ADR 0051](adr/0051-standard-library-tiers.md) § 1) |
+| `dns_check_record` | dropped | `checkdnsrr`'s alias. No operation is reachable two ways (`rule:core-api/shape-rules` R17) |
+| `dns_get_record` | dropped | a general DNS query is a client for a protocol nothing in Tier 0 speaks: resolution here is a step inside the outbound door, not a value handed to the program. A program that genuinely needs records builds one over `Core\Net` (`rule:core-api/five-placements`) |
 | `dns_get_mx` | dropped | the same, narrowed to MX. `Core\Mail` sends through an endpoint an operator named, so the one first-party use of an MX lookup is already configuration |
 | `getmxrr` | dropped | `dns_get_mx`'s alias, with the answer returned through two by-reference parameters (R3) |
 | `getprotobyname` | dropped | an `/etc/protocols` lookup, a convenience for building a raw socket. `Core\Net`'s protocol is the constructor it was reached through |
@@ -21942,7 +21942,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` (`rule:core-classes/derive-attribute`) rather than mixing the value, `null` and `false` in one array |
 | `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings (`rule:statements/no-host-populated-variables`), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
 | `filter_input_array` | dropped | both of those at once, over a spec array |
-| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](adr/0063-core-api-conventions.md)) |
+| `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` (`rule:core-api/shape-rules`) |
 | `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |
 | `filter_id` | dropped | maps one of those names to its integer constant |
 | `readline` | member | `Core\Cli::ask`, one of the prompts [ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md) puts on the class that already owns the terminal |
@@ -21953,7 +21953,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `readline_clear_history` | dropped | empties that copy |
 | `readline_completion_function` | dropped | it installs a global callback the line editor calls back into. A closed set of answers is `Core\Cli`'s selection prompts; free-text completion over a dynamic set is not a `Core` member |
 | `readline_info` | dropped | reads and writes libreadline's internal state by string key — the widest of the terminal's back doors, and the one [ADR 0086](adr/0086-core-cli-terminal-is-a-sink.md)'s sink rule could not survive |
-| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set ([ADR 0051](adr/0051-standard-library-tiers.md) § 3) |
+| `setlocale` | dropped | process-global C state, unsound per-core and leaky across requests. Locale is an explicit argument, and there is no ambient one to set (`rule:core-api/tier-roster`) |
 | `localeconv` | dropped | reads that global's number and currency table. Formatting takes the locale it formats for |
 | `hebrev` | dropped | it reorders logical-order Hebrew into visual order for terminals that could not do bidi. Text is UTF-8 in logical order (`rule:types/bytes`) and ordering is the renderer's |
 | `define` | dropped | a runtime constant table. A constant is a class member (`rule:classes/no-free-functions-or-constants`), known where it is used and foldable there (`rule:expressions/intrinsic-literals`) |
@@ -22022,7 +22022,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mysqli_refresh` | dropped | `FLUSH` by bitmask, the same |
 | `mysqli_debug` | dropped | switches on the client library's own trace file, by a format string. Tracing is the runtime's ([ADR 0041](adr/0041-timeline-export-and-gc-spawn-trace-events.md)) and a query is already a trace event ([ADR 0067](adr/0067-core-db.md) § 11) |
 | `mysqli_dump_debug_info` | dropped | asks the server to write debug information into its own log |
-| `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always ([ADR 0063](adr/0063-core-api-conventions.md) R4), so there is no mode to select |
+| `mysqli_report` | dropped | picks process-wide between `false` returns, warnings and exceptions. Failure throws, always (`rule:core-api/shape-rules` R4), so there is no mode to select |
 | `mysqli_poll` | dropped | waits on several `MYSQLI_ASYNC` queries at once, the one place mysqli has concurrency. Concurrency is `Core\Task` over connections ([ADR 0072](adr/0072-core-task-structured-concurrency.md)), not a poll loop over one |
 | `mysqli_reap_async_query` | dropped | collects one of those results; the same answer |
 | `mysqli_prepare` | dropped | there is no `prepare` step (`rule:core-classes/db-one-api`): the SQL and the parameters arrive together and the connection's LRU cache holds the server-side statement. Every statement is prepared, so a second spelling buys nothing the cache does not already give |
@@ -22053,7 +22053,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `mysqli_multi_query` | dropped | runs several statements separated by `;` in one call — the amplifier that turns one injection into a compromise, refused permanently (`rule:core-classes/db-one-api`) |
 | `mysqli_more_results` | dropped | asks whether that chain has another result set; nothing produces one |
 | `mysqli_next_result` | dropped | advances to the next one, the same |
-| `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument ([ADR 0063](adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `mysqli_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `MYSQLI_*` constant. A member's return shape does not vary with an argument (`rule:core-api/shape-rules` R17), and rows are read by name |
 | `mysqli_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
 | `mysqli_fetch_lengths` | dropped | the byte length of each column of the last row fetched, a question the text protocol made necessary. A value arrives at its natural Novis type (`rule:core-classes/db-column-types`), and its size is an ordinary question about that value |
 | `mysqli_field_count` | dropped | the column count of the connection's *last* result — connection-level state about a query that has already returned. `->columns()` belongs to the result itself |
@@ -22107,7 +22107,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `pg_cancel_query` | dropped | asks the server to abandon the query in flight. It exists because a program can hold a connection that is mid-statement; there is no point between issuing a statement and holding its result at which this could be called |
 | `pg_last_oid` | dropped | the OID of the row an `INSERT` created — a number PostgreSQL stopped putting on ordinary tables in 12. The id of a row a write created is `Db\Write`'s readonly `lastId`, and any other generated column comes back through a `RETURNING` clause like an ordinary select list |
 | `pg_getlastoid` | dropped | the deprecated spelling, and the same answer |
-| `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument ([ADR 0063](adr/0063-core-api-conventions.md) R17), and rows are read by name |
+| `pg_fetch_array` | dropped | one row keyed by name, by position, or both, chosen by a `PGSQL_*` constant. A member's return shape does not vary with an argument (`rule:core-api/shape-rules` R17), and rows are read by name |
 | `pg_fetch_row` | dropped | the positional half of it: a list per row, whose indices go wrong the moment the `SELECT` list is edited |
 | `pg_result_seek` | dropped | seeks within a buffered result set. Scrollable cursors are deferred (`rule:core-classes/db-one-api`), and `->all()` is an ordinary array to index |
 | `pg_result_status` | dropped | whether the result carries rows, a command tag or an error, as an integer to switch on. `query` and `execute` answer with different types and a failure throws (`rule:core-classes/db-statement-members` and `rule:core-classes/db-error`), so that branch is made by the compiler instead |
@@ -22133,7 +22133,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `pg_trace` | dropped | writes the client-server conversation to a file the program names. What a statement did is a `query` trace event instead, carrying the statement's own facts and never a bound parameter ([ADR 0067](adr/0067-core-db.md) § 11) |
 | `pg_untrace` | dropped | stops that, and has nothing to stop |
 | `pg_transaction_status` | dropped | whether the connection is inside a transaction, and whether that transaction has failed. `PDO::inTransaction` is refused permanently (`rule:core-classes/db-one-api`): a transaction is a closure, so the answer is which function you are inside, and a `Db\Transaction` parameter states it in the type (`rule:core-classes/db-transactions`) |
-| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all ([ADR 0051](adr/0051-standard-library-tiers.md) test 6) |
+| `pg_convert` | dropped | turns an associative array into SQL-ready values by checking it against the table's metadata. Values are bound, never made SQL-ready ([ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) § 4), and building a statement out of a table name and an array is query-builder work, which is not `Core` at all (`rule:core-api/tier-placement` test 6) |
 | `pg_insert` | dropped | builds and runs an `INSERT` from that array, under the same test. `Core\Db\Queryable::execute` runs the statement the program wrote |
 | `pg_update` | dropped | the same for `UPDATE`, with a second array standing in for the `WHERE` clause |
 | `pg_delete` | dropped | the same for `DELETE` |

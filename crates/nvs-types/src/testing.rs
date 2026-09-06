@@ -6,7 +6,7 @@
 //! [`crate::attributes`]'s § 1 rule to check the literal against, and the
 //! payload is checked here instead. A test is marked by an attribute the
 //! compiler acts on, not by a spelling convention, which is the position
-//! [ADR 0029](/docs/adr/0029-identifier-casing-is-checked.md)
+//! `rule:core-api/identifier-casing`
 //! takes everywhere else.
 //!
 //! # The option roster is the shape
@@ -15,7 +15,7 @@
 //! db?: string, server?: bool, retries?: int, because?: string}` — **every**
 //! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: `rule:types/shape-type`'s width subtyping requires every field the target names to be present
 //! in the literal, so a shape of seven fields would refuse the bare `#[Test]`
-//! the ADR's own example writes. It is ADR 0063 R2's options-bag rule
+//! the ADR's own example writes. It is `rule:core-api/shape-rules` R2's options-bag rule
 //! instead, which is the one this shape actually wants: a field the roster
 //! does not name is refused (`E_UNKNOWN_OPTION`), a field it does name is
 //! checked against that option's own type, one written twice is refused, and

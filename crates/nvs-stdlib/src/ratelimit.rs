@@ -55,7 +55,7 @@
 //!
 //! The per-core half needs somewhere to keep one timestamp per key, and the
 //! runtime already has exactly one per-core store: [`crate::cache`]'s local
-//! tier, an ADR 0059 § 1 `HashMap` in this thread. `shed` writes there, under
+//! tier, an `rule:core-api/two-cache-tiers` `HashMap` in this thread. `shed` writes there, under
 //! [`PREFIX`], for the reason `consume` writes to the one shared store — a
 //! second map would be a second footprint to bound, bounded by nothing, and
 //! ADR 0059 § 3's `nvs.toml` cap is written for *the* local tier rather than
@@ -189,7 +189,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\RateLimit::consume`'s reference card — ADR 0117.
+/// `Core\RateLimit::consume`'s reference card — `rule:core-api/reference-card`.
 const CONSUME_DOC: MethodDoc = MethodDoc {
     short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in the shared \
             store, and answers whether this arrival is inside the limit.",
@@ -247,7 +247,7 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\RateLimit::shed`'s reference card — ADR 0117.
+/// `Core\RateLimit::shed`'s reference card — `rule:core-api/reference-card`.
 const SHED_DOC: MethodDoc = MethodDoc {
     short: "Charges `$cost` units against `$key`'s allowance of `$limit` per `$per` in this core's \
             own memory, and answers whether this arrival is inside the limit — the approximate \
@@ -338,7 +338,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            // ADR 0063 R4's "absence is `?T`" rather than a sentinel zero: an
+            // `rule:core-api/shape-rules` R4's "absence is `?T`" rather than a sentinel zero: an
             // allowed arrival has no wait, and a wait of zero is a different
             // claim from having none.
             return_ty: CoreTy::Nullable(&DURATION),
@@ -350,7 +350,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\RateLimit\Decision::allowed`'s reference card — ADR 0117.
+/// `Core\RateLimit\Decision::allowed`'s reference card — `rule:core-api/reference-card`.
 const ALLOWED_DOC: MethodDoc = MethodDoc {
     short: "Whether this arrival was inside the limit, and so whether its cost was charged.",
     params: &[],
@@ -359,7 +359,7 @@ const ALLOWED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\RateLimit\Decision::limit`'s reference card — ADR 0117.
+/// `Core\RateLimit\Decision::limit`'s reference card — `rule:core-api/reference-card`.
 const LIMIT_DOC: MethodDoc = MethodDoc {
     short: "The `$limit` the decision was made against, carried back so a `RateLimit` header can \
             be written from the decision alone.",
@@ -368,7 +368,7 @@ const LIMIT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\RateLimit\Decision::remaining`'s reference card — ADR 0117.
+/// `Core\RateLimit\Decision::remaining`'s reference card — `rule:core-api/reference-card`.
 const REMAINING_DOC: MethodDoc = MethodDoc {
     short: "How many further units the store would admit at this instant.",
     params: &[],
@@ -377,7 +377,7 @@ const REMAINING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\RateLimit\Decision::retryAfter`'s reference card — ADR 0117.
+/// `Core\RateLimit\Decision::retryAfter`'s reference card — `rule:core-api/reference-card`.
 const RETRY_AFTER_DOC: MethodDoc = MethodDoc {
     short: "How long until this arrival would be admitted — the exact wait, computed from the \
             store's own clock rather than estimated.",

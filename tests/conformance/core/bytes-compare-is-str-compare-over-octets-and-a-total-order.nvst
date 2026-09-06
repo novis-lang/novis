@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::compare` answers the ordering `Core\Str::compare` gives the same octets, and is a total order over a swept table — spec § 7, `rule:types/bytes`, ADR 0063 R20
+`Core\Bytes::compare` answers the ordering `Core\Str::compare` gives the same octets, and is a total order over a swept table — spec § 7, `rule:types/bytes`, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // `bytes-indexes-and-orders-by-byte-offset.nvst` pins what `compare` answers

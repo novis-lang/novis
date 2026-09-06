@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::pick, sample and shuffle agree at their two smallest subjects — an empty array answers absence and an empty array rather than throwing, a one-entry array answers that entry every time, and the first refusal on each side names both numbers — spec § 11, ADR 0063 R4 and R7
+Core\Random::pick, sample and shuffle agree at their two smallest subjects — an empty array answers absence and an empty array rather than throwing, a one-entry array answers that entry every time, and the first refusal on each side names both numbers — spec § 11, `rule:core-api/shape-rules` R4 and R7
 
 --FILE--
 <?nvs
@@ -14,7 +14,7 @@ array<string> $empty = [];
 array<string> $one = ["only"];
 
 // --- Nothing to draw from --------------------------------------------------
-// ADR 0063 R7: absence is `?T`, and R6 reserves the throw for failure. An
+// `rule:core-api/shape-rules` R7: absence is `?T`, and R6 reserves the throw for failure. An
 // empty subject is not a failure — the caller asked a question with no answer
 // — so `pick` returns `null` and keeps its throw for the arguments that are
 // genuinely wrong. Counted over 100 draws rather than read off one line,

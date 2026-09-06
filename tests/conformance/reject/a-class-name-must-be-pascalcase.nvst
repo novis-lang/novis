@@ -1,5 +1,5 @@
 --TEST--
-a class declared in lower case is a hard compiler error, checked on the leading character only — ADR 0029 § 1
+a class declared in lower case is a hard compiler error, checked on the leading character only — `rule:core-api/casing-checks-the-leading-character`
 --FILE--
 <?nvs
 class thing {

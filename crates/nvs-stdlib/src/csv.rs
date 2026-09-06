@@ -168,7 +168,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Csv::parse`'s reference card — ADR 0117.
+/// `Core\Csv::parse`'s reference card — `rule:core-api/reference-card`.
 const PARSE_DOC: MethodDoc = MethodDoc {
     short: "Parses the whole CSV document `$text` into its records, as `str_getcsv` and the \
             parsing half of `fgetcsv` do, by RFC 4180's grammar: a field is quoted or it is not, \
@@ -215,7 +215,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Csv::format`'s reference card — ADR 0117.
+/// `Core\Csv::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Writes `$rows` as a CSV document, as `fputcsv`'s formatting half does over a whole \
             document: a field is quoted exactly when it holds the separator, the quote, `CR` \

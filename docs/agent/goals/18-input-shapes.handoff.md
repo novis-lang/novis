@@ -21,7 +21,7 @@ and a qualifier cannot reach it. Stage 2 fixes both, and stages 3 and 4 are then
 `crates/nvs-types/src/ty.rs`, `crates/nvs-types/src/expr/assign.rs`.
 
 - [ ] **`Ty::Shape` gains a required bit per field** — `crates/nvs-types/src/ty.rs:250`. The bit exists
-      one struct away: `CoreShapeField::required` (`:359`) is this for a Core options bag under ADR 0135,
+      one struct away: `CoreShapeField::required` (`:359`) is this for a Core options bag under `rule:core-api/shape-parameter`,
       so reuse that representation rather than inventing a second. Parser: `{name?: T}` in
       `crates/nvs-syntax/src/parser/ty.rs`. `{a?: T}` and `{a: ?T}` stay **different types** — key may be
       absent, versus key present holding `null`.

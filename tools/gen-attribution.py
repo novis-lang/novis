@@ -201,7 +201,7 @@ C_DEPENDENCIES: dict[str, tuple[str, tuple[str, ...], str]] = {
         "SQLite itself, compiled from the amalgamation by `rusqlite`'s sys crate. "
         "Question 1 is yes -- a database engine parses SQL an application composed "
         "and stores bytes a request supplied -- and question 2 is the one record "
-        "ADR 0051 section 4 names by hand: TH3, 100% MC/DC branch coverage over the "
+        "`rule:core-api/tier-placement` section 4 names by hand: TH3, 100% MC/DC branch coverage over the "
         "whole library, plus a continuous fuzzing corpus and the anomaly log SQLite "
         "publishes against every release. `bundled` is required rather than "
         "incidental, and Cargo.toml's `rusqlite` comment is the home of why -- a "

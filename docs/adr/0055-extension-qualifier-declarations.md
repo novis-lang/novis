@@ -35,7 +35,7 @@
 - Without a rule, the default behaviour is not merely limited but unsound: if qualifiers were stripped on
   the way in and results came back plain, any `.nvsx` would be a universal bypass for ADR 0024. Passing a
   value through an extension would launder it.
-- [ADR 0051](0051-standard-library-tiers.md) makes this concrete rather than hypothetical. Placing
+- `rule:core-api/tier-placement` makes this concrete rather than hypothetical. Placing
   internationalization at Tier 1 means a `tainted` string from `Core\Request` is routinely handed to a
   **first-party** component and comes back formatted. If that round trip cleaned it, Novis's own stdlib would
   be the bypass.

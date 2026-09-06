@@ -119,7 +119,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Debug::dump`'s reference card — ADR 0117.
+/// `Core\Debug::dump`'s reference card — `rule:core-api/reference-card`.
 const DUMP_DOC: MethodDoc = MethodDoc {
     short: "Writes one rendered node per argument to the diagnostic channel — stderr in a CLI \
             program, never stdout — which is what `var_dump` is for, minus its writing to \
@@ -136,7 +136,7 @@ const DUMP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Debug::render`'s reference card — ADR 0117.
+/// `Core\Debug::render`'s reference card — `rule:core-api/reference-card`.
 const RENDER_DOC: MethodDoc = MethodDoc {
     short: "Renders `$value` exactly as `dump` would and answers it as the carrier of the sink \
             in force instead of writing it, so a dump can be embedded in output and stays \
@@ -487,7 +487,7 @@ fn object_body(
     // are its captures, and a dump that showed them would be showing an
     // implementation. A synthesized closure class is named `{owner}$fn{n}` by
     // `nvs_types::expr::calls`, and `$` cannot appear in a declared name
-    // (ADR 0029), so the marker is unambiguous.
+    // (`rule:core-api/identifier-casing`), so the marker is unambiguous.
     if class.contains("$fn") {
         let parameters = nvs_runtime::closure_arity(value).unwrap_or(0);
         return Node::Closure { parameters };

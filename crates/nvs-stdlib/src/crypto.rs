@@ -1,5 +1,4 @@
-//! `Core\Crypto` — [ADR 0051](/docs/adr/0051-standard-library-tiers.md)
-//! § 3's "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string",
+//! `Core\Crypto` — `rule:core-api/tier-roster`'s "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string",
 //! as three members that take a key and a message and nothing else.
 //!
 //! § 3 places the class and states the roster's one rule; what belongs here is
@@ -60,7 +59,7 @@
 //! # A forgery throws, and every way of not being authentic throws the same
 //!
 //! `open` answers the plaintext or it throws; there is no `false` and no
-//! `?bytes`, which is [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s
+//! `?bytes`, which is `rule:core-api/shape-rules`'s
 //! rule and, here, the whole point of the class — an unauthenticated mode
 //! would have handed back plausible rubbish for `examples/crypto.nvs`'s
 //! one-byte truncation, and the last line of that fixture is what an AEAD is
@@ -148,7 +147,7 @@ const TAG_LEN: usize = 16;
 /// empty message between them.
 const OVERHEAD: usize = NONCE_LEN + TAG_LEN;
 
-/// ADR 0051 § 3's AEAD-only surface, as three rows.
+/// `rule:core-api/tier-roster`'s AEAD-only surface, as three rows.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -195,7 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Crypto::generateKey`'s reference card — ADR 0117.
+/// `Core\Crypto::generateKey`'s reference card — `rule:core-api/reference-card`.
 const GENERATE_KEY_DOC: MethodDoc = MethodDoc {
     short: "Draws a fresh key for `seal` and `open` from the same CSPRNG `Core\\Random` uses. \
             There is no key size argument: the construction has one key size.",
@@ -205,7 +204,7 @@ const GENERATE_KEY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Crypto::seal`'s reference card — ADR 0117.
+/// `Core\Crypto::seal`'s reference card — `rule:core-api/reference-card`.
 const SEAL_DOC: MethodDoc = MethodDoc {
     short: "Encrypts and authenticates `$message` under `$key` with XChaCha20-Poly1305, drawing \
             a fresh nonce per call. There is no cipher, mode, padding or IV argument — the \
@@ -237,7 +236,7 @@ const SEAL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Crypto::open`'s reference card — ADR 0117.
+/// `Core\Crypto::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
     short: "Authenticates `$sealed` under `$key` and answers the plaintext, or throws. A \
             message altered by one octet is refused rather than decrypted into whatever is \
@@ -490,7 +489,7 @@ mod tests {
     /// Asserted by *forging*: a sealed message with one octet changed at every
     /// position in the tag, in the ciphertext and in the nonce has to be
     /// refused. An unauthenticated mode passes a round-trip test and fails
-    /// every one of these, which is precisely the failure ADR 0051 § 3's
+    /// every one of these, which is precisely the failure `rule:core-api/tier-roster`'s
     /// AEAD-only rule exists to make impossible.
     #[test]
     fn every_registered_cipher_is_an_aead() {

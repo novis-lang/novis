@@ -1,5 +1,5 @@
 --TEST--
-A key only one arm of `Db\Settings` requires is required of the call that selects that arm, asked of both arms — ADR 0135 § 2
+A key only one arm of `Db\Settings` requires is required of the call that selects that arm, asked of both arms — `rule:core-api/shape-arms-are-disjoint`
 --FILE--
 <?nvs
 // The half of § 2 that the merged list understates rather than overstates. A

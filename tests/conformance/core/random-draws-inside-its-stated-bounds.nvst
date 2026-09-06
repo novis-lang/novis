@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::int, float and token draw from a CSPRNG inside the bounds each one states, and an empty range throws — spec § 11, ADR 0063 R4
+Core\Random::int, float and token draw from a CSPRNG inside the bounds each one states, and an empty range throws — spec § 11, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A random answer cannot be asserted, so every line here pins an invariant of
@@ -42,7 +42,7 @@ echo Core\Str::length(Core\Random::token()), "\n";
 echo Draw::tokenLength(8), "\n";
 echo Core\Regex::matches(Core\Random::token(16), '^[0-9a-f]{32}$') ? "hex" : "not hex", "\n";
 
-// ADR 0063 R4: an empty range and a zero-byte token each have no answer worth
+// `rule:core-api/shape-rules` R4: an empty range and a zero-byte token each have no answer worth
 // inventing, so both throw rather than swapping the bounds or handing back "".
 echo Draw::inRange(4, 3), "\n";
 echo Draw::tokenLength(0), "\n";

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — spec § 5, ADR 0063 R4 and R5
+`Core\Regex\Match::group` answers three different things over a pattern's whole group set and refuses everything outside it, quoting back the key it was handed — spec § 5, `rule:core-api/shape-rules` R4 and R5
 --FILE--
 <?nvs
 // R3: the match *is* the return value, and `matchAll` binds a `Core\Regex\Match`

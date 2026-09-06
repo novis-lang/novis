@@ -1,5 +1,5 @@
 --TEST--
-`Core\Str::replaceAll` is one left-to-right pass over the subject, so all six orderings of a three-pair cycle answer the same string and none of them is the fold `replace` would give — spec § 1, ADR 0063 R20
+`Core\Str::replaceAll` is one left-to-right pass over the subject, so all six orderings of a three-pair cycle answer the same string and none of them is the fold `replace` would give — spec § 1, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/str.rs`'s own comment states the rule this case

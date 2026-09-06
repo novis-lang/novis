@@ -4,7 +4,7 @@ Spec § 1: `Core\Str::slice` takes a `?int` length, and `before`/`after` cut at 
 <?nvs
 // `?int $length = null` is the first `Core` parameter whose default is `null`:
 // "to the end of the subject", spelled in the type rather than as a sentinel
-// (ADR 0063 R5).
+// (`rule:core-api/shape-rules` R5).
 echo Core\Str::slice("abcdef", 2), "|\n";
 echo Core\Str::slice("abcdef", 2, 3), "|\n";
 // R8's sign rule, on both arguments: a negative offset counts from the end, and

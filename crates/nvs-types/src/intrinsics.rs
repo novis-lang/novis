@@ -134,13 +134,12 @@ struct Intrinsic {
     member: &'static str,
     /// The **written** argument position the pattern is at — 0 for a subject
     /// that is itself the pattern, 1 for `Core\Time::parse`, whose subject is
-    /// the text being parsed (ADR 0063 R1).
+    /// the text being parsed (`rule:core-api/shape-rules` R1).
     at: usize,
     /// Which field *inside* the argument at [`Self::at`] carries the literal,
     /// or `None` where the argument is itself it.
     ///
-    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-    /// § 3's merged ABI does not answer this and is not what this addresses:
+    /// `rule:core-api/shape-flattens-at-the-abi`'s merged ABI does not answer this and is not what this addresses:
     /// that flattening is `nvs_ir::lower`'s, and it happens to an argument
     /// already checked. Here the shape is still one written literal, so the
     /// address is a field *name* — `rule:types/object-literal` makes [`ExprKind::ObjectLiteral`] the only spelling a shape argument

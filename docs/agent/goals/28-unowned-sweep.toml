@@ -18,7 +18,7 @@ modules = [
   "crates/nvs-stdlib/src/queue.rs",
   # Stage 2 -- the registry rows the three members are declared in.
   "crates/nvs-stdlib/src/registry.rs",
-  # Stage 2 -- ADR 0135's `CoreTy` shape arm, which goal 18 landed and this goal is the second caller of.
+  # Stage 2 -- `rule:core-api/shape-parameter`'s `CoreTy` shape arm, which goal 18 landed and this goal is the second caller of.
   "crates/nvs-types/src/core_lib.rs",
   # Stage 3 -- `is_assignable`, whose own docs argue both sides of the variance question.
   "crates/nvs-types/src/expr/assign.rs",
@@ -87,8 +87,8 @@ memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- an options bag can tell omitted from written `null`. ADR 0147 is the rule; `rule:types/shape-type`
-# and ADR 0135 § 3 are the shape and the ABI fill it amends.
+# Stage 2 -- an options bag can tell omitted from written `null`. `rule:core-api/omission-is-not-a-written-null` is the rule; `rule:types/shape-type`
+# and `rule:core-api/shape-flattens-at-the-abi` are the shape and the ABI fill it amends.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]

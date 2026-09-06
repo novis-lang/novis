@@ -124,7 +124,7 @@ rather than a second load of the tag byte.
 **A property slot is not its only position.** The same marker is what an omitted *nullable* field of a
 `Core` options bag or shape parameter materializes at the call site, which is how such a bag tells a
 missing key from a written `null`
-([ADR 0147](0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) § 2). The three conditions
+(`rule:core-api/the-bag-abi-is-unchanged`). The three conditions
 above are what admit it there too, and all three hold: the field's declared type is `?T` and the marker is
 no member of it, no expression evaluates to one — the call site that "writes" it writes nothing, and the
 compiler emits the fill — and its only reader is the native helper behind the member, which turns it into

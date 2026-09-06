@@ -235,7 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Validate::isEmail`'s reference card — ADR 0117.
+/// `Core\Validate::isEmail`'s reference card — `rule:core-api/reference-card`.
 const IS_EMAIL_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` is an email address, as `filter_var` with `FILTER_VALIDATE_EMAIL` \
             does: one `@`, an unquoted dot-atom local part of at most 64 bytes, and a hostname \
@@ -251,7 +251,7 @@ const IS_EMAIL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Validate::isDomain`'s reference card — ADR 0117.
+/// `Core\Validate::isDomain`'s reference card — `rule:core-api/reference-card`.
 const IS_DOMAIN_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` is an RFC 1123 hostname, as `filter_var` with \
             `FILTER_VALIDATE_DOMAIN` and `FILTER_FLAG_HOSTNAME` does: one or more labels of 1 to \
@@ -267,7 +267,7 @@ const IS_DOMAIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Validate::isIp`'s reference card — ADR 0117.
+/// `Core\Validate::isIp`'s reference card — `rule:core-api/reference-card`.
 const IS_IP_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` is an IP address, as `filter_var` with `FILTER_VALIDATE_IP` \
             does, with `FILTER_FLAG_IPV4` and `FILTER_FLAG_IPV6` folded into `version`.",
@@ -289,7 +289,7 @@ const IS_IP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Validate::isMac`'s reference card — ADR 0117.
+/// `Core\Validate::isMac`'s reference card — `rule:core-api/reference-card`.
 const IS_MAC_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` is a MAC address, as `filter_var` with `FILTER_VALIDATE_MAC` \
             does: six hex octets joined by `:` or by `-`, or three groups of four hex digits \
@@ -304,7 +304,7 @@ const IS_MAC_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Validate::isAscii`'s reference card — ADR 0117.
+/// `Core\Validate::isAscii`'s reference card — `rule:core-api/reference-card`.
 const IS_ASCII_DOC: MethodDoc = MethodDoc {
     short: "Answers whether every byte of `$s` is ASCII (`0x00`–`0x7F`) — the encoding \
             question, a byte scan with no decoding.",
@@ -318,7 +318,7 @@ const IS_ASCII_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Validate::isPrintable`'s reference card — ADR 0117.
+/// `Core\Validate::isPrintable`'s reference card — `rule:core-api/reference-card`.
 const IS_PRINTABLE_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` holds no control character — no `char` in Unicode general \
             category `Cc` — as `ctype_print` does, but over characters rather than ASCII bytes, \
@@ -614,7 +614,7 @@ mod tests {
     /// that argues it: **`Core\Validate` launders nothing**, because nothing
     /// in it answers its own subject back.
     ///
-    /// The class is the one ADR 0051 § 3 calls "*the* launderer" — the member
+    /// The class is the one `rule:core-api/tier-roster` calls "*the* launderer" — the member
     /// list PHP's `filter` shrank to once its sanitizing half was dropped —
     /// so a blanket [`Qual::Launder`] over it is the plausible reading, and it
     /// is the false confidence ADR 0024 exists to prevent: a syntactically

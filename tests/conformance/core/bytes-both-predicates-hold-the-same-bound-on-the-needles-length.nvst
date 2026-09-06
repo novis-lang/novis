@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — `rule:types/bytes`, ADR 0063 R6
+Spec § 7: `Core\Bytes::startsWith` and `endsWith` hold the same bound on the needle's length — empty, full width, and one byte past it — and agree with each other wherever a prefix and a suffix are the same buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // Both members are written around one bound: a needle is answered `true` up to

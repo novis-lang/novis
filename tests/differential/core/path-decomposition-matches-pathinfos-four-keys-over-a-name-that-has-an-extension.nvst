@@ -39,7 +39,7 @@ echo Show::of("archive.tar.gz"), "\n";
 echo Show::of("a.b.c.d"), "\n";
 
 // A name with no dot in it has no extension, and PHP says so by leaving the
-// key out where this says so with `null` (ADR 0063 R5).
+// key out where this says so with `null` (`rule:core-api/shape-rules` R5).
 echo Show::of("/usr/bin/env"), "\n";
 echo Show::of("/etc/hosts"), "\n";
 

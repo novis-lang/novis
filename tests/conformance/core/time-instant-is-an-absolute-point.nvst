@@ -22,7 +22,7 @@ echo Core\Time::fromEpoch(0 - 1)->toIso(), "|\n";
 echo Core\Time::fromEpoch(0, {nanos: 250000000})->toEpochMillis() as string, "|\n";
 
 // Exact arithmetic: an `Instant` moves by a `Duration`, never by a calendar
-// step. ADR 0063 R3: nothing mutates, so `plus` leaves its receiver alone.
+// step. `rule:core-api/shape-rules` R3: nothing mutates, so `plus` leaves its receiver alone.
 var $later = $at->plus(90m);
 echo $at->toIso(), "|", $later->toIso(), "|\n";
 echo $later->minus(90m)->compareTo($at) as string, "|\n";
@@ -30,7 +30,7 @@ echo $later->since($at)->toSeconds() as string, "|\n";
 echo $at->since($later)->toSeconds() as string, "|\n";
 echo $at->compareTo($later) as string, "|", $later->compareTo($at) as string, "|", $at->compareTo($at) as string, "|\n";
 
-// ADR 0063 R4: failure throws rather than answering a wrong value. Which
+// `rule:core-api/shape-rules` R4: failure throws rather than answering a wrong value. Which
 // texts `fromIso` accepts, and in what class it refuses the rest, is
 // time-from-iso-needs-an-offset-and-refuses-as-a-parse-error.nvst.
 try {

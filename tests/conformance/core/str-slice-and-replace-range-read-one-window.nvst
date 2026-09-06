@@ -3,7 +3,7 @@ Spec § 1: `Core\Str::slice` and `::replaceRange` read one window, so substituti
 --FILE--
 <?nvs
 // Both members read their `$offset` and `?int $length` through one shared
-// reading of ADR 0063 R8's sign rule, and the whole point of sharing it is
+// reading of `rule:core-api/shape-rules` R8's sign rule, and the whole point of sharing it is
 // this invariant: `replaceRange` puts back exactly what `slice` takes out.
 // PHP's own `substr`/`substr_replace` pair does not manage it, because the
 // two clamp a backwards window differently.

@@ -18,7 +18,7 @@ echo Core\Math::toBase(5, 2), "|", Core\Math::toBase(35, 36), "|",
 // The first refused entry past each end, named beside the accepted one above
 // so a member that stopped one entry early or late cannot print plausibly
 // against either half alone. PHP's `base_convert` answers `0` out here, which
-// is the quiet wrong answer ADR 0063 R4 turns into a throw.
+// is the quiet wrong answer `rule:core-api/shape-rules` R4 turns into a throw.
 try {
     echo Core\Math::toBase(5, 1), "\n";
 } catch (Throwable $writeUnder) {

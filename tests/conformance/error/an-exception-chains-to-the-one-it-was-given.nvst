@@ -1,5 +1,5 @@
 --TEST--
-`{previous: $e}` chains one throwable to the one that caused it, and an exception built without the bag reads `null` — spec § 10, ADR 0063 R2's options shape
+`{previous: $e}` chains one throwable to the one that caused it, and an exception built without the bag reads `null` — spec § 10, `rule:core-api/shape-rules` R2's options shape
 --FILE--
 <?nvs
 // Spec § 10: every exception is constructed the same way — one required

@@ -7,7 +7,7 @@ titled *Unscheduled, and lands with `Core\Xml`*, and `crates/nvs-stdlib/src/html
 says `Core\Html::sanitize` and the WHATWG parser "both wait on that tree existing at all". Three gaps,
 one tree, one goal.
 
-**It is M8's, not M9's** — [ADR 0051](../../adr/0051-standard-library-tiers.md) § 3 puts `Core\Xml` at
+**It is M8's, not M9's** — `rule:core-api/tier-roster` puts `Core\Xml` at
 Tier 0 (`0051:94`) and [m9.md](../../plan/m9.md) carries the extension system, not document formats.
 `spec-classes-part-two-outstanding.txt`'s claim that M9 carried § 17 was wrong; goal 25 corrected the
 other half.

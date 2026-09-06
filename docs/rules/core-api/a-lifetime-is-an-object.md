@@ -1,0 +1,10 @@
+Anything with a lifetime is an object. There is no `resource` atom in any `Core` signature, no integer
+handle, and no `$link`-first calling convention; a file, a connection, a compression stream and a hash
+context are all objects with methods.
+
+A handle has nowhere to enforce a capability and nothing to hang an API on, so every operation on it
+becomes a free function taking the handle first — which is how PHP ended up with `fopen` beside
+`SplFileObject` beside `DirectoryIterator` (`rule:core-api/one-paradigm-per-operation`). An object has both
+a place for the capability check and a place for the methods. The `resource` atom survives in the type
+grammar (`rule:types/grammar`) only for opaque handles an extension supplies, and `Core` never produces
+one.

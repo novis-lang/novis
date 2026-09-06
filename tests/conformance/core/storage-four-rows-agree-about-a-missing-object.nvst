@@ -1,5 +1,5 @@
 --TEST--
-Core\Storage's four rows agree about whether a key names an object, each in its own vocabulary — absence is null, a failed delete, an omission from the listing and a claim that succeeds — `rule:programs/framework-core-half`, ADR 0063 R7
+Core\Storage's four rows agree about whether a key names an object, each in its own vocabulary — absence is null, a failed delete, an omission from the listing and a claim that succeeds — `rule:programs/framework-core-half`, `rule:core-api/shape-rules` R7
 --FILE--
 <?nvs
 // One question — "does this key name an object on this disk?" — asked of all
@@ -10,7 +10,7 @@ Core\Storage's four rows agree about whether a key names an object, each in its 
 // what catches that; the numbers between 0 and 4 are the whole failure surface.
 //
 // The vocabularies, from `crates/nvs-stdlib/src/storage.rs`'s reference cards:
-// `get` answers absence as `null` (ADR 0063 R7), `delete` fails over a key that
+// `get` answers absence as `null` (`rule:core-api/shape-rules` R7), `delete` fails over a key that
 // was never there, `list` omits it, and `put` under `overwrite: false` is a
 // claim, so it succeeds exactly where there is nothing to replace.
 final class Ask {

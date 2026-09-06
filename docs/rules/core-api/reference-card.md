@@ -1,0 +1,17 @@
+An implemented `Core` member's reference documentation lives in its registry declaration, next to the code
+it documents: a short description of one or two sentences, a name and description per parameter — and for a
+shape-typed parameter, each key's type and description — a return description, and a list of thrown errors,
+each described. An enum carries a card of its own with one line per case, and a constant carries one
+sentence, since a constant has a value and no signature.
+
+The registry is the one artifact that provably matches shipped behaviour, because it is the data the
+runtime dispatches on; and it already has to carry every parameter's name
+(`rule:core-api/parameters-are-callable-by-name`), so a documentation scheme that put descriptions anywhere
+else would create the duplicate that name guard exists to prevent. **Every row carries its card** — a
+member without one fails the crate's tests, so a member lands documented or does not land.
+
+Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
+surface available, so anything beyond the reference card stays in the website's pages. The cost is static
+strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
+member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
+cares.

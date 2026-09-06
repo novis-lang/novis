@@ -13,7 +13,7 @@ echo Core\Arr::count($words), "\n";
 
 // Empty rather than absent: it is an `array<tainted string>` a `foreach` walks
 // zero times, never a `null` a program has to test for. A member whose absence
-// is a value would be `?T` by ADR 0063, and this one has no absence.
+// is a value would be `?T` by `rule:core-api/shape-rules`, and this one has no absence.
 foreach ($words as tainted string $word) {
     echo "unreachable:", $word, "\n";
 }

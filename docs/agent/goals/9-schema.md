@@ -41,7 +41,7 @@ forever"* — and that refusal extends to DDL here. Reverse-engineering an exist
 introspection** (`nvs schema dump`), which is strictly better than reading a `CREATE TABLE` its server
 printed: catalogs are structured tables rather than grammars, the statement came from that server anyway,
 and the introspector has to exist for the diff regardless. A `CREATE TABLE` parser would be a second,
-worse implementation of a job already done — [ADR 0051](../../adr/0051-standard-library-tiers.md) test 6.
+worse implementation of a job already done — `rule:core-api/tier-placement` test 6.
 
 ## Stage 0 — the catch-up
 
@@ -59,7 +59,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
    rule that it never grows to chase a vendor; convergence rather than versioning, and why `Core` holds no
    notion of a migration; the three grades and the rule that an unknown grade grades *up*; absence never
    destroying; the plan as a document; live introspection as the only reverse path; and the placement
-   argument — [ADR 0051](../../adr/0051-standard-library-tiers.md) test 2 (DDL is a sink, and only a
+   argument — `rule:core-api/tier-placement` test 2 (DDL is a sink, and only a
    `Core` function may launder an identifier), test 1 (introspection reads a pooled connection), test 6
    (otherwise the queue's emitter, a framework's and userland's are three spellings of one job).
 2. **The vocabulary, as types in a new `crates/nvs-db/src/schema.rs`.** A table, its columns, its primary
@@ -118,7 +118,7 @@ behaviour-preserving refactor with a frozen expected output rather than a rewrit
 
 1. **`Core\Db\Schema` in a new `crates/nvs-stdlib/src/schema.rs`** — the builder, `fromArray`/`toArray`,
    `planAgainst(Queryable)`, and a plan whose steps expose their grade, their reason and their SQL.
-   Registry cards per [ADR 0117](../../adr/0117-an-implemented-core-member-documents-itself-in-the-registry.md),
+   Registry cards per `rule:core-api/reference-card`,
    a reference doc at `docs/reference/core/Db/Schema.md`.
 2. **Planning is a read; applying is gated.** `planAgainst` runs ordinary catalog queries under the
    `db.connect` a program already holds. Applying takes a new deny-by-default `db.schema` capability, and

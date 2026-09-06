@@ -1,5 +1,5 @@
 --TEST--
-every CLDR field letter Core\Time's three format members implement renders exactly what the PHP date() letter it replaces renders, and the four composition identities the pattern grammar holds are held by PHP's grammar too (spec § 4, ADR 0051, `rule:expressions/intrinsic-literals`)
+every CLDR field letter Core\Time's three format members implement renders exactly what the PHP date() letter it replaces renders, and the four composition identities the pattern grammar holds are held by PHP's grammar too (spec § 4, `rule:core-api/tier-placement`, `rule:expressions/intrinsic-literals`)
 --FILE--
 <?nvs
 // The roster case for the pattern grammar. `Core\Time\DateTime::format`,

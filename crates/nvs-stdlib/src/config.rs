@@ -78,7 +78,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Config::get`'s reference card — ADR 0117.
+/// `Core\Config::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "The configuration value in force for this request, replacing `ini_get`. A directive \
             this request set with `set` answers with that value; everything else answers with \
@@ -94,7 +94,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Config::set`'s reference card — ADR 0117.
+/// `Core\Config::set`'s reference card — `rule:core-api/reference-card`.
 const SET_DOC: MethodDoc = MethodDoc {
     short: "Sets a directive for this request only, replacing `ini_set`. The change is written to \
             a copy-on-write overlay over the configuration snapshot, so it is invisible to every \
@@ -119,7 +119,7 @@ const SET_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Config::restore`'s reference card — ADR 0117.
+/// `Core\Config::restore`'s reference card — `rule:core-api/reference-card`.
 const RESTORE_DOC: MethodDoc = MethodDoc {
     short: "Drops what this request set for a directive, putting the configuration file's own \
             value back in force — `ini_restore`.",
@@ -132,7 +132,7 @@ const RESTORE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Config::all`'s reference card — ADR 0117.
+/// `Core\Config::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Every directive in force for this request, keyed by dotted name, with what this \
             request set folded over the file — `ini_get_all`.",

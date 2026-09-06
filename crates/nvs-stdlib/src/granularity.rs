@@ -17,7 +17,7 @@
 //! Apache-2.0 — so `cargo deny check` needs no exception for it. The
 //! alternative considered was `icu_segmenter`: correct too, and carrying a
 //! data-provider architecture and a locale story that
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) already
+//! `rule:core-api/tier-placement` already
 //! rules out of `Core`.
 //!
 //! # The Unicode version is part of the answer
@@ -143,7 +143,7 @@ impl Unit {
     /// negative, or `None` when it addresses nothing.
     ///
     /// Negative-from-the-end is the same rule
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8 fixes
+    /// `rule:core-api/shape-rules` R8 fixes
     /// for every range in the spec; `at` is a range of one.
     #[must_use]
     pub fn at(self, subject: &str, index: i64) -> Option<&str> {
@@ -186,7 +186,7 @@ impl Unit {
     /// counting from the end and either end saturating.
     ///
     /// [`Self::byte_of_index`] with
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R8's sign
+    /// `rule:core-api/shape-rules` R8's sign
     /// rule applied first, so every member that takes a *position* — the `from`
     /// of `Core\Regex::match` and `Core\Str::indexOf`, the `before` of
     /// `lastIndexOf`, the `offset` of `slice` — reads it the same way. It

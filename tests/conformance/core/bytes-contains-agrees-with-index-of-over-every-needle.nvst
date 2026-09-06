@@ -1,5 +1,5 @@
 --TEST--
-`Core\Bytes::contains` answers `Core\Bytes::indexOf`'s presence for every needle, swept over every substring of one subject and every needle just outside it — spec § 7, `rule:types/bytes`, ADR 0063 R5 and R6
+`Core\Bytes::contains` answers `Core\Bytes::indexOf`'s presence for every needle, swept over every substring of one subject and every needle just outside it — spec § 7, `rule:types/bytes`, `rule:core-api/shape-rules` R5 and R6
 --FILE--
 <?nvs
 // R6 gives this class two ways to ask the same question: `contains` is the

@@ -67,7 +67,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Fatal::onLimit`'s reference card — ADR 0117.
+/// `Core\Fatal::onLimit`'s reference card — `rule:core-api/reference-card`.
 const ON_LIMIT_DOC: MethodDoc = MethodDoc {
     short: "Registers the closure this request runs when a resource limit stops it — memory, CPU \
             time, output, wall time, script depth or call-stack depth. It runs out of a slice of the \
@@ -86,7 +86,7 @@ const ON_LIMIT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Fatal::onUncaughtThrow`'s reference card — ADR 0117.
+/// `Core\Fatal::onUncaughtThrow`'s reference card — `rule:core-api/reference-card`.
 const ON_UNCAUGHT_THROW_DOC: MethodDoc = MethodDoc {
     short: "Registers the closure this request runs when a throw reaches the top of it with nothing \
             left to catch it. It runs out of the request's ordinary remaining budget, once and \

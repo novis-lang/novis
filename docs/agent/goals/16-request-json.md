@@ -105,7 +105,7 @@ request boundary, so it gets a `valgrind` run of its own rather than riding the 
 
 - **Both members land, `json()` and `jsonAs<T>()`** — the pair mirrors `Core\Json`'s own `decode`/
   `decodeAs` and R6 decides the spelling. This is settled; it is not re-opened on the grounds that
-  `json()` alone is close to ADR 0051 test 6's line. It is not an alias for `Json::decode(body())`: it
+  `json()` alone is close to `rule:core-api/tier-placement` test 6's line. It is not an alias for `Json::decode(body())`: it
   takes a *claim* on the body, which the composition cannot express, and that is `post()`'s own defence.
 - **The rule generalizes; it is not patched.** Adding `json` to a three-member exclusive set and giving it
   `post()`'s hold-and-re-read as a second special case was considered and rejected — two exceptions to a

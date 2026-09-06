@@ -225,7 +225,7 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 
 /// `constructor(string $message, {previous?: Throwable|null})` — spec § 10's
 /// one required message and one options shape, which is
-/// [ADR 0063](/docs/adr/0063-core-api-conventions.md) R2 applied to a
+/// `rule:core-api/shape-rules` R2 applied to a
 /// constructor like any other member.
 ///
 /// The bag is optional by construction rather than by a second rule: its
@@ -254,7 +254,7 @@ fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
             // A constructor declares no return type at all, so there is
             // no `static` to bind — see `MethodSig::returns_static`.
             returns_static: false,
-            // ADR 0063 R2 reaches a synthesized member too: spec § 10 writes
+            // `rule:core-api/shape-rules` R2 reaches a synthesized member too: spec § 10 writes
             // `$message`, and the bag is every other trailing bag's
             // `options` — read from `nvs_stdlib::registry` rather than
             // spelled again here, so `new LogicError(message: "…")` and a

@@ -1,10 +1,10 @@
 //! Novis's Tier 0 standard library: every `Core` member, written in native
 //! Rust, plus the signature registry the compiler resolves a call against.
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § *Tier 0*
+//! `rule:core-api/five-placements`
 //! makes this "compiled into the binary, native, direct heap access, no
 //! boundary," and `docs/agent/loop-goal.md` records that it is meant literally:
-//! no part of `Core` is written in Novis. [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! no part of `Core` is written in Novis. `rule:core-api/shape-rules`
 //! fixes every member's *shape* and [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! is authoritative for every *signature* — this crate restates neither. It
 //! holds the two things a signature on paper cannot be: a resolvable entry in
@@ -61,7 +61,7 @@
 //! * **Arguments are borrowed, never consumed.** A helper body receives
 //!   `&[Value]` and releases nothing, so the caller keeps owning every
 //!   reference it passed. This is the opposite of an Novis method call, whose
-//!   callee owns its parameters — and it is what ADR 0063's R3 purity rule
+//!   callee owns its parameters — and it is what `rule:core-api/shape-rules`'s R3 purity rule
 //!   makes safe: no `Core` member stores its argument.
 //! * **A returned heap value carries one fresh reference**, which the caller
 //!   owns, exactly like `nvs_str_concat`'s result.
@@ -108,7 +108,7 @@
 //!    `Arr::prepend` and `Path::join` need only writing.
 //!
 //!    A **named** or `...spread` argument at such a call is no longer a gap
-//!    either: both lower, and ADR 0063 R2's "every parameter is callable by
+//!    either: both lower, and `rule:core-api/shape-rules` R2's "every parameter is callable by
 //!    the spec's `$name`" holds end to end. Every parameter's name is on the
 //!    row — [`registry::CoreMethod::names`], one per positional slot, the
 //!    trailing bag under [`registry::OPTIONS_NAME`] — taken from the signature
@@ -149,7 +149,7 @@
 //!    crate over — `nvs_types::signatures::ConstSig` — and nothing in `Core`
 //!    depends on that half.
 //!
-//!    Everything else the spec writes is expressible: ADR 0063 R2's options
+//!    Everything else the spec writes is expressible: `rule:core-api/shape-rules` R2's options
 //!    bag ([`registry::CoreTy::Options`], first used by `Core\Arr::range`), a
 //!    union in **either** direction ([`registry::CoreTy::Union`], first used
 //!    by `Core\Arr::hasKey`), a `Core`-owned enum

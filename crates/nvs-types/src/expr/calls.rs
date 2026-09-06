@@ -303,7 +303,7 @@ pub(crate) fn infer_static_call(
                     // class name to be recognized by — `crate::response` owns
                     // the roster and the refusal.
                     crate::response::note_body_member(&qname, &name, expr.span, env);
-                    // ADR 0063 R20's one genuinely reachable two-spellings case — see
+                    // `rule:core-api/shape-rules` R20's one genuinely reachable two-spellings case — see
                     // `report_core_instance_member`. Its user-class sibling asks the
                     // narrower question `report_instance_method_called_statically`
                     // owns: `self::f()`/`parent::f()` from an instance method forward
@@ -568,7 +568,7 @@ pub(crate) fn infer_new(
     let resolved = target_qname
         .clone()
         .and_then(|qname| resolve_method(&qname, "constructor", env.signatures, env.graph));
-    // ADR 0094's levels reach `new` too, and deliberately: a `private`
+    // `rule:core-api/written-visibility`'s levels reach `new` too, and deliberately: a `private`
     // constructor is PHP's singleton idiom, so the whole point of writing one
     // is that `new C()` is refused everywhere except `C`'s own bodies. The
     // span is the `new` expression rather than a member name, because that is

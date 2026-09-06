@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, ADR 0063 R20
+`Core\Time`'s unknown-zone refusal names the member that was handed the id, and a zone it accepted is never refused again — spec § 4, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // One sentence — "unknown time zone `id`" — is spelled three times in

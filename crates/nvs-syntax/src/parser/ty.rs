@@ -84,7 +84,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `$property`, `->property()` and a function called `property`.
     ///
     /// The `<` is what separates it from an ordinary class name, and it costs
-    /// nothing that a class *could* be called `property`: ADR 0029's casing
+    /// nothing that a class *could* be called `property`: `rule:core-api/identifier-casing`'s casing
     /// check already refuses a lower-case class name, so no declaration this
     /// program can write competes for the spelling.
     pub(super) fn at_property_key(&mut self) -> bool {

@@ -54,6 +54,11 @@
       "topic": "core-classes",
       "title": "The Core classes",
       "order": 110
+    },
+    {
+      "topic": "core-api",
+      "title": "The Core API",
+      "order": 120
     }
   ]
 }

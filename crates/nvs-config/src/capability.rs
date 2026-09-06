@@ -28,7 +28,7 @@
 //! Three refusals hold the rule to that shape:
 //!
 //! - **A bare `*` is not a spelling.** `true` is already "every host" — `Grant::Everything` — and
-//!   a grant reachable two ways is what ADR 0063 R20 forbids. `*` alone therefore matches no host
+//!   a grant reachable two ways is what `rule:core-api/shape-rules` R20 forbids. `*` alone therefore matches no host
 //!   at all, including a host literally named `*`, and so does `*.` with nothing after it.
 //! - **The wildcard is `db.open`'s alone**, which is [`Cap::takes_host_wildcard`]. `net.connect`'s
 //!   grant is asked of a *name* and then [ADR 0058](/docs/adr/0058-outbound-request-policy.md)

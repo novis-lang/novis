@@ -205,7 +205,7 @@ it — and that test is what keeps the list from drifting back toward M10's cata
 | `nvs/redactions` | the ranges the client conceals — a literal token or interpolation slot whose static type carries `secret` ([ADR 0101](0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) §§ 1–2). The one non-standard request here, and it is non-standard because LSP has no shape for "do not show this to the room" |
 
 Plus **two code actions**, and only two, closing ADR 0040 *Revisiting*'s "one or two cheap ones early"
-question: the casing fix ([ADR 0029](0029-identifier-casing-is-checked.md)/[0030](0030-no-leading-underscores-constructor-spelling.md))
+question: the casing fix (`rule:core-api/identifier-casing`/[0030](0030-no-leading-underscores-constructor-spelling.md))
 and the legacy-cast fix `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Both
 are admitted for one reason and it is not that they are useful: their replacement text is **already
 computed**, sitting in the `Diagnostic::suggestions` field `nvs-diagnostics` has carried since M0. The

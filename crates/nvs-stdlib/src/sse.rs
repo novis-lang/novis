@@ -87,7 +87,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// The symbol [`CLASS`]'s `upgrade` row is reached through.
 const UPGRADE_SYMBOL: &str = "nvs_core_sse_upgrade";
 
-/// `Core\Sse::upgrade`'s reference card — ADR 0117.
+/// `Core\Sse::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
     short: "Answers this request with an event stream running `$entry` as a root isolate — its \
             own arena, its own budget and its own grants, sharing nothing with the request that \

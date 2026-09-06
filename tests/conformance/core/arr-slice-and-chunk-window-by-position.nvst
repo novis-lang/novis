@@ -5,7 +5,7 @@ Core\Arr::slice and ::chunk window by entry position and discard keys unless ask
 array<string> $a = ["a", "b", "c", "d", "e"];
 array<string> $m = ["x" => "one", "y" => "two", "z" => "three"];
 
-// The offset and length are ADR 0063 R8's signs, the same reading
+// The offset and length are `rule:core-api/shape-rules` R8's signs, the same reading
 // Core\Str::slice takes one unit up: a negative offset counts back from the
 // last entry, a negative length stops that many short of the end, and an
 // omitted length runs to the end.
@@ -48,7 +48,7 @@ array<string> $empty = [];
 echo Core\Arr::count(Core\Arr::chunk($a, 9)), "\n";
 echo Core\Arr::count(Core\Arr::chunk($empty, 3)), "\n";
 
-// Nothing mutates (ADR 0063 R3).
+// Nothing mutates (`rule:core-api/shape-rules` R3).
 echo Core\Str::join(Core\Arr::keys($m), ","), "\n";
 --EXPECT--
 b,c

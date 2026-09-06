@@ -26,7 +26,7 @@ class Branch extends Base {
 var $branch = new Branch();
 var $byValue = Core\Reflect::forObject($branch);
 
-// ADR 0063 R6: `forClass` answers `?T`, so both names are tested before either
+// `rule:core-api/shape-rules` R6: `forClass` answers `?T`, so both names are tested before either
 // is used — the nesting is the language's narrowing and not part of what this
 // case pins.
 var $byName = Core\Reflect::forClass("Branch");

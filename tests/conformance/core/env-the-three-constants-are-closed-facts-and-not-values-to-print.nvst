@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is a member of `PHP_OS_FAMILY`'s closed set, and `VERSION` is three dot-separated pieces — spec § 15, ADR 0063 R6
+`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is a member of `PHP_OS_FAMILY`'s closed set, and `VERSION` is three dot-separated pieces — spec § 15, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // A constant is folded at the site that names it, so this case cannot print any

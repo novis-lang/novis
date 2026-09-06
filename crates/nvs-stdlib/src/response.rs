@@ -345,7 +345,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                     CoreOption {
                         name: "sameSite",
                         // An enum and never the string § 3's block writes
-                        // (ADR 0063 R11), which is also why the boot refusal
+                        // (`rule:core-api/shape-rules` R11), which is also why the boot refusal
                         // for a fourth spelling is `E0624` and not this
                         // member's problem: by the time a case arrives here
                         // there are only three it can be.
@@ -389,7 +389,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Response::json`'s reference card — ADR 0117.
+/// `Core\Response::json`'s reference card — `rule:core-api/reference-card`.
 const JSON_DOC: MethodDoc = MethodDoc {
     short: "Answers with `$value` serialized as JSON, declaring `application/json` — the same \
             encoder `Core\\Json::encode` uses, on one line.",
@@ -409,7 +409,7 @@ const JSON_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::bytes`'s reference card — ADR 0117.
+/// `Core\Response::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
     short: "Answers with `$body` verbatim, declaring `$contentType` — the one body member that \
             cannot know the media type, so it is told.",
@@ -435,7 +435,7 @@ const BYTES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::text`'s reference card — ADR 0117.
+/// `Core\Response::text`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "Answers with `$body` as the response body, declaring `text/plain; charset=utf-8` — one \
             of the five body members that replace a single `write`, each owning one shape.",
@@ -449,7 +449,7 @@ const TEXT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Response::setStatus`'s reference card — ADR 0117.
+/// `Core\Response::setStatus`'s reference card — `rule:core-api/reference-card`.
 const SET_STATUS_DOC: MethodDoc = MethodDoc {
     short: "Answers with `$code` as the response's status, replacing \
             `http_response_code` — the one member here that says nothing about the body.",
@@ -468,7 +468,7 @@ const SET_STATUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::setHeader`'s reference card — ADR 0117.
+/// `Core\Response::setHeader`'s reference card — `rule:core-api/reference-card`.
 const SET_HEADER_DOC: MethodDoc = MethodDoc {
     short: "Sets `$name` to `$value` on this response, replacing whatever the server's own \
             policy wrote for that header — spec § 15's override, replacing `header`.",
@@ -497,7 +497,7 @@ const SET_HEADER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::redirect`'s reference card — ADR 0117.
+/// `Core\Response::redirect`'s reference card — `rule:core-api/reference-card`.
 const REDIRECT_DOC: MethodDoc = MethodDoc {
     short: "Answers by sending the peer to `$url`, declaring the redirect status and the \
             `Location` header together — spec § 15's redirect, replacing a `Location` written \
@@ -526,7 +526,7 @@ const REDIRECT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::addCookie`'s reference card — ADR 0117.
+/// `Core\Response::addCookie`'s reference card — `rule:core-api/reference-card`.
 const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
     short: "Adds one `Set-Cookie` to this response, every option it leaves out taken from \
             `[http.cookies]` — so a cookie written with no options is `Secure; HttpOnly; \
@@ -622,7 +622,7 @@ pub(crate) const SAME_SITE: CoreEnum = CoreEnum {
     doc: Some(&SAME_SITE_CASES_DOC),
 };
 
-/// [`SAME_SITE`]'s reference card — ADR 0117.
+/// [`SAME_SITE`]'s reference card — `rule:core-api/reference-card`.
 const SAME_SITE_CASES_DOC: EnumDoc = EnumDoc {
     short: "Which cross-site requests carry a cookie. The three cases are the attribute's own, \
             and the default is `Lax` because a cookie that travels on a cross-site subrequest is \
@@ -668,7 +668,7 @@ pub(crate) const REDIRECT: CoreEnum = CoreEnum {
     doc: Some(&REDIRECT_CASES_DOC),
 };
 
-/// [`REDIRECT`]'s reference card — ADR 0117.
+/// [`REDIRECT`]'s reference card — `rule:core-api/reference-card`.
 ///
 /// Named for its cases rather than `REDIRECT_DOC`, which the member above it
 /// already is: the class and the enum share the one word the spec gives them.

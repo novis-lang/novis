@@ -79,7 +79,7 @@
 //! four-thirds — for a cross-protocol confusion that is otherwise a real
 //! deployment away.
 //!
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R17 asks
+//! `rule:core-api/shape-rules` R17 asks
 //! whether this is `Core\SignedCookie` reached twice, and it is not: that class
 //! answers *the payload* and this one answers a verdict it never lets go of.
 //! A program that wrote `Core\SignedCookie::open($token, [$key]) == $session`
@@ -159,7 +159,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Csrf::issue`'s reference card — ADR 0117.
+/// `Core\Csrf::issue`'s reference card — `rule:core-api/reference-card`.
 const ISSUE_DOC: MethodDoc = MethodDoc {
     short: "Answers a CSRF token bound to `$session` under `$key`. Put it in the form or the \
             header the next request will carry, and hand it back to `verify` with the same \
@@ -195,7 +195,7 @@ const ISSUE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Csrf::verify`'s reference card — ADR 0117.
+/// `Core\Csrf::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$token` is a token this application issued for `$session` under \
             `$key`. This is the only comparison the class exposes: no member answers the token \

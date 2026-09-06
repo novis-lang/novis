@@ -6,7 +6,7 @@ NVS_CASE_PAIR=key=value
 --FILE--
 <?nvs
 // `rule:statements/no-host-populated-variables` replaces `$_ENV` and `getenv()` with this class. `get` is the
-// single-name read, and ADR 0063 makes its `?T` mean absence and nothing else.
+// single-name read, and `rule:core-api/shape-rules` makes its `?T` mean absence and nothing else.
 
 // A variable the environment holds, answered as its own value.
 echo Core\Env::get("NVS_CASE_ONE") ?? "<unset>", "\n";

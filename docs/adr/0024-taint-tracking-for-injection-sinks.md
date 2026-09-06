@@ -198,8 +198,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   cheap and stays trusted. `+` and not `.`: concatenation answers a `string`, which would lose exactly what
   the carrier carries, and a mixed `$markup + "x"` is **refused** rather than escaped, because this
   operator is not a sink.
-- **`Core\Html::escape` answers a `Markup`**, and so will the `sanitize` [ADR 0051](0051-standard-library-tiers.md)
-  § 3 owes this class — the two laundering routes to a carrier, and `sanitize` the only one of the four
+- **`Core\Html::escape` answers a `Markup`**, and so will the `sanitize` `rule:core-api/tier-roster` owes this class — the two laundering routes to a carrier, and `sanitize` the only one of the four
   that may take a runtime-computed string, which is why it must rebuild the document from a known-good
   grammar rather than filter what looks dangerous. `Core\Html::toSource(Markup, string $reason): string` is
   the one way back out, on § 3's escape-hatch terms; there is no `Markup as string`. All of this is

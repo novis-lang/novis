@@ -664,7 +664,7 @@ fn named_and_spread_arguments() {
 
 #[test]
 fn a_keyword_spelled_parameter_name_is_a_named_argument() {
-    // ADR 0063 R2 makes every parameter callable by the `$name` the spec
+    // `rule:core-api/shape-rules` R2 makes every parameter callable by the `$name` the spec
     // writes, and `Core\Arr::map`'s is `$fn` — a spelling the lexer reserves.
     // The `:` is the whole disambiguation.
     let mut map = SourceMap::new();

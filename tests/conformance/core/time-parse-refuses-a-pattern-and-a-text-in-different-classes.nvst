@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time::parse` refuses in two of spec § 10's classes, and which one is decided by which of its arguments was wrong — spec §§ 4 and 10, ADR 0063 R20
+`Core\Time::parse` refuses in two of spec § 10's classes, and which one is decided by which of its arguments was wrong — spec §§ 4 and 10, `rule:core-api/shape-rules` R20
 --FILE--
 <?nvs
 // `Core\Time::parse` is `DateTime::createFromFormat` and `strptime` over

@@ -30,7 +30,7 @@ modules = [
   "crates/nvs-stdlib/src/request.rs",
   # Stages 2-3 -- `Time\Instant`, which `until` is one of and `null` is the other.
   "crates/nvs-stdlib/src/time.rs",
-  # Stages 2-4 -- ADR 0135's `CoreTy` shape arm, so `{keys, until}` is a declared shape and `until`
+  # Stages 2-4 -- `rule:core-api/shape-parameter`'s `CoreTy` shape arm, so `{keys, until}` is a declared shape and `until`
   # is a required key holding a nullable value rather than an undeclared `mixed`.
   "crates/nvs-types/src/core_lib.rs",
   # Stage 5 -- `ThrownClass`, which the two refusals are two arms of, beside the one `open` raises.
@@ -92,7 +92,7 @@ memoize_on = ["crates/nvs-stdlib", "crates/nvs-types", "crates/nvs-runtime"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the keystone: `Core\Signature`, over a payload and never over text. ADR 0146 section 1.
+# Stage 2 -- the keystone: `Core\Signature`, over a payload and never over text. `rule:core-api/signing-is-over-a-payload` section 1.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -120,7 +120,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- a `Uri` signs itself, over the form `compareTo` already defines. ADR 0146 section 2.
+# Stage 3 -- a `Uri` signs itself, over the form `compareTo` already defines. `rule:core-api/signing-is-over-a-payload` section 2.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -150,7 +150,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- the router pair, for the mount prefix and nothing else. ADR 0146 section 4.
+# Stage 4 -- the router pair, for the mount prefix and nothing else. `rule:core-api/signing-is-over-a-payload` section 4.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
@@ -166,7 +166,7 @@ tests = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 5 -- one refusal, except expiry, and the ordering that makes it safe. ADR 0146 sections 3, 5.
+# Stage 5 -- one refusal, except expiry, and the ordering that makes it safe. `rule:core-api/signing-is-over-a-payload` sections 3, 5.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]

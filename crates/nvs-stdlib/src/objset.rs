@@ -135,7 +135,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `new Core\ObjectSet`'s reference card — ADR 0117.
+/// `new Core\ObjectSet`'s reference card — `rule:core-api/reference-card`.
 const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     short: "Builds an empty `Core\\ObjectSet<T>` — a set keyed by identity, which replaces \
             `SplObjectStorage` used as a set.",
@@ -144,7 +144,7 @@ const CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::add`'s reference card — ADR 0117.
+/// `Core\ObjectSet::add`'s reference card — `rule:core-api/reference-card`.
 const ADD_DOC: MethodDoc = MethodDoc {
     short: "Adds `$value` unless the set already holds something identical to it.",
     params: &[ParamDoc {
@@ -157,7 +157,7 @@ const ADD_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::has`'s reference card — ADR 0117.
+/// `Core\ObjectSet::has`'s reference card — `rule:core-api/reference-card`.
 const HAS_DOC: MethodDoc = MethodDoc {
     short: "Whether the set holds something identical to `$value`.",
     params: &[ParamDoc {
@@ -169,7 +169,7 @@ const HAS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::remove`'s reference card — ADR 0117.
+/// `Core\ObjectSet::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Drops `$value` from the set.",
     params: &[ParamDoc {
@@ -181,7 +181,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::count`'s reference card — ADR 0117.
+/// `Core\ObjectSet::count`'s reference card — `rule:core-api/reference-card`.
 const COUNT_DOC: MethodDoc = MethodDoc {
     short: "Counts the distinct values the set holds.",
     params: &[],
@@ -189,7 +189,7 @@ const COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::isEmpty`'s reference card — ADR 0117.
+/// `Core\ObjectSet::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     short: "Whether the set holds nothing.",
     params: &[],
@@ -197,7 +197,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::union`'s reference card — ADR 0117.
+/// `Core\ObjectSet::union`'s reference card — `rule:core-api/reference-card`.
 const UNION_DOC: MethodDoc = MethodDoc {
     short: "Builds a new set holding every value this set or `$other` holds.",
     params: &[ParamDoc {
@@ -210,7 +210,7 @@ const UNION_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::intersect`'s reference card — ADR 0117.
+/// `Core\ObjectSet::intersect`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
     short: "Builds a new set holding the values both this set and `$other` hold.",
     params: &[ParamDoc {
@@ -223,7 +223,7 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::diff`'s reference card — ADR 0117.
+/// `Core\ObjectSet::diff`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
     short: "Builds a new set holding the values this set holds and `$other` does not — spelled \
             `diff` as `Core\\Arr::diff` is, because one operation gets one name.",
@@ -237,7 +237,7 @@ const DIFF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::clear`'s reference card — ADR 0117.
+/// `Core\ObjectSet::clear`'s reference card — `rule:core-api/reference-card`.
 const CLEAR_DOC: MethodDoc = MethodDoc {
     short: "Drops every member, leaving the set empty.",
     params: &[],

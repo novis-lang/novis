@@ -273,7 +273,7 @@ impl<'a> Lowering<'a> {
 /// The state field's name in a generator's synthesized state class — which
 /// resumption point [`GEN_ADVANCE`]'s entry switch enters.
 ///
-/// A `#` can never appear in an Novis identifier (ADR 0029/0030 fix the whole
+/// A `#` can never appear in an Novis identifier (`rule:core-api/identifier-casing`/0030 fix the whole
 /// character set), so neither this nor [`GEN_CURRENT`] can collide with a
 /// local the body spilled under its own name — the same guarantee
 /// [`Lowering::lower_foreach`]'s `foreach#N` bookkeeping names rest on.

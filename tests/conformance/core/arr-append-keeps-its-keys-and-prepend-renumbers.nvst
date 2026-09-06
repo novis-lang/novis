@@ -39,7 +39,7 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($high, "b")), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::append($map)), ","), "\n";
 echo Core\Str::join(Core\Arr::keys(Core\Arr::prepend($map)), ","), "\n";
 
-// Nothing mutates (ADR 0063 R3): the subject still carries its own keys.
+// Nothing mutates (`rule:core-api/shape-rules` R3): the subject still carries its own keys.
 echo Core\Str::join(Core\Arr::keys($map), ","), "\n";
 
 // An empty subject is the tail alone, and the two compose.

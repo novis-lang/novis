@@ -19,7 +19,7 @@ class Point {
 Point $p = new Point(3, 4);
 echo $p->x, ",", $p->y, " sum=", $p->sum(), "\n";
 
-// A visibility keyword is what promotes, so it is also what the ADR 0094
+// A visibility keyword is what promotes, so it is also what the `rule:core-api/written-visibility`
 // access check reads: `private` is reachable from the class's own bodies and
 // nowhere else. A parameter with no keyword declares nothing at all.
 class Vault {

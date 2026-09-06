@@ -6,7 +6,7 @@ green a program can decompress under a bound it cannot switch off, detect a type
 than by a rule interpreter, and read an archive whose `../` entries, absolute paths and symlink entries
 are refused before anything touches a filesystem.
 
-**They are M8's, not M9's.** [ADR 0051](../../adr/0051-standard-library-tiers.md) § 3 puts all three at
+**They are M8's, not M9's.** `rule:core-api/tier-roster` puts all three at
 Tier 0 (`0051:96-100`), and [m9.md](../../plan/m9.md) is the extension system — `.nvsx` loading, the WIT
 world, the capability bridge — and carries none of them.
 `crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt` said M9 carried the § 17 four; that
@@ -20,7 +20,7 @@ with these three.
 
 1. **The § 17 rows** in `docs/spec/01-core-library.md` are one line each and two of them carry no ADR.
    The surface is settled in this goal's stages and those rows are edited to match.
-2. **`Core\Response`'s `Content-Encoding` handling.** ADR 0051 § 3 says the built-in server compresses
+2. **`Core\Response`'s `Content-Encoding` handling.** `rule:core-api/tier-roster` says the built-in server compresses
    nothing itself, per [ADR 0097](../../adr/0097-development-server-and-proxied-origin.md) § 1. That
    stays true: this goal gives a *program* a compressor and does not put one in the server's path.
    Any comment implying the server will grow one is corrected here.
@@ -81,7 +81,7 @@ spelling.
 
 - **This goal may open one ADR number**, for the decompression bound shared by `Core\Compress` and
   `Core\Zip` — it is one rule with two callers and would otherwise be stated twice. The three classes'
-  surfaces are ADR 0051 § 3 rows and get no numbers of their own.
+  surfaces are `rule:core-api/tier-roster` rows and get no numbers of their own.
 - **No bound is optional and none can be raised past the configured ceiling.** A call may ask for
   less. There is no spelling for "unbounded", in the same way `Core\Http\Options` has no spelling for
   an unbounded wait.

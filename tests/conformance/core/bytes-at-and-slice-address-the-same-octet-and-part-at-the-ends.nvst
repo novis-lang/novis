@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::at` names the same octet `slice` cuts a one-byte window at, over every index of a sweep, and the two part company exactly at the ends — `at` throws where `slice` clamps or answers the empty buffer — `rule:types/bytes`, ADR 0063 R4/R8
+Spec § 7: `Core\Bytes::at` names the same octet `slice` cuts a one-byte window at, over every index of a sweep, and the two part company exactly at the ends — `at` throws where `slice` clamps or answers the empty buffer — `rule:types/bytes`, `rule:core-api/shape-rules` R4/R8
 --FILE--
 <?nvs
 // `at` and `slice` are one addressing rule read two ways: R8's sign rule over
@@ -13,7 +13,7 @@ Spec § 7: `Core\Bytes::at` names the same octet `slice` cuts a one-byte window 
 // have each drifted the same way. Here every index of a 19-wide sweep is asked
 // of both and the agreements are counted.
 class Probe {
-    // ADR 0063 R4: `at` returns `uint`, not `?uint`, so an index addressing
+    // `rule:core-api/shape-rules` R4: `at` returns `uint`, not `?uint`, so an index addressing
     // nothing throws. `-1` is outside a byte's range and so cannot collide
     // with an answer.
     public static function octet(bytes $b, int $i): int {

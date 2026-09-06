@@ -1,11 +1,11 @@
 --TEST--
-`{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — ADR 0072 § 3, ADR 0063 R2
+`{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — ADR 0072 § 3, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
 // § 3: "The plan's `timeout(...)` is therefore not a member: a timeout on a
 // group of tasks is this option". R2 makes a trailing options shape the form
 // of *every* optioned member, so a wrapper function would be a second way to
-// say one thing — which is what ADR 0063 R20 leaves no room for.
+// say one thing — which is what `rule:core-api/shape-rules` R20 leaves no room for.
 //
 // `race` is asked for the opposite reason: § 3 does not reject the idea, it
 // defers it under a different spelling (`Core\Task::first`, homogeneous), so

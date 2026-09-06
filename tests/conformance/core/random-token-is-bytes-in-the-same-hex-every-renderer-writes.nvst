@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on every count — the same width, the same lowercase alphabet, and the same round trip back to a buffer — so a renderer that grew its own hex fails here while still looking right on its own line — spec § 11, `rule:types/conversion`, ADR 0063 R4
+Core\Random::token and Core\Encoding::toHex over Core\Random::bytes agree on every count — the same width, the same lowercase alphabet, and the same round trip back to a buffer — so a renderer that grew its own hex fails here while still looking right on its own line — spec § 11, `rule:types/conversion`, `rule:core-api/shape-rules` R4
 
 --FILE--
 <?nvs

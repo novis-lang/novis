@@ -1,5 +1,5 @@
 --TEST--
-A `private` property and a `private` method are both refused where they are read from another class — ADR 0094 § 1
+A `private` property and a `private` method are both refused where they are read from another class — `rule:core-api/written-visibility`
 --FILE--
 <?nvs
 // The level is a fact about *where the code is written*, so a receiver typed

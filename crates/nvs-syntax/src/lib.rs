@@ -11,8 +11,8 @@
 //!   `nvs ast` uses it); [`Parser`] and [`parse_expression`] are for callers
 //!   that want less than a whole file.
 //! - [`casing`] — [`check_declarations`], the two rules a parsed file's
-//!   declarations answer on their own: ADR 0029/0030's identifier casing and
-//!   ADR 0094's required member visibility. See its module docs for exactly
+//!   declarations answer on their own: `rule:core-api/identifier-casing`/0030's identifier casing and
+//!   `rule:core-api/written-visibility`'s required member visibility. See its module docs for exactly
 //!   what is and isn't covered.
 //! - ADR 0087's unterminated-directional-scope predicate is
 //!   [`nvs_render::bidi`], not this crate's: the lexer makes it a hard error

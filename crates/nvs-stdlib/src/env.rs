@@ -57,7 +57,7 @@
 //!
 //! * `get` **throws**. The caller named one variable, so the honest answer to
 //!   "what is `X`" is not `null` — that would report an unreadable value as an
-//!   absent one, and [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s
+//!   absent one, and `rule:core-api/shape-rules`'s
 //!   `?T` means absence and nothing else. Repairing it lossily is
 //!   `rule:errors/ambiguous-input-refused`'s
 //!   refusal.
@@ -83,7 +83,7 @@
 //! member sits on this class for the reason a program asks the question —
 //! "which deployment am I" is the same question as "what is `OS`" — and not
 //! because of where the answer is kept. There is deliberately no `NVS_ENV` or
-//! `APP_ENV`: a mode that could be selected two ways would be [ADR 0063]'s R6
+//! `APP_ENV`: a mode that could be selected two ways would be `rule:core-api/shape-rules`'s R6
 //! twice over, and the one way is the file the ceiling in § 5 is also written
 //! in, which is what makes a flip checkable at all.
 //!
@@ -94,7 +94,6 @@
 //! a name that is neither mode. Both are `Production`, on [`mode_ordinal`]'s
 //! reasoning.
 //!
-//! [ADR 0063]: ../../../../docs/adr/0063-core-api-conventions.md
 
 use std::collections::BTreeMap;
 
@@ -217,7 +216,7 @@ const OS: &str = if cfg!(windows) {
 /// prints and what `nvs_config`'s artifact cache is keyed on.
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// `Core\Env::get`'s reference card — ADR 0117.
+/// `Core\Env::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
     short: "The environment variable `$name`, replacing `getenv` and `$_ENV`. The environment is \
             read-only: there is no `putenv`, because a process-global mutation is unsound across \
@@ -240,7 +239,7 @@ const GET_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Env::all`'s reference card — ADR 0117.
+/// `Core\Env::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv` with \
             no argument.",
@@ -251,7 +250,7 @@ const ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Env::mode`'s reference card — ADR 0117.
+/// `Core\Env::mode`'s reference card — `rule:core-api/reference-card`.
 const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
     short: "Which deployment this program is running in. The mode is written in `nvs.toml` and \
             read back through `Core\\Config` like every other directive: **no environment \
@@ -281,7 +280,7 @@ pub(crate) const MODE: CoreEnum = CoreEnum {
     doc: Some(&MODE_DOC),
 };
 
-/// [`MODE`]'s reference card — ADR 0117.
+/// [`MODE`]'s reference card — `rule:core-api/reference-card`.
 const MODE_DOC: EnumDoc = EnumDoc {
     short: "Which deployment a program is running in — two modes, and there is no third. A mode \
             is a shorthand for the defaults of five directives, each of which stays settable on \

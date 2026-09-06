@@ -291,7 +291,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // only. [`WALK`]'s own docs are the home of why this is a second
             // *question* rather than a second spelling of `list`'s: that row
             // reads one directory and this one reads the tree under it, which
-            // is the only reading of the two that ADR 0063 R6 admits.
+            // is the only reading of the two that `rule:core-api/shape-rules` R6 admits.
             return_ty: CoreTy::Instance(WALK_NAME),
             symbol: "nvs_core_io_walk",
             doc: Some(&WALK_DOC),
@@ -339,7 +339,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "readText",
             names: &["path"],
             // The path is a sink like every other in this class, and the
-            // charset is the one trailing options shape ADR 0063 R3 allows —
+            // charset is the one trailing options shape `rule:core-api/shape-rules` R3 allows —
             // which is why `names` carries one entry and `params` two.
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(READ_TEXT_OPTIONS)],
             defaults: &[],
@@ -441,7 +441,7 @@ pub(crate) const WRITE_STREAM_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\IO::read`'s reference card — ADR 0117.
+/// `Core\IO::read`'s reference card — `rule:core-api/reference-card`.
 const READ_DOC: MethodDoc = MethodDoc {
     short: "The whole content of a file, as text — `file_get_contents`. Needs the `fs.read` \
             capability for the path, which is checked against its canonical spelling, so a \
@@ -466,7 +466,7 @@ const READ_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::write`'s reference card — ADR 0117.
+/// `Core\IO::write`'s reference card — `rule:core-api/reference-card`.
 const WRITE_DOC: MethodDoc = MethodDoc {
     short: "Replaces a file's whole content, creating it if it does not exist — \
             `file_put_contents`. Needs the `fs.write` capability for the path; being allowed to \
@@ -500,7 +500,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::append`'s reference card — ADR 0117.
+/// `Core\IO::append`'s reference card — `rule:core-api/reference-card`.
 const APPEND_DOC: MethodDoc = MethodDoc {
     short: "Adds to the end of a file, creating it if it is not there — `file_put_contents` with \
             `FILE_APPEND`, which is a member here rather than a flag on the member that \
@@ -535,7 +535,7 @@ const APPEND_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::writeStream`'s reference card — ADR 0117.
+/// `Core\IO::writeStream`'s reference card — `rule:core-api/reference-card`.
 const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
     short: "Writes a sequence of `bytes` chunks to `$path` as they arrive, holding no more than one \
             of them — an upload part, a response body, a decompressed archive. Needs the `fs.write` \
@@ -582,7 +582,7 @@ const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::exists`'s reference card — ADR 0117.
+/// `Core\IO::exists`'s reference card — `rule:core-api/reference-card`.
 const EXISTS_DOC: MethodDoc = MethodDoc {
     short: "Reports whether anything is at `$path` — `file_exists`, and true for a directory as \
             well as a file. Needs the `fs.read` capability, which is asked before the path is \
@@ -609,7 +609,7 @@ const EXISTS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::isFile`'s reference card — ADR 0117.
+/// `Core\IO::isFile`'s reference card — `rule:core-api/reference-card`.
 const IS_FILE_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$path` names a regular file — `is_file`. Symbolic links are followed, \
             so a link to a file answers `true`. Needs the `fs.read` capability, which is asked \
@@ -637,7 +637,7 @@ const IS_FILE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::isDir`'s reference card — ADR 0117.
+/// `Core\IO::isDir`'s reference card — `rule:core-api/reference-card`.
 const IS_DIR_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$path` names a directory — `is_dir`. Symbolic links are followed, so \
             a link to a directory answers `true`. Needs the `fs.read` capability.",
@@ -662,7 +662,7 @@ const IS_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::isReadable`'s reference card — ADR 0117.
+/// `Core\IO::isReadable`'s reference card — `rule:core-api/reference-card`.
 const IS_READABLE_DOC: MethodDoc = MethodDoc {
     short: "Whether this process could read what is at `$path` right now — `is_readable`. Needs \
             the `fs.read` capability, which is a separate and earlier gate: a path outside the \
@@ -681,7 +681,7 @@ const IS_READABLE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\IO::isWritable`'s reference card — ADR 0117.
+/// `Core\IO::isWritable`'s reference card — `rule:core-api/reference-card`.
 const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
     short: "Whether this process could write what is at `$path` right now — `is_writable`. Needs \
             the `fs.write` capability, because the whole question is about writing: a program \
@@ -699,7 +699,7 @@ const IS_WRITABLE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\IO::size`'s reference card — ADR 0117.
+/// `Core\IO::size`'s reference card — `rule:core-api/reference-card`.
 const SIZE_DOC: MethodDoc = MethodDoc {
     short: "The size of the file at `$path` in bytes, as the operating system reports it — \
             `filesize`. Needs the `fs.read` capability: measuring a file is reading it.",
@@ -724,7 +724,7 @@ const SIZE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::modifiedAt`'s reference card — ADR 0117.
+/// `Core\IO::modifiedAt`'s reference card — `rule:core-api/reference-card`.
 const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     short: "When the file at `$path` was last written, as a `Core\\Time\\Instant` — `filemtime`, \
             with the unit in the type instead of in the caller's memory. Needs the `fs.read` \
@@ -750,7 +750,7 @@ const MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::stat`'s reference card — ADR 0117.
+/// `Core\IO::stat`'s reference card — `rule:core-api/reference-card`.
 const STAT_DOC: MethodDoc = MethodDoc {
     short: "Everything one `stat` answers about `$path`, as a `Core\\IO\\Metadata` — `stat`, \
             `lstat` and `filemtime` in one call, so a program asking more than one question \
@@ -776,7 +776,7 @@ const STAT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::copy`'s reference card — ADR 0117.
+/// `Core\IO::copy`'s reference card — `rule:core-api/reference-card`.
 const COPY_DOC: MethodDoc = MethodDoc {
     short: "Duplicates a file — `copy`. Needs `fs.read` for the source and `fs.write` for the \
             destination, which are two grants and not one: reading a directory is never permission \
@@ -813,7 +813,7 @@ const COPY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::move`'s reference card — ADR 0117.
+/// `Core\IO::move`'s reference card — `rule:core-api/reference-card`.
 const MOVE_DOC: MethodDoc = MethodDoc {
     short: "Renames a file, which is how it is moved — `rename`. Needs `fs.write` for **both** \
             paths, and not `copy`'s read for the source: a move takes the source away, and taking a \
@@ -849,7 +849,7 @@ const MOVE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::makeDir`'s reference card — ADR 0117.
+/// `Core\IO::makeDir`'s reference card — `rule:core-api/reference-card`.
 const MAKE_DIR_DOC: MethodDoc = MethodDoc {
     short: "Makes sure a directory exists at `$path`, creating any missing parent along the way — \
             `mkdir` with `$recursive` true, which is a parameter there and the only behaviour \
@@ -878,7 +878,7 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::remove`'s reference card — ADR 0117.
+/// `Core\IO::remove`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DOC: MethodDoc = MethodDoc {
     short: "Deletes the file at `$path` — `unlink`. Needs the `fs.write` capability: removal is a \
             write, because an account that may replace a file's whole content can already destroy \
@@ -904,7 +904,7 @@ const REMOVE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::removeDir`'s reference card — ADR 0117.
+/// `Core\IO::removeDir`'s reference card — `rule:core-api/reference-card`.
 const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
     short: "Deletes the **empty** directory at `$path` — `rmdir`. Needs the `fs.write` capability. \
             There is no recursive form: a tree deleted by one grant check is one wrong argument \
@@ -929,7 +929,7 @@ const REMOVE_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::list`'s reference card — ADR 0117.
+/// `Core\IO::list`'s reference card — `rule:core-api/reference-card`.
 const LIST_DOC: MethodDoc = MethodDoc {
     short: "The entries of the directory at `$path`, as an `array<string>` of bare names — \
             replacing `scandir`, `glob` and the whole `opendir`/`readdir`/`closedir` sequence. \
@@ -962,7 +962,7 @@ const LIST_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::walk`'s reference card — ADR 0117.
+/// `Core\IO::walk`'s reference card — `rule:core-api/reference-card`.
 const WALK_DOC: MethodDoc = MethodDoc {
     short: "Every entry of the tree under `$path`, as an `Iterable<string>` of paths relative to it \
             — replacing `RecursiveDirectoryIterator`, `RecursiveIteratorIterator` and a recursive \
@@ -995,7 +995,7 @@ const WALK_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::temporaryDir`'s reference card — ADR 0117.
+/// `Core\IO::temporaryDir`'s reference card — `rule:core-api/reference-card`.
 const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     short: "Creates a new, empty, private directory under the root Novis owns — `[io] temp_root`, \
             or a `novis` subdirectory of the platform temporary directory — and answers its path. \
@@ -1024,7 +1024,7 @@ const TEMPORARY_DIR_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::canonicalize`'s reference card — ADR 0117.
+/// `Core\IO::canonicalize`'s reference card — `rule:core-api/reference-card`.
 const CANONICALIZE_DOC: MethodDoc = MethodDoc {
     short: "The absolute path `$path` resolves to, with every `.`, `..` and symbolic link followed \
             by the operating system — `realpath`. Needs the `fs.read` capability: resolving a name \
@@ -1056,7 +1056,7 @@ const CANONICALIZE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::within`'s reference card — ADR 0117.
+/// `Core\IO::within`'s reference card — `rule:core-api/reference-card`.
 const WITHIN_DOC: MethodDoc = MethodDoc {
     short: "Resolves `$path` against `$base` and then **proves** the answer is still under it — the \
             path-traversal launderer, so its result is accepted where a `tainted` string is not. \
@@ -1097,7 +1097,7 @@ const WITHIN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::readText`'s reference card — ADR 0117.
+/// `Core\IO::readText`'s reference card — `rule:core-api/reference-card`.
 const READ_TEXT_DOC: MethodDoc = MethodDoc {
     short: "The whole content of a file, decoded from the charset it is written in — \
             `file_get_contents` and the `mb_convert_encoding` a caller writes after it, with the \
@@ -1134,7 +1134,7 @@ const READ_TEXT_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::lines`'s reference card — ADR 0117.
+/// `Core\IO::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
     short: "Every line of a file, without its terminator — `file()` and the `fgets` loop that \
             replaces it, over the one definition of a line `Core\\Str::lines` already uses. Needs \
@@ -1160,7 +1160,7 @@ const LINES_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::open`'s reference card — ADR 0117.
+/// `Core\IO::open`'s reference card — `rule:core-api/reference-card`.
 const OPEN_DOC: MethodDoc = MethodDoc {
     short: "Opens a file and answers the handle every later read and write goes through — `fopen`, \
             with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for \
@@ -1192,7 +1192,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO::stdin`'s reference card — ADR 0117.
+/// `Core\IO::stdin`'s reference card — `rule:core-api/reference-card`.
 const STDIN_DOC: MethodDoc = MethodDoc {
     short: "Reads everything the program's standard input will produce, in one call — \
             the `fgets(STDIN)` loop and every wrapper spelling of the same stream, with no wrapper \
@@ -1236,7 +1236,7 @@ pub(crate) const FILE_MODE: CoreEnum = CoreEnum {
     doc: Some(&FILE_MODE_DOC),
 };
 
-/// [`FILE_MODE`]'s reference card — ADR 0117.
+/// [`FILE_MODE`]'s reference card — `rule:core-api/reference-card`.
 const FILE_MODE_DOC: EnumDoc = EnumDoc {
     short: "What an open handle may do, replacing `fopen`'s mode string. There is no binary or text \
             flag: Novis text is octets, so every mode is what PHP would call binary.",
@@ -1424,7 +1424,7 @@ pub(crate) const FILE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\IO\File::read`'s reference card — ADR 0117.
+/// `Core\IO\File::read`'s reference card — `rule:core-api/reference-card`.
 const FILE_READ_DOC: MethodDoc = MethodDoc {
     short: "Reads up to `$max` bytes from where the handle is, and moves it past them — `fread`. \
             Needs no capability of its own: the descriptor was checked when `open` produced it.",
@@ -1447,7 +1447,7 @@ const FILE_READ_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::readLine`'s reference card — ADR 0117.
+/// `Core\IO\File::readLine`'s reference card — `rule:core-api/reference-card`.
 const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
     short: "Reads the next line and moves the handle past it — `fgets`. The terminator is consumed \
             and never returned, and `\\n`, `\\r\\n` and `\\r` all end a line, exactly as \
@@ -1468,7 +1468,7 @@ const FILE_READ_LINE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::write`'s reference card — ADR 0117.
+/// `Core\IO\File::write`'s reference card — `rule:core-api/reference-card`.
 const FILE_WRITE_DOC: MethodDoc = MethodDoc {
     short: "Writes `$data` at the handle's position and moves it past what went out — `fwrite`. \
             Needs no capability of its own: the descriptor was checked when `open` produced it.",
@@ -1491,7 +1491,7 @@ const FILE_WRITE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::seek`'s reference card — ADR 0117.
+/// `Core\IO\File::seek`'s reference card — `rule:core-api/reference-card`.
 const FILE_SEEK_DOC: MethodDoc = MethodDoc {
     short: "Moves the handle to `$offset` bytes from the start of the file — `fseek`, with no \
             `whence`. Seeking past the end is allowed and is how a sparse file is written: the \
@@ -1516,7 +1516,7 @@ const FILE_SEEK_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::tell`'s reference card — ADR 0117.
+/// `Core\IO\File::tell`'s reference card — `rule:core-api/reference-card`.
 const FILE_TELL_DOC: MethodDoc = MethodDoc {
     short: "Answers where the handle is, in bytes from the start of the file — `ftell`. It is the \
             position the next `read` or `write` acts at, which every member of this class leaves \
@@ -1537,7 +1537,7 @@ const FILE_TELL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::truncate`'s reference card — ADR 0117.
+/// `Core\IO\File::truncate`'s reference card — `rule:core-api/reference-card`.
 const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
     short: "Sets the file's length to `$size` bytes — `ftruncate`. A smaller size drops \
             everything past it; a larger one extends the file with zeroes, which is the same \
@@ -1563,7 +1563,7 @@ const FILE_TRUNCATE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::flush`'s reference card — ADR 0117.
+/// `Core\IO\File::flush`'s reference card — `rule:core-api/reference-card`.
 const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
     short: "Hands everything written on this handle to the operating system — `fflush`. Novis \
             writes straight to the descriptor, so there is nothing of its own left to push, and \
@@ -1585,7 +1585,7 @@ const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::lock`'s reference card — ADR 0117.
+/// `Core\IO\File::lock`'s reference card — `rule:core-api/reference-card`.
 const FILE_LOCK_DOC: MethodDoc = MethodDoc {
     short: "Takes an exclusive lock on the file and holds it until the handle closes — `flock` \
             with `LOCK_EX`. It never waits: a lock another handle holds is refused rather than \
@@ -1607,7 +1607,7 @@ const FILE_LOCK_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\File::close`'s reference card — ADR 0117.
+/// `Core\IO\File::close`'s reference card — `rule:core-api/reference-card`.
 const FILE_CLOSE_DOC: MethodDoc = MethodDoc {
     short: "Closes the handle and releases the descriptor — `fclose`. Calling it is optional: a \
             handle the program never closes is closed when the request ends.",
@@ -1689,7 +1689,7 @@ const WALK_SLOT: usize = 0;
 ///
 /// Spec § 14 writes `list(string $path): array<string>` and
 /// `walk(string $path): Iterable<string>` next to each other, and the only
-/// reading of that pair [ADR 0063](/docs/adr/0063-core-api-conventions.md)
+/// reading of that pair `rule:core-api/shape-rules`
 /// R6 admits is two *questions*: a member that answered the same entries in a
 /// second container would be one operation reachable two ways, which is the
 /// shape that rule closes. So `list` reads one directory and this reads the
@@ -1779,7 +1779,7 @@ const METADATA_IS_DIR_SLOT: usize = 3;
 ///
 /// `size`, `modifiedAt`, `isFile` and `isDir` are all members of `Core\IO`
 /// too, and spec § 14's metadata bullet names them beside `stat` on purpose.
-/// **ADR 0063 R17/R18 are not what that collides with**: R18 forbids a static
+/// **`rule:core-api/shape-rules` R17/R18 are not what that collides with**: R18 forbids a static
 /// that *mirrors an object's own method* — `Time::format($instant, $fmt)`
 /// beside `$instant->format($fmt)`, where the object is the static's own
 /// subject. Here the subject of `Core\IO::size` is a `string` path and the
@@ -1856,7 +1856,7 @@ pub(crate) const METADATA: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\IO\Metadata::size`'s reference card — ADR 0117.
+/// `Core\IO\Metadata::size`'s reference card — `rule:core-api/reference-card`.
 const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
     short: "The file's size in bytes at the moment `stat` was called. Needs no capability of its \
             own: the path was checked when `stat` produced this value.",
@@ -1866,7 +1866,7 @@ const METADATA_SIZE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\IO\Metadata::modifiedAt`'s reference card — ADR 0117.
+/// `Core\IO\Metadata::modifiedAt`'s reference card — `rule:core-api/reference-card`.
 const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     short: "When the file was last written, as a `Core\\Time\\Instant` — the same answer \
             `Core\\IO::modifiedAt` gives, out of the `stat` this value already holds.",
@@ -1875,7 +1875,7 @@ const METADATA_MODIFIED_AT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\IO\Metadata::isFile`'s reference card — ADR 0117.
+/// `Core\IO\Metadata::isFile`'s reference card — `rule:core-api/reference-card`.
 const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
     short: "Whether the path was a regular file. Together with `isDir` this partitions most of \
             what exists and does not cover it — a socket, a device node and a named pipe answer \
@@ -1885,7 +1885,7 @@ const METADATA_IS_FILE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\IO\Metadata::isDir`'s reference card — ADR 0117.
+/// `Core\IO\Metadata::isDir`'s reference card — `rule:core-api/reference-card`.
 const METADATA_IS_DIR_DOC: MethodDoc = MethodDoc {
     short: "Whether the path was a directory — the other half of the partition `isFile` \
             describes.",
@@ -2084,7 +2084,7 @@ nvs_runtime::nvs_helper! {
     /// a raw door onto that stream, so the sink would hold only for the program
     /// that did not take the other door; and it would be a second spelling of
     /// `Core\Cli::write`, which
-    /// [ADR 0063](/docs/adr/0063-core-api-conventions.md)'s "no
+    /// `rule:core-api/shape-rules`'s "no
     /// operation is reachable two ways" refuses on its own. The consequence is
     /// recorded rather than hidden: a program cannot emit byte-exact binary on
     /// its standard output, and one that must emit bytes names a file.
@@ -2273,7 +2273,7 @@ nvs_runtime::nvs_helper! {
     /// with `fgets` and joins [`crate::str::line_pieces`] — the one place that
     /// decides what a line is, so that `readLine` and `Core\IO::lines` cannot
     /// come to disagree about a `\r\n`. PHP's answer keeps the newline and every
-    /// correct caller then writes the same `rtrim`, which is the shape ADR 0063
+    /// correct caller then writes the same `rtrim`, which is the shape `rule:core-api/shape-rules`
     /// R5 refuses: the end of the file is `null` and nothing else has to be
     /// looked for.
     fn nvs_core_io_file_read_line(ctx, args: [1]) {
@@ -2369,7 +2369,7 @@ nvs_runtime::nvs_helper! {
     /// # Decision: one origin, and it is the start of the file
     ///
     /// PHP's `fseek` takes a `$whence` of `SEEK_SET`, `SEEK_CUR` or `SEEK_END`,
-    /// which is exactly the `int` mode argument ADR 0063 R3 refuses: three
+    /// which is exactly the `int` mode argument `rule:core-api/shape-rules` R3 refuses: three
     /// unrelated operations reached through one member, chosen by a constant the
     /// signature cannot check. `SEEK_SET` is the one a caller can name on its
     /// own; the other two are `seek($file->tell() + $n)` and a size read, both
@@ -2527,7 +2527,7 @@ nvs_runtime::nvs_helper! {
     /// # Decision: exclusive, and there is no mode argument
     ///
     /// PHP's `flock($h, LOCK_SH|LOCK_EX|LOCK_UN)` is three unrelated
-    /// operations behind one `int`, which is exactly ADR 0063 R3's refusal —
+    /// operations behind one `int`, which is exactly `rule:core-api/shape-rules` R3's refusal —
     /// and one of the three is not an operation on the lock at all. `LOCK_UN`
     /// is this class's [`nvs_core_io_file_close`]: the lock is the
     /// descriptor's, so the operating system drops it when the descriptor
@@ -2550,7 +2550,7 @@ nvs_runtime::nvs_helper! {
     /// outbound side, and the reading carries over, so this is `try_lock` and
     /// there is no waiting form of it anywhere.
     ///
-    /// Contention is therefore an `IOError` and never a `false`: ADR 0063
+    /// Contention is therefore an `IOError` and never a `false`: `rule:core-api/shape-rules`
     /// leaves no room for a falsy return, and `rule:errors/on-uncaught-throw`'s split puts this
     /// on the file's side of the line — nothing about the program is wrong,
     /// the file is held. A caller that wants to wait writes the wait it
@@ -2652,7 +2652,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\IO::append(string $path, string $content): void` — replacing
     /// `file_put_contents`'s `FILE_APPEND` flag, which is a member here for
-    /// ADR 0063 R6's reason: an option that changes *what a member does* is a
+    /// `rule:core-api/shape-rules` R6's reason: an option that changes *what a member does* is a
     /// second member.
     ///
     /// The handle door rather than [`nvs_runtime::capability::write`]'s
@@ -3002,7 +3002,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\IO::modifiedAt(string $path): Core\Time\Instant` — replacing
     /// `filemtime`.
     ///
-    /// An `Instant` and not an epoch `int`, which is ADR 0063 R12: `filemtime`
+    /// An `Instant` and not an epoch `int`, which is `rule:core-api/shape-rules` R12: `filemtime`
     /// hands back a number whose unit the caller has to remember, and every
     /// comparison against one is a chance to remember it wrong. What the type
     /// buys is that the answer can only be compared with another point on the
@@ -3023,7 +3023,7 @@ nvs_runtime::nvs_helper! {
     /// asking two of those questions about one path pays for two `stat`s, and
     /// the two can disagree because anything else may have written between
     /// them. [`METADATA`]'s own docs own why that is not the two-spellings
-    /// ADR 0063 R17 forbids.
+    /// `rule:core-api/shape-rules` R17 forbids.
     ///
     /// The result is a **snapshot** and never a live view — the door hands
     /// back a whole `std::fs::Metadata` for exactly this, and its doc comment

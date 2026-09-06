@@ -1,7 +1,7 @@
 --TEST--
 Core\Path::extension answers null for a name whose only dot is its first byte or its last, where pathinfo reads the whole dotfile name as an extension and an empty string as one — which is what makes withExtension an inverse rather than a rename
 --ORACLE-DIVERGES--
-`pathinfo` splits a name at its last dot and asks nothing else, so `.gitignore` decomposes to the filename `''` and the extension `'gitignore'`, `report.` to `report` and `''`, and `..` to `.` and `''`. `Core\Path` declines all three (`path.rs:26`, which is the one home of why): a leading dot does not open an extension, because a dotfile's whole name *is* its name; a trailing dot does not either, because an empty extension is an absence and ADR 0063 R5 makes `null` the one spelling of absence. The consequence is the reason it is worth diverging for — `withExtension` takes exactly what `extension` answered, so the two are inverses on every name, whereas `pathinfo`'s reading recomposes `.gitignore` with a new extension into `.txt`, which is a *different file* and not a renamed one. PHP has no member to compare `withExtension` against at all; the rows below spell out what the recomposition idiom built on `pathinfo`'s keys would have produced beside what this answers. Note that the divergence is about which dot, not about dots: a dotfile that also carries an extension is `.hidden.txt` and both readers answer `txt`, which the last rows pin here so the rule is not read as "a dotfile has no extension".
+`pathinfo` splits a name at its last dot and asks nothing else, so `.gitignore` decomposes to the filename `''` and the extension `'gitignore'`, `report.` to `report` and `''`, and `..` to `.` and `''`. `Core\Path` declines all three (`path.rs:26`, which is the one home of why): a leading dot does not open an extension, because a dotfile's whole name *is* its name; a trailing dot does not either, because an empty extension is an absence and `rule:core-api/shape-rules` R5 makes `null` the one spelling of absence. The consequence is the reason it is worth diverging for — `withExtension` takes exactly what `extension` answered, so the two are inverses on every name, whereas `pathinfo`'s reading recomposes `.gitignore` with a new extension into `.txt`, which is a *different file* and not a renamed one. PHP has no member to compare `withExtension` against at all; the rows below spell out what the recomposition idiom built on `pathinfo`'s keys would have produced beside what this answers. Note that the divergence is about which dot, not about dots: a dotfile that also carries an extension is `.hidden.txt` and both readers answer `txt`, which the last rows pin here so the rule is not read as "a dotfile has no extension".
 --FILE--
 <?nvs
 // The agreeing decomposition is
@@ -25,7 +25,7 @@ echo Show::of("/etc/.env"), "\n";
 echo Show::of(".a"), "\n";
 
 // A trailing dot. PHP answers an extension that is present and empty, which is
-// the one shape ADR 0063 R5 has no spelling for.
+// the one shape `rule:core-api/shape-rules` R5 has no spelling for.
 echo Show::of("report."), "\n";
 echo Show::of("/var/log/app."), "\n";
 

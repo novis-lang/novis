@@ -331,7 +331,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// no `tainted array<T>` for it to sit on instead.
 const HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
-/// `Core\Request::method`'s reference card — ADR 0117.
+/// `Core\Request::method`'s reference card — `rule:core-api/reference-card`.
 const METHOD_DOC: MethodDoc = MethodDoc {
     short: "The verb this request carries, as one of `Core\\Http\\Method`'s eight cases — with \
             `HEAD` reported as `Get`, so a `Get`-only route table still matches one and \
@@ -347,7 +347,7 @@ const METHOD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::isHead`'s reference card — ADR 0117.
+/// `Core\Request::isHead`'s reference card — `rule:core-api/reference-card`.
 const IS_HEAD_DOC: MethodDoc = MethodDoc {
     short: "Whether the peer wrote `HEAD`, which `method` reports as `Get` — the one difference \
             between the two, for a handler that would rather not build a body nothing will read.",
@@ -360,7 +360,7 @@ const IS_HEAD_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::path`'s reference card — ADR 0117.
+/// `Core\Request::path`'s reference card — `rule:core-api/reference-card`.
 const PATH_DOC: MethodDoc = MethodDoc {
     short: "The request path with the matched mount's prefix removed, so an application reads \
             the same paths wherever it is mounted.",
@@ -373,7 +373,7 @@ const PATH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::query`'s reference card — ADR 0117.
+/// `Core\Request::query`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
     short: "One query-string parameter by name, read with PHP's bracket convention — the same \
             parse `Core\\Uri::parseQuery` performs, so `a[b]=c` is reached as a nested array \
@@ -394,7 +394,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::header`'s reference card — ADR 0117.
+/// `Core\Request::header`'s reference card — `rule:core-api/reference-card`.
 const HEADER_DOC: MethodDoc = MethodDoc {
     short: "One request header by name, matched without regard to case — and where the peer sent \
             the field more than once, its lines joined by `, ` as RFC 9110 § 5.3 defines them to \
@@ -412,7 +412,7 @@ const HEADER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::headers`'s reference card — ADR 0117.
+/// `Core\Request::headers`'s reference card — `rule:core-api/reference-card`.
 const HEADERS_DOC: MethodDoc = MethodDoc {
     short: "Every header the request carried, keyed by the lower-cased field name, replacing \
             `getallheaders` and the `HTTP_*` half of `$_SERVER`.",
@@ -426,7 +426,7 @@ const HEADERS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::cookie`'s reference card — ADR 0117.
+/// `Core\Request::cookie`'s reference card — `rule:core-api/reference-card`.
 const COOKIE_DOC: MethodDoc = MethodDoc {
     short: "One cookie by name, matched **byte for byte** — no dot, space or bracket is \
             substituted in either direction, which is what PHP's `$_COOKIE` mangling did and \
@@ -446,7 +446,7 @@ const COOKIE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::body`'s reference card — ADR 0117.
+/// `Core\Request::body`'s reference card — `rule:core-api/reference-card`.
 const BODY_DOC: MethodDoc = MethodDoc {
     short: "The whole request body, pulled to its end into one string — the buffered way of \
             reading one, replacing `file_get_contents('php://input')` and the \
@@ -474,7 +474,7 @@ const BODY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::bodyStream`'s reference card — ADR 0117.
+/// `Core\Request::bodyStream`'s reference card — `rule:core-api/reference-card`.
 const BODY_STREAM_DOC: MethodDoc = MethodDoc {
     short: "The request body as a walk over its chunks — the streaming way of reading one, for a \
             body too large to want resident and for a program that can work as the bytes arrive.",
@@ -490,7 +490,7 @@ const BODY_STREAM_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::files`'s reference card — ADR 0117.
+/// `Core\Request::files`'s reference card — `rule:core-api/reference-card`.
 const FILES_DOC: MethodDoc = MethodDoc {
     short: "The uploaded files this request carries, as a walk over its parts — the one way to \
             receive one, replacing `$_FILES` and `move_uploaded_file` with a stream that never \
@@ -525,7 +525,7 @@ const FILES_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::post`'s reference card — ADR 0117.
+/// `Core\Request::post`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
     short: "One submitted form field by name, read with PHP's bracket convention — the same parse \
             `query` performs, over a `multipart/form-data` body's non-file parts or over a \
@@ -561,7 +561,7 @@ const POST_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::route`'s reference card — ADR 0117.
+/// `Core\Request::route`'s reference card — `rule:core-api/reference-card`.
 const ROUTE_DOC: MethodDoc = MethodDoc {
     short: "The route this request matched, which the server took once at the door before any of \
             this program ran — the same match the CSRF check and the `route` metric label read, \
@@ -587,7 +587,7 @@ const ROUTE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::mount`'s reference card — ADR 0117.
+/// `Core\Request::mount`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_DOC: MethodDoc = MethodDoc {
     short: "Which mount is serving this request: the prefix the server took off the path before \
             `path()` answered it, and the glob captures of the mount row that took it — the pair a \
@@ -679,7 +679,7 @@ pub(crate) const MOUNT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Request\Mount::prefix`'s reference card — ADR 0117.
+/// `Core\Request\Mount::prefix`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_PREFIX_DOC: MethodDoc = MethodDoc {
     short: "What the server took off the front of the path before `Core\\Request::path()` answered \
             it — so a program mounted at `/acme` sees `/orders` and learns the `/acme` here.",
@@ -691,7 +691,7 @@ const MOUNT_PREFIX_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Request\Mount::captures`'s reference card — ADR 0117.
+/// `Core\Request\Mount::captures`'s reference card — `rule:core-api/reference-card`.
 const MOUNT_CAPTURES_DOC: MethodDoc = MethodDoc {
     short: "The glob captures of the mount serving this request, in order — `{1}` is `captures[0]` \
             — which is how one compiled program running at many prefixes learns which tenant it is \
@@ -945,7 +945,7 @@ pub(crate) const PART: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Request\Part::name`'s reference card — ADR 0117.
+/// `Core\Request\Part::name`'s reference card — `rule:core-api/reference-card`.
 const PART_FIELD_DOC: MethodDoc = MethodDoc {
     short: "The form field this file arrived under — the `name` attribute of the `<input>`, as \
             the peer sent it back.",
@@ -955,7 +955,7 @@ const PART_FIELD_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Request\Part::filename`'s reference card — ADR 0117.
+/// `Core\Request\Part::filename`'s reference card — `rule:core-api/reference-card`.
 const PART_FILENAME_DOC: MethodDoc = MethodDoc {
     short: "The file name the client claimed — a claim about a file on someone else's machine, \
             and never a path on this one.",
@@ -965,7 +965,7 @@ const PART_FILENAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Request\Part::contentType`'s reference card — ADR 0117.
+/// `Core\Request\Part::contentType`'s reference card — `rule:core-api/reference-card`.
 const PART_CONTENT_TYPE_DOC: MethodDoc = MethodDoc {
     short: "The media type this part declared, which is what the client said the bytes are and \
             not what they turn out to be.",
@@ -975,7 +975,7 @@ const PART_CONTENT_TYPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Request\Part::content`'s reference card — ADR 0117.
+/// `Core\Request\Part::content`'s reference card — `rule:core-api/reference-card`.
 const CONTENT_DOC: MethodDoc = MethodDoc {
     short: "This part's bytes, a chunk at a time — the reading for an upload that must never be \
             resident whole, and what `saveTo` and `readAll` are both written over.",
@@ -1016,7 +1016,7 @@ const READ_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Uint(0),
 }];
 
-/// `Core\Request\Part::readAll`'s reference card — ADR 0117.
+/// `Core\Request\Part::readAll`'s reference card — `rule:core-api/reference-card`.
 const READ_ALL_DOC: MethodDoc = MethodDoc {
     short: "This part's whole content, pulled to its end into one value — the reading for an \
             upload small enough to hold, replacing `$_FILES` plus a `file_get_contents` of the \
@@ -1054,7 +1054,7 @@ const READ_ALL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request\Part::saveTo`'s reference card — ADR 0117.
+/// `Core\Request\Part::saveTo`'s reference card — `rule:core-api/reference-card`.
 const SAVE_TO_DOC: MethodDoc = MethodDoc {
     short: "Writes this part straight to `$path`, holding one chunk at a time — the path 99.9% of \
             uploads take, replacing `move_uploaded_file` of a temporary file the host chose. Needs \

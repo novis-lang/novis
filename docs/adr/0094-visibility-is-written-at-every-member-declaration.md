@@ -1,4 +1,4 @@
-# ADR 0094 — Visibility is written at every member declaration; there is no implicit `public`
+# `rule:core-api/written-visibility` — Visibility is written at every member declaration; there is no implicit `public`
 
 - **Status:** Accepted
 - **Date:** 2026-08-25
@@ -9,7 +9,7 @@
   one. Does **not** cover
   what each level *means* at an access site (who may read a `private` property), which is
   `rule:types/declaration`'s checker debt owned by `nvs-types`; nor modifier *order*
-  ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing ([ADR 0029](0029-identifier-casing-is-checked.md));
+  ([ADR 0039](0039-canonical-code-formatting.md) § 1); nor casing (`rule:core-api/identifier-casing`);
   nor property-hook semantics (`rule:classes/property-observer`).
 
 > **In short:** every member declaration in a class, interface or anonymous-class body writes exactly
@@ -55,7 +55,7 @@
 ## Decision
 
 Every declaration below writes exactly one visibility keyword. There is no configuration, no per-project
-override, and no suppression annotation — the same terms as ADR 0029.
+override, and no suppression annotation — the same terms as `rule:core-api/identifier-casing`.
 
 | Declaration | Required | Example |
 |---|---|---|
@@ -142,7 +142,7 @@ author nothing here.
 - **An implicit `private` default** — safer, and a real choice in Rust and in C++ classes. Rejected because
   it is *silently* different from PHP: a ported file compiles and quietly changes meaning, which is worse
   than either the PHP rule or an error. Novis diverges from PHP loudly or not at all.
-- **A warning, or a lint with a suppression annotation.** Rejected on ADR 0029's precedent — this repository
+- **A warning, or a lint with a suppression annotation.** Rejected on `rule:core-api/identifier-casing`'s precedent — this repository
   has no warning tier and no suppression mechanism, and adding one for this would be the first.
 - **Let `nvs fmt` insert `public`.** Rejected in § 5: a formatter that changes meaning is not a formatter.
 - **Require it on properties only, leaving methods PHP-shaped.** Rejected: half the rule costs a reader the

@@ -105,7 +105,7 @@ be discovered by its silence.
 
 - **`scope = "host"`** — each host running `nvs serve` fires the entry on its own clock. No coordination,
   no shared store, no lock. Correct for anything whose effect is local: warming a per-core cache
-  ([ADR 0059](0059-cross-request-state-is-explicit.md) § 1's local tier is per-core and per-host by
+  (`rule:core-api/two-cache-tiers`'s local tier is per-core and per-host by
   construction), rotating a local file, sampling host state.
 - **`scope = "fleet"`** — the entry fires once per interval across the whole deployment, guarded by a
   **lease** in the shared store keyed on `name` plus the fire's scheduled instant. A host that wins the

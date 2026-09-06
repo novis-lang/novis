@@ -1,5 +1,5 @@
 --TEST--
-Core\Str::before and ::after cut at the occurrence strstr and strrchr cut at, they both exclude the needle where strstr keeps it, an absent needle is null where all three PHP functions answer false, and strrchr stops being the twin past a one-character needle (spec § 1 Extraction, ADR 0063 R5)
+Core\Str::before and ::after cut at the occurrence strstr and strrchr cut at, they both exclude the needle where strstr keeps it, an absent needle is null where all three PHP functions answer false, and strrchr stops being the twin past a one-character needle (spec § 1 Extraction, `rule:core-api/shape-rules` R5)
 --FILE--
 <?nvs
 // Spec § 1's *Extraction* prose owns every rule this pins: both members

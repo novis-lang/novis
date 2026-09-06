@@ -1,5 +1,5 @@
 --TEST--
-every Core\Math member the spec gives a PHP twin answers what that twin answers over one shared numeric corpus, and the ten identities the members hold jointly hold in PHP too (spec § 3, ADR 0063 R4 and R17, `rule:classes/no-free-functions-or-constants`)
+every Core\Math member the spec gives a PHP twin answers what that twin answers over one shared numeric corpus, and the ten identities the members hold jointly hold in PHP too (spec § 3, `rule:core-api/shape-rules` R4 and R17, `rule:classes/no-free-functions-or-constants`)
 --FILE--
 <?nvs
 // The roster case for `Core\Math`. Every other file under

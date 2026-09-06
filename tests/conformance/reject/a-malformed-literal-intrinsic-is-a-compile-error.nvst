@@ -22,7 +22,7 @@ var $foldedDate = $when->format("yyyy-YYYYYY");
 var $runtimeDate = $when->format($badDate);
 
 // `Core\Time::parse`, argument *1* — the subject is the text being read, so the
-// pattern is not at position 0 (ADR 0063 R1).
+// pattern is not at position 0 (`rule:core-api/shape-rules` R1).
 var $badParse = "yyyy-YYYYYY";
 var $foldedParsed = Core\Time::parse("2026-08-28", "yyyy-YYYYYY", $utc);
 var $runtimeParsed = Core\Time::parse("2026-08-28", $badParse, $utc);

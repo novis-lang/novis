@@ -43,7 +43,7 @@ capability.
       `db.connect` and `db.schema` grants for that name. Anchors: `./nvs.toml:174` (the `[[app]]`
       shape), `./nvs.toml:247` (`[db.main]`, where the block goes), and
       `examples/schema.nvs:38` (the `Db::connect("schema")` it must answer).
-- [ ] **Spec § 18 owes `Core\Db\Schema` a table** — the registry carries the cards (ADR 0117) but
+- [ ] **Spec § 18 owes `Core\Db\Schema` a table** — the registry carries the cards (`rule:core-api/reference-card`) but
       the spec is authoritative for the surface, and § 18 names no schema member yet. Anchor:
       `docs/spec/01-core-library.md:1170`.
 

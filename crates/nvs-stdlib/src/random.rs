@@ -160,7 +160,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Random::int`'s reference card — ADR 0117.
+/// `Core\Random::int`'s reference card — `rule:core-api/reference-card`.
 const INT_DOC: MethodDoc = MethodDoc {
     short: "Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from the \
             CSPRNG — as `random_int` does, replacing `rand` and `mt_rand` as well.",
@@ -183,7 +183,7 @@ const INT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Random::float`'s reference card — ADR 0117.
+/// `Core\Random::float`'s reference card — `rule:core-api/reference-card`.
 const FLOAT_DOC: MethodDoc = MethodDoc {
     short: "Draws a float uniformly from the half-open interval `[0, 1)`, replacing `lcg_value` \
             and the `mt_rand() / mt_getrandmax()` idiom.",
@@ -192,7 +192,7 @@ const FLOAT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Random::bytes`'s reference card — ADR 0117.
+/// `Core\Random::bytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
     short: "Draws `$count` bytes from the CSPRNG as a raw buffer — a key, a nonce or an IV — as \
             `random_bytes` does, replacing `openssl_random_pseudo_bytes` as well.",
@@ -210,7 +210,7 @@ const BYTES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Random::token`'s reference card — ADR 0117.
+/// `Core\Random::token`'s reference card — `rule:core-api/reference-card`.
 const TOKEN_DOC: MethodDoc = MethodDoc {
     short: "Draws `$bytes` bytes from the CSPRNG and renders them as lower-case hex — the \
             `bin2hex(random_bytes(…))` idiom, for a session identifier or a reset link.",
@@ -228,7 +228,7 @@ const TOKEN_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Random::pick`'s reference card — ADR 0117.
+/// `Core\Random::pick`'s reference card — `rule:core-api/reference-card`.
 const PICK_DOC: MethodDoc = MethodDoc {
     short: "Draws one entry of `$a` uniformly and answers its value, replacing `array_rand` in \
             its one-element spelling — the value, where `array_rand` answers the key.",
@@ -242,7 +242,7 @@ const PICK_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Random::sample`'s reference card — ADR 0117.
+/// `Core\Random::sample`'s reference card — `rule:core-api/reference-card`.
 const SAMPLE_DOC: MethodDoc = MethodDoc {
     short: "Draws `$count` distinct entries of `$a` uniformly, replacing `array_rand` with a \
             count — in random order, where `array_rand` keeps the subject's order.",
@@ -266,7 +266,7 @@ const SAMPLE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Random::shuffle`'s reference card — ADR 0117.
+/// `Core\Random::shuffle`'s reference card — `rule:core-api/reference-card`.
 const SHUFFLE_DOC: MethodDoc = MethodDoc {
     short: "Answers every entry of `$a` in a uniformly random order, replacing `shuffle` and \
             `str_shuffle` — a fresh array rather than a reordering in place.",
@@ -517,7 +517,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Inclusive at both ends**, so `int(1, 6)` is a die and `int($n, $n)` is
     /// `$n`. `$min > $max` names an empty range, which has no answer to invent,
-    /// so it throws (ADR 0063 R4) rather than swapping the bounds — a swap
+    /// so it throws (`rule:core-api/shape-rules` R4) rather than swapping the bounds — a swap
     /// would turn a computed-bounds bug into a plausible-looking result.
     fn nvs_core_random_int(ctx, args: [2]) {
         let min = integer(&args[0], "int", "the lower bound")?;
@@ -561,7 +561,7 @@ nvs_runtime::nvs_helper! {
     /// differ; `rule:types/conversion` is why it renders through `Core\Encoding::toHex`
     /// to compare them rather than reading the buffer as a `string`.
     ///
-    /// **Zero bytes throws** (ADR 0063 R4), for `token`'s reason applied one
+    /// **Zero bytes throws** (`rule:core-api/shape-rules` R4), for `token`'s reason applied one
     /// level down: an empty buffer used as a key or an IV is a key every other
     /// empty draw matches, and PHP's own `random_bytes(0)` is a `ValueError`
     /// rather than `""`.
@@ -615,7 +615,7 @@ nvs_runtime::nvs_helper! {
     /// long as the count, and reading it as a length would silently halve the
     /// strength of every token in a program that guessed wrong.
     ///
-    /// **Zero bytes throws** (ADR 0063 R4). The empty string is a token that
+    /// **Zero bytes throws** (`rule:core-api/shape-rules` R4). The empty string is a token that
     /// compares equal to every other empty token, so answering with it would
     /// turn an arithmetic slip into an authentication bypass; there is no
     /// reading of `token(0)` worth being total for.
@@ -674,7 +674,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Random::pick(array<T> $a): ?T` — one entry's value, uniformly,
     /// replacing PHP's `array_rand` in its one-element spelling.
     ///
-    /// **`?T` over an empty array rather than a throw** (ADR 0063 R5).
+    /// **`?T` over an empty array rather than a throw** (`rule:core-api/shape-rules` R5).
     /// `Core\Arr::first`'s own docs own that rule and the one thing it costs:
     /// over an `array<?T>` the answer cannot tell "the array was empty" from
     /// "the entry drawn was `null`". R4's throw is for a *failure*, and asking
@@ -710,7 +710,7 @@ nvs_runtime::nvs_helper! {
     /// sorts, and one who wants the whole array reordered has `shuffle` beside
     /// it.
     ///
-    /// **A count above the array's size throws** (ADR 0063 R4). There are not
+    /// **A count above the array's size throws** (`rule:core-api/shape-rules` R4). There are not
     /// that many distinct entries to draw, so the alternatives are inventing a
     /// duplicate or silently answering short — a failure either way, and only
     /// the throw says so.

@@ -32,7 +32,7 @@
   § 7's divergence 4, rejected because it silently accepts garbage. Novis's replacement throws, which is
   right when invalid input *is* an error and wrong when it is an ordinary expected outcome: an absent page
   number, an optional sort order, a filter that may not be filled in.
-- [ADR 0063](0063-core-api-conventions.md) R4 makes failure throw and R5 **bans** `try…`, `…OrNull`,
+- `rule:core-api/shape-rules` R4 makes failure throw and R5 **bans** `try…`, `…OrNull`,
   `…Safe` and `…Ex` as member names, so no `Core` member may offer the non-throwing form. The only path
   left was check-then-convert — `Core\Validate::isInteger($s) && $s as int` — which **parses the same bytes
   twice** on the request path and requires the two definitions to agree forever. That hazard was closed by
@@ -111,7 +111,7 @@ non-throwing spelling lives instead.
 non-throwing spelling. They call that class's own `parse` and answer `null` where it throws, so there is
 still exactly one implementation of "is this text a `Uri`" — which was always the point.
 
-This amends [ADR 0063](0063-core-api-conventions.md) R5, whose ban on `try…` is justified there as "R4
+This amends `rule:core-api/shape-rules` R5, whose ban on `try…` is justified there as "R4
 already covers them". For a class target R4 demonstrably did **not** cover it: R4 offers a throwing member
 or a `?T` that means *absence*, and a malformed string is neither an absence nor something a scalar
 operator can reach — so it needs a spelling of its own. R5 admits **one** shape, under three conditions that keep it from regrowing into PHP's
@@ -202,7 +202,7 @@ in the language, which is a larger decision than this one and is not taken here.
 ## Alternatives rejected
 
 - **A `Core` member for a *scalar* target — `Str::toIntOrNull`, `Int::tryParse`.** Rejected by
-  [ADR 0063](0063-core-api-conventions.md) R5, which bans those exact name shapes, and by arithmetic: it
+  `rule:core-api/shape-rules` R5, which bans those exact name shapes, and by arithmetic: it
   needs one member per target type, forever, while an operator covers every type including ones added
   later. *3a*'s `tryParse` is not this alternative readmitted — it exists precisely where no operator
   reaches, one member per *class* that has a failable single-`string` parse, of which there are two.

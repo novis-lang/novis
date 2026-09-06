@@ -202,7 +202,7 @@ fn enum_cases_and_explicit_backing_type() {
     assert!(e.cases[0].value.is_some());
 }
 
-/// An enum case is a `PascalCase` name (ADR 0029), and every keyword is
+/// An enum case is a `PascalCase` name (`rule:core-api/identifier-casing`), and every keyword is
 /// matched at its exact lower-case spelling (`rule:classes/reserved-spellings-are-lower-case`), so a case whose
 /// spelling *reads* as a keyword never collides with one. Swept rather than
 /// spot-checked: `parse_enum_body` admits only [`TokenKind::Ident`], so a

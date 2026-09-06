@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::isReadable predicts whether ::read succeeds for both a file that is there and a name that is not, while ::isWritable answers `false` for a name ::write then creates without complaint — the divergence is PHP's `is_writable` and is kept on purpose, because the question is about the path as it is rather than about what a write would do with it — spec § 14, ADR 0063 R4
+Core\IO::isReadable predicts whether ::read succeeds for both a file that is there and a name that is not, while ::isWritable answers `false` for a name ::write then creates without complaint — the divergence is PHP's `is_writable` and is kept on purpose, because the question is about the path as it is rather than about what a write would do with it — spec § 14, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // The agreement first, counted rather than read off a line: for each of a name

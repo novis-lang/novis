@@ -9,7 +9,7 @@ NVS_MODE=development
 // Spec § 15 says it outright: the mode "is set through `Core\Config`, like every
 // other directive, and no environment variable is consulted for it". PHP has no
 // run mode at all, so every framework invented a variable for this — and the
-// convention this case pins is Novis *not* having one, on ADR 0063 R6's rule
+// convention this case pins is Novis *not* having one, on `rule:core-api/shape-rules` R6's rule
 // that no operation is reachable two ways.
 
 // All three names are ordinary variables, and this same class reads them as

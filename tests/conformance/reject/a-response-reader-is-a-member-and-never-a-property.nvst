@@ -1,5 +1,5 @@
 --TEST--
-`Core\Http\Response`'s readers are reached as members: a `Core` instance has no property a program can name, whichever member roster the class carries — ADR 0074 § 6, ADR 0063
+`Core\Http\Response`'s readers are reached as members: a `Core` instance has no property a program can name, whichever member roster the class carries — ADR 0074 § 6, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // The claim is *a bound asserted on both sides*: the accepted spelling and the

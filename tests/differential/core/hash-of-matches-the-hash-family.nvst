@@ -1,5 +1,5 @@
 --TEST--
-every `Core\Digest` case PHP can compute answers over one shared corpus what `hash()` answers for that algorithm, and each answer is the octet width spec § 11's roster gives it (spec § 11, `rule:types/bytes`, ADR 0063 R17)
+every `Core\Digest` case PHP can compute answers over one shared corpus what `hash()` answers for that algorithm, and each answer is the octet width spec § 11's roster gives it (spec § 11, `rule:types/bytes`, `rule:core-api/shape-rules` R17)
 --FILE--
 <?nvs
 // The roster case for `Core\Hash::of`. Spec § 11 makes the algorithm an

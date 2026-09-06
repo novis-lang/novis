@@ -20,7 +20,7 @@
 //!
 //! Both are gone, and deliberately: § 10 makes `Throwable` the root that user
 //! classes extend directly, so a second root-shaped name would be a second
-//! way to spell the same thing ([ADR 0063](/docs/adr/0063-core-api-conventions.md)
+//! way to spell the same thing (`rule:core-api/shape-rules`
 //! R20). A program naming either gets an ordinary undeclared-class
 //! diagnostic.
 
@@ -74,8 +74,7 @@
 /// row as a bare global segment. `QName::is_reserved_global_class`
 /// deliberately still answers only for the single-segment rows: what makes
 /// these trusted-to-exist is `QName::is_core`, the reserved `Core` namespace
-/// ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
-/// § 2), which every site pairs with that predicate already.
+/// (`rule:core-api/reserved-namespace`), which every site pairs with that predicate already.
 pub const TREE: &[(&str, Option<&str>)] = &[
     ("Throwable", None),
     ("LogicError", Some("Throwable")),

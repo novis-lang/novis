@@ -9,7 +9,7 @@ Core\Validate::isEmail, isDomain, isIp and isMac answer what filter_var's FILTER
 // rather than two more member names (spec § 12; `rule:types/literal-types`'s closed literal set).
 //
 // PHP's answer is a value-or-`false`, which is the fourth of the four failure
-// spellings ADR 0063 replaces with a `bool` here; the twin below compares
+// spellings `rule:core-api/shape-rules` replaces with a `bool` here; the twin below compares
 // against `false` at every call so that the *question* is the same one.
 //
 // Two subjects the two languages answer differently are deliberately not in the

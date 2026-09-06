@@ -129,7 +129,7 @@ redirect chain and every retry attempt are covered by one `deadline`
 extension are all subject to the same policy, enforced at the point the connection is made — the exception
 in § 3 being a config-named database endpoint, which the operator has already approved by writing it. An extension cannot be granted a socket that
 escapes it, which matters because [ADR 0055](0055-extension-qualifier-declarations.md) permits an extension
-to be an I/O source and [ADR 0051](0051-standard-library-tiers.md) places several network clients at
+to be an I/O source and `rule:core-api/tier-placement` places several network clients at
 Tier 1.
 
 ## Consequences

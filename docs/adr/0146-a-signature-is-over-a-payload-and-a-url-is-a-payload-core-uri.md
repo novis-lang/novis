@@ -1,4 +1,4 @@
-# ADR 0146 — A signature is over a payload, and a URL is a payload `Core\Uri` already canonicalizes
+# `rule:core-api/signing-is-over-a-payload` — A signature is over a payload, and a URL is a payload `Core\Uri` already canonicalizes
 
 - **Status:** Accepted
 - **Date:** 2026-09-06

@@ -18,7 +18,7 @@ echo "\n";
 Core\Cli::write("out", {stream: Core\Cli\Stream::Out, newline: true});
 Core\Cli::write("this line is not standard output", {stream: Core\Cli\Stream::Err, newline: true});
 
-// Named in the other order, because ADR 0063 R2 makes an option callable by its
+// Named in the other order, because `rule:core-api/shape-rules` R2 makes an option callable by its
 // own name rather than by its place in the bag.
 Core\Cli::write("both", {newline: true, stream: Core\Cli\Stream::Out});
 --EXPECT--

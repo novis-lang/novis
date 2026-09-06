@@ -180,7 +180,7 @@ user code running at all.
 
 ### 6. `__call`/`__callStatic` — not recognized by name, no replacement offered
 
-Neither name can even be declared: [ADR 0029](0029-identifier-casing-is-checked.md)'s method-casing rule
+Neither name can even be declared: `rule:core-api/identifier-casing`'s method-casing rule
 requires a lowercase-first `camelCase` name with no leading-underscore allowance of any kind — unlike the
 allowance properties/parameters/locals had until `rule:classes/no-leading-underscore-identifiers`
 revoked it, methods never had one to begin with — so `__call`/`__callStatic` are rejected by the casing
@@ -280,7 +280,7 @@ Verification, in the order it becomes possible:
   resolvable receiver (`E_UNKNOWN_MEMBER`) — joining the diagnostic corpus
   `rule:types/declaration`'s own M2 entry already builds; a method named `__call` or
   `__callStatic` never reaches any resolution logic at all, since `nvs-syntax`'s casing check
-  ([ADR 0029](0029-identifier-casing-is-checked.md)) already refuses the name itself.
+  (`rule:core-api/identifier-casing`) already refuses the name itself.
 - **M4**, § 1's half: each hook body compiles to its own function and a read/write of a hooked property is
   a call to it rather than a slot touch, with the receiver in the ordinary parameter-0 slot — so a hooked
   access costs no new instruction, no new calling convention and no dispatch-table entry. Inside a hook the

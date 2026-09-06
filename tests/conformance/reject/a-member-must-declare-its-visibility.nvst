@@ -1,9 +1,9 @@
 --TEST--
-a property, class constant or method written without `public`/`protected`/`private` is refused, and there is no implicit `public` to fall back on — ADR 0094 §§ 1, 4
+a property, class constant or method written without `public`/`protected`/`private` is refused, and there is no implicit `public` to fall back on — `rule:core-api/written-visibility` and `rule:core-api/legacy-property-shapes-name-the-visibility`
 --FILE--
 <?nvs
 class Account {
-    // ADR 0094 § 4: Novis's own grammar accepts this bare property shape, so
+    // `rule:core-api/legacy-property-shapes-name-the-visibility`: Novis's own grammar accepts this bare property shape, so
     // it is the omission the rule has to catch rather than a parse error.
     int $balance = 0;
 

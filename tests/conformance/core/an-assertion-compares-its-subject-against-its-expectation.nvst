@@ -55,7 +55,7 @@ try { Core\Test::assertSame($left, $right); } catch (Throwable $e) { $refused = 
 // order still reads correctly.
 try { Core\Test::assertSame($one, $two); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
 
-// ADR 0063 R2's trailing bag -- § 4's own `{message: ...}`, in front of the
+// `rule:core-api/shape-rules` R2's trailing bag -- § 4's own `{message: ...}`, in front of the
 // report rather than replacing it.
 try { Core\Test::assertEquals($one, $two, {message: "a fresh counter is one"}); } catch (Throwable $e) { $refused = $refused + 1; echo $e->message, "\n"; }
 

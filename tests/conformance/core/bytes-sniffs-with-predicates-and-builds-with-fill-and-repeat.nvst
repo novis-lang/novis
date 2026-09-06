@@ -1,9 +1,9 @@
 --TEST--
-Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — `rule:types/bytes`, ADR 0063 R4
+Spec § 7: `Core\Bytes`'s three predicates answer the magic-byte questions R6 names, and `fill`/`repeat` build a buffer without one — `rule:types/bytes`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 class Probe {
-    // ADR 0063 R4: a `$byte` that is not one octet throws rather than being
+    // `rule:core-api/shape-rules` R4: a `$byte` that is not one octet throws rather than being
     // truncated the way PHP's `chr()` wraps it.
     public static function fill(uint $length, uint $byte): string {
         try {

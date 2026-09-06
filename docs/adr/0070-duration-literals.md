@@ -24,7 +24,7 @@
 
 ## Context
 
-- [ADR 0063](0063-core-api-conventions.md) R12 makes units a type, which removes PHP's
+- `rule:core-api/shape-rules` R12 makes units a type, which removes PHP's
   `sleep`/`usleep`/`time_nanosleep` family and every `int $timeout` whose unit lives in a doc comment. The
   bill arrives at the call site: `{timeout: Duration::seconds(30)}` where PHP wrote `30`.
 - That bill is not paid once. Timeouts appear across `Core\Db`, `Core\Http`, `Core\Process` and `Core\Net`;
@@ -33,7 +33,7 @@
   untyped integer.
 - Removing `DateTime::shift` ([ADR 0063](0063-core-api-conventions.md) § 4) removed the short spelling for
   `"+2 weeks"`. Its typed replacement must not read as a penalty, or the removal will not hold.
-- **Scalars cannot carry the ergonomic**: [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on
+- **Scalars cannot carry the ergonomic**: `rule:core-api/shape-rules` R19 forbids methods on
   scalars, so Kotlin's `3.days` and Scala's `3.seconds` — the workaround every library-only language reaches
   for — are unavailable here. A literal is the only remaining lever.
 - The feature is not novel. **C++11** standardises `1h`, `500ms`, `2min` in `std::chrono`; **PromQL**
@@ -159,7 +159,7 @@ pins both halves.
   unfamiliar to the audience Novis is for. Nothing stops `Core\Time` gaining an ISO reader later for wire
   formats; that is a different job from a literal.
 - **`3.days`, as Kotlin and Scala spell it.** Rejected mechanically, not aesthetically:
-  [ADR 0063](0063-core-api-conventions.md) R19 forbids methods on scalars, and creating an exception for
+  `rule:core-api/shape-rules` R19 forbids methods on scalars, and creating an exception for
   one type is how the "twin problem" R19 exists to prevent regrows.
 - **A general units-of-measure system** (F#'s `1.0<s>`, `9.81<m/s^2>`). Far more powerful and genuinely
   attractive. Rejected on `rule:programs/memory-priority`'s simplicity priority: it is a type-system

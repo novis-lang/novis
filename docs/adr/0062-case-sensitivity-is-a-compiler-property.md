@@ -38,7 +38,7 @@
   review, and then the one place that compares a class name as a string (a router table, a serialized
   payload, a cache key) disagrees with the resolver.
 - Novis had already answered most of this without stating it. `QName` and `SymbolTable` compare
-  case-sensitively; [ADR 0029](0029-identifier-casing-is-checked.md) makes exactly one casing legal per
+  case-sensitively; `rule:core-api/identifier-casing` makes exactly one casing legal per
   identifier category, so PHP's tolerance had nothing left to buy; and
   `rule:programs/autoload` closed the filesystem hole for
   `autoload` specifically. What was missing was the general rule, a `require` that obeyed it, and a lexer
@@ -53,7 +53,7 @@ class constant — is compared exactly, everywhere: `QName`, `SymbolTable`, memb
 and `foo` are two different names, not one name written two ways. There is no configuration and no
 compatibility mode.
 
-This costs nothing in practice, because [ADR 0029](0029-identifier-casing-is-checked.md) already makes
+This costs nothing in practice, because `rule:core-api/identifier-casing` already makes
 only one casing legal per category: two names that differ only in case cannot both be valid declarations
 of the same kind, so case-sensitive resolution can never turn a working program into an ambiguous one. It
 only turns a *wrong* reference into a diagnostic.
@@ -70,7 +70,7 @@ keywords (`spawn`, `script`, `with`, `type`, `from`, `by`, `get`, `set`), for th
 literals, and for the `<?nvs` open tag.
 
 A mis-cased keyword gets **no diagnostic of its own**, and this is deliberate rather than an omission:
-[ADR 0029](0029-identifier-casing-is-checked.md) § 1 makes `IF`, `ECHO` and `TRUE` all legal
+`rule:core-api/casing-checks-the-leading-character` makes `IF`, `ECHO` and `TRUE` all legal
 `PascalCase` class names, so there is nothing lexical
 that distinguishes a mis-typed `if` from a deliberate reference to a class called `IF`. The lexer emits an
 ordinary `Ident`, and the program fails later as an undefined name or a parse error. Inventing a heuristic
@@ -131,7 +131,7 @@ Three properties keep this honest:
 ## Alternatives rejected
 
 - **Follow PHP: fold case for class and function names.** Rejected. It is the source of the drift
-  described in *Context*, it buys nothing once ADR 0029 fixes one legal casing per category, and it would
+  described in *Context*, it buys nothing once `rule:core-api/identifier-casing` fixes one legal casing per category, and it would
   make `QName` comparison locale- and Unicode-sensitive in a way nothing else in the compiler is.
 - **Normalise paths to lower case before comparing.** Rejected outright — it does not make the program
   portable, it makes the compiler agree with the *least* strict filesystem, which is the failure mode

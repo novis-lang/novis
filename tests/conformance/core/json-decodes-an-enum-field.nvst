@@ -25,7 +25,7 @@ class Account {
     public function constructor(
         public string $name,
         public Role $role,
-        // ADR 0071 § 4's second column: `?T` is nullable, which is a fact
+        // `rule:core-api/required-optional-and-nullable`'s second column: `?T` is nullable, which is a fact
         // about the type and says nothing about the case set.
         public ?Weight $weight,
         // § 2's list field over an enum element — the roster rides on the

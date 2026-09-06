@@ -2,7 +2,7 @@
 Spec § 5: `Core\Regex\Match::groups` holds one entry per declared group plus one per name, and never trims an unmatched one
 --FILE--
 <?nvs
-// ADR 0063 R11: `groups()` is `$matches` under `PREG_UNMATCHED_AS_NULL`, and
+// `rule:core-api/shape-rules` R11: `groups()` is `$matches` under `PREG_UNMATCHED_AS_NULL`, and
 // there are no `PREG_*` constants to ask for the other reading. What that
 // buys is a *count* that is a function of the pattern alone — `1` for the
 // whole match, one per numbered group, and one more for each of those that

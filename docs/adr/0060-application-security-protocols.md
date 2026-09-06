@@ -21,7 +21,7 @@
 
 ## Context
 
-- [ADR 0051](0051-standard-library-tiers.md) argues that a `Core` entry earns its place by needing runtime
+- `rule:core-api/tier-placement` argues that a `Core` entry earns its place by needing runtime
   privilege, being an injection sink, or being too fine-grained for a boundary. None of those describes
   JWT, and yet leaving it out has a predictable outcome: the ecosystem grows several implementations, and
   some of them will accept `alg: none`. That has happened in essentially every language that left it to
@@ -44,7 +44,7 @@
 - **TOTP** — generation and verification with a bounded replay window and constant-time comparison.
 - **JWT** — signing and verification, subject to § 4.
 - **Detached signatures** — `Core\Signature`, over a canonical payload rather than over any assembled
-  text, with the same key ring. [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)
+  text, with the same key ring. `rule:core-api/signing-is-over-a-payload`
   owns it and the two doors onto it that `Core\Uri` and `Core\Router` carry; it is admitted here because
   the failure history is a canonicalization bug in the library, silent, and near-universal for signed
   links.
@@ -88,7 +88,7 @@ Every entry is designed so the historical failure is **unrepresentable**, not me
   flag to disable the check; a caller wanting a non-expiring credential is not using JWT for what JWT
   is. **This is JWT's rule and not the roster's** — its reasoning is about what a JWT is for, and
   `Core\SignedCookie` has carried no lifetime since it landed.
-  [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) § 3 is where a
+  `rule:core-api/a-lifetime-is-written` is where a
   lifetime is instead *written and never omitted*, `null` included.
 - **Verification returns claims or throws.** It never returns a falsy value that a loose comparison could
   mistake for success — the same reasoning `rule:core-classes/regex-two-tiers` applies to a
@@ -127,7 +127,7 @@ that was already plain when it went in.
   protocols. Rejected: it is exactly the boundary every other language drew, and the observed outcome is a
   population of libraries with the same repeated flaw. Novis's whole argument is that classes of bug should
   be removed rather than documented.
-- **First-party extensions.** Keeps `Core` smaller and matches [ADR 0051](0051-standard-library-tiers.md)'s
+- **First-party extensions.** Keeps `Core` smaller and matches `rule:core-api/tier-placement`'s
   treatment of internationalization. Rejected on § 3's second point: `secret` cannot cross the extension
   boundary, and making `Core\Secret::reveal()` routine would break the one mechanism that makes a
   credential's exposure visible.

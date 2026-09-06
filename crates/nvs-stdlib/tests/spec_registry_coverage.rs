@@ -155,7 +155,7 @@ fn cells(line: &str) -> Vec<String> {
 /// [`registry::OPTIONS_NAME`] — `None` for a span that is not a signature.
 ///
 /// This is [`registry::CoreMethod::names`]'s source of truth, read live rather
-/// than copied, which is the whole point of the test below: ADR 0063 R2 makes
+/// than copied, which is the whole point of the test below: `rule:core-api/shape-rules` R2 makes
 /// a parameter's name compatibility surface versioned in the spec, so the spec
 /// is where it is *written* and the registry only mirrors it.
 fn signature_names(sig: &str) -> Option<Vec<String>> {
@@ -631,7 +631,7 @@ fn every_part_one_spec_member_is_registered() {
     );
 }
 
-/// ADR 0063 R2's names, held against the one place they are written.
+/// `rule:core-api/shape-rules` R2's names, held against the one place they are written.
 ///
 /// R2 makes every `Core` parameter callable by "the `$name` the signature in
 /// [01-core-library.md] writes", which makes that column the *source* and
@@ -731,7 +731,7 @@ fn every_registry_rows_names_are_the_specs_signature_column() {
         wrong.is_empty(),
         "{} registered member(s) do not spell their parameters as \
          docs/spec/01-core-library.md does:\n  {}\n\
-         The spec's signature column is the source (ADR 0063 R2) — change the row's `names`, \
+         The spec's signature column is the source (`rule:core-api/shape-rules` R2) — change the row's `names`, \
          or change the spec and accept that renaming a parameter is a breaking change.",
         wrong.len(),
         wrong.join("\n  ")
@@ -859,7 +859,7 @@ fn part_two_members() -> Vec<PartTwoMember> {
             };
             // A Part II bullet names its class's types beside its members —
             // `FileMode` is an enum, `Env\Mode`'s cases are `Production` and
-            // `Development` — and ADR 0063's naming is what tells the two apart
+            // `Development` — and `rule:core-api/shape-rules`'s naming is what tells the two apart
             // without reading the sentence they sit in: a member is lowerCamelCase
             // and a constant is SCREAMING_CASE, so an initial capital followed by
             // any lower-case letter is a type and never a member.

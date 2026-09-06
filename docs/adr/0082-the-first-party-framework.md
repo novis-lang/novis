@@ -1,4 +1,4 @@
-# `rule:programs/first-party-framework` — Novis ships the batteries: a first-party framework, split by ADR 0051's existing tests
+# `rule:programs/first-party-framework` — Novis ships the batteries: a first-party framework, split by `rule:core-api/tier-placement`'s existing tests
 
 - **Status:** Accepted
 - **Date:** 2026-08-24
@@ -22,7 +22,7 @@
 > **In short:** Novis ships a working web framework, because "a good language and an empty registry" is the
 > position every language that lost this fight occupied ([0080](0080-the-audience-nvs-is-built-for.md) § 4).
 > It is split in two, and **no new placement rule is invented to do it**:
-> [ADR 0051](0051-standard-library-tiers.md)'s six tests already answer where each piece goes. Anything
+> `rule:core-api/tier-placement`'s six tests already answer where each piece goes. Anything
 > needing runtime privilege, laundering a qualifier, or waiting on the outside world is **`Core`, in the
 > binary** — session, validation, the job queue, persistent connections, password hashing, mail transport.
 > Everything above that is **`nvs/web`, a first-party package** under
@@ -58,7 +58,7 @@
   language. What was missing was the layer that assembles them and the statement that assembling them is
   the project's job.
 - **The placement question looks like it needs a new rule and does not.**
-  [ADR 0051](0051-standard-library-tiers.md) § 2's six ordered tests were written for stdlib candidates and
+  `rule:core-api/tier-placement`'s six ordered tests were written for stdlib candidates and
   answer this one unchanged — which is the strongest evidence available that they were the right tests.
   Inventing a second procedure for "framework things" would create exactly the kind of duplicated authority
   AGENTS.md's one-home rule exists to prevent.
@@ -70,7 +70,7 @@
 
 ## Decision
 
-### 1. The rule: ADR 0051's six tests, applied unchanged
+### 1. The rule: `rule:core-api/tier-placement`'s six tests, applied unchanged
 
 A framework capability is placed by asking [0051](0051-standard-library-tiers.md) § 2's questions in order.
 In practice three of the six decide almost everything here:

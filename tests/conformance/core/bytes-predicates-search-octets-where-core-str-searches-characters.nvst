@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — `rule:types/bytes`, `rule:types/string-is-utf8` and `rule:types/conversion`, ADR 0063 R6
+Spec § 7: `Core\Bytes::contains`, `startsWith` and `endsWith` search octets where `Core\Str`'s three search characters — they answer the same question on every needle a `string` can name, and 18 of the 28 windows of one subject are needles no `string` can name at all — `rule:types/bytes`, `rule:types/string-is-utf8` and `rule:types/conversion`, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // `Core\Bytes` and `Core\Str` carry the same three predicate names, and every

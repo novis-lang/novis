@@ -34,7 +34,7 @@ use crate::tree::Config;
 /// one question it gets wrong.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Backend {
-    /// `shared` — ADR 0059 § 1's coherent tier, reached at `[cache.shared] url`. One store per
+    /// `shared` — `rule:core-api/two-cache-tiers`'s coherent tier, reached at `[cache.shared] url`. One store per
     /// deployment, so a session store that named a second address would be a second thing to
     /// configure for no coherence the first does not already have.
     Shared,

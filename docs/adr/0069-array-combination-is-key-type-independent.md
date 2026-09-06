@@ -26,7 +26,7 @@
 
 ## Context
 
-- [ADR 0063](0063-core-api-conventions.md) fixed the *shape* of every `Core` member but deliberately left
+- `rule:core-api/shape-rules` fixed the *shape* of every `Core` member but deliberately left
   each member's *semantics* to the spec file. `Arr::merge` was written there with `array_merge` **and** the
   `+` operator in one Replaces cell — two mutually contradictory rules under one name, which is the same
   defect at one remove.
@@ -68,7 +68,7 @@ Each walks its arguments left to right and treats every key the same way.
 end in the order first met. This is what makes `overlay` and `underlay` two operations rather than one with
 its arguments flipped — `overlay($b, $a)` and `underlay($a, $b)` hold the same entries in **different
 order**, and Novis arrays are insertion-ordered (`rule:types/arrays`), so the
-difference is observable in `foreach`, in `Core\Json::encode` and in every `Arr::first`. [ADR 0063](0063-core-api-conventions.md)
+difference is observable in `foreach`, in `Core\Json::encode` and in every `Arr::first`. `rule:core-api/shape-rules`
 R15 is satisfied: two behaviours, two names.
 
 `overlayDeep(array<T> $base, array<U> ...$layers): array<T|U>` recurses where **both** sides of a key hold
@@ -114,7 +114,7 @@ list, and `{preserveKeys: true}` is the faithful rewrite where it mattered.
 
 ### 4. The shape corrections the same audit found
 
-Each follows from a rule already in [ADR 0063](0063-core-api-conventions.md); none is a new principle.
+Each follows from a rule already in `rule:core-api/shape-rules`; none is a new principle.
 
 | Was | Is | Why |
 |---|---|---|
@@ -186,12 +186,12 @@ conversion to soften it.
   it is not equivalent — the key order differs — so the migration would be silently wrong in an
   insertion-ordered language.
 - **`concat` instead of `appendAll`.** What every other language calls it. Rejected by
-  [ADR 0063](0063-core-api-conventions.md) R7: members are full words, with a closed abbreviation list this
+  `rule:core-api/shape-rules` R7: members are full words, with a closed abbreviation list this
   is not on, and R7 exists because it removes a per-name judgement call. `appendAll` also pairs with the
   existing `append(array<T> $a, T ...$values)` — values against arrays.
 - **Keeping `Arr::each` for symmetry with `map`/`filter`.** Rejected: it can return nothing and mutate
   nothing (R3), so it is strictly a slower `foreach` with a closure allocation, and
-  [ADR 0051](0051-standard-library-tiers.md) test 6 rules out a member that restates a language construct.
+  `rule:core-api/tier-placement` test 6 rules out a member that restates a language construct.
 - **A `preserveKeys` default of `true`.** Lossless, never surprising for maps. Rejected: slicing a list from
   offset 2 would yield keys `"2"`, `"3"`, which is not a list, breaking the overwhelmingly common case and
   every `Core\Json::encode` downstream of it.
@@ -208,7 +208,7 @@ conversion to soften it.
   result, which is the one place Novis and PHP disagree.
 - **M4:** the checker rejects `$a + $b` and `$a += $b` for array operands with a diagnostic naming
   `Arr::underlay`.
-- **M4S:** the mechanical spec check of [ADR 0063](0063-core-api-conventions.md)'s *Verification* covers the
+- **M4S:** the mechanical spec check of `rule:core-api/shape-rules`'s *Verification* covers the
   renames for free — R5's verb table (`from…`, `count…`), R6's pairs (`padStart`/`padEnd`) and R7's
   full-word rule all apply to the new names with no new check.
 - **M11:** `nvs convert` produces each row of § 2's table, including the two diagnostics, and its report

@@ -25,12 +25,12 @@ Goal 27's whole acceptance list, carried in verbatim by `tools/goal-switch.py`. 
 ## Stage 2 — the keystone: an options bag can tell omitted from written `null`
 
 Goal 18 gave `Ty::Shape` an optional field, `{name?: T}`, and
-[ADR 0135](../../adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md) gave a `Core`
+`rule:core-api/shape-parameter` gave a `Core`
 signature a shape parameter that carries its arms. This stage is what those were for, and
-**[ADR 0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md) is the rule it
+**`rule:core-api/omission-is-not-a-written-null` is the rule it
 implements** — read it first. The design is settled; a session takes it rather than re-deriving it.
 
-1. **`Core\Uri::with` gains a removal spelling**, ADR 0147 §§ 1-2 and § 5.
+1. **`Core\Uri::with` gains a removal spelling**, `rule:core-api/a-nullable-field-omits-as-the-never-written-marker` and `rule:core-api/the-bag-abi-is-unchanged` and § 5.
    `crates/nvs-stdlib/src/uri.rs`'s `written` owns the mechanism and the gap names the fix exactly:
    today an omitted option and a written `null` arrive as the same `Tag::Null`, so the option types
    are `string` rather than `?string`. The fix is § 1's pairing — a field admitting `null` omits as
@@ -39,7 +39,7 @@ implements** — read it first. The design is settled; a session takes it rather
    and `scheme` do **not** join them, and § 5 gives each its own reason. **Not** an `""`-means-remove
    rule: `""` is already an empty query, which `?` with nothing after it produces and which `query()`
    reports as distinct from `null`. Five places restate the invariant this replaces and must read as
-   ADR 0147 does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
+   `rule:core-api/omission-is-not-a-written-null` does when the stage closes: `registry.rs`'s `CoreField` and `CoreTy::Union` docs and their
    two tests, `core_lib.rs`'s `shape_fills`, `uri.rs`'s `written`, and `value.rs`'s `Tag::Unset`.
 2. **`Core\Uri` gains `queryParameter` and `withQueryParameter`** — `rule:core-classes/uri-removable-components`'s second level.
    `queryParameter(string $name): mixed` and `withQueryParameter(string $name, mixed $value): Uri`,
@@ -114,7 +114,7 @@ other being `DEBUG_BREAK`, which waits on `nvs dap` and is M10's.
 - **`array<T>` widening is decided and is not re-litigated by a session.** The user took it; a session
   that finds the invariant position more comfortable has found a decision, not a question.
 - **An options bag distinguishes omitted from written `null`, everywhere, and never by a sentinel** —
-  [ADR 0147](../../adr/0147-an-options-bag-tells-an-omitted-key-from-a-written-null.md), which owns
+  `rule:core-api/omission-is-not-a-written-null`, which owns
   this and is not re-argued by a session. No `""`-means-remove, no magic string, no second parameter
   meaning "and also clear these". Where a bag admits `null` it means *remove* and nothing else, and a
   field is made nullable only where the member has a removal to offer; if it has none, the field stays

@@ -109,7 +109,7 @@ remain reserved purely to be diagnosed (`rule:statements/require-is-the-only-inc
   a second spelling buys nothing once the semantics already match, and costs a second thing to teach
   everywhere else in the language has refused one.
 - **Deprecate first, remove later.** Every other rejected-construct diagnostic in this project is a hard
-  error with no warning tier (ADR 0029 § 3's reasoning applies here too); the standard library and any real
+  error with no warning tier (`rule:core-api/casing-has-no-suppression`'s reasoning applies here too); the standard library and any real
   userland code are still unwritten, the cheapest possible time to make the change outright.
 
 ## Verification

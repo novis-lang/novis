@@ -24,7 +24,7 @@
 //!
 //! # What it refuses, and why each is a throw
 //!
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4 makes
+//! `rule:core-api/shape-rules` R4 makes
 //! failure a throw, and PHP's `printf` argument-mismatch bug family is exactly
 //! what the spec wants turned into an error:
 //!

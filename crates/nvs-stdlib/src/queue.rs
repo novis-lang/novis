@@ -1073,7 +1073,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Queue::push`'s reference card — ADR 0117.
+/// `Core\Queue::push`'s reference card — `rule:core-api/reference-card`.
 const PUSH_DOC: MethodDoc = MethodDoc {
     short: "Enqueues `$script` to run in the background, as a row in the database `[queue] \
             connection` names. Inside a transaction on that same connection the enqueue commits \
@@ -1146,7 +1146,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Queue::status`'s reference card — ADR 0117.
+/// `Core\Queue::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
     short: "Reports what has become of one job, as a `Core\\Queue\\State` case. Delivery is \
             at-least-once, which is why this is a state a program reads rather than a completion it \
@@ -1175,7 +1175,7 @@ const STATUS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Queue::cancel`'s reference card — ADR 0117.
+/// `Core\Queue::cancel`'s reference card — `rule:core-api/reference-card`.
 const CANCEL_DOC: MethodDoc = MethodDoc {
     short: "Takes one job out of the queue, if it is still waiting. A job a worker has already \
             claimed is running now and is not stopped: cancelling is a change to a row, and there \
@@ -1203,7 +1203,7 @@ const CANCEL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Queue::stats`'s reference card — ADR 0117.
+/// `Core\Queue::stats`'s reference card — `rule:core-api/reference-card`.
 const STATS_DOC: MethodDoc = MethodDoc {
     short: "Counts one named queue: what is waiting, what a worker holds, how many attempts the \
             queue's jobs have used, and how deep its dead-letter table is. The four are read \
@@ -1231,7 +1231,7 @@ const STATS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Queue\Stats::pending`'s reference card — ADR 0117.
+/// `Core\Queue\Stats::pending`'s reference card — `rule:core-api/reference-card`.
 const STATS_PENDING_DOC: MethodDoc = MethodDoc {
     short: "How many of the queue's jobs are waiting for a worker — including those whose `runAt` \
             is still in the future and those between attempts with a backoff still to elapse, \
@@ -1242,7 +1242,7 @@ const STATS_PENDING_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Queue\Stats::claimed`'s reference card — ADR 0117.
+/// `Core\Queue\Stats::claimed`'s reference card — `rule:core-api/reference-card`.
 const STATS_CLAIMED_DOC: MethodDoc = MethodDoc {
     short: "How many of the queue's jobs a worker currently holds. Work in flight rather than work \
             committed to: a worker that dies returns its job to `Pending` when the visibility \
@@ -1253,7 +1253,7 @@ const STATS_CLAIMED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Queue\Stats::attempts`'s reference card — ADR 0117.
+/// `Core\Queue\Stats::attempts`'s reference card — `rule:core-api/reference-card`.
 const STATS_ATTEMPTS_DOC: MethodDoc = MethodDoc {
     short: "How many attempts the queue's jobs have used between them. Climbing while `pending` \
             does not is what a queue whose jobs keep failing and being retried looks like.",
@@ -1263,7 +1263,7 @@ const STATS_ATTEMPTS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Queue\Stats::deadLettered`'s reference card — ADR 0117.
+/// `Core\Queue\Stats::deadLettered`'s reference card — `rule:core-api/reference-card`.
 const STATS_DEAD_LETTERED_DOC: MethodDoc = MethodDoc {
     short: "How many of the queue's jobs exhausted their attempts and are in the dead-letter \
             table. The counter worth alerting on: an unwatched dead-letter table is the classic \
@@ -1278,7 +1278,7 @@ const STATS_DEAD_LETTERED_DOC: MethodDoc = MethodDoc {
 ///
 /// A class rather than a bare `uint` because the two members that take one — `cancel` and `status` —
 /// have to know the queue as well, and a caller holding an integer would have to carry it beside.
-/// It has no members of its own; it is a name for a pair, which is what ADR 0063 gives an opaque
+/// It has no members of its own; it is a name for a pair, which is what `rule:core-api/shape-rules` gives an opaque
 /// handle.
 pub(crate) const ID: CoreClass = CoreClass {
     name: ID_NAME,
@@ -1383,7 +1383,7 @@ pub(crate) const STATE: CoreEnum = CoreEnum {
     doc: Some(&STATE_DOC),
 };
 
-/// [`STATE`]'s reference card — ADR 0117.
+/// [`STATE`]'s reference card — `rule:core-api/reference-card`.
 const STATE_DOC: EnumDoc = EnumDoc {
     short: "What has become of a background job, as `Core\\Queue::status` answers it. Five states \
             and no `Failed`, because a failed attempt is retried: it returns the job to `Pending` \

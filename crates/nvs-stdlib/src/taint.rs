@@ -68,7 +68,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Taint::assertTrusted`'s reference card — ADR 0117.
+/// `Core\Taint::assertTrusted`'s reference card — `rule:core-api/reference-card`.
 const ASSERT_TRUSTED_DOC: MethodDoc = MethodDoc {
     short: "Answers `$value` with the `tainted` qualifier dropped, on the developer's own written \
             authority — the escape hatch for the case no sink-named launderer fits, forbidden by \
@@ -108,7 +108,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **The sink it launders for is all of them**, which is the obligation a
     /// `Qual::Launder` row carries and the one place it is answered this way:
-    /// ADR 0063 R11's four grammars, `Core\Db`'s query text, an outbound URL,
+    /// `rule:core-api/shape-rules` R11's four grammars, `Core\Db`'s query text, an outbound URL,
     /// a filesystem path, an environment variable's name, and — the case that
     /// earns the row — `Settings.host`, which `rule:core-classes/db-capabilities` leaves with no
     /// launderer of its own. `nvs_stdlib::registry`'s `Qual` doc comment

@@ -101,7 +101,7 @@ echo Ask::reported($dupes, 18446744073709551615), "\n";
 echo Ask::reported($empty, 1), "\n";
 echo Ask::reported($dupes, 2), "\n";
 
-// 6. ADR 0063 R2's trailing bag sits in front of the report here as everywhere.
+// 6. `rule:core-api/shape-rules` R2's trailing bag sits in front of the report here as everywhere.
 try {
     Test::assertCount($dupes, 2, {message: "the seed loaded two rows"});
 } catch (Core\Test\Failure $withMessage) {

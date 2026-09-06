@@ -952,7 +952,7 @@ is why" — is this file.
   nothing to fix — `--start` again once the tree is final, and only then write prose. The rule is
   simply that `--start` marks the end of editing, not the start of the tail.
 - **`Path.write_text` turns every `\n` into `\r\n` on Windows, and a test that reads the tree sees it.** A one-off script that rewrites `.rs` files must open them with `newline=""` (or write bytes): `.gitattributes` says `eol=lf`, git normalizes on commit so `git diff` looks fine, but `crates/nvs-stdlib/tests/conformance_coverage.rs` scans the working copy and reports every multi-line message as "neither asserted nor declared unreachable" with `\r\n` inside the quoted text. That is the signature; the fix is a byte-level `\r\n` → `\n` pass over the files the script touched, and it cost one full `verify.py` run.
-- **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** ADR 0117's enum-and-constant amendment first landed inside a commit about ADR 0063, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each.
+- **Two sessions in one tree: a file both edit is committed by whichever stages it first, with the other's hunks inside.** `rule:core-api/reference-card`'s enum-and-constant amendment first landed inside a commit about `rule:core-api/shape-rules`, because the other session staged the whole file while this one still held it dirty — that session then redid its commit without the foreign hunks, which is the right repair but cost both sessions a turn. `git status --short` a file before editing it; if it is already dirty and the hunks are not yours, either wait for that session's commit or stage your own hunks alone — `git show HEAD:<path>` plus your change through `git hash-object -w --stdin` and `git update-index --cacheinfo 100644,<blob>,<path>` stages a version the working tree never holds, which is also how two slices that touch one file get one commit each.
 - **`splice.py` writes LF, so splicing a CRLF working copy leaves the file mixed — and a gate that
   reads source *bytes* then fails somewhere you did not touch.** Putting a `names:` line on
   `crates/nvs-stdlib/src/str.rs`'s registry rows (line ~160) made
@@ -1482,7 +1482,7 @@ is why" — is this file.
   the table lacks. Edit the chapter row in the same slice as the field, and let `verify.py` write
   `docs/novis.md` rather than editing that file by hand.
 - **`session.py --wrap` cannot commit `docs/novis.md`, because it did not write it — `verify.py`'s
-  reference step did.** Adding a `Core` member regenerates ADR 0117's reference page as a *side
+  reference step did.** Adding a `Core` member regenerates `rule:core-api/reference-card`'s reference page as a *side
   effect of verifying*, which happens before the wrap and outside it, so the wrap's "anything it
   wrote that no `## commit:` names joins the last one" does not reach it: the tail ends with
   `uncommitted after the wrap (1 path(s)): M docs/novis.md` and a session that reads that line as
@@ -3060,7 +3060,7 @@ is why" — is this file.
   `require` and nothing else. Between two diagnostics `%A` covers the span, notes included.
 - **A rule added to `nvs_syntax::check_declarations` reaches far less of the corpus than a grep
   suggests.** Only `nvs-cli` and `nvs_hir::requires` call that walk, so every `nvs-types` fixture, every
-  parser test and every `nvs-codegen` fixture goes straight past it — ADR 0094's estimated "sixty inline
+  parser test and every `nvs-codegen` fixture goes straight past it — `rule:core-api/written-visibility`'s estimated "sixty inline
   snippets to rewrite" turned out to be eleven, all in `casing.rs`'s own tests. Grep for the *callers*
   before budgeting a corpus rewrite; a `<?nvs` snippet in a Rust string is not automatically subject to
   everything the compiler enforces.
@@ -3965,7 +3965,7 @@ is why" — is this file.
   header cannot declare a typed local (`for (uint $i = 0; …)` is `E0102` at the type name,
   so declare it above and use a `while`), and `Core\Uri::with` takes one options bag, so
   it is `$u->with({scheme: "ftp"})` — `$u->with(scheme: "ftp")` names no parameter of it
-  and is `E0486`, the bag itself being callable only as `options:` (ADR 0063 R2).
+  and is `E0486`, the bag itself being callable only as `options:` (`rule:core-api/shape-rules` R2).
 - **A `--EXPECT--` block cannot tell a composed `é` from a decomposed one, and the failure
   prints as two identical-looking blocks.** A case over `Core\Str` that echoes a subject built
   with `\u{301}` (or any combining mark) will fail against an expectation typed as the composed
@@ -3976,7 +3976,7 @@ is why" — is this file.
   neighbouring bullet about a trailing space before a `\n` is the same family of invisible
   mismatch.
 - **A sweep over `Core\Json::decodeAs<T>` needs one helper per `T`, not one helper.** The class is
-  written at the call site (ADR 0063 R4, and `WRITTEN_CLASS_MEMBERS` hands the helper a `ClassDesc`
+  written at the call site (`rule:core-api/shape-rules` R4, and `WRITTEN_CLASS_MEMBERS` hands the helper a `ClassDesc`
   ahead of the declared parameters), so there is no parameter a probe could carry the class in and
   no way to factor six codec types into one `public static function`. Write the six, each a
   `try { … return true; } catch (Throwable $bad) { return false; }` over the same document builder,
@@ -4134,7 +4134,7 @@ is why" — is this file.
 - **The exception tree has no `Core\Error`, and naming one in a `catch` is an ICE rather than a
   diagnostic.** `nvs_hir::errors::TREE`'s roots are `Throwable`, `LogicError` and `RuntimeError` —
   `errors.rs`' own module doc says there is deliberately no `Error` and no `Exception` — but
-  `Core\Error` *is* a `nvs_stdlib::registry` class (ADR 0063's *Amends* line adds it beside
+  `Core\Error` *is* a `nvs_stdlib::registry` class (`rule:core-api/shape-rules`'s *Amends* line adds it beside
   `Core\Path`, `Core\Out` and `Core\Bytes`), so `catch (Core\Error $e) { … $e->message … }` resolves
   the class, finds no member, and panics in `nvs-ir`: *"an instance method call at 0:228..241 has no
   resolved target recorded in the typed-expression table"*. The spelling a case wants is
@@ -7450,7 +7450,7 @@ sibling in the same namespace unqualified.
   `crates/nvs-syntax/src/token.rs`'s keyword table is the list to check a spec's option names
   against, and `match`, `class`, `default` and `for` are all plausible ones.
 - **`options` is a reserved parameter name, and a row using it fails a registry gate rather than a
-  call.** ADR 0063 R2 makes `options` the one name every member's trailing bag is callable by
+  call.** `rule:core-api/shape-rules` R2 makes `options` the one name every member's trailing bag is callable by
   (`registry::OPTIONS_NAME`), so a *positional* parameter cannot also be called that —
   `every_registry_row_names_one_parameter_per_positional_slot` reports "gives a positional
   parameter the trailing bag's own name" with `left: "options"` / `right: "options"`, which reads
@@ -7652,7 +7652,7 @@ sibling in the same namespace unqualified.
   call sites.
 - **A landed member's reference card can describe an *unlanded* sibling, and that sentence is a
   claim rather than a note.** `Core\IO::list`'s card said "`walk` is the streaming half" — which is
-  the one reading of the `list`/`walk` pair ADR 0063 R6 forbids, since the same entries in a second
+  the one reading of the `list`/`walk` pair `rule:core-api/shape-rules` R6 forbids, since the same entries in a second
   container is one operation reachable two ways. Writing `walk` to match the card would have
   shipped exactly that. The sentence was written while `walk` was still only a name in the spec and
   nobody had decided what it was. So before registering a member, grep the *other* members' cards
@@ -8683,7 +8683,7 @@ every session. Nothing below was reworded on the way.
   read one table two ways: `strtr` scans the subject once and takes the longest needle matching at
   each position, never rescanning what it produced, where `str_replace` runs each pair over the
   whole subject in turn and feeds every earlier replacement to every later pair.
-- **The member is `strtr`**, ADR 0063 R20 being why, and 19 cells of a 48-cell table of cascades,
+- **The member is `strtr`**, `rule:core-api/shape-rules` R20 being why, and 19 cells of a 48-cell table of cascades,
   swaps, prefix pairs and a growth the next pair re-matches are where the two twins part. The
   cascading reading is not lost and is owed no option: `Core\Str::replace` applied pair by pair in
   a `foreach` reproduces `str_replace`'s array form on all 48, and the property that decides
@@ -8739,7 +8739,7 @@ every session. Nothing below was reworded on the way.
   have reached, every quoted literal is still found *inside* a larger subject, and the one
   row-level agreement left is that neither launderer touches a word character.
 - **`Core\Regex\Match::groups` is `preg_match`'s `$matches` under `PREG_UNMATCHED_AS_NULL` and not
-  under PHP's default**: ADR 0063 R11 removed the `PREG_*` constants, so one of the two readings
+  under PHP's default**: `rule:core-api/shape-rules` R11 removed the `PREG_*` constants, so one of the two readings
   has to be the only one, and the default's trimming of *trailing* unmatched groups plus its `""`
   for the ones in the middle conflates "not declared", "declared and did not participate" and
   "participated and captured nothing" — the first two being exactly what `group`'s
@@ -9121,7 +9121,7 @@ every session. Nothing below was reworded on the way.
   because the assertion members read as if a bad subject were a runtime question; it is a
   signature question.
 - **`Core\Arr::withoutFirst` keeps the keys it did not remove, so dropping entry `0` of a list leaves a
-  map at key `1`.** PHP's `array_shift` reindexes; this does not, because ADR 0063 R3 makes the member
+  map at key `1`.** PHP's `array_shift` reindexes; this does not, because `rule:core-api/shape-rules` R3 makes the member
   answer a copy rather than mutate, and a copy that silently renumbers its own keys is the surprise the
   rule exists to avoid. `Core\Arr::values` is the reindexing left explicit. Pinned by
   `tests/conformance/core/arr-the-empty-array-is-what-every-reshaping-member-answers-it-with.nvst`.

@@ -1,5 +1,5 @@
 --TEST--
-The six `Core\Arr` members that reshape a list answer the empty array with the empty array rather than refusing it — spec § 2, ADR 0063 R3
+The six `Core\Arr` members that reshape a list answer the empty array with the empty array rather than refusing it — spec § 2, `rule:core-api/shape-rules` R3
 --FILE--
 <?nvs
 // The *agreement* shape over the boundary a reshaping member is most likely to
@@ -59,7 +59,7 @@ echo "empty=", $empty as string, "/", $asked as string, "\n";
 // And the divergence the two-element row exposes: `withoutFirst` keeps the
 // keys it did not remove, so dropping entry `0` of a list leaves a map at key
 // `1` and not a list at key `0`. PHP's `array_shift` reindexes; this does not,
-// because ADR 0063 R3 makes the member answer a *copy* rather than mutate, and
+// because `rule:core-api/shape-rules` R3 makes the member answer a *copy* rather than mutate, and
 // a copy that silently renumbers its own keys is the surprise the whole rule
 // exists to avoid. `Core\Arr::values` is the reindexing this leaves explicit.
 array<int> $one = [7];

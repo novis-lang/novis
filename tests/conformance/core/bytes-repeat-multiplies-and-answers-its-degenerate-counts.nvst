@@ -1,5 +1,5 @@
 --TEST--
-Spec § 7: `Core\Bytes::repeat` multiplies its subject's length by its count, and zero, one and an empty subject are answered rather than counted out — `rule:types/bytes`, ADR 0063 R4
+Spec § 7: `Core\Bytes::repeat` multiplies its subject's length by its count, and zero, one and an empty subject are answered rather than counted out — `rule:types/bytes`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // `repeat` has one interesting number in it and it is the count, so this case

@@ -1,7 +1,7 @@
 //! `Core\Str` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 1, over `nvs_runtime`'s reference-counted `NvsStr`.
 //!
-//! Every member here is pure (ADR 0063 R3) and borrows its subject rather than
+//! Every member here is pure (`rule:core-api/shape-rules` R3) and borrows its subject rather than
 //! consuming it — see [`crate`]'s own docs for why that falls out of being a
 //! helper rather than being a rule this module states.
 //!
@@ -101,7 +101,7 @@ use crate::registry::{
 /// quoting it.
 pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
 
-/// `Core\Str::length`'s reference card (ADR 0117) — the first member
+/// `Core\Str::length`'s reference card (`rule:core-api/reference-card`) — the first member
 /// documented in the registry, and the simplest: one parameter, no options,
 /// nothing thrown.
 const LENGTH_DOC: MethodDoc = MethodDoc {
@@ -133,7 +133,7 @@ pub(crate) const NORMAL_FORM: CoreEnum = CoreEnum {
     doc: Some(&NORMAL_FORM_DOC),
 };
 
-/// [`NORMAL_FORM`]'s reference card — ADR 0117.
+/// [`NORMAL_FORM`]'s reference card — `rule:core-api/reference-card`.
 const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
     short: "Which of UAX #15's four normal forms `Core\\Str::normalize` rewrites into — composed \
             or decomposed on one axis, canonical or compatibility on the other.",
@@ -182,7 +182,7 @@ const NORMAL_FORM_DOC: EnumDoc = EnumDoc {
 ///   answers a slice: `before`'s separator never appears in the answer, but
 ///   *which* slice is answered is the needle's doing, and laundering by
 ///   influence is not something this class is allowed to do.
-/// * **Sink** on `format`'s template, which is one of ADR 0063 R11's four
+/// * **Sink** on `format`'s template, which is one of `rule:core-api/shape-rules` R11's four
 ///   grammars — § 1's corollary makes every one of the four a sink, and the
 ///   variadic arguments it renders stay data.
 pub const CLASS: CoreClass = CoreClass {
@@ -611,7 +611,7 @@ pub const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Str::at`'s reference card — ADR 0117.
+/// `Core\Str::at`'s reference card — `rule:core-api/reference-card`.
 const AT_DOC: MethodDoc = MethodDoc {
     short: "Answers the one character at `$index`, as `$s[$i]` and `mb_substr($s, $i, 1)` do — \
             counted in graphemes, the unit every `Core\\Str` member counts in, and never a \
@@ -636,7 +636,7 @@ const AT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::isEmpty`'s reference card — ADR 0117.
+/// `Core\Str::isEmpty`'s reference card — `rule:core-api/reference-card`.
 const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` holds no characters at all — the `$s === \"\"` test.",
     params: &[ParamDoc {
@@ -648,7 +648,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::contains`'s reference card — ADR 0117.
+/// `Core\Str::contains`'s reference card — `rule:core-api/reference-card`.
 const CONTAINS_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$needle` occurs anywhere in `$haystack`, as `str_contains` does.",
     params: &[
@@ -668,7 +668,7 @@ const CONTAINS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::startsWith`'s reference card — ADR 0117.
+/// `Core\Str::startsWith`'s reference card — `rule:core-api/reference-card`.
 const STARTS_WITH_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` begins with `$prefix`, as `str_starts_with` does.",
     params: &[
@@ -687,7 +687,7 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::endsWith`'s reference card — ADR 0117.
+/// `Core\Str::endsWith`'s reference card — `rule:core-api/reference-card`.
 const ENDS_WITH_DOC: MethodDoc = MethodDoc {
     short: "Answers whether `$s` ends with `$suffix`, as `str_ends_with` does.",
     params: &[
@@ -706,7 +706,7 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::slice`'s reference card — ADR 0117.
+/// `Core\Str::slice`'s reference card — `rule:core-api/reference-card`.
 const SLICE_DOC: MethodDoc = MethodDoc {
     short: "Cuts the part of `$s` that starts at `$offset` and runs for `$length` characters, as \
             `substr` and `mb_substr` do — counted in graphemes, so no slice ever splits a \
@@ -734,7 +734,7 @@ const SLICE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::indexOf`'s reference card — ADR 0117.
+/// `Core\Str::indexOf`'s reference card — `rule:core-api/reference-card`.
 const INDEX_OF_DOC: MethodDoc = MethodDoc {
     short: "Finds the first occurrence of `$needle` in `$haystack` and answers its position, as \
             `strpos`, `stripos`, `mb_strpos` and `mb_stripos` do.",
@@ -767,7 +767,7 @@ const INDEX_OF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::lastIndexOf`'s reference card — ADR 0117.
+/// `Core\Str::lastIndexOf`'s reference card — `rule:core-api/reference-card`.
 const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
     short: "Finds the last occurrence of `$needle` in `$haystack` and answers its position, as \
             `strrpos`, `strripos` and `mb_strrpos` do.",
@@ -800,7 +800,7 @@ const LAST_INDEX_OF_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::countOf`'s reference card — ADR 0117.
+/// `Core\Str::countOf`'s reference card — `rule:core-api/reference-card`.
 const COUNT_OF_DOC: MethodDoc = MethodDoc {
     short: "Counts the non-overlapping occurrences of `$needle` in `$haystack`, as \
             `substr_count` does.",
@@ -824,7 +824,7 @@ const COUNT_OF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::compare`'s reference card — ADR 0117.
+/// `Core\Str::compare`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
     short: "Orders `$a` against `$b`, as `strcmp`, `strcasecmp`, `strnatcmp` and \
             `strnatcasecmp` do — the two options pick which of the four.",
@@ -857,7 +857,7 @@ const COMPARE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::before`'s reference card — ADR 0117.
+/// `Core\Str::before`'s reference card — `rule:core-api/reference-card`.
 const BEFORE_DOC: MethodDoc = MethodDoc {
     short: "Answers everything in `$s` up to the first occurrence of `$needle`, as \
             `strstr($h, $n, true)` does; `{last: true}` cuts at the last occurrence instead, as \
@@ -884,7 +884,7 @@ const BEFORE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::after`'s reference card — ADR 0117.
+/// `Core\Str::after`'s reference card — `rule:core-api/reference-card`.
 const AFTER_DOC: MethodDoc = MethodDoc {
     short: "Answers everything in `$s` past the first occurrence of `$needle`, as `strstr` \
             does minus the needle itself; `{last: true}` cuts at the last occurrence instead, \
@@ -911,7 +911,7 @@ const AFTER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::join`'s reference card — ADR 0117.
+/// `Core\Str::join`'s reference card — `rule:core-api/reference-card`.
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Concatenates the strings in `$parts` with `$separator` between each neighbouring \
             pair, as `implode` does.",
@@ -931,7 +931,7 @@ const JOIN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::split`'s reference card — ADR 0117.
+/// `Core\Str::split`'s reference card — `rule:core-api/reference-card`.
 const SPLIT_DOC: MethodDoc = MethodDoc {
     short: "Splits `$s` at every occurrence of `$separator`, as `explode` does.",
     params: &[
@@ -961,7 +961,7 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::chunk`'s reference card — ADR 0117.
+/// `Core\Str::chunk`'s reference card — `rule:core-api/reference-card`.
 const CHUNK_DOC: MethodDoc = MethodDoc {
     short: "Divides `$s` into pieces of `$size` characters each, as `str_split`, `mb_str_split` \
             and `chunk_split` do — counted in graphemes, so no chunk ever splits a character.",
@@ -985,7 +985,7 @@ const CHUNK_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::lines`'s reference card — ADR 0117.
+/// `Core\Str::lines`'s reference card — `rule:core-api/reference-card`.
 const LINES_DOC: MethodDoc = MethodDoc {
     short: "Splits `$s` into its lines, as `explode(PHP_EOL, …)` does — at `\\n`, `\\r\\n` and \
             a lone `\\r` alike, whatever the platform.",
@@ -999,7 +999,7 @@ const LINES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::graphemes`'s reference card — ADR 0117.
+/// `Core\Str::graphemes`'s reference card — `rule:core-api/reference-card`.
 const GRAPHEMES_DOC: MethodDoc = MethodDoc {
     short: "Splits `$s` into its extended grapheme clusters — the unit `length` counts and `at` \
             indexes — as the split half of intl's `grapheme_*` family does.",
@@ -1012,7 +1012,7 @@ const GRAPHEMES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::codePoints`'s reference card — ADR 0117.
+/// `Core\Str::codePoints`'s reference card — `rule:core-api/reference-card`.
 const CODE_POINTS_DOC: MethodDoc = MethodDoc {
     short: "Lists the Unicode scalar values of `$s`, as `mb_str_split` plus `mb_ord` does — \
             code points rather than graphemes, so a combining sequence is several.",
@@ -1026,7 +1026,7 @@ const CODE_POINTS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::replace`'s reference card — ADR 0117.
+/// `Core\Str::replace`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_DOC: MethodDoc = MethodDoc {
     short: "Replaces every occurrence of `$search` in `$s` with `$replacement`, as `str_replace` \
             and `str_ireplace` do — non-overlapping, left to right, and the replacement is \
@@ -1064,7 +1064,7 @@ const REPLACE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::replaceAll`'s reference card — ADR 0117.
+/// `Core\Str::replaceAll`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
     short: "Substitutes a whole table at once — `$pairs` keyed needle to replacement — as \
             `strtr` and the array form of `str_replace` do: one pass, the longest matching \
@@ -1092,7 +1092,7 @@ const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::replaceRange`'s reference card — ADR 0117.
+/// `Core\Str::replaceRange`'s reference card — `rule:core-api/reference-card`.
 const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
     short: "Puts `$replacement` in place of the window `slice` would answer for the same \
             `$offset` and `$length`, as `substr_replace` does.",
@@ -1124,7 +1124,7 @@ const REPLACE_RANGE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::padStart`'s reference card — ADR 0117.
+/// `Core\Str::padStart`'s reference card — `rule:core-api/reference-card`.
 const PAD_START_DOC: MethodDoc = MethodDoc {
     short: "Prepends copies of `$padding` to `$s` until it is `$length` characters long, as \
             `str_pad` with `STR_PAD_LEFT` does — counted in graphemes.",
@@ -1154,7 +1154,7 @@ const PAD_START_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::padEnd`'s reference card — ADR 0117.
+/// `Core\Str::padEnd`'s reference card — `rule:core-api/reference-card`.
 const PAD_END_DOC: MethodDoc = MethodDoc {
     short: "Appends copies of `$padding` to `$s` until it is `$length` characters long, as \
             `str_pad` with `STR_PAD_RIGHT` does — counted in graphemes.",
@@ -1184,7 +1184,7 @@ const PAD_END_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::trim`'s reference card — ADR 0117.
+/// `Core\Str::trim`'s reference card — `rule:core-api/reference-card`.
 const TRIM_DOC: MethodDoc = MethodDoc {
     short: "Strips every leading and trailing character drawn from `characters` off `$s`, as \
             `trim` does — matched by character, and without `trim`'s `a..z` range syntax.",
@@ -1205,7 +1205,7 @@ const TRIM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::trimStart`'s reference card — ADR 0117.
+/// `Core\Str::trimStart`'s reference card — `rule:core-api/reference-card`.
 const TRIM_START_DOC: MethodDoc = MethodDoc {
     short: "Strips every leading character drawn from `characters` off `$s`, as `ltrim` does — \
             matched by character, and without `ltrim`'s `a..z` range syntax.",
@@ -1226,7 +1226,7 @@ const TRIM_START_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::trimEnd`'s reference card — ADR 0117.
+/// `Core\Str::trimEnd`'s reference card — `rule:core-api/reference-card`.
 const TRIM_END_DOC: MethodDoc = MethodDoc {
     short: "Strips every trailing character drawn from `characters` off `$s`, as `rtrim` and \
             `chop` do — matched by character, and without `rtrim`'s `a..z` range syntax.",
@@ -1247,7 +1247,7 @@ const TRIM_END_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::repeat`'s reference card — ADR 0117.
+/// `Core\Str::repeat`'s reference card — `rule:core-api/reference-card`.
 const REPEAT_DOC: MethodDoc = MethodDoc {
     short: "Concatenates `$times` copies of `$s`, as `str_repeat` does.",
     params: &[
@@ -1269,7 +1269,7 @@ const REPEAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::reverse`'s reference card — ADR 0117.
+/// `Core\Str::reverse`'s reference card — `rule:core-api/reference-card`.
 const REVERSE_DOC: MethodDoc = MethodDoc {
     short: "Reverses the order of the characters in `$s`, as `strrev` does — by grapheme rather \
             than by byte, so `\"café\"` becomes `\"éfac\"` and a combining mark stays on its \
@@ -1283,7 +1283,7 @@ const REVERSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::wrap`'s reference card — ADR 0117.
+/// `Core\Str::wrap`'s reference card — `rule:core-api/reference-card`.
 const WRAP_DOC: MethodDoc = MethodDoc {
     short: "Breaks `$s` into lines no longer than `$width` characters by inserting `breakWith` \
             at spaces, as `wordwrap` does — counted in graphemes.",
@@ -1318,7 +1318,7 @@ const WRAP_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::lower`'s reference card — ADR 0117.
+/// `Core\Str::lower`'s reference card — `rule:core-api/reference-card`.
 const LOWER_DOC: MethodDoc = MethodDoc {
     short: "Lower-cases `$s` through Unicode's full lowercase mapping, as `mb_strtolower` does; \
             there is no byte-wise `strtolower` twin.",
@@ -1331,7 +1331,7 @@ const LOWER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::upper`'s reference card — ADR 0117.
+/// `Core\Str::upper`'s reference card — `rule:core-api/reference-card`.
 const UPPER_DOC: MethodDoc = MethodDoc {
     short: "Upper-cases `$s` through Unicode's full uppercase mapping, as `mb_strtoupper` does, \
             so `straße` becomes `STRASSE`; there is no byte-wise `strtoupper` twin.",
@@ -1344,7 +1344,7 @@ const UPPER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::upperFirst`'s reference card — ADR 0117.
+/// `Core\Str::upperFirst`'s reference card — `rule:core-api/reference-card`.
 const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Upper-cases the first character of `$s` and copies the rest through, as `ucfirst` \
             does — with Unicode's mapping, so a leading `ß` expands to `SS`.",
@@ -1357,7 +1357,7 @@ const UPPER_FIRST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::lowerFirst`'s reference card — ADR 0117.
+/// `Core\Str::lowerFirst`'s reference card — `rule:core-api/reference-card`.
 const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
     short: "Lower-cases the first character of `$s` and copies the rest through, as `lcfirst` \
             does — with Unicode's mapping rather than a byte's.",
@@ -1370,7 +1370,7 @@ const LOWER_FIRST_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::fold`'s reference card — ADR 0117.
+/// `Core\Str::fold`'s reference card — `rule:core-api/reference-card`.
 const FOLD_DOC: MethodDoc = MethodDoc {
     short: "Case-folds `$s` through Unicode's default full folding, as \
             `mb_convert_case($s, MB_CASE_FOLD)` does — a comparison key rather than text to \
@@ -1385,7 +1385,7 @@ const FOLD_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::normalize`'s reference card — ADR 0117.
+/// `Core\Str::normalize`'s reference card — `rule:core-api/reference-card`.
 const NORMALIZE_DOC: MethodDoc = MethodDoc {
     short: "Rewrites `$s` into the UAX #15 normal form `$form`, as `Normalizer::normalize` does, \
             so two encodings of the same text compare equal.",
@@ -1406,7 +1406,7 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Str::fromCodePoint`'s reference card — ADR 0117.
+/// `Core\Str::fromCodePoint`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
     short: "Builds the one-character string for the Unicode scalar value `$codePoint`, as \
             `mb_chr` does; `chr`'s byte lives on `Core\\Bytes` instead.",
@@ -1423,7 +1423,7 @@ const FROM_CODE_POINT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::fromCodePoints`'s reference card — ADR 0117.
+/// `Core\Str::fromCodePoints`'s reference card — `rule:core-api/reference-card`.
 const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
     short: "Builds the string whose code points are `$codePoints`, in order — `codePoints`' \
             inverse, as `implode(array_map(\"mb_chr\", …))` does.",
@@ -1440,7 +1440,7 @@ const FROM_CODE_POINTS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Str::format`'s reference card — ADR 0117.
+/// `Core\Str::format`'s reference card — `rule:core-api/reference-card`.
 const FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Fills the `printf` template `$template` from `$arguments`, as `sprintf` and \
             `vsprintf` do — the closed conversion list `%s %d %u %f %e %g %x %X %o %b %%` with \
@@ -1524,7 +1524,7 @@ const REPLACE_ALL_OPTIONS: &[CoreOption] = &[CoreOption {
 
 /// `Core\Str::indexOf`'s `{from?: int, caseInsensitive?: bool}`.
 ///
-/// `from` is a **position**, so it obeys ADR 0063 R8's sign rule and reads
+/// `from` is a **position**, so it obeys `rule:core-api/shape-rules` R8's sign rule and reads
 /// through [`crate::granularity::Unit::byte_of_signed_index`] — the same option,
 /// spelled the same way and meaning the same thing, as `Core\Regex::match`'s.
 /// Its default is the start of the subject, which is a search of the whole of
@@ -1866,7 +1866,7 @@ nvs_runtime::nvs_helper! {
     ///   under `rule:types/bytes`'s UTF-8 invariant.
     /// * **An index that addresses nothing throws**, rather than PHP's warning
     ///   plus `""`. The declared return type is `string`, not `?string`, and
-    ///   [ADR 0063](/docs/adr/0063-core-api-conventions.md) R4/R5
+    ///   `rule:core-api/shape-rules` R4/R5
     ///   make that the difference between the two: absence would have to be
     ///   spelled in the type.
     ///
@@ -1938,7 +1938,7 @@ nvs_runtime::nvs_helper! {
     /// `nvs_types::defaults` for why the caller does that work.
     ///
     /// PHP's legacy argument-swapped `implode($glue, $array)` form has no
-    /// counterpart: ADR 0063 R1 puts the subject first, and R20 leaves no room
+    /// counterpart: `rule:core-api/shape-rules` R1 puts the subject first, and R20 leaves no room
     /// for a second spelling of one operation.
     fn nvs_core_str_join(_ctx, args: [2]) {
         // Unreachable from source: parameter 0 is `array<string>` in `CLASS`
@@ -2196,7 +2196,7 @@ nvs_runtime::nvs_helper! {
 /// `characters` removed — the shared body of `trim`/`trimStart`/`trimEnd`.
 ///
 /// Two deliberate divergences from PHP's `trim`, both consequences of `rule:types/bytes`
-/// making a `string` text rather than bytes, and of ADR 0063 R13 refusing a
+/// making a `string` text rather than bytes, and of `rule:core-api/shape-rules` R13 refusing a
 /// mini-language inside an argument:
 ///
 /// * The set is matched by **character**, not by byte, so a multi-byte
@@ -2282,7 +2282,7 @@ fn match_at(rest: &str, needle: &str) -> Option<usize> {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::replace(string $s, string $search, string $replacement, {caseInsensitive?: bool, limit?: uint}): string`
     /// — replacing PHP's `str_replace` **and** `str_ireplace`, which are one
-    /// member here because ADR 0063 R13/R20 leave no room for a second
+    /// member here because `rule:core-api/shape-rules` R13/R20 leave no room for a second
     /// spelling of one operation.
     ///
     /// Matches are non-overlapping and taken left to right, and the
@@ -2358,7 +2358,7 @@ nvs_runtime::nvs_helper! {
     ///   subject in turn, feeding every earlier replacement to every later
     ///   pair. That makes the answer depend on the literal order of an array
     ///   whose order is otherwise never observable here, which is exactly the
-    ///   silent-surprise shape ADR 0063 R20 exists to keep out.
+    ///   silent-surprise shape `rule:core-api/shape-rules` R20 exists to keep out.
     /// * A tie is therefore impossible without `caseInsensitive`: two distinct
     ///   needles cannot match the same span exactly. With it they can, and the
     ///   pair written first wins.
@@ -2469,14 +2469,14 @@ nvs_runtime::nvs_helper! {
 }
 
 /// The byte range an `int $offset` and a `?int $length` name in `subject`,
-/// counted in [`crate::granularity::DEFAULT`] and read under ADR 0063 R8's
+/// counted in [`crate::granularity::DEFAULT`] and read under `rule:core-api/shape-rules` R8's
 /// sign rule — which is PHP's here as well:
 ///
 /// * A **negative offset** counts from the end, and one before the start
 ///   clamps to it.
 /// * A **negative length** stops that many characters short of the end.
 /// * A **null length** runs to the end of the subject. That is the type saying
-///   what a sentinel would otherwise have to, ADR 0063 R5 reaching a
+///   what a sentinel would otherwise have to, `rule:core-api/shape-rules` R5 reaching a
 ///   *parameter*; `nvs_stdlib::registry::Const::Null` is what a call site
 ///   materializes for a `slice` that omits it.
 ///
@@ -2538,7 +2538,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::replaceRange(string $s, int $offset, ?int $length, string $replacement): string`
     /// — replacing PHP's `substr_replace`, minus its by-reference and
-    /// array-of-subjects forms (ADR 0063 R3 makes every member pure, R20
+    /// array-of-subjects forms (`rule:core-api/shape-rules` R3 makes every member pure, R20
     /// leaves one spelling per operation).
     ///
     /// This is [`nvs_core_str_slice`]'s window with the slice *substituted*
@@ -2615,7 +2615,7 @@ fn position(subject: &str, byte: usize) -> HelperResult {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::indexOf(string $haystack, string $needle, {from?: int, caseInsensitive?: bool}): ?uint`
     /// — replacing PHP's `strpos`, `stripos`, `mb_strpos` and `mb_stripos`, all
-    /// four at once, because ADR 0063 R13 makes the encoding question moot and
+    /// four at once, because `rule:core-api/shape-rules` R13 makes the encoding question moot and
     /// R20 leaves no room for a second spelling of one operation.
     ///
     /// **Absence is `null`, not `false`.** That is R5, and it is the single
@@ -2889,7 +2889,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Str::compare(string $a, string $b, {caseInsensitive?: bool, natural?: bool}): int`
     /// — replacing all four of PHP's `strcmp`, `strcasecmp`, `strnatcmp` and
     /// `strnatcasecmp`, plus the comparator behind `natsort`/`natcasesort`,
-    /// because ADR 0063 R20 leaves no room for four spellings of one
+    /// because `rule:core-api/shape-rules` R20 leaves no room for four spellings of one
     /// operation. `strncmp`'s length-limited form is `Core\Str::slice` first.
     ///
     /// **The answer is `-1`, `0` or `1` and never a byte difference.** PHP 8
@@ -2906,7 +2906,7 @@ nvs_runtime::nvs_helper! {
     /// says so with `compare("img12", "img2")` as the sign that flips.
     ///
     /// There is no locale-sensitive third ordering: `strcoll` has nothing to
-    /// read a locale from here (ADR 0051), which § 1 states.
+    /// read a locale from here (`rule:core-api/tier-placement`), which § 1 states.
     fn nvs_core_str_compare(_ctx, args: [4]) {
         let left = text(&args[0], "compare", "the first subject")?;
         let right = text(&args[1], "compare", "the second subject")?;
@@ -2950,7 +2950,7 @@ nvs_runtime::nvs_helper! {
     /// `strstr($h, $n, true)` and `strrchr` used as a prefix.
     ///
     /// The needle itself is not included, and a needle that does not occur is
-    /// `null` rather than PHP's `false` (ADR 0063 R5) — spec § 1's *Extraction*
+    /// `null` rather than PHP's `false` (`rule:core-api/shape-rules` R5) — spec § 1's *Extraction*
     /// prose is the home for both, and for what `{last: true}` changes.
     fn nvs_core_str_before(_ctx, args: [3]) {
         let subject = text(&args[0], "before", "the subject")?;
@@ -3857,7 +3857,7 @@ mod tests {
         assert_eq!(trim(super::nvs_core_str_trim, "xxhixx", "x"), "hi");
         // Only the characters named: a written set replaces the default.
         assert_eq!(trim(super::nvs_core_str_trim, " xhix ", "x"), " xhix ");
-        // ADR 0063 R13: `a..z` is three characters, not a range.
+        // `rule:core-api/shape-rules` R13: `a..z` is three characters, not a range.
         assert_eq!(trim(super::nvs_core_str_trim, "abc", "a..z"), "bc");
     }
 

@@ -84,7 +84,7 @@ enumerated items**, of which `carried-gaps.md` indexed 22 and `carried-refusals.
 the real ones. [23 per-core](23-per-core.md) is M7's own scope that goal 6 shipped around, and the largest
 measured performance item in the repository. [24 net-os-signal](24-net-os-signal.md),
 [25 formats](25-formats.md) and [26 xml-tree](26-xml-tree.md) are M8's Tier 0 roster finished — the seven
-`Core` classes ADR 0051 § 3 names that M8's own goals walked past, after which
+`Core` classes `rule:core-api/tier-roster` names that M8's own goals walked past, after which
 `spec-classes-part-two-outstanding.txt` holds no keys at all. [27 gap-owners](27-gap-owners.md) is goal
 21's keystone applied one level down: a module-doc gap gains an owner tag and a gate fails on an untagged
 one, so the ~110 unindexed items become a short list of scheduling questions instead of an unread
@@ -93,7 +93,7 @@ blocker — an options bag the registry could not spell, which is what goal 18 l
 
 **Then one entry the user asked for on 2026-09-06**, and it is the first since goal 20 that *adds* a
 surface rather than closing one. [29 signed-urls](29-signed-urls.md) is
-[ADR 0146](../../adr/0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md): Novis could
+`rule:core-api/signing-is-over-a-payload`: Novis could
 sign a cookie and a JWT and could not sign a link, which is what a password reset, an unsubscribe, a
 download and a tamper-proof AJAX endpoint all are. It lands `Core\Signature` — ADR 0060's fifth and
 final roster entry, over a payload map — and the two doors onto it, `$uri->sign` and `Core\Router`'s
@@ -166,7 +166,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [26 xml-tree](26-xml-tree.md) | M8, one ADR slot + `rule:core-classes/html-parsing`'s fold | `nvs-stdlib`, `nvs-diagnostics` |
 | [27 gap-owners](27-gap-owners.md) | post-parity, no ADR — a process gate | `tools/`, every crate's module docs |
 | [28 unowned-sweep](28-unowned-sweep.md) | post-parity, `rule:errors/propagation`/0033/0044 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
-| [29 signed-urls](29-signed-urls.md) | M8, ADR 0146 + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
+| [29 signed-urls](29-signed-urls.md) | M8, `rule:core-api/signing-is-over-a-payload` + ADR 0060/0077 amendments | `nvs-stdlib`, `nvs-types`, `nvs-runtime` |
 | 30–49 | free | the gap the dossier's number leaves, so a new hand-written entry costs one `[[goal]]` block and no renumber |
 | [50 dossier](50-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | 51 onward | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest |

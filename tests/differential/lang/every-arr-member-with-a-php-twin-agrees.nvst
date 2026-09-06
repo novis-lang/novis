@@ -1,5 +1,5 @@
 --TEST--
-every Core\Arr member the spec gives a PHP twin answers what that twin answers over one shared corpus of lists and one map, and the eight identities the members hold jointly hold in PHP too (spec § 2, ADR 0063 R3, R5)
+every Core\Arr member the spec gives a PHP twin answers what that twin answers over one shared corpus of lists and one map, and the eight identities the members hold jointly hold in PHP too (spec § 2, `rule:core-api/shape-rules` R3, R5)
 --FILE--
 <?nvs
 // The roster case for `Core\Arr`, and the sibling of
@@ -506,7 +506,7 @@ function flag($v) {
     return "F";
 }
 
-// `Core\Arr::replaceRange` is `array_splice` made pure: ADR 0063 R3 refuses a
+// `Core\Arr::replaceRange` is `array_splice` made pure: `rule:core-api/shape-rules` R3 refuses a
 // by-reference parameter, so the twin is the splice applied to a copy.
 function phpReplaceRange(array $a, int $offset, ?int $length, array $replacement): array {
     $copy = $a;

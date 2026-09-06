@@ -1,4 +1,4 @@
-//! `Core\\Str` end to end, and ADR 0063 R2's options bag: omission, name-matching, and a rejected option.
+//! `Core\\Str` end to end, and `rule:core-api/shape-rules` R2's options bag: omission, name-matching, and a rejected option.
 //!
 //! Split out of the single `compile_and_run.rs`; every test keeps its own name
 //! and body. See `tests/common/mod.rs` for the shared fixtures and for why
@@ -30,7 +30,7 @@ echo \"|\", Core\\Str::padStart(\"7\", 3, \"0\"), \"|\", Core\\Str::padStart(\"7
     assert_eq!(output_of(source), "abc|a-b-c|007|  7");
 }
 
-/// ADR 0063 R2's options bag end to end. The bag has no runtime
+/// `rule:core-api/shape-rules` R2's options bag end to end. The bag has no runtime
 /// representation at all — `nvs_ir::lower::lower_call_args` flattens it into
 /// one ordinary argument per declared option — so this is the check that the
 /// flattened arity and the helper's own `args: [3]` agree, in both the

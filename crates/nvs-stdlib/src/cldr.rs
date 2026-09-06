@@ -25,7 +25,7 @@
 //!
 //! A month or weekday name renders in CLDR's **root** locale — English — and
 //! nothing selects another. That is the same closed door
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) shuts on
+//! `rule:core-api/tier-placement` shuts on
 //! `setlocale`: a process-wide setting that silently changes what a later
 //! `format` answers is exactly the ambient state § 4 removed the default
 //! timezone for. A program that wants a localized month name has the number,
@@ -1138,7 +1138,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Cldr::pluralCategory`'s reference card — ADR 0117.
+/// `Core\Cldr::pluralCategory`'s reference card — `rule:core-api/reference-card`.
 const PLURAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
     short: "Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message \
             catalog keys its variants on the locale's own rule rather than on `== 1`.",
@@ -1173,7 +1173,7 @@ const PLURAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Cldr::ordinalCategory`'s reference card — ADR 0117.
+/// `Core\Cldr::ordinalCategory`'s reference card — `rule:core-api/reference-card`.
 const ORDINAL_CATEGORY_MEMBER_DOC: MethodDoc = MethodDoc {
     short: "Answers which form `$count` takes as a *place* rather than as an amount — English's \
             `1st`, `2nd`, `3rd`, `4th` — so a template writes the suffix its locale marks.",
@@ -1229,7 +1229,7 @@ pub(crate) const PLURAL_CATEGORY: CoreEnum = CoreEnum {
     doc: Some(&PLURAL_CATEGORY_DOC),
 };
 
-/// [`PLURAL_CATEGORY`]'s reference card — ADR 0117.
+/// [`PLURAL_CATEGORY`]'s reference card — `rule:core-api/reference-card`.
 const PLURAL_CATEGORY_DOC: EnumDoc = EnumDoc {
     short: "Which of CLDR's six plural forms a count selects. The names are CLDR's own labels for \
             a language's forms, not counts: only `Other` means the same thing everywhere, and a \
@@ -2361,7 +2361,7 @@ nvs_runtime::nvs_helper! {
     /// The count is parameter 1 because it is what the member classifies and
     /// the locale is the rule it is classified under — the same order
     /// `Core\Time::parse(string $text, string $pattern)` writes, where the
-    /// text is what is read and the pattern says how (ADR 0063 R1).
+    /// text is what is read and the pattern says how (`rule:core-api/shape-rules` R1).
     ///
     /// The locale is `Qual::Neutral` rather than a sink: it is a lookup key,
     /// nothing it names is executed, and the answer is an ordinal that carries

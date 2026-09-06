@@ -1,5 +1,5 @@
 --TEST--
-Spec § 4: `Core\Time\Duration`'s four arithmetic members are bounded at both ends of the `i64` nanosecond count, and every refusal is one sentence naming its own member (ADR 0063 R4)
+Spec § 4: `Core\Time\Duration`'s four arithmetic members are bounded at both ends of the `i64` nanosecond count, and every refusal is one sentence naming its own member (`rule:core-api/shape-rules` R4)
 --FILE--
 <?nvs
 // A `Duration` is an exact `i64` count of nanoseconds, so the type has two

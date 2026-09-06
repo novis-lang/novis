@@ -79,7 +79,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Out::capture`'s reference card — ADR 0117.
+/// `Core\Out::capture`'s reference card — `rule:core-api/reference-card`.
 const CAPTURE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$fn` with this request's output sink redirected into a buffer and answers \
             what it wrote, as the carrier of the sink in force — `ob_start`/`ob_get_clean` and \

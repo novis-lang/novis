@@ -209,7 +209,7 @@ pub(crate) enum ArgOwnership {
     /// The callee borrows it — every `rule:errors/propagation` helper, including a `Core`
     /// member, which receives a `&[Value]` and releases nothing. No retain,
     /// and the caller keeps owning what it passed; `nvs_stdlib`'s own docs own
-    /// why ADR 0063's purity rule is what makes that safe.
+    /// why `rule:core-api/shape-rules`'s purity rule is what makes that safe.
     Borrowed,
 }
 
@@ -331,7 +331,7 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null
         | ConstArg::Bytes(_)
-        // Neither is one value: a bag and ADR 0135 § 3's shape are a fill list
+        // Neither is one value: a bag and `rule:core-api/shape-flattens-at-the-abi`'s shape are a fill list
         // apiece, and no property declaration has a `Core` parameter's type.
         | ConstArg::Options(_)
         | ConstArg::RequiredShape(_)
@@ -1726,7 +1726,7 @@ impl ArgSig {
     /// recorded parameters, and never consulted for a variadic tail at all:
     /// `lower_call_args` collects that tail into one array, which is a value
     /// and not a holder, so there is no position-onward rule to apply here the
-    /// way `nvs_types::signatures::MethodSig::is_inout` has one. ADR 0063 R7
+    /// way `nvs_types::signatures::MethodSig::is_inout` has one. `rule:core-api/shape-rules` R7
     /// keeps it that way for `Core` — nothing there is by-reference.
     fn is_inout(&self, index: usize) -> bool {
         self.inout.get(index).copied().unwrap_or(false)
@@ -2907,9 +2907,9 @@ pub(crate) fn lower_decl_type(
 ///
 /// Two variants carry it and the split is the parameter's own optionality,
 /// which that function's docs own: an omittable bag records its fills as the
-/// parameter's own default (`ConstArg::Options`, ADR 0063 R2), and a shape
+/// parameter's own default (`ConstArg::Options`, `rule:core-api/shape-rules` R2), and a shape
 /// parameter a call must write records them without becoming optional
-/// (`ConstArg::RequiredShape`, ADR 0135 § 3). Both flatten identically here —
+/// (`ConstArg::RequiredShape`, `rule:core-api/shape-flattens-at-the-abi`). Both flatten identically here —
 /// the whole point of the merged list is that a call site reads one order.
 ///
 /// # Panics

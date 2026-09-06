@@ -2,7 +2,7 @@
 Every `Core\Session` member but `start` throws while the request has started no session, and the refusal names the member that opens one -- ADR 0139 §§ 1, 4
 --FILE--
 <?nvs
-// ADR 0139 § 1: "a member called before `start` throws naming it". That is the
+// `rule:core-api/session-roster`: "a member called before `start` throws naming it". That is the
 // whole of what `rule:core-classes/session-is-started-explicitly` was buying — "this request uses sessions" is a
 // line in the source — and it is worth nothing if the first `get` can silently
 // start one. So none of the six below opens a session: all six refuse.

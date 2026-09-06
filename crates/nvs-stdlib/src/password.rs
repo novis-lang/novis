@@ -2,7 +2,7 @@
 //! § 16's three members, and the second of exactly two operations that take a
 //! `secret` and answer something that is not one.
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 places
+//! `rule:core-api/tier-roster` places
 //! this class in `Core` by tests 1 and 2 — "as a `Core\Crypto` primitive over a
 //! `secret`" — rather than in
 //! [ADR 0060](/docs/adr/0060-application-security-protocols.md)'s
@@ -98,7 +98,7 @@
 //! `password_needs_rehash` answers `true`, and both readings hide the same bug:
 //! a storage layer handing back a column that is not a hash looks exactly like
 //! every user suddenly typing the wrong password. Under
-//! [ADR 0063](/docs/adr/0063-core-api-conventions.md) failure throws
+//! `rule:core-api/shape-rules` failure throws
 //! and absence is `?T`, and this is failure — the argument is not the thing the
 //! parameter names — so both members throw `LogicError`. The refusal is the
 //! same either way at the login screen; the difference is whether the operator
@@ -235,7 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Password::hash`'s reference card — ADR 0117.
+/// `Core\Password::hash`'s reference card — `rule:core-api/reference-card`.
 const HASH_DOC: MethodDoc = MethodDoc {
     short: "Hashes `$password` for storage with Argon2id under parameters this library chooses, \
             answering the PHC string that carries the algorithm, the version, the cost and the \
@@ -255,7 +255,7 @@ const HASH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Password::verify`'s reference card — ADR 0117.
+/// `Core\Password::verify`'s reference card — `rule:core-api/reference-card`.
 const VERIFY_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$password` is the one `$hash` was made from, recomputing under the \
             parameters `$hash` itself carries so that a hash written under older settings still \
@@ -292,7 +292,7 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Password::needsRehash`'s reference card — ADR 0117.
+/// `Core\Password::needsRehash`'s reference card — `rule:core-api/reference-card`.
 const NEEDS_REHASH_DOC: MethodDoc = MethodDoc {
     short: "Reports whether `$hash` is weaker than what `hash` would write today — a different \
             algorithm or version, or a lower memory or time cost — so that a program can \
@@ -704,7 +704,7 @@ mod tests {
         assert_eq!(hash.version, Some(VERSION as u32));
     }
 
-    /// ADR 0051 § 3 places this class as a `Core\Crypto` primitive, and the
+    /// `rule:core-api/tier-roster` places this class as a `Core\Crypto` primitive, and the
     /// primitive it is over is a *memory-hard* function: a parameter set that
     /// drifted below OWASP's floor would still round-trip above and still pass
     /// every conformance case, because nothing a program can observe says how

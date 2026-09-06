@@ -2919,7 +2919,7 @@ impl<'a> Lowering<'a> {
     /// Three arguments in a fixed order — the path, the `args:` value and the
     /// `output:` spelling — with the two options materialized to `null` and
     /// `"capture"` where the program omitted them, the same way
-    /// [`Self::lower_options_arg`] materializes an ADR 0063 R2 bag's defaults.
+    /// [`Self::lower_options_arg`] materializes an `rule:core-api/shape-rules` R2 bag's defaults.
     /// `limits:`, `grants:` and `on:` never arrive: `nvs_types`' own
     /// `check_spawn_script` refuses each under `E0777` rather than let one be
     /// accepted and dropped.

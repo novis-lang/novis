@@ -68,7 +68,7 @@ try {
 
 // `limit`'s own boundary, in the same bag: zero admits no child, so the group
 // could never finish and saying so is a `LogicError` rather than a wait that
-// ends at the deadline (`Core\Task`'s reference card, ADR 0117).
+// ends at the deadline (`Core\Task`'s reference card, `rule:core-api/reference-card`).
 try {
     Core\Task::map($work, fn (int $n): int => $n, {limit: 0});
     echo "a limit of zero ran", "\n";

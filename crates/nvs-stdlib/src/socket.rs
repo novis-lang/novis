@@ -311,7 +311,7 @@ const RECEIVE_SYMBOL: &str = "nvs_core_socket_receive";
 const SEND_SYMBOL: &str = "nvs_core_socket_send";
 const SEND_BYTES_SYMBOL: &str = "nvs_core_socket_send_bytes";
 
-/// `Core\Socket::upgrade`'s reference card — ADR 0117.
+/// `Core\Socket::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
     short: "Turns this request into a WebSocket connection running `$entry` as a root isolate — \
             its own arena, its own budget and its own grants, sharing nothing with the request \
@@ -353,7 +353,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Socket::current`'s reference card — ADR 0117.
+/// `Core\Socket::current`'s reference card — `rule:core-api/reference-card`.
 const CURRENT_DOC: MethodDoc = MethodDoc {
     short: "This connection, inside the isolate the upgrade opened — the first line of every \
             script a `Core\\Socket::upgrade` runs.",
@@ -369,7 +369,7 @@ const CURRENT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Socket::receive`'s reference card — ADR 0117.
+/// `Core\Socket::receive`'s reference card — `rule:core-api/reference-card`.
 const RECEIVE_DOC: MethodDoc = MethodDoc {
     short: "Waits for the next thing from either side — a frame the peer sent, or a value \
             published to a topic this connection subscribed to — and answers it as one message.",
@@ -386,7 +386,7 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Socket::send`'s reference card — ADR 0117.
+/// `Core\Socket::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
     short: "Sends one text frame to the peer, suspending until it is buffered.",
     params: &[ParamDoc {
@@ -410,7 +410,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Socket::sendBytes`'s reference card — ADR 0117.
+/// `Core\Socket::sendBytes`'s reference card — `rule:core-api/reference-card`.
 const SEND_BYTES_DOC: MethodDoc = MethodDoc {
     short: "Sends one binary frame to the peer, suspending until it is buffered — `send`'s twin \
             for the other payload kind RFC 6455 has.",
@@ -522,7 +522,7 @@ const MESSAGE_TEXT_SYMBOL: &str = "nvs_core_socket_message_text";
 const MESSAGE_BYTES_SYMBOL: &str = "nvs_core_socket_message_bytes";
 const MESSAGE_VALUE_SYMBOL: &str = "nvs_core_socket_message_value";
 
-/// `Core\Socket\Message::topic`'s reference card — ADR 0117.
+/// `Core\Socket\Message::topic`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
     short: "The topic this value was published to, and the one question that tells a bus \
             delivery from a frame the peer sent.",
@@ -532,7 +532,7 @@ const MESSAGE_TOPIC_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Socket\Message::text`'s reference card — ADR 0117.
+/// `Core\Socket\Message::text`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_TEXT_DOC: MethodDoc = MethodDoc {
     short: "A text frame's payload, as the peer sent it.",
     params: &[],
@@ -542,7 +542,7 @@ const MESSAGE_TEXT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Socket\Message::bytes`'s reference card — ADR 0117.
+/// `Core\Socket\Message::bytes`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_BYTES_DOC: MethodDoc = MethodDoc {
     short: "A binary frame's payload, unchecked bytes as the peer sent them.",
     params: &[],
@@ -551,7 +551,7 @@ const MESSAGE_BYTES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Socket\Message::value`'s reference card — ADR 0117.
+/// `Core\Socket\Message::value`'s reference card — `rule:core-api/reference-card`.
 const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
     short: "What a publisher put on the topic, copied across the isolate boundary the way every \
             other value crosses one.",

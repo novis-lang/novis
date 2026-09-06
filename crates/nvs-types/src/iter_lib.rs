@@ -158,7 +158,7 @@ fn elem_var(interface: &str, interner: &mut TypeInterner) -> TypeId {
 /// for why every member here is one.
 ///
 /// `names` is the parameter list the interface's own ADR writes, one per
-/// entry of `params`: being callable by name is ADR 0063 R2's rule for
+/// entry of `params`: being callable by name is `rule:core-api/shape-rules` R2's rule for
 /// `Core` but the *language's* rule for everything (`rule:types/arrays`), so a
 /// reserved interface is not the one surface a `name:` cannot reach.
 fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -> MethodSig {

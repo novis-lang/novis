@@ -16,7 +16,7 @@ echo "[", Core\Path::dirname($empty, {levels: 3}), "]\n";
 
 // What PHP agrees with. A root is not an absent name and neither is the empty
 // path, so `basename` answers the empty string rather than null, and an
-// extension that is not there is `null` (ADR 0063 R5) where `pathinfo` leaves
+// extension that is not there is `null` (`rule:core-api/shape-rules` R5) where `pathinfo` leaves
 // its key out.
 echo "[", Core\Path::basename($empty), "]\n";
 echo "[", Core\Path::basename($empty, {withoutExtension: true}), "]\n";

@@ -2,7 +2,7 @@
 Core\Storage::list filters on a `prefix` that is empty or itself an object key, and refuses one no key on the disk could begin with — `rule:programs/framework-core-half`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
-// `prefix` is the row's one option — optional, so ADR 0063 R3 puts it in the
+// `prefix` is the row's one option — optional, so `rule:core-api/shape-rules` R3 puts it in the
 // single trailing shape rather than in a second positional slot — and it is
 // bounded on both sides. This case names the last accepted spelling and the
 // first refused one together, because a member that stopped one entry early

@@ -98,7 +98,7 @@ pub enum ConstArg {
     /// `null` — what an **absent** argument is.
     ///
     /// Produced only by [`crate::core_lib`], from
-    /// `nvs_stdlib::registry::Const::Null`, and only for an ADR 0063 R2
+    /// `nvs_stdlib::registry::Const::Null`, and only for an `rule:core-api/shape-rules` R2
     /// option whose spec signature gives it no "not given" spelling of its
     /// own: `Core\Arr::sort`'s `by` and `comparator` are the first two. A
     /// written `= null` is still refused — see this module's own known gap,
@@ -138,7 +138,7 @@ pub enum ConstArg {
     /// cannot see, whereas a property default is written once into a slot the
     /// instance already owns.
     EmptyArray,
-    /// ADR 0063 R2's options bag, wholly omitted at the call site: one entry
+    /// `rule:core-api/shape-rules` R2's options bag, wholly omitted at the call site: one entry
     /// per declared option, in the bag's own declared order, each holding that
     /// option's default.
     ///
@@ -150,8 +150,7 @@ pub enum ConstArg {
     /// [`eval_param_default`]: user code cannot declare a bag, so this only
     /// ever comes from [`crate::core_lib`].
     Options(Vec<(String, ConstArg)>),
-    /// [ADR 0135](/docs/adr/0135-a-core-shape-parameter-is-one-coretty-carrying-its-arms.md)
-    /// § 3's fill list for a **required** shape parameter: one entry per field
+    /// `rule:core-api/shape-flattens-at-the-abi`'s fill list for a **required** shape parameter: one entry per field
     /// of the merged arm list, in the order that list flattens, holding what
     /// the call site passes for a key the written literal does not carry — the
     /// field's own default where it has one, [`Self::Null`] for a field

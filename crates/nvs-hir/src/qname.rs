@@ -89,8 +89,7 @@ impl QName {
     }
 
     /// Whether this name's root segment is `Core`, Novis's reserved namespace
-    /// for built-ins ([ADR 0011](/docs/adr/0011-functions-and-constants-are-class-members.md)
-    /// § 2).
+    /// for built-ins (`rule:core-api/reserved-namespace`).
     ///
     /// `Core`'s own classes are not yet declarations `nvs-hir` can see —
     /// `nvs-stdlib` doesn't exist until a later milestone — so a `use`

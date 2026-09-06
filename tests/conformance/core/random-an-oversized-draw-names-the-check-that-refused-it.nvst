@@ -1,5 +1,5 @@
 --TEST--
-Core\Random::bytes and ::token each name which of their two checks refused an oversized draw, and token's bound sits at exactly half of bytes's — spec § 11, `rule:programs/memory-priority`, ADR 0063 R4
+Core\Random::bytes and ::token each name which of their two checks refused an oversized draw, and token's bound sits at exactly half of bytes's — spec § 11, `rule:programs/memory-priority`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // A draw too large is refused twice over, by checks that answer different

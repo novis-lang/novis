@@ -155,7 +155,7 @@ fn a_path_and_a_name_are_strings_and_each_is_written_once() {
 
 #[test]
 fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
-    // § 1's `method` is an enum case (ADR 0063 R11), which `rule:attributes/payload-is-a-compile-time-constant` admits
+    // § 1's `method` is an enum case (`rule:core-api/shape-rules` R11), which `rule:attributes/payload-is-a-compile-time-constant` admits
     // in a payload — so the fixture's own spelling passes the payload walk.
     // `Core\Http\Method` is `nvs_stdlib::router::METHOD`, seeded into the enum
     // table like any other `Core` enum, so the roster row interns to that type
@@ -383,7 +383,7 @@ fn a_capture_that_may_absorb_the_end_of_a_path_is_written_last() {
 
 #[test]
 fn a_capture_arrives_as_the_parameter_it_is_named_after() {
-    // § 3: the comparison is exact, per ADR 0029, so `{userId}` and `$userid`
+    // § 3: the comparison is exact, per `rule:core-api/identifier-casing`, so `{userId}` and `$userid`
     // are two names and the capture has nowhere to arrive.
     let diags = check_src(&route_src(
         "  #[Route(path: \"/users/{userId}\", method: Core\\Http\\Method::Get)]\n  \

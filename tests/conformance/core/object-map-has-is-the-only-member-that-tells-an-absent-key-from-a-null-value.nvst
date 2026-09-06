@@ -5,7 +5,7 @@
 // The *edge* shape, at the one place § 9's `?V` read gives up information: a
 // map's `get` returns `?V`, so with a nullable `V` the absent answer and a
 // stored `null` are the same value. That is the documented cost of having no
-// `$m[$k]` subscript to throw and no `getOrNull` twin to ask instead (ADR 0063
+// `$m[$k]` subscript to throw and no `getOrNull` twin to ask instead (`rule:core-api/shape-rules`
 // R5), and what makes it a cost rather than a hole is that `has`, `count`,
 // `keys` and `values` all still separate the two. A map that took `null` as a
 // deletion — which is how PHP's arrays and half of PHP's `??` idioms read —

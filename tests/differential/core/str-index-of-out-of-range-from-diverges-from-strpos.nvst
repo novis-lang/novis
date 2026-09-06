@@ -1,7 +1,7 @@
 --TEST--
 Core\Str::indexOf saturates a `from` outside the subject where strpos raises a ValueError, and {before} bounds where a match ends
 --ORACLE-DIVERGES--
-ADR 0063 R8's sign rule reads every position through `granularity::Unit::byte_of_signed_index`, which saturates at either end so that a search starting past the subject finds nothing — composable in a loop where PHP's ValueError is not — and `lastIndexOf`'s `before` names the end of the window rather than `strrpos`'s bound on where a match may start.
+`rule:core-api/shape-rules` R8's sign rule reads every position through `granularity::Unit::byte_of_signed_index`, which saturates at either end so that a search starting past the subject finds nothing — composable in a loop where PHP's ValueError is not — and `lastIndexOf`'s `before` names the end of the window rather than `strrpos`'s bound on where a match may start.
 --FILE--
 <?nvs
 final class Show {

@@ -1,5 +1,5 @@
 --TEST--
-`Core`'s member list is closed and known while compiling, so a misspelled member is named rather than waved through — ADR 0011 § 2
+`Core`'s member list is closed and known while compiling, so a misspelled member is named rather than waved through — `rule:core-api/reserved-namespace`
 --FILE--
 <?nvs
 echo Core\Str::nosuchmember("x"), "\n";

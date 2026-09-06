@@ -25,7 +25,7 @@
 //!
 //! # Known gaps
 //!
-//! [ADR 0051](/docs/adr/0051-standard-library-tiers.md) § 3 gives
+//! `rule:core-api/tier-roster` gives
 //! this class two more things than it has: `sanitize` and
 //! `rule:core-classes/html-parsing`'s
 //! WHATWG parser over `Core\Xml`'s tree, both of which wait on that tree
@@ -61,7 +61,7 @@
 //! spells the same operation as `htmlspecialchars($s, $flags, $encoding,
 //! $double)` — four arguments, of which the first is a bitmask whose default
 //! left `'` unescaped until PHP 8.1 and produced a decade of attribute-context
-//! XSS. [ADR 0063](/docs/adr/0063-core-api-conventions.md) R6
+//! XSS. `rule:core-api/shape-rules` R6
 //! forbids the bitmask outright, and the safe member of every pair the flags
 //! chose between is the only one worth having: escaping both quote characters
 //! makes the answer safe in an unquoted-attribute position as well as in text,
@@ -193,7 +193,7 @@ pub const MARKUP_SYMBOL: &str = "nvs_core_html_markup";
 /// that took its operands from anywhere.
 pub const MARKUP_CONCAT_SYMBOL: &str = "nvs_core_html_markup_concat";
 
-/// `Core\Html::escape`'s reference card — ADR 0117.
+/// `Core\Html::escape`'s reference card — `rule:core-api/reference-card`.
 const ESCAPE_DOC: MethodDoc = MethodDoc {
     short: "Writes `&`, `<`, `>`, `\"` and `'` in `$text` as character references, and replaces \
             every unterminated bidirectional control with `\u{FFFD}` — the launderer for the HTML \
@@ -213,7 +213,7 @@ const ESCAPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Html::toSource`'s reference card — ADR 0117.
+/// `Core\Html::toSource`'s reference card — `rule:core-api/reference-card`.
 const TO_SOURCE_DOC: MethodDoc = MethodDoc {
     short: "Hands back the source text a `Core\\Html\\Markup` carries — the one way out of the \
             carrier, since there is no `Markup as string` conversion. Rare, greppable, and it \

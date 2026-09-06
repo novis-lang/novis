@@ -1,5 +1,5 @@
 --TEST--
-The eight count-shaped producers agree — each answers a size it can serve, and each refuses one it cannot in the same class, named for its own member and spelled by which of the two bounds the count crossed — spec §§ 1, 2, 7, ADR 0063 R4
+The eight count-shaped producers agree — each answers a size it can serve, and each refuses one it cannot in the same class, named for its own member and spelled by which of the two bounds the count crossed — spec §§ 1, 2, 7, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
 // Eight members take a count and turn it into one allocation whose size that

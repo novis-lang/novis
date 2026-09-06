@@ -4,7 +4,7 @@
 <?nvs
 // The boundary this member stops at is `Core\Json::encode`'s own, reached
 // through the same encoder: a non-finite `float` and a `bytes` buffer are two
-// of the three values that ADR 0063 R4 makes throw rather than answer falsy.
+// of the three values that `rule:core-api/shape-rules` R4 makes throw rather than answer falsy.
 try {
     Core\Response::json(Core\Math::sqrt(-1.0));
     echo "not refused\n";

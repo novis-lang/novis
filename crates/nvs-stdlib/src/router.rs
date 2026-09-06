@@ -107,7 +107,7 @@ pub(crate) const METHOD: CoreEnum = CoreEnum {
     doc: Some(&METHOD_DOC),
 };
 
-/// [`METHOD`]'s reference card — ADR 0117.
+/// [`METHOD`]'s reference card — `rule:core-api/reference-card`.
 const METHOD_DOC: EnumDoc = EnumDoc {
     short: "The closed set of HTTP verbs a `#[Route]` may be declared under and a request may \
             carry — eight of them, safe ones first so that the four the CSRF check covers are \
@@ -166,7 +166,7 @@ pub(crate) const AUDIENCE: CoreEnum = CoreEnum {
     doc: Some(&AUDIENCE_DOC),
 };
 
-/// [`AUDIENCE`]'s reference card — ADR 0117.
+/// [`AUDIENCE`]'s reference card — `rule:core-api/reference-card`.
 const AUDIENCE_DOC: EnumDoc = EnumDoc {
     short: "The one access decision `Core` names for `#[Access(allow: …)]`: a route open to \
             everyone is a name that resolves rather than a magic string, and the enum will not \
@@ -277,7 +277,7 @@ const PARAMS_DOC: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// `Core\Router::url`'s reference card — ADR 0117.
+/// `Core\Router::url`'s reference card — `rule:core-api/reference-card`.
 const URL_DOC: MethodDoc = MethodDoc {
     short: "Builds the URL path of the route named `$name`, substituting `$params` into its \
             `{captures}` and writing what is left over as a query string — the launderer for \
@@ -293,7 +293,7 @@ const URL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Router::urlAbsolute`'s reference card — ADR 0117.
+/// `Core\Router::urlAbsolute`'s reference card — `rule:core-api/reference-card`.
 const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     short: "`url` with the mount's configured origin in front — the `[[app]] origin` setting, \
             resolved before the request ran and never derived from a `Host` or \
@@ -307,7 +307,7 @@ const URL_ABSOLUTE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Router::match`'s reference card — ADR 0117.
+/// `Core\Router::match`'s reference card — `rule:core-api/reference-card`.
 const MATCH_DOC: MethodDoc = MethodDoc {
     short: "Matches `$method` and `$path` against this program's compiled route table, answering \
             the same `Core\\Router\\Match` a served request carries — a question asked of the \
@@ -339,7 +339,7 @@ const MATCH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Router::methodsFor`'s reference card — ADR 0117.
+/// `Core\Router::methodsFor`'s reference card — `rule:core-api/reference-card`.
 const METHODS_FOR_DOC: MethodDoc = MethodDoc {
     short: "Every verb the route table claims `$path` under, in the order the routes were \
             declared — the question left over once `Core\\Request::route()` has answered `null`, \
@@ -463,7 +463,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Router\Match::name`'s reference card — ADR 0117.
+/// `Core\Router\Match::name`'s reference card — `rule:core-api/reference-card`.
 const MATCH_NAME_DOC: MethodDoc = MethodDoc {
     short: "The declared name of the route this request matched, as its `#[Route(name: …)]` wrote \
             it — the same string `Core\\Router::url` resolves and the `route` metric label \
@@ -474,7 +474,7 @@ const MATCH_NAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Router\Match::params`'s reference card — ADR 0117.
+/// `Core\Router\Match::params`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     short: "Every capture the matched path filled, keyed by the parameter name it binds, in path \
             order.",
@@ -486,7 +486,7 @@ const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Router\Match::param`'s reference card — ADR 0117.
+/// `Core\Router\Match::param`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     short: "One capture by the parameter name it binds — `params()` read at one key, and the \
             spelling a handler reaching for a single segment writes.",

@@ -8,7 +8,7 @@ landed yet.** Goal 27's whole list is this goal's Stage 1 floor.
 Five gaps, each recorded in a module doc, each real, none owned by any `[[goal]]` before this entry.
 **Four of the five are one gap wearing different clothes**: a member that needs an options bag the
 registry could not spell — which is exactly the spelling [goal 18](18-input-shapes.md) lands
-(`{name?: T}` on `Ty::Shape`, and ADR 0135's `CoreTy` shape parameter). This goal is that
+(`{name?: T}` on `Ty::Shape`, and `rule:core-api/shape-parameter`'s `CoreTy` shape parameter). This goal is that
 follow-through.
 
 The other two are the decisions the user took when the unowned list was drawn up: **`array<T>` widens

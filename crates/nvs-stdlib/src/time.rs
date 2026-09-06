@@ -104,7 +104,7 @@
 //! two, and neither half is [`Qual::Contagious`] — which is unusual enough to
 //! be worth the paragraph.
 //!
-//! * **Every pattern is a [`Qual::Sink`].** ADR 0063 R11's third grammar is
+//! * **Every pattern is a [`Qual::Sink`].** `rule:core-api/shape-rules` R11's third grammar is
 //!   the CLDR date pattern, and ADR 0088 § 1's corollary makes a grammar a
 //!   sink wherever it is declared: the three `format` members' one parameter,
 //!   and `Core\Time::parse`'s *second*. A pattern is an instruction to
@@ -351,7 +351,7 @@ pub const DURATION: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time\Duration::nanoseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::nanoseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of exactly `$n` nanoseconds — the computed-count form of the \
             duration literal, and the member a literal such as `30s` itself reaches a value \
@@ -365,7 +365,7 @@ const DURATION_NANOSECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::microseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::microseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MICROSECONDS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` microseconds, for a count computed at run time; a \
             constant one is a duration literal.",
@@ -381,7 +381,7 @@ const DURATION_MICROSECONDS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::milliseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::milliseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` milliseconds, for a count computed at run time; a \
             constant one is a duration literal such as `250ms`.",
@@ -397,7 +397,7 @@ const DURATION_MILLISECONDS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::seconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::seconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` seconds, for a count computed at run time; a constant \
             one is written as the literal `30s`.",
@@ -414,7 +414,7 @@ const DURATION_SECONDS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::minutes`'s reference card — ADR 0117.
+/// `Core\Time\Duration::minutes`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MINUTES_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` minutes, for a count computed at run time; a constant \
             one is a duration literal such as `1h30m`.",
@@ -430,7 +430,7 @@ const DURATION_MINUTES_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::hours`'s reference card — ADR 0117.
+/// `Core\Time\Duration::hours`'s reference card — `rule:core-api/reference-card`.
 const DURATION_HOURS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` hours — exact hours of 3600 seconds, which is how \
             `Time::now()->plus(72h)` differs from a calendar step of three days. A constant \
@@ -447,7 +447,7 @@ const DURATION_HOURS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::days`'s reference card — ADR 0117.
+/// `Core\Time\Duration::days`'s reference card — `rule:core-api/reference-card`.
 const DURATION_DAYS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` days of exactly 24 hours each — never a calendar day, \
             which `DateTime::plus($n, Unit::Day)` is. A constant count is the literal `30d`.",
@@ -463,7 +463,7 @@ const DURATION_DAYS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::weeks`'s reference card — ADR 0117.
+/// `Core\Time\Duration::weeks`'s reference card — `rule:core-api/reference-card`.
 const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
     short: "Builds a `Duration` of `$n` weeks of exactly seven 24-hour days each — never a \
             calendar week, which `DateTime::plus($n, Unit::Week)` is.",
@@ -479,7 +479,7 @@ const DURATION_WEEKS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::parse`'s reference card — ADR 0117.
+/// `Core\Time\Duration::parse`'s reference card — `rule:core-api/reference-card`.
 const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads the duration literal grammar — `30s`, `1h30m`, `7d` — at run time, \
             through the one implementation the lexer uses for the source literal: the typed \
@@ -500,7 +500,7 @@ const DURATION_PARSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::toNanoseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::toNanoseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_NANOSECONDS_DOC: MethodDoc = MethodDoc {
     short: "Answers the receiver as a count of nanoseconds, which is exactly what it holds.",
     params: &[],
@@ -508,7 +508,7 @@ const DURATION_TO_NANOSECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::toMicroseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::toMicroseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_MICROSECONDS_DOC: MethodDoc = MethodDoc {
     short: "Answers the receiver as a count of whole microseconds.",
     params: &[],
@@ -516,7 +516,7 @@ const DURATION_TO_MICROSECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::toMilliseconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::toMilliseconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_MILLISECONDS_DOC: MethodDoc = MethodDoc {
     short: "Answers the receiver as a count of whole milliseconds.",
     params: &[],
@@ -524,7 +524,7 @@ const DURATION_TO_MILLISECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::toSeconds`'s reference card — ADR 0117.
+/// `Core\Time\Duration::toSeconds`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Answers the receiver as a count of whole seconds.",
     params: &[],
@@ -533,7 +533,7 @@ const DURATION_TO_SECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::plus`'s reference card — ADR 0117.
+/// `Core\Time\Duration::plus`'s reference card — `rule:core-api/reference-card`.
 const DURATION_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Adds `$d` to the receiver, nanosecond for nanosecond.",
     params: &[ParamDoc {
@@ -548,7 +548,7 @@ const DURATION_PLUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::minus`'s reference card — ADR 0117.
+/// `Core\Time\Duration::minus`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Subtracts `$d` from the receiver, nanosecond for nanosecond.",
     params: &[ParamDoc {
@@ -564,7 +564,7 @@ const DURATION_MINUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::multipliedBy`'s reference card — ADR 0117.
+/// `Core\Time\Duration::multipliedBy`'s reference card — `rule:core-api/reference-card`.
 const DURATION_MULTIPLIED_BY_DOC: MethodDoc = MethodDoc {
     short: "Scales the receiver by a whole factor.",
     params: &[ParamDoc {
@@ -580,7 +580,7 @@ const DURATION_MULTIPLIED_BY_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::negated`'s reference card — ADR 0117.
+/// `Core\Time\Duration::negated`'s reference card — `rule:core-api/reference-card`.
 const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
     short: "Reverses the receiver's direction: `30s` becomes `-30s`.",
     params: &[],
@@ -593,7 +593,7 @@ const DURATION_NEGATED_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Duration::compareTo`'s reference card — ADR 0117.
+/// `Core\Time\Duration::compareTo`'s reference card — `rule:core-api/reference-card`.
 const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two durations by length and sign, as `Comparable` requires, so a \
             shorter duration compares below a longer one and a negative one below every \
@@ -610,7 +610,7 @@ const DURATION_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Duration::toString`'s reference card — ADR 0117.
+/// `Core\Time\Duration::toString`'s reference card — `rule:core-api/reference-card`.
 const DURATION_TO_STRING_DOC: MethodDoc = MethodDoc {
     short: "Renders the receiver in the duration literal grammar — `1h30m`, `250ms` — as \
             `Stringable` requires, so the text round-trips through `Duration::parse`.",
@@ -735,7 +735,7 @@ pub(crate) fn nanos_of(args: &[Value], at: usize, member: &str) -> Result<i64, F
         })
 }
 
-/// ADR 0063 R4: a `Duration` past `i64` nanoseconds throws rather than wraps,
+/// `rule:core-api/shape-rules` R4: a `Duration` past `i64` nanoseconds throws rather than wraps,
 /// which is [`duration::DurationError::Overflow`]'s message at run time and
 /// the same sentence the lexer prints for a literal.
 fn overflowed(member: &str) -> Fault {
@@ -879,7 +879,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->plus(Duration $other): Duration` — a fresh value, since ADR 0063
+    /// `$d->plus(Duration $other): Duration` — a fresh value, since `rule:core-api/shape-rules`
     /// R3 makes every `Core` member pure.
     fn nvs_core_time_duration_plus(_ctx, args: [2]) {
         let left = nanos_of(args, 0, "plus")?;
@@ -1027,7 +1027,7 @@ pub const ZONE: CoreClass = CoreClass {
     }],
 };
 
-/// `Core\Time\Zone::of`'s reference card — ADR 0117.
+/// `Core\Time\Zone::of`'s reference card — `rule:core-api/reference-card`.
 const ZONE_OF_DOC: MethodDoc = MethodDoc {
     short: "Looks an IANA identifier such as `Europe/Berlin` up in the bundled time-zone \
             database, replacing `new DateTimeZone(...)` — and throws on one it does not have \
@@ -1045,7 +1045,7 @@ const ZONE_OF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Zone::fixed`'s reference card — ADR 0117.
+/// `Core\Time\Zone::fixed`'s reference card — `rule:core-api/reference-card`.
 const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
     short: "Builds a zone at a fixed offset from UTC, with no DST rules — for a timestamp that \
             carries an offset rather than a region, which is every RFC 3339 string.",
@@ -1062,7 +1062,7 @@ const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Zone::system`'s reference card — ADR 0117.
+/// `Core\Time\Zone::system`'s reference card — `rule:core-api/reference-card`.
 const ZONE_SYSTEM_DOC: MethodDoc = MethodDoc {
     short: "Answers the host's configured zone, replacing `date_default_timezone_get` — as an \
             ordinary value a program passes on explicitly, never an ambient default; there is \
@@ -1073,7 +1073,7 @@ const ZONE_SYSTEM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Zone::offsetAt`'s reference card — ADR 0117.
+/// `Core\Time\Zone::offsetAt`'s reference card — `rule:core-api/reference-card`.
 const ZONE_OFFSET_AT_DOC: MethodDoc = MethodDoc {
     short: "Answers the zone's offset from UTC at a given instant, replacing `getOffset` — an \
             instant because a zone with DST has no single offset: `Europe/Berlin` is `+01:00` \
@@ -1209,7 +1209,7 @@ pub const INSTANT: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time\Instant::in`'s reference card — ADR 0117.
+/// `Core\Time\Instant::in`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_IN_DOC: MethodDoc = MethodDoc {
     short: "Reads this instant on `$zone`'s calendar — the only instant→calendar conversion \
             there is, which is why no zone is ever implicit.",
@@ -1222,7 +1222,7 @@ const INSTANT_IN_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Instant::toEpochSeconds`'s reference card — ADR 0117.
+/// `Core\Time\Instant::toEpochSeconds`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Answers the Unix timestamp, replacing `getTimestamp` and `date(\"U\")`.",
     params: &[],
@@ -1231,7 +1231,7 @@ const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Instant::toEpochMillis`'s reference card — ADR 0117.
+/// `Core\Time\Instant::toEpochMillis`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
     short: "Answers the Unix timestamp in milliseconds — one of `microtime(true)`'s two \
             halves, as an exact integer rather than a `float`.",
@@ -1243,7 +1243,7 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Instant::toEpochMicros`'s reference card — ADR 0117.
+/// `Core\Time\Instant::toEpochMicros`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
     short: "Answers the Unix timestamp in microseconds — `microtime`'s other half, as an \
             exact integer.",
@@ -1255,7 +1255,7 @@ const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Instant::plus`'s reference card — ADR 0117.
+/// `Core\Time\Instant::plus`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the instant forward by an exact `Duration`, replacing `date_add` and \
             `modify` for an exact offset — so it crosses a DST boundary without noticing one; \
@@ -1272,7 +1272,7 @@ const INSTANT_PLUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Instant::minus`'s reference card — ADR 0117.
+/// `Core\Time\Instant::minus`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the instant back by an exact `Duration`, replacing `date_sub` for an exact \
             offset.",
@@ -1288,7 +1288,7 @@ const INSTANT_MINUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Instant::since`'s reference card — ADR 0117.
+/// `Core\Time\Instant::since`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
     short: "Measures the exact time from `$earlier` to this instant, replacing `date_diff` and \
             `DateInterval` arithmetic with none of that type's \"1 month\" ambiguity.",
@@ -1305,7 +1305,7 @@ const INSTANT_SINCE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Instant::compareTo`'s reference card — ADR 0117.
+/// `Core\Time\Instant::compareTo`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two instants on the timeline, as `Comparable` requires.",
     params: &[ParamDoc {
@@ -1318,7 +1318,7 @@ const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\Instant::toIso`'s reference card — ADR 0117.
+/// `Core\Time\Instant::toIso`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_ISO_DOC: MethodDoc = MethodDoc {
     short: "Renders the instant as an RFC 3339 timestamp in UTC, replacing `date(DATE_ATOM)` — \
             the one rendering that needs no zone.",
@@ -1392,7 +1392,7 @@ pub const UNIT: CoreEnum = CoreEnum {
     doc: Some(&UNIT_DOC),
 };
 
-/// [`UNIT`]'s reference card — ADR 0117.
+/// [`UNIT`]'s reference card — `rule:core-api/reference-card`.
 const UNIT_DOC: EnumDoc = EnumDoc {
     short: "The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit \
             `startOf`, `endOf` and `difference` count in — the half of § 4's two arithmetics \
@@ -1469,7 +1469,7 @@ pub const WEEKDAY: CoreEnum = CoreEnum {
     doc: Some(&WEEKDAY_DOC),
 };
 
-/// [`WEEKDAY`]'s reference card — ADR 0117.
+/// [`WEEKDAY`]'s reference card — `rule:core-api/reference-card`.
 const WEEKDAY_DOC: EnumDoc = EnumDoc {
     short: "A day of the week, Monday first as ISO 8601 and `date(\"N\")` order them — what \
             `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the \
@@ -1731,7 +1731,7 @@ pub const DATETIME: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time\DateTime::format`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::format`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Renders the civil date and time through a CLDR pattern — `yyyy-MM-dd HH:mm:ss`, \
             `EEEE, d MMMM yyyy` — replacing `date`, `gmdate`, `idate`, `strftime` and \
@@ -1753,7 +1753,7 @@ const DATETIME_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::plus`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::plus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the value forward by `$count` calendar steps of `$unit`, replacing `date_add`, \
             `modify` and `strtotime`'s relative half: `1, Unit::Month` lands on the same \
@@ -1779,7 +1779,7 @@ const DATETIME_PLUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::minus`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::minus`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub` — \
             `plus` with the count negated, so the two agree at a month end and a DST boundary.",
@@ -1803,7 +1803,7 @@ const DATETIME_MINUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::next`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::next`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_NEXT_DOC: MethodDoc = MethodDoc {
     short: "Finds the nearest strictly later day that falls on `$w`, with the time of day \
             preserved — `strtotime(\"next monday\")` as a typed call.",
@@ -1820,7 +1820,7 @@ const DATETIME_NEXT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::previous`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::previous`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
     short: "Finds the nearest strictly earlier day that falls on `$w`, with the time of day \
             preserved — `strtotime(\"last monday\")` as a typed call.",
@@ -1837,7 +1837,7 @@ const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::with`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::with`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
     short: "Replaces any of the seven civil fields and leaves the rest, replacing `setDate`, \
             `setTime` and `setISODate`; a civil time the zone skips resolves forward past the \
@@ -1888,7 +1888,7 @@ const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::withTime`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::withTime`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WITH_TIME_DOC: MethodDoc = MethodDoc {
     short: "Replaces all four clock fields from a `TimeOfDay` and keeps the date and the zone — \
             the common half of `with`, spelled as the operation it is; a civil time the zone \
@@ -1905,7 +1905,7 @@ const DATETIME_WITH_TIME_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::startOf`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::startOf`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
     short: "Truncates the value down to the first instant of the enclosing `$u` — \
             `startOf(Unit::Day)` is the local midnight, `strtotime(\"today\")`, and \
@@ -1924,7 +1924,7 @@ const DATETIME_START_OF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::endOf`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::endOf`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
     short: "Moves the value to the last instant of the enclosing `$u`, one nanosecond before \
             the next one starts — `endOf(Unit::Month)` is `strtotime(\"last day of this \
@@ -1942,7 +1942,7 @@ const DATETIME_END_OF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::difference`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::difference`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
     short: "Counts whole units of `$unit` from the receiver to `$other`, in the receiver's \
             zone — an age in years, a term in months — replacing `date_diff` and \
@@ -1968,7 +1968,7 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\DateTime::toInstant`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::toInstant`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_TO_INSTANT_DOC: MethodDoc = MethodDoc {
     short: "Answers the absolute point on the timeline this civil value names — free, since a \
             `DateTime` already holds one.",
@@ -1977,7 +1977,7 @@ const DATETIME_TO_INSTANT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::date`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::date`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DATE_DOC: MethodDoc = MethodDoc {
     short: "Answers the civil date this value reads as where it is, dropping the time and the \
             zone — so a conversion first, `$d->toInstant()->in($z)->date()`, can answer a \
@@ -1987,7 +1987,7 @@ const DATETIME_DATE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::timeOfDay`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::timeOfDay`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_TIME_OF_DAY_DOC: MethodDoc = MethodDoc {
     short: "Answers the wall-clock reading, dropping the date and the zone — two zones can \
             read `09:00` at once, which is why it carries neither.",
@@ -1996,7 +1996,7 @@ const DATETIME_TIME_OF_DAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::zone`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::zone`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_ZONE_DOC: MethodDoc = MethodDoc {
     short: "Answers the zone this civil value is in — always one the program named, since \
             none is ever ambient.",
@@ -2005,7 +2005,7 @@ const DATETIME_ZONE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::weekday`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::weekday`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WEEKDAY_DOC: MethodDoc = MethodDoc {
     short: "Answers the day of the week, replacing `date(\"N\")` — as the enum case rather \
             than the number.",
@@ -2014,7 +2014,7 @@ const DATETIME_WEEKDAY_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::dayOfYear`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::dayOfYear`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_DAY_OF_YEAR_DOC: MethodDoc = MethodDoc {
     short: "Answers the ordinal day within the year, replacing `date(\"z\")`.",
     params: &[],
@@ -2023,7 +2023,7 @@ const DATETIME_DAY_OF_YEAR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::isLeapYear`'s reference card — ADR 0117.
+/// `Core\Time\DateTime::isLeapYear`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
     short: "Answers whether the value's year has a 29 February, replacing `date(\"L\")` and \
             `checkdate`'s year half; the day half has no equivalent because a date that does \
@@ -2197,7 +2197,7 @@ pub const TIME: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time::now`'s reference card — ADR 0117.
+/// `Core\Time::now`'s reference card — `rule:core-api/reference-card`.
 const TIME_NOW_DOC: MethodDoc = MethodDoc {
     short: "Reads the wall clock, replacing `time`, `microtime` and `date_create` at once — as \
             an `Instant`, which a zone turns into a calendar reading with `->in($zone)`.",
@@ -2206,7 +2206,7 @@ const TIME_NOW_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time::monotonic`'s reference card — ADR 0117.
+/// `Core\Time::monotonic`'s reference card — `rule:core-api/reference-card`.
 const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
     short: "Reads the monotonic clock, replacing `hrtime` — for measuring, never for wall-clock \
             time, which is why it answers a `Duration`: the value means nothing except against \
@@ -2217,7 +2217,7 @@ const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time::sleep`'s reference card — ADR 0117.
+/// `Core\Time::sleep`'s reference card — `rule:core-api/reference-card`.
 const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
     short: "Waits for `$d`, replacing `sleep`, `usleep`, `time_nanosleep` and \
             `time_sleep_until` — parking the task rather than blocking the core, so a \
@@ -2232,7 +2232,7 @@ const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time::fromEpoch`'s reference card — ADR 0117.
+/// `Core\Time::fromEpoch`'s reference card — `rule:core-api/reference-card`.
 const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     short: "Builds the instant at a Unix timestamp, replacing `DateTime::setTimestamp`; the \
             `nanos` option is added after the second, so `-1` with `{nanos: 1}` is one \
@@ -2258,7 +2258,7 @@ const TIME_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time::fromIso`'s reference card — ADR 0117.
+/// `Core\Time::fromIso`'s reference card — `rule:core-api/reference-card`.
 const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
     short: "Reads an ISO-8601 / RFC 3339 timestamp that carries its own offset — \
             `2024-03-01T12:00:00Z`, `2024-03-01T13:00:00+01:00` — which is all of `strtotime` \
@@ -2276,7 +2276,7 @@ const TIME_FROM_ISO_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time::parse`'s reference card — ADR 0117.
+/// `Core\Time::parse`'s reference card — `rule:core-api/reference-card`.
 const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     short: "Reads a civil date and time through a CLDR pattern and places it in `$zone`, \
             replacing `DateTime::createFromFormat` and `strptime`; a `$format` written as a \
@@ -2320,7 +2320,7 @@ const TIME_PARSE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Time::at`'s reference card — ADR 0117.
+/// `Core\Time::at`'s reference card — `rule:core-api/reference-card`.
 const TIME_AT_DOC: MethodDoc = MethodDoc {
     short: "Builds a civil date and time in `$zone` from its fields, replacing `mktime`, \
             `gmmktime` and `DateTime::setDate`; the clock fields default to midnight, and a \
@@ -2503,7 +2503,7 @@ pub const DATE: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time\Date::at`'s reference card — ADR 0117.
+/// `Core\Time\Date::at`'s reference card — `rule:core-api/reference-card`.
 const DATE_AT_DOC: MethodDoc = MethodDoc {
     short: "Builds a zone-free civil date from its three fields — the one place a date that \
             does not exist throws, which is why there is no `checkdate`.",
@@ -2531,7 +2531,7 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Date::format`'s reference card — ADR 0117.
+/// `Core\Time\Date::format`'s reference card — `rule:core-api/reference-card`.
 const DATE_FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Renders the date through a CLDR pattern of date fields — `yyyy-MM-dd`, `EEEE, d \
             MMMM yyyy` — the same grammar `DateTime::format` takes, narrowed to what a date \
@@ -2550,7 +2550,7 @@ const DATE_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Date::plus`'s reference card — ADR 0117.
+/// `Core\Time\Date::plus`'s reference card — `rule:core-api/reference-card`.
 const DATE_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the date forward by `$count` calendar steps of `$unit`, with the same \
             clamping `DateTime::plus` applies: the last day of January plus a month is the \
@@ -2581,7 +2581,7 @@ const DATE_PLUS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Time\Date::minus`'s reference card — ADR 0117.
+/// `Core\Time\Date::minus`'s reference card — `rule:core-api/reference-card`.
 const DATE_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the date back by `$count` calendar steps of `$unit` — `plus` with the count \
             negated.",
@@ -2611,7 +2611,7 @@ const DATE_MINUS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Time\Date::with`'s reference card — ADR 0117.
+/// `Core\Time\Date::with`'s reference card — `rule:core-api/reference-card`.
 const DATE_WITH_DOC: MethodDoc = MethodDoc {
     short: "Replaces any of the three fields and leaves the rest; a combination that is not a \
             date throws rather than clamps, since `2024-02-29` with `{year: 2023}` has no \
@@ -2641,7 +2641,7 @@ const DATE_WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\Date::compareTo`'s reference card — ADR 0117.
+/// `Core\Time\Date::compareTo`'s reference card — `rule:core-api/reference-card`.
 const DATE_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two dates on the calendar, as `Comparable` requires.",
     params: &[ParamDoc {
@@ -2799,7 +2799,7 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Time\TimeOfDay::at`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::at`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
     short: "Builds a zone-free wall-clock reading from its fields, with the two a clock \
             usually leaves off defaulting to zero.",
@@ -2832,7 +2832,7 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\TimeOfDay::format`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::format`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_FORMAT_DOC: MethodDoc = MethodDoc {
     short: "Renders the clock reading through a CLDR pattern of time fields — `HH:mm:ss`, \
             `h:mm a` — the same grammar `DateTime::format` takes, narrowed to what a clock \
@@ -2851,7 +2851,7 @@ const TIME_OF_DAY_FORMAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\TimeOfDay::plus`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::plus`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_PLUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the reading forward by `$count` steps of `$unit`, wrapping within the day: \
             `23:30` plus an hour is `00:30`, since a time of day has no date for a carry to \
@@ -2881,7 +2881,7 @@ const TIME_OF_DAY_PLUS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Time\TimeOfDay::minus`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::minus`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_MINUS_DOC: MethodDoc = MethodDoc {
     short: "Moves the reading back by `$count` steps of `$unit`, wrapping within the day — \
             `plus` with the count negated.",
@@ -2910,7 +2910,7 @@ const TIME_OF_DAY_MINUS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Time\TimeOfDay::with`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::with`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
     short: "Replaces any of the four clock fields and leaves the rest.",
     params: &[
@@ -2943,7 +2943,7 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Time\TimeOfDay::compareTo`'s reference card — ADR 0117.
+/// `Core\Time\TimeOfDay::compareTo`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Orders two clock readings within the day, as `Comparable` requires.",
     params: &[ParamDoc {
@@ -3200,7 +3200,7 @@ fn instant_of(args: &[Value], at: usize, member: &str) -> Result<Timestamp, Faul
     })
 }
 
-/// ADR 0063 R4 for every class here but `Duration`, which has
+/// `rule:core-api/shape-rules` R4 for every class here but `Duration`, which has
 /// [`overflowed`]'s one sentence: a result past what the type can hold throws
 /// rather than wrapping. `member` is the whole `Core\…::name` label, since
 /// four classes reach this.
@@ -3682,7 +3682,7 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_time_zone_of(_ctx, args: [1]) {
         let id = text_of(args, 0, "Core\\Time\\Zone::of")?;
         // A sign-leading id is `fixed`'s spelling, not an IANA one, so `of`
-        // refuses it: two ways to build one value is exactly what ADR 0063
+        // refuses it: two ways to build one value is exactly what `rule:core-api/shape-rules`
         // R20 forbids.
         if TimeZone::get(id).is_err() || id.starts_with('+') || id.starts_with('-') {
             return Err(Fault::thrown(format!(
@@ -4258,7 +4258,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The `uint`-or-`null` in argument slot `at` — an ADR 0063 R2 option whose
+/// The `uint`-or-`null` in argument slot `at` — an `rule:core-api/shape-rules` R2 option whose
 /// omitted spelling is [`Const::Null`], for a member that has no in-range
 /// sentinel to use instead.
 ///
@@ -4300,7 +4300,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The zone is the third argument rather than something the pattern can
     /// name, which is why a zonal field in the pattern is refused: two answers
-    /// for one question is what ADR 0063 R20 leaves no room for. That refusal
+    /// for one question is what `rule:core-api/shape-rules` R20 leaves no room for. That refusal
     /// is [`crate::cldr::civil_fields_only`]'s and is made against the compiled
     /// *pattern*, before a byte of the text is read, which is what puts it on
     /// the `LogicError` side of the split below rather than on the
@@ -4435,7 +4435,7 @@ fn parts(year: i64, month: i64, day: i64) -> Option<(i16, i8, i8)> {
     ))
 }
 
-/// The date `year-month-day`, or the throw ADR 0063 R4 owes for a triple that
+/// The date `year-month-day`, or the throw `rule:core-api/shape-rules` R4 owes for a triple that
 /// is not one — which is the whole of why § 4 has no `checkdate`.
 fn date_from_parts(year: i64, month: i64, day: i64, member: &str) -> Result<Value, Fault> {
     let Some((year, month, day)) = parts(year, month, day) else {

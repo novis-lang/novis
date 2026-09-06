@@ -1,5 +1,5 @@
 --TEST--
-`Core\Arr::product` is `Core\Arr::sum`'s fold with the other operator: each agrees with the same fold written out, splits at every point, is inert under its own identity and refuses the same two subjects — spec § 2, ADR 0063 R5
+`Core\Arr::product` is `Core\Arr::sum`'s fold with the other operator: each agrees with the same fold written out, splits at every point, is inert under its own identity and refuses the same two subjects — spec § 2, `rule:core-api/shape-rules` R5
 --FILE--
 <?nvs
 // `crates/nvs-stdlib/src/arr.rs:4186`'s doc states the relation in words —
