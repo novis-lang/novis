@@ -114,28 +114,13 @@
 //!
 //! # Known gaps
 //!
-//! **A payload is a relocatable object image, not a dump of the JIT's finished pages.** ADR 0042's
-//! *Investigation* describes a warm hit as mapping "the bytes directly as the pages the JIT would
-//! otherwise have produced", and that is not reachable from this compiler for two independent
-//! reasons. First, `cranelift_jit::JITModule` has no serialization at all: it finalizes into memory
-//! it owns and hands back a code pointer, and there is no API yielding the bytes plus the
-//! relocations another process would need. Second, and the one that would survive such an API, a
-//! byte-perfect page dump would be *wrong* in the next process, because a compiled page holds host
-//! addresses — a class descriptor's, and a statically resolved call target's — that are valid only
-//! for the process that allocated the descriptors and compiled the callee. Every one of them now
-//! arrives as a *relocation* rather than an immediate, which is what makes the dump's replacement
-//! possible: a descriptor is a named symbol `nvs-codegen`'s own `class_desc_symbol` mints and its
-//! `Classes` docs own, and a call target was always a `func_addr`.
-//!
-//! So the payload is `cranelift-object`'s `ObjectProduct` — the same `nvs_ir` emitted a second way,
-//! through a `Module` that records relocations instead of resolving them — and a warm hit maps,
-//! verifies, applies those relocations, and only then makes the pages executable. **That last part
-//! amends § 3's letter**, which mapped `PROT_READ` and `mprotect`ed the very same mapping, where a
-//! relocated image needs a private writable one first; the checksum discipline is untouched, since
-//! the hash still covers the file's bytes and the patching happens after it. Per the loop goal's
-//! standing decision the redesign is recorded rather than started: it is a `nvs-codegen` slice — a
-//! second `Module` implementation, and a named symbol for every address the JIT bakes in — and it
-//! is in the handoff's backlog, not in this crate.
+//! **Neither half carries a real payload yet.** § 2 says what one is — the host-format relocatable
+//! object [`nvs_codegen::compile_object`] writes, whose undefined symbols are the runtime helpers
+//! and the `nvs_class_desc_*` a descriptor's address arrives as — and § 3 says what a reader does
+//! with it: map private and writable, verify, resolve those symbols against this process's own
+//! addresses, and only then `mprotect`. What is written here is the verify and the `mprotect` with
+//! nothing in between, so [`Verified`] hands back bytes no one has relocated, and no compile
+//! pipeline hands [`store`](Cache::store) anything but a test's own bytes.
 //!
 //! [ADR 0048](/docs/adr/0048-portable-single-file-executables.md) is not the other half of
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
@@ -144,9 +129,9 @@
 //! [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
 //! [ADR 0078]: ../../../docs/adr/0078-config-reload-and-control-socket.md
 
-// Nothing outside this module's own tests calls either half yet: the *Known gaps* entry above says
-// what has to land in `nvs-codegen` before there is a payload to publish, and the compile-pipeline
-// call sites wait on the same thing. Until then `dead_code` is naming a slice that has not happened
+// Nothing outside this module's own tests calls either half yet: `nvs-codegen` can produce a payload
+// now, and what is left is the wiring the *Known gaps* entry above names — the compile-pipeline call
+// sites wait on that. Until then `dead_code` is naming a slice that has not happened
 // rather than an item nothing will use.
 #![allow(dead_code)]
 
@@ -1073,6 +1058,70 @@ mod tests {
         assert_eq!(
             cache.load(key).expect("the original verifies").payload(),
             payload
+        );
+
+        drop(fs::remove_dir_all(&dir));
+    }
+
+    /// ADR 0042 § 2: what a writer publishes is the object `nvs_codegen::compile_object` wrote,
+    /// and the name § 3's loader will resolve a descriptor against is derived on *this* side of
+    /// the crate boundary, from the class's label alone.
+    ///
+    /// The two halves are one case because neither says much alone. A round trip over bytes is
+    /// already pinned by [`an_artifact_is_verified_whole_before_any_page_is_executable`], and the
+    /// spelling of the symbol is `nvs-codegen`'s own unit test. What is new is that they meet: the
+    /// artifact this crate stored carries, *undefined*, exactly the name
+    /// [`nvs_codegen::class_desc_symbol`] mints for a class the program declared — which is the
+    /// whole of what a warm hit has to resolve before a page of it may run.
+    #[test]
+    fn a_published_artifact_is_the_object_the_compiler_wrote() {
+        use object::{Object, ObjectSymbol};
+
+        let dir = scratch("payload");
+        let source = dir.join("program.nvs");
+        fs::write(
+            &source,
+            "<?nvs\nclass Widget { public int $n = 1; }\nWidget $w = new Widget();\necho $w->n;\n",
+        )
+        .expect("a scratch directory of this test's own is writable");
+
+        let checked = crate::front_end(&source).expect("a program with no error diagnostics");
+        let program = nvs_ir::lower::lower_program(
+            nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+            &checked.program_files(),
+            &checked.exprs,
+            &checked.interner,
+            &checked.enums,
+            &checked.layouts,
+        );
+        let payload = nvs_codegen::compile_object(&program).expect("a host-format object");
+
+        let cache = Cache::new(dir.join("cache"), env()).expect("a directory of this test's own");
+        let key = artifact_key(content_hash(&payload), cache.env());
+        assert_eq!(
+            cache.store(key, &payload).expect("writable"),
+            Stored::Written
+        );
+
+        let hit = cache.load(key).expect("a published artifact verifies");
+        assert_eq!(
+            hit.payload(),
+            payload.as_slice(),
+            "a payload is published and read back byte for byte — nothing here transforms it"
+        );
+
+        let artifact = object::File::parse(hit.payload()).expect("a relocatable object");
+        let wanted = nvs_codegen::class_desc_symbol("Widget");
+        let descriptor = artifact
+            .symbols()
+            .find(|symbol| symbol.name() == Ok(wanted.as_str()))
+            .unwrap_or_else(|| {
+                panic!("the artifact names no `{wanted}`, so nothing would relocate a descriptor")
+            });
+        assert!(
+            descriptor.is_undefined(),
+            "`{wanted}` is defined by the artifact, so it carries an address from the compiling \
+             process instead of a relocation"
         );
 
         drop(fs::remove_dir_all(&dir));

@@ -1786,10 +1786,6 @@ impl Signatures {
     }
 }
 
-/// Reduces an Novis function name to something a linker symbol may contain.
-///
-/// Not a mangling scheme: [`UnitBuilder::compile_function`]'s index already supplies
-/// uniqueness, so this only has to keep the name readable in a disassembly.
 /// The symbol name a class descriptor's address is relocated against.
 ///
 /// **This is a mangling scheme, unlike [`sanitize`]**, and it has to be: both
@@ -1800,7 +1796,13 @@ impl Signatures {
 /// with, so two different labels must never collide. `sanitize` would collide
 /// `Foo\Bar` with `Foo_Bar`; escaping every non-alphanumeric byte as `_xx`
 /// cannot, because an escape's introducer is itself escaped.
-pub(crate) fn class_desc_symbol(label: &str) -> String {
+///
+/// It is `pub` for that second end. The loader ADR 0042 § 3 describes is in
+/// another crate, and a name two crates must spell identically is a function
+/// one of them exports rather than a rule both restate — a second
+/// implementation of this loop is a mangling scheme that agrees with this one
+/// only until someone edits one of them.
+pub fn class_desc_symbol(label: &str) -> String {
     let mut out = String::from("nvs_class_desc_");
     for byte in label.bytes() {
         if byte.is_ascii_alphanumeric() {
@@ -1812,6 +1814,10 @@ pub(crate) fn class_desc_symbol(label: &str) -> String {
     out
 }
 
+/// Reduces an Novis function name to something a linker symbol may contain.
+///
+/// Not a mangling scheme: [`UnitBuilder::compile_function`]'s index already supplies
+/// uniqueness, so this only has to keep the name readable in a disassembly.
 fn sanitize(name: &str) -> String {
     name.chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
