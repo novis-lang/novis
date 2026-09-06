@@ -116,12 +116,17 @@ script never touch: a re-run after fixing a clippy lint paid the 42 seconds agai
 that could not have changed. And `.github/workflows/ci.yml` runs the identical command with the
 identical `RUSTDOCFLAGS`, so a push was never going to carry a broken link either way.
 
-So it is `--doc`, alone, and `tools/loop.py` calls it every `DOC_GATE_EVERY` sessions -- between
-sessions, where the seconds are the driver's rather than a session's -- and keeps calling it every
-session until it is green again (that constant is the one home for the interval). What
-that trades away is in-session detection: a broken link can now surface up to `DOC_GATE_EVERY`
-sessions after the comment that broke it, named by file and line in the ledger and in the next
-pack. Those sessions at 42 seconds each buy that back many times over.
+So it is `--doc`, alone, and `tools/loop.py` runs it between sessions, where the seconds are the
+driver's rather than a session's, and keeps running it every session until it is green again.
+*When* it runs is that file's `doc_gate`, and it asks the cheap question first: a hash of every
+doc comment under `crates/` and `benches/`, so the session that edited one pays the 42 seconds
+and the session that did not pays nothing. `DOC_GATE_EVERY` is the backstop underneath it, for
+the break a doc comment's own text cannot show -- a link left stale by the *item* it names being
+renamed.
+
+What that still trades away is in-session detection: the finding lands in the ledger and the next
+pack, named by file and line, rather than in front of the session that caused it. It was a window
+of up to `DOC_GATE_EVERY` sessions wide, and it let two red `lint` jobs reach CI on 2026-09-06.
 
 ## Why the documentation gates are not steps here
 

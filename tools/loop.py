@@ -4334,12 +4334,16 @@ def run_cli():
     return 0
 
 
-#: How many sessions run between two `verify.py --doc` gates, and the only home for that number.
+#: How many sessions may run without a `verify.py --doc` gate, and the only home for that number.
 #: The rustdoc gate measured 41.8s over the 72 sessions in `.loop/logs` -- 40% of a green
 #: verification, ~85s a session, 7% of the loop's whole wall clock -- for a lint whose inputs are
 #: doc comments and which `.github/workflows/ci.yml` runs on every push regardless. `verify.py`'s
-#: *Why `doc` is a periodic gate* owns that argument. At ten it costs the loop about four seconds
-#: a session; raising it trades a longer blind window for very little more.
+#: *Why `doc` is a periodic gate* owns that argument.
+#:
+#: It is the *backstop* rather than the trigger. `doc_comment_fingerprint` fires the gate in the
+#: session that edited a doc comment, which is nearly every break this gate has ever found; this
+#: covers the one it cannot see, where a link goes stale because the item it names was renamed
+#: and no doc comment was touched at all.
 DOC_GATE_EVERY = 5
 
 #: How many sessions run between two runs of the release-profile checks, and the only home for
@@ -4392,8 +4396,9 @@ def write_last_fail(name):
         pass
 
 
-def write_doc_gate(since, failed=None, session=""):
-    """`.loop/doc-gate.json`: sessions since the last gate, and its standing verdict.
+def write_doc_gate(since, failed=None, session="", fingerprint=""):
+    """`.loop/doc-gate.json`: sessions since the last gate, its standing verdict, and the doc
+    comments it last saw.
 
     A file rather than a ledger line because `orient.py` needs the *current* state -- a ledger
     holds every verdict a run ever wrote, and the newest `doc gate:` line in it stays red forever
@@ -4402,42 +4407,90 @@ def write_doc_gate(since, failed=None, session=""):
         RUNDIR.mkdir(parents=True, exist_ok=True)
         DOCGATE.write_text(
             json.dumps({"since": since, "when": time.time(),
-                        "failed": failed or "", "session": session}, indent=1),
+                        "failed": failed or "", "session": session,
+                        "docs": fingerprint or ""}, indent=1),
             encoding="utf-8", newline="\n")
     except OSError:
         pass
 
 
+def read_doc_fingerprint():
+    """What `doc_comment_fingerprint` answered the last time the gate looked. An unreadable or
+    absent file answers nothing, which differs from every fingerprint and so fires the gate --
+    `read_counter`'s rule, and for its reason."""
+    try:
+        seen = json.loads(DOCGATE.read_text(encoding="utf-8")).get("docs", "")
+        return seen if isinstance(seen, str) else ""
+    except (OSError, ValueError, TypeError):
+        return ""
+
+
+def doc_comment_fingerprint():
+    """A hash of every doc comment under `crates/` and `benches/`, and of nothing else in them.
+
+    This is the gate's actual input: `cargo doc` resolves the links written in `///`, `//!` and
+    `#[doc]`, so a run that changed none of them cannot answer differently -- with one exception,
+    which is why `DOC_GATE_EVERY` still exists. A link breaks when the *item* it names is renamed
+    or removed, and that edit touches the item, not the comment pointing at it.
+
+    Cheap enough to do between every pair of sessions: it reads the workspace's `.rs` files once
+    and hashes a few percent of their lines. Answers `""` when a file cannot be read, which no
+    fingerprint equals, so the safe direction is again doing the work."""
+    digest = hashlib.sha256()
+    for tree in ("crates", "benches"):
+        for path in sorted((ROOT / tree).rglob("*.rs")):
+            try:
+                text = path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return ""
+            lines = [line.strip() for line in text.splitlines()
+                     if line.lstrip().startswith(("///", "//!")) or "#[doc" in line]
+            if lines:
+                digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
+                digest.update("\n".join(lines).encode("utf-8"))
+    return digest.hexdigest()
+
+
 def doc_gate(index):
-    """`verify.py --doc` every `DOC_GATE_EVERY` sessions, and after every session while it is red.
+    """`verify.py --doc` after a session that edited a doc comment, after `DOC_GATE_EVERY` that
+    did not, and after every session while it is red.
 
     Between sessions is where this belongs: the seconds are the driver's, beside the acceptance
-    check, rather than inside a session's context ceiling. The counter persists across runs
-    because a run that ends at its fourth session would never reach a gate keyed on the session
-    index, and runs end early all the time.
+    check, rather than inside a session's context ceiling. Both pieces of state persist across
+    runs, because a run that ends at its fourth session would never reach a gate keyed on the
+    session index, and runs end early all the time.
+
+    The fingerprint is what closes the blind window the count left open. A session that breaks a
+    link is, almost always, the session that wrote the comment holding it -- so gating on the
+    comments themselves catches it before the next push instead of up to `DOC_GATE_EVERY` sessions
+    later, and costs the 42 seconds only in the sessions that could have broken something. Two of
+    the last two red `lint` jobs on CI were exactly this, one of them in a crate whose finding the
+    other was hiding.
 
     A red gate does not reset the counter, so it runs again after the next session and the one
     after that until it is green. Nothing here fails a run or stops one: a broken intra-doc link
     is not a broken tree, and `verify.py` judges the tree. Reaching a session is `orient.py`'s
     job, off the file this writes."""
     since = read_counter(DOCGATE, DOC_GATE_EVERY) + 1
-    if since < DOC_GATE_EVERY:
-        write_doc_gate(since)
+    docs = doc_comment_fingerprint()
+    edited = not docs or docs != read_doc_fingerprint()
+    if since < DOC_GATE_EVERY and not edited:
+        write_doc_gate(since, fingerprint=docs)
         return
-    step(f"rustdoc gate: every link in a doc comment, resolved "
-         f"(1 session in {DOC_GATE_EVERY})", C.CYAN)
+    why_now = "a doc comment changed" if edited else f"1 session in {DOC_GATE_EVERY}"
+    step(f"rustdoc gate: every link in a doc comment, resolved ({why_now})", C.CYAN)
     began = time.monotonic()
     r = capture(sys.executable, ["tools/verify.py", "--doc"], timeout=900)
     spent = mmss(time.monotonic() - began)
     if r.code == 0:
         step(f"rustdoc gate green in {spent}", C.CYAN)
-        write_doc_gate(0)
+        write_doc_gate(0, fingerprint=docs)
         return
     text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
     first = next((ln.strip() for ln in text.split("\n") if ln.strip().startswith("error")), "")
     why = first or f"`python tools/verify.py --doc` exited {r.code}"
     step(f"rustdoc gate FAILED in {spent} -- {why}", C.RED)
-    write_doc_gate(since, failed=why, session=f"{index:04d}")
+    write_doc_gate(since, failed=why, session=f"{index:04d}", fingerprint=docs)
     ledger(f"       doc gate: {why}")
 
 

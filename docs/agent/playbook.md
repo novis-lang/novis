@@ -785,6 +785,11 @@ is why" — is this file.
   on two intra-doc links in `crates/nvs-stdlib/src/router.rs` that no session that iteration had
   written. Budget for it: a gate that has been red is not a gate that has been passing up to that
   point, and "did I cause this" is answered by the line number, not by the timing. [until: reviewed 2026-09-06]
+- **`cargo doc` stops at the first crate that fails, so the rustdoc gate reports one crate's findings
+  and hides every later crate's.** `--workspace` documents in dependency order and aborts the whole
+  build there, which reads as "one broken link left to fix" when it may be one in each of six crates.
+  Re-run `python tools/verify.py --doc` after fixing the crate it named, before believing the count —
+  a finding in a crate that was never reached looks exactly like one the fix introduced. [until: reviewed 2026-09-06]
 - **A `loop-goal.toml` stage's *comment header* can carry a rule the orientation pack never prints, and
   stage 2's forbids the obvious fix.** The route-table check names nine tests, and six of the behaviours
   were already asserted in `crates/nvs-types/tests/routes.rs` under better names — so renaming those to the
