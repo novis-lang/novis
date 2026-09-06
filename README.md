@@ -67,11 +67,14 @@ behind each design decision — is [docs/implementation-plan.md](docs/implementa
 
 ## Contributing
 
-Novis is early enough that an opinion is worth as much as a patch, and most ways of helping involve no
-code: ideas, questions and disagreements go to
+Novis is early enough that an opinion is worth more than a patch. Ideas, questions and disagreements go to
 [Discussions](https://github.com/novis-lang/novis/discussions), bugs and concrete proposals to
 [Issues](https://github.com/novis-lang/novis/issues), and [Discord](https://discord.gg/8ftMjPeH8h) is
-where the day-to-day conversation happens.
+where the day-to-day conversation happens — all of that is open to anyone, at any time.
+
+**Pull requests are the exception: they are not open yet.** The core team is building the language out to
+one vision first, and they open once it is settled, so that maintenance becomes a shared job between the
+community and the core team. Code contributions are the only thing this affects.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) routes all of that, and its second half is the developer's half of this
 file: the design in one page, the repository layout, how to build and check the tree, and the conventions a

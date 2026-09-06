@@ -1,8 +1,10 @@
 # Contributing to Novis
 
 Novis is pre-alpha. Nothing runs yet and most of the language is still being decided, which makes this the
-point where an opinion is worth as much as a patch. **Most ways of helping involve no code at all** — this
-file routes all of them, and the second half is for the ones that do.
+point where an opinion is worth more than a patch — and, for now, the point where a patch is the one thing
+we cannot take. **Ideas, reports and questions are open to anyone at any time; pull requests are not open
+yet.** This file routes the first, explains the second, and its second half is the developer's map of the
+tree.
 
 > **Status: pre-alpha, milestone M0.** The language does not run yet — `Hello World` is M3. Nothing is
 > stable, and the crates listed further down are mostly the shape the workspace grows into rather than
@@ -16,14 +18,34 @@ file routes all of them, and the second half is for the ones that do.
 | A bug, something broken, a doc that is wrong, a concrete proposal | [Issues](https://github.com/novis-lang/novis/issues) |
 | A hole in one of the language's security claims | **neither of those** — [SECURITY.md](SECURITY.md), privately |
 | The wish to hang around, follow along, or help day to day | [Discord](https://discord.gg/8ftMjPeH8h) |
-| A code change | [Working on the code](#working-on-the-code), below |
+| A code change | not yet — [pull requests are not open](#pull-requests-are-not-open-yet), below |
 
 If you are not sure which of the first two it is, open a discussion. Someone will move it.
 
+## Pull requests are not open yet
+
+**We are not accepting pull requests from outside the core team right now — and this restriction is about
+code and nothing else.** Ideas, bug reports, questions, disagreements and everything else on this page are
+welcome at any time, from anyone, and always will be. Nothing below narrows that.
+
+The restriction is a deliberate stage rather than a review backlog: Novis is being built out to one vision,
+and until the core has stopped moving there is no way to judge an outside change against a design that is
+still settling. A language also absorbs an inconsistent decision far more expensively than a program
+does — every one of them becomes a compatibility promise the moment code runs on it.
+
+This is temporary. Once the language is complete enough that we are happy with it and the core is settled,
+pull requests open and maintenance becomes a shared job between the community and the core team. That will
+be announced here, in [Discussions](https://github.com/novis-lang/novis/discussions) and on
+[Discord](https://discord.gg/8ftMjPeH8h).
+
+Until then, everything else on this page is open and none of it is a consolation prize — at this stage an
+argument against a decision changes more than a patch would. Read the tree, build it, fork it, disagree
+with it. The one thing that cannot be merged today is a diff.
+
 ## Helping without writing code
 
-A language is decided long before it is compiled, and what decides whether Novis is any good is mostly not
-Rust:
+All of this is open now, permanently, to anyone. A language is decided long before it is compiled, and what
+decides whether Novis is any good is mostly not Rust:
 
 - **Say what you think of the design.** The type system, the `tainted`/`secret` rules, the naming of the
   `Core` library, the decision that every function is a method — all of it is written down and none of it
@@ -37,8 +59,9 @@ Rust:
   exactly one home; two files disagreeing is a bug, and a report of one is welcome.
 - **Ask questions.** A question that is hard to answer usually means the documentation is missing, and the
   answer becomes the fix.
-- **Improve the writing.** The docs, the website, the error messages: clearer wording is a pull request
-  like any other, and needs no Rust.
+- **Improve the writing.** The docs, the website, the error messages: clearer wording needs no Rust and
+  changes how the language is understood. Quote the sentence in an issue and say what it should say
+  instead — that lands the same fix without a patch.
 - **Be around.** Answering someone else's question on [Discord](https://discord.gg/8ftMjPeH8h) or in a
   discussion, or telling people the project exists, is real work and it is short-handed.
 
@@ -47,7 +70,9 @@ None of this needs permission, an introduction or a plan. Open the discussion.
 ## Working on the code
 
 The rest of this file is the developer's half of [README.md](README.md): how the workspace is laid out,
-what the compiler does with a `.nvs` file, and how to build and check the tree.
+what the compiler does with a `.nvs` file, and how to build and check the tree. Pull requests are
+[not open yet](#pull-requests-are-not-open-yet), so today this is for reading the tree, building it,
+forking it, and reporting what you find in it — and it is what the core team works from.
 
 ### Read this first
 
@@ -196,4 +221,5 @@ measurements backing it are in [docs/adr/](docs/adr/README.md).
 - Every added, changed or removed feature owes a statement of its tradeoffs in performance, memory,
   usability and simplicity. Where they are large, raise them before building.
 
-Contributions are accepted under the [MIT licence](LICENSE), the same one Novis ships under.
+Novis ships under the [MIT licence](LICENSE), and contributions — once pull requests open — are accepted
+under that same one.
