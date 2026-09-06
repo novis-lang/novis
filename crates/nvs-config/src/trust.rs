@@ -19,6 +19,9 @@
 //! rather than how the ACL happens to be spelled. Those five SIDs are the Windows spelling of "the
 //! group and the world"; the write rights are every one that changes the bytes, the name or the
 //! ACL itself, `WRITE_DAC` and `WRITE_OWNER` included, because either of those buys the rest.
+//! `platform::effective_rights` computes that in one pass over the DACL rather than through
+//! `GetEffectiveRightsFromAclW`, and its own doc owns why — the answer is the same one, and the
+//! call it replaces cost 0.8 ms per principal.
 //!
 //! **Canonicalization is part of the check, not a side effect of it.** [`check`] returns the
 //! canonical path, and that is what makes the resolver's cycle test compare files rather than
@@ -32,9 +35,11 @@
 //! that is a mistake on a shared host is the norm inside a container, and nothing readable from
 //! here says which one this is. Integrity is enforced; confidentiality is advised.
 //!
-//! Cost: two `stat`s per file on Unix, two security-descriptor reads on Windows, at boot and again
-//! at each `nvs ctl reload`, plus one more of either for each secret file's advisory. Nothing here
-//! runs per request.
+//! Cost: two `stat`s per file on Unix, two security-descriptor reads and one walk of each DACL on
+//! Windows, at boot and again at each `nvs ctl reload`, plus one more of either for each secret
+//! file's advisory. Nothing here runs per request. ADR 0042's artifact cache is the one caller
+//! outside boot — it checks its own directory once per process, which is why the Windows half is
+//! measured in microseconds rather than milliseconds.
 //!
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md
 
@@ -206,21 +211,27 @@ mod platform {
     use std::os::windows::ffi::OsStrExt;
     use std::path::{Path, PathBuf};
 
-    use windows_sys::Win32::Foundation::{CloseHandle, ERROR_SUCCESS, HANDLE, LocalFree};
+    use windows_sys::Win32::Foundation::{
+        CloseHandle, ERROR_SUCCESS, GENERIC_ALL, GENERIC_READ, GENERIC_WRITE, HANDLE, LocalFree,
+    };
     use windows_sys::Win32::Security::Authorization::{
-        ConvertSidToStringSidW, GetEffectiveRightsFromAclW, GetNamedSecurityInfoW,
-        NO_MULTIPLE_TRUSTEE, SE_FILE_OBJECT, TRUSTEE_IS_SID, TRUSTEE_IS_UNKNOWN, TRUSTEE_W,
+        ConvertSidToStringSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
     };
     use windows_sys::Win32::Security::{
-        ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION, EqualSid, GetLengthSid,
-        GetTokenInformation, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID,
-        SECURITY_MAX_SID_SIZE, TOKEN_QUERY, TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE,
-        WinAnonymousSid, WinAuthenticatedUserSid, WinBuiltinAdministratorsSid, WinBuiltinGuestsSid,
-        WinBuiltinUsersSid, WinLocalSystemSid, WinWorldSid,
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CreateWellKnownSid, DACL_SECURITY_INFORMATION,
+        EqualSid, GetAce, GetLengthSid, GetTokenInformation, INHERIT_ONLY_ACE,
+        OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SECURITY_MAX_SID_SIZE, TOKEN_QUERY,
+        TOKEN_USER, TokenUser, WELL_KNOWN_SID_TYPE, WinAnonymousSid, WinAuthenticatedUserSid,
+        WinBuiltinAdministratorsSid, WinBuiltinGuestsSid, WinBuiltinUsersSid, WinLocalSystemSid,
+        WinWorldSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        DELETE, FILE_APPEND_DATA, FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA,
-        FILE_WRITE_EA, WRITE_DAC, WRITE_OWNER,
+        DELETE, FILE_ALL_ACCESS, FILE_APPEND_DATA, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+        FILE_READ_DATA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, WRITE_DAC,
+        WRITE_OWNER,
+    };
+    use windows_sys::Win32::System::SystemServices::{
+        ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE,
     };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -394,31 +405,86 @@ mod platform {
         Ok(())
     }
 
-    /// What `sid` may actually do to the object this ACL protects — deny entries and inherited
-    /// grants both accounted for, which is why this asks for effective rights rather than walking
-    /// the ACEs itself.
+    /// What `sid` may actually do to the object this ACL protects — every deny entry ahead of a
+    /// grant subtracted, and every inherited entry seen, because the DACL a security descriptor
+    /// hands over already carries them materialized.
+    ///
+    /// **This is the answer `GetEffectiveRightsFromAclW` gives, computed here instead, and the
+    /// reason is the clock.** That call costs about 0.8 ms per principal on a Windows 11 box —
+    /// § 6 asks about five of them, on the path and on its parent, so one [`check`](super::check)
+    /// came to 8 ms, and [ADR 0042]'s artifact cache pays it on every `nvs run` before it may look
+    /// at a single artifact. The walk costs microseconds and answers the same question, because
+    /// the two rules that make the answer *effective* rather than a spelling are both in it: the
+    /// entries are evaluated in order, so a `DENY` removes the bits it names from anything a later
+    /// `ALLOW` grants, and an inherited entry is an ordinary entry in this ACL by the time anyone
+    /// reads it. An `INHERIT_ONLY` entry is skipped — it describes what children get and not this
+    /// object — and a generic bit is mapped to the file rights it stands for. Group membership is
+    /// considered by neither: the trustee is always one of § 6's own well-known SIDs, and it is
+    /// that SID's own entries that are being asked about.
+    ///
+    /// [ADR 0042]: ../../../docs/adr/0042-on-disk-artifact-cache-format.md
     #[expect(
         unsafe_code,
-        reason = "one `advapi32` call over a borrowed ACL and a trustee built on this stack frame; \
-                  neither pointer outlives the call"
+        reason = "one `GetAce` per entry of an ACL that outlives this call, each read through the \
+                  header layout every access-allowed and access-denied entry shares"
     )]
     fn effective_rights(dacl: *const ACL, sid: &Sid) -> Result<u32, Untrusted> {
-        let trustee = TRUSTEE_W {
-            pMultipleTrustee: std::ptr::null_mut(),
-            MultipleTrusteeOperation: NO_MULTIPLE_TRUSTEE,
-            TrusteeForm: TRUSTEE_IS_SID,
-            TrusteeType: TRUSTEE_IS_UNKNOWN,
-            ptstrName: as_psid(sid).cast::<u16>(),
-        };
-        let mut rights = 0u32;
-        let status = unsafe { GetEffectiveRightsFromAclW(dacl, &trustee, &mut rights) };
-        if status != ERROR_SUCCESS {
-            return Err(Untrusted::Unreadable(format!(
-                "the effective rights of a well-known account could not be read \
-                 (win32 error {status})"
-            )));
+        let count = unsafe { (*dacl).AceCount };
+        let mut allowed = 0u32;
+        let mut denied = 0u32;
+        for index in 0..u32::from(count) {
+            let mut ace: *mut core::ffi::c_void = std::ptr::null_mut();
+            if unsafe { GetAce(dacl, index, &mut ace) } == 0 {
+                return Err(Untrusted::Unreadable(format!(
+                    "entry {index} of its DACL could not be read"
+                )));
+            }
+            let header = unsafe { *ace.cast::<ACE_HEADER>() };
+            if u32::from(header.AceFlags) & INHERIT_ONLY_ACE != 0 {
+                continue;
+            }
+            let allow = match u32::from(header.AceType) {
+                ACCESS_ALLOWED_ACE_TYPE => true,
+                ACCESS_DENIED_ACE_TYPE => false,
+                // An audit entry grants nothing, and a callback or object entry cannot appear in a
+                // file's DACL — neither is an access this has to account for.
+                _ => continue,
+            };
+            // An `ACCESS_DENIED_ACE` is the same three fields in the same order, which is why one
+            // type reads both. `addr_of!` rather than a reference: the SID runs past the end of
+            // the struct that names its first word.
+            let entry = ace.cast::<ACCESS_ALLOWED_ACE>();
+            let trustee = unsafe { std::ptr::addr_of!((*entry).SidStart) };
+            if !equal(trustee.cast::<core::ffi::c_void>().cast_mut(), sid) {
+                continue;
+            }
+            let mask = specific(unsafe { (*entry).Mask });
+            if allow {
+                allowed |= mask & !denied;
+            } else {
+                denied |= mask & !allowed;
+            }
         }
-        Ok(rights)
+        Ok(allowed)
+    }
+
+    /// A right mask with every generic bit replaced by the file rights it stands for.
+    ///
+    /// Most ways of writing an ACE map them when it is written, but nothing requires it, and a
+    /// `GENERIC_WRITE` left unmapped would read as granting nothing at all — the one direction a
+    /// trust check may not be wrong in.
+    fn specific(mask: u32) -> u32 {
+        let mut mapped = mask;
+        if mask & GENERIC_ALL != 0 {
+            mapped |= FILE_ALL_ACCESS;
+        }
+        if mask & GENERIC_WRITE != 0 {
+            mapped |= FILE_GENERIC_WRITE;
+        }
+        if mask & GENERIC_READ != 0 {
+            mapped |= FILE_GENERIC_READ;
+        }
+        mapped
     }
 
     /// This process's own user SID, copied out of its token.
