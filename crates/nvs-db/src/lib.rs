@@ -166,6 +166,7 @@ pub mod maria;
 pub mod matrix;
 pub mod mysql;
 pub mod pg;
+pub mod plan;
 pub mod schema;
 pub mod span;
 pub mod sql;
@@ -184,6 +185,7 @@ pub use pg::{CancelKey, PgColumn, PgDate, PgRow, PgRows, PgScalar, PgTarget, PgT
 // crate root would read as the third of those rather than as a line of a
 // `CREATE TABLE`. It is `schema::Column`, where its neighbours say which
 // question it answers.
+pub use plan::{Change, Grade, KeyKind, Plan, Step};
 pub use schema::{
     ColumnDefault, FloatWidth, Ident, IntWidth, Key, MAX_IDENTIFIER, Node, ScalarType, Schema,
     SchemaError, Table, is_bare_identifier,
