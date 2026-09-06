@@ -457,6 +457,12 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: asan
+      # `--tests`, and not the default target set, because a doctest cannot be one of them here:
+      # `RUSTFLAGS` instruments the crate, but rustdoc links a doctest binary under `RUSTDOCFLAGS`,
+      # so that binary pulls in an instrumented rlib and resolves no `__asan_*` symbol against it —
+      # `undefined symbol: __asan_memcpy` at link time, on every doctest, whatever the code under it
+      # does. Instrumenting them too would only buy ASAN over the examples in doc comments, which is
+      # not where either of these crates keeps its unsafe code.
       - name: ASAN test (runtime and library)
         env:
           RUSTFLAGS: -Zsanitizer=address
@@ -464,6 +470,7 @@ jobs:
         run: |
           cargo +nightly test --target x86_64-unknown-linux-gnu \
             --features nvs-runtime/sanitizer \
+            --tests \
             -p nvs-runtime \
             -p nvs-stdlib
       # The backend runs in the same sanitizer with one option off, and it is not a preference.
@@ -481,4 +488,5 @@ jobs:
         run: |
           cargo +nightly test --target x86_64-unknown-linux-gnu \
             --features nvs-runtime/sanitizer \
+            --tests \
             -p nvs-codegen
