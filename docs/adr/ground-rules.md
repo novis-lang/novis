@@ -233,6 +233,9 @@ spellings rejected, and the reasoning.
   a connection is one future on one task's stack, a wake decides nothing and never re-polls, and a wake
   fired from another thread queues an id on the parked task's own core rather than moving the task
   ([0138](0138-a-connection-future-is-driven-by-the-coroutine-that-owns-it.md)).
+- A signature is computed over a canonical *payload*, never over assembled URL text, and the
+  canonical form of a URL is the one `$uri->compareTo` already defines
+  ([0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)).
 
 ## Runtime, tooling and the standard library
 

@@ -1,0 +1,249 @@
+# ADR 0146 — A signature is over a payload, and a URL is a payload `Core\Uri` already canonicalizes
+
+- **Status:** Accepted
+- **Date:** 2026-09-06
+- **Scope:** how a Novis program signs something and checks the signature later — the general member,
+  the two on `Core\Uri`, the two on `Core\Router`, what the lifetime field may say, and which failure is
+  distinguishable from which. Not in scope: the AEAD construction and the key ring, which
+  [0060](0060-application-security-protocols.md) § 1 and `Core\Crypto` own; whether a URL may be
+  *fetched*, which is `Core\Http::allowUrl` ([0058](0058-outbound-request-policy.md)); and what a route
+  *is*, which is [0077](0077-compile-time-routing.md).
+- **Amends:** [0060](0060-application-security-protocols.md) § 1 — the roster opens to five, and § 4's
+  mandatory-expiry rule is stated as JWT's rather than the roster's. [0077](0077-compile-time-routing.md)
+  § 4 — the API gains `urlSigned` and `signedRoute`.
+
+> **In short:** signing gets one general member — **`Core\Signature::sign`/`::verify` over a payload
+> map**, [ADR 0060](0060-application-security-protocols.md)'s fifth and final roster entry — and two
+> doors onto it where people will actually look: **`$uri->sign`/`$uri->verifySignature`**, and
+> `Core\Router`'s pair for the one case a path cannot express. The whole failure class other languages
+> carry comes from inventing a canonical form for the signature alone; Novis does not invent one.
+> **`$uri->sign` signs the normalization `$uri->compareTo` already defines** — RFC 3986 § 6.2.2, already
+> specified, implemented and tested — so sign and verify cannot drift, and a drift would be one bug in
+> one function that `compareTo`'s own corpus catches. **A lifetime is written, never omitted**, and
+> `{until: null}` is the forever spelling; a permanent signed link is a permanent bearer credential and
+> should be something a person typed.
+
+## Context
+
+- A signed URL is the ordinary answer to a password-reset link, an unsubscribe link, a download whose
+  authorization must survive leaving the application, and an AJAX endpoint whose parameters must not be
+  editable by the person holding the page. Every mainstream framework ships one, and Novis ships none.
+- The failure history is uniform and it is not about cryptography. Nobody breaks the HMAC; they break
+  the **canonicalization**. The signature covers the path but not the query; an extra parameter added
+  at verification time is ignored rather than rejected; the signature parameter leaks into its own
+  input; the two sides percent-encode, order or case-fold differently; the fragment is signed and the
+  server never receives it. Each is a library bug, each returns a plausible success, and each is
+  invisible until someone looks for it — which is exactly the profile
+  [0060](0060-application-security-protocols.md) § 2 admits an entry on.
+- The reason every framework has this bug class is that each invents a canonical form **used by nothing
+  but the signature**, so nothing else exercises it and no other test constrains it.
+  [`crates/nvs-stdlib/src/uri.rs`](../../crates/nvs-stdlib/src/uri.rs) already carries a canonical form that
+  is load-bearing for something else: `$uri->compareTo` normalizes per RFC 3986 § 6.2.2 to answer
+  whether two references are the same URI. Reusing it is what turns this from a new risk into a second
+  caller of an existing one.
+- The counter-pressure is [0060](0060-application-security-protocols.md) § 2's own: the roster is closed
+  and its closure is the point. This ADR opens it once, names the entry as the last, and states the
+  boundary again rather than weakening it — signing is stateless over a key, which is the structural
+  test § 2 already applies.
+
+## Decision
+
+### 1. `Core\Signature` is the fifth roster entry, and it signs a payload
+
+```php
+Core\Signature::sign(array<string, mixed> $payload,
+                     {keys: array<secret bytes>, until: ?Time\Instant}): string;
+Core\Signature::verify(string $token, array<secret bytes> $keys): array<string, mixed>;
+```
+
+- **The input is a map, never text.** `sign` canonicalizes the payload itself — keys sorted, each value
+  encoded with its type — so there is no assembled string for the two sides to disagree about. A caller
+  puts the returned token wherever it likes: a query parameter, a header, a form field, a path segment.
+- **`until` is inside the signed bytes**, not beside them, so it cannot be edited by the holder. One
+  token carries the lifetime and the tag; there is no second parameter to keep in step.
+- **The token is URL-safe by construction** — unpadded URL-safe base64, RFC 4648 § 5, the alphabet
+  `A-Za-z0-9-_` that [`Core\SignedCookie`](../../crates/nvs-stdlib/src/signed_cookie.rs) already emits for the
+  same reason. Every octet is an RFC 6265 `cookie-octet` and a legal query-string value, so nothing
+  downstream escapes it again.
+- **The key ring is `array<secret bytes>`, newest at `[0]`**, identical to `Core\SignedCookie`'s and for
+  the same argument: `sign` uses `$keys[0]` and nothing else, `verify` tries the ring in order, rotating
+  is prepending and retiring is dropping the tail. One rotation vocabulary in the language, not two.
+- **`verify` answers the payload or throws**, and the payload is **`tainted`**.
+  [0060](0060-application-security-protocols.md) § 5 is the rule and this is not `SignedCookie`'s
+  exception: that entry launders because the plaintext was the application's own and plain when it went
+  in, and a token minted by one service and read by another — the case this member exists for — is not
+  that. "We authored this payload" is not a property the checker can see, so it is not one the return
+  type may assume.
+
+### 2. A `Uri` signs itself, over the canonical form `compareTo` already defines
+
+```php
+$uri->sign({keys: array<secret bytes>, until: ?Time\Instant}): Uri;
+$uri->verifySignature(array<secret bytes> $keys): void;
+```
+
+`Core\Uri` is already the URL builder — `parse`, `with`, `resolve`, `toString` — so it is where someone
+holding a URL and wanting it signed will look. [0060](0060-application-security-protocols.md)'s own
+claim is "not exclusivity but that the obvious, discoverable, documented option is the correct one", and
+requiring a reader to find `Core\Signature` and join it to a URL themselves *is* the joining step where
+the bug enters.
+
+- **`sign` signs `compareTo`'s canonical form and nothing else** — scheme and host folded to lower case,
+  every `%XX` escape's digits to upper, an escape spelling an unreserved character decoded, dot segments
+  removed from an absolute path, stopping short of RFC 3986 § 6.2.3 exactly as `compareTo` does. It is
+  one function reached twice, not a second normalization; `uri.rs`'s module doc is amended from "the
+  normalization lives on `compareTo` and nowhere else" to say so.
+- **`sign` answers a `Uri`**, with the reserved `_sig` query parameter set, so it composes with `with`
+  and `toString` like every other member on the class. Signing a `Uri` that already carries `_sig`
+  replaces it rather than nesting.
+- **Every component present is covered**, so appending any query parameter invalidates the signature.
+  There is no "which parameters are signed" option, because that option is where every framework's
+  bypass has lived.
+- **`_sig` is excluded from its own input, and a URL carrying two of them fails** rather than picking
+  one.
+- **The fragment is never signed.** RFC 3986 § 3.5 fragments are not sent to the server, so signing one
+  mints links that cannot verify.
+- **Relative and absolute sign differently, and visibly.** A signed relative reference leaves scheme,
+  host and port uncovered, so the token is valid on any origin — right for a link into your own
+  application, wrong for anything else. `$uri->scheme()` is what says which you are holding, and an
+  absolute one must be built from a configured origin, never a sniffed `Host`, which is
+  [0097](0097-development-server-and-proxied-origin.md) § 6's existing refusal.
+- **`verifySignature` answers nothing and throws.** There are no claims to return — the claim is the URL
+  the caller already holds — and a `bool` would be a value a caller can drop on the floor.
+
+### 3. The lifetime is written, and `null` is the forever spelling
+
+`until` is a **required key holding a nullable value**, so `{until: $instant}` and `{until: null}` are
+both spellings and omitting the key does not compile. This is
+[0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md) § 3's rule applied one
+surface over: an omission is not a default.
+
+Expiry is not mandatory, and [0060](0060-application-security-protocols.md) § 4's mandatory-`exp` bullet
+is JWT's rather than the roster's — its own reasoning is JWT-specific, and `Core\SignedCookie` has
+carried no lifetime at all since it landed. But a signed URL is a bearer credential written into
+browser history, `Referer` headers, proxy logs and chat unfurls, and a permanent one never stops being
+one. Making "forever" a thing you type is the whole of what this rule buys.
+
+### 4. `Core\Router` keeps its own pair, for the mount prefix and nothing else
+
+```php
+Core\Router::urlSigned(string $name, array<string, mixed> $params,
+                       {keys: array<secret bytes>, until: ?Time\Instant}): string;
+Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;
+```
+
+`Uri::parse(Router::url("x", {id: 7}))->sign(…)` reaches most of this, and convenience would not justify
+two more members. **One property does**: [0097](0097-development-server-and-proxied-origin.md) § 3 lets
+one compiled table serve at `/ModuleA`, at `/ModuleB` or at `/`, so a signed *path* stops verifying the
+moment a mount moves. `urlSigned` signs the route **name** and its typed parameters, which survive a
+remount; `signedRoute` verifies against the match the server already made
+([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1) rather
+than re-parsing anything, and answers that `Router\Match` or throws.
+
+**Verification is the application's, called by hand, at whatever place it keeps.** `Core\Router` does
+not dispatch and this does not change that: nothing verifies a signature for you, because the program
+that renders the refusal is the program that should decide when to ask.
+
+### 5. One refusal, except expiry — and that exception is safe
+
+Every way of not being authentic is **one error with one sentence**: text that is not a token, a payload
+too short, one flipped bit, a key retired past the end of the ring, a missing `_sig`, two of them.
+`Core\SignedCookie`'s reason applies unchanged — a distinguishable "wrong key" says which key of a
+rotating ring a forgery should be aimed at.
+
+**Expiry is the one distinguishable failure**, because the signature is checked *first* and the clock
+only after. `SignatureExpired` is therefore reachable only by someone already holding a valid
+signature, so it discloses nothing they do not have. That buys the distinction an application actually
+needs — "this link has expired, request another" against "this link is not valid" — without a
+disclosure, and it is the reason the ordering is a rule rather than an implementation detail.
+
+### 6. Sign-and-reveal is not seal-and-hide, so `SignedCookie` is not rebuilt on this
+
+`Core\SignedCookie` is AEAD: [0060](0060-application-security-protocols.md) § 1 admits no
+unauthenticated mode, so its payload is **hidden**. A signed URL's payload must be **visible** — the
+parameters are in the link and that is the point of it. The two are different operations rather than
+one with a flag, and collapsing them would mean either readable cookies or opaque URLs.
+
+`SignedCookie` may be *implemented* as this construction plus encryption, which is a clean internal
+layering. It does not become the same member, and neither class loses a row.
+
+### 7. One operation, three doors, and R17
+
+[0063](0063-core-api-conventions.md) R17 refuses an operation reachable two ways, and this ADR adds two
+doors onto a third. The argument is `Core\SignedCookie`'s against `Core\Crypto`, made once here rather
+than three times: **each door takes a different thing and answers a different thing.** `Core\Signature`
+takes a payload map and answers a token; `$uri->sign` takes a URL and answers a URL; `Core\Router`'s
+pair takes a route identity and answers a path. None substitutes for another, and a program that
+assembles a URL by hand, signs the text and hand-rolls the parameter walk has written `$uri->sign`
+badly rather than reached it twice.
+
+## Consequences
+
+- **The roster is five and this is the last entry.** § 2's structural boundary is unchanged and is what
+  still answers OAuth, WebAuthn and SAML: those are flows, this is a token operation over a key.
+- **`Core\Uri` gains its first capability-shaped members.** The class is Part I and lands in M4S; these
+  two land with M8 beside `Core\Crypto`. The spec already carries that pattern for `Core\Router`, whose
+  table is M4S and whose matcher is M7.
+- **`uri.rs`'s "and nowhere else" sentence is amended**, and `equivalent()` gains a second caller. That
+  is the intended outcome — the normalization is now load-bearing for two things, so it is tested by
+  two corpora.
+- **What this spends**, per [ADR 0004](0004-memory-for-simplicity.md): one signature computation per
+  `sign`, one per verification attempt per key until one authenticates, all inside the call and nothing
+  held between calls. A program that signs nothing pays nothing. The token adds roughly `4/3 × (payload
+  + 40)` characters to a URL, which is the number to hold against the ~2 KB path length proxies and
+  browsers begin to disagree about.
+- **A signed URL authenticates its parameters, not its caller**, and the documentation says so at the
+  member. A link embedded in a page is a credential the reader holds: it stops them editing `{id}`,
+  which is the IDOR class and is worth having, and it does not stop them calling the endpoint. That is
+  `#[Access]` ([0096](0096-a-route-without-a-declared-access-decision-does-not-compile.md)), and CSRF is
+  § 4 of that ADR.
+- **`nvs convert` (M11)** maps Laravel's `URL::signedRoute`/`hasValidSignature` and Symfony's
+  `UriSigner` onto these members, and emits a diagnostic where the source signed a subset of the query
+  string — a behaviour with no representation here.
+
+## Alternatives rejected
+
+- **`Core\Signature` alone, no doors.** Smallest surface, and R17's cleanest reading. Rejected on
+  [0060](0060-application-security-protocols.md)'s own discoverability argument: the join from "I have a
+  URL" to "I have a canonical payload of it" is the step that goes wrong, and leaving it to every caller
+  is leaving the bug class in place while claiming to have removed it.
+- **`$uri->sign` alone, no general member.** Rejected: it makes signing conditional on the thing being a
+  URL, which the cross-service and opaque-token cases are not — and a program that never uses
+  `Core\Router` or `Core\Uri` would have no spelling at all.
+- **Signing `$uri->toString()`.** One line, and what every framework does. Rejected: `toString` is
+  deliberately *not* normalized — [0077](0077-compile-time-routing.md)'s neighbouring reasoning and
+  `uri.rs`'s own module doc both turn on `parse` reporting rather than rewriting — so two references
+  that are the same URI produce two signatures, and the mismatch appears only for inputs nobody tested.
+- **An options bag naming which parameters are signed.** Ergonomic, and matches several PHP libraries.
+  Rejected: it is the configuration point every published bypass has gone through, and "sign everything
+  present" needs no such point.
+- **Mandatory expiry.** The safer default, and JWT's rule. Rejected: `Core\SignedCookie` already carries
+  no lifetime, so the rule was never the roster's; and a mandatory one meets a page left open all day by
+  pushing applications toward a long `until` written once and never revisited, which is the worse
+  outcome dressed as the safe one. § 3's written-`null` gets the deliberation without the workaround.
+- **A `bool`-answering verification.** What an application wanting its own error page reaches for.
+  Rejected: [0060](0060-application-security-protocols.md) § 4 refuses a falsy return for this roster,
+  and it is unnecessary — § 5's two errors are catchable and the distinction an application needs is
+  exactly the distinction they draw.
+- **Extending `Core\SignedCookie` to cover URLs instead of adding an entry.** Keeps the roster at four
+  and fixes the discoverability problem at the root. Rejected on § 6: its payload is encrypted, and a
+  URL's must not be.
+
+## Verification
+
+- **M8:** a `Uri` signed and verified round-trips; the same URL with one query parameter appended fails;
+  with a parameter removed fails; with a parameter reordered **verifies**, because ordering is not part
+  of the canonical form; with a `%2F` rewritten as `%2f` verifies; with a fragment added or changed
+  verifies, because § 2 excludes it.
+- **M8:** a URL carrying two `_sig` parameters fails rather than verifying under either; a URL whose
+  `_sig` is absent fails with the same error as a forged one.
+- **M8:** a token past its `until` throws `SignatureExpired`; a token forged and past its `until` throws
+  the *invalid* error, proving the signature is checked before the clock (§ 5).
+- **M8:** `{until: null}` verifies at an arbitrarily distant clock; omitting the `until` key is a compile
+  error naming it (§ 3).
+- **M8:** a URL signed under a rotated-out key still verifies while new URLs use the newest; a URL
+  signed under a key dropped past the end of the ring fails with the ordinary invalid error.
+- **M8:** `Core\Signature::verify`'s returned payload reaches a `Core\Db` query-text position and is
+  **rejected** as tainted (§ 1).
+- **M8:** `Core\Router::urlSigned` verifies through `signedRoute` after the mount prefix changes, where
+  the same link signed as a path does not (§ 4).

@@ -21,7 +21,7 @@
   [docs/spec/01-core-library.md](../spec/01-core-library.md) § 13 — a `Core\Router` row.
   [docs/implementation-plan.md](../implementation-plan.md) — M4S gains the table-building pass, M7 the
   matcher.
-- **Amended by:** 0082, 0085, 0096, 0097, 0102, 0110
+- **Amended by:** 0082, 0085, 0096, 0097, 0102, 0110, 0146
 
 > **In short:** `#[Route(path: "/users/{id}", method: Http\Method::Get, name: "user.show")]` on a method is
 > read **while compiling**, through the program enumeration
@@ -184,6 +184,9 @@ Core\Router::match(Http\Method $method, tainted string $path): ?Router\Match;
 Core\Router::methodsFor(tainted string $path): array<Http\Method>;      // [] ⇒ 404, else 405 + Allow:
 Core\Router::url(string $name, array<string, mixed> $params): string;         // launder (URL path)
 Core\Router::urlAbsolute(string $name, array<string, mixed> $params): string; // launder (URL)
+Core\Router::urlSigned(string $name, array<string, mixed> $params,
+                       {keys: array<secret bytes>, until: ?Time\Instant}): string;   // launder (URL path)
+Core\Router::signedRoute(array<secret bytes> $keys): Router\Match;            // or throws
 ```
 
 ```php
@@ -232,6 +235,16 @@ Core\Router\Match — readonly name: ?string, params: {…}, method: Http\Method
   `X-Forwarded-Host` — that is host-header injection, and an emailed link is where it lands — so the only
   safe absolute URL is a configured one. A unit calling it under a mount that resolves no origin is a boot
   error.
+- **`urlSigned` and `signedRoute` sign a route's *identity*, which a path cannot.** They exist for one
+  property and not for convenience: [0097](0097-development-server-and-proxied-origin.md) § 3 lets one
+  compiled table serve at `/ModuleA`, at `/ModuleB` or at `/`, so a signature over an assembled path
+  stops verifying the moment a mount moves, while one over the route name and its typed parameters
+  survives. `signedRoute` verifies against the match the server already made
+  ([0102](0102-a-request-is-matched-once-and-the-route-table-completes-without-dispatching.md) § 1)
+  rather than re-parsing anything, and answers that `Router\Match` or throws — **the application calls
+  it, at whatever place it keeps**, because nothing here dispatches and nothing here renders a refusal.
+  Everything else about signing, including `$uri->sign` for the case that is not a route at all, is
+  [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md).
 
 **What it deliberately does not do**, because each is a framework opinion and the user confirmed the point
 of stopping short:

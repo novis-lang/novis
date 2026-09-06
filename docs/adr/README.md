@@ -219,6 +219,7 @@ so you never have to open this file to route a topic.
 | why CI skipped the Windows leg, why a check says *Skipped*, what a push runs versus a release, the nightly run, adding a job to ci.yml, `tools/ci-changes.py` | [ci.yml](../../.github/workflows/ci.yml), with the lane table in [tools/ci-changes.py](../../tools/ci-changes.py) |
 | `::class`, `static::class`, `$obj::class`, `get_called_class`, `get_class` | this ADR |
 | Schema migration, `CREATE TABLE`, `ALTER TABLE`, `doctrine/migrations`, Laravel `Schema::create`, Rails `db:migrate`, `information_schema`, dumping an existing database, `nvs schema plan`/`apply`/`dump` | [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) |
+| signing a URL, verifying a URL signature, a signed or expiring link, a signed AJAX endpoint, `Core\Signature`, `$uri->sign`, `Core\Router::urlSigned`, Laravel's `signedRoute` and `hasValidSignature`, an S3-style presigned URL | this file |
 
 **Adding a decision.** `python tools/adr.py --draft > .agent-tmp/adr.md`, fill in the prose, then
 `python tools/adr.py --new .agent-tmp/adr.md`. That does steps 1, 2, 4, 5 and 7 below and half of 3 —
@@ -399,6 +400,7 @@ to get right in a new row, both for the reader rather than for a checker — not
 | [0143](0143-a-push-runs-the-lane-its-diff-needs-the-nightly.md) | A push runs the lane its diff needs; the nightly and the release run all of it | Accepted |
 | [0144](0144-class-answers-the-class-a-value-is-so-static-class-and-obj.md) | `::class` answers the class a value *is*, so `static::class` and `$obj::class` are run-time reads | Accepted |
 | [0145](0145-a-schema-is-a-value-core-db-schema-converges-a-closed.md) | A schema is a value: `Core\Db\Schema` converges a closed vocabulary, and neither versions nor parses SQL | Accepted |
+| [0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) | A signature is over a payload, and a URL is a payload `Core\Uri` already canonicalizes | Accepted |
 
 Retired numbers, folded into the ADR that now states the rule: **0032** → [0029](0029-identifier-casing-is-checked.md) § 1.
 

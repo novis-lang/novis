@@ -7,10 +7,11 @@
   not the method signatures, which M8 designs.
 - **Amends:** [0051](0051-standard-library-tiers.md) — § 3's Core roster gains these entries and, in § 2
   below, the test that closes the list.
-- **Amended by:** none.
+- **Amended by:** 0146
 
-> **In short:** `Core` includes four protocols built on cryptographic primitives — **signed and encrypted
-> cookies, CSRF tokens, TOTP, and JWT signing and verification** — and the list is **closed**: adding to it
+> **In short:** `Core` includes five protocols built on cryptographic primitives — **signed and encrypted
+> cookies, CSRF tokens, TOTP, JWT signing and verification, and a detached signature over a payload** —
+> and the list is **closed**: adding to it
 > takes a new ADR. Each is admitted by a three-part test, and each must be **correct by construction**
 > rather than correct by careful use: a JWT's algorithm comes from the key type and never from the token
 > header, so `alg: none` and RS256→HS256 confusion are unrepresentable rather than defended against. The
@@ -30,7 +31,7 @@
   nothing observable goes wrong until it does. That is a different risk profile from an ordinary library.
 - The counter-pressure is real and this ADR takes it seriously. "Protocols people commonly get wrong" has
   no natural edge — it would grow to OAuth clients, SAML, WebAuthn, and eventually to a framework. A rule
-  that admits the first four and stops needs to state *why* it stops, or it will not.
+  that admits these five and stops needs to state *why* it stops, or it will not.
 
 ## Decision
 
@@ -42,6 +43,11 @@
   only exposed operation so a caller cannot write `==`.
 - **TOTP** — generation and verification with a bounded replay window and constant-time comparison.
 - **JWT** — signing and verification, subject to § 4.
+- **Detached signatures** — `Core\Signature`, over a canonical payload rather than over any assembled
+  text, with the same key ring. [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md)
+  owns it and the two doors onto it that `Core\Uri` and `Core\Router` carry; it is admitted here because
+  the failure history is a canonicalization bug in the library, silent, and near-universal for signed
+  links.
 
 ### 2. The test, and why it closes
 
@@ -78,8 +84,12 @@ Every entry is designed so the historical failure is **unrepresentable**, not me
   key's algorithm and rejected on mismatch; it is never consulted to select one. This removes `alg: none`
   and the RS256→HS256 confusion class in one stroke, because there is no code path in which an
   attacker-supplied string selects a verifier.
-- **Expiry is mandatory.** A token without `exp`, or past it, fails verification. There is no flag to
-  disable the check; a caller wanting a non-expiring credential is not using JWT for what JWT is.
+- **Expiry is mandatory for JWT.** A token without `exp`, or past it, fails verification. There is no
+  flag to disable the check; a caller wanting a non-expiring credential is not using JWT for what JWT
+  is. **This is JWT's rule and not the roster's** — its reasoning is about what a JWT is for, and
+  `Core\SignedCookie` has carried no lifetime since it landed.
+  [ADR 0146](0146-a-signature-is-over-a-payload-and-a-url-is-a-payload-core-uri.md) § 3 is where a
+  lifetime is instead *written and never omitted*, `null` included.
 - **Verification returns claims or throws.** It never returns a falsy value that a loose comparison could
   mistake for success — the same reasoning [ADR 0056](0056-regex-engine-policy.md) § 2 applies to a
   budget exhaustion.
@@ -99,7 +109,7 @@ that was already plain when it went in.
 
 ## Consequences
 
-- **Four small, permanent API surfaces**, each closed to configuration in the places where configuration is
+- **Five small, permanent API surfaces**, each closed to configuration in the places where configuration is
   how these protocols get broken.
 - **The closed list will be argued with.** Someone will want OAuth in `Core`, and § 2's boundary is the
   answer: it is a flow. Recording the boundary now is what makes the answer a decision rather than a
@@ -123,7 +133,7 @@ that was already plain when it went in.
   credential's exposure visible.
 - **Session-adjacent only** — cookies and CSRF, since `Core\Session` is core anyway; JWT and TOTP out.
   Rejected: it draws the line at what Novis already implements rather than at where the risk is, and JWT is
-  the entry with the worst failure history of the four.
+  the entry with the worst failure history of the five.
 - **An open "security protocols" surface**, growing as needs appear. Rejected: without § 2's boundary it
   becomes a framework, and every entry is a permanent compatibility obligation.
 
