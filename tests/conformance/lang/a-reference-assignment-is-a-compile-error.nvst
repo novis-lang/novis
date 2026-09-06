@@ -24,20 +24,20 @@ error[E0701]: a binding cannot be assigned by reference
   |
 7 | $a = &$b;
   | ^^^^^^^^ this would share `$b`'s own slot
-  = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+  = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error[E0701]: a binding cannot be assigned by reference
    --> %s:12:1
    |
 12 | $rows["0"] = &$b;
    | ^^^^^^^^^^^^^^^^ this would share `$b`'s own slot
-   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error[E0701]: a binding cannot be assigned by reference
    --> %s:16:11
    |
 16 | int $c = ($a = &$b);
    |           ^^^^^^^^ this would share `$b`'s own slot
-   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
+   = help: Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), not a way to make two names one place, and to share one mutable cell you hold it in an object and assign that
 
 error: aborting due to 3 errors

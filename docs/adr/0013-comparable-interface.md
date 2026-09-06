@@ -25,9 +25,9 @@
 - PHP's `<`/`>`/`<=`/`>=` between two same-class objects walks declared properties in order, recursing
   into nested arrays/objects, and uses the first difference — undeclared anywhere in the comparing class,
   simply what `<` *does*, the same way `$_SERVER` was simply *there* before
-  [ADR 0012](0012-no-superglobals.md). A reviewer seeing `$invoiceA < $invoiceB` must already know PHP's
+  `rule:statements/no-host-populated-variables`. A reviewer seeing `$invoiceA < $invoiceB` must already know PHP's
   fallback exists to know what it does — the same "works by a name being present" shape
-  [ADR 0008](0008-static-and-global.md), [0011](0011-functions-and-constants-are-class-members.md) and
+  `rule:statements/static-is-a-member-modifier`, [0011](0011-functions-and-constants-are-class-members.md) and
   [0012](0012-no-superglobals.md) already closed elsewhere.
 - It is also not a *safe* ambient default: the walk is unbounded in the size of the object graph it
   recurses into, so two objects holding attacker-influenced nested structures can be compared at a cost
@@ -129,7 +129,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
   private state in declaration order — the ordering a class produces is exactly the ordering its own code
   says, and nothing else.
 - Costs nothing beyond an ordinary virtual call already paid for by every other method
-  (`rule:programs/memory-priority`) — no new storage class ([ADR 0008](0008-static-and-global.md)),
+  (`rule:programs/memory-priority`) — no new storage class (`rule:statements/static-is-a-member-modifier`),
   no new runtime representation.
 - Reuses [ADR 0007](0007-explicit-type-system.md) § 4's already-defined `<=>` for scalars inside
   `compareTo`, so the common case (delegate to one field's existing orderable type) is one line.
@@ -138,7 +138,7 @@ the content question explicitly, which is ADR 0090 § 4's answer to it.
 
 **Negative**
 
-- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, [ADR 0008](0008-static-and-global.md) and
+- **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, `rule:statements/static-is-a-member-modifier` and
   `rule:enums/closed-integer-type`(0010-enums-are-a-value-type.md): PHP source ordering two objects of the same class with `<`/
   `>`, relying on the implicit property walk, does not convert unconverted. `nvs convert`
   ([M11](../implementation-plan.md)) can detect the pattern but must leave adding `Comparable` and writing

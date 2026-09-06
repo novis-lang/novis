@@ -1,5 +1,5 @@
 //! `inout` arguments: which expressions are assignable through one, which are
-//! refused, and ADR 0107 § 2's marker at both ends of the same call.
+//! refused, and `rule:statements/inout-is-written-at-the-call`'s marker at both ends of the same call.
 //!
 //! Moved out of `nvs_types::check`'s inline `mod tests`; every test keeps its
 //! own name and body. See `tests/common/mod.rs` for the shared fixtures.
@@ -197,7 +197,7 @@ T::bump(inout $t);
 }
 
 // ------------------------------------------------------------------
-// ADR 0107 section 2 -- the call-site marker, both directions. This is
+// `rule:statements/inout-is-the-by-reference-spelling` section 2 -- the call-site marker, both directions. This is
 // the half a rename alone would not have bought: the write a callee
 // makes to its caller's storage is visible at the point of call.
 // ------------------------------------------------------------------

@@ -69,7 +69,7 @@ Fires **only** for a resource-limit `FATAL` — memory, CPU time, `max_output`, 
 `max_script_depth`, and **call-stack depth**. Request-local
 registration, living next to the pending-error slot already in `Ctx` per `rule:errors/propagation` —
 not global, not ambient, dies with the request like every other per-request slot
-([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md)).
+(`rule:statements/static-is-a-member-modifier`, `rule:statements/no-host-populated-variables`).
 
 It runs with a **reserved slice** of the request's own budget, carved out at request start and unavailable
 to ordinary execution — new `System`-class `nvs.toml` directives, illustrative names
@@ -157,7 +157,7 @@ timestamp, and whatever structured detail that failure kind carries) through `Co
 as any spawn-script target does. It must not, and structurally cannot reliably, use ambient
 `Core\Request`/`Core\Server`/`Core\Session`: for a compile failure, no request context may exist yet; for a
 panic, the runtime's own state is exactly what is in question. This is not a new restriction —
-[ADR 0012](0012-no-superglobals.md) already makes those accessors throw inside any spawned isolate — it is
+`rule:statements/no-host-populated-variables` already makes those accessors throw inside any spawned isolate — it is
 that restriction applying somewhere it matters more than usual.
 
 **The one deliberate exception to ADR 0006:** that ADR fixes that "an isolate does not receive a budget of
@@ -284,7 +284,7 @@ kind of judgment call this ADR does not want resting on tier 4's one shot.
   request, so it does not scale with request volume. Exact defaults are M6 config work (see *Revisiting*).
 - The tier-3 handler script is one more place `Core\Request`/`Core\Server`/`Core\Session` are unavailable —
   a real thing a handler author has to learn, mitigated by receiving an explicit typed argument instead of
-  ambient state, which is [ADR 0012](0012-no-superglobals.md)'s existing rule applying somewhere it matters
+  ambient state, which is `rule:statements/no-host-populated-variables`'s existing rule applying somewhere it matters
   more than usual, not a new kind of restriction.
 - Four tiers plus a non-`Throwable` report type is more surface than "just let people catch everything" would
   have been. Accepted per the answers this ADR was built from: reopening `rule:errors/propagation` to make `FATAL` catchable

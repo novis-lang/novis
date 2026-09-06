@@ -12,7 +12,7 @@
 //! makes an application an entry-file path and says nothing about a child, so
 //! there was a choice to make, and the working directory is the one a reader of
 //! the program can already predict: it is what every other path a CLI program
-//! writes is relative to — `require`'s spelling excepted, which ADR 0021
+//! writes is relative to — `require`'s spelling excepted, which `rule:statements/require-is-the-only-inclusion-construct`
 //! resolves against the requiring file because a library has to move as a unit.
 //! A `spawn script` target is not a library; it is a second program, named the
 //! way the shell that started this one would name it. `examples/isolate.nvs`

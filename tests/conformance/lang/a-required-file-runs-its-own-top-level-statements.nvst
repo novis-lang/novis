@@ -1,8 +1,8 @@
 --TEST--
-A `require`d file's own top-level statements run where the `require` is written, once per time it is reached, in their own variable scope — ADR 0021 § *Decision*
+A `require`d file's own top-level statements run where the `require` is written, once per time it is reached, in their own variable scope — `rule:statements/a-required-file-shares-declarations-not-locals`
 --FILE--
 <?nvs
-// ADR 0021 § *Decision*: `require` runs the target's statements in the
+// `rule:statements/a-required-file-shares-declarations-not-locals`: `require` runs the target's statements in the
 // caller's frame at the point it is written, so a run is ordered against the
 // statements around it rather than hoisted like a declaration.
 echo "before\n";

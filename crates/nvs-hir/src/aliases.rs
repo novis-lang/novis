@@ -3,7 +3,7 @@
 //!
 //! [`crate::resolve::Resolver`] already collects each `type` alias's own
 //! declaration into the [`crate::symbol::SymbolTable`] and rejects the
-//! single-bare-class shape ([ADR 0015](/docs/adr/0015-no-name-aliasing.md)
+//! single-bare-class shape (`rule:statements/nothing-gets-a-second-name`
 //! § 6). What is still open is *what an alias expands to*: § 5 says a `type`
 //! alias is "fully transparent" — every occurrence of its name, including
 //! inside another alias's own expansion, resolves to the same fully-expanded
@@ -24,7 +24,7 @@
 //! `array<...>`'s own shape — is left exactly as written.
 //!
 //! A cycle (`type A = B; type B = A;`, or any longer chain) is diagnosed
-//! (`E_TYPE_ALIAS_CYCLE`, [ADR 0015](/docs/adr/0015-no-name-aliasing.md)
+//! (`E_TYPE_ALIAS_CYCLE`, `rule:statements/nothing-gets-a-second-name`
 //! § 5/7) rather than looped forever or silently bottomed out at `mixed`;
 //! every alias name that took part in the cycle still gets an entry in the
 //! resulting [`AliasTable`], expanding to `mixed`, so a lookup miss keeps
@@ -353,7 +353,7 @@ fn substitute(
             let text = ctx.names.get(&name.span).map(String::as_str).unwrap_or("");
             let qname = resolve_ref(text, namespace, imports);
             // A name *written with* type arguments is never an alias
-            // expansion site: ADR 0015 keeps a `type` alias a synonym for a
+            // expansion site: `rule:statements/nothing-gets-a-second-name` keeps a `type` alias a synonym for a
             // whole type expression, with no parameters of its own, so
             // `Alias<int>` is an error the checker reports rather than
             // something to expand here. Its arguments still get substituted,

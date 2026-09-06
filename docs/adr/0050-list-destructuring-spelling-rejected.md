@@ -7,13 +7,13 @@
   shared, and `list`'s status as a reserved word are all untouched.
 - **Amends:** [`docs/spec/00-overview.md`](../spec/00-overview.md) § 3.3, which accepted `list(...)` as a
   second spelling of `[...]` and justified it by pointing at `<?php`'s acceptance as precedent.
-  [ADR 0021](0021-single-file-inclusion-construct.md) § 1's framing paragraph cited the same pair as live
+  `rule:statements/require-is-the-only-inclusion-construct`'s framing paragraph cited the same pair as live
   precedent and is corrected there.
 - **Amended by:** none.
 
 > **In short:** `list($a, $b) = $pair;` no longer parses. It is a parse-time diagnostic (`E0230`) naming
 > `[...]`, whose element grammar is identical in every position — key, nesting depth, skipped slot,
-> reference marker. `list(...)` survived only on a justification ADR 0049 has since deleted: that Novis keeps
+> reference marker. `list(...)` survived only on a justification `rule:statements/nvs-is-the-only-open-tag` has since deleted: that Novis keeps
 > a duplicate PHP spelling when its meaning is the one Novis wants. That argument was always about keeping a
 > spelling whose *meaning* had no other home; `[...]` already spells this meaning, so `list(...)` is the
 > second spelling of a construct Novis fully covers, which is the exact trade this project has now refused
@@ -23,10 +23,10 @@
 
 - The spec accepted both spellings in one sentence, and the reason it gave was the precedent: "kept for the
   same pragmatic-superset reason `<?php` is kept as a second spelling of `<?nvs`."
-  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) withdrew `<?php`. That left `list(...)`
+  `rule:statements/nvs-is-the-only-open-tag` withdrew `<?php`. That left `list(...)`
   resting on a citation to a decision that no longer exists — not a weak argument, but no argument at all.
 - The distinction that actually decides these cases was already available, in
-  [ADR 0021](0021-single-file-inclusion-construct.md) § 1: reuse a PHP spelling verbatim **when its existing
+  `rule:statements/require-is-the-only-inclusion-construct`: reuse a PHP spelling verbatim **when its existing
   meaning is exactly the one Novis wants**. `require` qualifies because nothing else in Novis spells "run this
   file in my frame, throw if it's missing." `list(...)` does not: `[...]` spells destructuring already, and
   the two produce the identical AST node from the identical element grammar. That is the same test
@@ -52,7 +52,7 @@ list(int $a, string $b) = $pair;    // E0230
 value expression — purely so the diagnostic can span the real statement and recovery can resume cleanly at
 the next one. The parsed target is then discarded and the statement becomes `StmtKind::Error`: a rejected
 construct never reaches the AST as a live node, exactly as `die` produces `ExprKind::Error` rather than
-`ExprKind::Exit` under [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) § 1.
+`ExprKind::Exit` under `rule:statements/exit-is-the-only-termination-keyword`.
 
 `list` stays a reserved word. Freeing it would let a class or method be named `list`, which is a separate
 question this ADR does not open, and keeping it reserved is what lets the diagnostic fire at all.
@@ -62,7 +62,7 @@ question this ADR does not open, and keeping it reserved is what lets the diagno
 **Positive**
 
 - One destructuring spelling instead of two, with no behavioural question behind the choice — the same
-  narrowing ADR 0021, 0034, 0045 and 0049 each already made. The rule a reader has to learn is `[...]`, and
+  narrowing ADRs 0021, 0034, 0045 and 0049 each already made. The rule a reader has to learn is `[...]`, and
   the language has one less exception to it.
 - The `[...]`-versus-array-literal backtracking in `parse_stmt_maybe_destructure` is now the *only* path
   into a destructuring statement, so the grammar has one entry point rather than two.

@@ -1,5 +1,5 @@
 --TEST--
-`$this` in a `static` method is refused rather than read, and the same body's own class name is still reachable — ADR 0008 § 1
+`$this` in a `static` method is refused rather than read, and the same body's own class name is still reachable — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
 // A static method is entered with no receiver, so the checker declares no

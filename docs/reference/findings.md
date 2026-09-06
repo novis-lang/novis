@@ -397,7 +397,7 @@ in that goal. An item's owner is the row it sits in.
       E0405, so a reader is told at the reference rather than at a panic. The crosswalk's own rows are
       item 35's.
 - [x] **M9** `Core\Env::mode()`, `$_ARGS`/`Core\Script::args()` are named by diagnostic help texts
-      and do not exist. E0211's table now cites ADR 0012 § 1's map rather than restating a row of it,
+      and do not exist. E0211's table now cites `rule:statements/no-host-populated-variables`'s map rather than restating a row of it,
       and E0319 names `Core\Math::PI`, which ships.
 - [ ] **M10** The registry cards cite ADR numbers inline in 33 places ("ADR 0056's two engines",
       "ADR 0009's default unit") — meaningless to the reference's readers. `tools/reference.py`

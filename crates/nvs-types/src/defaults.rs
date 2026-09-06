@@ -15,7 +15,7 @@
 //!   call ABI learns about defaults at all — `nvs_ir::lower::lower_call_args`
 //!   pushes one more `ConstInt`/`ConstStr` and stops.
 //! * **A default cannot observe anything.** It is a constant, so it cannot
-//!   read a global (there are none — ADR 0008), call a function, or differ
+//!   read a global (there are none — `rule:statements/static-is-a-member-modifier`), call a function, or differ
 //!   between two calls that both omitted it.
 //! * **A `Core` member's default and a user-declared one are one mechanism.**
 //!   `nvs_stdlib::registry` states a `Core` default as data
@@ -408,7 +408,7 @@ pub(crate) fn fold_const_reference(
 ) -> Option<ConstArg> {
     match &expr.kind {
         // `static::class` would resolve here to the *declaring* class, which
-        // ADR 0008's late static binding makes the wrong answer: ADR 0144 § 1
+        // `rule:statements/static-is-a-member-modifier`'s late static binding makes the wrong answer: ADR 0144 § 1
         // reads it off the frame's called class instead, and a constant
         // initializer has no frame to read. Left unfolded rather than answered
         // differently in two places — the read then takes `E0792`, the same

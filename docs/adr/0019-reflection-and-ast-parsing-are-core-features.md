@@ -30,7 +30,7 @@
   somebody's extension."
 - Correctness (priority 2): `Core\Ast` wraps `nvs-syntax`'s existing single parser rather than adding a
   second grammar to keep in sync — the same "one implementation, not two" shape
-  [ADR 0015](0015-no-name-aliasing.md)/[ADR 0017](0017-hot-reload-without-restart.md) already chose.
+  `rule:statements/nothing-gets-a-second-name`/[ADR 0017](0017-hot-reload-without-restart.md) already chose.
 - Simplicity (priority 4): every domain is meant to have one obvious `Core` home
   ([ADR 0011](0011-functions-and-constants-are-class-members.md)); leaving AST parsing out would send every
   framework author back to a userland parser, reproducing PHP's own fragmentation.

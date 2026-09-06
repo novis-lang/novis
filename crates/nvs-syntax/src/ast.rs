@@ -43,7 +43,7 @@ use nvs_diagnostics::Span;
 /// optionally interspersed with [`Backslash`](crate::TokenKind::Backslash) — so
 /// the parser folds the whole run into one span. A *leading* separator is not
 /// part of the spelling: it is refused where the name is parsed
-/// ([ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3), so
+/// (`rule:statements/a-leading-separator-does-not-parse`), so
 /// a `Name`'s span never opens on one. Splitting it into segments and resolving
 /// it to a declaration is name resolution's job (M2), not this stage's.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -379,7 +379,7 @@ pub struct Arg {
     pub name: Option<Span>,
     /// Whether this argument is `...value`.
     pub spread: bool,
-    /// Whether this argument is written `inout value` — ADR 0107 § 2's
+    /// Whether this argument is written `inout value` — `rule:statements/inout-is-written-at-the-call`'s
     /// call-site marker. Whether it is *correct* here needs the callee's
     /// signature, so both mistakes are `nvs_types`' (E0713/E0714).
     pub inout: bool,
@@ -528,7 +528,7 @@ pub struct Param {
     /// The declared type, or `None` if omitted (a diagnostic was already
     /// reported for the omission).
     pub ty: Option<Type>,
-    /// Whether this parameter binds by reference — `inout int $x`, ADR 0107
+    /// Whether this parameter binds by reference — `inout int $x`, `rule:statements/inout-is-the-by-reference-spelling`
     /// § 1. The mechanism is copy-in/copy-out at the call site, which is why
     /// the word is `inout` rather than `ref`.
     pub inout: bool,
@@ -589,7 +589,7 @@ pub enum FnBody {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FnExpr {
     /// Whether declared `static` (no `$this` binding) — rejected with a
-    /// diagnostic per [ADR 0008](/docs/adr/0008-static-and-global.md)
+    /// diagnostic per `rule:statements/static-is-a-member-modifier`
     /// § 4, but still parsed so the caller can build the node and keep going.
     pub is_static: bool,
     /// The optional self-name, visible only inside `body`.
@@ -981,7 +981,7 @@ pub enum ExprKind {
     /// `empty(expr)`
     Empty(Box<Expr>),
     /// `exit`, optionally with a status/message expression. `die` is a
-    /// rejected synonym (ADR 0049 § 1) and never reaches this variant.
+    /// rejected synonym (`rule:statements/exit-is-the-only-termination-keyword`) and never reaches this variant.
     Exit(Option<Box<Expr>>),
     /// `spawn script path with(...)`
     /// ([`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)).
@@ -1001,7 +1001,7 @@ pub enum ExprKind {
     /// `require` — an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
     /// `$x = require 'a.nvs';` is legal.
-    /// [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
+    /// `rule:statements/require-is-the-only-inclusion-construct`
     /// is why this is the only same-frame inclusion keyword left — `include`,
     /// `include_once` and `require_once` are rejected at parse time instead
     /// of reaching the AST at all.
@@ -1177,7 +1177,7 @@ pub struct DestructureTarget {
 
 /// One `$name (= default)?` binding of a rejected function-scope `static`
 /// declaration ([`StmtKind::StaticLocal`]). Parsed only for a precise
-/// diagnostic — ADR 0008 § 5 gives this construct no replacement syntax, so
+/// diagnostic — `rule:statements/no-function-static-and-no-global` gives this construct no replacement syntax, so
 /// nothing downstream ever acts on this shape.
 #[derive(Clone, Debug, PartialEq)]
 pub struct StaticVar {
@@ -1200,7 +1200,7 @@ pub enum StmtKind {
     /// An empty statement, a lone `;` — most often a loop's empty body
     /// (`while ($more_work());`), and also the marker the parser emits for a
     /// bare code-tag token (`<?nvs`, `?>`, or the rejected `<?php` — see
-    /// ADR 0049 § 2) encountered where a statement was expected — see
+    /// `rule:statements/nvs-is-the-only-open-tag`) encountered where a statement was expected — see
     /// [`Self::InlineHtml`]'s doc for why that token, and not this one, is
     /// where the interesting span lives.
     Empty,
@@ -1316,14 +1316,14 @@ pub enum StmtKind {
         /// The value being destructured.
         value: Expr,
     },
-    /// `global $x, $y;` — rejected, ADR 0008 § 5. Still parses to the
+    /// `global $x, $y;` — rejected, `rule:statements/no-function-static-and-no-global`. Still parses to the
     /// variables named, for a precise diagnostic.
     Global(Vec<Span>),
     /// `goto label;` — rejected: makes the control-flow graph unstructured.
     /// Still parses to the label named, for a precise diagnostic.
     Goto(Span),
     /// A function-scope `static $x (= expr)?, ...;` declaration — rejected,
-    /// ADR 0008 § 5. `ty` is `Some` only for the illustrative-but-still-
+    /// `rule:statements/no-function-static-and-no-global`. `ty` is `Some` only for the illustrative-but-still-
     /// rejected typed spelling that ADR's own diagnostic wording uses
     /// (`static int $calls = 0;`); ordinary PHP's untyped
     /// `static $calls = 0;` leaves it `None`.
@@ -1365,7 +1365,7 @@ pub enum StmtKind {
 // ============================================================================
 // Declarations: classes, interfaces, traits, enums, and their members
 // (`rule:enums/closed-integer-type`, ADR 0011, ADR 0014); `namespace`, `use` and `type`-alias
-// declarations (ADR 0007 § 3.5, ADR 0015)
+// declarations (ADR 0007 § 3.5, `rule:statements/nothing-gets-a-second-name`)
 // ============================================================================
 
 /// `class Name (extends Base)? (implements Iface, ...)? { ... }`.
@@ -1625,7 +1625,7 @@ pub struct UseDecl {
     pub span: Span,
     /// The imported path.
     pub path: Name,
-    /// `as Alias`, if written — always rejected (ADR 0015 § 2): an import
+    /// `as Alias`, if written — always rejected (`rule:statements/nothing-gets-a-second-name`): an import
     /// cannot be renamed. Parsed anyway, for a precise diagnostic.
     pub alias: Option<Span>,
 }

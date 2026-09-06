@@ -1459,7 +1459,7 @@ nvs_runtime::nvs_helper! {
     /// **`callable`** and whose expectation is a class.
     ///
     /// The expectation is a `string` because that is what
-    /// [ADR 0008](/docs/adr/0008-static-and-global.md)'s
+    /// `rule:statements/static-is-a-member-modifier`'s
     /// `ParseError::class` folds to — a fully qualified name, compiled in as a
     /// constant — so the match is by name and no class value has to exist for
     /// a member to take one. What decides it is

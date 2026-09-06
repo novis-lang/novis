@@ -238,7 +238,7 @@ fn a_second_trailing_newline_is_part_of_the_value() {
 }
 
 /// § 7: exactly one of the pair may be set. Two sources for one value is the second spelling
-/// ADR 0015 refuses, and the refusal names both so an operator can see which to remove.
+/// `rule:statements/nothing-gets-a-second-name` refuses, and the refusal names both so an operator can see which to remove.
 #[test]
 fn setting_both_halves_of_the_pair_is_refused() {
     let fs = Fake::with(&[

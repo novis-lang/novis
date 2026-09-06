@@ -65,7 +65,7 @@ use crate::expr_table::ObserverCalls;
 /// `Class::CONST` — [`super::infer`]'s `ExprKind::ClassConstAccess` arm.
 ///
 /// Three shapes are typed precisely, and they split by what the left-hand side
-/// names. `EnumName::CaseName` is ADR 0010 § 4's case, recovered as `Ty::Enum`
+/// names. `EnumName::CaseName` is `rule:statements/an-enum-name-is-a-type-everywhere`'s case, recovered as `Ty::Enum`
 /// — or, where the position names that one case, as ADR 0047 § 3's narrower
 /// `Ty::EnumCase`, the same take-your-type-from-the-position rule
 /// `crate::expr::literals` states in full;
@@ -803,7 +803,7 @@ pub(crate) fn check_class_name_const(
     env: &mut Env<'_>,
 ) -> TypeId {
     // `static::class` is the one class side that resolves *and* is wrong to
-    // fold: ADR 0008's late static binding makes `static` whichever class the
+    // fold: `rule:statements/static-is-a-member-modifier`'s late static binding makes `static` whichever class the
     // call was made on, so an inherited method's `static::class` is the
     // subclass, and folding it would answer the declaring class instead. The
     // frame already holds that class as a `Ty::ClassDesc` — parameter 0 in a
@@ -1619,7 +1619,7 @@ pub(crate) fn report_core_instance_member(
 /// refused *wherever* it is written statically, because ADR 0063 R20 gives it
 /// one spelling and the static one would reach the identical helper. A
 /// declared class's non-static method is refused only where the frame holds no
-/// `$this` — ADR 0008 § 1 keeps PHP's semantics for `static`, so `self::f()`
+/// `$this` — `rule:statements/static-is-a-member-modifier` keeps PHP's semantics for `static`, so `self::f()`
 /// and `parent::f()` inside an instance method are the ordinary forwarding
 /// spelling and stay legal.
 ///

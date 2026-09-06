@@ -1,6 +1,6 @@
 //! `Core\Server` — the class an application asks about the server it is running
 //! under, replacing `$_SERVER`
-//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
+//! (`rule:statements/no-host-populated-variables`).
 //!
 //! # What is here, and what is not
 //!

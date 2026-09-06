@@ -380,7 +380,7 @@ checker already knows every other case.
 `mixed` is where untrusted input lands, and deliberately so. `Core\Request::query()`/`::post()`,
 `Core\Server::*`, `Core\Script::args()` and `Core\Json::decode`'s result are `array<mixed>` (or return
 `mixed` per key), because input genuinely is untyped and pretending otherwise would be a lie in the type.
-These replace PHP's superglobals — [ADR 0012](0012-no-superglobals.md) — without changing this shape at all:
+These replace PHP's superglobals — `rule:statements/no-host-populated-variables` — without changing this shape at all:
 
 ```php
 uint $id = Core\Request::query('id') as uint;     // throws on "abc", on "-1", on "" — never quietly 0

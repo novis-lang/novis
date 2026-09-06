@@ -40,7 +40,7 @@
 - The gap: PHP has no cross-cutting hook for *every* declared property, hooked or not — `__get`/`__set` only
   ever see undefined access, so real properties with real hooks get no shared observation point.
 - Same "a method existing by this name changes behaviour" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-  [ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) already closed elsewhere;
+  `rule:statements/no-host-populated-variables` and [ADR 0013](0013-comparable-interface.md) already closed elsewhere;
   [ADR 0013](0013-comparable-interface.md)'s `Comparable` replacement of property-walk `<`/`>` is the direct
   precedent followed here for `__get`/`__set`. `__call`/`__callStatic` get no replacement at all — dispatch by
   an unresolvable name is rejected outright.
@@ -204,7 +204,7 @@ any other call.
   gap PHP's `__get`/`__set` never actually filled (they only ever saw *undefined* access).
 - Costs nothing beyond an ordinary virtual call already priced by `rule:programs/memory-priority`
   and already paid the same way by [ADR 0013](0013-comparable-interface.md) — no new storage class
-  ([ADR 0008](0008-static-and-global.md)), no new runtime representation, zero cost for the common case of a
+  (`rule:statements/static-is-a-member-modifier`), no new runtime representation, zero cost for the common case of a
   class that implements neither interface.
 - Removes an entire class of "why didn't my `__get` fire" bug reports: there is no invisibility/accessibility
   precondition left to get wrong, since `PropertyObserver` runs for every declared property unconditionally.
@@ -232,7 +232,7 @@ any other call.
 
 - **Ambient name-based `__get`/`__set`**, matching PHP exactly. Rejected: same "behaviour triggered by a name
   being present, not a declaration" shape [ADR 0011](0011-functions-and-constants-are-class-members.md),
-  [ADR 0012](0012-no-superglobals.md) and [ADR 0013](0013-comparable-interface.md) already closed.
+  `rule:statements/no-host-populated-variables` and [ADR 0013](0013-comparable-interface.md) already closed.
 - **A property's own hook as a fallback**, with `PropertyObserver` only running for hookless properties.
   Rejected: defeats the cross-cutting use case motivating this ADR, forcing that logic to be duplicated into
   every hook instead of declared once.
@@ -331,7 +331,7 @@ Three boundaries the pipeline has are settled here rather than left to a reader,
   first step for the access that invoked the hook, which is already running the second; observing it too
   would report one write twice. `nvs_types::expr::members::check_property_member` is that exemption's home.
 - **A `static` property is not a property here.** *3* is written about a receiver, and the observer is
-  dispatched on the receiving instance's own class ([ADR 0008](0008-static-and-global.md) gives class
+  dispatched on the receiving instance's own class (`rule:statements/static-is-a-member-modifier` gives class
   storage no receiver to dispatch from), so `Class::$p` reaches nothing.
 - **An observer that touches a property of its own class recurses**, exactly as any method calling itself
   does. *3* says the pipeline runs unconditionally and this ADR keeps that word: there is no re-entry guard,

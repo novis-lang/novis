@@ -580,7 +580,7 @@ impl<'a> Lowering<'a> {
     ///
     /// Deliberately the *written* text rather than a resolved `QName`: this
     /// crate never depends on `nvs-hir`, and
-    /// [ADR 0015](/docs/adr/0015-no-name-aliasing.md) forbids import
+    /// `rule:statements/nothing-gets-a-second-name` forbids import
     /// renaming, so a bare `LogicError` in source is the global `LogicError`
     /// and nothing else. A leading `\\` is stripped, since
     /// `nvs_types::layout` keys a class by its rendered `QName`, which never

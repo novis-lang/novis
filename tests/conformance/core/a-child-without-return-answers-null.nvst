@@ -1,5 +1,5 @@
 --TEST--
-A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — ADR 0006 § *Decision*, against ADR 0021 § 3
+A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — ADR 0006 § *Decision*, against `rule:statements/a-require-expression-is-mixed`
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -26,7 +26,7 @@ echo "ok=", $result->ok ? "true" : "false", "\n";
 echo "output=", $result->output;
 echo "value=", Core\Debug::render($result->value), "\n";
 
-// The other half of the same decision, over the *same* file: what ADR 0021
+// The other half of the same decision, over the *same* file: what `rule:statements/require-is-the-only-inclusion-construct`
 // § 3 pins for the construct PHP has. Asserting only the child's `null`
 // would still read plausibly if the `1` had simply moved.
 var $required = require "quiet.nvs";

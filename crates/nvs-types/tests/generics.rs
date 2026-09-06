@@ -106,7 +106,7 @@ fn a_generic_interface_written_with_too_many_arguments_is_refused() {
     );
 }
 
-/// ADR 0015 gives a `type` alias no parameters of its own, so an alias
+/// `rule:statements/nothing-gets-a-second-name` gives a `type` alias no parameters of its own, so an alias
 /// written with arguments lands on the same refusal a class does -- while
 /// an alias used *as* an argument still expands.
 #[test]

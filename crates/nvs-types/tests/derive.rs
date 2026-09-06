@@ -213,7 +213,7 @@ class Hidden {
     );
     assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
 
-    // A `static` property is class storage, not instance storage (ADR 0008),
+    // A `static` property is class storage, not instance storage (`rule:statements/static-is-a-member-modifier`),
     // so it is not a field either — and a class holding only one derives the
     // same empty contract.
     let diags = check_src(

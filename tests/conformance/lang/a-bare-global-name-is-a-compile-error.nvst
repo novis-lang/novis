@@ -2,7 +2,7 @@
 A bare name in value position is `E0319` and a bare call is `E0320`, never a panic — ADR 0011 §§ 1 and 3 removed the global-function and global-constant storage rows outright, so neither name resolves against anything
 --FILE--
 <?nvs
-// ADR 0011 § 3: a constant always belongs to a class, so a bare name in
+// `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so a bare name in
 // value position has nothing to resolve against.
 echo PHP_EOL;
 // ADR 0011 § 1: the same for a free function. The callee is the identical
@@ -24,7 +24,7 @@ error[E0319]: `PHP_EOL` is not a constant that exists
   |
 4 | echo PHP_EOL;
   |      ^^^^^^^ no global constant has this name
-  = help: ADR 0011 § 3: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and for a PHP built-in the `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is `Core\Math::PI`)
+  = help: `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no global one to fetch — write `Class::NAME`, and for a PHP built-in the `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is `Core\Math::PI`)
 
 error[E0320]: `strlen` is not a function that exists
   --> %s:8:6

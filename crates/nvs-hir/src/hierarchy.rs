@@ -314,7 +314,7 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 }
 
 /// Resolves a written reference to the name it means, per
-/// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 1:
+/// `rule:statements/a-qualified-name-is-absolute`:
 /// **a name with a separator in it is absolute** and is returned as written,
 /// consulting neither `namespace` nor `imports`; a name without one is a
 /// short name, looked up in `imports` and failing that joined onto
@@ -334,7 +334,7 @@ fn raw_ref(src: &SourceFile, name: &Name) -> RawRef {
 /// atom's `Name` the same way every resolver in this crate already resolves
 /// an `extends`/`implements`/alias reference, instead of duplicating this
 /// logic. **Keep it the only place that decides what a name means** — a
-/// second one is the state ADR 0113 § 6 exists to prevent.
+/// second one is the state `rule:statements/one-function-resolves-every-name` exists to prevent.
 pub fn resolve_ref(text: &str, namespace: &[String], imports: &FxHashMap<String, QName>) -> QName {
     let parsed = QName::parse(text);
     if parsed.segments().len() > 1 {
@@ -349,13 +349,13 @@ pub fn resolve_ref(text: &str, namespace: &[String], imports: &FxHashMap<String,
 /// The name PHP's rule would have reached for a reference [`resolve_ref`] has
 /// just failed to resolve — `Models\User` inside `namespace App;` meaning
 /// `App\Models\User`. `None` unless the reference is qualified and the
-/// namespace is non-empty, which is exactly the case ADR 0113 § 1 changes the
+/// namespace is non-empty, which is exactly the case `rule:statements/a-qualified-name-is-absolute` changes the
 /// meaning of.
 ///
 /// Callers use it to upgrade an undeclared-name error into
 /// [`nvs_diagnostics::code::E_RELATIVE_QUALIFIED_NAME`], which names the
 /// absolute spelling instead of leaving a generic "not declared" to be worked
-/// backwards from — ADR 0113 § 5.
+/// backwards from — `rule:statements/a-qualified-name-is-absolute`.
 #[must_use]
 pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
     if namespace.is_empty() || !text.contains('\\') {
@@ -368,10 +368,10 @@ pub fn relative_spelling(text: &str, namespace: &[String]) -> Option<QName> {
 
 /// The diagnostic for a class/interface/enum reference that resolved to
 /// nothing — built here, once, so that every site reporting it makes the same
-/// ADR 0113 § 5 distinction rather than seven copies of it drifting apart.
+/// `rule:statements/a-qualified-name-is-absolute` distinction rather than seven copies of it drifting apart.
 ///
 /// Ordinarily [`nvs_diagnostics::code::E_UNDEFINED_CLASS`]. Where the
-/// reference is the one construct ADR 0113 § 1 changed the meaning of — a
+/// reference is the one construct `rule:statements/a-qualified-name-is-absolute` changed the meaning of — a
 /// qualified name inside a namespace, which PHP read as relative — **and**
 /// that relative reading names something that *is* declared, it is
 /// [`nvs_diagnostics::code::E_RELATIVE_QUALIFIED_NAME`] instead, naming the
@@ -397,7 +397,7 @@ pub fn undeclared_name(
         .with_help(format!(
             "`{relative}` is what is declared. A name with a `\\` in it is absolute in Novis, \
              where PHP would have read this one as relative to the enclosing namespace \
-             (ADR 0113 § 1) — write `{relative}`, or `use {relative};` and write `{}`",
+             (`rule:statements/a-qualified-name-is-absolute`) — write `{relative}`, or `use {relative};` and write `{}`",
             relative.short_name()
         ));
     }
@@ -606,7 +606,7 @@ mod tests {
         (module.graph, diags)
     }
 
-    /// ADR 0113 § 1, as the three cases the rule has and nothing between
+    /// `rule:statements/a-qualified-name-is-absolute`, as the three cases the rule has and nothing between
     /// them. A name with a separator is returned as written no matter what
     /// namespace or imports surround it — the case PHP resolved relative, and
     /// the whole of what this ADR changed. A name without one is looked up in
@@ -658,7 +658,7 @@ mod tests {
         );
     }
 
-    /// The migration diagnostic's input (ADR 0113 § 5): what PHP's rule would
+    /// The migration diagnostic's input (`rule:statements/a-qualified-name-is-absolute`): what PHP's rule would
     /// have reached, offered only for the construct whose meaning changed.
     #[test]
     fn a_relative_spelling_exists_only_for_a_qualified_name_inside_a_namespace() {
@@ -674,7 +674,7 @@ mod tests {
         assert_eq!(relative_spelling(r"Models\User", &[]), None);
     }
 
-    /// ADR 0113 § 5's migration diagnostic. `Models\Module` inside
+    /// `rule:statements/a-qualified-name-is-absolute`'s migration diagnostic. `Models\Module` inside
     /// `namespace App;` is the one construct § 1 changed the meaning of, and
     /// the thing it named in PHP *is* declared here — so the report names
     /// `App\Models\Module` rather than saying a class the author can see is
@@ -724,7 +724,7 @@ mod tests {
         );
     }
 
-    /// ADR 0113 § 2: a short name resolves through the imports then the
+    /// `rule:statements/no-fallback-to-the-root-namespace`: a short name resolves through the imports then the
     /// enclosing namespace and stops, so the reserved exception tree is
     /// reached from inside a namespace by importing it — and only by
     /// importing it. Both halves are asserted, because § 2's price is only

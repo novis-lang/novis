@@ -28,7 +28,7 @@ fn a_closure_parameter_shadows_an_outer_local_rather_than_capturing_it() {
     assert!(captures.is_empty(), "{captures:?}");
 }
 
-/// ADR 0008 § 4's "a closure binds `$this` only where the body uses it"
+/// `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s "a closure binds `$this` only where the body uses it"
 /// falls out of § 2's capture rule with no code of its own: `$this` is an
 /// ordinary name in the enclosing scope.
 #[test]

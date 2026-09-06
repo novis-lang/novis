@@ -173,7 +173,7 @@ is a consumer of it.
     Enforcement of the *limits* is goal 3's; the accounting is this item's, and until then it runs under
     compiled-in defaults.
 22. **`Core\Script::args()`, the top-level `return` contract, and the `ScriptResult` shape** — § *Failure
-    is a value, not an exception*, plus [ADR 0012](../../adr/0012-no-superglobals.md). A child's uncaught
+    is a value, not an exception*, plus `rule:statements/no-host-populated-variables`. A child's uncaught
     throw, its limit breach and a contained panic inside it all leave the parent running with `ok = false`.
 23. **The value-crossing refusals**: a closure, a reference and a resource are refused at the boundary, and
     so is an unresolvable class. A cyclic argument crosses **without hanging**, which is the case that

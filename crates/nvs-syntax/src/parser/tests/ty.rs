@@ -653,7 +653,7 @@ fn shape_type_parses_in_every_declaration_slot() {
         Some(TypeKind::Atom(TypeAtom::Shape(_)))
     ));
 
-    // Reusable via a `type` alias (ADR 0015), same as the ADR's own
+    // Reusable via a `type` alias (`rule:statements/nothing-gets-a-second-name`), same as the ADR's own
     // `type Point = {x: int, y: int};` example.
     let s = parse_stmt_ok("type Point = {x: int, y: int};");
     let StmtKind::TypeAliasDecl(alias) = s.kind else {

@@ -533,7 +533,7 @@ impl Value {
     /// — the descriptor rides in the payload half of an otherwise-`null` slot,
     /// so nothing sweeping a [`Value`] mistakes it for a heap reference.
     ///
-    /// A `static` method's slot 0 is the **called** class (ADR 0008's late
+    /// A `static` method's slot 0 is the **called** class (`rule:statements/static-is-a-member-modifier`'s late
     /// static binding, `nvs_ir::lower`'s own docs), so a native caller of one —
     /// ADR 0079 § 8's fixture runner is the only one — has to fill it exactly
     /// as a compiled call site does rather than leave it `null`.

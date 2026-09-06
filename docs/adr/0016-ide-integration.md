@@ -138,7 +138,7 @@ workspace `Cargo.toml` governs, alongside (not inside) `crates/`.
 
 - Formatting and language semantics have exactly one implementation each (`nvs-fmt`, `nvs-lsp`), reached
   identically by both editors — the two-formatter-drift failure mode named in *Decision § 1* cannot occur
-  structurally, the same reasoning [ADR 0015](0015-no-name-aliasing.md) already applies to a *name* applied
+  structurally, the same reasoning `rule:statements/nothing-gets-a-second-name` already applies to a *name* applied
   here to *behaviour*.
 - VS Code gets a normal, well-understood extension shape with no open design questions.
 - PhpStorm gets real IDE support — completion, hover, diagnostics, rename, formatting, instant syntax colour

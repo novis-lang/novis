@@ -597,7 +597,7 @@ impl Drop for Ended {
 ///
 /// A single-child sibling of `group::run_as_children`'s loop rather than a call
 /// into it, because that runner gives every child a [`Ctx::child`] — the
-/// *aliased* statics base ADR 0116 § 4 says an isolate may not have. What is
+/// *aliased* statics base `rule:statements/an-isolate-has-its-own-statics` says an isolate may not have. What is
 /// **not** here any more is the park: waiting is [`Started::join`]'s, and the
 /// guarantee that control does not leave with the child still running is the
 /// awaiting call's rather than this one's.
@@ -995,7 +995,7 @@ mod tests {
         }
     }
 
-    /// ADR 0116 § 4, which is ADR 0006's "globals, class statics and
+    /// `rule:statements/an-isolate-has-its-own-statics`, which is ADR 0006's "globals, class statics and
     /// runtime-defined constants are fresh": an isolate's statics base is its
     /// own, so nothing it writes can reach the parent's slot. This is the
     /// assertion the whole boundary rests on, because compiled code reaches a
@@ -1816,7 +1816,7 @@ mod tests {
     /// installs the child's context as the current one: an object links itself
     /// into the live list of whichever context is running, and a pair allocated
     /// with none current would sit in no list for the sweep to walk. Slot 0
-    /// carries the class to allocate from, the way ADR 0008's late static
+    /// carries the class to allocate from, the way `rule:statements/static-is-a-member-modifier`'s late static
     /// binding hands a static method its own.
     #[expect(
         unsafe_code,

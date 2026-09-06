@@ -1395,7 +1395,7 @@ pub const CLASSES: &[CoreClass] = &[
     // format's ADR rather than by the library spec. [`crate::config`] owns why
     // every member of it is four lines long.
     crate::config::CLASS,
-    // § 15's environment half — ADR 0012 § 1's replacement for `$_ENV` and
+    // § 15's environment half — `rule:statements/no-host-populated-variables`'s replacement for `$_ENV` and
     // `getenv`, and beside `Core\Config` because the two are the same operator's
     // two answers to "what was this process started with". The one class here
     // that reaches the operating system and is deliberately *not* in the
@@ -1418,7 +1418,7 @@ pub const CLASSES: &[CoreClass] = &[
     // why the bit it reads lives in `nvs-runtime`.
     crate::server::CLASS,
     // § 15's second request-facing class, and the one every value that came
-    // from outside the process arrives through: ADR 0012's replacement for
+    // from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
     // `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
     // `method`, `path`, `query` — is registered. Beside `Core\Server` for the
     // reason that class sits beside `Core\Response`: the two are one request

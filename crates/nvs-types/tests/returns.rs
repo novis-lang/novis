@@ -1,6 +1,6 @@
 //! A method that declares a return type has to produce one on every path —
 //! `E0739` — and, for the one return type that is not a fixed class, what a
-//! call site reads back: ADR 0008 § 1's `static`, `E0741`, and the two
+//! call site reads back: `rule:statements/static-is-a-member-modifier`'s `static`, `E0741`, and the two
 //! substitution sites `nvs_types::signatures::MethodSig::returns_static`
 //! names.
 //!
@@ -34,7 +34,7 @@ fn hierarchy(base_body: &str, leaf: &str) -> String {
     )
 }
 
-/// The rule ADR 0008 § 1 states as a dispatch, read as a type: `make` is
+/// The rule `rule:statements/static-is-a-member-modifier` states as a dispatch, read as a type: `make` is
 /// declared on `Base`, so its *declared* return is `Base` — and the site named
 /// `Leaf`, so what the call answers is a `Leaf`. Nothing but
 /// `MethodSig::returns_static` carries that past the declaration.

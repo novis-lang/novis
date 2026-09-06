@@ -1,4 +1,4 @@
-# ADR 0049 — `<?php` and `die` are rejected; `<?nvs` and `exit` are the only spellings kept
+# `rule:statements/nvs-is-the-only-open-tag` — `<?php` and `die` are rejected; `<?nvs` and `exit` are the only spellings kept
 
 - **Status:** Accepted
 - **Date:** 2026-08-22
@@ -39,7 +39,7 @@
   - Notably, PHP's `die` is itself a naming accident: Perl's `die` (the origin of the name) raises a
     *catchable* fatal error, distinct from Perl's own `exit`. PHP borrowed the word but not the semantics,
     producing a plain duplicate rather than the two-tier distinction Perl actually has.
-- Both are the same shape ADR 0015 already rules against: a second runtime/syntax-reachable spelling of one
+- Both are the same shape `rule:statements/nothing-gets-a-second-name` already rules against: a second runtime/syntax-reachable spelling of one
   thing, extended here from names (classes, imports) to a tag and a keyword.
 
 ## Decision
@@ -99,7 +99,7 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
 
 **Negative**
 
-- **Two more line items for `nvs convert`'s (M11) mechanical rewrite pass**, on top of the ones ADR 0021 and
+- **Two more line items for `nvs convert`'s (M11) mechanical rewrite pass**, on top of the ones `rule:statements/require-is-the-only-inclusion-construct` and
   ADR 0034 already added: `<?php` → `<?nvs` (a literal 5-character substring rewrite, no operand analysis
   needed) and `die(...)` → `exit(...)` (rename only, argument shape is already identical). Both are
   strictly simpler than the `(int)$x` → `$x as int` rewrite ADR 0034 already committed the converter to.
@@ -112,7 +112,7 @@ simplicity cost is accepted are [ADR 0100](0100-against-python-nvs-claims-the-to
 
 - **Keep `<?php` and `die` as permanent aliases, change nothing.** The status quo — argued against above:
   neither spelling differs in behavior from the one kept, so a second spelling buys nothing but a second
-  thing to teach, in a project that has already refused exactly that trade three times (ADR 0021, ADR 0034,
+  thing to teach, in a project that has already refused exactly that trade three times (`rule:statements/require-is-the-only-inclusion-construct`, ADR 0034,
   ADR 0045).
 - **Keep `die` but drop `<?php`, or vice versa.** Considered, since they're unrelated constructs bundled into
   one ADR only because they share a reasoning shape. Rejected as inconsistent: both are pure duplicate

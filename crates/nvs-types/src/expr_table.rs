@@ -101,7 +101,7 @@ pub struct ResolvedCall {
     /// not a second source: it carries arity and parameter tags, never names.
     pub param_names: Vec<String>,
     /// Which parameters are declared `inout $x`, positional —
-    /// [`crate::signatures::MethodSig::inout`]. ADR 0107 § 2 puts the word at
+    /// [`crate::signatures::MethodSig::inout`]. `rule:statements/inout-is-written-at-the-call` puts the word at
     /// the call site too, so `Adder::bump(inout $n)` does say which arguments
     /// these are — but it says it in the *source*, and `nvs-ir` lowers a
     /// resolved call rather than re-resolving one, so the agreement this
@@ -901,7 +901,7 @@ pub enum ExprInfo {
         class: String,
         /// Every outer binding the body reads or writes, in first-touch
         /// order — the field order of the class above. `$this` appears here
-        /// under the name `this`, which is ADR 0008 § 4's "a closure binds
+        /// under the name `this`, which is `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s "a closure binds
         /// `$this` only where the body uses it" falling straight out of § 2's
         /// capture rule rather than needing a rule of its own.
         captures: Vec<(String, TypeId)>,
@@ -1397,7 +1397,7 @@ impl ExprTypeTable {
 
     /// The file the `require` at `span` resolved to, or `None` for a path
     /// that is not a literal, names nothing loadable, or closes a cycle —
-    /// each of which is already a diagnostic or ADR 0021's dynamic fallback,
+    /// each of which is already a diagnostic or `rule:statements/require-is-the-only-inclusion-construct`'s dynamic fallback,
     /// so the site has nothing to call.
     #[must_use]
     pub fn require_target(&self, span: Span) -> Option<nvs_diagnostics::SourceId> {

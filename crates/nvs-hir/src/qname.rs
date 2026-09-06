@@ -27,7 +27,7 @@ impl QName {
     ///
     /// Nothing arrives here with a leading separator, so nothing strips one.
     /// The parser refuses that spelling
-    /// ([ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3,
+    /// (`rule:statements/a-leading-separator-does-not-parse`,
     /// `E0240`) and, on the recovery path where it reports and keeps going,
     /// leaves it outside the [`nvs_syntax::ast::Name`]'s span — so a name's
     /// text is the name. Every other caller builds from a string this compiler

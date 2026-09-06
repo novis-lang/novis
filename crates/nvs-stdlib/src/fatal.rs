@@ -19,8 +19,8 @@
 //!
 //! **Why the closure is held by the context and not by this module.** A handler
 //! is request-local by `rule:errors/on-limit` — it dies with the request like every other
-//! per-request slot ([ADR 0008](/docs/adr/0008-static-and-global.md),
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md)) — so a `static`
+//! per-request slot (`rule:statements/static-is-a-member-modifier`,
+//! `rule:statements/no-host-populated-variables`) — so a `static`
 //! here would be the exact thing that section refuses: one request's safety net
 //! still armed while another request runs on the same core.
 //!

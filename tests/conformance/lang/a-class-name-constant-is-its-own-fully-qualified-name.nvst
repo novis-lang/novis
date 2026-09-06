@@ -1,5 +1,5 @@
 --TEST--
-`Foo::class` is the fully qualified name of the class, folded to a `string` constant at compile time — ADR 0011 § 3's "inlined at every use site, with no storage to read it back from", resolved the way every other class side is
+`Foo::class` is the fully qualified name of the class, folded to a `string` constant at compile time — `rule:statements/storage-that-outlives-a-call`'s "inlined at every use site, with no storage to read it back from", resolved the way every other class side is
 --FILE--
 <?nvs
 namespace App;

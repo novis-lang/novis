@@ -1072,7 +1072,7 @@ No stream wrappers, no `php://`, no `phar://`, no user-registered protocols
 
 ## 15. Request-facing: `Core\Server`, `Core\Request`, `Core\Response`, `Core\Session`, `Core\Env`, `Core\Cap`, `Core\Cli`
 
-These replace PHP's superglobals ([ADR 0012](../adr/0012-no-superglobals.md)); every value they return that
+These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that
 originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md)).
 
 - `Core\Request`: `method`, `path`, `query`, `post`, `body`, `bodyStream`, `header`, `headers`, `cookie`,
@@ -1141,7 +1141,7 @@ originates outside the process is `tainted` ([ADR 0024](../adr/0024-taint-tracki
   Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted`
   sink** that substitutes every control byte with a visible glyph; `Cli\Text` is the only thing that writes
   raw. The byte-and-line side of standard input is `Core\IO` (§ 14), not here; process exit is the `exit`
-  keyword ([ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)).
+  keyword (`rule:statements/nvs-is-the-only-open-tag`).
 
 ## 16. Network, data and crypto
 

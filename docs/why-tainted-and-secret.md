@@ -48,7 +48,7 @@ whose guarantee is genuinely stronger than the rule
 ## Why this is a difference in kind
 
 1. **It attaches itself.** Every other system on that list needs a human to mark what is untrusted. Novis
-   has five named entry points for outside data ([ADR 0012](adr/0012-no-superglobals.md)), so it marks them
+   has five named entry points for outside data (`rule:statements/no-host-populated-variables`), so it marks them
    for you — and the same standing rule covers data read back out of a store, which is what closes stored
    injection by the same mechanism as reflected.
 2. **A sink is a predicate, not a list.** Everyone else enumerates dangerous functions, so every new API is
@@ -82,7 +82,7 @@ that as a headline, and pairing a retired claim with a live one weakens both.
 | `tainted`: how it enters, propagates and is laundered; the sinks that refuse it; HTML auto-escape and `Core\Html\Markup` | [ADR 0024](adr/0024-taint-tracking-for-injection-sinks.md) |
 | `secret`: the second qualifier, its sinks, and why it has no ambient source | [ADR 0033](adr/0033-secret-qualifier-for-confidential-values.md) |
 | What makes something a sink, and why an unclassified one refuses | [ADR 0088](adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md) |
-| Where untrusted data enters a program at all | [ADR 0012](adr/0012-no-superglobals.md) |
+| Where untrusted data enters a program at all | `rule:statements/no-host-populated-variables` |
 | A launderer's return type, and why only an idempotent escape answers a `string` | [ADR 0133](adr/0133-a-launderer-answers-its-sinks-carrier-and-only-an-idempotent-escape-answers-a-string.md) |
 | Both qualifiers at an extension boundary | [ADR 0055](adr/0055-extension-qualifier-declarations.md) |
 | A `secret` value concealed in the editor | [ADR 0101](adr/0101-secret-is-redacted-in-the-editor-and-the-range-comes-from-the-server.md) |

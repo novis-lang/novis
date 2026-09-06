@@ -873,7 +873,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     )
                     .with_primary(expr.span, "no global constant has this name")
                     .with_help(
-                        "ADR 0011 § 3: a constant always belongs to a class, so there is no \
+                        "`rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so there is no \
                          global one to fetch — write `Class::NAME`, and for a PHP built-in the \
                          `Core` member `docs/spec/02-php-migration.md` maps it to (`M_PI` is \
                          `Core\\Math::PI`)",

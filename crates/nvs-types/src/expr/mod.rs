@@ -167,7 +167,7 @@ pub(crate) fn check_condition(
 /// * `yield $v;` — `rule:iteration/generators`'s suspension point, whose value nothing
 ///   consumes. [`infer`]'s own arm refuses every *other* position (`E0448`),
 ///   so this call is the one path that reaches [`infer_yield`].
-/// * `require '…';` — ADR 0021's statement form, lowered to nothing because
+/// * `require '…';` — `rule:statements/require-is-the-only-inclusion-construct`'s statement form, lowered to nothing because
 ///   the graph is resolved at compile time. Only the path expression is
 ///   checked; [`infer`]'s arm refuses the value form (`E0704`).
 ///
@@ -787,7 +787,7 @@ pub(crate) fn infer(
             isolate::check_spawn_script(path, options, live, scope, ctx, env)
         }
         ExprKind::Await(inner) => isolate::check_await(inner, live, scope, ctx, env),
-        // ADR 0021 § 3's **value** form. The statement form never reaches here
+        // `rule:statements/a-require-expression-is-mixed`'s **value** form. The statement form never reaches here
         // — `crate::locals::check_stmt` checks only the path for one, matching
         // `nvs_ir::lower::Lowering::lower_expr_stmt` — so arriving at all is
         // the proof this `require` was used for its value.

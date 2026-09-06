@@ -9,7 +9,7 @@ A file whose first two bytes are `#!` starts in code mode, and line 1 is trivia 
 echo "opened", "\n";
 
 // Nothing else changes: `?>` still leaves code mode and writes literal bytes,
-// and a later `<?nvs` reopens it, both per ADR 0049.
+// and a later `<?nvs` reopens it, both per `rule:statements/nvs-is-the-only-open-tag`.
 ?>literal
 <?nvs
 echo "reopened", "\n";

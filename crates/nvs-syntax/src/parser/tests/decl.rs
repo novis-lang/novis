@@ -464,7 +464,7 @@ fn a_braced_namespace_is_e0243() {
     assert!(!diags.has_errors(), "the statement form: {diags:?}");
 }
 
-/// ADR 0113 § 3: the leading separator is refused in all three positions PHP
+/// `rule:statements/a-leading-separator-does-not-parse`: the leading separator is refused in all three positions PHP
 /// gave it three different meanings in — redundant in a `use` path,
 /// load-bearing at a reference, and illegal in a `namespace` declaration. Each
 /// reports once and the statement still parses, so one mistake is one
@@ -506,7 +506,7 @@ fn a_leading_separator_is_refused_in_every_position_that_takes_a_name() {
             !diags
                 .iter()
                 .any(|d| d.code == Some(code::E_LEADING_BACKSLASH_UNSUPPORTED)),
-            "`{src}` is the spelling ADR 0113 asks for: {diags:?}"
+            "`{src}` is the spelling `rule:statements/a-qualified-name-is-absolute` asks for: {diags:?}"
         );
     }
 }
@@ -831,7 +831,7 @@ $registry->discover();
 }
 
 /// `rule:programs/autoload`'s literal-only restriction, which is `require`'s
-/// (ADR 0021): a path assembled at run time could not contribute to a map
+/// (`rule:statements/require-is-the-only-inclusion-construct`): a path assembled at run time could not contribute to a map
 /// built at compile time. Each spelling reports once — a malformed
 /// declaration is swallowed through its `;` rather than also failing on the
 /// token the parser stopped at.

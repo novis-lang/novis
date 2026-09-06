@@ -152,7 +152,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// Whether `static` at the current position starts the rejected
-    /// function-scope storage declaration (ADR 0008 § 5) rather than an
+    /// function-scope storage declaration (`rule:statements/no-function-static-and-no-global`) rather than an
     /// ordinary `static::`/`static function`/`static fn`/bare-`static`
     /// expression — decided by one token of lookahead past `static` itself:
     /// a `$name` (the ordinary untyped PHP spelling) or a type-start token
@@ -208,7 +208,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// deciding token is one further ahead: an intersection member is always
     /// another type atom, never a bare `$name`.
     ///
-    /// ADR 0107 § 3 retires that marker but keeps it *recognizable*, so this
+    /// `rule:statements/ampersand-is-not-a-by-reference-marker` retires that marker but keeps it *recognizable*, so this
     /// survives the removal rather than being deleted with it: the site one
     /// level up names the exact fix (E0237, `Parser::report_by_reference_marker`),
     /// which it can only do if the type parser leaves the `&` alone instead
@@ -618,7 +618,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     ///
     /// A **leading** separator is refused here rather than folded into the
     /// span, per
-    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3:
+    /// `rule:statements/a-leading-separator-does-not-parse`:
     /// a name with a separator in it is already read from the root, so the
     /// prefix has no work left to do. The token is still consumed after the
     /// report, so the rest of the name parses and one mistake yields one
@@ -652,7 +652,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(slash, "remove the leading `\\`")
                 .with_help(
                     "a name with a `\\` in it is read from the root, and one without resolves \
-                     through the imports then the enclosing namespace (ADR 0113 §§ 1, 3)",
+                     through the imports then the enclosing namespace (`rule:statements/a-qualified-name-is-absolute` and `rule:statements/a-leading-separator-does-not-parse`)",
                 ),
             );
         }

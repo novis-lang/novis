@@ -1,5 +1,5 @@
 --TEST--
-A body declaring `static` may not return the declaring class, since a subclass call site is promised its own (ADR 0008 § 1)
+A body declaring `static` may not return the declaring class, since a subclass call site is promised its own (`rule:statements/static-is-a-member-modifier`)
 --FILE--
 <?nvs
 // `static` is the class the *call* named, so `Leaf::make()` is promised a

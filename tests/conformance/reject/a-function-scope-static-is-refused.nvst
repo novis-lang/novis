@@ -1,5 +1,5 @@
 --TEST--
-`static` marks a class member and nothing else, so there is no per-function storage class — ADR 0008 § 5
+`static` marks a class member and nothing else, so there is no per-function storage class — `rule:statements/no-function-static-and-no-global`
 --FILE--
 <?nvs
 class Counter {

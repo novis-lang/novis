@@ -1071,7 +1071,7 @@ where
 /// is the status and nothing else.
 /// What a response carries when nothing declared otherwise —
 /// [ADR 0088](/docs/adr/0088-a-sink-is-an-instruction-and-the-default-refuses.md)
-/// § 4's last bullet, which is what makes ADR 0049's inline-HTML page shape
+/// § 4's last bullet, which is what makes `rule:statements/nvs-is-the-only-open-tag`'s inline-HTML page shape
 /// work with no ceremony.
 const ECHOED: &str = "text/html; charset=utf-8";
 

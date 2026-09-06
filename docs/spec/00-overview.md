@@ -8,7 +8,7 @@
   plan names confusing the last two as the predictable mistake; the concrete grammar for every declaration
   slot [ADR 0007](../adr/0007-explicit-type-system.md) requires (typed locals, `foreach` bindings,
   destructuring, `type` aliases) and the final spelling of the conversion operator; the closed list of
-  storage classes [ADR 0008](../adr/0008-static-and-global.md) decided, restated here only as a syntax
+  storage classes `rule:statements/static-is-a-member-modifier` decided, restated here only as a syntax
   table; the `bytes` literal question [ADR 0009](../adr/0009-string-and-bytes.md) deferred here.
 - **Out of scope, deliberately:** full expression/operator-precedence tables, the concurrency surface
   (`spawn`/`await`/`Channel`, M5), the HTTP/`Core` accessor surface (M7), and anything not named above. This
@@ -42,7 +42,7 @@ in one of two modes, exactly as PHP is:
   | `<?nvs` | `?>` | ordinary code mode — the only code-mode open tag Novis keeps |
   | `<?=` `expr` | `?>` | short-echo: exactly `<?nvs echo expr; ?>`, one expression, `;` optional before `?>` |
 
-  `<?php` is diagnosed rather than accepted: [ADR 0049](../adr/0049-single-open-tag-and-single-exit-keyword.md)
+  `<?php` is diagnosed rather than accepted: `rule:statements/nvs-is-the-only-open-tag`
   withdraws its earlier acceptance as a second spelling of `<?nvs`, now that a PHP file needs `nvs convert`
   regardless and a plain tag rename costs that tool nothing extra.
 
@@ -58,7 +58,7 @@ there is nothing to accept or reject.
 
 Two PHP-shaped ways to bring in code plus one Novis-only addition, and they isolate three different amounts.
 Defined here side by side because [ADR 0006](../adr/0006-isolated-script-execution.md) names exactly this
-confusion as the mistake worth heading off. [ADR 0021](../adr/0021-single-file-inclusion-construct.md)
+confusion as the mistake worth heading off. `rule:statements/require-is-the-only-inclusion-construct`
 collapses PHP's four same-frame inclusion keywords to this one: `include`, `include_once`, and
 `require_once` all parse (so the diagnostic can name the replacement) and are then rejected.
 
@@ -243,12 +243,11 @@ not be a single bare class/interface/enum atom ([ADR 0015 § 6](../adr/0015-no-n
 resolution-time check (M2), not a parse-time one — the grammar above parses `type Id = SomeClass;` exactly
 like any other alias declaration, and M2's resolver is where it becomes a diagnostic.
 
-## 4. The scoping surface (ADR 0008's spelling only)
+## 4. The scoping surface (`rule:statements/static-is-a-member-modifier`'s spelling only)
 
 [ADR 0008 § 2](../adr/0008-static-and-global.md) is the closed, exhaustive list of where state may outlive a
 call, and this document adds no storage class to it and repeats none of its reasoning. What belongs here is
-only the syntax for each row, gathered in one place since it is otherwise scattered across ADR 0007 and ADR
-0008's own examples:
+only the syntax for each row, gathered in one place since it is otherwise scattered across ADR 0007 and `rule:statements/static-is-a-member-modifier`'s own examples:
 
 | storage | syntax |
 |---|---|
@@ -259,7 +258,7 @@ only the syntax for each row, gathered in one place since it is otherwise scatte
 | top-level script variable | § 3.1's grammar, written at file scope instead of inside a function |
 
 `static` never appears as a declaration keyword outside a class member; there is no function-scope
-`static int $x`, no `static fn`, and no `global` — each rejected with the diagnostic ADR 0008 § 5 already
+`static int $x`, no `static fn`, and no `global` — each rejected with the diagnostic `rule:statements/no-function-static-and-no-global` already
 names. This document fixes no new syntax for any of the three, because there is no replacement syntax to
 fix: each rejection's replacement is one of the five rows above, already covered.
 

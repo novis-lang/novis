@@ -4,7 +4,7 @@
 //! origin, the configuration snapshot, the trace context, the command and route
 //! tables, `argv`, the program name and the program's identity — each one a
 //! value the host knows and the language cannot ask for, because
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) leaves nothing ambient to the
+//! `rule:statements/no-host-populated-variables` leaves nothing ambient to the
 //! language itself.
 //!
 //! The determinism knobs live here for the same reason.

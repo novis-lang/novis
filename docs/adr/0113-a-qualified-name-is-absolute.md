@@ -1,4 +1,4 @@
-# ADR 0113 — A qualified name is absolute, and the leading `\` does not parse
+# `rule:statements/a-qualified-name-is-absolute` — A qualified name is absolute, and the leading `\` does not parse
 
 - **Status:** Accepted
 - **Date:** 2026-08-29
@@ -76,7 +76,7 @@ Given a name as written, and the namespace and import set active where it was wr
   neither has it, the name does not resolve, and there is no third place to look.
 
 A `use` therefore does exactly one thing: it binds **one declaration** under its own short name. That is
-already all [ADR 0015](0015-no-name-aliasing.md) § 2 says an import is, and importing a *namespace* —
+already all `rule:statements/nothing-gets-a-second-name` says an import is, and importing a *namespace* —
 a second, prefix-shaped meaning for the same statement — stops being a concept here rather than being a
 feature that quietly coexists with it.
 

@@ -12,8 +12,8 @@
 //! Whole-program: [`lower::lower_file`] walks a file, [`lower::lower_method`]
 //! one method, [`lower::lower_property_hook`] one ADR 0014 accessor, and
 //! [`lower::lower_script`] a file's own top-level statements as one synthesized
-//! frame of ordinary locals with no receiver (ADR 0008 § 2), returning
-//! [`ty::Ty::Tagged`] because that is what ADR 0021 types a `require`'s result.
+//! frame of ordinary locals with no receiver (`rule:statements/storage-that-outlives-a-call`), returning
+//! [`ty::Ty::Tagged`] because that is what `rule:statements/require-is-the-only-inclusion-construct` types a `require`'s result.
 //!
 //! - **Statements** — typed and `var` local declarations (ADR 0037), a typed
 //!   one with no initializer at all (the type is fixed and remembered, and

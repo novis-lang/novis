@@ -84,7 +84,7 @@ class Foo { use A, B { A::hello insteadof B; } }                // rejected
 Each of the three produces a parse-time diagnostic — `E_TRAIT_NOT_SUPPORTED` — naming §§ 2–4 below by name
 (default/private interface methods for shared behavior, `by` delegation for shared state), the same shape
 [ADR 0034](0034-legacy-cast-syntax-rejected.md) already gives legacy casts and
-[ADR 0021](0021-single-file-inclusion-construct.md) gives `include`/`require_once`. `nvs-syntax`'s AST loses
+`rule:statements/require-is-the-only-inclusion-construct` gives `include`/`require_once`. `nvs-syntax`'s AST loses
 `TraitDecl`, `UseTraitMember`, `TraitAdaptation`/`TraitAdaptationKind`, and `TraitMethodRef` — there is no
 node left to carry, since none of the three constructs produces one any more.
 
@@ -124,7 +124,7 @@ both enforce. Only members declared on that interface, or on an interface it `ex
 object) compose without ambiguity: a default method body can call another method the interface itself
 requires, but it cannot reach into whatever the *concrete* class happens to also declare — that would make a
 default method's correctness depend on which class happens to use it, exactly the ambient-coupling shape
-[ADR 0014](0014-property-observer.md) and [ADR 0012](0012-no-superglobals.md) already close elsewhere.
+[ADR 0014](0014-property-observer.md) and `rule:statements/no-host-populated-variables` already close elsewhere.
 
 ### 3. Private interface methods are internal-only helpers
 
@@ -202,9 +202,9 @@ $this->timestamps->touch(); }`. Rules:
 - Three member shapes get **no** forward and are refused where the clause is written
   (`E_DELEGATE_MEMBER_NOT_FORWARDABLE`), because the forward is a whole method whose body passes its
   parameters straight on: a `static` member has no receiver to read `$field` off
-  ([ADR 0008](0008-static-and-global.md) gives class storage none), and a variadic or `inout`
+  (`rule:statements/static-is-a-member-modifier` gives class storage none), and a variadic or `inout`
   parameter list is packed and written back at the *call site*
-  ([ADR 0107](0107-by-reference-parameters-are-spelled-inout-at-both-ends.md) § 2), so a forward would do that twice. The
+  (`rule:statements/inout-is-written-at-the-call`), so a forward would do that twice. The
   way out is the bullet above — write the member on the class by hand. This is a limit of the
   implementation rather than a rule about delegation, and `nvs_types::conformance`'s
   `resolve_delegations` is its one home.
@@ -252,16 +252,16 @@ human decision, named honestly rather than silently attempted:
    every `class C { use Timestamps; }` becomes `class C implements Timestamped by $timestamps { private
    TimestampsImpl $timestamps; constructor(...) { …; $this->timestamps = new TimestampsImpl(); } }` —
    inserting a field and a constructor assignment, merged into an existing constructor if the class already
-   has one. Mechanical, but — like [ADR 0015](0015-no-name-aliasing.md) § 7's "group top-level functions into
+   has one. Mechanical, but — like `rule:statements/nothing-gets-a-second-name`'s "group top-level functions into
    a generated class" case — it changes the shape of the surrounding code enough that `nvs convert` flags it
    for human review rather than applying it silently.
 3. **`insteadof`, either shape** — `use A, B { A::hello insteadof B; }` becomes an explicit override calling
    the winner by name: `public function hello(): void { return A::hello(); }` for the stateless case (§ 5's
    `InterfaceName::method()` form) or `public function hello(): void { return $this->a->hello(); }` for the
-   stateful/delegated case — the exact rewrite [ADR 0015](0015-no-name-aliasing.md) § 7 already specified for
+   stateful/delegated case — the exact rewrite `rule:statements/nothing-gets-a-second-name` already specified for
    the `as`-rename case, retargeted from a trait method call to an interface/delegate call.
 4. **A trait's `static` property** has no destination at all: PHP's per-consuming-class-copied trait static
-   is exactly the ambient, silently-duplicated state [ADR 0008](0008-static-and-global.md) already forbids in
+   is exactly the ambient, silently-duplicated state `rule:statements/static-is-a-member-modifier` already forbids in
    general, independent of traits. `nvs convert` emits a `TODO` naming the property, requiring a human choice
    between a real `static` property owned by one class or instance state carried through delegation.
 5. **A trait method that calls back into an *unrelated* method of its consuming class** — one not covered by
@@ -343,18 +343,18 @@ human decision, named honestly rather than silently attempted:
   need to hold a separate object just to answer `hello()`.
 - **A `mixin` keyword performing PHP-style flattening but with `implements`-shaped type identity** (a third,
   new construct). Rejected: this is exactly the pattern [ADR 0011](0011-functions-and-constants-are-class-members.md)
-  and [ADR 0015](0015-no-name-aliasing.md) already warn against — a bespoke mechanism where an existing one
+  and `rule:statements/nothing-gets-a-second-name` already warn against — a bespoke mechanism where an existing one
   (interfaces) already does the job with less new surface to teach.
 - **PHP's `Interface.super.method()`-equivalent spelled as a new dedicated keyword** rather than reusing
   `InterfaceName::method()`. Rejected: the qualified-call shape already exists and is already documented in
   ADR 0015 § 3 for the same purpose; giving it a second spelling for interfaces would be exactly the kind of
-  duplicate-spelling surface [ADR 0015](0015-no-name-aliasing.md) itself exists to prevent.
+  duplicate-spelling surface `rule:statements/nothing-gets-a-second-name` itself exists to prevent.
 
 ## Revisiting
 
 - **Whether `nvs convert` should attempt § 6.5's host-callback case automatically** by inferring a minimal
   callback interface from the unrelated calls a trait body makes. Deferred: needs real ported code to argue
-  the shape from, the same deferral [ADR 0015](0015-no-name-aliasing.md) *Revisiting* already uses for its
+  the shape from, the same deferral `rule:statements/nothing-gets-a-second-name` *Revisiting* already uses for its
   own converter UX questions.
 - **Whether a `by`-delegated field should be allowed to itself be `?T`**, with delegated calls become
   observable no-ops or a checked throw on null. Not requested by any motivating case found while writing this

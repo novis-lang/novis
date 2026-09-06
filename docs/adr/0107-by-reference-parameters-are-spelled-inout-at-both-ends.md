@@ -1,4 +1,4 @@
-# ADR 0107 — A by-reference binding is spelled `inout`, at the declaration and at the call
+# `rule:statements/inout-is-the-by-reference-spelling` — A by-reference binding is spelled `inout`, at the declaration and at the call
 
 - **Status:** Accepted
 - **Date:** 2026-08-27

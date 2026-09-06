@@ -11,14 +11,14 @@
 //! Beyond the operators: `match`, closures and arrow functions (ADR 0031's one
 //! literal, `fn`, plus the `function` forms it refuses), generators
 //! (`yield`/`yield from`), named arguments, spread, nullsafe, first-class
-//! callable syntax, `require` (an expression, not a statement — ADR 0021),
+//! callable syntax, `require` (an expression, not a statement — `rule:statements/require-is-the-only-inclusion-construct`),
 //! `spawn script … with(…)`, ADR 0036 § 2's `{a: 1}` object literal, and the
 //! interpolated-string bodies the lexer hands back in parts.
 //!
 //! Several PHP spellings are parsed here only to be diagnosed, and they are
 //! deliberately *parsed* rather than left to fail: a legacy `(int)$x` cast (ADR
 //! 0034), `eval`/`extract`/`settype` (ADR 0052), `die`, and
-//! `include`/`include_once`/`require_once` (ADR 0021). Recovering the whole
+//! `include`/`include_once`/`require_once` (`rule:statements/require-is-the-only-inclusion-construct`). Recovering the whole
 //! construct is what lets the diagnostic name the replacement and the rest of
 //! the file keep parsing.
 //!
@@ -988,7 +988,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         CallArgs::List(args)
     }
 
-    /// `'...' expr | name ':' expr | 'inout'? expr` — ADR 0107 § 2 writes the
+    /// `'...' expr | name ':' expr | 'inout'? expr` — `rule:statements/inout-is-written-at-the-call` writes the
     /// marker again at the call site, and it goes outside a named argument's
     /// `name:` for the same reason it goes outside the parameter's type: it
     /// marks the binding, not the value. Whether it is *required* here needs
@@ -1681,7 +1681,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `attrs? modifiers? 'inout'? Type '...'? '$'name ('=' default)?` —
-    /// ADR 0107 § 1 puts `inout` in the modifier slot `parse_modifiers`
+    /// `rule:statements/inout-is-the-by-reference-spelling` puts `inout` in the modifier slot `parse_modifiers`
     /// already runs, so it reads like the `public readonly int $x` beside it
     /// and costs the grammar nothing. PHP's `int &$x` is still recognized,
     /// one token past the type, purely so it can be named (E0237).
@@ -1953,7 +1953,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `exit`, optionally with a status/message argument. `die` reaches here
     /// too (both keywords dispatch to this method) but is rejected — Novis
-    /// keeps exactly one process-termination keyword. See ADR 0049 § 1.
+    /// keeps exactly one process-termination keyword. See `rule:statements/exit-is-the-only-termination-keyword`.
     pub(super) fn parse_exit(&mut self) -> Expr {
         let is_die = self.at_keyword(Keyword::Die);
         let start = self.bump().span;
@@ -2072,7 +2072,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `require` — the sole surviving same-frame inclusion keyword
-    /// ([ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)):
+    /// (`rule:statements/require-is-the-only-inclusion-construct`):
     /// an expression, not a statement, per
     /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md):
     /// same frame, same globals, same statics as the caller. Precedence
@@ -2092,7 +2092,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// `include`/`include_once`/`require_once` — parsed the same shape as
     /// `require` so the diagnostic can cover the whole construct, then
-    /// discarded: [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
+    /// discarded: `rule:statements/require-is-the-only-inclusion-construct`
     /// keeps exactly one same-frame inclusion keyword.
     pub(super) fn parse_rejected_include_family(&mut self, kw: Keyword) -> Expr {
         let start = self.bump().span;

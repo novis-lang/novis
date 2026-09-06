@@ -1,7 +1,7 @@
 //! Entry point: walks a resolved [`Module`]'s classes and methods, type-
 //! checking each method body against ADR 0007 §§ 1-4 (see the crate docs for
 //! the exact scope of this slice), plus the file's own top-level statements
-//! as one synthesized frame ([`ScriptFrame`]) — ADR 0008 § 2's "the script
+//! as one synthesized frame ([`ScriptFrame`]) — `rule:statements/storage-that-outlives-a-call`'s "the script
 //! body is a function, so its variables are locals". That frame is threaded
 //! across `namespace { ... }` blocks, since a namespace scopes names rather
 //! than storage, and it is entirely separate from every method's own frame:
@@ -65,7 +65,7 @@ fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// body is checked, because a class declared in one file is referenced from
 /// another; only the per-file phases below are actually per file.
 ///
-/// **Each file gets its own [`ScriptFrame`].** ADR 0008 § 2 makes a file's
+/// **Each file gets its own [`ScriptFrame`].** `rule:statements/storage-that-outlives-a-call` makes a file's
 /// top-level statements a function body, and a file is where that body ends:
 /// `$x` at the top of the entry file and `$x` at the top of a `require`d one
 /// are two locals of two frames, so neither the declare-once rule nor
@@ -180,7 +180,7 @@ pub fn check_program_granted(
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),
             live: FxHashSet::default(),
-            // ADR 0021 § 3: `require`'s value is what a `return`-ing target
+            // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target
             // file hands back, typed `mixed` at the boundary — so the
             // synthesized frame's return type is `mixed`, not `void`.
             return_ty: env.interner.mixed(),
@@ -241,7 +241,7 @@ fn record_property_types(signatures: &crate::SignatureTable, exprs: &mut ExprTyp
 }
 
 /// The one synthesized frame a file's top-level statements share
-/// (ADR 0008 § 2: "the script body is a function, so its variables are
+/// (`rule:statements/storage-that-outlives-a-call`: "the script body is a function, so its variables are
 /// locals"). Threaded through [`check_stmts`] so that a `namespace { ... }`
 /// block's own top-level statements land in the *same* frame as the ones
 /// outside it — a namespace scopes names, not storage.
@@ -359,7 +359,7 @@ pub(crate) fn check_stmts(
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
             // Everything else is a *statement* of the script body, not a
             // declaration: one synthesized frame for the whole file, whose
-            // variables are ordinary locals (ADR 0008 § 2). Reuses
+            // variables are ordinary locals (`rule:statements/storage-that-outlives-a-call`). Reuses
             // `check_stmt` verbatim rather than adding a second walk, so a
             // top-level `echo $missing;` reports exactly what the same line
             // inside a method reports. `current_class` is `None` — there is
@@ -582,7 +582,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         // `Param` node of its own to read a span from, and property/method
         // access on it (`crate::expr`) needs its type to be `self`'s class
         // the same way an explicit `new Foo()` result is. Gated on the
-        // `static` modifier because ADR 0008 § 1 keeps PHP's semantics for
+        // `static` modifier because `rule:statements/static-is-a-member-modifier` keeps PHP's semantics for
         // it: a static method is entered with no receiver, so `$this` in one
         // is `E0779` from `expr::assign::check_read` rather than a binding —
         // and `nvs_ir::lower::expr` panics on the read if it is not refused
@@ -669,7 +669,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// nothing to write. Everything else, a declared `mixed` included, owes a
 /// value: the declaration is what the caller reads, and `nvs-ir`'s fall-through
 /// `Terminator::Return(None)` writes no slot for it to read.
-/// ADR 0008 § 1's late static binding, held at the declaration: a body
+/// `rule:statements/static-is-a-member-modifier`'s late static binding, held at the declaration: a body
 /// promising `static` must answer the *called* class, not the declaring one
 /// (`E0741`).
 ///
@@ -679,7 +679,7 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 /// expression shapes keep the promise and they are the whole list:
 ///
 /// * `$this` — the receiver *is* the called class.
-/// * `new static(...)` — ADR 0008 § 1's allocation of it.
+/// * `new static(...)` — `rule:statements/static-is-a-member-modifier`'s allocation of it.
 /// * a call written on `static`/`self`/`parent`/`$this` whose target itself
 ///   returns `static`, since all four forward the caller's called class.
 ///

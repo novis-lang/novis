@@ -51,7 +51,7 @@ gets its first adversarial traffic.
 2. **The request is the root isolate of a request tree**, and it is goal 2's `Isolate`. m7.md says "not a
    second isolation path" and that is the item: if this stage grows its own isolation, the state-bleed
    suite in Stage 9 is testing two mechanisms and proving neither.
-3. **`Core\Request` and `Core\Server`, populated from it** — [ADR 0012](../../adr/0012-no-superglobals.md)'s
+3. **`Core\Request` and `Core\Server`, populated from it** — `rule:statements/no-host-populated-variables`'s
    replacement for `$_GET`/`$_POST`/`$_SERVER`/`$_COOKIE`/`$_FILES`. **Every value originating outside the
    process is `tainted`** ([ADR 0024](../../adr/0024-taint-tracking-for-injection-sinks.md)), and that is
    not decoration: goal 4 built every launderer, and this is the stage that gives them something to launder.

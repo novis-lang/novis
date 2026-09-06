@@ -1,4 +1,4 @@
-# ADR 0008 — `static` marks a class member; there are no function statics and no `global`
+# `rule:statements/static-is-a-member-modifier` — `static` marks a class member; there are no function statics and no `global`
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -17,7 +17,7 @@
 > replaces them: a class static property for state that must outlive a call, a parameter for state that must
 > cross a function boundary, and nothing at all for `static fn` — a closure captures `$this` only if its
 > body uses it. The complete list of things that hold state across a call is in **Decision § 2**, and it is
-> meant to be read as exhaustive. It no longer includes superglobals: [ADR 0012](0012-no-superglobals.md)
+> meant to be read as exhaustive. It no longer includes superglobals: `rule:statements/no-host-populated-variables`
 > replaces every PHP superglobal with a method call on a `Core` class, so request/session/CLI state is a
 > class static populated by the host rather than a fifth kind of storage.
 
@@ -69,7 +69,7 @@ not an implementation detail:
 | top-level script variable | the script's own frame, **unreachable from a function** | `int $n = 0;` at file scope |
 
 A **superglobal** is deliberately not in this table, and not because it is missing — because it is not a
-distinct storage class at all. [ADR 0012](0012-no-superglobals.md) replaces every PHP superglobal
+distinct storage class at all. `rule:statements/no-host-populated-variables` replaces every PHP superglobal
 (`$_GET`, `$_POST`, `$_SERVER`, …) with a `static` method call on a `Core` class; the value it returns lives
 in that class's own static state, which is the *class static property* row above, host-populated at isolate
 construction rather than by a user initialiser. Nothing new is needed to hold it.

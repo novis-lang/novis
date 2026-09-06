@@ -473,7 +473,7 @@ impl Fixtures {
     /// already-built values `needs` names, and keeps the result under `name`.
     ///
     /// `receiver` is the **called class**, which is what a `static` method's
-    /// slot 0 carries (ADR 0008's late static binding, [`Value::class_desc`]) —
+    /// slot 0 carries (`rule:statements/static-is-a-member-modifier`'s late static binding, [`Value::class_desc`]) —
     /// a caller that left it `null` would hand the body a descriptor of zero
     /// for any `static::` inside it.
     ///

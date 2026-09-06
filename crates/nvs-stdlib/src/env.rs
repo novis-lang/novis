@@ -1,6 +1,6 @@
 //! `Core\Env` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
 //! § 15's environment half, which is
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) § 1's replacement
+//! `rule:statements/no-host-populated-variables`'s replacement
 //! for `$_ENV` and `getenv()`.
 //!
 //! All three members — `get`, `all` and `mode` — and all three of § 15's

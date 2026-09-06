@@ -229,7 +229,7 @@ impl LocalScope {
     /// side effect: this question is asked by
     /// `crate::expr::calls::infer_static_call` about a call that never
     /// mentions `$this`, and answering it must not make a closure capture one
-    /// it does not use (ADR 0008 § 4).
+    /// it does not use (`rule:statements/a-closure-binds-this-only-where-it-uses-it`).
     pub(crate) fn holds_receiver(&self) -> bool {
         self.by_name.contains_key("this")
             || self
@@ -1341,7 +1341,7 @@ pub(crate) fn check_stmt(
             walk_destructure_target(target, Some(subject), value.span, live, scope, ctx, env);
         }
         StmtKind::Global(_) | StmtKind::Goto(_) | StmtKind::StaticLocal { .. } => {
-            // Already rejected constructs (ADR 0008 § 5 / "makes the CFG
+            // Already rejected constructs (`rule:statements/no-function-static-and-no-global` / "makes the CFG
             // unstructured") — nothing downstream ever acts on them, same as
             // `nvs_hir::members`'s own walk.
         }

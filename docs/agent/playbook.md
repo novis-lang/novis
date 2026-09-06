@@ -2455,7 +2455,7 @@ is why" — is this file.
   nothing**, so a new failure path in that loop must return a value the summary can print.
 - **A `static` method's slot 0 is the *called class*, not an empty receiver.** Calling one from Rust
   (`nvs_runtime::abi::call` on a `Unit::function("Class::method")` address) with a `null` first slot
-  segfaults inside the callee rather than faulting anywhere a message could be printed: ADR 0008's late
+  segfaults inside the callee rather than faulting anywhere a message could be printed: `rule:statements/static-is-a-member-modifier`'s late
   static binding puts a `ClassDesc` there, `nvs_ir::lower` seeds it as `Param(0)` at `Ty::ClassDesc`, and
   `Value::class_desc` is the encoding a compiled call site uses. An instance method's slot 0 is the
   receiver as expected, so the trap only shows up the first time native code calls a `static` one.
@@ -3038,8 +3038,7 @@ is why" — is this file.
   (`crates/nvs-test`'s module doc), and `nvs-cli`'s `front_end` resolves, checks and lowers the whole
   `require`/`autoload` graph, so a class declared in a second file is reachable from `nvs run` *and* a bare
   `echo` at its file scope prints, where the `require` is written and once per time that statement is
-  reached. Two things a case still cannot assume: a required file's `$x` is not the caller's (ADR 0021
-  § *Decision* — declarations cross, variables do not), and an *autoloaded* file is reached by no
+  reached. Two things a case still cannot assume: a required file's `$x` is not the caller's (`rule:statements/a-required-file-shares-declarations-not-locals` — declarations cross, variables do not), and an *autoloaded* file is reached by no
   statement at all, so only its declarations ever run. This bullet used to say the opposite half of the
   first sentence.
 - **A `--EXPECTF-ERROR--` case must not also *use* what the broken declaration would have provided.**
@@ -4657,7 +4656,7 @@ is why" — is this file.
 - **A `namespace` in Novis is a statement and not a block, so a case that needs two of them needs two
   files.** `namespace App { … }` is `E0243`, *"write `namespace X;` once, before any declaration, and
   put a second namespace in a second file"* — which turns a one-file draft into a `--FILE app.nvs--`
-  plus a `require './app.nvs';` at the top of the root file. Declarations cross a `require` (ADR 0021),
+  plus a `require './app.nvs';` at the top of the root file. Declarations cross a `require` (`rule:statements/require-is-the-only-inclusion-construct`),
   so the classes are reachable and only the root file's statements print, which is what makes this the
   cheap shape for "the same name means two different things in two scopes". `try.py` cannot run the
   result — the neighbouring bullet says why — but `target/debug/nvs test <path>.nvst` takes a **single
@@ -6010,7 +6009,7 @@ is why" — is this file.
   route is the one a request already takes: `nvs_runtime::call(entry, ctx, &[…])` installs the context
   around an `extern "C"` entry (`crates/nvs-runtime/src/abi.rs:580`), so the fixture is a captureless
   `unsafe extern "C" fn` and the class reaches it through **slot 0** as a `Value::class_desc`, exactly
-  as ADR 0008's late static binding hands a static method its own.
+  as `rule:statements/static-is-a-member-modifier`'s late static binding hands a static method its own.
   `crates/nvs-host/src/isolate.rs`'s `build_a_cycle` is the shape. Getting this wrong does not fail
   where it happens — the pair simply leaks, and what fails is an assertion about bytes several frames
   away, which reads as though the sweep were broken.
@@ -6086,7 +6085,7 @@ is why" — is this file.
   displaced one retained turns the count from `[999]` into all thousand indices.
 - **A `.nvst` case's second `foreach` cannot re-declare the first one's loop-local, and the error
   points at the *first* declaration rather than at the line you just wrote.** A case is top-level
-  statements, which is one `ScriptFrame` (ADR 0008 § 2), and a block is not a storage scope — so two
+  statements, which is one `ScriptFrame` (`rule:statements/storage-that-outlives-a-call`), and a block is not a storage scope — so two
   loops each opening with `var $form = …` is `second declaration`, reported against a line ten above
   the one under the cursor. Rename the second loop's locals. Nothing about the member under test is
   wrong, and the tell is that the caret sits on a line the edit did not touch.

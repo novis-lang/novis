@@ -28,7 +28,7 @@
 > **In short:** `::class` answers **the class the value is**, and folding is an optimization of that
 > rule rather than the rule itself. `Foo::class`, `self::class` and `parent::class` name a class the
 > compiler resolves, so they stay compile-time `string` constants with no storage behind them.
-> `static::class` and `$obj::class` do not: the first is [ADR 0008](0008-static-and-global.md)'s
+> `static::class` and `$obj::class` do not: the first is `rule:statements/static-is-a-member-modifier`'s
 > called class, the second the class a receiver was actually allocated from, and both are one load off
 > a descriptor the frame already holds. Neither can be folded — a `User $u = new Admin()` must answer
 > `Admin`, and an inherited `static::class` must answer the subclass — so both read the name at run
@@ -53,7 +53,7 @@ can read back", with every reflective question routed to `Core\Reflect`.
 
 **That second claim had no ADR behind it.** It was written into `E0702`'s doc comment and into the
 conformance case that pinned the refusal, both citing
-[ADR 0011](0011-functions-and-constants-are-class-members.md) § 3 for a sentence § 3 does not contain
+`rule:statements/storage-that-outlives-a-call` for a sentence § 3 does not contain
 — § 3 is about global constants folding in, and 0011 decides nothing about `::class` at all. The
 reflective surface is [ADR 0019](0019-reflection-and-ast-parsing-are-core-features.md)'s. A rule that
 lives only in the code that enforces it is the shape this repository's one-home convention exists to

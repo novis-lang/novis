@@ -2,7 +2,7 @@
 //! every helper.
 //!
 //! `Ctx` is where everything that is "ambient" to running Novis code lives,
-//! because [ADR 0012](/docs/adr/0012-no-superglobals.md) means nothing
+//! because `rule:statements/no-host-populated-variables` means nothing
 //! is ambient to the *language*: no variable is host-populated, so the host's
 //! state has to travel somewhere, and it travels here.
 //!
@@ -330,8 +330,8 @@ pub struct Ctx {
     /// **Here, beside the ceiling, because this is where the breach is asked.**
     /// § 1 makes the registration request-local and puts it next to the pending
     /// slot for the reason this field is a field at all: it dies with the
-    /// request, exactly as [ADR 0008](/docs/adr/0008-static-and-global.md)
-    /// and [ADR 0012](/docs/adr/0012-no-superglobals.md) require of
+    /// request, exactly as `rule:statements/static-is-a-member-modifier`
+    /// and `rule:statements/no-host-populated-variables` require of
     /// everything a request holds, so there is no process-wide table for a
     /// second request to inherit one from.
     ///
@@ -696,7 +696,7 @@ pub struct Ctx {
     /// [`Self::origin`] is — the test runner reads `#[Test(at: …)]` and writes
     /// it onto the isolate's own context, and a context nobody wrote it onto
     /// is every context outside a test. That is why this does not reopen
-    /// [ADR 0008](/docs/adr/0008-static-and-global.md)'s "nothing holds
+    /// `rule:statements/static-is-a-member-modifier`'s "nothing holds
     /// state behind a function's back": the one thing that moves it afterwards
     /// is `Core\Test::advance`, which § 12 declares beside the clock and which
     /// exists nowhere but inside a test.

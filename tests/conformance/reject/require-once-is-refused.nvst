@@ -1,5 +1,5 @@
 --TEST--
-`require_once` is refused alongside `include`; `require` already runs every time it is reached — ADR 0021
+`require_once` is refused alongside `include`; `require` already runs every time it is reached — `rule:statements/require-is-the-only-inclusion-construct`
 --FILE--
 <?nvs
 require_once "other.nvs";

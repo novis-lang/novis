@@ -35,7 +35,7 @@
 > compile-time-only constraint checked at each call/assignment site against the source's real, already-known
 > type. This is the **one deliberate exception** to Novis's otherwise fully nominal type system, and it is
 > scoped tightly to this one type family — `Comparable`, `PropertyObserver` and ordinary `interface`
-> satisfaction stay exactly as nominal as [ADR 0013](0013-comparable-interface.md)/[ADR 0014](0014-property-observer.md)/[ADR 0015](0015-no-name-aliasing.md)
+> satisfaction stay exactly as nominal as [ADR 0013](0013-comparable-interface.md)/[ADR 0014](0014-property-observer.md)/`rule:statements/nothing-gets-a-second-name`
 > already left them.
 
 ## Context
@@ -114,7 +114,7 @@ sites, not an open-ended grammar ambiguity.
 
 ```php
 function move(object {x: int, y: int} $p): void { $p->x += 1; }
-type Point = {x: int, y: int};                     // reusable name, via ADR 0015's existing `type` alias
+type Point = {x: int, y: int};                     // reusable name, via `rule:statements/nothing-gets-a-second-name`'s existing `type` alias
 ```
 
 A shape type is **not** a class and **not** an interface — it is a compile-time-only structural constraint,
@@ -128,7 +128,7 @@ used for every other parameter — no new comparison logic invented for this.
 - **Field-type compatibility**: ordinary assignability, unchanged from anywhere else a type is checked — a
   shape does not get its own variance rule.
 - `object` with no shape remains the fully erased form; every shape type is a subtype of plain `object`.
-- Reusable for free via [ADR 0015](0015-no-name-aliasing.md)'s existing `type` alias mechanism: a shape is a
+- Reusable for free via `rule:statements/nothing-gets-a-second-name`'s existing `type` alias mechanism: a shape is a
   type *expression*, never a single bare class, so it was never excluded by that ADR's one restriction.
 - **This is the one deliberate, tightly scoped exception to Novis's otherwise fully nominal type system.**
   Two unrelated named classes that happen to share field names/types become interchangeable wherever a shape
@@ -187,7 +187,7 @@ the answer: declare an ordinary class.
   object in user code" for sharing mutable state between closures — with a genuinely lightweight way to
   write that object, instead of a full structural-record subsystem.
 - Reuses four already-decided mechanisms end to end rather than inventing new ones: ADR 0014 § 5's
-  runtime-checked fallback, ADR 0022's promoted-parameter-style trivial definite assignment, ADR 0015's
+  runtime-checked fallback, ADR 0022's promoted-parameter-style trivial definite assignment, `rule:statements/nothing-gets-a-second-name`'s
   `type`-alias reuse, and ADR 0023's uniform clone/serialize/isolate-crossing.
 - Zero new runtime representation: a literal instance is an ordinary object allocation, exactly
   `rule:programs/memory-priority`'s existing accounting for any object — no tagged-value
@@ -222,7 +222,7 @@ the answer: declare an ordinary class.
 - **Reusing the `interface` keyword** for shapes (TypeScript's model). Rejected: PHP/Novis's `interface`
   already means a nominal, `implements`-declared, method-bearing contract; overloading it for something
   structural and property-only is the same "two meanings, one name" problem
-  [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
+  `rule:statements/nothing-gets-a-second-name` already refuses elsewhere.
 - **PHP's `stdClass` directly.** Rejected outright: it requires dynamic, undeclared properties, which
   [ADR 0014](0014-property-observer.md) closes for exactly this reason.
 - **Exact-match shape types (no width subtyping).** Rejected: strictly narrower for no safety benefit, and

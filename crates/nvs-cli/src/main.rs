@@ -64,7 +64,7 @@
 //!
 //! The whole file, through `nvs_ir::lower::lower_file`: every class method
 //! with a body, plus one synthesized frame for the file's own top-level
-//! statements — [ADR 0008](/docs/adr/0008-static-and-global.md) § 2's
+//! statements — `rule:statements/storage-that-outlives-a-call`'s
 //! "the script body is a function, so its variables are locals". That frame is
 //! the entry point; the methods are reachable from it by name.
 //!
@@ -749,7 +749,7 @@ impl Checked {
 ///
 /// The unit of work here is the whole `require`/`autoload` graph, not one
 /// file: `nvs_hir::resolve_program` walks it into one `Module` plus the
-/// statements of every file it loaded (ADR 0021, `rule:programs/no-runtime-autoload`), and each table
+/// statements of every file it loaded (`rule:statements/require-is-the-only-inclusion-construct`, `rule:programs/no-runtime-autoload`), and each table
 /// below is then built across that set — a class declared in a `require`d
 /// file has to be a class the entry file's body can name.
 ///

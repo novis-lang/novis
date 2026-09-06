@@ -1,5 +1,5 @@
 --TEST--
-no variable is ever populated by the host, so `$_GET` is refused and the diagnostic names its `Core` accessor — ADR 0012 § 1
+no variable is ever populated by the host, so `$_GET` is refused and the diagnostic names its `Core` accessor — `rule:statements/no-host-populated-variables`
 --FILE--
 <?nvs
 class Reader {

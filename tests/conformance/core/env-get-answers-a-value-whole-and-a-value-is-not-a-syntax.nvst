@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::get` answers a value whole, and a value is not a syntax — spec § 15, ADR 0012 § 1
+`Core\Env::get` answers a value whole, and a value is not a syntax — spec § 15, `rule:statements/no-host-populated-variables`
 --ENV--
 NVS_CASE_EQUALS=a=b=c
 NVS_CASE_SEMI=one;two

@@ -1,5 +1,5 @@
 --TEST--
-the registry is the whole roster of `Core`, so a member it does not hold is `E0405` wherever it is written — on an instance, on a class it states, and on a class it has never heard of (ADR 0008, `rule:programs/no-runtime-autoload`)
+the registry is the whole roster of `Core`, so a member it does not hold is `E0405` wherever it is written — on an instance, on a class it states, and on a class it has never heard of (`rule:statements/static-is-a-member-modifier`, `rule:programs/no-runtime-autoload`)
 --FILE--
 <?nvs
 // A registered class checked like any other: `Core\Uuid` states no `version`,

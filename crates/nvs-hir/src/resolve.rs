@@ -17,7 +17,7 @@ use crate::symbol::{Symbol, SymbolKind, SymbolTable};
 #[derive(Clone, Debug)]
 pub struct Import {
     /// The name this import binds — always the target's own last segment,
-    /// since [ADR 0015](/docs/adr/0015-no-name-aliasing.md) § 2 makes
+    /// since `rule:statements/nothing-gets-a-second-name` makes
     /// `use … as …` a diagnostic rather than a second spelling.
     pub short_name: String,
     /// What it resolves to.
@@ -195,7 +195,7 @@ impl Resolver {
             // `hierarchy::resolve_supertype`, which has always taken all
             // three. Importing a reserved global is not a corner case but the
             // ordinary way a namespaced file reaches the exception tree:
-            // [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md)
+            // `rule:statements/a-qualified-name-is-absolute`
             // § 2 gives a short name no fallback to the root, so `use
             // Throwable;` is how `catch (Throwable $e)` is written under a
             // `namespace`, and trusting only `Core` here made that the one

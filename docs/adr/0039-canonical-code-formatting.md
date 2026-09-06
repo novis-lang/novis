@@ -263,7 +263,7 @@ diff-visible code action; it is not something a formatter does on save.
 - Range-formatting edge cases beyond what [ADR 0016](0016-ide-integration.md) already scopes (partial
   statements, mid-expression selections) are LSP wiring, not a rule change here.
 - **Inline HTML is unspecified by this ADR and needs a decision before M10.** Novis lexes inline HTML and
-  the `<?=` echo tag ([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md)), and nothing above says
+  the `<?=` echo tag (`rule:statements/nvs-is-the-only-open-tag`), and nothing above says
   what `nvs fmt` does to a template-heavy `.nvs` file. Leaving the HTML byte-identical and formatting only
   the code islands is the obvious default, and is probably right — whitespace inside `<pre>` is significant,
   so this is the one place a formatter could change rendered output — but it is undecided, not decided.

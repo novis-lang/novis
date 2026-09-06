@@ -531,7 +531,7 @@ pub fn file_script_label(id: SourceId) -> String {
 /// N files cannot share one name, and they must not share one *frame*
 /// either: `nvs_types::locals` checks each file's top-level body on its own,
 /// so a required file's `$x` is not the caller's — declarations cross a
-/// `require` and variables do not (ADR 0021 § *Decision*).
+/// `require` and variables do not (`rule:statements/a-required-file-shares-declarations-not-locals`).
 /// `nvs_hir::resolve_program`'s entry-first order is what makes indexing
 /// position zero right.
 ///
@@ -1199,7 +1199,7 @@ pub fn lower_property_hook(
 /// `return 1` is indistinguishable from a fall-through. So the difference is
 /// spelled once, where the frame is lowered and its caller is still known.
 ///
-/// - [`ScriptRole::Required`] — [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
+/// - [`ScriptRole::Required`] — `rule:statements/require-is-the-only-inclusion-construct`
 ///   § 3's `1`, which is PHP's own answer for an `include` of a file that
 ///   never `return`s, kept for the construct PHP has.
 /// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
@@ -1217,7 +1217,7 @@ pub enum ScriptRole {
 }
 
 /// Lowers a file's own top-level statements into one synthesized function
-/// — [ADR 0008](/docs/adr/0008-static-and-global.md) § 2's "the
+/// — `rule:statements/storage-that-outlives-a-call`'s "the
 /// script body is a function, so its variables are locals". `name` is the
 /// label the listing/a future codegen symbol table uses; the caller picks
 /// it, exactly as for [`lower_method`].
@@ -1231,7 +1231,7 @@ pub enum ScriptRole {
 /// - **The return representation is [`Ty::Tagged`], and `role` decides what
 ///   running out of statements hands back.** A top-level `return` hands a
 ///   value back to whatever entered the file, and
-///   [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
+///   `rule:statements/require-is-the-only-inclusion-construct`
 ///   types that boundary `mixed`. Where the statements run out instead, the
 ///   seal is [`ScriptRole`]'s answer — the tagged `1` for a `require`, `null`
 ///   for the entry frame — and never the `Terminator::Return(None)`

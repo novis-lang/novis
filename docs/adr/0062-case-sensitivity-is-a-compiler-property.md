@@ -8,7 +8,7 @@
   data: `Core\Str`'s case-folding operations, a case-insensitive comparison a program asks for explicitly,
   or the case a value happens to hold at runtime are all ordinary library behaviour, unaffected.
 - **Amends:** [0021](0021-single-file-inclusion-construct.md) — a `require` whose literal path differs from
-  the on-disk entry only in case is now `E_REQUIRE_PATH_CASE_MISMATCH`, where ADR 0021's static resolution
+  the on-disk entry only in case is now `E_REQUIRE_PATH_CASE_MISMATCH`, where `rule:statements/require-is-the-only-inclusion-construct`'s static resolution
   previously took whatever the filesystem handed back. [0029](0029-identifier-casing-is-checked.md)'s
   *Scope* note that keywords "are reserved words the grammar already lowercases" — the grammar no longer
   lowercases anything; it accepts the lower-case spelling and nothing else, which is a stronger statement
@@ -80,7 +80,7 @@ does.
 
 The `<?nvs` open tag is the one exception, because it is the one reserved spelling that cannot be
 anything else: `<?NVS` is recognised, reported as `E_RESERVED_SPELLING_CASE` naming `<?nvs`, and still
-opens code mode — exactly the treatment [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) § 2
+opens code mode — exactly the treatment `rule:statements/nvs-is-the-only-open-tag`
 gives `<?php`, and for the same reason: a tag that is not recognised collapses the whole file into one
 useless `InlineHtml` token and the author learns nothing.
 
@@ -136,7 +136,7 @@ Three properties keep this honest:
 - **Normalise paths to lower case before comparing.** Rejected outright — it does not make the program
   portable, it makes the compiler agree with the *least* strict filesystem, which is the failure mode
   being closed.
-- **Warn instead of erroring on a case-mismatched `require`.** Rejected on ADR 0021's own "warn and
+- **Warn instead of erroring on a case-mismatched `require`.** Rejected on `rule:statements/require-is-the-only-inclusion-construct`'s own "warn and
   continue doesn't survive" reasoning: the warning would fire only on the machines where the code happens
   to work, so it would be routinely ignored, and the error would still arrive on Linux.
 - **Diagnose a mis-cased keyword by guessing.** Rejected — see § 2. There is no sound rule, because `IF`

@@ -44,7 +44,7 @@
   ([ADR 0059](0059-cross-request-state-is-explicit.md)) is a coherent store across machines. What is
   missing is a clock and a lock, and both are small.
 - **The API-surface question answers itself.** A runtime `Core\Schedule::register(...)` would be
-  process-global mutable state ([ADR 0008](0008-static-and-global.md)) registered by whichever request
+  process-global mutable state (`rule:statements/static-is-a-member-modifier`) registered by whichever request
   happened to run the registering code first — a shape `rule:programs/no-runtime-autoload`
   already rejected for autoloading, for the same reason. A schedule is deployment state, and
   [ADR 0064](0064-configuration-file-format.md) is where deployment state lives.
@@ -146,7 +146,7 @@ root, built by the same `Isolate` code path, and everything downstream follows w
 - The script receives its entry's `name` through `Core\Script::args()` and answers with a top-level
   `return`, exactly as any `spawn script` target does. There is no scheduler-specific accessor.
 - `Core\Request`/`Core\Server`/`Core\Session` throw inside it, per
-  [ADR 0012](0012-no-superglobals.md) — there is no request.
+  `rule:statements/no-host-populated-variables` — there is no request.
 - Its result is logged, not delivered: a top-level `return` value is recorded in the run's log line, an
   uncaught throw or a limit breach goes through `rule:errors/escalation-ladder`'s ladder with
   the entry's `name` in the record. Nothing is waiting for it.
@@ -221,7 +221,7 @@ the operator wrote down.
 ## Alternatives rejected
 
 - **A runtime `Core\Schedule::register(cron, callable)`.** The framework-familiar shape (Laravel's
-  `Kernel::schedule`). Rejected: process-global mutable state ([ADR 0008](0008-static-and-global.md))
+  `Kernel::schedule`). Rejected: process-global mutable state (`rule:statements/static-is-a-member-modifier`)
   established by whichever request ran first, invisible to `nvs check`, and unreachable from a host that has
   not yet served a request — the same objections `rule:programs/no-runtime-autoload`
   made against a runtime autoloader.
@@ -278,7 +278,7 @@ the operator wrote down.
 - **M7:** a run's limit breach is a `FATAL` reported through
   `rule:errors/escalation-ladder`'s ladder with the entry's `name`, and the serving cores keep
   serving; a `Core\Request` call inside a scheduled script throws
-  ([ADR 0012](0012-no-superglobals.md)); a scheduled run cannot widen a capability the deployment narrowed.
+  (`rule:statements/no-host-populated-variables`); a scheduled run cannot widen a capability the deployment narrowed.
 - **M7:** `nvs run` on a scheduled entry's script produces the identical observable behaviour to a fire —
   the same fixture run both ways.
 - **M8** (shared store): two hosts racing the same fleet-scoped interval produce exactly one run; a host

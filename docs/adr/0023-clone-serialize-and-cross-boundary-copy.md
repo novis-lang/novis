@@ -9,7 +9,7 @@
 - **Amends:** [ADR 0006](0006-isolated-script-execution.md) § *Values cross by copy* — that section's
   informal description ("a graph copy, not a tree copy") becomes this ADR's formal graph-copy definition;
   nothing about what crosses, what refuses, or how the budget/capability rules work changes.
-  [ADR 0012](0012-no-superglobals.md) — `Core\Script::args()`'s "deep-copied" now names this ADR's
+  `rule:statements/no-host-populated-variables` — `Core\Script::args()`'s "deep-copied" now names this ADR's
   graph-copy operation explicitly, rather than an unnamed mechanism.
 
 > **In short:** Novis keeps two copy depths, not one, because PHP already drew that line and it is a real

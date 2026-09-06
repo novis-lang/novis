@@ -386,7 +386,7 @@ pub(crate) fn report_by_reference_assignment(span: Span, value: Span, env: &mut 
         .with_primary(span, format!("this would share `{value_text}`'s own slot"))
         .with_help(
             "Novis has no references: ADR 0031 § 2 removed by-reference capture and ADR 0023 makes \
-             this a copy, so drop the `&` — `inout` is a parameter and binding mode (ADR 0107), \
+             this a copy, so drop the `&` — `inout` is a parameter and binding mode (`rule:statements/inout-is-the-by-reference-spelling`), \
              not a way to make two names one place, and to share one mutable cell you hold it in \
              an object and assign that",
         ),
@@ -930,7 +930,7 @@ pub(crate) fn check_read(
         // undeclared-name wording below would send the reader looking for a
         // declaration to add. `crate::check` seeds it for a non-`static`
         // method and for a property hook; arriving here means the body has no
-        // receiver, which ADR 0008 § 1 makes an ordinary consequence of
+        // receiver, which `rule:statements/static-is-a-member-modifier` makes an ordinary consequence of
         // `static` rather than a mistake in the name.
         None if name == "this" => {
             env.diags.report(

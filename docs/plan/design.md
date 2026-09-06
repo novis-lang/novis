@@ -66,12 +66,12 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Isolated execution | `spawn script 'file.nvs'` runs another file in-process as a child isolate, file-only, never a source string ([ADR 0006](../adr/0006-isolated-script-execution.md)) |
 | Type system | Static, mandatory, explicit; every binding's declared type never changes; `uint` alongside signed `int` ([ADR 0007](../adr/0007-explicit-type-system.md)) |
 | Enums | A closed, named integer type, C#-style; PHP's class-like enum design (`::cases()`, methods, `string` backing) is disregarded entirely (`rule:enums/closed-integer-type`) |
-| Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` ([ADR 0008](../adr/0008-static-and-global.md)) |
-| No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement ([ADR 0012](../adr/0012-no-superglobals.md)) |
+| Scoping and state | `static` is a class-member modifier only; no function-scope `static`, no `static fn`, no `global` (`rule:statements/static-is-a-member-modifier`) |
+| No superglobals | No variable is ever populated by the host; every PHP superglobal becomes a `Core` accessor class, and `$GLOBALS`/`$_REQUEST` have no replacement (`rule:statements/no-host-populated-variables`) |
 | Object comparison | Ordering two objects requires the global `Comparable` interface; PHP's ambient property-walk fallback is rejected outright ([ADR 0013](../adr/0013-comparable-interface.md)) |
 | Property access | A property's own hook runs first, then a declared `PropertyObserver` second, always both, never a fallback for a missing property ([ADR 0014](../adr/0014-property-observer.md)) |
 | OOP-only: no free functions, no global constants | Every callable is a method, every constant a class constant; built-ins live under `Core` domain classes ([ADR 0011](../adr/0011-functions-and-constants-are-class-members.md)) |
-| Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception ([ADR 0015](../adr/0015-no-name-aliasing.md)) |
+| Name aliasing | No `class_alias` or import `as`; a compile-time-only `type` alias for a type expression is the one exception (`rule:statements/nothing-gets-a-second-name`) |
 | Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` ([ADR 0043](../adr/0043-interface-default-methods-and-delegation-replace-traits.md)) |
 | PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `nvs-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
 | Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
@@ -329,7 +329,7 @@ ordinary cache miss rather than needing an invalidation pass
 ### Per-request isolation
 
 Each request gets: its own heap arena with a hard byte cap; fresh backing state for the `Core\Request`/
-`Core\Server`/`Core\Session` accessors ([ADR 0012](../adr/0012-no-superglobals.md), replacing PHP's
+`Core\Server`/`Core\Session` accessors (`rule:statements/no-host-populated-variables`, replacing PHP's
 superglobals); a copy-on-write overlay of the config; its own coroutine tree. At request end the arena is
 released
 wholesale. `catch_unwind` at the request boundary means a runtime panic kills one request, never the

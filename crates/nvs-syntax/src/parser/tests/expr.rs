@@ -441,7 +441,7 @@ fn object_literal_needs_parens_as_a_bare_statement() {
 
 /// ADR 0034: `as` is the only conversion spelling — PHP's legacy
 /// `(T)expr` cast syntax is diagnosed, naming `as` as the replacement,
-/// the same shape ADR 0021 already gives `include`/`include_once`/
+/// the same shape `rule:statements/require-is-the-only-inclusion-construct` already gives `include`/`include_once`/
 /// `require_once` in favor of `require`.
 #[test]
 fn legacy_cast_is_diagnosed() {

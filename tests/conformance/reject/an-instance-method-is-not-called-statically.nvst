@@ -1,8 +1,8 @@
 --TEST--
-an instance method reached through its class name from a frame with no `$this` is refused, while `self::` inside an instance method still forwards that frame's own — ADR 0008 § 1
+an instance method reached through its class name from a frame with no `$this` is refused, while `self::` inside an instance method still forwards that frame's own — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
-// ADR 0008 § 1 keeps PHP's semantics for `static` unchanged: a method without
+// `rule:statements/static-is-a-member-modifier` keeps PHP's semantics for `static` unchanged: a method without
 // it is entered through a value, and a method with it is entered through the
 // class. `nvs_ir::lower::expr` reads the enclosing frame's `$this` for a
 // non-static target, so the refusal below is what stands between that read and

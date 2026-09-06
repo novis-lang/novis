@@ -48,7 +48,7 @@
 //! § 2's rule is [`run_in_isolate`]'s one call into `nvs_host::Isolate`: a
 //! test's body runs on a context of its own, over the *same* compiled unit, so
 //! a static one test wrote reads its declared initial value in the next and
-//! there is no flag to change it (ADR 0116 § 4's fresh statics base, armed by
+//! there is no flag to change it (`rule:statements/an-isolate-has-its-own-statics`'s fresh statics base, armed by
 //! the `install_in` inside the child's own program). The isolate is per
 //! **test** and not per attempt, which is § 20's retry left usable:
 //! [`run_with_retries`] runs inside it.
@@ -1060,7 +1060,7 @@ fn run_the_test(
     let class_name = class.to_owned();
     let method = case.method.clone();
     let program: nvs_runtime::script::Program = Box::new(move |child, argument| {
-        // ADR 0116 § 4's fresh statics base, armed with *this* unit's tables:
+        // `rule:statements/an-isolate-has-its-own-statics`'s fresh statics base, armed with *this* unit's tables:
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
         child_unit.install_in(child);
@@ -2293,7 +2293,7 @@ mod tests {
 
     #[test]
     fn each_test_runs_in_its_own_isolate_sharing_only_compiled_code() {
-        // ADR 0079 § 2 and ADR 0116 § 4: the two tests share the one compiled
+        // ADR 0079 § 2 and `rule:statements/an-isolate-has-its-own-statics`: the two tests share the one compiled
         // unit and nothing else, so the second reads its static's *declared*
         // initial value however hard the first wrote to it. Asserted as a
         // verdict rather than as a number, because the fixture's own

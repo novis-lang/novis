@@ -1,5 +1,5 @@
 --TEST--
-An `fn` written in a method that names `$this` stays bound to the instance it was made on — ADR 0008
+An `fn` written in a method that names `$this` stays bound to the instance it was made on — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
 class Threshold {

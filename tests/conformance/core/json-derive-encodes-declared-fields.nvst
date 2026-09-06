@@ -7,7 +7,7 @@ use Core\Json\Field;
 
 // ADR 0071 § 1: the attribute is matched *nominally*, so the `use`d short
 // spelling (`#[Field]` below) and the fully-qualified one (`#[Core\Json\Derive]`)
-// are the same attribute. Each import binds one whole short name — ADR 0113 § 1
+// are the same attribute. Each import binds one whole short name — `rule:statements/a-qualified-name-is-absolute`
 // makes a qualified name absolute, so `use Core\Json;` reaches the *class*
 // `Json::encode` is called on and never lets `Json\Derive` name the attribute.
 // `Derive` itself is deliberately left unimported: the impostor at the foot of

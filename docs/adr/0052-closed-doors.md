@@ -82,7 +82,7 @@ This closes two things that look unrelated and are the same violation:
   carefulness is not a mechanism.
 - **Userland calls that mutate process-global configuration** — `putenv`, `setlocale`, `bcscale`,
   `mb_internal_encoding`, `date_default_timezone_set`. Each is ambient mutable state read by later,
-  unrelated code, which is the shape [ADR 0008](0008-static-and-global.md) already removed from the
+  unrelated code, which is the shape `rule:statements/static-is-a-member-modifier` already removed from the
   language; several are also outright unsound in a multithreaded process, since the C library state they
   touch is not thread-local. The environment is read-only after startup, and locale, scale and timezone are
   always explicit arguments.
@@ -102,7 +102,7 @@ There is no `eval`, no string-argument `assert`, and no `Core` function that com
 produced at runtime.
 
 Four separate mechanisms depend on the set of code in a program being known before it runs. The static
-`require` graph ([ADR 0021](0021-single-file-inclusion-construct.md)) is what
+`require` graph (`rule:statements/require-is-the-only-inclusion-construct`) is what
 [ADR 0048](0048-portable-single-file-executables.md) § 3 bundles; the artifact cache
 ([ADR 0042](0042-on-disk-artifact-cache-format.md)) is keyed on unit content; definite assignment
 ([ADR 0022](0022-definite-property-initialization.md)) and taint tracking

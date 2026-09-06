@@ -466,7 +466,7 @@ impl<'a> Lowering<'a> {
                     )
                 })
             }
-            // ADR 0021 § 3's **value** form — `$c = require 'config.nvs';`.
+            // `rule:statements/a-require-expression-is-mixed`'s **value** form — `$c = require 'config.nvs';`.
             // The same call to the target's own script frame the statement
             // form emits (`Self::lower_expr_stmt`, which owns the reasoning
             // about the frame and about running every time the site is
@@ -510,7 +510,7 @@ impl<'a> Lowering<'a> {
             //
             // * `Error` is a parse error already reported, and does not
             //   survive to a compilation that lowers.
-            // * a bare `NAME` (`ConstFetch`) is `E0319` — ADR 0011 § 3 gives
+            // * a bare `NAME` (`ConstFetch`) is `E0319` — `rule:statements/storage-that-outlives-a-call` gives
             //   a constant no home but a class — and `self`/`static`/`parent`
             //   used as a *value* are `E0321`, both from `nvs_hir::members`.
             //   All four still appear as the class *side* of a `::`, which is

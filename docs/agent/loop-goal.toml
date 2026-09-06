@@ -602,7 +602,7 @@ args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 45 -- the checker half: a class constant's own declared type at a read.
   "a_user_declared_class_constant_reads_at_its_declared_type",
-  # Item 46 -- ADR 0008's late static binding, as a type rather than as a dispatch.
+  # Item 46 -- `rule:statements/static-is-a-member-modifier`'s late static binding, as a type rather than as a dispatch.
   "a_static_return_type_resolves_to_the_called_class",
   # Item 47 -- the direction a program written against an abstraction actually uses.
   "an_instanceof_test_narrows_its_subject_to_an_interface",
@@ -636,7 +636,7 @@ cases = [
 ]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 0a -- ADR 0107's `inout` spelling. Named to start with "0" deliberately: that is what puts a
+# Stage 0a -- `rule:statements/inout-is-the-by-reference-spelling`'s `inout` spelling. Named to start with "0" deliberately: that is what puts a
 # check in `loop.py`'s catch-up class, which runs before everything else so the ledger names this while
 # it is unfinished. Ahead of stage 0 for stage 0's own reason applied to the surface -- a case written
 # in the old spelling is written twice. Items 18-20 in loop-goal.md.
@@ -647,11 +647,11 @@ stage = "1 floor"
 name = "nvs-syntax (the inout spelling)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
-  # ADR 0107 -- the modifier slot, in all three declaration positions, and the call-site marker on `Arg`.
+  # `rule:statements/inout-is-the-by-reference-spelling` -- the modifier slot, in all three declaration positions, and the call-site marker on `Arg`.
   "an_inout_parameter_parses_in_the_modifier_slot",
   "an_inout_foreach_binding_and_destructuring_leaf_parse",
   "an_inout_argument_parses_at_a_call_site",
-  # ADR 0107 -- `&` is refused wherever it meant by-reference, and kept wherever it did not.
+  # `rule:statements/inout-is-the-by-reference-spelling` -- `&` is refused wherever it meant by-reference, and kept wherever it did not.
   "an_ampersand_by_reference_marker_is_refused_naming_inout",
   "an_ampersand_still_parses_as_bitwise_and_and_as_an_intersection",
 ]
@@ -662,7 +662,7 @@ stage = "1 floor"
 name = "nvs-types (the call-site marker)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  # ADR 0107 -- both directions of the call-site rule.
+  # `rule:statements/inout-is-the-by-reference-spelling` -- both directions of the call-site rule.
   "an_inout_argument_is_required_where_the_parameter_declares_one",
   "an_inout_argument_is_refused_where_the_parameter_is_by_value",
 ]
@@ -1343,7 +1343,7 @@ cases = [
   "tests/conformance/core/a-secret-typed-property-is-redacted-wherever-it-is-dumped.nvst",
   "tests/conformance/lang/inline-html-at-file-scope-is-echoed-in-place.nvst",
   "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
-  # ADR 0021 § 3's value form, which is a separate program from the statement form above.
+  # `rule:statements/a-require-expression-is-mixed`'s value form, which is a separate program from the statement form above.
   "tests/conformance/lang/a-required-file-hands-a-value-back.nvst",
   # Stage 6. Four rules whose assertion is a program rather than a checker unit test, so the
   # `cargo-named` entries that used to name them are gone -- see guard-name-debt.md's cause 2.
@@ -1365,8 +1365,8 @@ cases = [
   "tests/conformance/core/a-failed-assertion-is-caught-by-name.nvst",
   "tests/conformance/lang/a-test-run-reports-a-versioned-json-document.nvst",
   "tests/conformance/lang/a-test-run-reports-the-junit-xml-ci-ingests.nvst",
-  # Stage 0a -- ADR 0107. The 14 cases that spelled `&$` moved to `inout` with their expected output
-  # unchanged, which is the check that ADR 0107 changed no semantics; this one pins the new shapes.
+  # Stage 0a -- `rule:statements/inout-is-the-by-reference-spelling`. The 14 cases that spelled `&$` moved to `inout` with their expected output
+  # unchanged, which is the check that `rule:statements/inout-is-the-by-reference-spelling` changed no semantics; this one pins the new shapes.
   "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
   # Item 29's two write shapes, both cause-2 moves out of `nvs-types (targets and refusals)`: each
   # refusal was already landed in `expr/assign.rs` with a case pinning every spelling that reaches

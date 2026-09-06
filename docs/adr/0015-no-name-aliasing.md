@@ -1,4 +1,4 @@
-# ADR 0015 — No PHP-style name aliasing; `type` aliases are the disciplined exception
+# `rule:statements/nothing-gets-a-second-name` — No PHP-style name aliasing; `type` aliases are the disciplined exception
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -31,7 +31,7 @@
 
 - PHP gives a name three ways to acquire a second spelling: `class_alias()` (a second global class name),
   `use X as Y;` (rebinds an import's short name), and trait-use `as` (renames a method, or its visibility).
-  Each duplicates a declared name the same way [ADR 0008](0008-static-and-global.md) and
+  Each duplicates a declared name the same way `rule:statements/static-is-a-member-modifier` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed for state and behaviour — a
   reader who has found one spelling still cannot be sure it is the only one in play.
 - Simplicity (priority 4): two tokens meaning the same class is pure surface for zero semantic gain.
@@ -169,7 +169,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 **Positive**
 
-- One more name kind joins the list [ADR 0008](0008-static-and-global.md) and
+- One more name kind joins the list `rule:statements/static-is-a-member-modifier` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already closed: a class, interface, enum,
   method or constant is reachable under exactly the name it declared, full stop — no runtime indirection
   layer sitting in front of any of them.
@@ -187,7 +187,7 @@ Each rejection names its replacement, in the style [ADR 0011](0011-functions-and
 
 - **A structural break from PHP**, one of the divergences [divergences.md](divergences.md) registers, alongside `rule:enums/closed-integer-type`,
   [ADR 0011](0011-functions-and-constants-are-class-members.md) and
-  [ADR 0012](0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
+  `rule:statements/no-host-populated-variables`(0012-no-superglobals.md): PHP source calling `class_alias()` or importing with `as` does not
   convert unconverted. (Trait composition's own divergence and migration path now live entirely in
   [ADR 0043](0043-interface-default-methods-and-delegation-replace-traits.md) § 6.) `nvs convert`
   ([M11](../implementation-plan.md)) can mechanically rewrite an import alias (replace every use of the local

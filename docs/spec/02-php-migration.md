@@ -6,7 +6,7 @@ move.
 
 [01-core-library.md](01-core-library.md) states what Novis **has**. This file accounts for every PHP name
 Novis **does not** — which is the only way the rule behind it is auditable. A reason ("~120 functions follow
-from ADR 0008") cannot be checked; a row per name can. Three functions reached a full member-by-member
+from `rule:statements/static-is-a-member-modifier`") cannot be checked; a row per name can. Three functions reached a full member-by-member
 review of the library with no home at all — `ctype_*`, `iterator_to_array` and `serialize` — precisely
 because prose was carrying the argument.
 
@@ -250,11 +250,11 @@ Novis actually has.
 | `array_walk_recursive` | language | `foreach` over `Core\Arr::flattenDeep` |
 | `arsort` | member | `Core\Arr::sort` with `{order: Order::Desc, preserveKeys: true}` |
 | `asort` | member | `Core\Arr::sort` with `{preserveKeys: true}` |
-| `compact` | dropped | it builds an array from variable *names* ([ADR 0008](../adr/0008-static-and-global.md)). Write the array |
+| `compact` | dropped | it builds an array from variable *names* (`rule:statements/static-is-a-member-modifier`). Write the array |
 | `count` | member | `Core\Arr::count` |
 | `current` | dropped | the internal array pointer: a mutable cursor inside a copy-on-write value. `Core\Arr::first` or `foreach` |
 | `end` | dropped | as `current`. `Core\Arr::last` |
-| `extract` | dropped | it creates variables from keys ([ADR 0008](../adr/0008-static-and-global.md)); nothing may populate a scope |
+| `extract` | dropped | it creates variables from keys (`rule:statements/static-is-a-member-modifier`); nothing may populate a scope |
 | `in_array` | member | `Core\Arr::contains`, always strict, haystack first (R10) |
 | `iterator_apply` | language | `foreach` |
 | `iterator_count` | member | `Core\Arr::count` over `Core\Arr::from` |
@@ -982,7 +982,7 @@ state the engine owns on the program's behalf**. `header()` writes into a table 
 superglobal, which is why `session_status`, `session_reset` and `session_abort` exist to ask and unask what
 it did. Novis has neither table: a handler is handed a `Core\Request` and returns a `Core\Response`
 ([01 § 15](01-core-library.md)), and `Core\Session`'s six members *are* the session
-([ADR 0012](../adr/0012-no-superglobals.md)).
+(`rule:statements/no-host-populated-variables`).
 
 That removes about half of this family outright, and the pattern is worth naming once rather than in
 twenty cells. **A read-back of what the engine was told is dropped**, because the handler holding the
@@ -1282,13 +1282,13 @@ sets ([ADR 0064](../adr/0064-configuration-file-format.md)), never arguments a r
 checks; the *sanitizing* filters are dropped outright, because half-escaping produces exactly the false
 confidence [ADR 0024](../adr/0024-taint-tracking-for-injection-sinks.md) exists to prevent — **no
 `Validate` member launders anything.** The `filter_input` half dies with the superglobals it reads
-([ADR 0012](../adr/0012-no-superglobals.md)).
+(`rule:statements/no-host-populated-variables`).
 
 | PHP | Outcome | Novis |
 |---|---|---|
 | `filter_var` | member | `Core\Validate`'s predicates — `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii`, `isPrintable`, each `(subject, …): bool` — replacing the validate half and its 20 `FILTER_*` constants ([01 § 12](01-core-library.md)) |
 | `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` ([ADR 0071](../adr/0071-derived-codecs.md)) rather than mixing the value, `null` and `false` in one array |
-| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings ([ADR 0012](../adr/0012-no-superglobals.md)), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
+| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings (`rule:statements/no-host-populated-variables`), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
 | `filter_input_array` | dropped | both of those at once, over a spec array |
 | `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](../adr/0063-core-api-conventions.md)) |
 | `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |

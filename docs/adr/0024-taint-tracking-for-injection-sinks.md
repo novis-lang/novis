@@ -17,7 +17,7 @@
   `Core\Cli`/`Core\Script::args()` returns the `tainted` variant of whatever it already returned; the
   mapping table and the method-signature deferral are otherwise unchanged.
 
-> **In short:** [ADR 0012](0012-no-superglobals.md) already funnels every piece of untrusted input through
+> **In short:** `rule:statements/no-host-populated-variables` already funnels every piece of untrusted input through
 > five `Core` accessor classes — unlike PHP, where untrusted data can enter through dozens of implicit
 > paths, Novis already knows exactly where it comes from. This ADR spends that fact: a `string`/`bytes`
 > returned by one of those classes (or by anything else that hands a script data it did not itself just
@@ -34,7 +34,7 @@
 
 ## Context
 
-- [ADR 0012](0012-no-superglobals.md) closed every ambient superglobal to a `static` method on one of five
+- `rule:statements/no-host-populated-variables` closed every ambient superglobal to a `static` method on one of five
   reserved classes, for traceability — but the type system stops at the call site: nothing distinguishes
   `Core\Request::query('id')`'s return from a source literal, so concatenating it into SQL/HTML is invisible
   to `nvs check` — the exact gap enabling XSS and SQL injection.
@@ -46,7 +46,7 @@
   compute (a live request, a persisted store, another process, the environment) carries the same risk,
   including second-order/stored injection — future sources (`Core\Db` rows, `Core\Cache` reads at M8/M9)
   inherit the rule rather than needing a new ADR each time, the same deferral
-  [ADR 0012](0012-no-superglobals.md) already used for method signatures.
+  `rule:statements/no-host-populated-variables` already used for method signatures.
 
 ## Decision
 
@@ -99,7 +99,7 @@ function, an array of scalars — produces a tainted result. This is the same "p
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, `as` an enum's backing type — **removes the qualifier on success**, no new syntax
 needed: `Core\Request::query('id') as uint` already throws on `"abc"`, `"-1"`, or `""`
-([ADR 0012](0012-no-superglobals.md)'s own example), and a value that survives that check has had its shape
+(`rule:statements/no-host-populated-variables`'s own example), and a value that survives that check has had its shape
 proven, which is what laundering means for a non-string type. `bytes as string` and `string as bytes`
 ([ADR 0009](0009-string-and-bytes.md) § 3) preserve the qualifier across either direction — UTF-8 validity
 says nothing about whether the content is safe for a given sink.
@@ -174,7 +174,7 @@ security log. Stated here so a future reader does not go looking for a redundant
 ### 5. HTML: auto-escape by default, `Core\Html\Markup` the only raw-write bypass
 
 This is a deliberate exception to this project's otherwise-consistent stance that nothing happens by
-position, only by declaration ([ADR 0008](0008-static-and-global.md), [ADR 0012](0012-no-superglobals.md),
+position, only by declaration (`rule:statements/static-is-a-member-modifier`, `rule:statements/no-host-populated-variables`,
 [ADR 0013](0013-comparable-interface.md), [ADR 0014](0014-property-observer.md)). AGENTS.md's priority
 ordering ranks security above simplicity for exactly this kind of conflict, and an omitted escape call is
 the single most common real-world XSS root cause — so this ADR spends that priority explicitly rather than
@@ -278,7 +278,7 @@ default does not follow: § 4's other sinks still refuse rather than transform.
   literal-only stricter mode rejected above.
 - **Whether `Core\Session` and `Core\Cache` reads should expose a narrower, provably-safe subtype instead of
   blanket `tainted`** is an open stdlib question, deferred to whichever milestone designs each class's real
-  API — the same deferral [ADR 0012](0012-no-superglobals.md) already used for `Core\Request`'s exact
+  API — the same deferral `rule:statements/no-host-populated-variables` already used for `Core\Request`'s exact
   method signatures. `Core\Db` result rows are settled: they are `tainted`
   ([ADR 0067](0067-core-db.md) § 6), by this ADR's own standing rule.
 - **The exact laundering-function roster** (`Core\Html::escape`, a matching attribute-context escaper,

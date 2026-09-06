@@ -115,7 +115,7 @@ pub(crate) fn check_args_typed(
     (arg_types, slots, Some(sig))
 }
 
-/// ADR 0107 § 2's call-site marker, both directions, over whichever mapping
+/// `rule:statements/inout-is-written-at-the-call`'s call-site marker, both directions, over whichever mapping
 /// [`check_args_typed`] arrived at.
 ///
 /// This is the half a rename could not have bought: `Adder::bump($n)` is
@@ -142,7 +142,7 @@ fn check_inout_markers(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env: &m
                     )
                     .with_primary(arg.span, "write `inout` before it")
                     .with_help(
-                        "ADR 0107 § 2 writes the marker at both ends: the callee writes back \
+                        "`rule:statements/inout-is-written-at-the-call` writes the marker at both ends: the callee writes back \
                          through this argument, and a call that does not say so hides it",
                     ),
                 );
@@ -152,7 +152,7 @@ fn check_inout_markers(list: &[Arg], slots: &[ArgSlot], sig: &MethodSig, env: &m
                     "a `...` hands over its subject's entries rather than the subject, so \
                      there is no one storage location to write back to — drop the `inout`"
                 } else {
-                    "drop the `inout`, or declare the parameter `inout` (ADR 0107 § 1)"
+                    "drop the `inout`, or declare the parameter `inout` (`rule:statements/inout-is-the-by-reference-spelling`)"
                 };
                 env.diags.report(
                     Diagnostic::error(

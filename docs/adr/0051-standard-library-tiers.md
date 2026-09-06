@@ -185,7 +185,7 @@ planned; `Core\Db`'s driver interface is what keeps that door open.
 the third-party channel this section already named, not a queue of our own work behind these.
 
 **Dropped, with a replacement.** The procedural `mysqli`/`pgsql`/`sqlite3` APIs, by test 6 — one database
-API. `filter`: its `filter_input` half dies with [ADR 0012](0012-no-superglobals.md)'s superglobals, and its
+API. `filter`: its `filter_input` half dies with `rule:statements/no-host-populated-variables`'s superglobals, and its
 *sanitizing* filters are half-escaping that produces the false confidence ADR 0024 exists to prevent, so
 only the genuine validators survive, as `Core\Validate`. `gettext` and `setlocale`, because they mutate
 **process-global** C state, which is unsound in a thread-per-core runtime and would leak across requests —

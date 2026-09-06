@@ -1,6 +1,6 @@
 //! `Core\Request` — the request a program is answering, replacing `$_GET`,
 //! `$_POST`, `$_COOKIE`, `$_FILES`, `$_REQUEST` and `filter_input`
-//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
+//! (`rule:statements/no-host-populated-variables`).
 //!
 //! # What is here, and what is not
 //!
@@ -141,7 +141,7 @@
 //! § 3): no dot, space or bracket is substituted in either direction. That
 //! mangling is PHP's `register_globals`-era name repair, it is what
 //! CVE-2024-2756 was, and the superglobals it served are what
-//! [ADR 0012](/docs/adr/0012-no-superglobals.md) deleted.
+//! `rule:statements/no-host-populated-variables` deleted.
 //!
 //! **The prefixes are enforced here as far as the field can show them**, which
 //! is [`cookie_of`]'s doc: a `__Host-` name arriving twice is not visible,

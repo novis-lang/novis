@@ -290,7 +290,7 @@ impl<'a> Lexer<'a> {
                 let tag_span = self.mk_span(tag_start, self.pos);
                 // ADR 0062 § 2: `<?nvs` has exactly one spelling. `<?PHP` is
                 // left alone — it is rejected outright by
-                // `E_PHP_OPEN_TAG_UNSUPPORTED` (ADR 0049 § 2) whatever case
+                // `E_PHP_OPEN_TAG_UNSUPPORTED` (`rule:statements/nvs-is-the-only-open-tag`) whatever case
                 // it was typed in, and two diagnostics for one tag would
                 // point at two different fixes.
                 if kind == TokenKind::OpenTagNvs
@@ -324,7 +324,7 @@ impl<'a> Lexer<'a> {
     /// begins at the current position. `<?php`/`<?nvs` must be followed by
     /// whitespace, `?` or end of input, so `<?phpx` is not mistaken for a tag.
     ///
-    /// Both are still *recognised* case-insensitively, the way ADR 0049 § 2
+    /// Both are still *recognised* case-insensitively, the way `rule:statements/nvs-is-the-only-open-tag`
     /// already recognises `<?php` purely so the diagnostic can name the fix:
     /// a file opening `<?NVS` must keep lexing as code, or every later line
     /// collapses into one useless `InlineHtml` token. [`Self::lex_html`]
@@ -745,7 +745,7 @@ impl<'a> Lexer<'a> {
         }
 
         // ADR 0090 § 1: `===` and `!==` are not spellings Novis has. They are
-        // still *recognised* here, for the reason ADR 0049 § 2 recognises
+        // still *recognised* here, for the reason `rule:statements/nvs-is-the-only-open-tag` recognises
         // `<?php` — a rejected spelling nobody names reappears as two
         // confusing tokens — and then reported and lexed as the two-character
         // operator, so one file reports every one of its own problems in one
@@ -1410,7 +1410,7 @@ mod tests {
     fn php_tag_still_lexes_as_its_own_token() {
         // The lexer keeps recognizing `<?php` and switches to code mode on
         // it, same as `<?nvs` — purely so `nvs-syntax`'s parser can produce a
-        // diagnostic naming `<?nvs` (ADR 0049 § 2) instead of misreading it
+        // diagnostic naming `<?nvs` (`rule:statements/nvs-is-the-only-open-tag`) instead of misreading it
         // as inline HTML. This is a lex-only test; the rejection itself is a
         // parser-level diagnostic, asserted in `parser.rs`.
         assert_eq!(
@@ -1507,7 +1507,7 @@ mod tests {
     #[test]
     fn mis_cased_open_tag_is_reported_but_still_opens_code_mode() {
         // ADR 0062 § 2: recognised so the rest of the file keeps lexing as
-        // code and the diagnostic can name the fix — ADR 0049 § 2's treatment
+        // code and the diagnostic can name the fix — `rule:statements/nvs-is-the-only-open-tag`'s treatment
         // of `<?php`, applied to casing.
         let (kinds, diags) = kinds("<?NVS echo 1;");
         assert_eq!(

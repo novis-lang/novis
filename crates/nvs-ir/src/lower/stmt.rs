@@ -247,7 +247,7 @@ impl<'a> Lowering<'a> {
             // arm and the one `LocalDecl` shape:
             //
             // * `global`, `goto` and a function-scope `static` are reported by
-            //   the parser that built them (ADR 0008 § 5), and `Error` is a
+            //   the parser that built them (`rule:statements/no-function-static-and-no-global`), and `Error` is a
             //   parse error already reported — none of the four survives to a
             //   compilation that lowers.
             // * `var $x;` with no initializer is `E0101` at the missing `=`;
@@ -337,7 +337,7 @@ impl<'a> Lowering<'a> {
                 key: None,
                 value: Some(v),
             } => self.lower_yield(v, env, cur),
-            // ADR 0021's statement form: a call to the required file's own
+            // `rule:statements/require-is-the-only-inclusion-construct`'s statement form: a call to the required file's own
             // script frame. The graph is walked at compile time
             // (`nvs_hir::resolve_program`), so the target's *declarations*
             // are already in this same `crate::ir::Program` and nothing here
@@ -346,7 +346,7 @@ impl<'a> Lowering<'a> {
             // order, exactly where the `require` is written.
             //
             // The frame is the file's, not this one's: declarations cross a
-            // `require` and variables do not (ADR 0021 § *Decision*), which
+            // `require` and variables do not (`rule:statements/a-required-file-shares-declarations-not-locals`), which
             // is what `nvs_types::locals` already checks each file's body
             // under. It is called every time the statement is reached, PHP's
             // own answer for `require` as opposed to `require_once` — the
@@ -354,7 +354,7 @@ impl<'a> Lowering<'a> {
             //
             // A path this crate has no target for is a path that is not a
             // literal, names nothing loadable, or closes a cycle: each is
-            // already a diagnostic or ADR 0021's dynamic fallback, so there
+            // already a diagnostic or `rule:statements/require-is-the-only-inclusion-construct`'s dynamic fallback, so there
             // is nothing to call and nothing to say here. The value form —
             // `$c = require 'config.nvs';` — is this same call with its result
             // kept, one file over in `Self::lower_expr`.

@@ -108,7 +108,7 @@ integer type**, `int` unless `: uint` is written. There is no pure enum and no s
 | `$case->value` reads the backing value | **replaced by `as`** — converting the case to its underlying type |
 | `$case->name` reads the case's identifier as a string | **not part of the language** — see *Revisiting* |
 
-The consequence that matters most: **an enum needs no entry in [ADR 0008](0008-static-and-global.md) § 2's
+The consequence that matters most: **an enum needs no entry in `rule:statements/storage-that-outlives-a-call`'s
 storage-class table at all.** A case is baked into generated code the same way a literal `5` is; there is
 no per-isolate slot to build, no teardown, and nothing for [ADR 0006](0006-isolated-script-execution.md)'s
 isolate boundary to copy except the plain integer a value already carries.
@@ -192,7 +192,7 @@ named a language to imitate rather than one to stay compatible with.
   constant, parameter, return, local or `foreach` binding like any other — no special case anywhere in ADR
   0007's binding-site table.
 - An enum case costs strictly less than any alternative considered: no allocation, no refcount, no entry in
-  [ADR 0008](0008-static-and-global.md)'s storage-class table, and zero additional bytes in the tagged value
+  `rule:statements/static-is-a-member-modifier`'s storage-class table, and zero additional bytes in the tagged value
   beyond what `uint` already costs.
 - Untrusted input into an enum type is a reviewable, throwing conversion through the same operator every
   other conversion in [ADR 0007](0007-explicit-type-system.md) uses — one fewer per-type API

@@ -35,7 +35,7 @@
   Novis's typed properties are exactly the guarantee [ADR 0007](0007-explicit-type-system.md) built to prevent
   a declared type silently holding something else; a universal `undefined` would reintroduce that failure one
   binding kind later — the same ambient-magic shape already closed for undeclared properties/`__get`/`__set`
-  ([ADR 0014](0014-property-observer.md)) and superglobals ([ADR 0012](0012-no-superglobals.md)).
+  ([ADR 0014](0014-property-observer.md)) and superglobals (`rule:statements/no-host-populated-variables`).
 - Other statically-typed languages split between compile-time-only (Rust/Swift), an opt-in throw-on-early-
   read modifier (Kotlin's `lateinit`), and a silent per-type default (C#/Java) — the last rejected here for
   the same reason ADR 0007 rejects silent coercion.
@@ -170,7 +170,7 @@ discriminant already exists, and the omitting call site emits one constant eithe
 
 - **A new `undefined` type or value**, modeled on JavaScript. Rejected: JavaScript's `undefined` is safe
   only absent a declared-type guarantee to violate; Novis has exactly that guarantee, so this recurs ADR
-  0007's failure shape one binding kind later, and is the same ambient-default shape ADR 0012/0014 already
+  0007's failure shape one binding kind later, and is the same ambient-default shape `rule:statements/no-host-populated-variables`/0014 already
   rejected.
 - **Per-type silent defaults** (C#/Java). Rejected for the same reason ADR 0007 rejects silent coercion: a
   plausible-looking wrong value is worse than a loud one, since "forgot to initialize" would look identical

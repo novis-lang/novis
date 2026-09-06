@@ -31,10 +31,10 @@
 
 - PHP's closure surface is eleven moving parts, several already narrowed by
   [ADR 0027](0027-callable-is-closures-only.md) (closed the string/array spellings and `__invoke`) and
-  [ADR 0008](0008-static-and-global.md) § 4 (closed the `static` closure modifier). Left standing: two
+  `rule:statements/a-closure-binds-this-only-where-it-uses-it` (closed the `static` closure modifier). Left standing: two
   literal spellings (`function(...) use (...) {...}` and `fn(...) => ...`) for the same value, `use`'s two
   capture modes, and a `Closure`/`callable` type-name pair that — once ADR 0027 landed — have identical
-  membership: two names, zero remaining semantic difference, the pattern [ADR 0015](0015-no-name-aliasing.md)
+  membership: two names, zero remaining semantic difference, the pattern `rule:statements/nothing-gets-a-second-name`
   already refuses elsewhere.
 - The two literal forms only diverged historically because PHP's arrow form was added later and never grew a
   block body; nothing requires Novis's `fn` to keep that restriction.
@@ -55,7 +55,7 @@ fn(int $x): int => $x + 1                         // typed params / return type 
 `function(...) {...}` and `function(...) use (...) {...}` do not parse; the diagnostic names `fn` as the
 replacement. This is not a new capability — first-class callable syntax and the `fn(...) => expr` literal
 already produce exactly the value a block-bodied closure would — it removes a second spelling of the same
-thing, the same argument [ADR 0015](0015-no-name-aliasing.md) already makes for names.
+thing, the same argument `rule:statements/nothing-gets-a-second-name` already makes for names.
 
 ### 2. No `use` clause, ever — capture is implicit, by value, and minimal
 
@@ -166,7 +166,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
   their own. That is a correctness win (priority 2), not merely a simplification (priority 4).
 - The self-name (§ 3) gives `nvs convert` a mechanical, human-free rewrite for the one `use (&$fn)` idiom
   that was load-bearing (self-recursion), rather than needing to synthesize a wrapper class the way the
-  function-`static` rewrite in [ADR 0008](0008-static-and-global.md) does.
+  function-`static` rewrite in `rule:statements/static-is-a-member-modifier` does.
 - `callable` replacing `Closure` costs nothing: `Closure` carried no signature of its own for the rename to
   drop, so it caused no type-checker behavior change, only a spelling change propagated through diagnostics
   and stdlib signatures. The signature a `callable` may now carry is
@@ -192,7 +192,7 @@ $result = $fn(...$args);      // replaces call_user_func_array($fn, $args)
 ## Alternatives rejected
 
 - **Keep both `function(){}` and `fn() => ...`.** Two spellings for one value — the redundant-surface pattern
-  [ADR 0015](0015-no-name-aliasing.md) already refuses elsewhere.
+  `rule:statements/nothing-gets-a-second-name` already refuses elsewhere.
 - **Keep `use ($y)` as documentation even though capture is implicit.** Would be unenforced, driftable
   decoration — a shape Novis avoids everywhere else.
 - **Keep `use (&$y)`, drop only the by-value form.** Backwards: by-value is the common, safe case
@@ -236,7 +236,7 @@ Verification, in the order it becomes possible:
   scope of its own and offers every outer binding to it as a *capture*, recorded at
   `nvs_types::locals::LocalScope::declared_ty` — the one lookup a read or a write already goes through, so
   the recorded set is § 2's "exactly the outer variables its body reads" and cannot drift from what the
-  checker counts as a read. `$this` is in that set like any other name, which is how ADR 0008 § 4's
+  checker counts as a read. `$this` is in that set like any other name, which is how `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s
   bind-only-where-used rule is satisfied with no code of its own. A parameter shadows an outer local rather
   than capturing it. One decision taken alongside, about the checker rather than about this surface: a
   **block-bodied** `fn` must declare its return type (`E0450`), since inferring one would be whole-body

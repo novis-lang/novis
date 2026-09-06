@@ -34,7 +34,7 @@
   for), cannot be governed (the parent can only kill it — no CPU/memory accounting, no cooperative
   cancellation), and re-enters through the front door (arguments serialised onto a command line).
 - Novis already has the machinery for this, built for requests: a per-request arena with a hard cap, fresh
-  request/session state ([ADR 0012](0012-no-superglobals.md)), a copy-on-write config overlay, a coroutine
+  request/session state (`rule:statements/no-host-populated-variables`), a copy-on-write config overlay, a coroutine
   tree, safepoint-driven limits, a process-wide compiled-unit cache. This ADR exposes that machinery to
   script authors instead of keeping it server-only.
 
@@ -69,7 +69,7 @@ third syntax was invented for either.
 
 and the callee is an ordinary script, receiving its arguments through `Core\Script::args()` and answering
 with a top-level `return` — which is what `require` already means in PHP, so nothing new has to be learned
-beyond the one accessor call ([ADR 0012](0012-no-superglobals.md) fixes that it is a method, not a magic
+beyond the one accessor call (`rule:statements/no-host-populated-variables` fixes that it is a method, not a magic
 variable):
 
 ```php
@@ -114,7 +114,7 @@ dies with its parent like them, and `on: 'worker'` composes the two axes instead
 | The resource budget | **yes**, deliberately — see *Budgets* below |
 | Heap arena, refcounts, values | no. Its own arena, dropped wholesale when it ends |
 | Globals, class statics, constants defined at runtime | no. Fresh |
-| Request/server/session state (`Core\Request`, `Core\Server`, `Core\Session`, [ADR 0012](0012-no-superglobals.md)) | no — **throws** inside the child rather than returning the parent's data or a fresh-and-empty result; `Core\Script::args()` is what the child gets instead |
+| Request/server/session state (`Core\Request`, `Core\Server`, `Core\Session`, `rule:statements/no-host-populated-variables`) | no — **throws** inside the child rather than returning the parent's data or a fresh-and-empty result; `Core\Script::args()` is what the child gets instead |
 | Output buffer | no. Captured separately |
 | Open resources — files, sockets, DB connections | no, and they cannot be passed |
 | Config overlay | derived, never shared: a copy of the parent's *effective* config, which the spawn may narrow |
@@ -339,7 +339,7 @@ Verification, in the order it becomes possible:
   single-digit microseconds, and anything at millisecond scale means the arena or the globals are
   being built the expensive way. Plus: a child cannot see a parent variable, global or static, and a
   `Core\Request`/`Core\Server`/`Core\Session` call inside it throws rather than seeing the parent's request
-  ([ADR 0012](0012-no-superglobals.md)); a closure, reference or handle-holding object is refused at the boundary; a
+  (`rule:statements/no-host-populated-variables`); a closure, reference or handle-holding object is refused at the boundary; a
   cyclic argument crosses; a child's uncaught
   throw and a child's contained panic both leave the parent running; a cancelled parent leaves no orphan.
 - **M6**, when limits and capabilities land: spawning without `script.spawn` fails; a path outside the

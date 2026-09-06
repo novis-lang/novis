@@ -177,7 +177,7 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   a legacy `(int)$x` cast offers "replace with `$x as int`" ([ADR 0034](0034-legacy-cast-syntax-rejected.md));
   a missing constructor property assignment offers to add it
   ([ADR 0022](0022-definite-property-initialization.md)); `include`/`require_once` offer "replace with
-  `require`" ([ADR 0021](0021-single-file-inclusion-construct.md)); a `tainted`/`secret` value reaching a
+  `require`" (`rule:statements/require-is-the-only-inclusion-construct`); a `tainted`/`secret` value reaching a
   refusing sink offers the specific laundering call the diagnostic already names
   ([ADR 0024](0024-taint-tracking-for-injection-sinks.md)/[0033](0033-secret-qualifier-for-confidential-values.md)),
   which includes a mis-ordered `tainted secret string` — the grammar fixes that order, so the diagnostic
@@ -198,9 +198,9 @@ first, so the catalog is honest about sequencing rather than implying all of it 
   Code* dialog, with its own per-action checkboxes, is the same composition through a different client.
 - **Refactorings** as LSP requests: workspace-wide rename, extract-to-method/variable, organize-imports
   restricted to reordering and removing unused `use` statements — never introducing a rename or alias, per
-  [ADR 0015](0015-no-name-aliasing.md)'s "nothing gets a second name."
+  `rule:statements/nothing-gets-a-second-name`'s "nothing gets a second name."
 - **Deeper completion**: signature help, cross-file/workspace symbol search, auto-import limited to
-  inserting the correct fully-qualified name (never an alias, same ADR 0015 constraint), inlay hints for
+  inserting the correct fully-qualified name (never an alias, same `rule:statements/nothing-gets-a-second-name` constraint), inlay hints for
   `var`-inferred types ([ADR 0037](0037-var-local-type-inference.md)) and call-site parameter names.
 - Format-on-save and the format commands, wired to `nvs fmt` once it exists
   ([ADR 0039](0039-canonical-code-formatting.md)) — unchanged from ADR 0016 § 2.

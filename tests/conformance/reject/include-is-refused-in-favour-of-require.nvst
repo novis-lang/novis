@@ -1,5 +1,5 @@
 --TEST--
-`require` is the only same-frame inclusion construct, so `include` is refused before its target is even looked for — ADR 0021
+`require` is the only same-frame inclusion construct, so `include` is refused before its target is even looked for — `rule:statements/require-is-the-only-inclusion-construct`
 --FILE--
 <?nvs
 include "other.nvs";

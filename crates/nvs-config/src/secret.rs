@@ -2,7 +2,7 @@
 //!
 //! A directive the configuration marks secret gains a `_file` sibling, and **exactly one of the
 //! pair may be set** — both is a refusal, which is what keeps this two sources for one value rather
-//! than the second spelling [ADR 0015] refuses. The file's *whole* content is the value, with one
+//! than the second spelling `rule:statements/nothing-gets-a-second-name` refuses. The file's *whole* content is the value, with one
 //! trailing `\n` — and a `\r` immediately before it — stripped and nothing else trimmed. Not a
 //! general trim: a password may legitimately begin or end with a space, and removing it is
 //! `rule:errors/ambiguous-input-refused`'s failure of repairing input instead of reading it. One newline goes because
@@ -63,7 +63,6 @@
 //! [`SECRETS`] against the named blocks the tree has — at boot and again at each `nvs ctl reload`.
 //! Nothing here runs per request.
 //!
-//! [ADR 0015]: ../../../docs/adr/0015-no-name-aliasing.md
 //! [ADR 0033]: ../../../docs/adr/0033-secret-qualifier-for-confidential-values.md
 //! [ADR 0067]: ../../../docs/adr/0067-core-db.md
 //! [ADR 0103]: ../../../docs/adr/0103-configuration-is-a-tree-of-files.md

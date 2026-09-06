@@ -7,7 +7,7 @@
 //! ([`Parser::parse_enum_decl`]); their members — properties with PHP 8.4's
 //! hooks, consts, methods; `#[...]` attribute groups
 //! ([`Parser::parse_attribute_groups`], ADR 0046); and `namespace`, `use`,
-//! `autoload` (`rule:programs/autoload`) and the `type`-alias declaration (ADR 0015).
+//! `autoload` (`rule:programs/autoload`) and the `type`-alias declaration (`rule:statements/nothing-gets-a-second-name`).
 //!
 //! `trait`, class-body `use TraitName, ...;` and `insteadof` are all
 //! parse-time rejected (`E_TRAIT_NOT_SUPPORTED`,
@@ -253,7 +253,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `use App\Models\User;` — one import, one statement.
     ///
     /// Two PHP spellings of the same statement are refused rather than
-    /// parsed: renaming (`as Other`, ADR 0015 § 2) and the group form
+    /// parsed: renaming (`as Other`, `rule:statements/nothing-gets-a-second-name`) and the group form
     /// (`use App\Models\{User, Post};`, `docs/adr/README.md` § *Decisions
     /// taken at project start*). Both are reported and then skipped, so the
     /// statement still yields a [`UseDecl`] for the path that was written and
@@ -280,7 +280,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 .with_primary(alias, "rename not supported")
                 .with_help(
                     "refer to it by its declared short name, or use the fully-qualified path \
-                     directly (ADR 0015 § 2)",
+                     directly (`rule:statements/nothing-gets-a-second-name`)",
                 ),
             );
         }
@@ -377,7 +377,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// of its roots, or its glob.
     ///
     /// Only a literal is accepted, the restriction `require`'s static
-    /// resolution already carries ([ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md),
+    /// resolution already carries (`rule:statements/require-is-the-only-inclusion-construct`,
     /// `rule:programs/autoload`) and for the same reason: the map is built at compile
     /// time, so a path assembled at run time could not contribute to it. A
     /// double-quoted spelling is read for its escapes and refused if it
@@ -811,7 +811,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `function '&'? name(params) (: ReturnType)? (block | ';')` —
     /// `function` itself consumed here, exactly like
     /// [`Self::parse_const_body`] consumes `const`. The `&` is PHP's
-    /// by-reference *return*, which ADR 0107 § 3 retires with no replacement
+    /// by-reference *return*, which `rule:statements/ampersand-is-not-a-by-reference-marker` retires with no replacement
     /// — `inout` is a parameter mode, and a return hands back a value — so it
     /// is recognized only to be reported (E0237) and the AST keeps no
     /// variant for it.

@@ -10,7 +10,7 @@
 - **Amended by:** 0049
 
 > **In short:** `(int)$x`, `(string)$x`, and the rest of PHP's cast family no longer parse. Each is a
-> parse-time diagnostic (`E0225`) naming `$x as int` (etc.) as the replacement, the same shape ADR 0021
+> parse-time diagnostic (`E0225`) naming `$x as int` (etc.) as the replacement, the same shape `rule:statements/require-is-the-only-inclusion-construct`
 > already gives `include`/`include_once`/`require_once` in favor of `require`. Until this ADR, the parser
 > accepted the legacy spelling and gave it `as`'s checked semantics — a deliberate half-measure ADR 0007 § 2
 > took to keep the "pragmatic superset" promise. This ADR spends that promise, on this one construct, for a
@@ -21,8 +21,8 @@
 - ADR 0007 § 2 already made the semantics honest: `(int)$x` throws on `"abc"` exactly as `$x as int` does.
   Priority 1 was already satisfied; what remained was purely a priority-4 question — keep two spellings of
   one operation, or one.
-- Two spellings of one operation is exactly the shape [ADR 0015](0015-no-name-aliasing.md) and
-  [ADR 0021](0021-single-file-inclusion-construct.md) already rule against elsewhere — a second name buys
+- Two spellings of one operation is exactly the shape `rule:statements/nothing-gets-a-second-name` and
+  `rule:statements/require-is-the-only-inclusion-construct` already rule against elsewhere — a second name buys
   nothing but a second thing to teach and a second question for every style guide and review. `as` was
   always the one this project would keep: every *other* checked conversion in ADR 0007 is spelled that way,
   including ones with no PHP-cast equivalent at all (`int → uint`).
@@ -48,7 +48,7 @@ alternate spelling.
 ### 2. Diagnostic
 
 Each of the seven legacy cast keywords, in cast position, produces `E0225` naming the exact `as` spelling to
-use instead — the same pattern ADR 0021 § 4 already uses for `include`/`include_once`/`require_once`:
+use instead — the same pattern `rule:statements/require-is-the-only-inclusion-construct` already uses for `include`/`include_once`/`require_once`:
 
 ```php
 (int)$x        // rejected — "use `$x as int` — it throws instead of silently truncating"
@@ -87,7 +87,7 @@ facts are rows in [divergences.md](divergences.md), which is where the register 
   legacy cast anywhere no longer parses without that one rewrite. Other kept-but-reinterpreted PHP syntax
   (`list(...)`) stays; this is the first case where keeping the spelling was deliberately un-done once its
   only remaining argument was habit. `<?php` went the same way under
-  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md), for the identical reason.
+  `rule:statements/nvs-is-the-only-open-tag`, for the identical reason.
 
 ## Alternatives rejected
 

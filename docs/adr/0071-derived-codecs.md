@@ -111,7 +111,7 @@ else is admitted as `T`: a scalar or an `array<mixed>` is what `decode` already 
 So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute, reached two ways. An import binds the
 whole short name and is never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` is not
 one of those two ways: a qualified name is absolute
-([ADR 0113](0113-a-qualified-name-is-absolute.md) § 1), and `Json\Derive` names nothing.
+(`rule:statements/a-qualified-name-is-absolute`), and `Json\Derive` names nothing.
 
 **This table is that list's one home.** An ADR adding an entry says its attribute "joins the closed list"
 and states no running total; a count restated in each amending ADR is a count that goes stale, and by the

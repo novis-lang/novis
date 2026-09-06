@@ -1,5 +1,5 @@
 --TEST--
-A leading `\` is refused wherever a name is written, and a qualified name is read from the root rather than through the enclosing namespace or an import — ADR 0113 §§ 1, 3, 5
+A leading `\` is refused wherever a name is written, and a qualified name is read from the root rather than through the enclosing namespace or an import — `rule:statements/a-qualified-name-is-absolute` and `rule:statements/a-leading-separator-does-not-parse`
 --FILE--
 <?nvs
 namespace App\Models;

@@ -1,5 +1,5 @@
 --TEST--
-An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — ADR 0006 § *Decision*, ADR 0116 § 4
+An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — ADR 0006 § *Decision*, `rule:statements/an-isolate-has-its-own-statics`
 --FILE nvs.toml--
 # ADR 0118 § 2: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -8,7 +8,7 @@ An isolate's class statics and its output buffer are its own: the child reads a 
 spawn = true
 --FILE child.nvs--
 <?nvs
-// The child's own declaration of the same class. ADR 0116 § 4: an isolate's
+// The child's own declaration of the same class. `rule:statements/an-isolate-has-its-own-statics`: an isolate's
 // context is built with a statics base of its own, so the same compiled load
 // reads a different store here — this is the fresh zero, not the 7 the parent
 // wrote one line before the spawn.

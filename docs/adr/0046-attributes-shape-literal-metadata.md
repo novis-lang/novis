@@ -73,7 +73,7 @@
   checked, zero declaration required for the unchecked case, one `type` alias line for the checked case. This
   ADR is mostly the observation that attributes don't need a fourth mechanism; they need that one, attached
   to a declaration instead of a variable.
-- Novis already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: ADR 0008's
+- Novis already has two forward-references to a `#[...]` attribute syntax that this ADR resolves: `rule:statements/static-is-a-member-modifier`'s
   "a `#[Memoize]` attribute as the sanctioned replacement for the memoisation use — deferred, not rejected"
   and `rule:enums/closed-integer-type`'s "a `#[Flags]`-style attribute enabling bitwise operators directly on an enum type." Neither
   is decided here — both still need their own design (key derivation and lifetime for memoisation; the
@@ -161,7 +161,7 @@ Two consequences fall out of this for free, not as separate rules:
   There is no "evaluate this attribute's arguments" step at class-definition time the way PHP's attribute
   construction has one.
 - **No `tainted` or `secret` value can reach an attribute payload.** `tainted` has no compile-time-constant
-  source at all ([ADR 0012](0012-no-superglobals.md) — every ambient source is a `Core` accessor call), so
+  source at all (`rule:statements/no-host-populated-variables` — every ambient source is a `Core` accessor call), so
   this needs no rule; `secret` *can* qualify a class constant, so this ADR adds "an attribute payload
   position" as [ADR 0033](0033-secret-qualifier-for-confidential-values.md)'s fifth refusing sink, alongside
   HTML output, `Core\Log`, debug dumps, and serialize/isolate-crossing — a value retained process-lifetime in
@@ -239,7 +239,7 @@ extension). It does not open user-defined generics — that stays exactly as out
   reusable one costs exactly one `type` alias line — nothing close to PHP/Java/C#'s per-attribute-kind class
   declaration.
 - Retrieval reuses three already-accepted mechanisms (ADR 0036 shapes/literals, ADR 0027 first-class
-  callables, ADR 0015 `type` aliases) rather than adding a fourth kind of thing to the language.
+  callables, `rule:statements/nothing-gets-a-second-name` `type` aliases) rather than adding a fourth kind of thing to the language.
 - Ambiguity from a repeatable attribute is caught at compile time, at the exact call site that would be
   wrong — not discovered the first time a request happens to hit a site with two matches, the way PHP/Java
   reflection APIs leave it.

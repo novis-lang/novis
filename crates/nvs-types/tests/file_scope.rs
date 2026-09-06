@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0008 § 2: a file's top-level statements are one synthesized frame
+// `rule:statements/storage-that-outlives-a-call`: a file's top-level statements are one synthesized frame
 // whose variables are locals. Each of these has an exact counterpart in
 // the `check_in_method` fixtures above — the point is that the two
 // report identically.
@@ -95,7 +95,7 @@ fn a_namespace_block_is_refused_and_still_shares_the_one_script_frame() {
 }
 
 /// A class body is still its own frame — a file-scope local is not
-/// visible from inside a method (ADR 0008's storage-class table: "the
+/// visible from inside a method (`rule:statements/static-is-a-member-modifier`'s storage-class table: "the
 /// script's own frame, unreachable from a function").
 #[test]
 fn a_file_scope_local_is_not_visible_inside_a_method() {

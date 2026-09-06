@@ -238,7 +238,7 @@ fn a_landing_block_releases_the_call_temporaries_still_in_flight() {
 }
 
 /// A file-scope local is an ordinary local of the synthesized frame
-/// (ADR 0008 § 2) — declared, reassigned and read with exactly the
+/// (`rule:statements/storage-that-outlives-a-call`) — declared, reassigned and read with exactly the
 /// machinery a method body already uses. `echo` of an `int` converts
 /// through the same `Helper::IntToString` `.` concatenation uses.
 #[test]
@@ -3843,7 +3843,7 @@ fn a_resolved_route_link_releases_its_params_array() {
 /// A file that runs out of statements seals with `1` when a `require` site
 /// entered it and with `null` when it is the program's entry frame — ADR
 /// 0006 § *Decision*'s "deliberately not `require`'s `1`", against
-/// [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md) § 3.
+/// `rule:statements/a-require-expression-is-mixed`.
 ///
 /// Both sides in one test, over the *same* source, because they are one
 /// decision with two halves: a lowering that moved both would still read

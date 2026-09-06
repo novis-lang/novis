@@ -1,5 +1,5 @@
 --TEST--
-no function reaches outside its own frame for state, so `global` is refused — ADR 0008 § 5
+no function reaches outside its own frame for state, so `global` is refused — `rule:statements/no-function-static-and-no-global`
 --FILE--
 <?nvs
 class Counter {

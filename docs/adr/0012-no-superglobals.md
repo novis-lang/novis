@@ -1,4 +1,4 @@
-# ADR 0012 — There are no superglobals; request, session, environment and CLI state are `Core` accessor classes
+# `rule:statements/no-host-populated-variables` — There are no superglobals; request, session, environment and CLI state are `Core` accessor classes
 
 - **Status:** Accepted
 - **Date:** 2026-08-20
@@ -51,7 +51,7 @@
 - PHP treats "a script is handed data from outside" as magic variables, not declarations: superglobals
   are simply *there*, populated by the SAPI, mutable, and readable from any scope without a `global`.
 - **`$GLOBALS` is a second, worse door onto the problem `global` already opens**
-  ([ADR 0008](0008-static-and-global.md)): any function at any depth can read or overwrite any top-level
+  (`rule:statements/static-is-a-member-modifier`): any function at any depth can read or overwrite any top-level
   variable by name, with no keyword and no declaration at all.
 - **The request-input superglobals deliver untrusted data with no declared boundary.**
   [ADR 0007](0007-explicit-type-system.md) § 6 already treats `$_GET`/`$_POST`/`$_SERVER` as untyped
@@ -60,7 +60,7 @@
 - **`$_SESSION`/`$_ENV` add ambient mutable/host-configuration state**, and `$_REQUEST` adds a third
   failure mode: it merges `$_GET`/`$_POST`/`$_COOKIE` in a `php.ini`-configurable order, so the same key
   can silently mean a different source on different servers.
-- Not a new argument: [ADR 0008](0008-static-and-global.md)'s storage table is exhaustive, and a bare
+- Not a new argument: `rule:statements/static-is-a-member-modifier`'s storage table is exhaustive, and a bare
   ambiently-populated variable does not fit any row in it — this ADR closes the one place PHP's magic
   variables were still standing.
 
@@ -106,12 +106,12 @@ uint $id = Request::query('id') as uint;   // throws on "abc", "-1", "" — neve
 
 Every other superglobal is *data the host hands the script*; `$GLOBALS` is different in kind — it is a
 reflective view onto the script's *own* variable table, keyed by name, mutable in both directions. Once
-[ADR 0008](0008-static-and-global.md) makes a top-level variable a local of the script's own frame,
+`rule:statements/static-is-a-member-modifier` makes a top-level variable a local of the script's own frame,
 unreachable from any function without `global`, there is nothing left for `$GLOBALS` to expose that isn't
 already reachable the declared way: a `static` property, a constant, an object property, or a parameter. A
 replacement class would have to either (a) enumerate the script's locals reflectively, which no other part
 of the language does or needs, or (b) become a second, informally-scoped static-property bag that competes
-with the one [ADR 0008](0008-static-and-global.md) already settled on. Both are worse than the status quo of
+with the one `rule:statements/static-is-a-member-modifier` already settled on. Both are worse than the status quo of
 "declare a `static` property and use its name," so nothing replaces it.
 
 ### 3. Why `$_REQUEST` has no replacement at all
@@ -185,7 +185,7 @@ secrets this ADR needs to newly wall off.
 
 ### 8. Diagnostics
 
-Each rejection names its replacement, in the style [ADR 0008](0008-static-and-global.md) § 5 and
+Each rejection names its replacement, in the style `rule:statements/no-function-static-and-no-global` and
 [ADR 0011](0011-functions-and-constants-are-class-members.md) § 4 already set:
 
 - `$GLOBALS` → *`$GLOBALS` does not exist; declare a `static` property, a constant, or pass the value as a
@@ -215,12 +215,12 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 **Positive**
 
 - There is exactly one way a script ever learns anything from outside itself: a declared class member, an
-  object property, or a parameter — the same answer [ADR 0008](0008-static-and-global.md) and
+  object property, or a parameter — the same answer `rule:statements/static-is-a-member-modifier` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already gave for state and for behaviour,
   now complete for *input* too.
 - `$GLOBALS`, PHP's single most dangerous piece of ambient reflection, has no Novis equivalent to accidentally
   reintroduce later — there is no class it could be added back as without recreating the exact bag
-  [ADR 0008](0008-static-and-global.md) closed.
+  `rule:statements/static-is-a-member-modifier` closed.
 - `$_REQUEST`'s provenance ambiguity cannot exist in Novis: every request-input read names its source.
 - A reviewer sees exactly which `Core` class, and therefore which trust boundary, a line depends on — the
   same traceability [ADR 0011](0011-functions-and-constants-are-class-members.md) already gives built-in
@@ -245,7 +245,7 @@ own; [divergences.md](divergences.md) is the register that indexes it beside eve
 
 - **Keep the superglobals as read-only, host-populated variables**, dropping only `$GLOBALS`. Rejected: a
   read-only bare variable still has no declared import or traceable dependency, and still does not fit
-  [ADR 0008](0008-static-and-global.md)'s exhaustive storage table without a row added back for it.
+  `rule:statements/static-is-a-member-modifier`'s exhaustive storage table without a row added back for it.
 - **A single `Core\Http` class for everything request-and-server-shaped.** Rejected per
   [ADR 0011](0011-functions-and-constants-are-class-members.md): one class for every unrelated concern is
   a global namespace with extra syntax.

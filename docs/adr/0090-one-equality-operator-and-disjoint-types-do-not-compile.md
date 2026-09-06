@@ -41,8 +41,8 @@
 - **This repository already refuses redundant spellings on exactly this reasoning.**
   [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) deleted `and`/`or`/`xor` because `&&`/`||`
   already say it; [ADR 0050](0050-list-destructuring-spelling-rejected.md) deleted `list(…)`;
-  [ADR 0049](0049-single-open-tag-and-single-exit-keyword.md) refuses a second open tag and a second
-  termination keyword; [ADR 0015](0015-no-name-aliasing.md) is the general rule. Two operators that
+  `rule:statements/nvs-is-the-only-open-tag` refuses a second open tag and a second
+  termination keyword; `rule:statements/nothing-gets-a-second-name` is the general rule. Two operators that
   compile to one instruction is the same finding.
 - **Loose comparison is already named as a hazard by two security ADRs.**
   [0060](0060-application-security-protocols.md) § 4 requires verification to return claims or throw,

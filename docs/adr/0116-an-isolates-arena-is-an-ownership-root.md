@@ -159,7 +159,7 @@ it fresh.
   through `Live`, back the other way.
 
 Nothing else moves. The parent's output buffer, its `Core\Request`/`Core\Server`/`Core\Session` backing
-state ([ADR 0012](0012-no-superglobals.md)) and any open handle are not reachable from the child's root and
+state (`rule:statements/no-host-populated-variables`) and any open handle are not reachable from the child's root and
 are not made reachable by either crossing.
 
 The refusals are the walk's, not the boundary's, which is the point of there being one walk: a closure, an

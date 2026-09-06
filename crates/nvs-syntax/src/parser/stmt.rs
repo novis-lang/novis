@@ -87,7 +87,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                     self.bump();
                 }
                 TokenKind::OpenTagPhp => {
-                    // ADR 0049 § 2: `<?nvs` is the only code-mode open tag —
+                    // `rule:statements/nvs-is-the-only-open-tag`: `<?nvs` is the only code-mode open tag —
                     // the lexer still recognizes `<?php` (same reason `eval`
                     // still lexes as a keyword) purely so this can name the
                     // fix instead of misreading it as inline HTML.
@@ -492,7 +492,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// One `'inout'? type '$' identifier` binding — the shared tail of both
-    /// `foreach`-target alternatives (ADR 0007 § 3.2, ADR 0107 § 1). The
+    /// `foreach`-target alternatives (ADR 0007 § 3.2, `rule:statements/inout-is-the-by-reference-spelling`). The
     /// marker is parsed here and reported back to the caller, since only the
     /// *value* position may carry one; the key position never calls this
     /// with a marker present without the caller first checking for one.
@@ -790,7 +790,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 )
                 .with_help(
                     "pass it as a parameter, or make it a `static` property or a `const` \
-                     (ADR 0008 § 5)",
+                     (`rule:statements/no-function-static-and-no-global`)",
                 ),
         );
         Stmt {
@@ -823,7 +823,7 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     /// Function-scope `static` — always rejected, whether written in PHP's
     /// ordinary untyped spelling (`static $calls = 0;`) or the typed
-    /// spelling ADR 0008 § 5's own diagnostic wording illustrates
+    /// spelling `rule:statements/no-function-static-and-no-global`'s own diagnostic wording illustrates
     /// (`static int $calls = 0;`); [`Self::at_function_scope_static`]
     /// already confirmed one of those two shapes follows `static`.
     pub(super) fn parse_static_local(&mut self, start: Span) -> Stmt {
@@ -847,7 +847,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             .with_primary(span, "there is no per-function storage class")
             .with_help(
                 "declare a `private static` property on a class, or pass the value as a \
-                 parameter (ADR 0008 § 5)",
+                 parameter (`rule:statements/no-function-static-and-no-global`)",
             ),
         );
         Stmt {
@@ -932,7 +932,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// parsed in full (it never means anything but a destructuring target,
     /// so unlike `[...]` it collides with no expression grammar and needs no
     /// backtracking) purely so the diagnostic can span the whole construct
-    /// and recovery can consume through the `;`, exactly the shape ADR 0049
+    /// and recovery can consume through the `;`, exactly the shape `rule:statements/nvs-is-the-only-open-tag`
     /// gave `die`. The parsed target is then discarded: a rejected construct
     /// never reaches the AST as a live node.
     pub(super) fn parse_destructure_from_list(&mut self, start: Span) -> Stmt {

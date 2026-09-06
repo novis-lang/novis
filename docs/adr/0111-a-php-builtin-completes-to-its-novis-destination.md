@@ -65,7 +65,7 @@
   checked-in table. The rule as written neither admits nor refuses it, which is a gap to close rather than
   an exception to take.
 - **This cannot be solved in the language.** A PHP spelling that resolves at runtime is exactly the second
-  name [ADR 0015](0015-no-name-aliasing.md) removes. The editor is the only correct place for it, because
+  name `rule:statements/nothing-gets-a-second-name` removes. The editor is the only correct place for it, because
   the editor's output is the Novis spelling and the PHP one never reaches a file.
 
 ## Decision
@@ -182,7 +182,7 @@ of § 3's table, and is distinguished by the spec naming it where the registry d
 ## Alternatives rejected
 
 - **PHP names as runtime aliases in `Core`.** Rejected outright by
-  [ADR 0015](0015-no-name-aliasing.md): a second reachable spelling for one member is the thing that ADR
+  `rule:statements/nothing-gets-a-second-name`(0015-no-name-aliasing.md): a second reachable spelling for one member is the thing that ADR
   exists to remove, and it would leave PHP names in committed Novis source forever.
 - **Candidates from the migration table alone.** Rejected: the feature would then cover only what has been
   classified, and a PHP name Novis has not yet audited would be indistinguishable from one Novis cannot do

@@ -260,7 +260,7 @@ names the same slot. It must have an initializer, or be nullable so that it star
 at `null`. It is reached as `self::$name` inside the class and `Class::$name` anywhere;
 `static::$name` is refused, because the slot is resolved while compiling. Every compound
 assignment and `++`/`--` works on it.
-<!-- src: ADR 0008 -->
+<!-- src: `rule:statements/static-is-a-member-modifier` -->
 
 ```nvs
 <?nvs

@@ -59,7 +59,7 @@
 //! yet:
 //!
 //! - **`goto` target labels** (`label:` as its own statement) are unparsed — only `goto ident;`
-//!   itself is handled (and rejected, per ADR 0008 § 5). Interacts with
+//!   itself is handled (and rejected, per `rule:statements/no-function-static-and-no-global`). Interacts with
 //!   [ADR 0036](/docs/adr/0036-anonymous-object-shapes.md) § 2's own block/object-literal
 //!   disambiguation: a block whose first statement would have been a label (`{ done: ... }`) matches
 //!   the same one-token-past-`{` lookahead an attempted object literal does, so it is now diagnosed
@@ -75,7 +75,7 @@
 //!   fine; the workaround for a local is the same one the ADR's own example uses: `type Point = {x:
 //!   int}; Point $point;`.
 //! - **Grouped `use`** (`use App\{Foo, Bar};`) and **`use function`/`use const`** are not parsed —
-//!   [ADR 0015](/docs/adr/0015-no-name-aliasing.md)'s own *Revisiting* note says these don't
+//!   `rule:statements/nothing-gets-a-second-name`'s own *Revisiting* note says these don't
 //!   exist yet, so this isn't a regression, just not built. Only single `use Path\To\Name;` per
 //!   statement is supported.
 //! - **`var` inside a class body** (PHP 4's property declarator) is not handled — only the statement

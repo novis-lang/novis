@@ -35,7 +35,7 @@ impl Token {
 /// spellings the spec introduces are deliberately kept *contextual* instead:
 /// `spawn`, `script` and `with` (the `spawn script … with(…)` grammar,
 /// [`docs/spec/00-overview.md` § 2](/docs/spec/00-overview.md)) and `type`
-/// (the alias declaration, [ADR 0015](/docs/adr/0015-no-name-aliasing.md))
+/// (the alias declaration, `rule:statements/nothing-gets-a-second-name`)
 /// lex as plain [`Ident`]s; the parser recognises them by text only at the one
 /// grammar position each is meaningful in. Reserving common English words
 /// globally when only a handful of ADR-introduced constructs need them would
@@ -57,7 +57,7 @@ pub enum TokenKind {
     OpenTagNvs,
     /// `<?php` — lexed like `<?nvs` so the parser can diagnose it by name
     /// rather than misreading it as inline HTML; rejected at parse time,
-    /// `<?nvs` is the only code-mode open tag Novis keeps (ADR 0049 § 2).
+    /// `<?nvs` is the only code-mode open tag Novis keeps (`rule:statements/nvs-is-the-only-open-tag`).
     OpenTagPhp,
     /// `<?=` — short-echo, exactly `<?nvs echo`.
     OpenTagEcho,

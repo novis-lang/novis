@@ -201,7 +201,7 @@ pub(crate) fn infer_method_call(
         }
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
-    // ADR 0008 § 1's late static binding, as a type: a member declaring
+    // `rule:statements/static-is-a-member-modifier`'s late static binding, as a type: a member declaring
     // `static` answers the *called* class, which at an instance call is the
     // receiver's own. `MethodSig::returns_static` owns why substituting here
     // is sound, and why an unresolved (or erased) receiver falls back to the
@@ -513,7 +513,7 @@ pub(crate) fn infer_static_call(
     }
 }
 
-/// The class a `Class::member()` site *calls on*, for ADR 0008 § 1's `static`
+/// The class a `Class::member()` site *calls on*, for `rule:statements/static-is-a-member-modifier`'s `static`
 /// return type.
 ///
 /// Not [`resolve_class_expr`], and the difference is `parent::`: that resolver
@@ -1203,7 +1203,7 @@ pub(crate) fn report_args_with_no_parameter_list(
     };
     let mut positional_ends: Option<Span> = None;
     for arg in list {
-        // ADR 0107 § 2's marker has the same nothing to resolve against, one
+        // `rule:statements/inout-is-written-at-the-call`'s marker has the same nothing to resolve against, one
         // step worse: neither callee can bind such a parameter at all.
         if arg.inout {
             env.diags.report(
@@ -1500,7 +1500,7 @@ pub(crate) fn check_new_target(
 ///   as a local ([`Captures`]), which is what makes the recorded capture set
 ///   "exactly the outer variables its body reads" (§ 2) rather than the whole
 ///   enclosing frame. `$this` is in that set like any other name, which is
-///   ADR 0008 § 4's bind-`$this`-only-where-used rule with no code of its own.
+///   `rule:statements/a-closure-binds-this-only-where-it-uses-it`'s bind-`$this`-only-where-used rule with no code of its own.
 /// * The literal's own [`ExprInfo::Closure`] entry is recorded, because a
 ///   `callable` type carries none of it (§ 4 keeps that type opaque).
 ///

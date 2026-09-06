@@ -1,5 +1,5 @@
 --TEST--
-`<?php` is not a second code-mode open tag — the lexer names `<?nvs` as the only spelling, ADR 0049 § 1
+`<?php` is not a second code-mode open tag — the lexer names `<?nvs` as the only spelling, `rule:statements/nvs-is-the-only-open-tag`
 --FILE--
 <?php
 echo "hello\n";

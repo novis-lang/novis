@@ -19,7 +19,7 @@
 > in any category** ([ADR 0030](0030-no-leading-underscores-constructor-spelling.md)), which is what leaves
 > the rule with zero exceptions. There is exactly one accepted spelling per category, decided while the
 > standard library is still unwritten, because renaming it later is a breaking change with no deprecation
-> path under [ADR 0015](0015-no-name-aliasing.md).
+> path under `rule:statements/nothing-gets-a-second-name`.
 
 ## Context
 
@@ -112,7 +112,7 @@ re-join in the target convention) so the fix is always a one-line rename, never 
 - **Zero exceptions, forever.** Nothing generated, reflected into existence, or mirroring an external
   format gets a way to keep a non-conforming spelling — a mapping layer is the only route.
 - A small ongoing cost on every future stdlib member: the name has to be right the first time, since
-  [ADR 0015](0015-no-name-aliasing.md) means there is no alias to paper over a mis-cased name.
+  `rule:statements/nothing-gets-a-second-name` means there is no alias to paper over a mis-cased name.
 
 ## Alternatives rejected
 

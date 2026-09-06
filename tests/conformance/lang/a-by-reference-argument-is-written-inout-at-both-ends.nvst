@@ -1,8 +1,8 @@
 --TEST--
-`inout` is written before the parameter's type and again at the argument, in every declaration and call-site position either one has — ADR 0107 §§ 1, 2
+`inout` is written before the parameter's type and again at the argument, in every declaration and call-site position either one has — `rule:statements/inout-is-the-by-reference-spelling` and `rule:statements/inout-is-written-at-the-call`
 --FILE--
 <?nvs
-// ADR 0107 § 1 puts the word in the modifier slot, before the type, so it
+// `rule:statements/inout-is-the-by-reference-spelling` puts the word in the modifier slot, before the type, so it
 // reads the same on a static method, an instance method and a `foreach`
 // value binding. § 2 writes it again at the argument, which is the half a
 // rename alone would not have bought: without it `Adder::bump($n)` is

@@ -377,7 +377,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         span
     }
 
-    /// ADR 0008 § 5: `static` is not a closure modifier — a closure captures
+    /// `rule:statements/no-function-static-and-no-global`: `static` is not a closure modifier — a closure captures
     /// `$this` only if it uses it, so the keyword has nothing left to mean.
     /// Reports and keeps going; the caller still builds the closure node.
     fn report_static_closure_modifier(&mut self, span: Span) {
@@ -390,11 +390,11 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span,
                 "a closure already captures `$this` only if it uses it",
             )
-            .with_help("drop `static` (ADR 0008 § 5)"),
+            .with_help("drop `static` (`rule:statements/no-function-static-and-no-global`)"),
         );
     }
 
-    /// ADR 0107 § 3: `&` is no longer a by-reference marker. The marker is
+    /// `rule:statements/ampersand-is-not-a-by-reference-marker`: `&` is no longer a by-reference marker. The marker is
     /// still *recognized* wherever PHP would put one — that is the whole
     /// reason [`Self::at_intersection_amp`] survives — so the site can name
     /// the exact fix instead of failing as a malformed type. `fix` is that
@@ -412,7 +412,7 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
-    /// The help ADR 0012 § 1 gives for a PHP superglobal, or `None` if `name`
+    /// The help `rule:statements/no-host-populated-variables` gives for a PHP superglobal, or `None` if `name`
     /// (the raw `$…` text) is not one.
     ///
     /// **No arm names an accessor class or one of its members.** § 1's table is
@@ -432,12 +432,12 @@ impl<'src, 'd> Parser<'src, 'd> {
             "$_REQUEST" => {
                 "`$_REQUEST` does not exist, and neither does anything merging query, body and \
                  cookie input into one place — read each explicitly, so the source is visible at \
-                 the call site (ADR 0012 § 1)"
+                 the call site (`rule:statements/no-host-populated-variables`)"
             }
             "$_GET" | "$_POST" | "$_COOKIE" | "$_FILES" | "$_SERVER" | "$_SESSION" | "$_ENV"
             | "$argv" | "$argc" | "$_ARGS" => {
                 "every fact the host has is reached through a `Core` accessor rather than an \
-                 ambient variable; ADR 0012 § 1's table maps this one to the class that replaces \
+                 ambient variable; `rule:statements/no-host-populated-variables`'s table maps this one to the class that replaces \
                  it, and that class is still to be implemented"
             }
             _ => return None,

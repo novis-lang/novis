@@ -21325,11 +21325,11 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `array_walk_recursive` | language | `foreach` over `Core\Arr::flattenDeep` |
 | `arsort` | member | `Core\Arr::sort` with `{order: Order::Desc, preserveKeys: true}` |
 | `asort` | member | `Core\Arr::sort` with `{preserveKeys: true}` |
-| `compact` | dropped | it builds an array from variable *names* ([ADR 0008](adr/0008-static-and-global.md)). Write the array |
+| `compact` | dropped | it builds an array from variable *names* (`rule:statements/static-is-a-member-modifier`). Write the array |
 | `count` | member | `Core\Arr::count` |
 | `current` | dropped | the internal array pointer: a mutable cursor inside a copy-on-write value. `Core\Arr::first` or `foreach` |
 | `end` | dropped | as `current`. `Core\Arr::last` |
-| `extract` | dropped | it creates variables from keys ([ADR 0008](adr/0008-static-and-global.md)); nothing may populate a scope |
+| `extract` | dropped | it creates variables from keys (`rule:statements/static-is-a-member-modifier`); nothing may populate a scope |
 | `in_array` | member | `Core\Arr::contains`, always strict, haystack first (R10) |
 | `iterator_apply` | language | `foreach` |
 | `iterator_count` | member | `Core\Arr::count` over `Core\Arr::from` |
@@ -21940,7 +21940,7 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `closelog` | dropped | closes what nothing opened |
 | `assert_options` | dropped | the knobs for that deletion — a global callback, a bail flag, and the severity of the warning it raises instead of stopping |
 | `filter_var_array` | dropped | applying a validator to every element is `Core\Arr` plus the member. A *schema* over untrusted input is a decode into a declared shape, which reports every problem as a `Core\Issue` ([ADR 0071](adr/0071-derived-codecs.md)) rather than mixing the value, `null` and `false` in one array |
-| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings ([ADR 0012](adr/0012-no-superglobals.md)), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
+| `filter_input` | dropped | it reads a superglobal and validates in one call. The read is `Core\Request::query` and its siblings (`rule:statements/no-host-populated-variables`), the check is a `Core\Validate` member, and the value stays `tainted` either way because no validator launders |
 | `filter_input_array` | dropped | both of those at once, over a spec array |
 | `filter_has_var` | dropped | "did this input exist", against a superglobal. Absence is `?T` ([ADR 0063](adr/0063-core-api-conventions.md)) |
 | `filter_list` | dropped | it enumerates the filters by name, because they are strings. Here they are members |

@@ -44,7 +44,7 @@
 > strips `secret` on success for the same reason it strips `tainted` — consistency with the existing rule was
 > chosen over a stricter one for this first cut; see *Alternatives rejected* for the case against it and
 > *Revisiting* for when to reconsider. `secret` has no ambient source the way `tainted` has
-> [ADR 0012](0012-no-superglobals.md)'s five accessor classes: nothing in Novis is host-populated
+> `rule:statements/no-host-populated-variables`'s five accessor classes: nothing in Novis is host-populated
 > ([0012](0012-no-superglobals.md)), so a value becomes `secret` only where a developer spells it on a
 > declaration — a config-loading helper that reads a credential is expected to declare its own return type as
 > `secret string`. Six sinks refuse a `secret` value by default: HTML/response output (refused outright, not
@@ -70,7 +70,7 @@
   not reduced confidentiality, so an API key that parses `as uint` is exactly as sensitive afterward. This
   ADR keeps the same removal-on-conversion rule anyway, for grammar/implementation consistency rather than
   because the reasoning transfers (see *Alternatives rejected*, *Revisiting*).
-- `secret` also cannot reuse `tainted`'s *source* story: [ADR 0012](0012-no-superglobals.md)'s five accessor
+- `secret` also cannot reuse `tainted`'s *source* story: `rule:statements/no-host-populated-variables`'s five accessor
   classes enumerate every place untrusted data ambiently enters, which is what lets `tainted` attach
   automatically. There is no equivalent enumeration for secrecy, so `secret` has no ambient source at all —
   which `Core` accessors should return it by convention is deferred stdlib design (*Revisiting*).
@@ -96,14 +96,14 @@ qualified_type := 'secret'? 'tainted'? scalar_type | <every other atom in ADR 00
 `secret` and `tainted` are independent bits, not a combined enum: a value can be `string` (neither),
 `tainted string`, `secret string`, or `secret tainted string`. When both are spelled together, **`secret`
 comes first** — this is the only accepted order, the same "exactly one canonical spelling" stance
-[ADR 0015](0015-no-name-aliasing.md) already takes for names; `tainted secret string` is a diagnostic naming
+`rule:statements/nothing-gets-a-second-name` already takes for names; `tainted secret string` is a diagnostic naming
 the required order, not a second valid spelling of the same type. Like `tainted`, this needs a reserved
 keyword in the lexer and a new grammar production in `nvs-syntax`'s type grammar — landing after M1's own
 fuzz/corpus verification was already reported done, the same situation
 [ADR 0024](0024-taint-tracking-for-injection-sinks.md)'s *Consequences* flagged for `tainted` itself, so this
 is a second instance of an already-accepted cost, not a new kind of one.
 
-Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** [ADR 0012](0012-no-superglobals.md)'s five
+Unlike `tainted`, **nothing in Novis grants `secret` ambiently.** `rule:statements/no-host-populated-variables`'s five
 accessor classes are the reason `tainted` can attach itself automatically — every one of them is a named,
 enumerable place untrusted data enters. There is no equivalent list for secrecy: `Core\Env::get()`,
 `Core\Session`, a future `Core\Db` row, and a source-literal string all look identical to the type checker
@@ -288,7 +288,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
   accepted gap, chosen for grammar/implementation consistency with `tainted` rather than discovered late —
   see *Alternatives rejected* and *Revisiting*.
 - **No ambient source list** means `secret` protects only what a developer remembers to annotate. Unlike
-  `tainted`, there is no [ADR 0012](0012-no-superglobals.md)-style enumeration of "every place a secret can
+  `tainted`, there is no `rule:statements/no-host-populated-variables`-style enumeration of "every place a secret can
   enter" to lean on — this is a real usability gap relative to `tainted`'s coverage, not a design oversight;
   closing it further is stdlib work (see *Revisiting*).
 - **Refusing terminal output costs the cheapest debugging tool there is.** `echo $x` is how a developer
@@ -341,7 +341,7 @@ operator for everything — and it makes the qualifier awkward for a thing progr
 - **Which built-in `Core` accessors, if any, should return `secret` by convention** — a future
   `Core\Env`/config class distinguishing `get()` from a `secret()`-returning accessor, or a `Core\Db` column
   type hint — is real stdlib design, deferred to whichever milestone designs that class's real API, the same
-  deferral [ADR 0012](0012-no-superglobals.md) and [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
+  deferral `rule:statements/no-host-populated-variables` and [ADR 0024](0024-taint-tracking-for-injection-sinks.md)
   already used for their own accessor rosters.
 - **The exact `Core\Secret` function roster** (`reveal`, a password-hashing helper, whatever else stdlib
   design turns up) is illustrative only here, due at whichever milestone builds `Core`'s credential-handling

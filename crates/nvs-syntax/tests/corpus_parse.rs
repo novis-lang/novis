@@ -11,7 +11,7 @@
 //! **What this test no longer measures, and why.** It used to report how many
 //! corpus files parsed with *zero* diagnostics. That number is meaningless
 //! now and is not tracked: every corpus file opens with `<?php`, which
-//! [ADR 0049](/docs/adr/0049-single-open-tag-and-single-exit-keyword.md)
+//! `rule:statements/nvs-is-the-only-open-tag`
 //! rejects in favour of `<?nvs`, so every one of them trips `E0229`;
 //! [ADR 0062](/docs/adr/0062-case-sensitivity-is-a-compiler-property.md)
 //! made keyword matching exact, so a corpus file's mixed-case `IF`/`TRUE`

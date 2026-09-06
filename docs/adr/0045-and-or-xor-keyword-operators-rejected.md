@@ -34,7 +34,7 @@
   that reached one at codegen already hit `nvs-ir`'s "arithmetic/equality/ordering operators" panic. Nothing
   observable is lost by rejecting them outright; a category of previously-reachable panic is closed instead.
 - Two spellings of one operation, with different precedence to boot, is exactly the shape
-  [ADR 0015](0015-no-name-aliasing.md) and [ADR 0021](0021-single-file-inclusion-construct.md) already rule
+  `rule:statements/nothing-gets-a-second-name` and `rule:statements/require-is-the-only-inclusion-construct` already rule
   against elsewhere.
 
 ## Decision
@@ -69,7 +69,7 @@ $a xor $b      // rejected — "there is no direct replacement — write `(a || 
 ```
 
 The keywords stay reserved words — not freed for use as identifiers — the same way `include`/`require_once`
-remain reserved purely to be diagnosed (ADR 0021 § 2).
+remain reserved purely to be diagnosed (`rule:statements/require-is-the-only-inclusion-construct`).
 
 ## Consequences
 
@@ -89,7 +89,7 @@ remain reserved purely to be diagnosed (ADR 0021 § 2).
 **Negative**
 
 - **Keyword `xor` has no one-token replacement**, unlike every other rejected-and-replaced construct this
-  project has recorded so far (ADR 0021, ADR 0034). A PHP program using it needs a real rewrite, not a
+  project has recorded so far (`rule:statements/require-is-the-only-inclusion-construct`, ADR 0034). A PHP program using it needs a real rewrite, not a
   mechanical substitution — `nvs convert` (M11) can offer `(a || b) && !(a && b)` as its default rewrite
   (correct for any truthy operand, matching PHP's own semantics) but cannot safely narrow to `a != b`
   without knowing both operands are already `bool`.

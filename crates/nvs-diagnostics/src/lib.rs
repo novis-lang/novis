@@ -233,16 +233,16 @@ pub mod code {
     /// binding's type is.
     pub const E_SETTYPE_UNSUPPORTED: Code = Code::new("E0208");
     /// `static $x = ...;` inside a function: there is no function-scope
-    /// storage class — see ADR 0008.
+    /// storage class — see `rule:statements/static-is-a-member-modifier`.
     pub const E_STATIC_LOCAL_UNSUPPORTED: Code = Code::new("E0209");
     /// `static function`/`static fn`: closures already capture `$this` only
     /// if they use it, so `static` has nothing left to mean here.
     pub const E_STATIC_CLOSURE_UNSUPPORTED: Code = Code::new("E0210");
     /// A PHP superglobal (`$_GET`, `$_SERVER`, `$GLOBALS`, `$argv`, …): no
-    /// variable is ever populated by the host — see ADR 0012.
+    /// variable is ever populated by the host — see `rule:statements/no-host-populated-variables`.
     pub const E_SUPERGLOBAL_UNSUPPORTED: Code = Code::new("E0211");
     /// `use Path\To\Name as Other;`: an import cannot be renamed — see
-    /// ADR 0015 § 2.
+    /// `rule:statements/nothing-gets-a-second-name`.
     pub const E_IMPORT_ALIAS_UNSUPPORTED: Code = Code::new("E0212");
     /// `function foo() { ... }` outside any class: a function must be a
     /// method — see ADR 0011 § 1.
@@ -264,7 +264,7 @@ pub mod code {
     /// `rule:enums/no-class-machinery`.
     pub const E_ENUM_MEMBER_UNSUPPORTED: Code = Code::new("E0220");
     /// `include`, `include_once`, or `require_once`: Novis keeps exactly one
-    /// same-frame inclusion construct, `require` — see ADR 0021.
+    /// same-frame inclusion construct, `require` — see `rule:statements/require-is-the-only-inclusion-construct`.
     pub const E_INCLUDE_FAMILY_UNSUPPORTED: Code = Code::new("E0221");
     /// An anonymous `function (...) { ... }` literal, with or without a
     /// `use` clause: `fn` is the only closure literal — see ADR 0031 § 1.
@@ -296,10 +296,10 @@ pub mod code {
     /// diagnostic.
     pub const E_TRAIT_NOT_SUPPORTED: Code = Code::new("E0227");
     /// `die`, in any position `exit` is also accepted: Novis keeps exactly one
-    /// process-termination keyword. See ADR 0049 § 1.
+    /// process-termination keyword. See `rule:statements/exit-is-the-only-termination-keyword`.
     pub const E_DIE_UNSUPPORTED: Code = Code::new("E0228");
     /// The `<?php` open tag: Novis keeps exactly one code-mode open tag,
-    /// `<?nvs` (plus the short-echo `<?=`). See ADR 0049 § 2.
+    /// `<?nvs` (plus the short-echo `<?=`). See `rule:statements/nvs-is-the-only-open-tag`.
     pub const E_PHP_OPEN_TAG_UNSUPPORTED: Code = Code::new("E0229");
     /// `list(...)` as a destructuring target: Novis keeps exactly one
     /// destructuring spelling, `[...]`. See ADR 0050.
@@ -375,7 +375,7 @@ pub mod code {
     /// a destructuring leaf (`[int &$a] = $pair`), a by-reference return
     /// (`function &f()`) or a by-reference property hook (`&get`).
     ///
-    /// [ADR 0107](/docs/adr/0107-by-reference-parameters-are-spelled-inout-at-both-ends.md)
+    /// `rule:statements/inout-is-the-by-reference-spelling`
     /// retires `&` as a by-reference marker: the two binding modes it spelled
     /// are written `inout`, before the type and again at the call site, and
     /// the two *returning* forms have no replacement at all — Novis hands back
@@ -407,7 +407,7 @@ pub mod code {
     /// `namespace \App;`. A name containing a `\` is already read from the
     /// root, so the prefix has no work left to do, and accepting it would be
     /// the second spelling
-    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 3
+    /// `rule:statements/a-leading-separator-does-not-parse`
     /// exists to remove. PHP rejects the `namespace` spelling too; the other
     /// two it accepts, which is what made the token mean three different
     /// things by position.
@@ -485,7 +485,7 @@ pub mod code {
     /// ADR 0015 § 5.
     pub const E_TYPE_ALIAS_CYCLE: Code = Code::new("E0310");
     /// A `require` whose path is a literal, resolved statically per
-    /// ADR 0021, but does not name a file that can be loaded as source (it
+    /// `rule:statements/require-is-the-only-inclusion-construct`, but does not name a file that can be loaded as source (it
     /// does not exist, or is not valid UTF-8).
     pub const E_REQUIRE_TARGET_NOT_FOUND: Code = Code::new("E0311");
     /// A `require` chain whose statically-resolved literal paths lead back
@@ -555,7 +555,7 @@ pub mod code {
     /// resolved relative to the enclosing namespace — `Models\User` written
     /// inside `namespace App;`, meaning `App\Models\User`. This is the one
     /// construct
-    /// [ADR 0113](/docs/adr/0113-a-qualified-name-is-absolute.md) § 1
+    /// `rule:statements/a-qualified-name-is-absolute`
     /// changes the meaning of, so it gets a diagnostic naming the absolute
     /// spelling rather than the generic [`E_UNDEFINED_CLASS`] a reader would
     /// otherwise have to work backwards from. A qualified name that resolves
@@ -765,7 +765,7 @@ pub mod code {
     /// which `nvs_hir::interfaces::RESERVED` rosters, and a `Core` member
     /// whose spec signature writes one (`Core\Json::decodeAs<T>`), which
     /// `nvs_stdlib::registry::CoreTy::Written` marks. Everything else lands
-    /// here: a `type` alias (ADR 0015 gives one no parameters of its own), a
+    /// here: a `type` alias (`rule:statements/nothing-gets-a-second-name` gives one no parameters of its own), a
     /// user-declared method, and a `Core` member that infers its variables
     /// from its arguments instead.
     pub const E_TYPE_ARGS_NOT_GENERIC: Code = Code::new("E0441");
@@ -1711,7 +1711,7 @@ pub mod code {
     pub const E_ASSIGN_BY_REFERENCE: Code = Code::new("E0701");
     /// An argument binding an `inout` parameter, written without the marker.
     ///
-    /// ADR 0107 § 2 writes the word at both ends, and this is the half a
+    /// `rule:statements/inout-is-written-at-the-call` writes the word at both ends, and this is the half a
     /// rename alone would not have bought: `Adder::bump($n)` is otherwise
     /// indistinguishable at the point of call from `Adder::sum($a, $b)`,
     /// and only one of them writes to its caller's storage. The marker is
@@ -1723,7 +1723,7 @@ pub mod code {
     /// any argument of a call through a `callable`.
     ///
     /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
-    /// wrong is worth nothing to the reader, so ADR 0107 § 2 makes the extra
+    /// wrong is worth nothing to the reader, so `rule:statements/inout-is-written-at-the-call` makes the extra
     /// one an error too. Through a `callable` it can never be right — ADR
     /// 0031 § 4 keeps that type opaque and [`E_CLOSURE_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
@@ -1762,7 +1762,7 @@ pub mod code {
     // `E0703` is retired and is never reused: `spawn script` refused its own
     // construct until `nvs-ir` had an arm for it, and it lowers now.
     // `E0704` is retired and is never reused: `require` used for its
-    // **value** is ADR 0021 § 3's `mixed` and lowers, the site calling the
+    // **value** is `rule:statements/a-require-expression-is-mixed`'s `mixed` and lowers, the site calling the
     // target file's own script frame and keeping what it hands back
     // (`nvs_ir::lower::Lowering::lower_expr`).
     /// `-`, `+` or `~` over an operand ADR 0007 § 4's arithmetic table has no
@@ -2031,9 +2031,9 @@ pub mod code {
     /// Each is a limit of this compiler rather than a rule of the language,
     /// and each has the same cause — the forward is a whole method whose body
     /// passes its parameters straight on. A `static` member has no receiver to
-    /// read the field off (ADR 0008 gives class storage none), and a variadic
+    /// read the field off (`rule:statements/static-is-a-member-modifier` gives class storage none), and a variadic
     /// or `inout` list is packed and written back at the *call site*
-    /// (ADR 0107 § 2), so passing it on would pack it twice.
+    /// (`rule:statements/inout-is-written-at-the-call`), so passing it on would pack it twice.
     ///
     /// It is a diagnostic where the clause is written because the alternative
     /// is what the tree did before: no forward was synthesized, the class was
@@ -2312,7 +2312,7 @@ pub mod code {
 
     /// A body declaring `static` returns a value that is not the called class.
     ///
-    /// ADR 0008 § 1's late static binding makes `static` mean *the class the
+    /// `rule:statements/static-is-a-member-modifier`'s late static binding makes `static` mean *the class the
     /// call named*, which a subclass may be — so `Base::make(): static` read
     /// through `Leaf::make()` promises a `Leaf`. A body that answers
     /// `new self()` keeps that promise only when nobody ever extends `Base`,
@@ -2785,7 +2785,7 @@ pub mod code {
     /// [`E_CORE_INSTANCE_MEMBER_CALLED_STATICALLY`] is the same mistake
     /// against a `Core` class, kept separate because its wording is ADR 0063
     /// R20's one-spelling rule rather than this one's missing receiver. This
-    /// code is the sibling ADR 0008 § 1 asks for: `static` keeps PHP's
+    /// code is the sibling `rule:statements/static-is-a-member-modifier` asks for: `static` keeps PHP's
     /// semantics unchanged, so a method without it is called on a value.
     ///
     /// `self::f()` and `parent::f()` from an *instance* method are not this —

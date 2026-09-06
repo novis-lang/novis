@@ -1,12 +1,12 @@
 //! `require`'s static resolution (M2 item 4 — see the crate's module docs
 //! for what's left after this).
 //!
-//! [ADR 0021](/docs/adr/0021-single-file-inclusion-construct.md)
+//! `rule:statements/require-is-the-only-inclusion-construct`
 //! keeps `require` as the only same-frame inclusion construct: no isolation
 //! at all, so a required file's declarations must be visible to name
 //! resolution exactly as if it had been pasted in at the `require` site.
 //! [`resolve_program`] is the entry point that makes that happen for a
-//! `require` whose path is written as a plain string literal — ADR 0021's
+//! `require` whose path is written as a plain string literal — `rule:statements/require-is-the-only-inclusion-construct`'s
 //! own M2 verification line calls this "statically resolved where the path
 //! is a literal; a dynamic path falls back to a runtime resolve," so a
 //! non-literal path (a variable, a concatenation, an interpolated string) is
@@ -149,7 +149,7 @@ pub struct Loaded {
     ///
     /// A path that is not a literal, that resolves to nothing loadable, or
     /// that closes a cycle contributes no entry — each is already a
-    /// diagnostic, or the dynamic fallback ADR 0021 leaves alone. A path
+    /// diagnostic, or the dynamic fallback `rule:statements/require-is-the-only-inclusion-construct` leaves alone. A path
     /// naming a file some *other* file already required does contribute one:
     /// the file is loaded once, and both sites name it.
     pub requires: Vec<(Span, SourceId)>,

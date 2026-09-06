@@ -1,5 +1,5 @@
 --TEST--
-`die` is refused with `exit` named as its one replacement, and the file never runs — ADR 0049 § 2
+`die` is refused with `exit` named as its one replacement, and the file never runs — `rule:statements/exit-is-the-only-termination-keyword`
 --FILE--
 <?nvs
 echo "before\n";

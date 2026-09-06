@@ -1,4 +1,4 @@
-//! ADR 0107's surface, at the parser: `inout` in the modifier slot of all
+//! `rule:statements/inout-is-the-by-reference-spelling`'s surface, at the parser: `inout` in the modifier slot of all
 //! three binding positions, the same word again at a call site, and `&`
 //! refused wherever it used to mean by-reference while keeping the two jobs
 //! it still has.
@@ -38,7 +38,7 @@ fn only_param(src: &str) -> Param {
 
 #[test]
 fn an_inout_parameter_parses_in_the_modifier_slot() {
-    // ADR 0107 § 1: the word goes before the type, in the slot
+    // `rule:statements/inout-is-the-by-reference-spelling`: the word goes before the type, in the slot
     // `parse_modifiers` already runs, so it composes with a promoted
     // property's own modifiers and with a variadic tail.
     let p = only_param(
@@ -65,7 +65,7 @@ fn an_inout_parameter_parses_in_the_modifier_slot() {
 
 #[test]
 fn an_inout_foreach_binding_and_destructuring_leaf_parse() {
-    // The two positions ADR 0107 § 2 explicitly leaves alone — neither has a
+    // The two positions `rule:statements/inout-is-written-at-the-call` explicitly leaves alone — neither has a
     // call site, so for them this ADR is a rename and nothing else.
     let s = parse_stmt_ok("foreach ($xs as inout int $v) { }");
     let StmtKind::Foreach {
@@ -104,7 +104,7 @@ fn an_inout_foreach_binding_and_destructuring_leaf_parse() {
 
 #[test]
 fn an_inout_argument_parses_at_a_call_site() {
-    // ADR 0107 § 2's marker is on the binding, so it sits outside a named
+    // `rule:statements/inout-is-written-at-the-call`'s marker is on the binding, so it sits outside a named
     // argument's `name:` and is independent of the spread marker.
     let e = parse_ok("Adder::bump(inout $n)");
     let CallArgs::List(args) = call_args(&e) else {
@@ -147,7 +147,7 @@ fn call_args(e: &Expr) -> CallArgs {
 
 #[test]
 fn an_ampersand_by_reference_marker_is_refused_naming_inout() {
-    // ADR 0107 § 3: every position where `&` meant by-reference is E0237,
+    // `rule:statements/ampersand-is-not-a-by-reference-marker`: every position where `&` meant by-reference is E0237,
     // and the marker is still *recognized* there — that is what lets the
     // site name the fix rather than failing on a malformed intersection.
     for src in [
@@ -172,7 +172,7 @@ fn an_ampersand_by_reference_marker_is_refused_naming_inout() {
 
 #[test]
 fn an_ampersand_still_parses_as_bitwise_and_and_as_an_intersection() {
-    // The two meanings ADR 0107 § 3 keeps. With the by-reference one gone an
+    // The two meanings `rule:statements/ampersand-is-not-a-by-reference-marker` keeps. With the by-reference one gone an
     // `&` in a type is always an intersection — the lookahead survives only
     // so the refusal above can be worded, never to change what a type means.
     let e = parse_ok("$a & $b");

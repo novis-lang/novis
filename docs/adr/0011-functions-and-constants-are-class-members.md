@@ -24,21 +24,21 @@
 > class holding everything. `strlen($s)` becomes `Core\Str::length($s)`,
 > `PHP_EOL` becomes `Core\Env::EOL`. Call sites use ordinary namespace resolution — `use Core\Str;` then
 > `Str::length($s)`, or the fully-qualified form — nothing under `Core` is auto-imported, which is the same
-> "nothing is global by default" reading [ADR 0008](0008-static-and-global.md) already gives the rest of
+> "nothing is global by default" reading `rule:statements/static-is-a-member-modifier` already gives the rest of
 > the language. Anonymous functions and arrow functions are unaffected: they are values, not named
 > declarations, and creating one inside a method body or the script's own top-level frame was never a
 > "global function" in the sense this ADR closes.
 
 ## Context
 
-- ADR 0008 already closed ungoverned *state* (`global`, function-scope `static` are gone, its § 2 table
+- `rule:statements/static-is-a-member-modifier` already closed ungoverned *state* (`global`, function-scope `static` are gone, its § 2 table
   is exhaustive), but never closed ungoverned *behaviour*: nothing stopped a top-level
   `function totalOrders(): int { ... }`, and the stdlib was still implicitly a flat set of global
   functions (`strlen`, `array_map`, …) as in PHP.
 - The requirement is explicit, not merely priority-derived: **Novis is OOP-only** — a function is always a
   method, with no exception for built-ins.
 - **Simplicity (priority 4):** a free function is the same "reachable from anywhere, declared nowhere in
-  particular" shape `global` was for state — closing it is the same move ADR 0008 made, for behaviour.
+  particular" shape `global` was for state — closing it is the same move `rule:statements/static-is-a-member-modifier` made, for behaviour.
 - **Security (priority 1):** PHP shares one namespace for ~1000 global functions/constants with every
   extension and project; a name collision is a load-order fatal error. A reserved `Core` namespace turns
   that into an ordinary compile-time declaration-site check.
@@ -68,7 +68,7 @@ Two things are deliberately **not** affected:
   PHP has them. They are values, not named declarations reachable from anywhere — the problem this ADR
   closes is a name with no declared home, and a closure has no name at all until something binds it to one.
   Storing one in a variable, a property, or a class constant is unaffected.
-- **The script's own top-level statements.** [ADR 0008](0008-static-and-global.md) already establishes
+- **The script's own top-level statements.** `rule:statements/static-is-a-member-modifier` already establishes
   that a `.nvs` script's body is a function of its own, so its statements are not a `function` *declaration*
   in the sense this ADR restricts. What is restricted is a *named* `function` or `const` appearing at that
   scope — the script body executing statements, including ones that create and call closures, is untouched.
@@ -79,7 +79,7 @@ Two things are deliberately **not** affected:
   every Tier 1/Tier 2 extension ([ADR 0003](0003-extension-system.md)) are refused a `namespace` declaration
   or a class declaration that shadows anything under it — a diagnostic naming the collision. (An import
   *renamed* to collide with a `Core` name is no longer a separate case to guard against:
-  [ADR 0015](0015-no-name-aliasing.md) removes `use … as …` outright, so there is no alias left to spoof one.)
+  `rule:statements/nothing-gets-a-second-name` removes `use … as …` outright, so there is no alias left to spoof one.)
 - **Domain classes, not one class.** Built-ins are grouped the way PHP's own extensions already group them —
   `Core\Str`, `Core\Arr`, `Core\Math`, `Core\Json`, `Core\Regex`, `Core\IO`, `Core\Env`, and more as later
   milestones build them out — matching the Tier 0/Tier 2 split [ADR 0003](0003-extension-system.md) already
@@ -87,7 +87,7 @@ Two things are deliberately **not** affected:
   ADR; what *is* fixed here is the shape: one class per domain, `static` methods and `const` members, no
   free function or constant anywhere, ever. `Core\Server`, `Core\Request`, `Core\Session`, `Core\Cli` and
   `Core\Script` are the one part of the roster fixed ahead of the stdlib milestones, because they replace
-  PHP's superglobals rather than a PHP function library — see [ADR 0012](0012-no-superglobals.md).
+  PHP's superglobals rather than a PHP function library — see `rule:statements/no-host-populated-variables`.
 - **The array domain class is spelled `Core\Arr`, not `Core\Array`.** `array` is a type atom in
   [ADR 0007](0007-explicit-type-system.md) § 3's grammar; a class literally named `Array` would collide with
   it exactly where a type is expected. This is the one naming wrinkle worth fixing now rather than
@@ -97,7 +97,7 @@ Two things are deliberately **not** affected:
   `Core\Arr::map($a, $f)`; `PHP_EOL` → `Core\Env::EOL`.
 - **Call sites use ordinary namespace resolution, nothing more.** `use Core\Str; Str::length($s);` or the
   fully-qualified `Core\Str::length($s);` — `Core` gets no special auto-import. This is the same reading
-  [ADR 0008](0008-static-and-global.md) already gives the rest of the language: nothing is reachable without
+  `rule:statements/static-is-a-member-modifier` already gives the rest of the language: nothing is reachable without
   a declared name in scope, and a reserved namespace is not an exemption from that.
 - **An extension manifest registers classes, not bare functions or constants.**
   [ADR 0003](0003-extension-system.md)'s "declared functions, classes, constants" is amended to "declared
@@ -108,16 +108,16 @@ Two things are deliberately **not** affected:
 ### 3. Why global constants fold in too
 
 A global constant is the same shape of problem as a global function: a name reachable from anywhere with no
-declared class to look it up on. [ADR 0008](0008-static-and-global.md) § 2 already listed *class constant,
+declared class to look it up on. `rule:statements/storage-that-outlives-a-call` already listed *class constant,
 global constant* as one storage row, because up to now nothing distinguished them — both were immutable,
 isolate-lifetime values, and only the function half of "free-floating name" was in question. Leaving
 constants out once functions are folded in would be the asymmetry, not the caution: it is exactly the free-
-floating-name property this ADR removes for callables, on the one binding [ADR 0008](0008-static-and-global.md)
+floating-name property this ADR removes for callables, on the one binding `rule:statements/static-is-a-member-modifier`
 happened to already tolerate. This decision closes that row rather than leaving it half-done.
 
 ### 4. Diagnostics
 
-Each rejection names its replacement, in the style [ADR 0008](0008-static-and-global.md) § 5 already set:
+Each rejection names its replacement, in the style `rule:statements/no-function-static-and-no-global` already set:
 
 - `function foo() { ... }` outside any class → *a function must be a method; wrap it in a class as
   `public static function foo()`, or add it to the class it logically belongs to*
@@ -144,7 +144,7 @@ every one of them is [divergences.md](divergences.md).
 **Positive**
 
 - One place behaviour can live (a method) and one place state can live
-  ([ADR 0008](0008-static-and-global.md)'s table) — together they answer "where is this name declared" for
+  (`rule:statements/static-is-a-member-modifier`'s table) — together they answer "where is this name declared" for
   every kind of name the language has, not just the stateful half of it.
 - Every built-in call is namespaced and explicit at the call site: a reviewer sees exactly which `Core` class
   a line depends on, rather than a bare name that could be a built-in, an extension global, or user code,
@@ -164,7 +164,7 @@ every one of them is [divergences.md](divergences.md).
   PHP-name → `Core`-class-and-member table that grows with the stdlib rather than being fixed at M0.
 - A PHP file's own free functions and constants — user-authored procedural code with no built-in
   counterpart — have no destination class the converter can infer automatically. This is the same shape of
-  problem [ADR 0008](0008-static-and-global.md) already has for its function-static rewrite (it also needs a
+  problem `rule:statements/static-is-a-member-modifier` already has for its function-static rewrite (it also needs a
   class to hang state on), and the default answer is the same: the converter groups a file's former free
   functions and constants into one generated class, named after the file, that a human is expected to review
   and re-home rather than leave as-is.
@@ -179,10 +179,10 @@ every one of them is [divergences.md](divergences.md).
 - **Auto-importing `Core`**, so a bare `Str::length()` or `length()` resolves without a `use`. Rejected:
   reintroduces "reachable from anywhere with no declared import" for callables generally.
 - **Leave global constants out of scope, matching only the functions half.** Rejected in *3*: leaves one
-  row in [ADR 0008](0008-static-and-global.md) § 2 as the sole remaining free-floating name, with no
+  row in `rule:statements/storage-that-outlives-a-call` as the sole remaining free-floating name, with no
   argument left for why it alone keeps that status.
 - **A single per-file generated class as the only `nvs convert` rewrite, with no manual-review flag.**
-  Rejected: [ADR 0008](0008-static-and-global.md)'s function-static rewrite already established that a
+  Rejected: `rule:statements/static-is-a-member-modifier`'s function-static rewrite already established that a
   rewrite changing surrounding code's shape needs a human look.
 
 ## Revisiting
@@ -194,7 +194,7 @@ every one of them is [divergences.md](divergences.md).
   does not resolve.
 - **A `use function`/`use const`-style shorthand for `Core` members**, if the `Class::method` spelling proves
   noisier in practice than the "nothing is global by default" argument in *2* anticipated. Whatever shape it
-  takes, it inherits [ADR 0015](0015-no-name-aliasing.md)'s no-renaming rule — a shorthand import, not an
+  takes, it inherits `rule:statements/nothing-gets-a-second-name`'s no-renaming rule — a shorthand import, not an
   alias.
 
 Verification, in the order it becomes possible:

@@ -27,7 +27,7 @@
 //! `nvs_ir::ids` needs for a probe id, for the same reason: an artifact cached
 //! under ADR 0042 must still describe the code it is paired with.
 //!
-//! A `static` property claims no slot: ADR 0008 makes it class storage, not
+//! A `static` property claims no slot: `rule:statements/static-is-a-member-modifier` makes it class storage, not
 //! instance storage. A *hooked* property (ADR 0014 § 1) does claim one, even
 //! when nothing ever reads it — Novis has no virtual/backed split, and
 //! [`crate::signatures::PropertyHooks`] owns that decision and what it

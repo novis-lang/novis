@@ -760,7 +760,7 @@ mod tests {
         /// The task [`Fires::isolate`] was asked on — the fire's own, never the tick's.
         asked_on: Cell<Option<TaskId>>,
         /// Whether the isolate's **own** context carried a request, which is what
-        /// `Core\Request` reads and what a root has none of (§ 5, ADR 0012).
+        /// `Core\Request` reads and what a root has none of (§ 5, `rule:statements/no-host-populated-variables`).
         answering: Rc<Cell<Option<bool>>>,
         /// The task the program itself ran on.
         ran_on: Rc<Cell<Option<TaskId>>>,
@@ -829,7 +829,7 @@ mod tests {
     /// answered three of them would still be wrong: the entry runs when the clock reaches its
     /// minute; the isolate is asked for on a task that is not the ticker's, so a run that takes an
     /// hour cannot be why the next minute's entry is late; the isolate's own context carries **no
-    /// request**, which is what makes `Core\Request` throw inside it (ADR 0012) and is the whole
+    /// request**, which is what makes `Core\Request` throw inside it (`rule:statements/no-host-populated-variables`) and is the whole
     /// difference between this root and the one an inbound request is; and what it echoed comes
     /// back through [`Fires::ran`] as § 5's logged result rather than being delivered anywhere.
     ///

@@ -728,7 +728,7 @@ fn issue_cookie(ctx: &mut Ctx, member: &str, id: &str) -> Result<(), Fault> {
 fn unstarted(member: &str) -> Fault {
     Fault::thrown(format!(
         "{NAME}::{member}(): this request has not started a session — call `{NAME}::start()` \
-         first, which is the line in the source that says this request uses sessions (ADR 0012 \
+         first, which is the line in the source that says this request uses sessions (`rule:statements/no-host-populated-variables` \
          § 4)"
     ))
 }

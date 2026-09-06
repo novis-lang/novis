@@ -109,7 +109,7 @@ this ADR exists to avoid.
 
 Anywhere Novis currently hands the program data it has not itself asserted is text — a request body before
 `Content-Type` has been consulted, a raw socket read, a file's contents, a hash or crypto digest — the host
-should hand it over as `bytes`, not `string`. `Core\Request`, `Core\Server` (the [ADR 0012](0012-no-superglobals.md) replacements for `$_GET`/`$_POST`/`$_SERVER`) and `json_decode`'s result stay
+should hand it over as `bytes`, not `string`. `Core\Request`, `Core\Server` (the `rule:statements/no-host-populated-variables` replacements for `$_GET`/`$_POST`/`$_SERVER`) and `json_decode`'s result stay
 `array<mixed>` exactly as [0007](0007-explicit-type-system.md) § 6 already decided (structured input is
 untyped, deliberately); this ADR is about the *scalar* payloads underneath, once one is pulled out of
 `mixed` — pulling a request body out as `bytes` and converting `as string` only when the program is willing

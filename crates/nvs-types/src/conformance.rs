@@ -268,7 +268,7 @@ fn collect_obligations(
 /// forward should displace.
 ///
 /// Three member shapes get no forward, and each is a hole rather than a rule:
-/// a `static` member has no receiver to forward through (ADR 0008 gives class
+/// a `static` member has no receiver to forward through (`rule:statements/static-is-a-member-modifier` gives class
 /// storage none), and a variadic or `inout` parameter list is packed and
 /// written back at the *call site*, so passing it straight on would pack it
 /// twice. Each is refused where the clause is written (`E0721`) rather than

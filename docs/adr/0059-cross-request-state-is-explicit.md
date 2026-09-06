@@ -92,7 +92,7 @@ here so it is a known number rather than a surprise in production.
 
 ### 4. What may not use the local tier
 
-`Core\Session` ([ADR 0012](0012-no-superglobals.md)) may not be backed by the local tier. A session read on
+`Core\Session` (`rule:statements/no-host-populated-variables`) may not be backed by the local tier. A session read on
 one core and written on another must see one value, and a per-core cache cannot provide that. The same
 applies to locks, rate limits, idempotency keys and any counter whose value is relied upon. These use the
 shared tier or the database.

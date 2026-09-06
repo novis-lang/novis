@@ -163,7 +163,7 @@ pub struct MethodSig {
     /// for a representation, and a class and its subclass erase to the same
     /// `Ty::Object`.
     pub returns_static: bool,
-    /// Whether the declaration carries the `static` modifier — ADR 0008 § 1's
+    /// Whether the declaration carries the `static` modifier — `rule:statements/static-is-a-member-modifier`'s
     /// one surviving meaning of the keyword.
     ///
     /// Recorded because a call's *shape* does not settle it: `parent::method()`
@@ -1513,7 +1513,7 @@ pub fn hooks_of(owner: &QName, name: &str, table: &SignatureTable) -> PropertyHo
 }
 
 /// Whether a declaration's written return type is exactly the `static` atom —
-/// what [`MethodSig::returns_static`] records, and the one spelling ADR 0008
+/// what [`MethodSig::returns_static`] records, and the one spelling `rule:statements/static-is-a-member-modifier`
 /// § 1's late static binding takes.
 ///
 /// Read off the *written* type rather than the lowered one, because lowering

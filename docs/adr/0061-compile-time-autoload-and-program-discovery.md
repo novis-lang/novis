@@ -33,7 +33,7 @@
   correctly observed that static resolution leaves no moment for a loader callback — but it never said what
   a real application does instead, which left the largest single adoption barrier undocumented.
 - **The runtime half cannot be kept, and does not need to be.** A registered loader stack is process-global
-  mutable state ([ADR 0008](0008-static-and-global.md)) driving a load of arbitrary code
+  mutable state (`rule:statements/static-is-a-member-modifier`) driving a load of arbitrary code
   ([ADR 0052](0052-closed-doors.md) § 4), and it reopens the closed `require` graph that
   [ADR 0048](0048-portable-single-file-executables.md) § 3 depends on. What survives is the declarative
   subset — a prefix→directories map — which is what Composer's
@@ -79,7 +79,7 @@ $app->run();
 ```
 
 - **Both forms take literal strings only** — the same restriction `require`'s static resolution already
-  carries ([ADR 0021](0021-single-file-inclusion-construct.md)), for the same reason. A concatenation and
+  carries (`rule:statements/require-is-the-only-inclusion-construct`), for the same reason. A concatenation and
   an interpolated `"$dir"` are both `E_AUTOLOAD_PATH_NOT_LITERAL`, reported by the parser, which is the
   only place the difference is still visible.
 - **A prefix is written without a trailing separator** — `'Acme\Legacy'`, never `'Acme\Legacy\'`, which a
@@ -278,7 +278,7 @@ answer at all.
 ## Alternatives rejected
 
 - **A runtime `Core\Autoload::register(callable)`.** The direct translation of `spl_autoload_register`, and
-  unbuildable: process-global mutable state ([ADR 0008](0008-static-and-global.md)) that would have to run
+  unbuildable: process-global mutable state (`rule:statements/static-is-a-member-modifier`) that would have to run
   during name resolution, which has already finished by the time any user code exists.
 - **A manifest file (`nvs.toml`/`nvs.json`), found by walking up from the entry file.** The first design
   considered, and rejected on the user-facing constraints in *Context*: it lands inside or beside a document

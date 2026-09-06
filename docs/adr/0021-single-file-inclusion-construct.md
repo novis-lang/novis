@@ -1,4 +1,4 @@
-# ADR 0021 — `require` is the only same-frame file-inclusion construct
+# `rule:statements/require-is-the-only-inclusion-construct` — `require` is the only same-frame file-inclusion construct
 
 - **Status:** Accepted
 - **Date:** 2026-08-21
@@ -23,12 +23,12 @@
 
 - PHP ships four keywords for one operation (splice a file into the calling frame) across two axes:
   missing/broken file (`include` warns and returns `false`; `require` throws) and repeat guard (`_once` or
-  not) — the same "more than one name for one behaviour" surface [ADR 0015](0015-no-name-aliasing.md) and
+  not) — the same "more than one name for one behaviour" surface `rule:statements/nothing-gets-a-second-name` and
   [ADR 0011](0011-functions-and-constants-are-class-members.md) already argue against, so this collapses to
   one.
 - **"Warn and continue" doesn't survive**: every other PHP ambient-continuation path here has been closed
   instead of kept — an undeclared property throws ([ADR 0014](0014-property-observer.md)), a superglobal has
-  no fallback ([ADR 0012](0012-no-superglobals.md)), comparing objects with no `Comparable` is a diagnostic
+  no fallback (`rule:statements/no-host-populated-variables`), comparing objects with no `Comparable` is a diagnostic
   ([ADR 0013](0013-comparable-interface.md)). `require`'s throw-on-failure already matches every other Novis
   failure path (`rule:errors/propagation`).
 - **The `_once` axis doesn't need to survive**: declarations resolve by namespace
@@ -66,7 +66,7 @@ was invented: reuse a PHP spelling verbatim when its existing meaning is exactly
 spend the "pragmatic superset" budget on that instead of on novelty. Note the narrowness of that argument —
 it justifies keeping a spelling whose *meaning* Novis wants, never a second spelling of a meaning already
 covered, which is the distinction that decided `<?php`
-([ADR 0049](0049-single-open-tag-and-single-exit-keyword.md)) and `list(...)`
+(`rule:statements/nvs-is-the-only-open-tag`) and `list(...)`
 ([ADR 0050](0050-list-destructuring-spelling-rejected.md)) the other way. `require` passes it, because no
 other keyword spells what it means. The three rejected
 spellings are not rejected for being PHP-shaped; they are rejected because each names a behaviour (warn-and-

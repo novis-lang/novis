@@ -43,7 +43,7 @@
   name prefix (`Foo::TYPE_*`), was considered and rejected outright — see *Alternatives rejected* — because
   the accepted set would not be visible at the call site and would silently grow the day a new `TYPE_*`
   constant is added, which is exactly the kind of implicit, drifting surface the project's "state a fact
-  once, visibly" principle already argues against elsewhere (e.g. [ADR 0021](0021-single-file-inclusion-construct.md),
+  once, visibly" principle already argues against elsewhere (e.g. `rule:statements/require-is-the-only-inclusion-construct`,
   [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
 - Novis already has two pieces of the real answer, both previously scoped narrower than they needed to be:
   - [ADR 0007](0007-explicit-type-system.md) § 3 already has `true`/`false` as literal atoms sitting inside
@@ -80,7 +80,7 @@ unions of these atoms, canonicalised exactly as [ADR 0007](0007-explicit-type-sy
 specifies (flattened, de-duplicated, order-insensitive). `?"a"` is sugar for `"a"|null`, following the
 existing `?atom` rule. This is usable at every binding site ADR 0007 § 1 lists — parameter, property,
 constant, local, return, `foreach` binding — with no special case, the same generality
-[ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for an enum's own name.
+`rule:statements/an-enum-name-is-a-type-everywhere` already established for an enum's own name.
 
 ```php
 function setMode(string $mode) { ... }              // before: any string, validated by hand or not at all
@@ -245,7 +245,7 @@ at run time.
   the "subset of an existing group" case. Rejected outright: the accepted set is not visible at the call
   site without reading `Foo`'s source, and it silently grows the day a new `TYPE_*` constant is added —
   exactly the implicit, drifting-surface shape the project already argues against
-  ([ADR 0021](0021-single-file-inclusion-construct.md), [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
+  (`rule:statements/require-is-the-only-inclusion-construct`, [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md)).
   Naming the exact constants or cases (*2*, *3*) gives the same ergonomic win — "reuse an existing group of
   values" — without either problem.
 - **An `#[ExpectedValues(...)]`-style attribute**, now that [ADR 0046](0046-attributes-shape-literal-metadata.md)
@@ -264,7 +264,7 @@ at run time.
 - **A dedicated `oneof(...)` or `literal(...)` type-constructor keyword**, instead of reusing `|` union
   syntax for literal atoms. Rejected: the union syntax and its canonicalisation already exist, and literal
   atoms compose with it for free; a separate keyword would be a second spelling for "this is a closed set of
-  values," the exact shape [ADR 0015](0015-no-name-aliasing.md)/[ADR 0021](0021-single-file-inclusion-construct.md)/
+  values," the exact shape `rule:statements/nothing-gets-a-second-name`/`rule:statements/require-is-the-only-inclusion-construct`/
   [ADR 0045](0045-and-or-xor-keyword-operators-rejected.md) already argue against elsewhere.
 - **A runtime-only validator call instead of a type** (`Arr::contains(["a","b","c"], $x)`).
   Rejected: it would not be visible in a parameter's declared type the way [ADR 0007](0007-explicit-type-system.md)
@@ -289,7 +289,7 @@ Verification, in the order it becomes possible:
 - **M1 (landed)**: the grammar in *1* parses — `StringLiteral`/`IntLiteral` atoms in either quote style,
   a signed `-1`, unions of them, `?"a"` sugar — and `ClassName::CONST_NAME`/`EnumName::CaseName` parses in
   type position as one atom whose two meanings the checker tells apart, needing no production beyond what
-  [ADR 0010](0010-enums-are-a-value-type.md) § 4 already established for `ClassName`/`EnumName` ambiguity.
+  `rule:statements/an-enum-name-is-a-type-everywhere` already established for `ClassName`/`EnumName` ambiguity.
   *7*'s two refusals are diagnosed by name rather than as "expected a type": a `float` literal, and an
   interpolated string. `nvs-syntax`'s `a_string_literal_is_a_type_atom`,
   `an_int_literal_is_a_type_atom_with_or_without_a_sign`,

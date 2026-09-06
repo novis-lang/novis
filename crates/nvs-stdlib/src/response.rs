@@ -1,6 +1,6 @@
 //! `Core\Response` — the response a request is answering with, replacing
 //! `header`, `http_response_code` and `setcookie`
-//! ([ADR 0012](/docs/adr/0012-no-superglobals.md)).
+//! (`rule:statements/no-host-populated-variables`).
 //!
 //! # What is here, and what is not
 //!
