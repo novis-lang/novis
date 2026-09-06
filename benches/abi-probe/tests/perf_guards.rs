@@ -626,13 +626,25 @@ fn a_typed_arithmetic_loop_contains_no_call() {
     // Scanned line by line rather than by splitting on the section marker:
     // Cranelift renders a two-way branch as `jnz label3; j label2`, so a
     // `"; "` split would cut the section short at the first branch.
+    //
+    // The mnemonic is the backend's, and there is more than one spelling of
+    // it: x86_64 emits `call`, aarch64 `bl` for a direct call and `blr`
+    // through a register. Counting `call` alone read every aarch64 build as a
+    // loop containing no calls at all, so this compared 0 against a site count
+    // only x86_64 had ever matched. Half two claims something about the
+    // emitted code, and that claim is per backend or it is nothing.
+    let is_call = |line: &str| {
+        ["call ", "bl ", "blr "]
+            .iter()
+            .any(|op| line.starts_with(op))
+    };
     let asm = nvs_codegen::disassemble(&program).expect("the fixture compiles");
     let mut in_section = false;
     let mut emitted = 0;
     for line in asm.lines() {
         if let Some(name) = line.strip_prefix("; ") {
             in_section = name == "Bench::sum";
-        } else if in_section && line.trim_start().starts_with("call ") {
+        } else if in_section && is_call(line.trim_start()) {
             emitted += 1;
         }
     }
@@ -998,6 +1010,13 @@ class Cell {
 /// nothing never enters. Every other edge is followed, the `cmpq`-driven
 /// branches a real condition compiles to included, so the loop's own two arms
 /// both count.
+///
+/// **x86_64 only, and the one caller is gated to match.** The walk reads
+/// `jmp`, the `jnz`/`test` pair and the `; j ` two-way form, which are that
+/// backend's own spellings; aarch64 writes `b`, `cbz`/`b.ne` and puts the
+/// second branch on its own line, so the walk would leave every block without
+/// a successor and report the empty path. A guard that passes because it
+/// looked at nothing is worse than one that says it did not run.
 fn path_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
     let asm = nvs_codegen::disassemble(program).expect("the fixture compiles");
 
@@ -1073,6 +1092,10 @@ fn path_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
 
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+#[cfg_attr(
+    not(target_arch = "x86_64"),
+    ignore = "`path_calls` walks x86_64 branch mnemonics"
+)]
 fn a_class_without_a_property_observer_costs_nothing_extra() {
     use nvs_ir::ir::InstKind;
 
