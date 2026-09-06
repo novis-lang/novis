@@ -218,8 +218,8 @@ def frontmatter(a) -> dict:
     `changes:` the `creates` and `modifies` lists of rule ids. Read here rather than through the
     parser's fields so this tool's one dependency on `adr.py` stays the record's text and title.
 
-    The shape is fixed by the freeze (docs/agent/docs-migration.md, *What a decision record
-    becomes*): scalars as `key: value`, the two lists as `    - id` items under their key."""
+    The shape is fixed by the freeze (docs/agent/conventions.md, *A decision record*): scalars as
+    `key: value`, the two lists as `    - id` items under their key."""
     out: dict = {"date": "", "status": "", "creates": [], "modifies": []}
     if not a.lines or a.lines[0] != "---":
         return out

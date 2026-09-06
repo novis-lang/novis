@@ -85,9 +85,4 @@ __pycache__/
 # happen to sit in the tree for the length of one build.
 /docker/bin/
 
-# The whole of the last `verify.py` output that refused a `migrate-docs.py --apply`. The gate keeps
-# it because eighteen lines is never all of it, and it is overwritten by the next failure. It dies
-# with the rest of `.migration/` at C9.
-/.migration/verify-fail.log
-
 a.out
