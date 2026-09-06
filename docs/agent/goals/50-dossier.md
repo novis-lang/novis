@@ -128,7 +128,7 @@ floor. A session that writes a few examples here spends the session's fixed cost
 is the exception that proves it: writing *one* example and *one* attack to feel the shape is a
 measurement, and it belongs in the report rather than in a commit under `docs/examples/`.
 
-**The optimization cadence is not yours to raise.** `loop-supervisor.py`'s `--optimize-every` is 25 and
+**The optimization cadence is not yours to raise.** `loop.py`'s `--optimize-every` is 25 and
 this stage does not move it, for [optimization-prompt.md](../optimization-prompt.md) menu item 7's reason:
 down is a measurement and up is a bet, and nothing you hold prices a phase that has not run yet. What
 this stage *can* observe is that the automatic pass now has a valid action on a generated goal at all —

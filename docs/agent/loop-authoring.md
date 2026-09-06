@@ -134,8 +134,8 @@ playbook` when a new goal only needs a few. `python tools/orient.py --audit` pri
 ## 3. A goal is a stop condition, or it is not a goal
 
 The driver stops on an exit code, never on a session's opinion. So a goal must be expressible as commands
-that exit 0 and output that matches exactly. **If it cannot be, do not run it unattended** — no reliable
-stop condition means the run ends by exhausting `--max-sessions` with nobody watching.
+that exit 0 and output that matches exactly. **If it cannot be, do not run it unattended** — a run is
+uncapped by default, so no reliable stop condition means it does not end at all with nobody watching.
 
 Two failure modes worth naming, both of which have happened here:
 

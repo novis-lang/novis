@@ -11,6 +11,15 @@ already is that target, so there is one leg plus the valgrind sweep.
     python tools/loop.py --max-sessions 300 --full-output   # no truncation anywhere
     python tools/loop.py --goal-only                        # run the acceptance test and exit
     python tools/loop.py --leg-only                         # just the Linux leg, and exit
+    python tools/loop.py --no-optimize                      # legs and restarts, never a pass
+    python tools/loop.py --optimize-only                    # one optimization pass now, then exit
+
+**A run is a sequence of legs, and a leg is a process.** This one file is both: it drives the run, and
+re-spawns itself with `--leg` for each leg of it. That is not a division of labour, it is the point --
+this file is the one piece of the loop that does not hot-reload, so a session that improves the driver
+improves nothing until a fresh interpreter reads it off disk. A leg boundary is also the only moment the
+tree is quiet enough to ask whether the loop has drifted, and to spend a session on itself when it has.
+§ *the run*, at the foot of this file, is the only home for what that decides.
 
 Nothing on the stop path depends on a model's self-assessment: every acceptance item is an exit code plus
 an exact or ordered-substring match on real output.
@@ -54,6 +63,11 @@ ROOT = Path(__file__).resolve().parent.parent
 PROMPT = ROOT / "docs" / "agent" / "session-prompt.md"
 GOAL_MD = ROOT / "docs" / "agent" / "loop-goal.md"
 GOAL_TOML = ROOT / "docs" / "agent" / "loop-goal.toml"
+#: The chain, and there is only one. Not a flag and never was two: every goal this project has
+#: lives in it, and a run walking no chain is a run that stops at the first goal to go green and
+#: waits for a person -- the same program with an extra night in it per goal. `tools/chain.py`
+#: edits the file; `Chain` walks it.
+CHAIN_TOML = ROOT / "docs" / "agent" / "goals" / "chain.toml"
 RUNDIR = ROOT / ".loop"
 LOGDIR = RUNDIR / "logs"
 LEDGER = RUNDIR / "log.md"
@@ -71,7 +85,27 @@ DOCGATE = RUNDIR / "doc-gate.json"
 RELEASEGATE = RUNDIR / "release-gate.json"
 LASTFAIL = RUNDIR / "last-fail.json"
 
+# The run's, one level up from a leg's. § *the run* at the foot of this file is what they are for.
+OPTDIR = RUNDIR / "optimization"
+OPTSTATE = OPTDIR / "state.json"
+OPTSTATUS = RUNDIR / "optimize-status.txt"
+PACKLOG = RUNDIR / "pack-size.jsonl"
+OPT_PROMPT = ROOT / "docs" / "agent" / "optimization-prompt.md"
+
 IS_WINDOWS = os.name == "nt"
+
+#: `--max-sessions` when it is not capped, which is the default. A very large number rather than
+#: `inf` so that every count, subtraction and comparison over it stays integer arithmetic and
+#: prints as one; a run that really served a billion sessions is not a case worth a second code
+#: path. A cap is what a leg gets -- `run_leg` hands it one -- not what a run needs: a run ends
+#: when the chain is walked, when something goes wrong, or when it is told to, and none of those
+#: is a number anybody could have guessed at the start.
+UNCAPPED = 1_000_000_000
+
+
+def sessions_label(n):
+    """`--max-sessions` as a person reads it: the number, or `uncapped`."""
+    return "uncapped" if n >= UNCAPPED else str(n)
 
 # The console's key reader. The two platforms have nothing in common here and neither module
 # exists on the other one; `Control` below is the only thing that touches either.
@@ -214,6 +248,10 @@ class StatusLine:
         self.enabled = True
         self._title = ""  # whatever the window says now, this run did not put it there
         self.since = time.monotonic()
+        # Cleared, not merely unset: a run stops the ticker for the length of every leg -- the row
+        # belongs to whichever process owns the console -- and a `stop()` that left the event set
+        # would hand the next `start()` a thread that returned on its first wait, silently.
+        self._stop.clear()
         self._thread = threading.Thread(target=self._tick, daemon=True)
         self._thread.start()
 
@@ -692,13 +730,35 @@ class Control:
                 self._write_pause()
             return
         if there and not self.pause_by:
-            self.pause_by = "agent"
+            # Whose hold it is comes out of the file, not out of the fact that this process was
+            # not the one that armed it. The console is handed from a run to its leg and back at
+            # every boundary, so the process adopting a hold is routinely not the process the key
+            # was pressed at -- and adopted as an agent's, a `p` hold would be liftable by
+            # deleting a file, which is exactly what `p` promises it is not.
+            self.pause_by = self._file_owner()
             say(f"   {rel_to_root(PAUSE)} appeared -- the run holds after the current session, "
-                f"and carries on when the file goes", C.YELLOW)
+                f"and carries on when the file goes" if self.pause_by == "agent" else
+                "   the hold taken at the console still stands -- press p to carry on",
+                C.YELLOW)
         elif not there and self.pause_by == "agent":
             self.pause_by = ""
             self.held = False
             say(f"   {rel_to_root(PAUSE)} is gone -- carrying on", C.GREEN)
+
+    def _file_owner(self):
+        """Who armed the hold `.loop/pause` describes: `"user"` for a console one, `"agent"` for
+        anything else. The `by:` line `_write_pause` writes, read back.
+
+        An unreadable or hand-made file is an agent's. That is the safe direction: an agent's hold
+        is lifted by deleting the file *and* by `p`, so a misread costs nothing, where the reverse
+        would leave a hold only one of the two channels could lift."""
+        try:
+            for line in PAUSE.read_text(encoding="utf-8").splitlines():
+                if line.startswith("by:"):
+                    return "user" if "user" in line else "agent"
+        except OSError:
+            pass
+        return "agent"
 
     def pause_reason(self):
         """Why the run should hold here, or "". Read once at each session boundary and four times
@@ -727,7 +787,7 @@ class Control:
     def drop_pause(self):
         """Called when the run ends. A hold taken at the console belongs to a console that is
         going away with this process, and leaving its file behind would hand the next driver --
-        or the supervisor, between legs -- a hold nobody armed and nobody is watching."""
+        or the run, between legs -- a hold nobody armed and nobody is watching."""
         with self.lock:
             if self.pause_by == "user":
                 PAUSE.unlink(missing_ok=True)
@@ -3021,7 +3081,7 @@ class Chain:
 
         `dossier.py --emit-goals --append-chain` is the reason this exists: a goal whose whole job
         is to write the next hundred cannot hand them to a driver that read the chain once at
-        start-up, and stopping the run for a human to restart is the thing `--chain` exists to
+        start-up, and stopping the run for a human to restart is the thing the chain exists to
         avoid. A hand-written entry *inserted* in front of a later one is the same need arriving
         from the other side, and it is adopted for the same reason.
 
@@ -3064,24 +3124,24 @@ class Chain:
     def _restore(self):
         """Where the chain stands, from `.loop/chain.json`, or -1 for "nothing installed yet".
 
-        A state file naming a different chain is ignored rather than trusted: two chains in one
-        repository is not a thing this supports, and silently resuming the wrong one is worse than
-        starting over.
-        """
+        **A position, and nothing else.** The file used to carry the chain's path as well and
+        refuse to resume unless it matched, which was the guard for two chains in one repository
+        -- and there has only ever been one, so the guard could only ever fire on a spelling. It
+        did: the day `CHAIN_TOML` replaced a typed `--chain`, the same file went from relative to
+        absolute and a run ten goals in read itself as never started. `tools/chain.py` reads this
+        the same way, and only ever read the index."""
         if not CHAINSTATE.exists():
             return -1
         try:
             state = json.loads(CHAINSTATE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return -1
-        if state.get("chain") != self.path.as_posix():
-            return -1
         i = state.get("index", -1)
         return i if isinstance(i, int) and -1 <= i < len(self.goals) else -1
 
     def _save(self):
         CHAINSTATE.write_text(
-            json.dumps({"chain": self.path.as_posix(), "index": self.index}, indent=2) + "\n",
+            json.dumps({"index": self.index}, indent=2) + "\n",
             encoding="utf-8",
         )
 
@@ -3180,7 +3240,7 @@ class Chain:
 
         message = (
             f"docs(loop): the chain advances to {nxt['name']}\n\n"
-            f"Written by tools/loop.py --chain from {rel_to_root(self.path)}. The previous goal's\n"
+            f"Written by tools/loop.py from {rel_to_root(self.path)}. The previous goal's\n"
             f"whole acceptance list is this one's floor, carried verbatim by goal-switch.py and\n"
             f"relabelled -- see docs/agent/goals/README.md for why that is mechanical.\n"
         )
@@ -3306,12 +3366,11 @@ def git(*args):
         return ""
 
 
-#: Why a run ended, as a *kind* rather than a sentence. `reason` is written for a person and is
-#: reworded whenever the wording improves; this is what `tools/loop-supervisor.py` branches on, and
-#: only one of these is restartable. Adding a kind here is free; changing one renames an API.
+#: Why a leg ended, as a *kind* rather than a sentence. `reason` is written for a person and is
+#: reworded whenever the wording improves; this is what `supervise` branches on, and only one of
+#: these is restartable. Adding a kind here is free; changing one renames an API.
 #:
-#:   budget          served --max-sessions and stopped. The only kind a supervisor may restart on.
-#:   goal            every acceptance check passes and there is no chain
+#:   budget          served --max-sessions and stopped. The only kind another leg may follow.
 #:   chain-complete  the last goal in the chain is green
 #:   chain-error     a chain switch could not be made
 #:   asked           `.loop/stop`, or `s` at the console
@@ -3328,9 +3387,9 @@ PROGRESS = {"served": 0, "run_id": ""}
 
 
 def write_run_end(kind, reason, served=0, run_id=""):
-    """Record why this run ended, machine-readably. Best effort: a run that ended for a real
-    reason must not also fail on an unwritable `.loop`, so every error here is swallowed. A
-    supervisor that finds no file treats the run as terminal, which is the safe direction."""
+    """Record why this leg ended, machine-readably. Best effort: a leg that ended for a real
+    reason must not also fail on an unwritable `.loop`, so every error here is swallowed. A run
+    that finds no file treats the leg as terminal, which is the safe direction."""
     try:
         RUNDIR.mkdir(parents=True, exist_ok=True)
         RUNEND.write_text(
@@ -3831,7 +3890,7 @@ def run_session(run_id, index, prompt_text, opts, renderer):
         if time.monotonic() - closed >= 1:
             step(f"claude took {mmss(time.monotonic() - closed)} to exit after its last event")
     except BaseException:
-        # The child does not outlive its supervisor. It is an autonomous agent writing
+        # The child does not outlive the process watching it. It is an autonomous agent writing
         # this tree with permissions bypassed, and when the driver died on an encoding
         # error its child kept going unwatched -- committing work the next session then
         # found beside its own, which is what a `BLOCKED two writers` ledger line is
@@ -3943,7 +4002,7 @@ def claim_run(opts):
         f"pid:      {os.getpid()}\n"
         f"host:     {platform.node()}\n"
         f"started:  {datetime.now():%Y-%m-%d %H:%M:%S}\n"
-        f"sessions: up to {opts.max_sessions}, model {opts.model}"
+        f"sessions: {sessions_label(opts.max_sessions)}, model {opts.model}"
         f"{f', effort {opts.effort}' if opts.effort else ''}\n",
         encoding="utf-8",
         newline="\n",
@@ -3987,7 +4046,12 @@ def run_cli():
             pass
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--max-sessions", type=int, default=1)
+    ap.add_argument(
+        "--max-sessions", type=int, default=UNCAPPED, metavar="N",
+        help="stop after N sessions. Uncapped by default, and 0 means the same thing: a run ends "
+             "when the chain is walked, when something goes wrong, or when it is told to -- `s`, "
+             ".loop/stop or Ctrl-C -- and a count guessed at the start is none of those"
+    )
     ap.add_argument("--model", default="opus")
     ap.add_argument(
         "--effort", default=None, choices=("low", "medium", "high", "xhigh", "max"),
@@ -4023,16 +4087,11 @@ def run_cli():
     )
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
     ap.add_argument(
-        "--chain", metavar="CHAIN_TOML",
-        help="walk a sequence of staged goals: on GOAL REACHED, carry the floor into the next one "
-             "with goal-switch.py, install it, and keep going. docs/agent/goals/chain.toml is the "
-             "parity program's. Without this the run stops at the first goal that goes green."
-    )
-    ap.add_argument(
         "--chain-install", action="store_true",
-        help="with --chain: install the next staged goal and exit, without running a session. This "
-             "is the switch on its own -- run it when you want the new goal live before deciding "
-             "when to start the run, and `--chain` then resumes at it rather than installing again."
+        help="install the next staged goal from docs/agent/goals/chain.toml and exit, without "
+             "running a session. The switch on its own -- run it when you want the new goal live "
+             "before deciding when to start the run, and a run then resumes at it rather than "
+             "installing it again."
     )
     ap.add_argument(
         "--force", action="store_true", help="start even if .loop/running says a driver is up"
@@ -4043,17 +4102,47 @@ def run_cli():
     )
     ap.add_argument(
         "--keep-runs", type=int, default=disk.KEEP_RUNS, metavar="N",
-        help="how many runs' session logs survive the prune at start-up. Raise it when a "
-             "supervisor is splitting one long run into legs: the default keeps N *runs*, and "
-             "legs of 25 sessions would otherwise leave loop-stats.py an eighth of the "
-             "transcripts it had"
+        help="how many earlier runs' session logs survive the prune at start-up. The prune is "
+             "once per run and never once per leg, so this counts what loop-stats.py counts"
     )
+    # The run's own. § *the run* at the foot of this file owns what they mean and the numbers.
+    ap.add_argument(
+        "--optimize-every", type=int, default=OPTIMIZE_EVERY, metavar="N",
+        help="sessions between checkpoints that may spend a session on the loop itself. A "
+             "checkpoint with no signal costs four subprocesses and not a session, which is what "
+             "makes this number safe to be wrong about"
+    )
+    ap.add_argument(
+        "--probe-every", type=int, default=PROBE_EVERY, metavar="N",
+        help="sessions per leg. Every boundary starts this file again -- which is how a driver "
+             "change a session committed takes effect -- and is where drift, rather than the "
+             "count, can bring an optimization pass forward"
+    )
+    ap.add_argument(
+        "--min-pass-gap", type=int, default=MIN_PASS_GAP, metavar="N",
+        help="never run two optimization passes closer together than this, whatever fired"
+    )
+    ap.add_argument("--no-optimize", action="store_true",
+                    help="legs and restarts only; never spend a session on the loop itself")
+    ap.add_argument("--optimize-only", action="store_true",
+                    help="run one optimization pass now, against the tree as it stands, and exit")
+    # One leg of a run this process's parent is driving. Hidden because it is never typed:
+    # `run_leg` appends it, and a leg started by hand would drive sessions against a
+    # `.loop/running` nobody holds and a prune nobody did.
+    ap.add_argument("--leg", action="store_true", help=argparse.SUPPRESS)
     opts = ap.parse_args()
 
     if opts.full_output:
         opts.max_result_lines = opts.max_input_lines = opts.max_line_chars = 0
+    if opts.max_sessions <= 0:
+        opts.max_sessions = UNCAPPED
 
     enable_ansi()
+
+    if opts.optimize_only:
+        # Before the goal is loaded, and deliberately so: a pass is what fixes a loop whose own
+        # files have drifted, and refusing to run one because one of them has drifted is backwards.
+        return optimize_only(opts)
 
     for f in (PROMPT, GOAL_MD, GOAL_TOML):
         if not f.exists():
@@ -4134,35 +4223,35 @@ def run_cli():
     if not LEDGER.exists():
         LEDGER.write_text("# Loop ledger\n", encoding="utf-8", newline="\n")
 
-    # The chain, if there is one. Built before `make_room` so a chain file with a typo in it costs
-    # a line rather than a log prune, and before `claim_run` so it cannot leave `.loop/running`
-    # behind on a refusal.
-    chain = None
-    if opts.chain_install and not opts.chain:
-        say("--chain-install needs --chain to say which chain to install from", C.RED)
+    # The chain. Always `CHAIN_TOML` and never a flag: there is one, every goal is in it, and a
+    # run that walked none would stop at the first goal to go green. Built before `make_room` so a
+    # chain file with a typo in it costs a line rather than a log prune, and before `claim_run` so
+    # it cannot leave `.loop/running` behind on a refusal.
+    try:
+        chain = Chain(CHAIN_TOML)
+    except ChainError as e:
+        say(str(e), C.RED)
         return 2
-    if opts.chain:
-        try:
-            chain = Chain(opts.chain)
-        except ChainError as e:
-            say(str(e), C.RED)
-            return 2
-        if opts.chain_install:
-            # The switch on its own. Deliberately separate from starting a run: installing a goal is
-            # a change to the repository that gets committed, and deciding when to spend three
-            # hundred sessions against it is a different decision made at a different moment.
-            if chain.finished:
-                say(f"chain: {chain.current['name']} is the last goal in "
-                    f"{rel_to_root(chain.path)} and is already installed", C.YELLOW)
-                return 0
-            fail = chain.install_next()
-            if fail:
-                say(fail, C.RED)
-                return 2
-            say("")
-            say(f"chain: `python tools/loop.py --chain {opts.chain} --max-sessions <n>` "
-                f"resumes here", C.CYAN)
+    if opts.chain_install:
+        # The switch on its own. Deliberately separate from starting a run: installing a goal is a
+        # change to the repository that gets committed, and deciding when to spend three hundred
+        # sessions against it is a different decision made at a different moment.
+        if chain.finished:
+            say(f"chain: {chain.current['name']} is the last goal in "
+                f"{rel_to_root(chain.path)} and is already installed", C.YELLOW)
             return 0
+        fail = chain.install_next()
+        if fail:
+            say(fail, C.RED)
+            return 2
+        say("")
+        say("chain: `python tools/loop.py` resumes here", C.CYAN)
+        return 0
+    # Constructing it above is the whole of what the *run* checks, and it is worth doing there: a
+    # chain file with a typo in it refuses at the door rather than inside the first leg. Installing
+    # a goal, running its preflight and bringing its services up belong to the leg that will run
+    # against them -- every leg does it, so the run doing it as well would only ever do it twice.
+    if opts.leg:
         if chain.index < 0:
             # Nothing installed yet: entry 0 takes its floor from whatever goal the repository is
             # currently running, which is what the first switch is for. Everything after it takes
@@ -4190,12 +4279,36 @@ def run_cli():
 
     # Set again here rather than only above: a chain that just installed its first goal rewrote
     # `loop-goal.md` after the first read, and this is the first moment the row can name it.
-    TICKER.set(loop_goal=goal_title(chain),
-               phase="making room", detail="pruning earlier runs' logs and scratch")
-    if not make_room(opts):
-        return 2
-    if not claim_run(opts):
-        return 2
+    TICKER.set(loop_goal=goal_title(chain))
+
+    if not opts.leg:
+        # The run. It holds `.loop/running` for the whole of its length -- across every leg
+        # boundary, which is precisely where a checkpoint may be running an optimization session
+        # against this tree -- and it is the only process here that prunes. `brief.py` and
+        # `disk.py` read that marker, and one dropped and retaken per leg told them no loop was
+        # running at the moments one was editing hardest.
+        if not opts.no_optimize and not OPT_PROMPT.exists():
+            say(f"missing {rel_to_root(OPT_PROMPT)} -- restore it, or run with --no-optimize",
+                C.RED)
+            return 2
+        TICKER.set(phase="making room", detail="pruning earlier runs' logs and scratch")
+        if not make_room(opts):
+            return 2
+        if not claim_run(opts):
+            return 2
+        try:
+            return supervise(opts)
+        except KeyboardInterrupt:
+            say("")
+            say("interrupted -- the leg's own handler swept and committed whatever it was "
+                "holding; a leg boundary is the only place the run itself writes anything",
+                C.YELLOW)
+            return 0
+        finally:
+            release_run()
+
+    # One leg of it. The marker, the prune and the pause file all belong to the run above; this
+    # process drives sessions, and hands the console back when it exits.
     CONTROL.enable()
     try:
         drive(opts, goal, chain)
@@ -4214,12 +4327,10 @@ def run_cli():
         )
         ledger(f"## run ended {datetime.now():%Y-%m-%d %H:%M} -- interrupted (Ctrl-C)"
                + (f"; swept {swept} path(s) into a wip commit" if swept else ""))
-        # With the count, not a bare verdict: the supervisor adds a leg's `served` to the sessions
-        # since the last optimization pass, and a leg cut short by Ctrl-C still served them.
+        # With the count, not a bare verdict: `credit` adds a leg's `served` to the sessions since
+        # the last optimization pass, and a leg cut short by Ctrl-C still served them.
         write_run_end("interrupted", "interrupted (Ctrl-C)",
                       PROGRESS["served"], PROGRESS["run_id"])
-    finally:
-        release_run()
     return 0
 
 
@@ -4330,7 +4441,7 @@ def doc_gate(index):
     ledger(f"       doc gate: {why}")
 
 
-def drive(opts, goal, chain=None):
+def drive(opts, goal, chain):
     """The session loop itself. Split out so `main` can hold the `.loop/running` marker across it,
     and drop it on any exit -- a normal stop, a Ctrl-C, or an exception."""
     prompt_text = PROMPT.read_text(encoding="utf-8")
@@ -4342,7 +4453,7 @@ def drive(opts, goal, chain=None):
     kind = "budget"
     run_id = f"{datetime.now():%Y%m%d-%H%M%S}"
     # Cleared at the start, not only written at the end: a driver killed mid-run leaves the last
-    # run's verdict on disk, and a supervisor reading that would restart on a stale `budget`.
+    # leg's verdict on disk, and the run reading that would start another leg on a stale `budget`.
     RUNEND.unlink(missing_ok=True)
     CONSOLE.open_run(LOGDIR / f"{run_id}-console.log")
     ledger("")
@@ -4572,10 +4683,6 @@ def drive(opts, goal, chain=None):
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
         if not fail:
-            if chain is None:
-                reason = "GOAL REACHED: every acceptance check in docs/agent/loop-goal.toml passes"
-                kind = "goal"
-                break
             done = chain.current["name"]
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
@@ -4640,6 +4747,773 @@ def drive(opts, goal, chain=None):
     write_run_end(kind, reason, served, run_id)
     say("")
     say(reason, C.YELLOW)
+
+
+# ------------------------------------------------------------------------------------ the run
+#
+# Everything above drives ONE LEG: a fresh `claude` per session, an acceptance check between them,
+# and a stop the moment any of a dozen verdicts fires. Everything below drives THE RUN, which is a
+# sequence of legs -- and the two are not one loop because **a leg is a process**.
+#
+# `loop.py` is the one piece of this machinery that does not hot-reload. `orient.py` is a
+# subprocess, `session-prompt.md` is re-read and `loop-goal.toml` is re-loaded every session, so a
+# session that improves any of those improves the *next* session. A session that improves the
+# driver improves nothing at all until a fresh interpreter reads it off disk -- so the run starts
+# one, every `--probe-every` sessions.
+#
+# A leg boundary is also the only moment quiet enough to ask a second question: has the loop
+# drifted? A loop changes the shape of its own input and nothing announces it. The pack grew
+# 59 KB -> 118 KB at +907 B a session once, re-billed on all ~81 calls of every session after it,
+# and the projected slice cap fell to one on the strength of that alone.
+# `docs/agent/optimization-prompt.md` is the pass that reverses it; `checkpoint` decides when to
+# spend a session on one, and `settle` decides whether what it committed may stay.
+#
+# This was `tools/loop-supervisor.py` until it was merged in here. It was never run without the
+# driver and the driver was never run without it, and the split cost three things that are now
+# gone: a second argparse whose defaults had to be kept equal to this one's by hand, a console
+# that went dead between legs -- `s`, `p` and `r` did nothing through a checkpoint or a whole
+# optimization session, because nothing up there ever called `CONTROL.enable()` -- and a
+# `.loop/running` dropped and retaken at every boundary, which is the marker `brief.py` and
+# `disk.py` ask, and which therefore said no loop was running at the moments one was editing this
+# tree hardest.
+#
+# Nothing down here judges the work. The stop path is still exit codes and exact output matching
+# up in `Goal`, and the run adds no verdict of its own to it.
+
+#: The only verdict a leg may end on and have another leg follow it. `write_run_end` lists the
+#: full set. Every other kind is terminal, including the ones that look recoverable: a stall
+#: streak, a CLI that keeps failing and a usage window that never reopened are all reasons a
+#: *human* should look, and a run that retried them would turn one bad hour into eight.
+RESTARTABLE = "budget"
+
+#: What an optimization pass may commit. Everything outside this is reverted, unread: the pass is
+#: the loop working on itself, and `crates/`, `tests/` and `examples/` are the work, not the loop.
+#: An allowlist rather than a denylist because a new top-level directory must default to refused.
+ALLOWED = ("tools/", "docs/", "AGENTS.md", ".claude/CLAUDE.md", "README.md")
+
+#: A pass only runs when a signal fires, so these are when the run *looks*, not how often it
+#: spends a session. Looking is four subprocesses; the pass is a session.
+PROBE_EVERY = 10
+OPTIMIZE_EVERY = 25
+MIN_PASS_GAP = 15
+PACK_GROWTH = 20 * 1024
+
+#: How the pack-growth signal opens. It is the one signal that can bring a pass *forward*, so the
+#: check for it reads this rather than sniffing for a word: a reworded signal would otherwise
+#: disable the early trigger silently, which is the failure this whole section exists to catch.
+PACK_SIGNAL = "the orientation pack grew"
+
+
+def run_stamp():
+    return f"{datetime.now():%Y%m%d-%H%M%S}"
+
+
+def clip(text, head=40, tail=140):
+    """Bound a probe's output without losing either end.
+
+    Head *and* tail, because these tools put the table first and the conclusion last:
+    `loop-stats.py` opens with a row per session and closes with the constants and the projection,
+    which is the half a pass actually reads. A plain head-truncation would drop exactly that."""
+    lines = text.rstrip().split("\n")
+    if len(lines) <= head + tail:
+        return "\n".join(lines)
+    hidden = len(lines) - head - tail
+    return "\n".join(lines[:head] + [f"   ... [{hidden} lines omitted] ...", ""] + lines[-tail:])
+
+
+def probe(*argv, timeout=300):
+    """Run one of the loop's own measuring tools and return `(exit code, output)`.
+
+    Never raises. A probe that cannot run is a missing section in the evidence pack and a line in
+    the report; it is never the reason a run of 300 sessions stops."""
+    try:
+        done = subprocess.run(
+            [sys.executable, str(ROOT / "tools" / argv[0]), *argv[1:]],
+            cwd=ROOT, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        return 127, f"(did not run: {e})"
+    return done.returncode, (done.stdout or "") + (done.stderr or "")
+
+
+def git_ok(*args):
+    """Did this git command succeed? `git` returns stdout and swallows the status, which is right
+    for reading a rev and useless for the one place here that must know whether a `revert`
+    actually applied."""
+    try:
+        return subprocess.run(
+            ["git", *args], cwd=ROOT, capture_output=True, encoding="utf-8"
+        ).returncode == 0
+    except OSError:
+        return False
+
+
+def read_json(path, default=None):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return default
+
+
+def write_json(path, obj):
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def pack_bytes():
+    """The size of the orientation pack as it stands, out of the log `session.py --wrap` keeps.
+
+    Read from the log rather than measured here because measuring means running `orient.py`, and
+    the number wanted is the one the *sessions* were charged, not the one a probe would be."""
+    last = 0
+    for line in (PACKLOG.read_text(encoding="utf-8").splitlines()
+                 if PACKLOG.exists() else []):
+        if line.strip():
+            try:
+                last = int(json.loads(line).get("bytes") or last)
+            except ValueError:
+                pass
+    return last
+
+
+def verify_state():
+    """`(green, the step it failed at)`.
+
+    A gate that demanded green outright would roll back every pass whenever the *language* was red
+    -- and the language is red most of the time, because a red acceptance check is what the loop is
+    working on. So a pass is judged against the tree as it was handed over, not against an ideal.
+    `verify.py` prints `verify: FAILED at <step>`, which is the whole of what a comparison needs."""
+    code, out = probe("verify.py", timeout=3600)
+    if code == 0:
+        return True, ""
+    for line in out.split("\n"):
+        if line.startswith("verify: FAILED at "):
+            return False, line[len("verify: FAILED at "):].split()[0]
+    return False, f"exit {code}"
+
+
+def tools_still_load(changed):
+    """Every changed `tools/*.py` parses and answers `--help`. Empty string when they all do.
+
+    The cheap half of the code gate, and the half that catches what actually goes wrong: a syntax
+    error or an argparse mistake in a script the driver shells out to. It costs a second and it
+    does not care what state the Rust tree is in, so unlike `verify.py` it is conclusive."""
+    for path in [p for p in changed if p.startswith("tools/") and p.endswith(".py")]:
+        if not (ROOT / path).exists():  # the pass deleted it; that is the allowlist's business
+            continue
+        try:
+            done = subprocess.run(
+                [sys.executable, "-m", "py_compile", str(ROOT / path)],
+                cwd=ROOT, capture_output=True, text=True, timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError) as e:
+            return f"{path} could not be compiled: {e}"
+        if done.returncode != 0:
+            return f"{path} does not parse: {(done.stderr or '').strip()[:200]}"
+        code, out = probe(Path(path).name, "--help", timeout=120)
+        if code != 0:
+            return f"`python {path} --help` exits {code}: {out.strip()[:200]}"
+    return ""
+
+
+# ---------------------------------------------------------------------------------- the leg
+
+
+def run_leg(opts, sessions):
+    """One leg: this same file, in another process, with `--leg`.
+
+    **Another process on purpose**, and it is the reason a run is cut into legs at all: a session
+    that edits this file changes nothing about the interpreter already running it, and the only
+    thing that picks the edit up is a fresh one reading it off disk.
+
+    Every flag is passed on exactly as it was typed, with `--max-sessions` appended so the later
+    one wins. There is no second argparse and no list of flags to keep in step -- a flag added to
+    the parser tomorrow reaches a leg today, which two files could only promise by hand.
+
+    Stdio is inherited and the console is **handed over**. The keys and the bottom row belong to
+    exactly one process at a time -- two readers on one stdin take each other's keypresses -- so
+    the run gives them up here and takes them back at the boundary, which is what makes `s` and
+    `p` work through a checkpoint rather than dying with the leg.
+
+    A Ctrl-C reaches both processes at the same instant. The leg's handler writes its ledger line
+    and `run-end.json` -- with the sessions it served -- and needs more than the quarter second
+    `subprocess.run` would give it before killing the child, so this waits for it and only then
+    lets the interrupt go on up to `supervise`, which reads that file."""
+    argv = [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:],
+            "--leg", "--max-sessions", str(sessions)]
+    code = 1
+    CONTROL.disable()
+    TICKER.stop()
+    try:
+        proc = subprocess.Popen(argv, cwd=ROOT)
+        try:
+            code = proc.wait()
+        except KeyboardInterrupt:
+            try:
+                proc.wait(timeout=20)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+            raise
+    finally:
+        if opts.status:
+            TICKER.start()
+        CONTROL.enable()
+    end = read_json(RUNEND, default={}) or {}
+    if not end:
+        end = {"kind": "unknown", "reason": f"{rel_to_root(RUNEND)} was not written", "served": 0}
+    return code, end
+
+
+def run_goal_row():
+    """The goal row between two legs. Rebuilt from disk rather than kept, because a chain switch
+    happens inside a leg and a row still naming the goal before last is worse than none at all."""
+    try:
+        return goal_title(Chain(CHAIN_TOML))
+    except (ChainError, OSError):
+        return goal_title()
+
+
+# ------------------------------------------------------------------------------- the signals
+
+
+def gather_signals(state):
+    """What has drifted since the last pass, and the evidence for saying so.
+
+    Returns the signals that fired and the probe output behind them. **No signal, no pass** --
+    that is what makes the cadence cheap enough to be wrong about: looking costs four
+    subprocesses, and a pass that would have found nothing is a session not spent."""
+    fired = []
+    ev = {}
+
+    grown = pack_bytes() - int(state.get("pack_bytes") or 0)
+    ev["pack"] = (f"pack now {pack_bytes():,} B, {grown:+,} B since the last pass "
+                  f"({state.get('pack_bytes') or 'never taken'})")
+    if state.get("pack_bytes") and grown >= PACK_GROWTH:
+        fired.append(f"{PACK_SIGNAL} {grown:,} B since the last pass")
+
+    TICKER.set(detail="orient.py --audit")
+    code, out = probe("orient.py", "--audit")
+    warnings = [ln for ln in out.split("\n") if ln.startswith("!! orient.py:")]
+    tail = out.split("== WHAT THIS PACK COST", 1)
+    ev["audit"] = ("== WHAT THIS PACK COST" + tail[1]) if len(tail) > 1 else "(no audit section)"
+    ev["warnings"] = "\n".join(warnings) or "  none -- every selector resolves"
+    if code != 0:
+        fired.append(f"orient.py exits {code}: the pack the loop runs on does not build")
+        ev["warnings"] += f"\n  orient.py exited {code}"
+    if warnings:
+        fired.append(f"{len(warnings)} dead selector(s) or stale anchor(s) in the pack")
+
+    TICKER.set(detail="playbook.py --dupes")
+    _, out = probe("playbook.py", "--dupes")
+    ev["dupes"] = clip(out, 8, 60)
+    if "none at this threshold" not in out:
+        fired.append("the playbook says the same thing twice")
+
+    TICKER.set(detail="playbook.py --check")
+    _, out = probe("playbook.py", "--check")
+    ev["playbook_check"] = clip(out, 8, 60)
+    if "none -- every path any bullet names still exists" not in out:
+        fired.append("a playbook bullet names a path that is no longer in the tree")
+
+    TICKER.set(detail="check-links.py")
+    code, out = probe("check-links.py")
+    ev["links"] = clip(out, 8, 60)
+    if code != 0:
+        fired.append("check-links.py reports a dead link")
+
+    # Not a signal of its own -- it fires nothing and cannot. It is what tells the pass *where* the
+    # fix for the signals above goes, once the loop is walking goals a tool wrote.
+    ev["generated"] = generated_by()
+
+    TICKER.set(detail="")
+    return fired, ev
+
+
+#: A goal file's own banner, when a tool wrote it rather than a person. What a pass needs is not
+#: the fact that it is generated but the *command that regenerates it*, because that command is
+#: where the fix goes -- see the optimization prompt's menu item 8.
+GENERATED_RE = re.compile(r"^#\s*GENERATED by `([^`]+)`", re.M)
+
+
+def generated_by():
+    """The command that wrote the live goal, or "" when a person did."""
+    try:
+        found = GENERATED_RE.search(GOAL_TOML.read_text(encoding="utf-8"))
+    except OSError:
+        return ""
+    return found.group(1) if found else ""
+
+
+def ledger_since(n):
+    """The ledger's last few lines: what the sessions since the last pass actually reported.
+
+    Bounded by the pass count rather than by the file, because `.loop/log.md` is the whole run
+    history and only the recent end of it says anything about the drift being looked at."""
+    try:
+        lines = LEDGER.read_text(encoding="utf-8").rstrip().split("\n")
+    except OSError:
+        return "  (no ledger)"
+    return "\n".join(lines[-(n * 3 + 12):])
+
+
+def evidence_pack(fired, ev, since, report_path, baseline):
+    """Everything a pass would otherwise spend ten calls fetching, piped in on its stdin.
+
+    The same trick, and for the same measured reason, as a session being handed `orient.py`'s
+    output: a result this size comes back through a tool call as a spill notice and a readback,
+    which costs more than the text. It also makes the pass *deterministic* -- it chooses among
+    findings it was handed rather than deciding what to go and look at."""
+    _, stats = probe("loop-stats.py", timeout=600)
+    _, attrib = probe("loop-stats.py", "--attribute", timeout=600)
+    free = disk.free_gb(ROOT)
+
+    parts = [
+        "You are the loop optimization pass. Your evidence follows; the prompt after it says what",
+        "you may do with it. Do not re-run any of these to start with -- that is why they are here.",
+        "",
+        f"== WRITE YOUR REPORT TO: {rel_to_root(report_path)}",
+        "",
+        "== SIGNALS THAT FIRED",
+        *(f"  - {s}" for s in fired),
+        "",
+        f"== THE {since} SESSION(S) SINCE THE LAST PASS",
+        clip(ledger_since(since), 0, 80),
+        "",
+        "== WHAT THE SESSIONS COST  (python tools/loop-stats.py)",
+        clip(stats),
+        "",
+        "== WHERE THE CONTEXT WENT  (python tools/loop-stats.py --attribute)",
+        clip(attrib),
+        "",
+        "== WHAT THE PACK COST  (python tools/orient.py --audit)",
+        ev.get("audit", ""),
+        "",
+        "== THE PACK'S SLOPE",
+        f"  {ev.get('pack', '')}",
+        "",
+        "== SELECTOR WARNINGS  (python tools/orient.py)",
+        ev.get("warnings", ""),
+        "",
+        "== THE LIVE GOAL",
+        (f"  GENERATED by `{ev['generated']}`. Menu item 8 applies: a finding in it is a defect in\n"
+         f"  the emitter, fixed there and re-emitted. A hand-edit is discarded by the next emission."
+         if ev.get("generated") else
+         "  hand-written -- a finding in it is fixed in it, the ordinary case"),
+        "",
+        "== DUPLICATE PLAYBOOK BULLETS  (python tools/playbook.py --dupes)",
+        ev.get("dupes", ""),
+        "",
+        "== STALE PLAYBOOK PATHS  (python tools/playbook.py --check)",
+        ev.get("playbook_check", ""),
+        "",
+        "== BROKEN LINKS  (python tools/check-links.py)",
+        ev.get("links", ""),
+        "",
+        "== DISK",
+        f"  {free:.1f}G free; a run refuses to start below {disk.MIN_FREE_GB}G",
+        "",
+        "== THE TREE'S VERIFICATION STATE GOING IN",
+        ("  green -- tools/verify.py passes, so any red after your pass is yours"
+         if baseline[0] else
+         f"  RED, at the `{baseline[1]}` step, before you touched anything. That is the loop's own\n"
+         "  worklist and it is NOT yours to fix -- do not take a checklist item. It does mean your\n"
+         "  pass is judged on whether it made this worse, not on whether it is green."),
+        "",
+        "",
+    ]
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------------- the pass
+
+
+def run_pass(opts, fired, ev, since, baseline):
+    """One `claude` session against `docs/agent/optimization-prompt.md`, then the smoke test.
+
+    Returns a one-line verdict for the ledger. This is the one place in the whole loop where an
+    agent edits the machinery that will drive the next several hours unattended, so what follows
+    it is not a review -- it is a set of exit codes, and a `git revert` on any of them."""
+    OPTDIR.mkdir(parents=True, exist_ok=True)
+    run = run_stamp()
+    report = OPTDIR / f"{run}-report.md"
+    log = LOGDIR / f"{run}-optimize.log"
+    OPTSTATUS.unlink(missing_ok=True)
+
+    base = git("rev-parse", "HEAD")
+    dirty = git("status", "--porcelain").strip()
+    if dirty:
+        say("the tree is not clean going into the pass -- skipping it rather than mixing "
+            "somebody's edits into a revert range", C.YELLOW)
+        return "SKIPPED (tree not clean)"
+
+    pack = evidence_pack(fired, ev, since, report, baseline)
+    (OPTDIR / f"{run}-evidence.md").write_text(pack, encoding="utf-8", newline="\n")
+    prompt = OPT_PROMPT.read_text(encoding="utf-8")
+
+    exe = shutil.which("claude") or "claude"
+    cmd = [exe, "-p", prompt, "--model", opts.model,
+           "--permission-mode", opts.permission_mode,
+           "--output-format", "stream-json", "--verbose"]
+    if opts.effort:
+        cmd += ["--effort", opts.effort]
+
+    say(f"optimization pass {run}: {len(fired)} signal(s), evidence {len(pack):,} B", C.CYAN)
+    for s in fired:
+        say(f"   - {s}", C.GRAY)
+    CONSOLE.open_session(log)
+    TICKER.set(phase="optimization pass", detail=run, calls=0)
+    renderer = Renderer(opts)
+    started = time.monotonic()
+    # Its stdin is a pipe and not this console: the evidence goes down it, and the keys stay here.
+    # That is what lets `s` and `p` be answered during a pass at all -- unlike a leg, which is
+    # handed the console and reads them itself.
+    proc = subprocess.Popen(
+        cmd, cwd=ROOT, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None,
+        encoding="utf-8", errors="replace", bufsize=1,
+    )
+    threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
+    warned = False
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            renderer.event(line)
+            # Polled here as well as from the ticker, because a run with its stdout redirected has
+            # no ticker at all, and `.loop/stop` is then the only channel there is.
+            CONTROL.poll()
+            if not warned and CONTROL.stop_reason():
+                warned = True
+                say("   a stop is armed -- a pass is a session like any other, so it finishes and "
+                    "settles first, and the run ends after it", C.YELLOW)
+        proc.wait()
+    except BaseException:
+        # The same rule as a work session: an agent with permissions bypassed does not outlive
+        # the process watching it.
+        proc.kill()
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            pass
+        raise
+    finally:
+        CONSOLE.close_session()
+    say(f"pass ended after {mmss(time.monotonic() - started)}, claude exit {proc.returncode}",
+        C.CYAN)
+
+    status = ""
+    if OPTSTATUS.exists():
+        status = OPTSTATUS.read_text(encoding="utf-8").strip()
+    if proc.returncode != 0:
+        # A refused or crashed pass has usually committed nothing, and a usage wall is the likeliest
+        # cause of both. Judge the tree, not the exit code, then hand the wall back to the leg,
+        # which is the only thing here that knows how to wait one out.
+        say(f"the pass exited {proc.returncode} -- checking what it left behind", C.YELLOW)
+
+    TICKER.set(phase="settling the pass", detail=run)
+    verdict = settle(base, run, report, status, baseline)
+    write_json(OPTSTATE, {
+        "last_pass": run,
+        "last_pass_head": git("rev-parse", "HEAD"),
+        "pack_bytes": pack_bytes(),
+        "verdict": verdict,
+        "signals": fired,
+    })
+    return verdict
+
+
+def settle(base, run, report, status, baseline):
+    """Decide whether what the pass committed may stay, and undo it if not.
+
+    Five gates, in the order a failure is cheapest to find in: what it touched, whether it left
+    anything behind, whether the loop still orients and reads its goal, whether every script it
+    edited still loads, and -- only when it edited code the loop executes -- whether the tree got
+    worse. Nothing here reads the diff. The point is that the decision is mechanical, because the
+    thing being judged is an agent's edit to the judge."""
+    head = git("rev-parse", "HEAD")
+    if head == base:
+        left = git("status", "--porcelain").strip()
+        if left:
+            git("stash", "push", "-u", "-m", f"optimization pass {run}: uncommitted")
+            say("the pass left uncommitted edits and no commit -- stashed them", C.YELLOW)
+            return "STASHED (edits without a commit)"
+        return status or "CLEAN (nothing committed)"
+
+    shas = [s for s in git("rev-list", f"{base}..{head}").split("\n") if s]
+    changed = [p for p in git("diff", "--name-only", base, head).split("\n") if p]
+    say(f"the pass committed {len(shas)} change(s) over {len(changed)} file(s)", C.GRAY)
+
+    stray = [p for p in changed if not p.startswith(ALLOWED)]
+    if stray:
+        return rollback(base, shas, f"it touched {', '.join(stray[:4])}"
+                        + (f" and {len(stray) - 4} more" if len(stray) > 4 else ""))
+
+    leftover = git("status", "--porcelain").strip()
+    if leftover:
+        git("stash", "push", "-u", "-m", f"optimization pass {run}: uncommitted tail")
+        say("stashed an uncommitted tail the pass left behind", C.YELLOW)
+
+    code, out = probe("orient.py")
+    if code != 0 or len(out) < 500:
+        return rollback(base, shas, f"orient.py exits {code} with {len(out)} bytes of pack")
+    code, _ = probe("loop.py", "--list")
+    if code != 0:
+        return rollback(base, shas, f"loop.py --list exits {code}: the acceptance list is unreadable")
+
+    broken = tools_still_load(changed)
+    if broken:
+        return rollback(base, shas, broken)
+
+    if any(p.startswith("tools/") for p in changed):
+        say("the pass edited tools/ -- verifying before handing the loop back", C.CYAN)
+        ok, failed_at = verify_state()
+        if not ok and baseline[0]:
+            return rollback(base, shas, f"verify.py was green going in and now FAILS at {failed_at}")
+        if not ok and failed_at != baseline[1]:
+            return rollback(base, shas, f"verify.py failed at {baseline[1]} going in and now "
+                                        f"fails at {failed_at} instead")
+        if not ok:
+            say(f"verify.py still fails at {failed_at}, exactly as it did before the pass -- not "
+                "the pass's doing, so it stands", C.YELLOW)
+
+    say(f"the pass stands: {status or '(no status line)'}", C.GREEN)
+    if report.exists():
+        say(f"report: {rel_to_root(report)}", C.GRAY)
+    return status or f"APPLIED {len(shas)}"
+
+
+def rollback(base, shas, why):
+    """Put the tree back, loudly.
+
+    `revert` rather than `reset`, so the run's history still shows the pass and what was undone --
+    and a `reset` only as the fallback for a revert that conflicts, which it can only do against
+    commits the pass itself made, since no other writer runs between two legs."""
+    say("", C.RED)
+    say(f"ROLLING BACK the optimization pass: {why}", C.RED)
+    ok = bool(shas)
+    for sha in shas:  # rev-list is newest first, which is the order a revert must take
+        if not git_ok("revert", "--no-edit", "--no-commit", sha):
+            ok = False
+            break
+    if ok:
+        ok = git_ok("commit", "-m",
+                    f"revert: the optimization pass was rolled back -- {why}")
+    if not ok:
+        git("revert", "--abort")
+        git("reset", "--hard", base)
+        say("the revert did not apply cleanly; reset to the pre-pass commit instead", C.YELLOW)
+    say("the loop continues on the code it had before the pass", C.YELLOW)
+    return f"REVERTED ({why.splitlines()[0]})"
+
+
+# ---------------------------------------------------------------------------------- driving
+
+
+def checkpoint(opts, since):
+    """A leg boundary. Look for drift; spend a session on it only if something is actually wrong.
+
+    Returns the session count to carry forward -- 0 when the counter was spent, `since` when it
+    was not, because a look that found nothing must not reset the clock on the next look. This
+    owns every write to `state.json`, so the count and the pack size it is measured against can
+    never be written from two different reads of the same file."""
+    if opts.no_optimize:
+        return since
+    state = read_json(OPTSTATE, default={}) or {}
+    say("")
+    say(f"== checkpoint: {since} session(s) since the last pass", C.MAGENTA)
+    TICKER.set(scope="checkpoint", phase="looking for drift", detail="")
+    # Scratch is free to drop; `sweep_target` is not -- it costs a full rebuild of whatever cargo
+    # still wanted, which the next session then pays for inside its acceptance check. So it runs
+    # only where the alternative is worse: below the floor a run refuses to start at.
+    freed = disk.prune_scratch()
+    free = disk.free_gb(ROOT)
+    if free < disk.MIN_FREE_GB:
+        say(f"{free:.1f}G free, below the {disk.MIN_FREE_GB}G a run needs -- sweeping target/, "
+            "which costs a rebuild", C.YELLOW)
+        freed += disk.sweep_target()
+    elif free < 2 * disk.MIN_FREE_GB:
+        say(f"{free:.1f}G free; `python tools/disk.py --clean` is what reclaims the rest", C.YELLOW)
+    if freed:
+        say(f"reclaimed {disk.human(freed)}", C.GRAY)
+
+    fired, ev = gather_signals(state)
+    due = since >= opts.optimize_every
+    early = since >= opts.min_pass_gap and any(s.startswith(PACK_SIGNAL) for s in fired)
+    if not fired:
+        say("nothing has drifted -- no pass", C.GREEN)
+        ledger(f"## run checkpoint {datetime.now():%Y-%m-%d %H:%M} -- "
+               f"clean after {since} session(s), no pass")
+        # A clean look still spends the clock: the next one is a full cadence away, and the pack
+        # it will compare against is this one, not the one the last *pass* left.
+        write_json(OPTSTATE, {**state, "since": 0 if due else since,
+                              "pack_bytes": pack_bytes() if due else state.get("pack_bytes")})
+        return 0 if due else since
+    if not (due or early):
+        say(f"{len(fired)} signal(s), but only {since} of {opts.optimize_every} sessions in -- "
+            "carrying them to the next checkpoint", C.GRAY)
+        for s in fired:
+            say(f"   - {s}", C.GRAY)
+        # Ledgered like the other two outcomes. This branch used to be silent, and a run whose
+        # every checkpoint took it left no trace that the cadence had fired at all.
+        ledger(f"## run checkpoint {datetime.now():%Y-%m-%d %H:%M} -- "
+               f"{len(fired)} signal(s) after {since} session(s), carried: " + "; ".join(fired))
+        write_json(OPTSTATE, {**state, "since": since})
+        return since
+
+    dirty = git("status", "--porcelain").strip()
+    if dirty:
+        # Somebody is editing this tree by hand, which the loop allows. A pass over a dirty tree
+        # would mix their edits into its revert range, so it waits -- and the counter waits with
+        # it, so the next leg is one session long and this is asked again straight after. It does
+        # not reset: a pass deferred is not a pass taken. Checked before the baseline measurement
+        # below, which is a full `verify.py` and worth nothing if the pass is not going to run.
+        say(f"{len(fired)} signal(s) and the pass is due, but the tree is not clean -- "
+            "deferring it until the next leg boundary", C.YELLOW)
+        for s in fired:
+            say(f"   - {s}", C.GRAY)
+        ledger(f"## run checkpoint {datetime.now():%Y-%m-%d %H:%M} -- "
+               f"{len(fired)} signal(s) after {since} session(s), pass DEFERRED: "
+               f"the tree is not clean ({len(dirty.splitlines())} path(s))")
+        write_json(OPTSTATE, {**state, "since": since})
+        return since
+
+    # A pass is a `claude` session that edits this tree exactly the way a work session does, so the
+    # two things that stop a session from starting stop this one too. Asked here and not only at
+    # the leg boundary above because gathering the signals is minutes of probes, and a hold queued
+    # during them would otherwise be answered by a session starting anyway. `hold_pause` blocks
+    # for as long as the hold stands and returns why to stop, or "" to carry on.
+    if hold_pause() or CONTROL.stop_reason():
+        say("a stop or a hold arrived while the signals were being gathered -- not starting the "
+            "pass; the signals carry to the next boundary", C.YELLOW)
+        write_json(OPTSTATE, {**state, "since": since})
+        return since
+
+    say("measuring the tree before the pass, so it is judged on what it changed", C.GRAY)
+    TICKER.set(phase="baseline verify", detail="")
+    baseline = verify_state()
+    say(f"   verify.py going in: {'green' if baseline[0] else 'RED at ' + baseline[1]}",
+        C.GREEN if baseline[0] else C.YELLOW)
+    verdict = run_pass(opts, fired, ev, since, baseline)
+    ledger(f"## optimization pass {datetime.now():%Y-%m-%d %H:%M} after {since} session(s) "
+           f"-- {verdict}")
+    if verdict.startswith("BROKEN"):
+        raise SystemExit(f"the optimization pass reported {verdict}")
+    if verdict.startswith("SKIPPED"):
+        return since  # not taken, so not spent -- the same deferral as the dirty-tree branch
+    return 0
+
+
+def leg_size(opts, remaining, since):
+    """How many sessions the next leg gets.
+
+    The smallest of three: what is left of `--max-sessions`, one probe leg, and the distance to
+    the next cadence checkpoint. The third is what makes a checkpoint land *on* `--optimize-every`
+    rather than at the first multiple of the probe leg past it."""
+    return max(1, min(remaining, opts.probe_every, max(1, opts.optimize_every - since)))
+
+
+def credit(since, end):
+    """Add a leg's served sessions to the count since the last pass, and persist it.
+
+    The one write to `since` that is not a checkpoint's, so a checkpoint that finds nothing and
+    a leg that ends -- either way -- agree on the number the next checkpoint reads."""
+    since += int(end.get("served") or 0)
+    state = read_json(OPTSTATE, default={}) or {}
+    write_json(OPTSTATE, {**state, "since": since})
+    return since
+
+
+def supervise(opts):
+    """The run: legs, and what happens between them.
+
+    The console belongs to this process whenever a leg is not running, which is what makes `s`,
+    `p` and `r` mean the same thing at a leg boundary as they do inside a session. A checkpoint
+    can be a full `verify.py` and then a whole optimization session, and for as long as this was a
+    second script with no `CONTROL.enable()` anywhere in it, every key was dead for its length."""
+    served_total = 0
+    since = int((read_json(OPTSTATE, default={}) or {}).get("since") or 0)
+    leg = 0
+    # Everything said BETWEEN legs -- the checkpoints above all -- was printed and kept nowhere:
+    # a leg's own console log belongs to the leg, and the leg is over by then. One file per run,
+    # on the same tee a leg uses, so "did the cadence fire" has a record. `loop-stats.py` skips
+    # it: it is a driver's own record, not a transcript.
+    LOGDIR.mkdir(parents=True, exist_ok=True)
+    CONSOLE.open_run(LOGDIR / f"{run_stamp()}-run.log")
+    CONTROL.enable()
+
+    while served_total < opts.max_sessions:
+        # A leg boundary is a boundary a leg cannot hold at: it is not running. And it is not an
+        # idle moment either -- `checkpoint` below may spend it on an optimization session that
+        # edits this tree exactly the way a work session does. A hold honoured only inside a leg
+        # would therefore be a hold with a gap in it, once every `--probe-every` sessions.
+        stop = hold_pause()
+        if stop:
+            say(f"not starting another leg: {stop}", C.YELLOW)
+            break
+        remaining = opts.max_sessions - served_total
+        size = leg_size(opts, remaining, since)
+        leg += 1
+        say("")
+        say(f"== leg {leg}: up to {size} session(s), "
+            + (f"{remaining} of {opts.max_sessions} left"
+               if opts.max_sessions < UNCAPPED else f"{served_total} served, uncapped"),
+            C.MAGENTA)
+        TICKER.set(loop_goal=run_goal_row(), scope=f"leg {leg}", phase="starting", detail="")
+        before = read_json(RUNEND, default={}) or {}
+        try:
+            code, end = run_leg(opts, size)
+        except KeyboardInterrupt:
+            # A leg clears `run-end.json` when it starts and its Ctrl-C handler rewrites it with
+            # the sessions served, so a file that differs from the one seen going in is this
+            # leg's. Count those, then let the interrupt finish the run as before.
+            end = read_json(RUNEND, default={}) or {}
+            if end and end != before:
+                since = credit(since, end)
+            raise
+        served = int(end.get("served") or 0)
+        served_total += served
+        since = credit(since, end)
+
+        if end.get("kind") != RESTARTABLE:
+            say("")
+            say(f"the run ended for good: {end.get('reason') or f'the leg exited {code}'}",
+                C.YELLOW)
+            return 0 if code == 0 else code
+        stop = hold_pause()
+        if stop:
+            say(f"stopping: {stop}", C.YELLOW)
+            break
+        if served_total >= opts.max_sessions:
+            # No checkpoint on the way out. A pass exists to make the *next* sessions cheaper,
+            # and there are none.
+            break
+        since = checkpoint(opts, since)
+
+    say("")
+    say(f"run done: {served_total} session(s) over {leg} leg(s)", C.CYAN)
+    return 0
+
+
+def optimize_only(opts):
+    """`--optimize-only`: one pass now, against the tree as it stands, and out.
+
+    It claims nothing and prunes nothing. This is a person asking for the pass by hand, usually
+    with no run in flight at all, and a marker taken here would be one more thing to clean up."""
+    if not OPT_PROMPT.exists():
+        say(f"missing {rel_to_root(OPT_PROMPT)}", C.RED)
+        return 2
+    if opts.status:
+        TICKER.start()
+    CONTROL.enable()
+    state = read_json(OPTSTATE, default={}) or {}
+    fired, ev = gather_signals(state)
+    if not fired:
+        say("no signal fired -- running the pass anyway, because you asked for it", C.YELLOW)
+        fired = ["--optimize-only: run by hand, against whatever the evidence says"]
+    say(run_pass(opts, fired, ev, int(state.get("since") or 0), verify_state()), C.CYAN)
+    return 0
 
 
 if __name__ == "__main__":

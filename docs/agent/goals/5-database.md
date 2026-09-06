@@ -10,7 +10,7 @@ purely because `nvs-db` shares no file with `Core\Cli` — the two would have ma
 module in the workspace, which is the cost loop-authoring.md § 2 exists to avoid.
 
 **This goal has an external precondition and the driver enforces it.** ADR 0067 verifies against real
-servers, so `python tools/loop.py --chain` preflights a reachable Docker daemon before this goal's first
+servers, so `python tools/loop.py` preflights a reachable Docker daemon before this goal's first
 session and stops the run naming it. A run that grinds for six hours against a check that cannot pass is
 worse than one that stops in the first minute.
 

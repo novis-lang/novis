@@ -42,8 +42,8 @@ different traps, and a path a bullet quotes may be gone precisely because the tr
 only a reader can tell either way.
 
 Once a reader has told, `DELIBERATE_STALE` below records it, keyed by the exact `(selector, path)`
-pair. Those bullets still print, under their own heading, but out of the list `loop-supervisor.py`
-reads -- because a bullet whose whole subject is a path that is gone keeps that signal raised
+pair. Those bullets still print, under their own heading, but out of the list `loop.py`'s
+checkpoint reads -- because a bullet whose whole subject is a path that is gone keeps that signal raised
 forever, and a signal that cannot clear schedules an optimization pass whether or not anything
 drifted.
 
@@ -92,7 +92,7 @@ PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 #: `(selector, path)` pair, so any other path in the same bullet, and this path in any other
 #: bullet, still reports normally.
 #:
-#: This exists because `loop-supervisor.py` fires an optimization pass unless the list below says
+#: This exists because `loop.py`'s checkpoint fires an optimization pass unless the list below says
 #: `none`, and these two can never leave it: the trap they describe is the stale path. Three passes
 #: in a row read them and wrote down that they were deliberate, and the fourth was scheduled on
 #: their account alone -- a signal that cannot clear is a constant, and it spends a pass whether or
@@ -537,7 +537,7 @@ def run_check(text: str, every: list[dict]) -> int:
                 else:
                     print(f"      {g}")
     if not stale:
-        # `loop-supervisor.py` reads this sentence to decide whether the stale-path signal fired,
+        # `loop.py`'s `gather_signals` reads this sentence to decide whether the stale-path signal fired,
         # so the first clause of it is a contract. What follows it is not.
         tail = f", or is quoted on purpose ({len(deliberate)} below)" if deliberate else ""
         print(f"  none -- every path any bullet names still exists{tail}")
@@ -554,7 +554,7 @@ def run_check(text: str, every: list[dict]) -> int:
             print(f"  {selector}")
             print(f"      {path}  -- {why}")
         print(f"\n  {len(deliberate)} bullet(s), held in `DELIBERATE_STALE` in this script. They are")
-        print("  kept out of the list above so the supervisor's signal can reach `none`; the trap")
+        print("  kept out of the list above so the run's stale-path signal can reach `none`; the trap")
         print("  each one describes IS its missing path, so no pass can ever prune them.")
 
     unseen = set(DELIBERATE_STALE) - {(s, p) for s, p, _ in deliberate}

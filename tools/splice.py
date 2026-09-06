@@ -177,8 +177,9 @@ def main(argv):
     except AttributeError:
         pass
 
-    # `--help` exits 0 on purpose: `loop-supervisor.py` probes every changed `tools/*.py` with it
-    # and reads a non-zero status as a broken script.
+    # `--help` exits 0 on purpose: `loop.py`'s `tools_still_load` probes every changed
+    # `tools/*.py` with it after an optimization pass, and reads a non-zero status as a broken
+    # script it must roll the pass back over.
     if any(a in ("-h", "--help") for a in argv):
         die(help_text(True), 0)
     if not argv:

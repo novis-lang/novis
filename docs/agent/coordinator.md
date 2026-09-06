@@ -40,13 +40,12 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 |---|---|
 | `docs/agent/session-prompt.md` | The fixed prompt handed to every session. Also holds the `docs/agent/handoff.md` handoff contract. |
 | `docs/agent/loop-authoring.md` | How a *new* goal is written: measure first, **scope the context**, what makes one drivable, what to pre-authorize, the stage order. Read before rewriting either half below. |
-| `docs/agent/goals/` | A *chain* of staged goals and the contract for walking one. `chain.toml` is the order; `python tools/loop.py --chain <it>` advances on `GOAL REACHED` instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` is which entry is installed. Its README is the only home for all of that. |
+| `docs/agent/goals/` | The *chain* of staged goals and the contract for walking it. `chain.toml` is the order, and there is exactly one — the driver reads it always, not behind a flag — so on `GOAL REACHED` a run advances instead of stopping, carrying each goal's acceptance list into the next as its floor. `.loop/chain.json` is which entry is installed. Its README is the only home for all of that. |
 | `tools/orient.py` | The whole of a session's step 1, narrowed by the goal's `[context]` manifest. Slices the live files; holds no copy. `--audit` says what the pack cost. **The driver runs it and pipes the output to the session on stdin** — a session that fetched its own paid three calls and ~20k for a 13k pack, because the harness spills a result that size to a file and reading it back costs more than the pack. |
 | `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
-| `tools/loop.py` | The driver. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. |
-| `tools/loop-supervisor.py` | One layer above the driver: cuts a long run into legs, restarts `loop.py` between them so a driver change takes effect, and every few dozen sessions decides whether the loop has drifted enough to spend one on itself. Every flag is `loop.py`'s and is passed through, so it is invisible. § *The supervisor* below is the only home for what it decides. |
+| `tools/loop.py` | The driver, and the run above it. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. One file and one command: it cuts a long run into **legs**, re-spawns itself with a hidden `--leg` for each one so a driver change committed by a session takes effect, and at every boundary decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides. |
 | `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
@@ -55,18 +54,17 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
 | `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
-| `.loop/logs/<stamp>-supervisor.log` | What the supervisor said *between* legs — every checkpoint, what fired, what it decided, and the rendered optimization pass when one ran — stamped the same way. One per supervised run, named by the supervisor's start. It exists because a leg's `console.log` is closed by the time a checkpoint speaks, and a cadence whose every decision went to the screen alone could not be shown to have fired. Not a transcript — `loop-stats.py` skips it. |
+| `.loop/logs/<stamp>-run.log` | What the run said *between* legs — every checkpoint, what fired, what it decided, and the rendered optimization pass when one ran — stamped the same way. One per run, named by its start. It exists because a leg's `console.log` is closed by the time a checkpoint speaks, and a cadence whose every decision went to the screen alone could not be shown to have fired. Not a transcript — `loop-stats.py` skips it, as it still skips the `-supervisor.log` this was called before the two tools were merged. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
-| `.loop/running` | Written by the driver while it is up, deleted on every exit. Anything else about to touch this tree checks it first — `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second driver is refused unless you pass `--force`. |
-| `.loop/supervisor` | The same marker one level up, held across every leg of a supervised run. `.loop/running` is dropped and retaken at each leg boundary, so it is not the thing to check when asking whether a long run is still going. |
-| `.loop/run-end.json` | Why the last `loop.py` run ended, as a `kind` rather than a sentence — `loop.write_run_end` lists the twelve. The supervisor branches on it, and restarts on exactly one of them. Cleared when a run starts, so a driver that was killed cannot leave a stale verdict for the next one to act on. |
+| `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second run is refused unless you pass `--force`. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
+| `.loop/run-end.json` | Why the last **leg** ended, as a `kind` rather than a sentence — `loop.write_run_end` lists them. The run branches on it, and starts another leg on exactly one of them. Cleared when a leg starts, so a driver that was killed cannot leave a stale verdict for the next one to act on. |
 | `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
-| `.loop/chain.json` | Which entry of a `--chain` run is installed. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
+| `.loop/chain.json` | Which entry of the chain is installed, as a bare position and nothing else. `goal-switch.py` is not idempotent, so this is what makes each entry's floor get carried exactly once across a driver that is killed and restarted. |
 | `.loop/interrupted.json` | Written when a session was cut off with work still uncommitted — the paths, and why. `orient.py` prints it at the top of the pack, so the next session knows those files are somebody's unfinished slice and not the state it was meant to start from. Deleted by the next session that leaves a clean tree. |
 
 `.loop/` is gitignored in full — everything the driver writes at run time lives under it.
@@ -83,11 +81,11 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
          (each NDJSON event is appended to .loop/logs/<run>-NNNN.log and rendered live to the console --
           text, thinking, tool calls with their full input, tool results, and the turn/cost summary;
           everything printed, and every subprocess's output, is teed to .loop/logs/<run>-console.log)
-    (--chain, before the first session: install the next staged goal -- goal-switch.py carries the
-     live goal's checks in as its floor, the three files are copied into place, the entry the run
-     just left is retired (chain.py --retire: its checks are now in the file above, so its own
-     copy goes), the switch is committed, and any [docker] services the goal declares are brought
-     up once)
+    (before the first session of a leg: install the next staged goal if none is -- goal-switch.py
+     carries the live goal's checks in as its floor, the three files are copied into place, the
+     entry the run just left is retired (chain.py --retire: its checks are now in the file above,
+     so its own copy goes), the switch is committed, and any [docker] services the goal declares
+     are brought up once)
     if a rate_limit_event said `rejected`  -> sleep until its resetsAt, then re-run this session --
                                               not a failure, not a stall, and not one of --max-sessions
     if the result event blamed a 529       -> back off and re-run this session, forever -- not a failure,
@@ -96,9 +94,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance test from docs/agent/loop-goal.toml
-      -> passes, no --chain                -> stop, GOAL REACHED
-      -> passes, --chain has a next goal   -> install it and keep going, stall streak reset
-      -> passes, --chain is on its last    -> stop, CHAIN COMPLETE
+      -> passes, the chain has a next goal -> install it and keep going, stall streak reset
+      -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
     if status is DONE but acceptance fails -> stop and say so (the session was wrong)
     if status is BLOCKED                   -> stop, surface the decision
     if HEAD did not move                   -> stall++; stop after --max-stalls consecutive stalls
@@ -203,9 +200,13 @@ Three more things it does, none of which is obvious:
   wall, at the boundary before the next session, so a hold queued during a five-hour wait is honoured when
   the window reopens rather than slept through — and the agent that queued it waits that long for its
   `held:` line. `.loop/limit.json` is what says a wall is up.
-- **The supervisor holds at its own boundary too.** A leg boundary is not an idle moment: it is where an
-  optimization pass may start, and a pass edits this tree exactly the way a session does. It has no
-  console between legs, so there the file is the only channel.
+- **The run holds at its own boundary too, and the keys still work there.** A leg boundary is not an idle
+  moment: it is where an optimization pass may start, and a pass edits this tree exactly the way a session
+  does. The run takes the console back from the leg at every boundary, so `s`, `p` and `r` mean the same
+  thing through a checkpoint — a full `verify.py` and then a whole optimization session — as they do
+  inside one. A hold arriving while the signals are being gathered is answered before the pass starts,
+  not after it. While the run lived in a second script that never enabled the key reader, every one of
+  those keys was dead for the length of a checkpoint, and `.loop/stop` was read at two instants only.
 
 Left behind by a hard kill, `.loop/pause` will hold the *next* run before its first session. That is
 visible — the status line says `held` and the console says why — and deleting the file is the whole fix.
@@ -313,14 +314,18 @@ prints what it cost.
 
 ## Running it
 
-    python tools/loop.py --max-sessions 300
+    python tools/loop.py
 
-For a run long enough that the loop will change underneath itself, § *The supervisor* below is the same
-command with one word swapped.
+**That is the whole command.** It walks `docs/agent/goals/chain.toml`, it runs until the chain is walked
+or something goes wrong or you stop it, and it restarts itself along the way — § *The run* below is what
+that second half means. There is nothing to add to make a long run safe; `--max-sessions N` is there for
+a short one you intend to watch, and the count is otherwise the answer to a question nobody can ask at
+the start.
 
 Flags worth knowing: `--model`, `--effort` (`low`|`medium`|`high`|`xhigh`|`max`; omitted, the harness
 uses the model's own default, which is `high` on opus-5 — the run's setting goes in the ledger header, so
-`loop-stats.py --run <stamp>` prices one against another), `--permission-mode`, `--max-stalls`,
+`loop-stats.py --run <stamp>` prices one against another), `--permission-mode`, `--max-sessions`
+(uncapped by default), `--max-stalls`,
 `--max-retries`, `--delay-seconds`,
 `--max-limit-wait` (how long a closed usage window may be waited out before the run stops instead; 6h),
 `--full-output` (echo every tool call's full input and result, no truncation anywhere), `--goal-only`,
@@ -357,28 +362,38 @@ repo is still consistent either way, because every session commits before it exi
 for a while and give it back rather than stopping, hold it — `p`, or `.loop/pause`, per § *Holding the
 tree* above.
 
-## The supervisor
+## The run
 
-    python tools/loop-supervisor.py --max-sessions 300 --effort medium
+**A run is a sequence of legs, and a leg is a process.** `loop.py` is both, in one file and behind the one
+command above: it drives the run, and re-spawns *itself* with a hidden `--leg` every `--probe-every`
+sessions (10). Every flag you typed goes to the leg exactly as typed, with `--max-sessions` appended, so
+there is no second parser and no list of flags to keep in step.
 
-Everything above still holds — this starts `loop.py` and hands it the console, and **every flag it does not
-recognise is passed straight through**, so the two are interchangeable at the command line. What it adds is
-a boundary every `--probe-every` sessions (10) where the driver is stopped and started again. That exists
-for two reasons that have nothing to do with each other:
+The boundary exists for two reasons that have nothing to do with each other:
 
 - **`loop.py` is the one piece of the loop that does not hot-reload.** `orient.py` is a subprocess,
   `session-prompt.md` is re-read and `loop-goal.toml` is re-loaded every session, so a session that
   improves one of those improves the next session. A session that improves the *driver* improves nothing
-  until it is restarted, and sessions do commit driver changes.
+  until a fresh interpreter reads it off disk, and sessions do commit driver changes.
 - **A loop changes the shape of its own input**, and nothing announces it. The pack once grew 59 KB → 118 KB
   at +907 B a session, re-billed on all ~81 calls of every session after it, and the projected slice cap
   fell to one on that alone.
 
-**It restarts on exactly one verdict**: `kind: "budget"` in `.loop/run-end.json` — the driver served its
-sessions and stopped. Every other kind is terminal, including the ones that look recoverable. A stall
+**Another leg follows exactly one verdict**: `kind: "budget"` in `.loop/run-end.json` — the leg served its
+sessions and stopped. Every other kind ends the run, including the ones that look recoverable. A stall
 streak, a CLI failing repeatedly and a usage window that never reopened are all reasons a person should
-look, and a supervisor that retried them would turn one bad hour into eight. `.loop/stop` and Ctrl-C stop
-the supervisor, not just the leg, and `.loop/pause` holds it between legs as well as inside one.
+look, and a run that retried them would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run
+and not just the leg, and `.loop/pause` holds it between legs as well as inside one.
+
+**The console is handed over and handed back**, and that is the whole of what "one tool" buys that two did
+not. Stdin and the bottom row belong to exactly one process at a time — two readers on one console take
+each other's keypresses — so the run gives them to each leg and takes them back at the boundary. `s`, `p`
+and `r` therefore mean the same thing during a checkpoint, which can be a full `verify.py` followed by a
+whole optimization session, as they do inside a work session. This was the split's real cost: the second
+script never enabled the key reader at all, so every key was dead for the length of every checkpoint, and
+`.loop/stop` was looked at twice per leg and nowhere else.
+
+This was `tools/loop-supervisor.py` until the two were merged. Neither was ever run without the other.
 
 ### When it spends a session on the loop itself
 
@@ -390,7 +405,7 @@ enough: a selector `orient.py` warns about, a duplicate `playbook.py --dupes` fi
 naming a path that is gone, a dead link, or `orient.py` failing outright. A pack that grew 20 KB since the
 last pass triggers one early, no sooner than `--min-pass-gap` (15) sessions after the last.
 
-Every checkpoint writes one `## supervisor checkpoint` line to `.loop/log.md`, whichever way it went:
+Every checkpoint writes one `## run checkpoint` line to `.loop/log.md`, whichever way it went:
 *clean* (nothing fired), *carried* (something fired, the count is not up yet, and the signals are named),
 or *DEFERRED* (the pass is due but the working tree is not clean — somebody is editing by hand, which the
 loop allows, and a pass over their edits would mix them into its revert range). A deferral keeps the

@@ -1198,14 +1198,16 @@ is why" — is this file.
   reading is that the *target* is malformed — quoting it differently, escaping
   the `::`, dropping the `re:` all fail the same way. Put every target first and
   every `--window`/`--in` last, and a run of probes goes out in one call.
-- **A driver-side fix does not reach the run that is already going.** `tools/loop.py` is imported
-  once, by a driver process that then lives for hours, so an edit to it — a new fixture service, a
-  changed check, a fixed helper — is invisible to every remaining iteration of *that* run: the
-  acceptance sweep goes on using the code it loaded at start. Nothing says so. `git status` is
-  clean, the ledger shows the same failure iteration after iteration, and the next session reads
-  that as "my fix did not work" rather than "the fix is not loaded". When the thing you changed is
-  the driver rather than the tree, verify it by hand, say in the handoff that the run must be
-  restarted to pick it up, and expect the acceptance line to stay red until it is.
+- **A driver-side fix does not reach the leg that is already going.** `tools/loop.py` is read off
+  disk once per leg, by a process that then lives for up to `--probe-every` sessions, so an edit to
+  it — a new fixture service, a changed check, a fixed helper — is invisible to every remaining
+  iteration of *that leg*: the acceptance sweep goes on using the code it loaded at start. Nothing
+  says so. `git status` is clean, the ledger shows the same failure iteration after iteration, and
+  the next session reads that as "my fix did not work" rather than "the fix is not loaded". The run
+  itself fixes this — it re-spawns the driver at the next leg boundary, which is what the boundary
+  is for — so when the thing you changed is the driver rather than the tree, verify it by hand, say
+  in the handoff that it lands at the next leg, and expect the acceptance line to stay red until
+  then.
 - **An acceptance check reading `E0405: Core\X has no member named y` can be a stage nobody has
   started, not a regression — the tell is whether `crates/nvs-stdlib/src/<x>.rs` exists at all.**
   `examples/reflect.nvs` failed on `Core\Reflect::forObject` for a session that had touched nothing
@@ -1550,7 +1552,7 @@ is why" — is this file.
   `--seed` and `--min` from any session or audit that asks a script what it takes. Both now print
   their docstring's flag block and exit 0, so `--help` is the cheap first move again — but the
   argparse tools are the ones that get this for free, and anything hand-rolled can drift the same
-  way. `loop-supervisor.py` probes every changed `tools/*.py` with `--help` and reads a non-zero
+  way. `loop.py`'s `tools_still_load` probes every changed `tools/*.py` with `--help` and reads a non-zero
   status as a broken script, so a new hand-rolled tool must exit 0 on it.
 - **A `peek.py` window's first printed line is a bad `splice.py` anchor when it lands inside a doc
   comment.** The window starts at the line you asked for, and a wrapped `///` sentence almost always
@@ -1739,8 +1741,8 @@ is why" — is this file.
   command, written `valgrind … && echo OK || echo FAILED`, read red — and the sweep those runs were
   meant to clear had been failing for the whole run. Use `&&`/`||` or `if cmd; then … fi`, never `$?`;
   and put the varying part in `xargs -I@`, which substitutes before any shell sees it.
-- **The loop driver runs the `tools/loop.py` it imported when the run started, so a fix to the
-  acceptance sweep itself cannot go green until the *next* run.** Session 0004 gave the valgrind
+- **The loop driver runs the `tools/loop.py` it read when its leg started, so a fix to the
+  acceptance sweep itself cannot go green until the *next leg*.** Session 0004 gave the valgrind
   sweep an anchored `tools/valgrind.supp` and moved its error exit code from 1 to 97, verified
   twelve of the thirteen fixtures green by hand, committed — and the very next acceptance check
   reported the same thirteen red with `exit 1`. The code on disk cannot produce that string: it

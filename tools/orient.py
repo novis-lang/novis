@@ -101,7 +101,7 @@ current_item: str = ""
 #: directions: what the *goal's* manifest names, which is the goal author's to trim, and which of
 #: those the *item's* paths promote to being printed whole, which changes item to item and is
 #: nobody's to trim. A single row cannot tell a rising manifest from an item that happens to touch
-#: a well-documented file, and a supervisor pass reading only the row spent three passes reporting
+#: a well-documented file, and an optimization pass reading only the row spent three passes reporting
 #: the growth without being able to attribute it. Supervisor-facing only -- these lines are
 #: appended after the pack, so the pack a session reads is byte-identical with and without
 #: `--audit`.

@@ -441,7 +441,7 @@ number; each tree's README owns what a file in it is ([examples](../examples/REA
 rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
 adding to a list when a feature lands.
 
-`--emit-goals` writes a whole `loop.py --chain` under `docs/agent/goals/dossier/` and prints the command
+`--emit-goals` stages a whole chain under `docs/agent/goals/dossier/` and prints the command
 that starts it. **Deciding to run it is the user's**, like `doc-cleanup.md` and `dependency-update.md`,
 for the same reason: it decides what several hundred sessions will do next. The user made that decision
 on 2026-09-04, and `--append-chain` is what it turned into — [goal 50](goals/50-dossier.md) is one

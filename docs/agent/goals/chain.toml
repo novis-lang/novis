@@ -1,4 +1,5 @@
-# The parity program's goal order, read by `python tools/loop.py --chain docs/agent/goals/chain.toml`.
+# The parity program's goal order, and the only chain there is: `python tools/loop.py` reads this file
+# always, not behind a flag.
 #
 # On GOAL REACHED the driver takes the next entry, runs `tools/goal-switch.py` against it so the goal that
 # just passed becomes its floor, copies it into `docs/agent/loop-goal.md`/`.toml`, seeds the handoff from

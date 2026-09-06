@@ -224,15 +224,15 @@ Three steps.
    [loop-authoring.md](../loop-authoring.md) § 1 makes this step zero and § 9 says the numbers move. Set
    the slice budget from what it prints and **say which and why in the commit**. The 200k ceiling is not
    a number to re-derive; the *projection* is.
-3. `python tools/loop.py --chain docs/agent/goals/chain.toml --max-sessions <n>`.
+3. `python tools/loop.py`.
 
 **The driver does the switching, including the first one.** It runs `tools/goal-switch.py` against the
 entry it is about to install — which folds the live goal's whole acceptance list in as that entry's floor
 — copies the three files into `docs/agent/loop-goal.md`/`.toml` and `docs/agent/handoff.md`, retires the
 entry it just left (rule 4), and commits all of that as one switch before starting the session. On
-`GOAL REACHED` it does the same for the next entry and keeps going.
-Without `--chain` the run stops six times and waits for a human, which is the same run with five extra
-nights in it.
+`GOAL REACHED` it does the same for the next entry and keeps going. There is no flag for this and never
+a second chain: a run that stopped at each green goal to wait for a human would be the same run with five
+extra nights in it.
 
 `.loop/chain.json` records which entry is installed, and it is what makes "exactly once per entry" a fact
 rather than an intention: **`goal-switch.py` is not idempotent** — it inserts at a marker it leaves in

@@ -36,7 +36,7 @@ and queueing up the next one.
 
 ## Your evidence is already in this message
 
-The supervisor ran the measurements ahead of this prompt and piped them in: `loop-stats.py` and its
+The run ran the measurements ahead of this prompt and piped them in: `loop-stats.py` and its
 `--attribute` breakdown, `orient.py --audit` with any selector warnings, `playbook.py --dupes`,
 `check-links.py`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines for the leg that
 just ran, and the path to write your report to. **Do not re-run any of them to start with** — that is the
@@ -181,7 +181,7 @@ Anything that looked like a bug in the loop itself, including a measurement that
    - `CLEAN <what you checked>` — no signal fired, nothing applied. Expected, and good.
    - `APPLIED <n> <one-line summary>` — menu items applied and committed.
    - `PROPOSED <n>` — nothing was safely applicable, but the report has proposals.
-   - `BROKEN <what>` — you found something wrong you could not fix inside the menu. The supervisor stops
+   - `BROKEN <what>` — you found something wrong you could not fix inside the menu. The run stops
      the run on this, so it is worth exactly one thing: a loop that would otherwise burn hours.
 
 **Then stop.** Do not re-read the tree to check your own work, do not re-run the measurements to see them

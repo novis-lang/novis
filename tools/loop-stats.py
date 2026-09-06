@@ -721,12 +721,13 @@ def main():
     if not LOGDIR.is_dir():
         sys.exit(f"no {LOGDIR.relative_to(ROOT)} -- nothing has been measured yet")
     pattern = f"{opts.run}-*.log" if opts.run else "*.log"
-    # `<run>-console.log` is the driver's own record of the whole run -- stamped plain text, not
-    # NDJSON, and not one session. It lives in the same directory so a run prunes as a unit; it is
-    # not a transcript, so it is not measured as one. `<stamp>-supervisor.log` is the same thing
-    # one level up: what the supervisor said between legs.
+    # `<run>-console.log` is a leg's own record of itself -- stamped plain text, not NDJSON, and
+    # not one session. It lives in the same directory so a run prunes as a unit; it is not a
+    # transcript, so it is not measured as one. `<stamp>-run.log` is the same thing one level up:
+    # what the run said between legs. `-supervisor.log` is what that file was called before the
+    # supervisor was merged into `loop.py`, and is still on disk in older runs.
     paths = sorted(p for p in LOGDIR.glob(pattern)
-                   if not p.name.endswith(("-console.log", "-supervisor.log")))
+                   if not p.name.endswith(("-console.log", "-run.log", "-supervisor.log")))
     if not paths:
         sys.exit(f"no transcripts match {pattern} in {LOGDIR.relative_to(ROOT)}")
 
