@@ -1,0 +1,272 @@
+# The plain-language decision summary -- the one home for it.
+#
+# One entry per accepted decision, written for a reader who has never opened an ADR.
+# `docs/decisions.md` and `website/src/data/decisions.json` are generated from this file
+# and must never be edited; `python tools/decisions.py --render` writes them both.
+#
+# `digest` is stamped by the tool. Write `adr`, `group`, `headline` and `body`,
+# and let `python tools/decisions.py --apply` fill in the rest.
+
+[[entry]]
+adr      = '0002'
+group    = 'foundations'
+digest   = '50ca7cc2a6fe'
+headline = 'Errors travel home on every call’s return value'
+body     = '''
+When something throws, the failure is handed back as a value that each call checks and passes
+on, rather than by tearing the stack apart the way most languages do. The machine code Novis
+generates carries no tables for the operating system to unwind, so this is the only way it could
+work. It also means a crash deep inside the runtime becomes one failed request instead of a dead
+server.
+'''
+
+[[entry]]
+adr      = '0004'
+group    = 'foundations'
+digest   = 'c8bf8ec79a3a'
+headline = 'Memory is what we spend to buy safety, speed and simplicity'
+body     = '''
+When a design has to give something up, memory goes first. Novis is not built to run in the
+smallest possible footprint, and "this allocates less" is never on its own a reason to change
+anything. The limit is that memory spent must belong to a request, stay under a ceiling the
+operator sets, and be released when that request ends. Growth that tracks total traffic served
+is a leak, not a trade.
+'''
+
+[[entry]]
+adr      = '0006'
+group    = 'foundations'
+digest   = 'ccd69ea7e059'
+headline = 'Running another script starts a sandbox, not a second process'
+body     = '''
+One script can run another. The child gets fresh memory, fresh variables and its own settings,
+and shares nothing with its parent except the compiled code itself. Values passed between them
+are copied, never handed over as a pointer into shared memory. Limits are counted against the
+request that began the whole chain, so a script cannot escape its budget by spawning more work,
+and a child never holds more permission than its parent.
+'''
+
+[[entry]]
+adr      = '0007'
+group    = 'types'
+digest   = '8b4e6f4a441b'
+headline = 'Everything has a written type, and a type never changes on its own'
+body     = '''
+Every variable, parameter, property, constant and return value says what it holds, and that
+never silently becomes something else. A value changes type only where you write the conversion
+out, and a conversion that would lose information fails loudly instead of quietly rounding or
+truncating. There is one escape hatch, for the cases that genuinely are not known ahead of time,
+and it is the only unchecked position in the language.
+'''
+
+[[entry]]
+adr      = '0009'
+group    = 'types'
+digest   = 'be6800a1047c'
+headline = 'Text and raw bytes are two different types'
+body     = '''
+In PHP a string is both a piece of text and a buffer of bytes, and nothing tells you which one
+you are holding — that ambiguity is why it needs two whole families of string functions and a
+global setting to make either half work. Novis splits them. Text is always valid UTF-8 and
+counts the characters a reader sees; raw data is its own type and counts bytes. Turning raw data
+into text is checked, and it can fail.
+'''
+
+[[entry]]
+adr      = '0010'
+group    = 'language'
+digest   = 'ea96ef534bef'
+headline = 'An enum is a named set of numbers, not a set of objects'
+body     = '''
+Novis follows C# here rather than PHP. An enum declares a new type whose values are named
+constants, so a case costs nothing while the program runs and carries no methods, no interfaces
+and no lookup functions. Cases count up from zero unless you give them values. PHP's split
+between plain and backed enums is gone, and so is backing a case with text rather than a number.
+'''
+
+[[entry]]
+adr      = '0024'
+group    = 'security'
+digest   = '3ae31dbffb52'
+headline = 'Untrusted input has its own type, and cannot reach a database or a page'
+body     = '''
+Anything arriving from outside — a form field, a header, a query string — is marked by the
+compiler as untrusted, and the mark spreads to everything built from it. Putting such a value
+into a query, a page, a shell command or a file path is a build error until it passes through
+the matching cleaning function. The mark exists only while compiling, so it costs nothing at all
+while the program runs.
+'''
+
+[[entry]]
+adr      = '0026'
+group    = 'internal'
+digest   = 'e455c8973b2a'
+headline = 'Speed is tracked by counting work done, not by timing a stopwatch'
+body     = '''
+Comparing performance across releases needs numbers that mean the same thing on every machine,
+so the historical record counts instructions executed rather than seconds elapsed. Timing is
+still used, but only for the narrower job of catching a change that made something suddenly
+slower on the very same machine.
+'''
+
+[[entry]]
+adr      = '0029'
+group    = 'syntax'
+digest   = 'b751a66be6b2'
+headline = 'Naming style is checked by the compiler, with no way to switch it off'
+body     = '''
+Type names start with a capital letter, methods and variables start lower case, and constants
+are upper case with underscores. Getting it wrong stops the build rather than producing a
+warning people learn to scroll past. Only the first character is checked, so both spellings of
+an abbreviation are equally fine. Nothing may begin with an underscore, which is what leaves the
+rule with no exceptions to remember.
+'''
+
+[[entry]]
+adr      = '0033'
+group    = 'security'
+digest   = '480f53c4719d'
+headline = 'Confidential values are marked too, and tracked separately'
+body     = '''
+A password, token or key can be declared confidential, and the compiler follows where it flows.
+It answers a different question from the untrusted mark — not "can I trust this" but "where is
+this allowed to go" — and one value can carry both marks at once. Like the other mark it
+disappears before the program runs, so it costs nothing while serving.
+'''
+
+[[entry]]
+adr      = '0034'
+group    = 'syntax'
+digest   = 'f505523d130e'
+headline = '`as` is the only way to convert a value'
+body     = '''
+PHP's old cast spelling no longer parses, so writing `(int)$x` is an error that tells you to
+write `$x as int` instead. One conversion word means one rule to learn, one thing to document,
+and one place where a failed conversion reports itself. The conversion is checked, so it
+complains rather than quietly handing back a wrong number.
+'''
+
+[[entry]]
+adr      = '0035'
+group    = 'types'
+digest   = 'e4df9d78726e'
+headline = 'An `if` accepts any value, and empty things count as false'
+body     = '''
+You can write `if ($rows)` or `while ($line)` without spelling out a comparison, and it means
+what it means in PHP: zero, empty text, an empty list and null are false, and everything else is
+true. Conditions are the one place the language reads a value loosely on your behalf. Everywhere
+else, putting a number where a yes-or-no belongs is still an error you have to fix.
+'''
+
+[[entry]]
+adr      = '0039'
+group    = 'tooling'
+digest   = '807de4fe2cdc'
+headline = 'One formatting style, built in, with nothing to configure'
+body     = '''
+The formatter rewrites a file into a single layout, and running it twice produces byte-identical
+output. There are no options, so no team ever spends an afternoon arguing about them. The style
+follows the current PHP community standard everywhere the two languages look alike, and adds
+explicit rules for the parts PHP never had. It runs when you ask for it, never behind your back.
+'''
+
+[[entry]]
+adr      = '0043'
+group    = 'language'
+digest   = '88f61e01a639'
+headline = 'There are no traits; interfaces carry the shared code instead'
+body     = '''
+A trait bundles two unrelated jobs — sharing behaviour and sharing state — behind one
+copy-and-paste mechanism with its own conflict rules on top. Novis drops it. An interface method
+may carry a body, which covers shared behaviour, and a single line of delegation hands a whole
+interface to an object that already implements it, which covers the rest. Both are ordinary
+inheritance rules you already know.
+'''
+
+[[entry]]
+adr      = '0049'
+group    = 'syntax'
+digest   = '5eff2413c64b'
+headline = 'The opening tag is `<?nvs`, and `exit` is the only way to stop'
+body     = '''
+`<?php` no longer opens a block of code, and `die` no longer ends a script; both report an error
+naming the spelling that survived. They were exact duplicates of forms already kept, differing
+in nothing whatsoever. Since PHP source has to go through a conversion step anyway, carrying a
+second name for the same thing would cost every reader and buy nobody anything.
+'''
+
+[[entry]]
+adr      = '0052'
+group    = 'foundations'
+digest   = '9e29ab1a5d26'
+headline = 'Four doors stay shut, and they are the ones attackers use'
+body     = '''
+Novis will never call into C libraries directly, never treat a file path as a hidden network
+address, never let two requests share memory, and never run a piece of text as code. Each was a
+large part of what made PHP deployments breakable, and closing them is also what lets the
+compiler promise anything at all about where data goes. Work that genuinely needs one of them
+goes through a sandboxed extension instead.
+'''
+
+[[entry]]
+adr      = '0067'
+group    = 'core'
+digest   = '4bcaba316357'
+headline = 'There is one database interface, and every query is prepared'
+body     = '''
+A single built-in replaces the four separate database extensions PHP ships. A program asks for a
+connection by name, and the credentials live in a configuration file the application itself
+cannot write. There is no way to build a query by pasting text together: every statement is
+prepared and its values are sent separately, so the most common way to be breached is simply not
+expressible.
+'''
+
+[[entry]]
+adr      = '0072'
+group    = 'language'
+digest   = '3a3698aff52e'
+headline = 'Concurrency is one call that returns when everything has finished'
+body     = '''
+You hand it a group of things to do and get all their results back, each with its own type.
+Nothing is still running when the call returns: if one part fails, the others are stopped and
+the failure is passed on, and if the deadline passes, everything is stopped. There is no way to
+accidentally leave work running in the background after a request is over.
+'''
+
+[[entry]]
+adr      = '0079'
+group    = 'language'
+digest   = 'd0d2eac53d8f'
+headline = 'Tests are part of the language, not a library you install'
+body     = '''
+Marking a method as a test is all it takes. The compiler collects them while it builds, so a
+duplicate or malformed test is a build error rather than a test that silently never ran. Each
+test runs in its own sandbox, so nothing one test does can leak into the next. The tricks test
+frameworks usually need are unnecessary here, because the compiler can do the same work with
+real types.
+'''
+
+[[entry]]
+adr      = '0080'
+group    = 'foundations'
+digest   = 'f5e52092d249'
+headline = 'Novis is built for platforms that run other people’s code'
+body     = '''
+The language is aimed first at teams whose servers run code, or hold data, they did not write
+and cannot fully trust: hosting platforms, agencies running many clients on one fleet,
+marketplaces with customer plugins, and backends where a leaked secret is a reportable event.
+For those teams the isolation rules and the safety marks are not features to weigh against a
+rival's raw speed — they are the reason to switch at all.
+'''
+
+[[entry]]
+adr      = '0094'
+group    = 'syntax'
+digest   = 'dd24721de507'
+headline = 'Every class member says whether it is public, protected or private'
+body     = '''
+There is no default, because there is no sensible thing to default to. Leaving the word off is
+an error, in exactly the way leaving off a type is. PHP's habit of quietly making an untagged
+member public is gone, and so is the guessing that goes with reading a class somebody else
+wrote.
+'''

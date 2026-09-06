@@ -84,6 +84,7 @@ export default defineConfig({
             { label: 'Hello, World!', link: '/docs/getting-started/hello-world/' },
           ],
         },
+        { label: 'What Novis has decided', link: '/docs/decisions/' },
         { label: 'Release notes', link: '/docs/release-notes/' },
         {
           label: 'Core reference',

@@ -1,0 +1,186 @@
+{
+  "groups": [
+    {
+      "id": "foundations",
+      "title": "What Novis is",
+      "blurb": "Who the language is for, what it refuses to be, and the ground the rest stands on: how errors travel, what a running script is, what ships in the box.",
+      "entries": [
+        {
+          "adr": "0002",
+          "headline": "Errors travel home on every call’s return value",
+          "body": "When something throws, the failure is handed back as a value that each call checks and passes on, rather than by tearing the stack apart the way most languages do. The machine code Novis generates carries no tables for the operating system to unwind, so this is the only way it could work. It also means a crash deep inside the runtime becomes one failed request instead of a dead server.",
+          "url": "/docs/adr/0002/"
+        },
+        {
+          "adr": "0004",
+          "headline": "Memory is what we spend to buy safety, speed and simplicity",
+          "body": "When a design has to give something up, memory goes first. Novis is not built to run in the smallest possible footprint, and \"this allocates less\" is never on its own a reason to change anything. The limit is that memory spent must belong to a request, stay under a ceiling the operator sets, and be released when that request ends. Growth that tracks total traffic served is a leak, not a trade.",
+          "url": "/docs/adr/0004/"
+        },
+        {
+          "adr": "0006",
+          "headline": "Running another script starts a sandbox, not a second process",
+          "body": "One script can run another. The child gets fresh memory, fresh variables and its own settings, and shares nothing with its parent except the compiled code itself. Values passed between them are copied, never handed over as a pointer into shared memory. Limits are counted against the request that began the whole chain, so a script cannot escape its budget by spawning more work, and a child never holds more permission than its parent.",
+          "url": "/docs/adr/0006/"
+        },
+        {
+          "adr": "0052",
+          "headline": "Four doors stay shut, and they are the ones attackers use",
+          "body": "Novis will never call into C libraries directly, never treat a file path as a hidden network address, never let two requests share memory, and never run a piece of text as code. Each was a large part of what made PHP deployments breakable, and closing them is also what lets the compiler promise anything at all about where data goes. Work that genuinely needs one of them goes through a sandboxed extension instead.",
+          "url": "/docs/adr/0052/"
+        },
+        {
+          "adr": "0080",
+          "headline": "Novis is built for platforms that run other people’s code",
+          "body": "The language is aimed first at teams whose servers run code, or hold data, they did not write and cannot fully trust: hosting platforms, agencies running many clients on one fleet, marketplaces with customer plugins, and backends where a leaked secret is a reportable event. For those teams the isolation rules and the safety marks are not features to weigh against a rival's raw speed — they are the reason to switch at all.",
+          "url": "/docs/adr/0080/"
+        }
+      ]
+    },
+    {
+      "id": "types",
+      "title": "Types and values",
+      "blurb": "What a value can be and how its type behaves: the type system's own rules, the scalar types, conversion, equality, and the shapes a type can take.",
+      "entries": [
+        {
+          "adr": "0007",
+          "headline": "Everything has a written type, and a type never changes on its own",
+          "body": "Every variable, parameter, property, constant and return value says what it holds, and that never silently becomes something else. A value changes type only where you write the conversion out, and a conversion that would lose information fails loudly instead of quietly rounding or truncating. There is one escape hatch, for the cases that genuinely are not known ahead of time, and it is the only unchecked position in the language.",
+          "url": "/docs/adr/0007/"
+        },
+        {
+          "adr": "0009",
+          "headline": "Text and raw bytes are two different types",
+          "body": "In PHP a string is both a piece of text and a buffer of bytes, and nothing tells you which one you are holding — that ambiguity is why it needs two whole families of string functions and a global setting to make either half work. Novis splits them. Text is always valid UTF-8 and counts the characters a reader sees; raw data is its own type and counts bytes. Turning raw data into text is checked, and it can fail.",
+          "url": "/docs/adr/0009/"
+        },
+        {
+          "adr": "0035",
+          "headline": "An `if` accepts any value, and empty things count as false",
+          "body": "You can write `if ($rows)` or `while ($line)` without spelling out a comparison, and it means what it means in PHP: zero, empty text, an empty list and null are false, and everything else is true. Conditions are the one place the language reads a value loosely on your behalf. Everywhere else, putting a number where a yes-or-no belongs is still an error you have to fix.",
+          "url": "/docs/adr/0035/"
+        }
+      ]
+    },
+    {
+      "id": "syntax",
+      "title": "How code is written",
+      "blurb": "Spelling. What parses and what does not, which PHP forms were kept and which were rejected, naming, visibility, and the shape of a file.",
+      "entries": [
+        {
+          "adr": "0029",
+          "headline": "Naming style is checked by the compiler, with no way to switch it off",
+          "body": "Type names start with a capital letter, methods and variables start lower case, and constants are upper case with underscores. Getting it wrong stops the build rather than producing a warning people learn to scroll past. Only the first character is checked, so both spellings of an abbreviation are equally fine. Nothing may begin with an underscore, which is what leaves the rule with no exceptions to remember.",
+          "url": "/docs/adr/0029/"
+        },
+        {
+          "adr": "0034",
+          "headline": "`as` is the only way to convert a value",
+          "body": "PHP's old cast spelling no longer parses, so writing `(int)$x` is an error that tells you to write `$x as int` instead. One conversion word means one rule to learn, one thing to document, and one place where a failed conversion reports itself. The conversion is checked, so it complains rather than quietly handing back a wrong number.",
+          "url": "/docs/adr/0034/"
+        },
+        {
+          "adr": "0049",
+          "headline": "The opening tag is `<?nvs`, and `exit` is the only way to stop",
+          "body": "`<?php` no longer opens a block of code, and `die` no longer ends a script; both report an error naming the spelling that survived. They were exact duplicates of forms already kept, differing in nothing whatsoever. Since PHP source has to go through a conversion step anyway, carrying a second name for the same thing would cost every reader and buy nobody anything.",
+          "url": "/docs/adr/0049/"
+        },
+        {
+          "adr": "0094",
+          "headline": "Every class member says whether it is public, protected or private",
+          "body": "There is no default, because there is no sensible thing to default to. Leaving the word off is an error, in exactly the way leaving off a type is. PHP's habit of quietly making an untagged member public is gone, and so is the guessing that goes with reading a class somebody else wrote.",
+          "url": "/docs/adr/0094/"
+        }
+      ]
+    },
+    {
+      "id": "language",
+      "title": "Language features",
+      "blurb": "What the language gives you to build with: classes and their members, interfaces, closures, iteration, concurrency, attributes, testing.",
+      "entries": [
+        {
+          "adr": "0010",
+          "headline": "An enum is a named set of numbers, not a set of objects",
+          "body": "Novis follows C# here rather than PHP. An enum declares a new type whose values are named constants, so a case costs nothing while the program runs and carries no methods, no interfaces and no lookup functions. Cases count up from zero unless you give them values. PHP's split between plain and backed enums is gone, and so is backing a case with text rather than a number.",
+          "url": "/docs/adr/0010/"
+        },
+        {
+          "adr": "0043",
+          "headline": "There are no traits; interfaces carry the shared code instead",
+          "body": "A trait bundles two unrelated jobs — sharing behaviour and sharing state — behind one copy-and-paste mechanism with its own conflict rules on top. Novis drops it. An interface method may carry a body, which covers shared behaviour, and a single line of delegation hands a whole interface to an object that already implements it, which covers the rest. Both are ordinary inheritance rules you already know.",
+          "url": "/docs/adr/0043/"
+        },
+        {
+          "adr": "0072",
+          "headline": "Concurrency is one call that returns when everything has finished",
+          "body": "You hand it a group of things to do and get all their results back, each with its own type. Nothing is still running when the call returns: if one part fails, the others are stopped and the failure is passed on, and if the deadline passes, everything is stopped. There is no way to accidentally leave work running in the background after a request is over.",
+          "url": "/docs/adr/0072/"
+        },
+        {
+          "adr": "0079",
+          "headline": "Tests are part of the language, not a library you install",
+          "body": "Marking a method as a test is all it takes. The compiler collects them while it builds, so a duplicate or malformed test is a build error rather than a test that silently never ran. Each test runs in its own sandbox, so nothing one test does can leak into the next. The tricks test frameworks usually need are unnecessary here, because the compiler can do the same work with real types.",
+          "url": "/docs/adr/0079/"
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "title": "Security and isolation",
+      "blurb": "The decisions that exist because the code and the data are not trusted: qualifiers on values, what a request can reach, what an extension may do, what the doors are.",
+      "entries": [
+        {
+          "adr": "0024",
+          "headline": "Untrusted input has its own type, and cannot reach a database or a page",
+          "body": "Anything arriving from outside — a form field, a header, a query string — is marked by the compiler as untrusted, and the mark spreads to everything built from it. Putting such a value into a query, a page, a shell command or a file path is a build error until it passes through the matching cleaning function. The mark exists only while compiling, so it costs nothing at all while the program runs.",
+          "url": "/docs/adr/0024/"
+        },
+        {
+          "adr": "0033",
+          "headline": "Confidential values are marked too, and tracked separately",
+          "body": "A password, token or key can be declared confidential, and the compiler follows where it flows. It answers a different question from the untrusted mark — not \"can I trust this\" but \"where is this allowed to go\" — and one value can carry both marks at once. Like the other mark it disappears before the program runs, so it costs nothing while serving.",
+          "url": "/docs/adr/0033/"
+        }
+      ]
+    },
+    {
+      "id": "core",
+      "title": "The standard library and runtime",
+      "blurb": "What is built in and how it behaves: the Core namespace's own conventions, the components that ship with it, and how the runtime serves a request.",
+      "entries": [
+        {
+          "adr": "0067",
+          "headline": "There is one database interface, and every query is prepared",
+          "body": "A single built-in replaces the four separate database extensions PHP ships. A program asks for a connection by name, and the credentials live in a configuration file the application itself cannot write. There is no way to build a query by pasting text together: every statement is prepared and its values are sent separately, so the most common way to be breached is simply not expressible.",
+          "url": "/docs/adr/0067/"
+        }
+      ]
+    },
+    {
+      "id": "tooling",
+      "title": "Tools, editors and shipping",
+      "blurb": "Everything around the language: the command-line tool, the editor experience, formatting, packaging, deployment, and what the tools may and may not do for you.",
+      "entries": [
+        {
+          "adr": "0039",
+          "headline": "One formatting style, built in, with nothing to configure",
+          "body": "The formatter rewrites a file into a single layout, and running it twice produces byte-identical output. There are no options, so no team ever spends an afternoon arguing about them. The style follows the current PHP community standard everywhere the two languages look alike, and adds explicit rules for the parts PHP never had. It runs when you ask for it, never behind your back.",
+          "url": "/docs/adr/0039/"
+        }
+      ]
+    },
+    {
+      "id": "internal",
+      "title": "Engineering decisions",
+      "blurb": "Decisions about how Novis itself is built and measured. Real decisions, kept for the record, but a reader learning the language can skip the group entirely.",
+      "entries": [
+        {
+          "adr": "0026",
+          "headline": "Speed is tracked by counting work done, not by timing a stopwatch",
+          "body": "Comparing performance across releases needs numbers that mean the same thing on every machine, so the historical record counts instructions executed rather than seconds elapsed. Timing is still used, but only for the narrower job of catching a change that made something suddenly slower on the very same machine.",
+          "url": "/docs/adr/0026/"
+        }
+      ]
+    }
+  ]
+}
